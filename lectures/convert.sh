@@ -29,7 +29,7 @@ if [ ! -f "$CSL_FILE" ]; then
     exit 1
 fi
 
-pandoc "$INPUT_FILE" \
+pandoc --verbose "$INPUT_FILE" \
     --bibliography="$BIB_FILE" \
     --citeproc \
     --csl="$CSL_FILE" \

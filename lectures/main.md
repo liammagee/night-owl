@@ -7,6 +7,10 @@
 
 This process [@pippin2010hegel] is not merely logical but ontological, driving change and development in all spheres.
 
+Authors:
+
+[@hegel2025phenomenology; @kojeve1980introduction; @hyppolite1974genesis; @houlgate2012hegel; @heidegger1988hegel; @pippin2010hegel; @hegel2014science; @vzivzek2020hegel]
+
 ### Aufhebung (Sublation)
 This crucial term means to simultaneously:
 1.  Negate or abolish

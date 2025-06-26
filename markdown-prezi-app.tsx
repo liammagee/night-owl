@@ -1,0 +1,619 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Upload, ZoomIn, ZoomOut, Home, Play } from 'lucide-react';
+
+type Slide = {
+  id: number;
+  content: string;
+  position: { x: number; y: number };
+  parsed: string;
+};
+
+const MarkdownPreziApp = () => {
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [isPresenting, setIsPresenting] = useState(false);
+  const [layoutType, setLayoutType] = useState('spiral');
+  const [focusedSlide, setFocusedSlide] = useState(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef(null);
+
+  // Sample markdown content for demo
+  const sampleMarkdown = `# Welcome to Markdown Prezi
+Your presentation starts here with smooth zoom transitions.
+
+---
+
+## What is This?
+- A zoomable presentation app
+- Loads Markdown files as slides
+- Navigate with arrow keys
+- Zoom and pan like Prezi
+
+---
+
+## Key Features
+### Navigation
+Use arrow keys or click the controls
+
+### Zooming
+Mouse wheel or zoom buttons
+
+### Panning
+Drag to move around the canvas
+
+---
+
+## Markdown Support
+- **Bold text**
+- *Italic text*
+- \`Code snippets\`
+- Lists and bullets
+- Headers and more!
+
+---
+
+## How to Use
+1. Upload your Markdown file
+2. Navigate with ← → arrows
+3. Zoom with mouse wheel
+4. Drag to pan around
+5. Enter presentation mode
+
+---
+
+## Thank You!
+Start creating your own presentations with Markdown files.
+
+*Happy presenting!*`;
+
+  // Calculate slide positioning based on layout type
+  const calculateSlidePosition = (index, total) => {
+    const spacing = 800;
+    
+    switch (layoutType) {
+      case 'linear':
+        return { x: index * spacing, y: 0 };
+        
+      case 'grid':
+        const cols = Math.ceil(Math.sqrt(total));
+        const gridRow = Math.floor(index / cols);
+        const col = index % cols;
+        return { x: col * spacing, y: gridRow * spacing };
+        
+      case 'circle':
+        if (index === 0) return { x: 0, y: 0 };
+        const circleAngle = (index - 1) / (total - 1) * 2 * Math.PI;
+        const circleRadius = 600;
+        return {
+          x: Math.cos(circleAngle) * circleRadius,
+          y: Math.sin(circleAngle) * circleRadius
+        };
+        
+      case 'spiral':
+        if (index === 0) return { x: 0, y: 0 };
+        const spiralAngle = (index / total) * 4 * Math.PI;
+        const spiralRadius = 300 + (index * 100);
+        return {
+          x: Math.cos(spiralAngle) * spiralRadius,
+          y: Math.sin(spiralAngle) * spiralRadius
+        };
+        
+      case 'tree':
+        if (index === 0) return { x: 0, y: 0 };
+        const level = Math.floor(Math.log2(index + 1));
+        const posInLevel = index - (Math.pow(2, level) - 1);
+        const maxInLevel = Math.pow(2, level);
+        const branchWidth = spacing * maxInLevel;
+        return {
+          x: (posInLevel - maxInLevel / 2 + 0.5) * (branchWidth / maxInLevel),
+          y: level * spacing
+        };
+        
+      case 'zigzag':
+        const zigzagRow = Math.floor(index / 3);
+        const zigzagCol = index % 3;
+        const isEvenRow = zigzagRow % 2 === 0;
+        return {
+          x: isEvenRow ? zigzagCol * spacing : (2 - zigzagCol) * spacing,
+          y: zigzagRow * spacing
+        };
+        
+      default:
+        return { x: 0, y: 0 };
+    }
+  };
+
+  // Enhanced markdown parser
+  const parseMarkdownContent = (content) => {
+    let html = content;
+    
+    console.log('Original content:', content);
+    
+    // Handle code blocks first
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>');
+    
+    // Headers - simplified and more robust approach
+    html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+    
+    console.log('After headers:', html);
+    
+    // Bold and italic
+    html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    
+    // Handle lists
+    html = html.replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li>$1</li>');
+    html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\s*)+/gs, '<ul>$&</ul>');
+    
+    // Blockquotes
+    html = html.replace(/^>\s+(.+)$/gm, '<blockquote>$1</blockquote>');
+    
+    // Horizontal rules
+    html = html.replace(/^---\s*$/gm, '<hr>');
+    
+    // Convert remaining text to paragraphs
+    const lines = html.split('\n');
+    const processedLines = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.match(/^<(h[1-6]|ul|ol|li|blockquote|pre|hr|div)/)) {
+        return line;
+      }
+      return trimmed ? `<p>${trimmed}</p>` : '';
+    });
+    
+    html = processedLines.join('\n');
+    html = html.replace(/\n+/g, '\n');
+    html = html.replace(/<p>\s*<\/p>/g, '');
+    
+    console.log('Final HTML:', html);
+    return html;
+  };
+
+  // Parse markdown into slides
+  const parseMarkdown = (markdown) => {
+    const slideTexts = markdown.split('---').map(slide => slide.trim()).filter(slide => slide);
+    return slideTexts.map((text, index) => ({
+      id: index,
+      content: text,
+      position: calculateSlidePosition(index, slideTexts.length),
+      parsed: parseMarkdownContent(text)
+    }));
+  };
+
+  // Initialize with sample content
+  useEffect(() => {
+    const initialSlides = parseMarkdown(sampleMarkdown);
+    setSlides(initialSlides);
+  }, []);
+
+  // Recalculate positions when layout changes
+  useEffect(() => {
+    if (slides.length > 0) {
+      const updatedSlides = slides.map((slide, index) => ({
+        ...slide,
+        position: calculateSlidePosition(index, slides.length)
+      }));
+      setSlides(updatedSlides);
+    }
+  }, [layoutType]);
+
+  // File upload handler
+  const handleFileUpload = (event) => {
+    if (!event.target?.files) {
+      return;
+    }
+    const file = event.target.files[0];
+    if (file && (file.type === 'text/markdown' || file.name.endsWith('.md'))) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          const content = e.target.result as string;
+          const newSlides = parseMarkdown(content);
+          setSlides(newSlides);
+          setCurrentSlide(0);
+          goToSlide(0);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Navigate to specific slide with smooth transition
+  const goToSlide = useCallback((slideIndex) => {
+    if (slideIndex < 0 || slideIndex >= slides.length) return;
+    
+    const slide = slides[slideIndex];
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const targetZoom = 1.2;
+    const viewportCenterX = canvas.clientWidth / 2;
+    const viewportCenterY = canvas.clientHeight / 2;
+    const slideCenterX = slide.position.x;
+    const slideCenterY = slide.position.y;
+    
+    const targetPan = {
+      x: viewportCenterX - (slideCenterX * targetZoom),
+      y: viewportCenterY - (slideCenterY * targetZoom)
+    };
+
+    setCurrentSlide(slideIndex);
+    setFocusedSlide(null); // Clear focus when using arrow navigation
+    setZoom(targetZoom);
+    setPan(targetPan);
+  }, [slides]);
+
+  // Handle double click on slide to zoom in and focus
+  const handleSlideDoubleClick = (slideIndex) => {
+    const slide = slides[slideIndex];
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const targetZoom = 2;
+    const viewportCenterX = canvas.clientWidth / 2;
+    const viewportCenterY = canvas.clientHeight / 2;
+    const slideCenterX = slide.position.x;
+    const slideCenterY = slide.position.y;
+    
+    const targetPan = {
+      x: viewportCenterX - (slideCenterX * targetZoom),
+      y: viewportCenterY - (slideCenterY * targetZoom)
+    };
+
+    setCurrentSlide(slideIndex);
+    setFocusedSlide(slideIndex); // Focus the slide
+    setZoom(targetZoom);
+    setPan(targetPan);
+  };
+
+  // Zoom handlers
+  const handleZoomIn = () => {
+    setZoom(Math.min(3, zoom * 1.2));
+  };
+
+  const handleZoomOut = () => {
+    setZoom(Math.max(0.1, zoom * 0.8));
+  };
+
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setFocusedSlide(null); // Clear focus when resetting view
+  };
+
+  // Wheel zoom effect
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (isPresenting) return;
+      e.preventDefault();
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.1, Math.min(3, zoom * zoomFactor));
+      setZoom(newZoom);
+    };
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.addEventListener('wheel', handleWheel, { passive: false });
+      return () => canvas.removeEventListener('wheel', handleWheel);
+    }
+  }, [zoom, isPresenting]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        goToSlide(currentSlide + 1);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToSlide(currentSlide - 1);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToSlide(0);
+      } else if (e.key === 'Escape') {
+        setIsPresenting(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [currentSlide, goToSlide]);
+
+  // Mouse handlers for panning
+  const handleMouseDown = (e) => {
+    if (isPresenting) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setPanStart(pan);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || isPresenting) return;
+    const deltaX = e.clientX - dragStart.x;
+    const deltaY = e.clientY - dragStart.y;
+    setPan({
+      x: panStart.x + deltaX,
+      y: panStart.y + deltaY
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  return (
+    <div className="w-full h-screen bg-gray-900 text-white relative overflow-hidden">
+      {/* Controls */}
+      {!isPresenting && (
+        <div className="absolute top-4 left-4 z-10 flex gap-2">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            <Upload size={16} />
+            Load Markdown
+          </button>
+          
+          <select
+            value={layoutType}
+            onChange={(e) => setLayoutType(e.target.value)}
+            className="px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-blue-500 outline-none"
+          >
+            <option value="spiral">Spiral</option>
+            <option value="linear">Linear</option>
+            <option value="grid">Grid</option>
+            <option value="circle">Circle</option>
+            <option value="tree">Tree</option>
+            <option value="zigzag">Zigzag</option>
+          </select>
+          
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".md,.markdown"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+        </div>
+      )}
+
+      {/* Zoom Controls */}
+      {!isPresenting && (
+        <div className="absolute top-4 right-4 z-10 flex gap-2">
+          <button
+            onClick={handleZoomIn}
+            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          >
+            <ZoomIn size={16} />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          >
+            <ZoomOut size={16} />
+          </button>
+          <button
+            onClick={resetView}
+            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          >
+            <Home size={16} />
+          </button>
+          <button
+            onClick={() => setIsPresenting(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+          >
+            <Play size={16} />
+            Present
+          </button>
+        </div>
+      )}
+
+      {/* Navigation Controls */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-4">
+        <button
+          onClick={() => goToSlide(currentSlide - 1)}
+          disabled={currentSlide === 0}
+          className="p-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 rounded-full transition-colors"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        
+        <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg">
+          <span className="text-sm">
+            {currentSlide + 1} / {slides.length}
+          </span>
+          {slides.length > 0 && (
+            <div className="flex gap-1 ml-2">
+              {slides.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => goToSlide(index)}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    index === currentSlide ? 'bg-blue-500' : 'bg-gray-600'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => goToSlide(currentSlide + 1)}
+          disabled={currentSlide === slides.length - 1}
+          className="p-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 rounded-full transition-colors"
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+
+      {/* Presentation Mode Toggle */}
+      {isPresenting && (
+        <button
+          onClick={() => setIsPresenting(false)}
+          className="absolute top-4 right-4 z-10 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+        >
+          Exit Presentation
+        </button>
+      )}
+
+      {/* Canvas */}
+      <div
+        ref={canvasRef}
+        className="w-full h-full cursor-grab active:cursor-grabbing"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: 'center center',
+          transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+        }}
+      >
+        <div className="relative w-full h-full flex items-center justify-center">
+          {/* Slides - all slides rendered with proper z-index */}
+          {slides.map((slide, index) => {
+            const isFocused = index === focusedSlide;
+            const isCurrent = index === currentSlide;
+            
+            return (
+              <div
+                key={slide.id}
+                className={`absolute bg-white text-gray-900 rounded-xl shadow-2xl transition-all duration-300 cursor-pointer ${
+                  isFocused 
+                    ? 'ring-4 ring-purple-500 shadow-purple-500/50' 
+                    : isCurrent 
+                      ? 'ring-4 ring-blue-500' 
+                      : 'hover:shadow-3xl hover:scale-105'
+                }`}
+                style={{
+                  left: `${slide.position.x}px`,
+                  top: `${slide.position.y}px`,
+                  width: '600px',
+                  minHeight: '400px',
+                  transform: 'translate(-50%, -50%)',
+                  opacity: isPresenting && index !== currentSlide ? 0.3 : 1,
+                  zIndex: isFocused ? 1000 : 1, // Much higher z-index for focused slides
+                  position: 'absolute'
+                }}
+                onDoubleClick={() => handleSlideDoubleClick(index)}
+              >
+                <div className="p-8 h-full">
+                  <style>{`
+                    .slide-content h1 { 
+                      font-size: 2.5rem; 
+                      font-weight: bold; 
+                      margin-bottom: 1rem; 
+                      color: #1f2937; 
+                      line-height: 1.2;
+                    }
+                    .slide-content h2 { 
+                      font-size: 2rem; 
+                      font-weight: 600; 
+                      margin-bottom: 0.75rem; 
+                      color: #1f2937; 
+                      line-height: 1.3;
+                    }
+                    .slide-content h3 { 
+                      font-size: 1.5rem; 
+                      font-weight: 500; 
+                      margin-bottom: 0.5rem; 
+                      color: #1f2937; 
+                      line-height: 1.4;
+                    }
+                    .slide-content p { 
+                      margin-bottom: 1rem; 
+                      color: #374151; 
+                      line-height: 1.6; 
+                    }
+                    .slide-content ul { 
+                      margin-bottom: 1rem; 
+                      padding-left: 1.5rem;
+                    }
+                    .slide-content li { 
+                      margin-bottom: 0.5rem; 
+                      color: #374151; 
+                    }
+                    .slide-content strong { 
+                      font-weight: bold; 
+                    }
+                    .slide-content em { 
+                      font-style: italic; 
+                    }
+                    .slide-content code { 
+                      background-color: #f3f4f6; 
+                      padding: 0.25rem 0.5rem; 
+                      border-radius: 0.25rem; 
+                      font-family: monospace; 
+                      font-size: 0.875rem; 
+                    }
+                  `}</style>
+                  <div 
+                    className="slide-content"
+                    dangerouslySetInnerHTML={{ __html: slide.parsed }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Connection Lines */}
+          <svg className="absolute inset-0 pointer-events-none" style={{ width: '200%', height: '200%' }}>
+            {slides.map((slide, index) => {
+              if (index === slides.length - 1) return null;
+              const nextSlide = slides[index + 1];
+              return (
+                <line
+                  key={`line-${index}`}
+                  x1={slide.position.x + 300}
+                  y1={slide.position.y + 200}
+                  x2={nextSlide.position.x + 300}
+                  y2={nextSlide.position.y + 200}
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                />
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      {slides.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-4">Welcome to Markdown Prezi</h2>
+            <p className="text-gray-400 mb-4">Upload a Markdown file to get started</p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            >
+              Upload Markdown File
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MarkdownPreziApp;
