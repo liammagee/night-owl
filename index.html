@@ -2,38 +2,1113 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://cdn.tailwindcss.com 'unsafe-inline';
+        style-src 'self' 'unsafe-inline';
+        font-src 'self' data:;
+        img-src 'self' data:;
+        connect-src 'self';
+        worker-src 'self' blob:;
+    ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="styles.css">
+    <title>Hegel Pedagogy AI - Advanced Editor & Presentations</title>
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="orchestrator/style.css">
+    <style>
+        /* View Switcher Styles */
+        .view-switcher {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            display: flex;
+            gap: 5px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .view-switcher button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .view-switcher button.active {
+            background: #007acc;
+            color: white;
+            border-color: #007acc;
+        }
+        
+        .view-switcher button:hover:not(.active) {
+            background: #f0f0f0;
+        }
+        
+        /* View containers */
+        .view-container {
+            display: none;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .view-container.active {
+            display: flex;
+        }
+        
+        /* Editor view styles */
+        #editor-view {
+            flex-direction: row;
+        }
+        
+        /* Presentation view styles */
+        #presentation-view {
+            background: #1a1a1a;
+            color: white;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Force slide content to be light with dark text */
+        #presentation-view .slide-content,
+        #presentation-view .slide-content *,
+        #presentation-root div[style*="background"],
+        #presentation-root .bg-white {
+            background-color: white !important;
+            color: #1f2937 !important;
+        }
+        
+        /* Override any inherited dark styling */
+        #presentation-root h1,
+        #presentation-root h2, 
+        #presentation-root h3,
+        #presentation-root h4,
+        #presentation-root h5,
+        #presentation-root h6,
+        #presentation-root p,
+        #presentation-root li,
+        #presentation-root div {
+            color: #1f2937 !important;
+        }
+        
+        /* Dark theme for view switcher in presentation mode */
+        body.presentation-mode .view-switcher {
+            background: rgba(0, 0, 0, 0.8);
+        }
+        
+        body.presentation-mode .view-switcher button {
+            background: #333;
+            color: white;
+            border-color: #555;
+        }
+        
+        body.presentation-mode .view-switcher button.active {
+            background: #007acc;
+            border-color: #007acc;
+        }
+        
+        body.presentation-mode .view-switcher button:hover:not(.active) {
+            background: #444;
+        }
+    </style>
+    
+    <!-- Scripts -->
+    <script id="marked-script" src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Tailwind-inspired utility classes for presentation view */
+        .w-full { width: 100%; }
+        .h-full { height: 100%; }
+        .h-screen { height: 100vh; }
+        .bg-gray-900 { background-color: #1a1a1a; }
+        .bg-gray-800 { background-color: #2d2d2d; }
+        .bg-gray-700 { background-color: #404040; }
+        .bg-gray-600 { background-color: #525252; }
+        .bg-blue-600 { background-color: #2563eb; }
+        .bg-blue-700 { background-color: #1d4ed8; }
+        .bg-green-600 { background-color: #16a34a; }
+        .bg-green-700 { background-color: #15803d; }
+        .bg-red-600 { background-color: #dc2626; }
+        .bg-red-700 { background-color: #b91c1c; }
+        .bg-blue-500 { background-color: #3b82f6; }
+        .text-white { color: white; }
+        .text-gray-900 { color: #1a1a1a; }
+        .text-gray-600 { color: #525252; }
+        .text-sm { font-size: 0.875rem; }
+        .relative { position: relative; }
+        .absolute { position: absolute; }
+        .fixed { position: fixed; }
+        .top-4 { top: 1rem; }
+        .left-4 { left: 1rem; }
+        .right-4 { right: 1rem; }
+        .bottom-4 { bottom: 1rem; }
+        .left-1\/2 { left: 50%; }
+        .z-10 { z-index: 10; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-center { justify-items: center; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-4 { gap: 1rem; }
+        .gap-1 { gap: 0.25rem; }
+        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .p-2 { padding: 0.5rem; }
+        .p-3 { padding: 0.75rem; }
+        .p-8 { padding: 2rem; }
+        .ml-2 { margin-left: 0.5rem; }
+        .mb-1 { margin-bottom: 0.25rem; }
+        .mb-0\.75 { margin-bottom: 0.1875rem; }
+        .mb-0\.5 { margin-bottom: 0.125rem; }
+        .rounded-lg { border-radius: 0.5rem; }
+        .rounded-xl { border-radius: 0.75rem; }
+        .rounded-full { border-radius: 9999px; }
+        .cursor-pointer { cursor: pointer; }
+        .cursor-grab { cursor: grab; }
+        .overflow-hidden { overflow: hidden; }
+        .transform { transform: var(--tw-transform); }
+        .-translate-x-1\/2 { --tw-translate-x: -50%; transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y)); }
+        .transition-colors { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+        .duration-300 { transition-duration: 300ms; }
+        .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+        .shadow-purple-500\/50 { box-shadow: 0 25px 50px -12px rgba(168, 85, 247, 0.5); }
+        .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+        .hover\:bg-gray-600:hover { background-color: #525252; }
+        .hover\:bg-green-700:hover { background-color: #15803d; }
+        .hover\:bg-red-700:hover { background-color: #b91c1c; }
+        .hover\:shadow-3xl:hover { box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.3); }
+        .hover\:scale-105:hover { transform: scale(1.05); }
+        .disabled\:bg-gray-800:disabled { background-color: #2d2d2d; }
+        .disabled\:opacity-50:disabled { opacity: 0.5; }
+        .active\:cursor-grabbing:active { cursor: grabbing; }
+        .border { border-width: 1px; }
+        .border-gray-600 { border-color: #525252; }
+        .focus\:border-blue-500:focus { border-color: #3b82f6; }
+        .outline-none { outline: 2px solid transparent; outline-offset: 2px; }
+        .ring-4 { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5); }
+        .ring-blue-500 { --tw-ring-color: #3b82f6; }
+        .ring-purple-500 { --tw-ring-color: #a855f7; }
+        .w-2 { width: 0.5rem; }
+        .h-2 { height: 0.5rem; }
+        .min-h-400 { min-height: 25rem; }
+    </style>
 </head>
 <body>
-    <div id="app">
-        <h1 id="presentation-title">Hegel Pedagogy AI - Interactive Presentation</h1>
-        <div id="toolbar">
-            <button id="overview-toggle">Overview</button>
-            <button id="prev-slide">Previous</button>
-            <button id="next-slide">Next</button>
-            <input type="file" id="markdown-file" accept=".md" style="display: none;">
-            <button id="load-file-btn">Load Markdown</button>
-            <button id="load-sample">Load Sample</button>
-            <div id="slide-counter">
-                <span id="current-slide">1</span> / <span id="total-slides">1</span>
+    <!-- View Switcher -->
+    <div class="view-switcher">
+        <button id="editor-view-btn" class="active">Editor</button>
+        <button id="presentation-view-btn">Presentation</button>
+    </div>
+
+    <!-- Editor View -->
+    <div id="editor-view" class="view-container active">
+        <div id="structure-pane" class="pane structure-pane">
+            <div id="structure-pane-header">
+                <div class="toggle-buttons structure-toggle-buttons">
+                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
+                    <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
+                </div>
+                <h2 id="structure-pane-title">Structure</h2>
+            </div>
+            <ul id="structure-list"></ul>
+            <div id="file-tree-view" style="display: none;"></div>
+        </div>
+        <div id="resizer-left" class="resizer"></div> 
+        <div id="editor-pane" class="pane editor-pane">
+            <div id="editor-container" style="width: 100%; height: 100%;"></div>
+            <textarea id="fallback-editor" style="display: none; width: 100%; height: 100%; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
+        </div>
+        <div id="resizer" class="resizer"></div> 
+        <div id="right-pane" class="pane right-pane">
+            <div class="toggle-buttons">
+                <button id="show-preview-btn" class="btn pane-toggle-button active">Preview</button>
+                <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
+            </div>
+            <div id="preview-pane" class="content-pane">
+                <div id="preview-content"></div>
+            </div>
+            <div id="chat-pane" class="content-pane" style="display: none;">
+                <div id="chat-messages"></div>
+                <div class="chat-input-area">
+                    <button id="load-editor-to-chat-btn" class="btn" title="Load Editor Content">Load Editor</button>
+                    <textarea id="chat-input" placeholder="Ask the AI..."></textarea>
+                    <button id="chat-send-btn" class="btn">Send</button>
+                    <button id="copy-ai-response-btn" class="btn" title="Copy last AI response to editor">Copy to Editor</button>
+                </div>
             </div>
         </div>
-        
-        <div id="presentation-container">
-            <svg id="presentation-svg" xmlns="http://www.w3.org/2000/svg">
-                <!-- Slides will be dynamically added here -->
-            </svg>
-        </div>
-        
-        <div id="controls-help">
-            <div>Use mouse wheel to zoom, drag to pan</div>
-            <div>Arrow keys or buttons to navigate slides</div>
-            <div>O key for overview mode</div>
-        </div>
     </div>
+
+    <!-- Presentation View -->
+    <div id="presentation-view" class="view-container">
+        <div id="presentation-root" style="width: 100%; height: 100%;"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+    // Monaco editor configuration for Electron - disable web workers to avoid file:// issues
+    window.MonacoEnvironment = {
+        getWorker: function (workerId, label) {
+            return undefined; // Disable web workers, use main thread
+        }
+    };
     
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="presentation.js"></script>
+    // Check if Monaco editor resources are available before loading renderer
+    if (typeof require !== 'undefined') {
+        // Load Monaco editor configuration
+        require.config({ 
+            paths: { 'vs': './node_modules/monaco-editor/min/vs' },
+            'vs/nls': { availableLanguages: { '*': 'en' } }
+        });
+    }
+    </script>
+    <script src="./node_modules/monaco-editor/min/vs/loader.js" defer></script>
+    <script src="orchestrator/renderer.js" defer></script>
+    
+    <script type="text/babel">
+        // React presentation component
+        const { useState, useRef, useEffect, useCallback } = React;
+        
+        // Check if running in Electron
+        const isElectron = window.electronAPI && window.electronAPI.isElectron;
+
+        // Lucide React icons as simple SVG components
+        const ChevronLeft = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15,18 9,12 15,6"></polyline>
+            </svg>
+        );
+        
+        const ChevronRight = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="9,18 15,12 9,6"></polyline>
+            </svg>
+        );
+        
+        const Upload = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7,10 12,15 17,10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+        );
+        
+        const ZoomIn = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+                <line x1="11" y1="8" x2="11" y2="14"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+        );
+        
+        const ZoomOut = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+        );
+        
+        const Home = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9,22 9,12 15,12 15,22"></polyline>
+            </svg>
+        );
+        
+        const Play = () => (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="5,3 19,12 5,21"></polygon>
+            </svg>
+        );
+
+        const MarkdownPreziApp = () => {
+          const [slides, setSlides] = useState([]);
+          const [currentSlide, setCurrentSlide] = useState(0);
+          const [zoom, setZoom] = useState(1);
+          const [pan, setPan] = useState({ x: 0, y: 0 });
+          const [isDragging, setIsDragging] = useState(false);
+          const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+          const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+          const [isPresenting, setIsPresenting] = useState(false);
+          const [layoutType, setLayoutType] = useState('spiral');
+          const [focusedSlide, setFocusedSlide] = useState(null);
+          const canvasRef = useRef(null);
+          const fileInputRef = useRef(null);
+
+          // Sample markdown content for demo
+          const sampleMarkdown = `# Welcome to Hegel Pedagogy AI
+A unified platform for philosophical exploration and learning.
+
+---
+
+## What is This?
+- Advanced Markdown editor with AI assistance
+- Interactive presentation capabilities
+- Integrated file management
+- Philosophical content support
+
+---
+
+## Key Features
+### Editor Mode
+- Monaco editor with syntax highlighting
+- Real-time preview
+- AI chat integration
+- Document structure navigation
+
+### Presentation Mode
+- Zoomable presentation canvas
+- Multiple layout types
+- Smooth transitions
+- Interactive navigation
+
+---
+
+## Philosophical Focus
+### Hegelian Dialectic
+- **Thesis**: Initial position or concept
+- **Antithesis**: Negation or contradiction
+- **Synthesis**: Higher unity transcending both
+
+### AI & Pedagogy
+Integration of artificial intelligence with philosophical education.
+
+---
+
+## Getting Started
+1. Switch between Editor and Presentation views
+2. Load your Markdown files
+3. Use AI chat for assistance
+4. Create engaging presentations
+5. Explore philosophical concepts
+
+---
+
+## Thank You!
+Welcome to the future of philosophical education.
+
+*Happy learning and presenting!*`;
+
+          // Calculate slide positioning based on layout type
+          const calculateSlidePosition = (index, total) => {
+            const spacing = 800;
+            
+            switch (layoutType) {
+              case 'linear':
+                return { x: index * spacing, y: 0 };
+                
+              case 'grid':
+                const cols = Math.ceil(Math.sqrt(total));
+                const gridRow = Math.floor(index / cols);
+                const col = index % cols;
+                return { x: col * spacing, y: gridRow * spacing };
+                
+              case 'circle':
+                if (index === 0) return { x: 0, y: 0 };
+                const circleAngle = (index - 1) / (total - 1) * 2 * Math.PI;
+                const circleRadius = 600;
+                return {
+                  x: Math.cos(circleAngle) * circleRadius,
+                  y: Math.sin(circleAngle) * circleRadius
+                };
+                
+              case 'spiral':
+                if (index === 0) return { x: 0, y: 0 };
+                const spiralAngle = (index / total) * 4 * Math.PI;
+                const spiralRadius = 300 + (index * 100);
+                return {
+                  x: Math.cos(spiralAngle) * spiralRadius,
+                  y: Math.sin(spiralAngle) * spiralRadius
+                };
+                
+              case 'tree':
+                if (index === 0) return { x: 0, y: 0 };
+                const level = Math.floor(Math.log2(index + 1));
+                const posInLevel = index - (Math.pow(2, level) - 1);
+                const maxInLevel = Math.pow(2, level);
+                const branchWidth = spacing * maxInLevel;
+                return {
+                  x: (posInLevel - maxInLevel / 2 + 0.5) * (branchWidth / maxInLevel),
+                  y: level * spacing
+                };
+                
+              case 'zigzag':
+                const zigzagRow = Math.floor(index / 3);
+                const zigzagCol = index % 3;
+                const isEvenRow = zigzagRow % 2 === 0;
+                return {
+                  x: isEvenRow ? zigzagCol * spacing : (2 - zigzagCol) * spacing,
+                  y: zigzagRow * spacing
+                };
+                
+              default:
+                return { x: 0, y: 0 };
+            }
+          };
+
+          // Enhanced markdown parser
+          const parseMarkdownContent = (content) => {
+            let html = content;
+            
+            // Handle code blocks first
+            html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>');
+            
+            // Headers
+            html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+            html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+            html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+            html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+            
+            // Bold and italic
+            html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+            
+            // Handle lists
+            html = html.replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li>$1</li>');
+            html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>\s*)+/gs, '<ul>$&</ul>');
+            
+            // Blockquotes
+            html = html.replace(/^>\s+(.+)$/gm, '<blockquote>$1</blockquote>');
+            
+            // Horizontal rules
+            html = html.replace(/^---\s*$/gm, '<hr>');
+            
+            // Convert remaining text to paragraphs
+            const lines = html.split('\n');
+            const processedLines = lines.map(line => {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.match(/^<(h[1-6]|ul|ol|li|blockquote|pre|hr|div)/)) {
+                return line;
+              }
+              return trimmed ? `<p>${trimmed}</p>` : '';
+            });
+            
+            html = processedLines.join('\n');
+            html = html.replace(/\n+/g, '\n');
+            html = html.replace(/<p>\s*<\/p>/g, '');
+            
+            return html;
+          };
+
+          // Parse markdown into slides
+          const parseMarkdown = (markdown) => {
+            const slideTexts = markdown.split('---').map(slide => slide.trim()).filter(slide => slide);
+            return slideTexts.map((text, index) => ({
+              id: index,
+              content: text,
+              position: calculateSlidePosition(index, slideTexts.length),
+              parsed: parseMarkdownContent(text)
+            }));
+          };
+
+          // Initialize with sample content (only once)
+          useEffect(() => {
+            const initialSlides = parseMarkdown(sampleMarkdown);
+            setSlides(initialSlides);
+          }, []);
+
+          // Set up Electron API listeners (only once)
+          useEffect(() => {
+            if (isElectron && window.electronAPI) {
+              // File loading
+              window.electronAPI.loadPresentationFile((content, filePath, error) => {
+                if (error) {
+                  console.error('Error loading file:', error);
+                  return;
+                }
+                if (content) {
+                  const newSlides = parseMarkdown(content);
+                  setSlides(newSlides);
+                  setCurrentSlide(0);
+                  setTimeout(() => goToSlide(0), 0);
+                }
+              });
+
+              // Presentation controls
+              window.electronAPI.onStartPresentation(() => {
+                setIsPresenting(true);
+              });
+
+              window.electronAPI.onExitPresentation(() => {
+                setIsPresenting(false);
+              });
+
+              window.electronAPI.onTogglePresentationMode(() => {
+                // Switch to presentation view
+                switchToView('presentation');
+              });
+
+              // Zoom controls
+              window.electronAPI.onZoomIn(() => {
+                handleZoomIn();
+              });
+
+              window.electronAPI.onZoomOut(() => {
+                handleZoomOut();
+              });
+
+              window.electronAPI.onResetZoom(() => {
+                resetView();
+              });
+
+              // Layout changes
+              window.electronAPI.onChangeLayout((layout) => {
+                setLayoutType(layout);
+              });
+            }
+
+            return () => {
+              if (isElectron && window.electronAPI) {
+                window.electronAPI.removeAllListeners();
+              }
+            };
+          }, []);
+
+          // Set up navigation listeners that depend on current state
+          useEffect(() => {
+            if (isElectron && window.electronAPI) {
+              window.electronAPI.onNextSlide(() => {
+                goToSlide(currentSlide + 1);
+              });
+
+              window.electronAPI.onPreviousSlide(() => {
+                goToSlide(currentSlide - 1);
+              });
+
+              window.electronAPI.onFirstSlide(() => {
+                goToSlide(0);
+              });
+            }
+          }, [currentSlide]);
+
+          // Recalculate positions when layout changes
+          useEffect(() => {
+            if (slides.length > 0) {
+              const updatedSlides = slides.map((slide, index) => ({
+                ...slide,
+                position: calculateSlidePosition(index, slides.length)
+              }));
+              setSlides(updatedSlides);
+            }
+          }, [layoutType]);
+
+          // File upload handler
+          const handleFileUpload = (event) => {
+            const file = event.target.files[0];
+            if (file && (file.type === 'text/markdown' || file.name.endsWith('.md'))) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                const content = e.target.result;
+                const newSlides = parseMarkdown(content);
+                setSlides(newSlides);
+                setCurrentSlide(0);
+                goToSlide(0);
+              };
+              reader.readAsText(file);
+            }
+          };
+
+          // Navigate to specific slide with smooth transition
+          const goToSlide = useCallback((slideIndex) => {
+            if (slideIndex < 0 || slideIndex >= slides.length) return;
+            
+            const slide = slides[slideIndex];
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+
+            const targetZoom = 1.2;
+            const viewportCenterX = canvas.clientWidth / 2;
+            const viewportCenterY = canvas.clientHeight / 2;
+            const slideCenterX = slide.position.x;
+            const slideCenterY = slide.position.y;
+            
+            const targetPan = {
+              x: viewportCenterX - (slideCenterX * targetZoom),
+              y: viewportCenterY - (slideCenterY * targetZoom)
+            };
+
+            setCurrentSlide(slideIndex);
+            setFocusedSlide(null);
+            setZoom(targetZoom);
+            setPan(targetPan);
+          }, [slides]);
+
+          // Handle double click on slide to zoom in and focus
+          const handleSlideDoubleClick = (slideIndex) => {
+            const slide = slides[slideIndex];
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+
+            const targetZoom = 2;
+            const viewportCenterX = canvas.clientWidth / 2;
+            const viewportCenterY = canvas.clientHeight / 2;
+            const slideCenterX = slide.position.x;
+            const slideCenterY = slide.position.y;
+            
+            const targetPan = {
+              x: viewportCenterX - (slideCenterX * targetZoom),
+              y: viewportCenterY - (slideCenterY * targetZoom)
+            };
+
+            setCurrentSlide(slideIndex);
+            setFocusedSlide(slideIndex);
+            setZoom(targetZoom);
+            setPan(targetPan);
+          };
+
+          // Zoom handlers
+          const handleZoomIn = () => {
+            setZoom(Math.min(3, zoom * 1.2));
+          };
+
+          const handleZoomOut = () => {
+            setZoom(Math.max(0.1, zoom * 0.8));
+          };
+
+          const resetView = () => {
+            setZoom(1);
+            setPan({ x: 0, y: 0 });
+            setFocusedSlide(null);
+          };
+
+          // Wheel zoom effect
+          useEffect(() => {
+            const handleWheel = (e) => {
+              if (isPresenting) return;
+              e.preventDefault();
+              const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+              const newZoom = Math.max(0.1, Math.min(3, zoom * zoomFactor));
+              setZoom(newZoom);
+            };
+
+            const canvas = canvasRef.current;
+            if (canvas) {
+              canvas.addEventListener('wheel', handleWheel, { passive: false });
+              return () => canvas.removeEventListener('wheel', handleWheel);
+            }
+          }, [zoom, isPresenting]);
+
+          // Keyboard navigation
+          useEffect(() => {
+            const handleKeyPress = (e) => {
+              // Only handle keyboard events if we're in presentation view and not focused on an input element
+              const presentationView = document.getElementById('presentation-view');
+              const isInPresentationView = presentationView && presentationView.classList.contains('active');
+              const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+              
+              if (!isInPresentationView || isInputFocused) {
+                return; // Don't handle keyboard events if not in presentation view or if an input is focused
+              }
+              
+              if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                goToSlide(currentSlide + 1);
+              } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                goToSlide(currentSlide - 1);
+              } else if (e.key === 'Home') {
+                e.preventDefault();
+                goToSlide(0);
+              } else if (e.key === 'Escape') {
+                setIsPresenting(false);
+              }
+            };
+
+            window.addEventListener('keydown', handleKeyPress);
+            return () => window.removeEventListener('keydown', handleKeyPress);
+          }, [currentSlide, goToSlide]);
+
+          // Mouse handlers for panning
+          const handleMouseDown = (e) => {
+            if (isPresenting) return;
+            setIsDragging(true);
+            setDragStart({ x: e.clientX, y: e.clientY });
+            setPanStart(pan);
+          };
+
+          const handleMouseMove = (e) => {
+            if (!isDragging || isPresenting) return;
+            const deltaX = e.clientX - dragStart.x;
+            const deltaY = e.clientY - dragStart.y;
+            setPan({
+              x: panStart.x + deltaX,
+              y: panStart.y + deltaY
+            });
+          };
+
+          const handleMouseUp = () => {
+            setIsDragging(false);
+          };
+
+          return (
+            <div className="w-full h-screen bg-gray-900 text-white relative overflow-hidden">
+              {/* Controls */}
+              {!isPresenting && (
+                <div className="absolute top-4 left-4 z-10 flex gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  >
+                    <Upload />
+                    Load Markdown
+                  </button>
+                  
+                  <select
+                    value={layoutType}
+                    onChange={(e) => setLayoutType(e.target.value)}
+                    className="px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-blue-500 outline-none"
+                  >
+                    <option value="spiral">Spiral</option>
+                    <option value="linear">Linear</option>
+                    <option value="grid">Grid</option>
+                    <option value="circle">Circle</option>
+                    <option value="tree">Tree</option>
+                    <option value="zigzag">Zigzag</option>
+                  </select>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".md,.markdown"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+              )}
+
+              {/* Zoom Controls */}
+              {!isPresenting && (
+                <div className="absolute top-4 right-4 z-10 flex gap-2">
+                  <button
+                    onClick={handleZoomIn}
+                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    <ZoomIn />
+                  </button>
+                  <button
+                    onClick={handleZoomOut}
+                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    <ZoomOut />
+                  </button>
+                  <button
+                    onClick={resetView}
+                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    <Home />
+                  </button>
+                  <button
+                    onClick={() => setIsPresenting(true)}
+                    className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                  >
+                    <Play />
+                    Present
+                  </button>
+                </div>
+              )}
+
+              {/* Navigation Controls */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-4">
+                <button
+                  onClick={() => goToSlide(currentSlide - 1)}
+                  disabled={currentSlide === 0}
+                  className="p-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 rounded-full transition-colors"
+                >
+                  <ChevronLeft />
+                </button>
+                
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg">
+                  <span className="text-sm">
+                    {currentSlide + 1} / {slides.length}
+                  </span>
+                  {slides.length > 0 && (
+                    <div className="flex gap-1 ml-2">
+                      {slides.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => goToSlide(index)}
+                          className={`w-2 h-2 rounded-full transition-colors ${
+                            index === currentSlide ? 'bg-blue-500' : 'bg-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => goToSlide(currentSlide + 1)}
+                  disabled={currentSlide === slides.length - 1}
+                  className="p-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 rounded-full transition-colors"
+                >
+                  <ChevronRight />
+                </button>
+              </div>
+
+              {/* Presentation Mode Toggle */}
+              {isPresenting && (
+                <button
+                  onClick={() => setIsPresenting(false)}
+                  className="absolute top-4 right-4 z-10 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                >
+                  Exit Presentation
+                </button>
+              )}
+
+              {/* Canvas */}
+              <div
+                ref={canvasRef}
+                className="w-full h-full cursor-grab active:cursor-grabbing"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  transformOrigin: 'center center',
+                  transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+                }}
+              >
+                <div className="relative w-full h-full flex items-center justify-center">
+                  {/* Slides */}
+                  {slides.map((slide, index) => {
+                    const isFocused = index === focusedSlide;
+                    const isCurrent = index === currentSlide;
+                    
+                    return (
+                      <div
+                        key={slide.id}
+                        className={`absolute bg-white text-gray-900 rounded-xl shadow-2xl transition-all duration-300 cursor-pointer ${
+                          isFocused 
+                            ? 'ring-4 ring-purple-500 shadow-purple-500/50' 
+                            : isCurrent 
+                              ? 'ring-4 ring-blue-500' 
+                              : 'hover:shadow-3xl hover:scale-105'
+                        }`}
+                        style={{
+                          left: `${slide.position.x}px`,
+                          top: `${slide.position.y}px`,
+                          width: '600px',
+                          minHeight: '400px',
+                          transform: 'translate(-50%, -50%)',
+                          opacity: isPresenting && index !== currentSlide ? 0.3 : 1,
+                          zIndex: isFocused ? 1000 : 1,
+                          position: 'absolute'
+                        }}
+                        onDoubleClick={() => handleSlideDoubleClick(index)}
+                      >
+                        <div className="p-8 h-full">
+                          <style>{`
+                            .slide-content h1 { 
+                              font-size: 2.5rem; 
+                              font-weight: bold; 
+                              margin-bottom: 1rem; 
+                              color: #1f2937; 
+                              line-height: 1.2;
+                            }
+                            .slide-content h2 { 
+                              font-size: 2rem; 
+                              font-weight: 600; 
+                              margin-bottom: 0.75rem; 
+                              color: #1f2937; 
+                              line-height: 1.3;
+                            }
+                            .slide-content h3 { 
+                              font-size: 1.5rem; 
+                              font-weight: 500; 
+                              margin-bottom: 0.5rem; 
+                              color: #1f2937; 
+                              line-height: 1.4;
+                            }
+                            .slide-content p { 
+                              margin-bottom: 1rem; 
+                              color: #374151; 
+                              line-height: 1.6; 
+                            }
+                            .slide-content ul { 
+                              margin-bottom: 1rem; 
+                              padding-left: 1.5rem;
+                            }
+                            .slide-content li { 
+                              margin-bottom: 0.5rem; 
+                              color: #374151; 
+                            }
+                            .slide-content strong { 
+                              font-weight: bold; 
+                            }
+                            .slide-content em { 
+                              font-style: italic; 
+                            }
+                            .slide-content code { 
+                              background-color: #f3f4f6; 
+                              padding: 0.25rem 0.5rem; 
+                              border-radius: 0.25rem; 
+                              font-family: monospace; 
+                              font-size: 0.875rem; 
+                            }
+                          `}</style>
+                          <div 
+                            className="slide-content"
+                            dangerouslySetInnerHTML={{ __html: slide.parsed }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Connection Lines */}
+                  <svg className="absolute inset-0 pointer-events-none" style={{ width: '200%', height: '200%' }}>
+                    {slides.map((slide, index) => {
+                      if (index === slides.length - 1) return null;
+                      const nextSlide = slides[index + 1];
+                      return (
+                        <line
+                          key={`line-${index}`}
+                          x1={slide.position.x + 300}
+                          y1={slide.position.y + 200}
+                          x2={nextSlide.position.x + 300}
+                          y2={nextSlide.position.y + 200}
+                          stroke="rgba(255,255,255,0.1)"
+                          strokeWidth="2"
+                          strokeDasharray="5,5"
+                        />
+                      );
+                    })}
+                  </svg>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        // Global view switching functions
+        let currentView = 'editor';
+        let presentationEditor = null;
+        let presentationEditorContent = '';
+
+        function switchToView(viewName) {
+          // Hide all views
+          const views = document.querySelectorAll('.view-container');
+          views.forEach(view => {
+            view.classList.remove('active');
+          });
+
+          // Show selected view
+          const targetView = document.getElementById(`${viewName}-view`);
+          if (targetView) {
+            targetView.classList.add('active');
+          }
+
+          // Update buttons
+          const buttons = document.querySelectorAll('.view-switcher button');
+          buttons.forEach(btn => btn.classList.remove('active'));
+          
+          const targetButton = document.getElementById(`${viewName}-view-btn`);
+          if (targetButton) {
+            targetButton.classList.add('active');
+          }
+
+          // Update body class for styling
+          if (viewName === 'presentation') {
+            document.body.classList.add('presentation-mode');
+            // If we have editor content, sync it to presentation
+            if (presentationEditorContent && window.syncContentToPresentation) {
+              window.syncContentToPresentation(presentationEditorContent);
+            }
+          } else {
+            document.body.classList.remove('presentation-mode');
+            // Apply layout settings when switching to editor view
+            setTimeout(() => {
+              if (window.applyLayoutSettings && window.appSettings) {
+                window.applyLayoutSettings(window.appSettings.layout);
+              }
+            }, 100);
+          }
+
+          currentView = viewName;
+        }
+
+        // Set up view switching - use both DOMContentLoaded and immediate setup
+        function setupViewSwitching() {
+          console.log('[View Switching] Setting up view switching...');
+          const editorBtn = document.getElementById('editor-view-btn');
+          const presentationBtn = document.getElementById('presentation-view-btn');
+
+          console.log('[View Switching] Found buttons:', { editorBtn, presentationBtn });
+
+          if (editorBtn) {
+            editorBtn.addEventListener('click', () => {
+              console.log('[View Switching] Editor button clicked');
+              switchToView('editor');
+            });
+          }
+
+          if (presentationBtn) {
+            presentationBtn.addEventListener('click', () => {
+              console.log('[View Switching] Presentation button clicked');
+              switchToView('presentation');
+            });
+          }
+
+          // Render React presentation component
+          const presentationRoot = document.getElementById('presentation-root');
+          if (presentationRoot) {
+            console.log('[View Switching] Rendering React presentation component');
+            ReactDOM.render(React.createElement(MarkdownPreziApp), presentationRoot);
+          }
+
+          // Set up content synchronization
+          window.syncContentToPresentation = (content) => {
+            // This will be implemented to sync editor content to presentation
+            console.log('Syncing content to presentation:', content);
+            // TODO: Implement actual content sync to React component
+          };
+
+          // Set up IPC event listeners for lecture summary generation
+          if (window.electronAPI) {
+            window.electronAPI.onLoadPresentationContent((content) => {
+              console.log('[IPC] Received presentation content to load');
+              window.syncContentToPresentation(content);
+            });
+
+            window.electronAPI.onSwitchToPresentation(() => {
+              console.log('[IPC] Switching to presentation view');
+              switchToView('presentation');
+            });
+          }
+        }
+
+        // Try setup immediately and on DOMContentLoaded
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', setupViewSwitching);
+        } else {
+          setupViewSwitching();
+        }
+
+        // Expose view switching globally
+        window.switchToView = switchToView;
+    </script>
 </body>
 </html>

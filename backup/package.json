@@ -1,7 +1,7 @@
 {
   "name": "hegel-pedagogy-electron",
   "version": "1.0.0",
-  "description": "Advanced Markdown editor and presentation app for Hegel Pedagogy AI",
+  "description": "Electron wrapper for Hegel Pedagogy AI presentation app",
   "main": "main.js",
   "scripts": {
     "dev": "tsx markdown-prezi-app.tsx",
@@ -11,11 +11,7 @@
     "dist": "electron-builder --publish=never"
   },
   "dependencies": {
-    "@electron/remote": "^2.1.2",
-    "dotenv": "^16.4.5",
     "lucide-react": "^0.523.0",
-    "monaco-editor": "^0.52.2",
-    "openai": "^4.76.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

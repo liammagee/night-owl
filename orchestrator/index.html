@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- More secure CSP -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline';
+        style-src 'self' 'unsafe-inline';
+        font-src 'self' data:;
+        img-src 'self' data:;
+        connect-src 'self';
+        worker-src 'self' blob:;
+    ">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NANA: Not Another Note App</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Load Marked Synchronously First -->
+    <script id="marked-script" src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <!-- Monaco Editor Loader (Deferred) -->
+    <script src="./node_modules/monaco-editor/min/vs/loader.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 1. Add id here -->
+        <div id="structure-pane" class="pane structure-pane">
+            <!-- Container for Header + Toggles -->
+            <div id="structure-pane-header">
+                <div class="toggle-buttons structure-toggle-buttons">
+                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
+                    <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
+                </div>
+                <h2 id="structure-pane-title">Structure</h2>
+            </div>
+            <!-- Existing structure list -->
+            <ul id="structure-list"></ul>
+            <!-- New container for file tree (initially hidden) -->
+            <div id="file-tree-view" style="display: none;"></div>
+        </div>
+        <!-- 2. Add this new div -->
+        <div id="resizer-left" class="resizer"></div> 
+        <div id="editor-pane" class="pane editor-pane">
+            <!-- Monaco editor will be placed here -->
+            <div id="editor-container" style="width: 100%; height: 100%;"></div>
+            <!-- Fallback editor textarea -->
+            <textarea id="fallback-editor" style="display: none; width: 100%; height: 100%; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
+        </div>
+         <!-- Existing right resizer -->
+         <div id="resizer" class="resizer"></div> 
+         <div id="right-pane" class="pane right-pane">
+            <div class="toggle-buttons">
+                <button id="show-preview-btn" class="btn pane-toggle-button active">Preview</button>
+                <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
+            </div>
+            <div id="preview-pane" class="content-pane">
+                <div id="preview-content"></div>
+            </div>
+            <div id="chat-pane" class="content-pane" style="display: none;">
+                <div id="chat-messages"></div>
+                <div class="chat-input-area">
+                    <button id="load-editor-to-chat-btn" class="btn" title="Load Editor Content">Load Editor</button>
+                    <textarea id="chat-input" placeholder="Ask the AI..."></textarea>
+                    <button id="chat-send-btn" class="btn">Send</button>
+                    <button id="copy-ai-response-btn" class="btn" title="Copy last AI response to editor">Copy to Editor</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Renderer Script (Load last) -->
+    <script src="renderer.js" defer></script>
+</body>
+</html>

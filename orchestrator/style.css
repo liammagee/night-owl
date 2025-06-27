@@ -1,0 +1,588 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: sans-serif;
+    overflow: hidden; /* Prevent body scroll */
+}
+
+.container {
+    display: flex;
+    height: 100vh; /* Full viewport height */
+}
+
+.pane {
+    height: 100%;
+    overflow-y: auto; /* Allow vertical scrolling within panes */
+    padding: 10px;
+    box-sizing: border-box; /* Include padding in width/height */
+    display: flex;
+    flex-direction: column;
+}
+
+.structure-pane {
+    flex: 0 0 200px; /* Initial width, no grow/shrink */
+    min-width: 100px; /* Keep a minimum width */
+    border-right: 1px solid #ccc;
+    background-color: #f8f8f8;
+}
+
+.structure-pane ul {
+    list-style-type: none;
+    padding-left: 10px; /* Base padding */
+    margin: 0;
+    overflow-y: auto; /* Add scroll if needed */
+    height: calc(100% - 40px); /* Adjust height considering the h2 */
+}
+
+.structure-pane li {
+    padding: 4px 0;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-bottom: 1px solid #444; /* Subtle separator */
+    display: flex; /* Use flex for alignment */
+    align-items: center;
+}
+
+.structure-pane li:hover {
+    background-color: #4a4a4a;
+}
+
+/* Indentation based on level */
+.structure-pane li.level-1 { padding-left: 0px; }
+.structure-pane li.level-2 { padding-left: 15px; }
+.structure-pane li.level-3 { padding-left: 30px; }
+.structure-pane li.level-4 { padding-left: 45px; }
+.structure-pane li.level-5 { padding-left: 60px; }
+.structure-pane li.level-6 { padding-left: 75px; }
+
+/* Toggle Icon Styling */
+.structure-toggle {
+    display: inline-block;
+    width: 1.5em; /* Ensure space for icon */
+    text-align: center;
+    cursor: pointer;
+    margin-right: 5px;
+    color: #ccc;
+    font-size: 0.8em; /* Make icon slightly smaller */
+}
+
+/* Style for collapsed items (alternative to direct style manipulation) */
+.collapsed-child {
+    display: none !important;
+}
+
+.editor-pane {
+    flex: 0 0 450px; /* Set initial width, no grow/shrink */
+    padding: 0; /* Monaco container handles its own padding */
+}
+
+.preview-pane {
+    flex: 3; /* Takes more space */
+    border-left: 1px solid #ccc;
+}
+
+/* Ensure Monaco container fills its pane */
+#editor-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Monaco handles its own scroll */
+}
+
+h2 {
+    margin-top: 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+/* Structure List Styling */
+#structure-list {
+    list-style: none;
+    padding-left: 10px;
+    margin: 0;
+    flex-grow: 1; /* Allow list to take available space */
+    overflow-y: auto; /* Scroll if needed */
+}
+
+#structure-list li {
+    padding: 3px 0;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#structure-list li:hover {
+    background-color: #eee;
+}
+#structure-list li.level-1 { font-weight: bold; }
+#structure-list li.level-2 { padding-left: 15px; }
+#structure-list li.level-3 { padding-left: 30px; }
+#structure-list li.level-4 { padding-left: 45px; }
+#structure-list li.level-5 { padding-left: 60px; }
+#structure-list li.level-6 { padding-left: 75px; }
+
+/* Basic Preview Styling */
+#preview-content {
+    flex-grow: 1; /* Allow content to take available space */
+    overflow-y: auto; /* Scroll if needed */
+    /* Add this to help flex item sizing when content overflows */
+    min-height: 0;
+}
+
+#preview-content h1, #preview-content h2, #preview-content h3 {
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+}
+#preview-content p {
+    line-height: 1.6;
+}
+#preview-content code {
+    background-color: #f0f0f0;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+}
+#preview-content pre code {
+    display: block;
+    padding: 1em;
+    overflow-x: auto;
+}
+#preview-content blockquote {
+    border-left: 3px solid #ccc;
+    padding-left: 1em;
+    margin-left: 0;
+    color: #555;
+}
+
+/* --- Resizer Styles --- */
+.resizer {
+  flex: 0 0 5px; /* Fixed width, doesn't grow or shrink */
+  cursor: col-resize; /* Indicate horizontal resizing */
+  background-color: #333; /* Make it visible */
+  border-left: 0px solid #555;
+  border-right: 0px solid #555;
+  height: 100%; /* Match pane height */
+}
+
+/* --- Structure Pane Header & Toggles --- */
+#structure-pane-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding-bottom: 5px; /* Match h2 padding-bottom */
+    border-bottom: 1px solid #eee; /* Match h2 border */
+}
+
+.toggle-buttons.structure-toggle-buttons {
+    margin-bottom: 6px;
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+}
+
+#structure-pane-title {
+    margin: 0; /* Remove default h2 margin */
+    font-size: 1.1em; /* Adjust size as needed */
+}
+
+/* --- File Tree View Container --- */
+#file-tree-view {
+    height: calc(100% - 40px); /* Adjust based on header height */
+    overflow-y: auto;
+    padding-top: 5px; /* Small padding at the top */
+}
+
+#file-tree-view ul {
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+#file-tree-view ul.file-tree-children {
+  padding-left: 12px; /* Adjust indentation as needed */
+}
+
+#file-tree-view ul.file-tree-root {
+  padding-left: 5px;
+}
+
+#file-tree-view li {
+  padding: 1px 0;
+  margin: 0;        
+  cursor: pointer;
+  white-space: nowrap; /* Prevent wrapping */
+  overflow: hidden;    /* Hide overflow */
+  text-overflow: ellipsis; /* Add ellipsis for long names */
+}
+
+#file-tree-view li.folder:hover,
+#file-tree-view li.file:hover {
+    background-color: var(--hover-bg-color);
+}
+
+/* --- Right Pane (Preview/Chat) --- */
+.right-pane {
+    flex-grow: 1;
+    overflow-y: auto; /* Allow scrolling for chat history */
+    border: 1px solid #ccc; /* Border around messages area */
+    margin-bottom: 5px; /* Space between messages and input */
+    padding: 10px;
+    background-color: #fff; /* White background for messages */
+}
+
+body.dark-mode .right-pane {
+    background-color: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    border-color: #333 !important;
+}
+
+body.dark-mode .right-pane h2 {
+    color: #cccccc !important;
+}
+
+body.dark-mode .toggle-buttons {
+    background-color: #232323 !important;
+}
+
+body.dark-mode .chat-input-area,
+body.dark-mode #chat-input {
+    background-color: #232323 !important;
+    color: #d4d4d4 !important;
+    border-color: #444 !important;
+}
+
+.chat-message {
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    max-width: 85%; /* Prevent messages from spanning full width */
+    word-wrap: break-word; /* Wrap long words */
+}
+
+.chat-message-user {
+    background-color: #e1f5fe; /* Light blue for user messages */
+    margin-left: auto; /* Align user messages to the right */
+    text-align: left;
+}
+
+.chat-message-ai {
+    background-color: #f0f0f0; /* Light grey for AI messages */
+    margin-right: auto; /* Align AI messages to the left */
+    text-align: left;
+}
+
+.chat-sender {
+    font-weight: bold;
+    margin-right: 5px;
+    display: block; /* Put sender on its own line */
+    margin-bottom: 3px;
+    font-size: 0.9em;
+    color: #555;
+}
+
+.chat-content {
+    line-height: 1.4;
+}
+
+.chat-input-area {
+    display: flex;
+    align-items: center; /* Vertically align items if textarea grows */
+    padding-top: 5px;
+    border-top: 1px solid #ccc; /* Separator line */
+}
+
+#chat-input {
+    flex-grow: 1; /* Allow textarea to take up remaining space */
+    margin-right: 5px; /* Space between textarea and send button */
+    margin-left: 5px; /* Space between load button and textarea */
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: none; /* Prevent manual resizing */
+    overflow-y: auto; /* Allow vertical scrolling if needed */
+    min-height: 40px; /* Minimum height */
+    max-height: 150px; /* Maximum height before scrolling */
+    font-size: 1em;
+}
+
+/* Base Button Style */
+.btn {
+    padding: 8px 12px;
+    border: 1px solid #ccc; /* Default border */
+    background-color: #f0f0f0; /* Default background */
+    color: #333; /* Default text color */
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    font-size: 0.9em; /* Consistent font size */
+    height: fit-content; /* Fit height to content */
+    margin: 0 2px; /* Add small margin */
+}
+
+.btn:hover {
+    background-color: #e0e0e0;
+    border-color: #bbb;
+}
+
+.btn:disabled {
+    background-color: #cccccc;
+    color: #888;
+    cursor: not-allowed;
+    border-color: #ccc;
+}
+
+/* --- Pane Toggle Buttons (Structure/Files/Preview/Chat) --- */
+.pane-toggle-button {
+    /* Adjust padding and font size for better consistency with .btn */
+    padding: 6px 10px; /* Slightly smaller padding */
+    margin-left: 5px; /* Space between buttons */
+    border: 1px solid var(--button-border-color);
+    background-color: var(--button-bg-color);
+    color: var(--button-text-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em; /* Slightly smaller font */
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.pane-toggle-button:hover {
+    background-color: var(--button-hover-bg-color);
+    border-color: var(--button-hover-border-color);
+}
+
+.pane-toggle-button.active {
+    background-color: #1976d2; /* Material blue */
+    color: #fff;
+    border-color: #1565c0;
+    font-weight: bold;
+    cursor: default;
+    z-index: 1;
+}
+
+.dark-mode .pane-toggle-button {
+    border-color: #555;
+    background-color: #333;
+    color: #ccc;
+}
+
+.dark-mode .pane-toggle-button.active {
+    background-color: #1565c0;
+    color: #fff;
+    border-color: #1976d2;
+}
+
+.dark-mode .pane-toggle-button:hover:not(.active) {
+    background-color: #444;
+}
+
+/* Ensure headers have enough space */
+.pane-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--secondary-bg-color);
+    flex-shrink: 0; /* Prevent header from shrinking */
+}
+
+.pane-header span {
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+/* --- Theme Styles --- */
+body.light-mode {
+    background-color: #ffffff;
+    color: #000000;
+}
+body.light-mode .structure-pane {
+    background-color: #f8f8f8;
+    border-right: 1px solid #ccc;
+}
+body.light-mode .preview-pane {
+    border-left: 1px solid #ccc;
+}
+body.light-mode .resizer {
+    background-color: #333;
+}
+
+body.dark-mode {
+    background-color: #1e1e1e;
+    color: #cccccc;
+}
+body.dark-mode .structure-pane {
+    background-color: #2e2e2e;
+    border-right: 1px solid #555;
+}
+body.dark-mode .structure-pane li:hover {
+    background-color: #444;
+}
+body.dark-mode .preview-pane {
+    border-left: 1px solid #555;
+}
+body.dark-mode #preview-content pre code {
+    background-color: #3e3e3e;
+}
+body.dark-mode .resizer {
+    background-color: #555;
+}
+
+/* --- Dark Mode Styles --- */
+body.dark-mode {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+.dark-mode .structure-pane,
+.dark-mode .preview-pane {
+    background-color: #252526;
+    border-color: #333333;
+}
+
+.dark-mode .structure-pane h2,
+.dark-mode .preview-pane h2 {
+    color: #cccccc;
+    border-bottom-color: #444;
+}
+
+.dark-mode .structure-pane li {
+    border-bottom-color: #3a3a3a;
+}
+
+.dark-mode .structure-pane li:hover {
+    background-color: #333333;
+}
+
+.dark-mode .structure-toggle {
+    color: #bbbbbb;
+}
+
+.dark-mode .preview-pane #preview-content {
+    background-color: #1e1e1e; /* Match body */
+    color: #cccccc;
+}
+
+.dark-mode #structure-pane-header {
+    border-bottom-color: #444;
+}
+
+.dark-mode #structure-pane-title {
+     color: #cccccc;
+}
+
+/* Style file tree in dark mode */
+.dark-mode #file-tree-view .file:hover,
+.dark-mode #file-tree-view .folder:hover {
+    background-color: #333333;
+}
+
+/* Dark mode markdown styles */
+.dark-mode #preview-content h1,
+.dark-mode #preview-content h2,
+.dark-mode #preview-content h3,
+.dark-mode #preview-content h4,
+.dark-mode #preview-content h5,
+.dark-mode #preview-content h6 {
+    color: #569cd6; /* Example heading color */
+    border-bottom-color: #444;
+}
+
+.dark-mode #preview-content a {
+    color: #6796e6;
+}
+
+.dark-mode #preview-content code {
+    background-color: #333;
+    color: #ce9178; /* Example code color */
+    border-color: #444;
+}
+
+.dark-mode #preview-content pre {
+    background-color: #252526;
+    border-color: #444;
+}
+
+.dark-mode #preview-content blockquote {
+    border-left-color: #555;
+    color: #999;
+}
+
+.dark-mode #preview-content th,
+.dark-mode #preview-content td {
+    border-color: #555;
+}
+
+.dark-mode #preview-content th {
+    background-color: #333;
+}
+
+.dark-mode #preview-content hr {
+    border-top-color: #555;
+}
+
+/* Add dark mode styles for base .btn */
+.dark-mode .btn {
+    background-color: #333;
+    color: #ccc;
+    border-color: #555;
+}
+
+.dark-mode .btn:hover {
+    background-color: #444;
+    border-color: #666;
+}
+
+.dark-mode .btn:disabled {
+    background-color: #444;
+    color: #777;
+    border-color: #555;
+}
+
+/* --- Robust Dark Mode Preview Pane Styles --- */
+body.dark-mode #preview-pane,
+body.dark-mode #preview-content {
+    background-color: #1e1e1e !important;
+    color: #d4d4d4 !important;
+}
+body.dark-mode #preview-content pre,
+body.dark-mode #preview-content code {
+    background-color: #252526 !important;
+    color: #d4d4d4 !important;
+    border-color: #444 !important;
+}
+body.dark-mode #preview-content h1,
+body.dark-mode #preview-content h2,
+body.dark-mode #preview-content h3,
+body.dark-mode #preview-content h4,
+body.dark-mode #preview-content h5,
+body.dark-mode #preview-content h6 {
+    color: #569cd6 !important;
+    border-bottom-color: #444 !important;
+}
+body.dark-mode #preview-content a {
+    color: #6796e6 !important;
+}
+body.dark-mode #preview-content blockquote {
+    border-left-color: #555 !important;
+    color: #999 !important;
+}
+body.dark-mode #preview-content th,
+body.dark-mode #preview-content td {
+    border-color: #555 !important;
+}
+body.dark-mode #preview-content th {
+    background-color: #333 !important;
+}
+body.dark-mode #preview-content hr {
+    border-top-color: #555 !important;
+}
+
+/* --- DIAGNOSTIC: Dark mode border test --- */
+/* body.dark-mode .structure-pane {
+    border: 4px solid red !important;
+}
+body.dark-mode #preview-content {
+    border: 4px solid green !important;
+} */

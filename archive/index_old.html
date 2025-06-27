@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <h1 id="presentation-title">Hegel Pedagogy AI - Interactive Presentation</h1>
+        <div id="toolbar">
+            <button id="overview-toggle">Overview</button>
+            <button id="prev-slide">Previous</button>
+            <button id="next-slide">Next</button>
+            <input type="file" id="markdown-file" accept=".md" style="display: none;">
+            <button id="load-file-btn">Load Markdown</button>
+            <button id="load-sample">Load Sample</button>
+            <div id="slide-counter">
+                <span id="current-slide">1</span> / <span id="total-slides">1</span>
+            </div>
+        </div>
+        
+        <div id="presentation-container">
+            <svg id="presentation-svg" xmlns="http://www.w3.org/2000/svg">
+                <!-- Slides will be dynamically added here -->
+            </svg>
+        </div>
+        
+        <div id="controls-help">
+            <div>Use mouse wheel to zoom, drag to pan</div>
+            <div>Arrow keys or buttons to navigate slides</div>
+            <div>O key for overview mode</div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="presentation.js"></script>
+</body>
+</html>

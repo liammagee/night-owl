@@ -18,6 +18,9 @@
     <script type="text/babel">
         const { useState, useRef, useEffect, useCallback } = React;
         
+        // Check if running in Electron
+        const isElectron = window.electronAPI && window.electronAPI.isElectron;
+        
         // Lucide React icons as simple SVG components
         const ChevronLeft = () => (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -254,11 +257,83 @@ Start creating your own presentations with Markdown files.
             }));
           };
 
-          // Initialize with sample content
+          // Initialize with sample content (only once)
           useEffect(() => {
             const initialSlides = parseMarkdown(sampleMarkdown);
             setSlides(initialSlides);
           }, []);
+
+          // Set up Electron API listeners (only once)
+          useEffect(() => {
+            if (isElectron && window.electronAPI) {
+              // File loading
+              window.electronAPI.loadMarkdownFile((content, filePath, error) => {
+                if (error) {
+                  console.error('Error loading file:', error);
+                  return;
+                }
+                if (content) {
+                  const newSlides = parseMarkdown(content);
+                  setSlides(newSlides);
+                  setCurrentSlide(0);
+                  // Use setTimeout to ensure goToSlide has access to updated slides
+                  setTimeout(() => goToSlide(0), 0);
+                }
+              });
+
+              // Presentation controls
+              window.electronAPI.onStartPresentation(() => {
+                setIsPresenting(true);
+              });
+
+              window.electronAPI.onExitPresentation(() => {
+                setIsPresenting(false);
+              });
+
+              // Zoom controls
+              window.electronAPI.onZoomIn(() => {
+                handleZoomIn();
+              });
+
+              window.electronAPI.onZoomOut(() => {
+                handleZoomOut();
+              });
+
+              window.electronAPI.onResetZoom(() => {
+                resetView();
+              });
+
+              // Layout changes
+              window.electronAPI.onChangeLayout((layout) => {
+                setLayoutType(layout);
+              });
+            }
+
+            // Cleanup function
+            return () => {
+              if (isElectron && window.electronAPI) {
+                window.electronAPI.removeAllListeners();
+              }
+            };
+          }, [handleZoomIn, handleZoomOut, resetView]);
+
+          // Set up navigation listeners that depend on current state
+          useEffect(() => {
+            if (isElectron && window.electronAPI) {
+              // Navigation
+              window.electronAPI.onNextSlide(() => {
+                goToSlide(currentSlide + 1);
+              });
+
+              window.electronAPI.onPreviousSlide(() => {
+                goToSlide(currentSlide - 1);
+              });
+
+              window.electronAPI.onFirstSlide(() => {
+                goToSlide(0);
+              });
+            }
+          }, [currentSlide, goToSlide]);
 
           // Recalculate positions when layout changes
           useEffect(() => {
