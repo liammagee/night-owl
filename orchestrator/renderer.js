@@ -1120,7 +1120,7 @@ function buildTreeHtml(node) {
             // Non-root folder: Create the LI for the folder itself
             const folderLi = document.createElement('li');
             folderLi.classList.add('folder');
-            folderLi.textContent = `📁 ${node.name}`; // Simple folder indicator
+            folderLi.textContent = `📂 ${node.name}`; // Use open folder icon since expanded by default
             folderLi.dataset.path = node.path; // Store path if needed later
 
             // Process children and append to the children UL
@@ -1138,8 +1138,8 @@ function buildTreeHtml(node) {
                 });
             }
 
-            // Hide children UL by default
-            childrenUl.style.display = 'none';
+            // Show children UL by default (expanded folders)
+            childrenUl.style.display = '';
 
             // Create a fragment to hold both the folder LI and its children UL as siblings
             const fragment = document.createDocumentFragment();
@@ -1195,6 +1195,97 @@ fileTreeView.addEventListener('click', (event) => {
                    // Optional: Change folder icon based on state
                    target.textContent = isVisible ? `📁 ${target.textContent.substring(2)}` : `📂 ${target.textContent.substring(2)}`;
          }
+    }
+});
+
+// Add right-click context menu for file deletion
+fileTreeView.addEventListener('contextmenu', (event) => {
+    const target = event.target;
+    
+    // Only show context menu for files, not folders
+    if (target.classList.contains('file') && target.dataset.path) {
+        event.preventDefault(); // Prevent default context menu
+        
+        const filePath = target.dataset.path;
+        const fileName = target.textContent.substring(2); // Remove the 📄 emoji
+        
+        // Create a simple context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu';
+        contextMenu.style.cssText = `
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            padding: 4px 0;
+            min-width: 120px;
+        `;
+        
+        const deleteOption = document.createElement('div');
+        deleteOption.className = 'context-menu-item';
+        deleteOption.textContent = 'Delete File';
+        deleteOption.style.cssText = `
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #dc3545;
+            font-size: 14px;
+        `;
+        
+        deleteOption.addEventListener('mouseenter', () => {
+            deleteOption.style.backgroundColor = '#f8f9fa';
+        });
+        
+        deleteOption.addEventListener('mouseleave', () => {
+            deleteOption.style.backgroundColor = '';
+        });
+        
+        deleteOption.addEventListener('click', async () => {
+            // Show confirmation dialog
+            const confirmed = await window.electronAPI.invoke('show-delete-confirm', {
+                fileName: fileName,
+                filePath: filePath
+            });
+            
+            if (confirmed) {
+                try {
+                    const result = await window.electronAPI.invoke('delete-file', filePath);
+                    if (result.success) {
+                        console.log('[Renderer] File deleted successfully:', filePath);
+                        // Refresh the file tree to show the file is gone
+                        renderFileTree();
+                    } else {
+                        console.error('[Renderer] Error deleting file:', result.error);
+                    }
+                } catch (error) {
+                    console.error('[Renderer] Error deleting file:', error);
+                }
+            }
+            
+            // Remove context menu
+            document.body.removeChild(contextMenu);
+        });
+        
+        contextMenu.appendChild(deleteOption);
+        
+        // Position the context menu at the mouse position
+        contextMenu.style.left = event.pageX + 'px';
+        contextMenu.style.top = event.pageY + 'px';
+        
+        document.body.appendChild(contextMenu);
+        
+        // Remove context menu when clicking elsewhere
+        const removeContextMenu = (e) => {
+            if (!contextMenu.contains(e.target)) {
+                document.body.removeChild(contextMenu);
+                document.removeEventListener('click', removeContextMenu);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', removeContextMenu);
+        }, 100);
     }
 });
 

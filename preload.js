@@ -65,6 +65,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('switch-to-presentation', callback);
   },
 
+  onSwitchToEditor: (callback) => {
+    ipcRenderer.on('switch-to-editor', callback);
+  },
+
   // Zoom controls
   onZoomIn: (callback) => {
     ipcRenderer.on('zoom-in', callback);
@@ -100,6 +104,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('toggle-presentation-mode');
     ipcRenderer.removeAllListeners('load-presentation-content');
     ipcRenderer.removeAllListeners('switch-to-presentation');
+    ipcRenderer.removeAllListeners('switch-to-editor');
     ipcRenderer.removeAllListeners('zoom-in');
     ipcRenderer.removeAllListeners('zoom-out');
     ipcRenderer.removeAllListeners('reset-zoom');

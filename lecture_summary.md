@@ -7,9 +7,10 @@ Welcome to a systematic exploration of the lecture materials in this repository,
 
 ## Overview of Course Structure
 
-This collection contains **2 lecture files** covering:
+This collection contains **3 lecture files** covering:
 
 - **2+2=5** (2+2_5.md)
+- **The Discarded Master** (discarded-master.md)
 - **Hegel, and Human and Machine Learning** (lecture-1.md)
 
 ---
@@ -22,6 +23,19 @@ This collection contains **2 lecture files** covering:
 
 ### Key Concepts:
 - *interpretation*
+
+---
+
+## The Discarded Master
+*Source: discarded-master.md | ~308 words*
+
+### Key Sections:
+  - The Discarded Master
+
+### Key Concepts:
+- *Herr*
+- *Knecht*
+- *Phenomonology*
 
 ---
 

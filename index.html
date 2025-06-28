@@ -17,38 +17,9 @@
     <!-- Styles -->
     <link rel="stylesheet" href="orchestrator/style.css">
     <style>
-        /* View Switcher Styles */
+        /* View Switcher Styles - Hidden, controlled via menu only */
         .view-switcher {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 1000;
-            display: flex;
-            gap: 5px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 5px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .view-switcher button {
-            padding: 8px 16px;
-            border: 1px solid #ddd;
-            background: white;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-        
-        .view-switcher button.active {
-            background: #007acc;
-            color: white;
-            border-color: #007acc;
-        }
-        
-        .view-switcher button:hover:not(.active) {
-            background: #f0f0f0;
+            display: none;
         }
         
         /* View containers */
@@ -201,9 +172,84 @@
         .w-2 { width: 0.5rem; }
         .h-2 { height: 0.5rem; }
         .min-h-400 { min-height: 25rem; }
+        
+        /* Custom Title Bar */
+        .title-bar {
+            height: 32px;
+            background: #2d2d2d;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 500;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            -webkit-app-region: drag;
+            z-index: 2000;
+            user-select: none;
+            padding-left: 80px; /* Space for invisible macOS traffic lights */
+        }
+        
+        .title-bar-controls {
+            position: absolute;
+            right: 10px;
+            display: flex;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+        
+        .title-bar-button {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            transition: opacity 0.2s;
+        }
+        
+        .title-bar-button:hover {
+            opacity: 0.8;
+        }
+        
+        .title-bar-close {
+            background: #ff5f57;
+        }
+        
+        .title-bar-minimize {
+            background: #ffbd2e;
+        }
+        
+        .title-bar-maximize {
+            background: #28ca42;
+        }
+        
+        /* Adjust view containers to account for title bar */
+        .view-container {
+            height: calc(100vh - 32px);
+            margin-top: 0px;
+            top: 32px;
+            position: absolute;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
+    <!-- Custom Title Bar -->
+    <div class="title-bar">
+        <span id="title-text">Hegel Pedagogy AI</span>
+        <div class="title-bar-controls">
+            <div class="title-bar-button title-bar-minimize" id="minimize-btn"></div>
+            <div class="title-bar-button title-bar-maximize" id="maximize-btn"></div>
+            <div class="title-bar-button title-bar-close" id="close-btn"></div>
+        </div>
+    </div>
+    
     <!-- View Switcher -->
     <div class="view-switcher">
         <button id="editor-view-btn" class="active">Editor</button>
@@ -525,8 +571,49 @@ Welcome to the future of philosophical education.
 
           // Initialize with sample content (only once)
           useEffect(() => {
-            const initialSlides = parseMarkdown(sampleMarkdown);
-            setSlides(initialSlides);
+            // Check if there's pending content from Generate Summary
+            if (window.pendingPresentationContent) {
+              console.log('[React Presentation] Found pending content, using it instead of sample');
+              const pendingSlides = parseMarkdown(window.pendingPresentationContent);
+              setSlides(pendingSlides);
+              window.pendingPresentationContent = null; // Clear it after use
+            } else {
+              console.log('[React Presentation] No pending content, using sample');
+              const initialSlides = parseMarkdown(sampleMarkdown);
+              setSlides(initialSlides);
+            }
+          }, []);
+
+          // Listen for content updates from the lecture summary generator
+          useEffect(() => {
+            const handleContentUpdate = (event) => {
+              console.log('[React Presentation] Received content update event');
+              console.log('[React Presentation] Event detail:', event.detail);
+              const newContent = event.detail?.content;
+              console.log('[React Presentation] New content length:', newContent?.length);
+              
+              if (newContent && newContent.trim()) {
+                console.log('[React Presentation] Parsing new content into slides...');
+                const newSlides = parseMarkdown(newContent);
+                console.log('[React Presentation] Generated slides count:', newSlides.length);
+                
+                setSlides(newSlides);
+                setCurrentSlide(0);
+                setZoom(1);
+                setPan({ x: 0, y: 0 });
+                setFocusedSlide(null);
+                console.log('[React Presentation] Successfully updated slides with new content');
+              } else {
+                console.warn('[React Presentation] No valid content received');
+              }
+            };
+
+            console.log('[React Presentation] Setting up content update listener');
+            window.addEventListener('updatePresentationContent', handleContentUpdate);
+            return () => {
+              console.log('[React Presentation] Removing content update listener');
+              window.removeEventListener('updatePresentationContent', handleContentUpdate);
+            };
           }, []);
 
           // Set up Electron API listeners (only once)
@@ -763,22 +850,22 @@ Welcome to the future of philosophical education.
           };
 
           return (
-            <div className="w-full h-screen bg-gray-900 text-white relative overflow-hidden">
+            <div className="w-full h-screen relative overflow-hidden" style={{background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)'}}>
               {/* Controls */}
               {!isPresenting && (
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     <Upload />
-                    Load Markdown
+                    Load File
                   </button>
                   
                   <select
                     value={layoutType}
                     onChange={(e) => setLayoutType(e.target.value)}
-                    className="px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-blue-500 outline-none"
+                    className="px-3 py-2 bg-white text-gray-900 rounded-lg border border-gray-300 focus:border-blue-500 outline-none shadow-lg"
                   >
                     <option value="spiral">Spiral</option>
                     <option value="linear">Linear</option>
@@ -793,7 +880,7 @@ Welcome to the future of philosophical education.
                     type="file"
                     accept=".md,.markdown"
                     onChange={handleFileUpload}
-                    className="hidden"
+                    style={{display: 'none'}}
                   />
                 </div>
               )}
@@ -803,25 +890,25 @@ Welcome to the future of philosophical education.
                 <div className="absolute top-4 right-4 z-10 flex gap-2">
                   <button
                     onClick={handleZoomIn}
-                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     <ZoomIn />
                   </button>
                   <button
                     onClick={handleZoomOut}
-                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     <ZoomOut />
                   </button>
                   <button
                     onClick={resetView}
-                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     <Home />
                   </button>
                   <button
                     onClick={() => setIsPresenting(true)}
-                    className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-lg border border-green-700 text-white"
                   >
                     <Play />
                     Present
@@ -830,16 +917,16 @@ Welcome to the future of philosophical education.
               )}
 
               {/* Navigation Controls */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-4">
+              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-4">
                 <button
                   onClick={() => goToSlide(currentSlide - 1)}
                   disabled={currentSlide === 0}
-                  className="p-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 rounded-full transition-colors"
+                  className="p-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
                 >
                   <ChevronLeft />
                 </button>
                 
-                <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg">
+                <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-lg border text-gray-900">
                   <span className="text-sm">
                     {currentSlide + 1} / {slides.length}
                   </span>
@@ -850,7 +937,7 @@ Welcome to the future of philosophical education.
                           key={index}
                           onClick={() => goToSlide(index)}
                           className={`w-2 h-2 rounded-full transition-colors ${
-                            index === currentSlide ? 'bg-blue-500' : 'bg-gray-600'
+                            index === currentSlide ? 'bg-blue-500' : 'bg-gray-400'
                           }`}
                         />
                       ))}
@@ -861,7 +948,7 @@ Welcome to the future of philosophical education.
                 <button
                   onClick={() => goToSlide(currentSlide + 1)}
                   disabled={currentSlide === slides.length - 1}
-                  className="p-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 rounded-full transition-colors"
+                  className="p-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
                 >
                   <ChevronRight />
                 </button>
@@ -871,7 +958,7 @@ Welcome to the future of philosophical education.
               {isPresenting && (
                 <button
                   onClick={() => setIsPresenting(false)}
-                  className="absolute top-4 right-4 z-10 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                  className="absolute top-4 right-4 z-10 px-4 py-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                 >
                   Exit Presentation
                 </button>
@@ -1033,8 +1120,17 @@ Welcome to the future of philosophical education.
           // Update body class for styling
           if (viewName === 'presentation') {
             document.body.classList.add('presentation-mode');
-            // If we have editor content, sync it to presentation
-            if (presentationEditorContent && window.syncContentToPresentation) {
+            
+            // Check for pending content first (from Generate Summary)
+            if (window.pendingPresentationContent) {
+              console.log('[View Switching] Applying pending presentation content');
+              const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
+                detail: { content: window.pendingPresentationContent }
+              });
+              window.dispatchEvent(contentUpdateEvent);
+            }
+            // Otherwise, sync editor content if available
+            else if (presentationEditorContent && window.syncContentToPresentation) {
               window.syncContentToPresentation(presentationEditorContent);
             }
           } else {
@@ -1042,9 +1138,10 @@ Welcome to the future of philosophical education.
             // Apply layout settings when switching to editor view
             setTimeout(() => {
               if (window.applyLayoutSettings && window.appSettings) {
+                console.log('[View Switching] Applying layout settings after view switch');
                 window.applyLayoutSettings(window.appSettings.layout);
               }
-            }, 100);
+            }, 200);
           }
 
           currentView = viewName;
@@ -1052,25 +1149,7 @@ Welcome to the future of philosophical education.
 
         // Set up view switching - use both DOMContentLoaded and immediate setup
         function setupViewSwitching() {
-          console.log('[View Switching] Setting up view switching...');
-          const editorBtn = document.getElementById('editor-view-btn');
-          const presentationBtn = document.getElementById('presentation-view-btn');
-
-          console.log('[View Switching] Found buttons:', { editorBtn, presentationBtn });
-
-          if (editorBtn) {
-            editorBtn.addEventListener('click', () => {
-              console.log('[View Switching] Editor button clicked');
-              switchToView('editor');
-            });
-          }
-
-          if (presentationBtn) {
-            presentationBtn.addEventListener('click', () => {
-              console.log('[View Switching] Presentation button clicked');
-              switchToView('presentation');
-            });
-          }
+          console.log('[View Switching] Setting up view switching via menu only...');
 
           // Render React presentation component
           const presentationRoot = document.getElementById('presentation-root');
@@ -1079,11 +1158,22 @@ Welcome to the future of philosophical education.
             ReactDOM.render(React.createElement(MarkdownPreziApp), presentationRoot);
           }
 
+          // Store content for presentation mode
+          window.pendingPresentationContent = null;
+          
           // Set up content synchronization
           window.syncContentToPresentation = (content) => {
-            // This will be implemented to sync editor content to presentation
-            console.log('Syncing content to presentation:', content);
-            // TODO: Implement actual content sync to React component
+            console.log('Syncing content to presentation, content length:', content?.length);
+            
+            // Store the content for later use
+            window.pendingPresentationContent = content;
+            
+            // Try to update the presentation immediately
+            const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
+              detail: { content: content }
+            });
+            window.dispatchEvent(contentUpdateEvent);
+            console.log('[Content Sync] Stored content and dispatched updatePresentationContent event');
           };
 
           // Set up IPC event listeners for lecture summary generation
@@ -1097,6 +1187,57 @@ Welcome to the future of philosophical education.
               console.log('[IPC] Switching to presentation view');
               switchToView('presentation');
             });
+
+            window.electronAPI.onSwitchToEditor(() => {
+              console.log('[IPC] Switching to editor view');
+              switchToView('editor');
+            });
+          }
+
+          // Set up title bar controls (only in Electron)
+          if (window.electronAPI && window.electronAPI.isElectron) {
+            const minimizeBtn = document.getElementById('minimize-btn');
+            const maximizeBtn = document.getElementById('maximize-btn');
+            const closeBtn = document.getElementById('close-btn');
+
+            if (minimizeBtn) {
+              minimizeBtn.addEventListener('click', () => {
+                console.log('[Title Bar] Minimize clicked');
+                // Add minimize functionality if needed
+              });
+            }
+
+            if (maximizeBtn) {
+              maximizeBtn.addEventListener('click', () => {
+                console.log('[Title Bar] Maximize clicked');
+                // Add maximize functionality if needed
+              });
+            }
+
+            if (closeBtn) {
+              closeBtn.addEventListener('click', () => {
+                console.log('[Title Bar] Close clicked');
+                if (window.electronAPI.closeWindow) {
+                  window.electronAPI.closeWindow();
+                } else {
+                  window.close();
+                }
+              });
+            }
+          } else {
+            // Hide title bar controls on web
+            const titleBarControls = document.querySelector('.title-bar-controls');
+            if (titleBarControls) {
+              titleBarControls.style.display = 'none';
+            }
+          }
+
+          // Hide custom controls on macOS since native ones are invisible but functional
+          if (window.electronAPI && window.electronAPI.platform === 'darwin') {
+            const titleBarControls = document.querySelector('.title-bar-controls');
+            if (titleBarControls) {
+              titleBarControls.style.display = 'none';
+            }
           }
         }
 

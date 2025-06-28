@@ -105,7 +105,7 @@ function createWindow() {
       enableRemoteModule: false,
     },
     title: 'Hegel Pedagogy AI - Advanced Editor & Presentations',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    titleBarStyle: 'hidden',
     show: false
   });
 
@@ -326,6 +326,27 @@ function createMainMenu() {
                         } 
                     } },
                 ]
+            },
+            { type: 'separator' },
+            {
+                label: 'Editor Mode',
+                accelerator: 'CmdOrCtrl+1',
+                click: () => {
+                    if (mainWindow) {
+                        console.log('[main.js] Switching to Editor mode via menu');
+                        mainWindow.webContents.send('switch-to-editor');
+                    }
+                }
+            },
+            {
+                label: 'Presentation Mode',
+                accelerator: 'CmdOrCtrl+2',
+                click: () => {
+                    if (mainWindow) {
+                        console.log('[main.js] Switching to Presentation mode via menu');
+                        mainWindow.webContents.send('switch-to-presentation');
+                    }
+                }
             },
             { type: 'separator' },
             { role: 'resetZoom' },
@@ -653,12 +674,13 @@ async function generateAndLoadLectureSummary() {
         const workingDir = appSettings.workingDirectory || path.join(__dirname, 'lectures');
         console.log(`[main.js] Using working directory: ${workingDir}`);
         
-        // Run the Python script
+        // Run the Python script with the working directory and output path
         const { spawn } = require('child_process');
         const scriptPath = path.join(__dirname, 'generate_lecture_summary.py');
+        const outputPath = path.join(workingDir, 'summary.md');
         
         return new Promise((resolve, reject) => {
-            const pythonProcess = spawn('python3', [scriptPath], {
+            const pythonProcess = spawn('python3', [scriptPath, workingDir, outputPath], {
                 cwd: __dirname,
                 stdio: ['pipe', 'pipe', 'pipe']
             });
@@ -679,17 +701,29 @@ async function generateAndLoadLectureSummary() {
                     console.log('[main.js] Lecture summary generated successfully');
                     console.log(`[main.js] Python output: ${stdout}`);
                     
-                    // Load the generated lecture_summary.md file
-                    const summaryPath = path.join(__dirname, 'lecture_summary.md');
+                    // Load the generated summary.md file from the working directory
                     try {
-                        const content = await fs.readFile(summaryPath, 'utf8');
-                        console.log('[main.js] Loaded lecture summary content');
+                        const content = await fs.readFile(outputPath, 'utf8');
+                        console.log('[main.js] Loaded lecture summary content from:', outputPath);
                         
-                        // Send the content to the presentation mode
+                        // Send the content to the presentation mode (but don't auto-switch)
                         if (mainWindow) {
                             mainWindow.webContents.send('load-presentation-content', content);
-                            mainWindow.webContents.send('switch-to-presentation');
+                            // Don't auto-switch to presentation mode - let user verify the file first
                         }
+                        
+                        // Refresh the file tree to show the new summary.md file
+                        if (mainWindow) {
+                            mainWindow.webContents.send('refresh-file-tree');
+                        }
+                        
+                        // Show success notification
+                        dialog.showMessageBox(mainWindow, {
+                            type: 'info',
+                            title: 'Lecture Summary Generated',
+                            message: `Successfully generated summary.md in:\n${workingDir}`,
+                            detail: 'The summary has been loaded into presentation mode. Switch to Presentation Mode when ready to view.'
+                        });
                         
                         resolve({ success: true });
                     } catch (readError) {
@@ -875,6 +909,48 @@ app.whenReady().then(() => {
     appSettings = { ...appSettings, ...newSettings };
     saveSettings();
     return { success: true };
+  });
+
+  // File deletion handlers
+  ipcMain.handle('show-delete-confirm', async (event, { fileName, filePath }) => {
+    if (!mainWindow) return false;
+    
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Delete File',
+      message: `Are you sure you want to delete "${fileName}"?`,
+      detail: 'This action cannot be undone.',
+      buttons: ['Cancel', 'Delete'],
+      defaultId: 0,
+      cancelId: 0
+    });
+    
+    return result.response === 1; // Return true if "Delete" was clicked
+  });
+
+  ipcMain.handle('delete-file', async (event, filePath) => {
+    try {
+      if (!filePath || typeof filePath !== 'string') {
+        throw new Error('Invalid file path');
+      }
+      
+      // Use fs.unlink to delete the file
+      await fs.unlink(filePath);
+      console.log(`[main.js] File deleted successfully: ${filePath}`);
+      
+      // If the deleted file was the current file, clear it
+      if (currentFilePath === filePath) {
+        currentFilePath = null;
+        if (mainWindow) {
+          mainWindow.setTitle('Hegel Pedagogy AI - Untitled');
+        }
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('[main.js] Error deleting file:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.on('save-layout', (event, layoutData) => {

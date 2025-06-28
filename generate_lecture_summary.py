@@ -6,6 +6,7 @@ similar to the sample-presentation.md format.
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -172,18 +173,25 @@ This summary serves as a navigational aid for deeper exploration. Each lecture b
 
 def main():
     """Main function to generate lecture summary."""
-    lectures_dir = Path("lectures")
+    # Get command line arguments
+    if len(sys.argv) >= 3:
+        lectures_dir = Path(sys.argv[1])
+        output_file = Path(sys.argv[2])
+    else:
+        # Fallback to default behavior
+        lectures_dir = Path("lectures")
+        output_file = Path("lecture_summary.md")
     
     if not lectures_dir.exists():
-        print("Lectures directory not found!")
+        print(f"Lectures directory not found: {lectures_dir}")
         return
     
     lectures_data = []
     
     # Process each markdown file in the lectures directory
     for file_path in lectures_dir.glob("*.md"):
-        if file_path.name.lower() == "readme.md":
-            continue  # Skip README files
+        if file_path.name.lower() in ["readme.md", "summary.md"]:
+            continue  # Skip README and existing summary files
             
         lecture_data = parse_lecture_file(file_path)
         if lecture_data:
@@ -196,7 +204,6 @@ def main():
     summary_content = generate_summary_markdown(lectures_data)
     
     # Write summary file
-    output_file = Path("lecture_summary.md")
     try:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(summary_content)
