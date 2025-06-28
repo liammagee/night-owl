@@ -45,6 +45,7 @@ function updatePreviewAndStructure(markdownContent) {
         // Create a custom Marked renderer
         const renderer = new marked.Renderer();
         const originalHeading = renderer.heading.bind(renderer); // Keep original renderer
+        const originalImage = renderer.image.bind(renderer); // Keep original image renderer
 
         // Override the heading method
         renderer.heading = (text, level, raw) => {
@@ -61,6 +62,19 @@ function updatePreviewAndStructure(markdownContent) {
                  console.warn(`[Marked Renderer] Could not generate valid ID for heading: ${raw || text}`);
             }
             return html;
+        };
+
+        // Override the image method to fix relative paths
+        renderer.image = (href, title, text) => {
+            // Check if this is a relative path
+            if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('file://')) {
+                // Use current file directory if available, otherwise fallback to working directory
+                const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+                const fullPath = `file://${baseDir}/${href}`;
+                console.log(`[Marked Renderer] Converting relative image path: ${href} -> ${fullPath}`);
+                return originalImage(fullPath, title, text);
+            }
+            return originalImage(href, title, text);
         };
 
         if (window.marked) {
@@ -526,41 +540,41 @@ function initializeApp() {
             const editorPane = document.getElementById('editor-pane'); 
             const rightPane = document.getElementById('right-pane'); 
             let isResizing = false;
-            let startX, initialEditorWidth;
+            let startX, initialEditorWidth, initialRightWidth;
 
             // Check if elements were found before proceeding
             if (!resizer || !editorPane || !rightPane) {
                 console.error('Resizer or pane elements not found after Monaco init!');
-                // Decide how to handle this - maybe disable resizing?
+                console.log('[renderer.js] Debug - resizer:', resizer, 'editorPane:', editorPane, 'rightPane:', rightPane);
             } else {
                 // Attach the initial mousedown listener to the resizer only if elements exist
                 resizer.addEventListener('mousedown', handleMouseDown);
-                console.log('[renderer.js] Resizer event listener attached.');
+                console.log('[renderer.js] Vertical resizer event listener attached to:', resizer);
             }
 
             // --- Resizing Logic for Left Resizer ---
             console.log('[renderer.js] Setting up left resizer logic...');
-            const resizerLeft = document.getElementById('resizer-left');
-            const structurePane = document.getElementById('structure-pane');
+            const resizerLeft = document.getElementById('sidebar-resizer');
+            const leftSidebar = document.getElementById('left-sidebar');
             // editorPane is already defined above for the right resizer
 
             let isResizingLeft = false;
-            let startXLeft, initialStructureWidth;
+            let startXLeft, initialSidebarWidth;
 
-            if (!resizerLeft || !structurePane || !editorPane) { // Check all required panes
-                console.error('Left resizer or associated panes not found after Monaco init!');
+            if (!resizerLeft || !leftSidebar) { // Check all required panes
+                console.error('Left resizer or left sidebar not found after Monaco init!');
+                console.log('[renderer.js] Debug - resizerLeft:', resizerLeft, 'leftSidebar:', leftSidebar);
             } else {
                 resizerLeft.addEventListener('mousedown', handleMouseDownLeft);
-                console.log('[renderer.js] Left resizer event listener attached.');
+                console.log('[renderer.js] Horizontal (sidebar) resizer event listener attached to:', resizerLeft);
             }
 
             function handleMouseDownLeft(e) {
-                if (!resizerLeft || !structurePane || !editorPane) return;
+                if (!resizerLeft || !leftSidebar) return;
                 console.log('[Resize Left] Mouse Down');
                 isResizingLeft = true;
                 startXLeft = e.clientX;
-                initialStructureWidth = structurePane.offsetWidth;
-                initialEditorWidth = editorPane.offsetWidth; // Need editor width too
+                initialSidebarWidth = leftSidebar.offsetWidth;
                 // Prevent text selection during drag
                 e.preventDefault(); 
                 document.addEventListener('mousemove', handleMouseMoveLeft);
@@ -568,46 +582,33 @@ function initializeApp() {
             }
 
             function handleMouseMoveLeft(e) {
-                if (!isResizingLeft || !structurePane || !editorPane || !rightPane) return;
+                if (!isResizingLeft || !leftSidebar) return;
                 // console.log('[Resize Left] Mouse Move');
-                const container = structurePane.parentElement; // Get the container
+                const container = leftSidebar.parentElement; // Get the container
                 if (!container) return;
                 const containerWidth = container.offsetWidth;
 
                 const deltaX = e.clientX - startXLeft;
-                let newStructurePx = initialStructureWidth + deltaX;
-                let newEditorPx = initialEditorWidth - deltaX;
+                let newSidebarPx = initialSidebarWidth + deltaX;
 
-                const minWidth = 100; // Min width for structure pane
-                const maxWidth = editorPane.offsetWidth - 150; // Prevent structure pane from overlapping editor too much
+                const minWidth = 200; // Min width for sidebar
+                const maxWidth = containerWidth * 0.5; // Max 50% of container width
 
-                // Enforce minimum widths
-                if (newStructurePx < minWidth) {
-                    const diff = minWidth - newStructurePx;
-                    newStructurePx = minWidth;
-                    newEditorPx -= diff; // Adjust editor accordingly
+                // Enforce minimum and maximum widths
+                if (newSidebarPx < minWidth) {
+                    newSidebarPx = minWidth;
                 }
-                if (newEditorPx < minWidth) {
-                    const diff = minWidth - newEditorPx;
-                    newEditorPx = minWidth;
-                    newStructurePx -= diff; // Adjust structure accordingly
+                if (newSidebarPx > maxWidth) {
+                    newSidebarPx = maxWidth;
                 }
 
-                // Check boundaries again after adjustments
-                if (newStructurePx < minWidth) newStructurePx = minWidth;
+                // Apply the new width directly
+                console.log(`[Resize Left] Setting sidebar width: ${newSidebarPx}px`);
+                leftSidebar.style.width = `${newSidebarPx}px`;
+                leftSidebar.style.flexBasis = `${newSidebarPx}px`;
+                leftSidebar.style.flex = `0 0 ${newSidebarPx}px`;
 
-                // Calculate percentages
-                const structurePercent = (newStructurePx / containerWidth) * 100;
-                const editorPercent = (newEditorPx / containerWidth) * 100;
-                // Keep right pane percentage constant during this resize
-                const rightPercent = (rightPane.offsetWidth / containerWidth) * 100;
-
-                // Apply percentages
-                structurePane.style.flex = `0 0 ${structurePercent}%`;
-                editorPane.style.flex = `0 0 ${editorPercent}%`;
-                rightPane.style.flex = `0 0 ${rightPercent}%`; // Explicitly set right pane too
-
-                // Trigger layout recalculation for Monaco if needed (resizing structure might shift editor)
+                // Trigger layout recalculation for Monaco if needed (resizing sidebar might shift editor)
                 requestAnimationFrame(() => {
                     if (editor && typeof editor.layout === 'function') {
                         editor.layout(); 
@@ -638,7 +639,7 @@ function initializeApp() {
             }
         
             function handleMouseMove(e) {
-                if (!isResizing || !editorPane || !rightPane || !structurePane) return;
+                if (!isResizing || !editorPane || !rightPane) return;
                 // console.log('[Resize] Mouse Move during resize');
                 const container = editorPane.parentElement;
                 if (!container) return;
@@ -664,16 +665,14 @@ function initializeApp() {
                 // Check boundaries again after adjustments
                 if (newEditorPx < minWidth) newEditorPx = minWidth;
 
-                // Calculate percentages
-                const editorPercent = (newEditorPx / containerWidth) * 100;
-                const rightPercent = (newRightPx / containerWidth) * 100;
-                // Keep structure pane constant during this resize
-                const structurePercent = (structurePane.offsetWidth / containerWidth) * 100;
-
-                // Apply percentages
-                structurePane.style.flex = `0 0 ${structurePercent}%`; // Explicitly set structure pane too
-                editorPane.style.flex = `0 0 ${editorPercent}%`;
-                rightPane.style.flex = `0 0 ${rightPercent}%`;
+                // Apply the new widths directly
+                console.log(`[Resize] Setting editor width: ${newEditorPx}px, right width: ${newRightPx}px`);
+                editorPane.style.flex = `0 0 ${newEditorPx}px`;
+                rightPane.style.flex = `0 0 ${newRightPx}px`;
+                
+                // Also set width for backup
+                editorPane.style.width = `${newEditorPx}px`;
+                rightPane.style.width = `${newRightPx}px`;
 
                 requestAnimationFrame(() => {
                     if (editor && typeof editor.layout === 'function') {
@@ -810,14 +809,30 @@ if (window.electronAPI) {
 
 // Helper to open file in editor
 function openFileInEditor(filePath, content) {
+    console.log('[Renderer] Opening file in editor:', filePath);
+    
+    // Store current file directory for image path resolution
+    // Extract directory from file path
+    const lastSlash = filePath.lastIndexOf('/');
+    window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
+    console.log('[Renderer] Set current file directory:', window.currentFileDirectory);
+    
     // Set editor content (Monaco or fallback)
     if (editor && typeof editor.setValue === 'function') {
         editor.setValue(content);
     } else if (fallbackEditor) {
         fallbackEditor.value = content;
     }
-    // Optionally update UI with file name, etc.
-    // ...
+    
+    // Update preview and structure
+    updatePreviewAndStructure(content);
+    
+    // Sync content to presentation view (if available)
+    if (window.syncContentToPresentation) {
+        console.log('[Renderer] Syncing file content to presentation view');
+        window.syncContentToPresentation(content);
+    }
+    
     // Save current file to settings (redundant, but ensures consistency)
     window.electronAPI.invoke('set-current-file', filePath);
 }
@@ -876,20 +891,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 function applyLayoutSettings(layout) {
     console.log('[renderer.js] Applying layout settings:', layout);
     
-    // Check if we're in editor view before applying layout
-    const editorView = document.getElementById('editor-view');
-    if (!editorView || !editorView.classList.contains('active')) {
-        console.log('[renderer.js] Not in editor view, skipping layout application.');
+    // Check if we're in editor mode before applying layout
+    const editorContent = document.getElementById('editor-content');
+    if (!editorContent || !editorContent.classList.contains('active')) {
+        console.log('[renderer.js] Not in editor mode, skipping layout application.');
         return;
     }
     
-    const structurePane = document.getElementById('structure-pane');
+    const leftSidebar = document.getElementById('left-sidebar');
     const editorPane = document.getElementById('editor-pane');
     const rightPane = document.getElementById('right-pane');
-    const container = editorView; // Use editor view as container
+    const container = editorContent; // Use editor content as container
 
-    if (!structurePane || !editorPane || !rightPane) {
-        console.error('[renderer.js] Cannot apply layout: one or more pane elements not found in editor view.');
+    if (!leftSidebar || !editorPane || !rightPane) {
+        console.error('[renderer.js] Cannot apply layout: one or more pane elements not found in editor mode.');
         return;
     }
 
@@ -915,18 +930,18 @@ function applyLayoutSettings(layout) {
 
         if (totalPercent < 98 || totalPercent > 102) {
             console.warn(`[renderer.js] Layout percentages (${totalPercent}%) do not add up near 100%. Using defaults.`);
-            structurePane.style.flex = `0 0 ${defaultLayout.structureWidth}`;
+            leftSidebar.style.flex = `0 0 ${defaultLayout.structureWidth}`;
             editorPane.style.flex = `0 0 ${defaultLayout.editorWidth}`;
             rightPane.style.flex = `0 0 ${defaultLayout.rightWidth}`;
         } else {
             console.log('[renderer.js] Applying valid layout:', effectiveLayout);
-            structurePane.style.flex = `0 0 ${effectiveLayout.structureWidth}`;
+            leftSidebar.style.flex = `0 0 ${effectiveLayout.structureWidth}`;
             editorPane.style.flex = `0 0 ${effectiveLayout.editorWidth}`;
             rightPane.style.flex = `0 0 ${effectiveLayout.rightWidth}`;
         }
     } else {
         console.warn('[renderer.js] Invalid layout format found in settings. Using defaults.');
-        structurePane.style.flex = `0 0 ${defaultLayout.structureWidth}`;
+        leftSidebar.style.flex = `0 0 ${defaultLayout.structureWidth}`;
         editorPane.style.flex = `0 0 ${defaultLayout.editorWidth}`;
         rightPane.style.flex = `0 0 ${defaultLayout.rightWidth}`;
     }
@@ -1675,24 +1690,24 @@ if (window.electronAPI) {
 // --- Theme Change Listeners ---
 // --- Helper to Save Current Layout --- 
 function saveCurrentLayout() {
-    const structurePane = document.getElementById('structure-pane');
+    const leftSidebar = document.getElementById('left-sidebar');
     const editorPane = document.getElementById('editor-pane');
     const rightPane = document.getElementById('right-pane');
-    const container = document.querySelector('.container');
+    const appContainer = document.getElementById('app-container');
 
-    if (!structurePane || !editorPane || !rightPane || !container) {
+    if (!leftSidebar || !editorPane || !rightPane || !appContainer) {
         console.error('[renderer.js] Cannot save layout: one or more pane elements or container not found.');
         return;
     }
 
-    const containerWidth = container.offsetWidth;
+    const containerWidth = appContainer.offsetWidth;
     if (containerWidth <= 0) {
          console.warn('[renderer.js] Cannot save layout: container width is zero.');
         return;
     }
 
     const layoutData = {
-        structureWidth: `${(structurePane.offsetWidth / containerWidth) * 100}%`,
+        structureWidth: `${(leftSidebar.offsetWidth / containerWidth) * 100}%`,
         editorWidth: `${(editorPane.offsetWidth / containerWidth) * 100}%`,
         rightWidth: `${(rightPane.offsetWidth / containerWidth) * 100}%`
     };

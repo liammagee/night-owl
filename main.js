@@ -35,9 +35,9 @@ let appSettings = {};
 const defaultSettings = {
     theme: 'light',
     layout: {
-        structureWidth: '20%',
-        editorWidth: '50%',
-        rightWidth: '30%'
+        structureWidth: '18%',
+        editorWidth: '45%',
+        rightWidth: '37%'
     },
     workingDirectory: app.getPath('documents'),
     currentFile: '',
@@ -815,9 +815,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('set-current-file', (event, filePath) => {
     if (typeof filePath === 'string') {
+        currentFilePath = filePath;  // Update the current file path for save operations
         appSettings.currentFile = filePath;
         saveSettings();
-        console.log('[main.js] Updated currentFile in settings:', filePath);
+        console.log('[main.js] Updated currentFile in settings and currentFilePath:', filePath);
         return { success: true };
     } else {
         return { success: false, error: 'Invalid file path' };

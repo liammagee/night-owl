@@ -17,38 +17,42 @@
     <!-- Styles -->
     <link rel="stylesheet" href="orchestrator/style.css">
     <style>
-        /* View Switcher Styles - Hidden, controlled via menu only */
-        .view-switcher {
-            display: none;
+        /* Content view styles */
+        .content-view {
+            display: none !important;
         }
         
-        /* View containers */
-        .view-container {
-            display: none;
-            width: 100%;
-            height: 100vh;
+        .content-view.active {
+            display: flex !important;
+            flex: 1;
         }
         
-        .view-container.active {
-            display: flex;
+        /* Ensure presentation content is visible when active */
+        #presentation-content.active {
+            background: #1a1a1a !important;
+            min-height: 100vh !important;
         }
         
-        /* Editor view styles */
-        #editor-view {
-            flex-direction: row;
+        
+        /* Mode switcher button styles */
+        .mode-btn:hover {
+            background: #f0f0f0 !important;
+            color: #333 !important;
         }
         
-        /* Presentation view styles */
-        #presentation-view {
-            background: #1a1a1a;
-            color: white;
-            overflow: hidden;
-            position: relative;
+        .mode-btn.active {
+            background: #007acc !important;
+            color: white !important;
+        }
+        
+        /* Resizer styles */
+        .resizer:hover {
+            background: #007acc !important;
         }
         
         /* Force slide content to be light with dark text */
-        #presentation-view .slide-content,
-        #presentation-view .slide-content *,
+        #presentation-content .slide-content,
+        #presentation-content .slide-content *,
         #presentation-root div[style*="background"],
         #presentation-root .bg-white {
             background-color: white !important;
@@ -68,25 +72,85 @@
             color: #1f2937 !important;
         }
         
-        /* Dark theme for view switcher in presentation mode */
-        body.presentation-mode .view-switcher {
-            background: rgba(0, 0, 0, 0.8);
+        /* Preview pane styling - override external CSS */
+        #right-pane {
+            flex: 1 !important;
+            min-width: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            height: calc(100vh - 32px - 40px) !important; /* Account for title bar and mode switcher */
+            max-height: calc(100vh - 32px - 40px) !important;
         }
         
-        body.presentation-mode .view-switcher button {
-            background: #333;
-            color: white;
-            border-color: #555;
+        /* Container for content panes - allow flex child to scroll */
+        #right-pane > div:last-child {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            height: 100% !important;
         }
         
-        body.presentation-mode .view-switcher button.active {
-            background: #007acc;
-            border-color: #007acc;
+        #preview-pane {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            box-sizing: border-box !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            flex: 1 !important;
+            min-height: 0 !important;
         }
         
-        body.presentation-mode .view-switcher button:hover:not(.active) {
-            background: #444;
+        #preview-content {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-wrap: break-word !important;
+            word-break: break-word !important;
+            padding: 16px !important;
+            box-sizing: border-box !important;
+            line-height: 1.6 !important;
+            height: auto !important;
         }
+        
+        /* Content pane styling */
+        .content-pane {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            overflow-y: auto !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+            position: relative !important;
+        }
+        
+        /* Preview pane image constraints */
+        #preview-content img {
+            max-width: 100% !important;
+            height: auto !important;
+            display: block;
+            margin: 10px 0;
+        }
+        
+        /* Ensure all preview content elements use full width */
+        #preview-content * {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        
+        /* Presentation mode image constraints */
+        #presentation-content img,
+        #presentation-root img,
+        .slide-content img {
+            max-width: 80% !important;
+            max-height: 60vh !important;
+            height: auto !important;
+            width: auto !important;
+            display: block !important;
+            margin: 20px auto !important;
+            object-fit: contain !important;
+        }
+        
     </style>
     
     <!-- Scripts -->
@@ -121,6 +185,8 @@
         .left-4 { left: 1rem; }
         .right-4 { right: 1rem; }
         .bottom-4 { bottom: 1rem; }
+        .bottom-8 { bottom: 2rem; }
+        .z-50 { z-index: 50; }
         .left-1\/2 { left: 50%; }
         .z-10 { z-index: 10; }
         .flex { display: flex; }
@@ -237,6 +303,57 @@
             position: absolute;
             width: 100%;
         }
+        
+        /* Fix mode button highlighting */
+        .mode-btn.active {
+            background: #007acc !important;
+            color: white !important;
+        }
+        
+        .mode-btn:not(.active) {
+            background: transparent !important;
+            color: #666 !important;
+        }
+        
+        /* Add margins to sidebar headers */
+        #structure-pane-header {
+            padding: 8px 12px !important;
+            margin-top: 4px !important;
+        }
+        
+        #structure-pane-title {
+            margin-left: 0 !important;
+            margin-top: 4px !important;
+        }
+        
+        /* File tree styling improvements */
+        #file-tree-view {
+            padding: 8px 12px !important;
+            margin-top: 4px !important;
+        }
+        
+        /* Remove all bullet points from file tree */
+        #file-tree-view ul {
+            list-style: none !important;
+            padding-left: 0 !important;
+            margin: 0 !important;
+        }
+        
+        #file-tree-view li {
+            list-style: none !important;
+            padding-left: 0 !important;
+            margin-left: 0 !important;
+        }
+        
+        /* Proper indentation for nested items */
+        #file-tree-view ul.file-tree-children {
+            padding-left: 20px !important;
+        }
+        
+        /* Ensure root folder has no indentation */
+        #file-tree-view ul.file-tree-root {
+            padding-left: 0 !important;
+        }
     </style>
 </head>
 <body>
@@ -250,15 +367,10 @@
         </div>
     </div>
     
-    <!-- View Switcher -->
-    <div class="view-switcher">
-        <button id="editor-view-btn" class="active">Editor</button>
-        <button id="presentation-view-btn">Presentation</button>
-    </div>
-
-    <!-- Editor View -->
-    <div id="editor-view" class="view-container active">
-        <div id="structure-pane" class="pane structure-pane">
+    <!-- Main Application Container -->
+    <div id="app-container" style="display: flex; height: calc(100vh - 32px); margin-top: 32px;">
+        <!-- Left Sidebar (Always visible) -->
+        <div id="left-sidebar" style="width: 250px; min-width: 200px; max-width: 400px; border-right: 1px solid #ddd; display: flex; flex-direction: column;">
             <div id="structure-pane-header">
                 <div class="toggle-buttons structure-toggle-buttons">
                     <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
@@ -266,38 +378,63 @@
                 </div>
                 <h2 id="structure-pane-title">Structure</h2>
             </div>
-            <ul id="structure-list"></ul>
-            <div id="file-tree-view" style="display: none;"></div>
-        </div>
-        <div id="resizer-left" class="resizer"></div> 
-        <div id="editor-pane" class="pane editor-pane">
-            <div id="editor-container" style="width: 100%; height: 100%;"></div>
-            <textarea id="fallback-editor" style="display: none; width: 100%; height: 100%; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
-        </div>
-        <div id="resizer" class="resizer"></div> 
-        <div id="right-pane" class="pane right-pane">
-            <div class="toggle-buttons">
-                <button id="show-preview-btn" class="btn pane-toggle-button active">Preview</button>
-                <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
+            <div style="flex: 1; overflow-y: auto;">
+                <ul id="structure-list"></ul>
+                <div id="file-tree-view" style="display: none;"></div>
             </div>
-            <div id="preview-pane" class="content-pane">
-                <div id="preview-content"></div>
-            </div>
-            <div id="chat-pane" class="content-pane" style="display: none;">
-                <div id="chat-messages"></div>
-                <div class="chat-input-area">
-                    <button id="load-editor-to-chat-btn" class="btn" title="Load Editor Content">Load Editor</button>
-                    <textarea id="chat-input" placeholder="Ask the AI..."></textarea>
-                    <button id="chat-send-btn" class="btn">Send</button>
-                    <button id="copy-ai-response-btn" class="btn" title="Copy last AI response to editor">Copy to Editor</button>
+        </div>
+
+        <!-- Resizer for left sidebar -->
+        <div id="sidebar-resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
+
+        <!-- Main Content Area (Switches between editor and presentation) -->
+        <div id="main-content" style="flex: 1; display: flex; flex-direction: column;">
+            <!-- Content Mode Switcher -->
+            <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+                <div style="display: flex; gap: 4px; padding: 4px; background: white; border: 1px solid #ddd; border-radius: 6px;">
+                    <button id="editor-mode-btn" class="mode-btn active" style="padding: 6px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Editor</button>
+                    <button id="presentation-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Presentation</button>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Presentation View -->
-    <div id="presentation-view" class="view-container">
-        <div id="presentation-root" style="width: 100%; height: 100%;"></div>
+            <!-- Editor Content -->
+            <div id="editor-content" class="content-view active">
+                <div id="editor-pane" style="flex: 2; min-width: 300px; position: relative;">
+                    <div id="editor-container" style="width: 100%; height: 100%;"></div>
+                    <textarea id="fallback-editor" style="display: none; width: 100%; height: 100%; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
+                </div>
+                <div id="resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
+                <div id="right-pane">
+                    <div class="toggle-buttons" style="padding: 8px; border-bottom: 1px solid #ddd; flex-shrink: 0;">
+                        <button id="show-preview-btn" class="btn pane-toggle-button active">Preview</button>
+                        <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <div id="preview-pane" class="content-pane">
+                            <div id="preview-content"></div>
+                        </div>
+                        <div id="chat-pane" class="content-pane" style="display: none; height: 100%; padding: 16px; flex-direction: column;">
+                            <div id="chat-messages" style="flex: 1; overflow-y: auto; margin-bottom: 16px;"></div>
+                            <div class="chat-input-area" style="display: flex; flex-direction: column; gap: 8px;">
+                                <div style="display: flex; gap: 8px;">
+                                    <button id="load-editor-to-chat-btn" class="btn" title="Load Editor Content">Load Editor</button>
+                                    <button id="copy-ai-response-btn" class="btn" title="Copy last AI response to editor">Copy to Editor</button>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <textarea id="chat-input" placeholder="Ask the AI..." style="flex: 1; min-height: 60px; resize: vertical;"></textarea>
+                                    <button id="chat-send-btn" class="btn">Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Presentation Content -->
+            <div id="presentation-content" class="content-view">
+                <div id="presentation-root" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
@@ -380,6 +517,7 @@
         );
 
         const MarkdownPreziApp = () => {
+          console.log('[React Component] MarkdownPreziApp rendering');
           const [slides, setSlides] = useState([]);
           const [currentSlide, setCurrentSlide] = useState(0);
           const [zoom, setZoom] = useState(1);
@@ -390,6 +528,9 @@
           const [isPresenting, setIsPresenting] = useState(false);
           const [layoutType, setLayoutType] = useState('spiral');
           const [focusedSlide, setFocusedSlide] = useState(null);
+          
+          console.log('[React Component] Current slides count:', slides.length);
+          console.log('[React Component] Current slide index:', currentSlide);
           const canvasRef = useRef(null);
           const fileInputRef = useRef(null);
 
@@ -527,6 +668,19 @@ Welcome to the future of philosophical education.
             // Inline code
             html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
             
+            // Fix image paths - convert relative paths to absolute file:// URLs
+            html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, altText, imagePath) => {
+              // Check if this is a relative path
+              if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://')) {
+                // Use current file directory if available, otherwise fallback to working directory
+                const baseDir = window.currentFileDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+                const fullPath = `file://${baseDir}/${imagePath}`;
+                console.log(`[React Presentation] Converting image path: ${imagePath} -> ${fullPath}`);
+                return `<img src="${fullPath}" alt="${altText}" />`;
+              }
+              return `<img src="${imagePath}" alt="${altText}" />`;
+            });
+            
             // Links
             html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
             
@@ -643,8 +797,8 @@ Welcome to the future of philosophical education.
               });
 
               window.electronAPI.onTogglePresentationMode(() => {
-                // Switch to presentation view
-                switchToView('presentation');
+                // Switch to presentation mode
+                switchToMode('presentation');
               });
 
               // Zoom controls
@@ -765,13 +919,46 @@ Welcome to the future of philosophical education.
             setPan(targetPan);
           };
 
-          // Zoom handlers
+          // Zoom handlers - zoom from current slide center
           const handleZoomIn = () => {
-            setZoom(Math.min(3, zoom * 1.2));
+            const newZoom = Math.min(3, zoom * 1.2);
+            zoomFromCurrentSlide(newZoom);
           };
 
           const handleZoomOut = () => {
-            setZoom(Math.max(0.1, zoom * 0.8));
+            const newZoom = Math.max(0.1, zoom * 0.8);
+            zoomFromCurrentSlide(newZoom);
+          };
+
+          // Helper function to zoom from current slide center
+          const zoomFromCurrentSlide = (newZoom) => {
+            if (slides.length === 0 || currentSlide >= slides.length) {
+              setZoom(newZoom);
+              return;
+            }
+
+            const canvas = canvasRef.current;
+            if (!canvas) {
+              setZoom(newZoom);
+              return;
+            }
+
+            const slide = slides[currentSlide];
+            const viewportCenterX = canvas.clientWidth / 2;
+            const viewportCenterY = canvas.clientHeight / 2;
+            
+            // Calculate the current slide's position on screen
+            const currentSlideCenterX = slide.position.x * zoom + pan.x;
+            const currentSlideCenterY = slide.position.y * zoom + pan.y;
+            
+            // Calculate new pan to keep slide centered at new zoom level
+            const newPan = {
+              x: viewportCenterX - (slide.position.x * newZoom),
+              y: viewportCenterY - (slide.position.y * newZoom)
+            };
+
+            setZoom(newZoom);
+            setPan(newPan);
           };
 
           const resetView = () => {
@@ -801,8 +988,8 @@ Welcome to the future of philosophical education.
           useEffect(() => {
             const handleKeyPress = (e) => {
               // Only handle keyboard events if we're in presentation view and not focused on an input element
-              const presentationView = document.getElementById('presentation-view');
-              const isInPresentationView = presentationView && presentationView.classList.contains('active');
+              const presentationContent = document.getElementById('presentation-content');
+              const isInPresentationView = presentationContent && presentationContent.classList.contains('active');
               const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
               
               if (!isInPresentationView || isInputFocused) {
@@ -917,7 +1104,7 @@ Welcome to the future of philosophical education.
               )}
 
               {/* Navigation Controls */}
-              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 flex items-center gap-4">
+              <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4">
                 <button
                   onClick={() => goToSlide(currentSlide - 1)}
                   disabled={currentSlide === 0}
@@ -954,14 +1141,37 @@ Welcome to the future of philosophical education.
                 </button>
               </div>
 
-              {/* Presentation Mode Toggle */}
+              {/* Presentation Mode Controls */}
               {isPresenting && (
-                <button
-                  onClick={() => setIsPresenting(false)}
-                  className="absolute top-4 right-4 z-10 px-4 py-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-                >
-                  Exit Presentation
-                </button>
+                <div className="absolute top-4 right-4 z-10 flex gap-2">
+                  <button
+                    onClick={handleZoomIn}
+                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    title="Zoom In"
+                  >
+                    <ZoomIn />
+                  </button>
+                  <button
+                    onClick={handleZoomOut}
+                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut />
+                  </button>
+                  <button
+                    onClick={resetView}
+                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    title="Reset Zoom"
+                  >
+                    <Home />
+                  </button>
+                  <button
+                    onClick={() => setIsPresenting(false)}
+                    className="px-4 py-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                  >
+                    Exit Presentation
+                  </button>
+                </div>
               )}
 
               {/* Canvas */}
@@ -1000,8 +1210,8 @@ Welcome to the future of philosophical education.
                           width: '600px',
                           minHeight: '400px',
                           transform: 'translate(-50%, -50%)',
-                          opacity: isPresenting && index !== currentSlide ? 0.3 : 1,
-                          zIndex: isFocused ? 1000 : 1,
+                          opacity: isPresenting && index !== currentSlide ? 0.1 : 1,
+                          zIndex: isFocused ? 1000 : isCurrent ? 999 : isPresenting && index !== currentSlide ? 0 : 1,
                           position: 'absolute'
                         }}
                         onDoubleClick={() => handleSlideDoubleClick(index)}
@@ -1090,72 +1300,126 @@ Welcome to the future of philosophical education.
           );
         };
 
-        // Global view switching functions
-        let currentView = 'editor';
-        let presentationEditor = null;
+        // Global content switching functions
+        let currentMode = 'editor';
         let presentationEditorContent = '';
 
-        function switchToView(viewName) {
-          // Hide all views
-          const views = document.querySelectorAll('.view-container');
-          views.forEach(view => {
+        function switchToMode(modeName) {
+          console.log('[Mode Switching] Switching to:', modeName);
+          
+          // Hide all content views
+          const contentViews = document.querySelectorAll('.content-view');
+          console.log('[Mode Switching] Found content views:', contentViews.length);
+          contentViews.forEach(view => {
+            console.log('[Mode Switching] Removing active from:', view.id);
             view.classList.remove('active');
           });
 
-          // Show selected view
-          const targetView = document.getElementById(`${viewName}-view`);
+          // Show selected content view
+          const targetView = document.getElementById(`${modeName}-content`);
+          console.log('[Mode Switching] Target view:', targetView);
           if (targetView) {
             targetView.classList.add('active');
+            console.log('[Mode Switching] Added active class to:', modeName + '-content');
+            console.log('[Mode Switching] Target view classes:', targetView.className);
+          } else {
+            console.error('[Mode Switching] Could not find target view:', modeName + '-content');
           }
 
-          // Update buttons
-          const buttons = document.querySelectorAll('.view-switcher button');
-          buttons.forEach(btn => btn.classList.remove('active'));
+          // Update mode buttons
+          const modeButtons = document.querySelectorAll('.mode-btn');
+          modeButtons.forEach(btn => btn.classList.remove('active'));
           
-          const targetButton = document.getElementById(`${viewName}-view-btn`);
+          const targetButton = document.getElementById(`${modeName}-mode-btn`);
           if (targetButton) {
             targetButton.classList.add('active');
           }
 
-          // Update body class for styling
-          if (viewName === 'presentation') {
+          // Handle mode-specific logic
+          if (modeName === 'presentation') {
             document.body.classList.add('presentation-mode');
+            
+            // Ensure React component is rendered
+            const presentationRoot = document.getElementById('presentation-root');
+            if (presentationRoot) {
+              console.log('[Mode Switching] Rendering React presentation component for presentation mode');
+              try {
+                ReactDOM.render(React.createElement(MarkdownPreziApp), presentationRoot);
+                console.log('[Mode Switching] React component rendered successfully');
+              } catch (error) {
+                console.error('[Mode Switching] Error rendering React component:', error);
+              }
+            }
             
             // Check for pending content first (from Generate Summary)
             if (window.pendingPresentationContent) {
-              console.log('[View Switching] Applying pending presentation content');
+              console.log('[Mode Switching] Applying pending presentation content');
               const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
                 detail: { content: window.pendingPresentationContent }
               });
               window.dispatchEvent(contentUpdateEvent);
             }
             // Otherwise, sync editor content if available
-            else if (presentationEditorContent && window.syncContentToPresentation) {
-              window.syncContentToPresentation(presentationEditorContent);
+            else {
+              // Try to get current editor content
+              let currentContent = '';
+              if (window.editor && typeof window.editor.getValue === 'function') {
+                currentContent = window.editor.getValue();
+                console.log('[Mode Switching] Got content from Monaco editor, length:', currentContent.length);
+              } else if (presentationEditorContent) {
+                currentContent = presentationEditorContent;
+                console.log('[Mode Switching] Using stored presentation content, length:', currentContent.length);
+              }
+              
+              if (currentContent && window.syncContentToPresentation) {
+                console.log('[Mode Switching] Syncing content to presentation');
+                window.syncContentToPresentation(currentContent);
+              } else {
+                console.log('[Mode Switching] No content to sync or sync function not available');
+              }
             }
           } else {
             document.body.classList.remove('presentation-mode');
-            // Apply layout settings when switching to editor view
-            setTimeout(() => {
-              if (window.applyLayoutSettings && window.appSettings) {
-                console.log('[View Switching] Applying layout settings after view switch');
-                window.applyLayoutSettings(window.appSettings.layout);
-              }
-            }, 200);
           }
 
-          currentView = viewName;
+          currentMode = modeName;
         }
 
-        // Set up view switching - use both DOMContentLoaded and immediate setup
-        function setupViewSwitching() {
-          console.log('[View Switching] Setting up view switching via menu only...');
+        // Set up mode switching
+        function setupModeSwitching() {
+          console.log('[Mode Switching] Setting up mode switching...');
+
+          // Set up mode button event listeners
+          const editorModeBtn = document.getElementById('editor-mode-btn');
+          const presentationModeBtn = document.getElementById('presentation-mode-btn');
+
+          if (editorModeBtn) {
+            editorModeBtn.addEventListener('click', () => {
+              console.log('[Mode Switching] Editor mode button clicked');
+              switchToMode('editor');
+            });
+          }
+
+          if (presentationModeBtn) {
+            presentationModeBtn.addEventListener('click', () => {
+              console.log('[Mode Switching] Presentation mode button clicked');
+              switchToMode('presentation');
+            });
+          }
 
           // Render React presentation component
           const presentationRoot = document.getElementById('presentation-root');
           if (presentationRoot) {
-            console.log('[View Switching] Rendering React presentation component');
-            ReactDOM.render(React.createElement(MarkdownPreziApp), presentationRoot);
+            console.log('[Mode Switching] Rendering React presentation component');
+            console.log('[Mode Switching] Presentation root element:', presentationRoot);
+            try {
+              ReactDOM.render(React.createElement(MarkdownPreziApp), presentationRoot);
+              console.log('[Mode Switching] React component rendered successfully');
+            } catch (error) {
+              console.error('[Mode Switching] Error rendering React component:', error);
+            }
+          } else {
+            console.error('[Mode Switching] Could not find presentation-root element');
           }
 
           // Store content for presentation mode
@@ -1184,13 +1448,13 @@ Welcome to the future of philosophical education.
             });
 
             window.electronAPI.onSwitchToPresentation(() => {
-              console.log('[IPC] Switching to presentation view');
-              switchToView('presentation');
+              console.log('[IPC] Switching to presentation mode');
+              switchToMode('presentation');
             });
 
             window.electronAPI.onSwitchToEditor(() => {
-              console.log('[IPC] Switching to editor view');
-              switchToView('editor');
+              console.log('[IPC] Switching to editor mode');
+              switchToMode('editor');
             });
           }
 
@@ -1243,13 +1507,13 @@ Welcome to the future of philosophical education.
 
         // Try setup immediately and on DOMContentLoaded
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', setupViewSwitching);
+          document.addEventListener('DOMContentLoaded', setupModeSwitching);
         } else {
-          setupViewSwitching();
+          setupModeSwitching();
         }
 
-        // Expose view switching globally
-        window.switchToView = switchToView;
+        // Expose mode switching globally
+        window.switchToMode = switchToMode;
     </script>
 </body>
 </html>
