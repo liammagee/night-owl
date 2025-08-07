@@ -6,6 +6,13 @@
 ---
 
 
+### Hi Vanicka
+
+
+
+---
+
+
 ### Sense Certainty
 
 ![image](images/consciousness-sense-certainty.png)
@@ -180,11 +187,12 @@ ___
 ##  Absolute Knowing
 
 
-### Version 1 ("AI"):
-
-![image](images/absolute-knowing-1.png)
 
 
-### Version 2 ("Cyber-social"):
+![image](images/absolute-knowing-1.png "AI version")
 
-![image](images/absolute-knowing-2.png)
+
+---
+
+
+![image](images/absolute-knowing-2.png "Cyber-social version")

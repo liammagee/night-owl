@@ -57,7 +57,7 @@ This collection contains **4 lecture files** covering:
 ---
 
 ## Consciousness
-*Source: robo_phenomenology.md | ~42 words*
+*Source: robo_phenomenology.md | ~153 words*
 
 ### Key Sections:
   - Consciousness
@@ -65,9 +65,9 @@ This collection contains **4 lecture files** covering:
     - Perception
     - Understanding
   - Self-Consciousness
-    - Master Servant
+    - Master Servant #1
+    - Master Servant #2
     - Stoicism
-    - Skepticism
 
 ---
 

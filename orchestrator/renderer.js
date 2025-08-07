@@ -22,6 +22,7 @@ const structurePaneTitle = document.getElementById('structure-pane-title');
 const showStructureBtn = document.getElementById('show-structure-btn');
 const showFilesBtn = document.getElementById('show-files-btn');
 const fileTreeView = document.getElementById('file-tree-view');
+const newFolderBtn = document.getElementById('new-folder-btn');
 const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
@@ -33,6 +34,135 @@ if (typeof require !== 'undefined') {
     require.config({ paths: { 'vs': './node_modules/monaco-editor/min/vs' } });
 }
 
+// --- Status Bar Update Function ---
+function updateStatusBar(content) {
+    const wordCountEl = document.getElementById('word-count');
+    const charCountEl = document.getElementById('char-count');
+    const lineCountEl = document.getElementById('line-count');
+    const cursorPosEl = document.getElementById('cursor-position');
+    
+    if (!content) content = '';
+    
+    // Count words (split by whitespace, filter empty strings)
+    const words = content.trim().split(/\s+/).filter(word => word.length > 0);
+    const wordCount = content.trim() === '' ? 0 : words.length;
+    
+    // Count characters
+    const charCount = content.length;
+    
+    // Count lines
+    const lineCount = content === '' ? 1 : content.split('\n').length;
+    
+    // Update status bar elements
+    if (wordCountEl) wordCountEl.textContent = `Words: ${wordCount}`;
+    if (charCountEl) charCountEl.textContent = `Characters: ${charCount}`;
+    if (lineCountEl) lineCountEl.textContent = `Lines: ${lineCount}`;
+    
+    // Update cursor position if editor is available
+    if (editor && editor.getPosition) {
+        const position = editor.getPosition();
+        if (cursorPosEl && position) {
+            cursorPosEl.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
+        }
+    } else if (cursorPosEl) {
+        cursorPosEl.textContent = 'Ln 1, Col 1';
+    }
+}
+
+// --- Process Obsidian-style Internal Links ---
+function processInternalLinks(content) {
+    // Regular expression to match [[link]] and [[link|display text]] patterns
+    const internalLinkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+    
+    return content.replace(internalLinkRegex, (match, link, displayText) => {
+        // Clean up the link (remove any leading/trailing whitespace)
+        const cleanLink = link.trim();
+        const display = displayText ? displayText.trim() : cleanLink;
+        
+        // Convert to file path (assume .md extension if not present)
+        let filePath = cleanLink;
+        if (!filePath.endsWith('.md') && !filePath.includes('.')) {
+            filePath += '.md';
+        }
+        
+        // Create a markdown link that will be processed by marked.js
+        // Use a data attribute to mark it as an internal link
+        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+    });
+}
+
+// --- Handle Internal Link Clicks ---
+function handleInternalLinkClick(event) {
+    if (event.target.classList.contains('internal-link')) {
+        event.preventDefault();
+        const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
+        const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
+        
+        console.log(`[renderer.js] Internal link clicked: ${originalLink} -> ${filePath}`);
+        
+        // Try to open the linked file
+        openInternalLink(filePath, originalLink);
+    }
+}
+
+// --- Open Internal Link ---
+async function openInternalLink(filePath, originalLink) {
+    try {
+        // First, try to find the file in the current working directory
+        const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+        const fullPath = `${workingDir}/${filePath}`;
+        
+        console.log(`[renderer.js] Attempting to open internal link: ${fullPath}`);
+        
+        // Try to open the file
+        const result = await window.electronAPI.invoke('open-file-path', fullPath);
+        
+        if (result.success) {
+            console.log(`[renderer.js] Successfully opened internal link: ${filePath}`);
+            
+            // If we're currently in presentation mode, switch to editor mode first
+            if (window.switchToMode && typeof window.switchToMode === 'function') {
+                const presentationContent = document.getElementById('presentation-content');
+                if (presentationContent && presentationContent.classList.contains('active')) {
+                    console.log(`[renderer.js] Switching from presentation to editor mode to open internal link`);
+                    window.switchToMode('editor');
+                }
+            }
+            
+            // Load the file content into both editor and preview
+            openFileInEditor(result.filePath, result.content);
+        } else {
+            console.warn(`[renderer.js] Could not open internal link: ${result.error}`);
+            
+            // Offer to create the file
+            const shouldCreate = confirm(`File "${filePath}" not found. Would you like to create it?`);
+            if (shouldCreate) {
+                await createInternalLinkFile(fullPath, originalLink);
+            }
+        }
+    } catch (error) {
+        console.error(`[renderer.js] Error opening internal link:`, error);
+    }
+}
+
+// --- Create New File for Internal Link ---
+async function createInternalLinkFile(fullPath, originalLink) {
+    try {
+        // Create basic content for the new file
+        const initialContent = `# ${originalLink}\n\nThis file was created from an internal link.\n\n`;
+        
+        const result = await window.electronAPI.invoke('perform-save-as', initialContent);
+        
+        if (result.success) {
+            console.log(`[renderer.js] Created new file for internal link: ${result.filePath}`);
+        } else {
+            console.error(`[renderer.js] Failed to create file for internal link:`, result.error);
+        }
+    } catch (error) {
+        console.error(`[renderer.js] Error creating file for internal link:`, error);
+    }
+}
+
 // --- Update Function Definition ---
 function updatePreviewAndStructure(markdownContent) {
     console.log('[renderer.js] Updating preview and structure...'); // Add logging
@@ -40,6 +170,9 @@ function updatePreviewAndStructure(markdownContent) {
         console.error('[renderer.js] previewContent element not found!');
         return; // Don't proceed if the element is missing
     }
+    
+    // Update status bar with current content
+    updateStatusBar(markdownContent);
 
     try {
         // Create a custom Marked renderer
@@ -78,10 +211,13 @@ function updatePreviewAndStructure(markdownContent) {
         };
 
         if (window.marked) {
+            // Process Obsidian-style [[]] internal links before marked parsing
+            let processedContent = processInternalLinks(markdownContent);
+            
             // Use the custom renderer with marked.parse
-            const htmlContent = window.marked.parse(markdownContent, { renderer: renderer, gfm: true, breaks: true });
+            const htmlContent = window.marked.parse(processedContent, { renderer: renderer, gfm: true, breaks: true });
             previewContent.innerHTML = htmlContent;
-            console.log('[renderer.js] Preview updated with heading IDs.');
+            console.log('[renderer.js] Preview updated with heading IDs and internal links.');
         } else {
             console.warn('[renderer.js] Marked instance not available yet');
             previewContent.innerHTML = '<p>Markdown preview loading...</p>';
@@ -522,6 +658,15 @@ function initializeApp() {
                 const currentContent = editor.getValue();
                 updatePreviewAndStructure(currentContent);
             });
+            
+            // Update cursor position when cursor moves
+            editor.onDidChangeCursorPosition(() => {
+                const position = editor.getPosition();
+                const cursorPosEl = document.getElementById('cursor-position');
+                if (cursorPosEl && position) {
+                    cursorPosEl.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
+                }
+            });
 
             // --- THEME SYNC: Ensure Monaco theme matches settings ---
             // Use the current body class to determine theme if appSettings is not yet set
@@ -817,6 +962,13 @@ function openFileInEditor(filePath, content) {
     window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
     console.log('[Renderer] Set current file directory:', window.currentFileDirectory);
     
+    // Set up internal link click handler if not already done
+    if (!window.internalLinkHandlerSetup) {
+        document.addEventListener('click', handleInternalLinkClick);
+        window.internalLinkHandlerSetup = true;
+        console.log('[Renderer] Internal link click handler set up');
+    }
+    
     // Set editor content (Monaco or fallback)
     if (editor && typeof editor.setValue === 'function') {
         editor.setValue(content);
@@ -837,6 +989,22 @@ function openFileInEditor(filePath, content) {
     window.electronAPI.invoke('set-current-file', filePath);
 }
 
+// Update cursor position for fallback textarea editor
+function updateFallbackCursorPosition() {
+    const textarea = document.getElementById('fallback-editor');
+    const cursorPosEl = document.getElementById('cursor-position');
+    
+    if (!textarea || !cursorPosEl) return;
+    
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+    const lines = textBeforeCursor.split('\n');
+    const lineNumber = lines.length;
+    const columnNumber = lines[lines.length - 1].length + 1;
+    
+    cursorPosEl.textContent = `Ln ${lineNumber}, Col ${columnNumber}`;
+}
+
 // Fallback editor in case Monaco fails to load
 function createFallbackEditor() {
     console.log('[renderer.js] Creating fallback textarea editor...');
@@ -854,6 +1022,12 @@ function createFallbackEditor() {
     textarea.addEventListener('input', () => {
         updatePreviewAndStructure(textarea.value);
     });
+    
+    // Update cursor position for fallback editor
+    textarea.addEventListener('selectionchange', updateFallbackCursorPosition);
+    textarea.addEventListener('keyup', updateFallbackCursorPosition);
+    textarea.addEventListener('mouseup', updateFallbackCursorPosition);
+    
     console.log('[renderer.js] Fallback editor created and initialized.');
 }
 
@@ -1028,6 +1202,12 @@ showFilesBtn.addEventListener('click', () => {
     }
 });
 
+// --- New Folder Button Listener ---
+newFolderBtn.addEventListener('click', async () => {
+    console.log('[Renderer] New Folder button clicked');
+    await createNewFolder();
+});
+
 // --- Right Pane Toggle Listeners (Existing) ---
 showPreviewBtn.addEventListener('click', () => {
     if (previewPane.style.display === 'none') {
@@ -1061,6 +1241,7 @@ function switchStructureView(view) {
         showFilesBtn.classList.remove('active');
         structureList.style.display = ''; // Show structure list
         fileTreeView.style.display = 'none'; // Hide file tree
+        newFolderBtn.style.display = 'none'; // Hide New Folder button
         // Optionally, re-run structure update if needed
         // updateStructurePane(editor?.getValue() || '');
     } else { // view === 'file'
@@ -1069,7 +1250,46 @@ function switchStructureView(view) {
         showFilesBtn.classList.add('active');
         structureList.style.display = 'none'; // Hide structure list
         fileTreeView.style.display = ''; // Show file tree
+        newFolderBtn.style.display = ''; // Show New Folder button
         renderFileTree(); // Populate the file tree view
+    }
+}
+
+// --- Create New Folder Function ---
+async function createNewFolder() {
+    try {
+        // Prompt user for folder name
+        const folderName = prompt('Enter folder name:');
+        
+        if (!folderName || folderName.trim() === '') {
+            console.log('[Renderer] Folder creation cancelled or empty name');
+            return;
+        }
+        
+        const trimmedName = folderName.trim();
+        
+        // Validate folder name (basic validation)
+        if (!/^[a-zA-Z0-9_\-\s]+$/.test(trimmedName)) {
+            alert('Folder name can only contain letters, numbers, spaces, hyphens, and underscores.');
+            return;
+        }
+        
+        console.log(`[Renderer] Creating new folder: ${trimmedName}`);
+        
+        // Send request to main process to create folder
+        const result = await window.electronAPI.invoke('create-folder', trimmedName);
+        
+        if (result.success) {
+            console.log(`[Renderer] Folder created successfully: ${result.folderPath}`);
+            // Refresh the file tree to show the new folder
+            renderFileTree();
+        } else {
+            console.error(`[Renderer] Error creating folder: ${result.error}`);
+            alert(`Failed to create folder: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('[Renderer] Error in createNewFolder:', error);
+        alert('Failed to create folder. Please try again.');
     }
 }
 

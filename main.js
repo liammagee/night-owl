@@ -4,8 +4,22 @@ require('dotenv').config(); // Load .env file
 const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const { OpenAI } = require('openai');
 require('@electron/remote/main').initialize();
+
+// Enable hot reload for electron app in development
+if (process.argv.includes('--dev')) {
+  try {
+    require('electron-reload')(__dirname, {
+      electron: path.join(__dirname, 'node_modules', '.bin', 'electron'),
+      hardResetMethod: 'exit'
+    });
+    console.log('[main.js] Electron auto-reload enabled for development - files will refresh automatically!');
+  } catch (error) {
+    console.error('[main.js] Failed to enable electron-reload:', error);
+  }
+}
 
 // --- OpenAI Client Initialization ---
 let openai;
@@ -793,6 +807,44 @@ app.whenReady().then(() => {
   console.log(`[main.js] Initial working directory: ${currentWorkingDirectory}`);
 
   // --- IPC Handlers ---
+  
+  // Create folder handler
+  ipcMain.handle('create-folder', async (event, folderName) => {
+    try {
+      const workingDir = appSettings.workingDirectory || currentWorkingDirectory;
+      const folderPath = path.join(workingDir, folderName);
+      
+      console.log(`[main.js] Creating folder: ${folderPath}`);
+      
+      // Check if folder already exists
+      try {
+        await fs.access(folderPath);
+        return {
+          success: false,
+          error: 'A folder with that name already exists'
+        };
+      } catch (err) {
+        // Folder doesn't exist, which is what we want
+      }
+      
+      // Create the folder
+      await fs.mkdir(folderPath, { recursive: true });
+      
+      console.log(`[main.js] Folder created successfully: ${folderPath}`);
+      
+      return {
+        success: true,
+        folderPath: folderPath
+      };
+    } catch (error) {
+      console.error('[main.js] Error creating folder:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to create folder'
+      };
+    }
+  });
+
   ipcMain.handle('request-file-tree', async (event) => {
     if (appSettings.workingDirectory && appSettings.workingDirectory.length > 0) {
       currentWorkingDirectory = appSettings.workingDirectory;

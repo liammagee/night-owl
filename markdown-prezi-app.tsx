@@ -155,7 +155,18 @@ Start creating your own presentations with Markdown files.
     // Inline code
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
     
-    // Links
+    // Process Obsidian-style [[]] internal links first
+    html = html.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
+      const cleanLink = link.trim();
+      const display = displayText ? displayText.trim() : cleanLink;
+      let filePath = cleanLink;
+      if (!filePath.endsWith('.md') && !filePath.includes('.')) {
+        filePath += '.md';
+      }
+      return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+    });
+    
+    // Regular markdown links
     html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     
     // Handle lists
@@ -299,6 +310,23 @@ Start creating your own presentations with Markdown files.
     setFocusedSlide(null); // Clear focus when resetting view
   };
 
+  // Word count calculation
+  const countWords = (text) => {
+    if (!text) return 0;
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  };
+
+  const getTotalWordCount = () => {
+    return slides.reduce((total, slide) => total + countWords(slide.content), 0);
+  };
+
+  const getCurrentSlideWordCount = () => {
+    if (currentSlide >= 0 && currentSlide < slides.length) {
+      return countWords(slides[currentSlide].content);
+    }
+    return 0;
+  };
+
   // Wheel zoom effect
   useEffect(() => {
     const handleWheel = (e) => {
@@ -436,12 +464,12 @@ Start creating your own presentations with Markdown files.
           <ChevronLeft size={20} />
         </button>
         
-        <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg">
+        <div className="flex items-center gap-4 px-4 py-2 bg-gray-800 rounded-lg">
           <span className="text-sm">
             {currentSlide + 1} / {slides.length}
           </span>
           {slides.length > 0 && (
-            <div className="flex gap-1 ml-2">
+            <div className="flex gap-1">
               {slides.map((_, index) => (
                 <button
                   key={index}
@@ -451,6 +479,12 @@ Start creating your own presentations with Markdown files.
                   }`}
                 />
               ))}
+            </div>
+          )}
+          {slides.length > 0 && (
+            <div className="text-sm text-gray-400 border-l border-gray-600 pl-4">
+              <div>Current: {getCurrentSlideWordCount()} words</div>
+              <div>Total: {getTotalWordCount()} words</div>
             </div>
           )}
         </div>

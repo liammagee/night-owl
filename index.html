@@ -354,6 +354,48 @@
         #file-tree-view ul.file-tree-root {
             padding-left: 0 !important;
         }
+
+        /* Status bar styling */
+        #editor-status-bar {
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+        
+        /* Dark mode status bar */
+        body.dark-mode #editor-status-bar {
+            background: #2d2d2d !important;
+            border-top-color: #444 !important;
+            color: #ccc !important;
+        }
+
+        /* Internal link styling (Obsidian-style) */
+        .internal-link {
+            color: #6366f1 !important;
+            text-decoration: none !important;
+            background: rgba(99, 102, 241, 0.1) !important;
+            padding: 2px 4px !important;
+            border-radius: 3px !important;
+            border: 1px solid rgba(99, 102, 241, 0.2) !important;
+            transition: all 0.2s ease !important;
+            cursor: pointer !important;
+        }
+
+        .internal-link:hover {
+            background: rgba(99, 102, 241, 0.2) !important;
+            border-color: rgba(99, 102, 241, 0.4) !important;
+            text-decoration: none !important;
+        }
+
+        /* Dark mode internal links */
+        body.dark-mode .internal-link {
+            color: #8b5cf6 !important;
+            background: rgba(139, 92, 246, 0.15) !important;
+            border-color: rgba(139, 92, 246, 0.3) !important;
+        }
+
+        body.dark-mode .internal-link:hover {
+            background: rgba(139, 92, 246, 0.25) !important;
+            border-color: rgba(139, 92, 246, 0.5) !important;
+        }
     </style>
 </head>
 <body>
@@ -376,7 +418,10 @@
                     <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
                     <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
                 </div>
-                <h2 id="structure-pane-title">Structure</h2>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+                    <h2 id="structure-pane-title">Structure</h2>
+                    <button id="new-folder-btn" class="btn" title="Create New Folder" style="display: none; padding: 4px 8px; font-size: 11px;">+ Folder</button>
+                </div>
             </div>
             <div style="flex: 1; overflow-y: auto;">
                 <ul id="structure-list"></ul>
@@ -399,9 +444,21 @@
 
             <!-- Editor Content -->
             <div id="editor-content" class="content-view active">
-                <div id="editor-pane" style="flex: 2; min-width: 300px; position: relative;">
-                    <div id="editor-container" style="width: 100%; height: 100%;"></div>
-                    <textarea id="fallback-editor" style="display: none; width: 100%; height: 100%; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
+                <div id="editor-pane" style="flex: 2; min-width: 300px; position: relative; display: flex; flex-direction: column;">
+                    <div id="editor-container" style="width: 100%; flex: 1;"></div>
+                    <textarea id="fallback-editor" style="display: none; width: 100%; flex: 1; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
+                    <!-- Status Bar -->
+                    <div id="editor-status-bar" style="height: 24px; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; color: #666; flex-shrink: 0;">
+                        <div id="status-left" style="display: flex; align-items: center; gap: 12px;">
+                            <span id="word-count">Words: 0</span>
+                            <span id="char-count">Characters: 0</span>
+                            <span id="line-count">Lines: 1</span>
+                        </div>
+                        <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
+                            <span id="cursor-position">Ln 1, Col 1</span>
+                            <span id="file-status">Markdown (.md)</span>
+                        </div>
+                    </div>
                 </div>
                 <div id="resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
                 <div id="right-pane">
@@ -681,7 +738,18 @@ Welcome to the future of philosophical education.
               return `<img src="${imagePath}" alt="${altText}" />`;
             });
             
-            // Links
+            // Process Obsidian-style [[]] internal links first
+            html = html.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
+              const cleanLink = link.trim();
+              const display = displayText ? displayText.trim() : cleanLink;
+              let filePath = cleanLink;
+              if (!filePath.endsWith('.md') && !filePath.includes('.')) {
+                filePath += '.md';
+              }
+              return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+            });
+            
+            // Regular markdown links
             html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
             
             // Handle lists

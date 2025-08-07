@@ -25,7 +25,7 @@ This discussion will not be directed, though, toward the simple aim of how machi
 
 
 
-[[Stochastic Society]]
+[[stochastic_society]]
 
 
 [[2+2=5]]
