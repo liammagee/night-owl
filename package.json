@@ -1,5 +1,6 @@
 {
   "name": "hegel-pedagogy-ai",
+  "productName": "Hegel Pedagogy AI",
   "version": "1.0.0",
   "description": "Advanced Markdown editor and presentation app for Hegel Pedagogy AI",
   "main": "main.js",

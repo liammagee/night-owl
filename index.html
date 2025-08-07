@@ -13,6 +13,8 @@
     ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hegel Pedagogy AI - Advanced Editor & Presentations</title>
+    <link rel="icon" type="image/png" href="build/icon.png">
+    <link rel="icon" type="image/svg+xml" href="build/icon.svg">
     
     <!-- Styles -->
     <link rel="stylesheet" href="orchestrator/style.css">
@@ -151,6 +153,250 @@
             object-fit: contain !important;
         }
         
+        /* Context Menu Styling */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --hover-color: #f8f9fa;
+        }
+
+        .dark-mode {
+            --bg-color: #2d3748;
+            --text-color: #e2e8f0;
+            --border-color: #4a5568;
+            --hover-color: #4a5568;
+        }
+
+        .context-menu {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .context-menu-item:hover {
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .notification {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Visual feedback for cut items */
+        .file-tree li[style*="opacity: 0.5"] {
+            position: relative;
+        }
+
+        .file-tree li[style*="opacity: 0.5"]::after {
+            content: "✂️";
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+        }
+
+        /* Drag and drop styling */
+        .file-tree li[draggable="true"] {
+            cursor: move;
+            user-select: none;
+        }
+
+        .file-tree li[draggable="true"]:hover {
+            background-color: var(--hover-color, #f8f9fa);
+        }
+
+        .file-tree .folder.drag-over {
+            background-color: var(--hover-color, #e3f2fd) !important;
+            border: 2px solid #007bff !important;
+        }
+
+        .file-tree .dragging {
+            opacity: 0.5 !important;
+            border: 2px dashed #007bff !important;
+        }
+
+        /* Editor Toolbar Styling */
+        .toolbar-btn:hover {
+            background: var(--hover-color, #e9ecef) !important;
+            border-color: #adb5bd !important;
+        }
+
+        .toolbar-btn:active {
+            background: var(--hover-color, #dee2e6) !important;
+            transform: translateY(1px);
+        }
+
+        .dark-mode #editor-toolbar {
+            background: var(--bg-color, #2d3748) !important;
+            border-bottom-color: var(--border-color, #4a5568) !important;
+            color: var(--text-color, #e2e8f0) !important;
+        }
+
+        .dark-mode .toolbar-btn {
+            background: var(--bg-color, #4a5568) !important;
+            border-color: var(--border-color, #718096) !important;
+            color: var(--text-color, #e2e8f0) !important;
+        }
+
+        /* Navigation Button Styling */
+        .nav-btn {
+            transition: all 0.15s ease;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            background: var(--hover-color, #e9ecef) !important;
+            border-color: #adb5bd !important;
+        }
+
+        .nav-btn:active:not(:disabled) {
+            background: var(--hover-color, #dee2e6) !important;
+            transform: translateY(1px);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed !important;
+        }
+
+        .dark-mode #mode-switcher {
+            background: var(--bg-color, #2d3748) !important;
+            border-bottom-color: var(--border-color, #4a5568) !important;
+            color: var(--text-color, #e2e8f0) !important;
+        }
+
+        .dark-mode .nav-btn {
+            background: var(--bg-color, #4a5568) !important;
+            border-color: var(--border-color, #718096) !important;
+            color: var(--text-color, #e2e8f0) !important;
+        }
+
+        .dark-mode #current-file-name {
+            color: var(--text-color, #a0aec0) !important;
+        }
+
+        /* Global Search Styling */
+        .search-result-item {
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            background: white;
+            overflow: hidden;
+        }
+
+        .search-result-header {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-result-header:hover {
+            background: #e9ecef;
+        }
+
+        .search-result-matches {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .search-match {
+            padding: 4px 12px;
+            border-bottom: 1px solid #f8f9fa;
+            cursor: pointer;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .search-match:hover {
+            background: #f8f9fa;
+        }
+
+        .search-match:last-child {
+            border-bottom: none;
+        }
+
+        .search-match-line {
+            color: #666;
+            font-size: 11px;
+            margin-right: 8px;
+            min-width: 40px;
+            display: inline-block;
+        }
+
+        .search-match-text {
+            white-space: pre-wrap;
+        }
+
+        .search-highlight {
+            background: #fff3cd;
+            color: #856404;
+            font-weight: bold;
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+
+        .search-no-results {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 40px 20px;
+        }
+
+        .search-loading {
+            text-align: center;
+            color: #6c757d;
+            padding: 20px;
+        }
+
+        /* Dark mode search styling */
+        .dark-mode .search-result-item {
+            background: var(--bg-color, #2d3748);
+            border-color: var(--border-color, #4a5568);
+        }
+
+        .dark-mode .search-result-header {
+            background: var(--bg-color, #4a5568);
+            border-bottom-color: var(--border-color, #718096);
+            color: var(--text-color, #e2e8f0);
+        }
+
+        .dark-mode .search-result-header:hover {
+            background: var(--hover-color, #718096);
+        }
+
+        .dark-mode .search-match {
+            border-bottom-color: var(--border-color, #4a5568);
+            color: var(--text-color, #e2e8f0);
+        }
+
+        .dark-mode .search-match:hover {
+            background: var(--hover-color, #4a5568);
+        }
+
+        .dark-mode .search-match-line {
+            color: var(--text-color, #a0aec0);
+        }
+
+        .dark-mode .search-highlight {
+            background: #fbbf24;
+            color: #92400e;
+        }
     </style>
     
     <!-- Scripts -->
@@ -396,6 +642,301 @@
             background: rgba(139, 92, 246, 0.25) !important;
             border-color: rgba(139, 92, 246, 0.5) !important;
         }
+
+        /* Find & Replace Dialog */
+        #find-replace-dialog {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            padding: 16px;
+            min-width: 320px;
+            font-size: 14px;
+        }
+
+        #find-replace-dialog.hidden {
+            display: none;
+        }
+
+        body.dark-mode #find-replace-dialog {
+            background: #2d2d2d;
+            border-color: #444;
+            color: #e0e0e0;
+        }
+
+        .find-replace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .find-replace-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        body.dark-mode .find-replace-close {
+            color: #ccc;
+        }
+
+        .find-replace-close:hover {
+            color: #333;
+        }
+
+        body.dark-mode .find-replace-close:hover {
+            color: white;
+        }
+
+        .find-replace-field {
+            margin-bottom: 8px;
+        }
+
+        .find-replace-field label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        body.dark-mode .find-replace-field label {
+            color: #ccc;
+        }
+
+        .find-replace-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        body.dark-mode .find-replace-input {
+            background: #333;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        .find-replace-input:focus {
+            outline: none;
+            border-color: #007acc;
+        }
+
+        .find-replace-options {
+            display: flex;
+            gap: 12px;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+
+        .find-replace-option {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .find-replace-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .find-replace-btn {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #333;
+        }
+
+        .find-replace-btn:hover {
+            background: #e9ecef;
+        }
+
+        .find-replace-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        body.dark-mode .find-replace-btn {
+            background: #404040;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode .find-replace-btn:hover:not(:disabled) {
+            background: #4a4a4a;
+        }
+
+        .find-replace-primary {
+            background: #007acc;
+            color: white;
+            border-color: #007acc;
+        }
+
+        .find-replace-primary:hover:not(:disabled) {
+            background: #005a9e;
+        }
+
+        .find-replace-stats {
+            font-size: 11px;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        body.dark-mode .find-replace-stats {
+            color: #aaa;
+        }
+
+        /* Monaco Editor Search Highlights */
+        .monaco-editor .findMatch {
+            background-color: rgba(234, 92, 0, 0.33);
+        }
+
+        .monaco-editor .currentFindMatch {
+            background-color: rgba(234, 92, 0, 0.66);
+        }
+
+        /* Folder Name Dialog */
+        #folder-name-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #folder-name-modal.hidden {
+            display: none;
+        }
+
+        .folder-name-dialog {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            min-width: 300px;
+            max-width: 500px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        body.dark-mode .folder-name-dialog {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
+
+        .folder-name-header {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        body.dark-mode .folder-name-header {
+            color: #e0e0e0;
+        }
+
+        .folder-name-field {
+            margin-bottom: 20px;
+        }
+
+        .folder-name-field label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        body.dark-mode .folder-name-field label {
+            color: #ccc;
+        }
+
+        .folder-name-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        body.dark-mode .folder-name-input {
+            background: #333;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        .folder-name-input:focus {
+            outline: none;
+            border-color: #007acc;
+        }
+
+        .folder-name-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .folder-name-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .folder-name-btn:hover {
+            background: #e9ecef;
+        }
+
+        body.dark-mode .folder-name-btn {
+            background: #404040;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode .folder-name-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .folder-name-btn.primary {
+            background: #007acc;
+            color: white;
+            border-color: #007acc;
+        }
+
+        .folder-name-btn.primary:hover {
+            background: #005a9e;
+        }
+
+        .folder-name-error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -415,12 +956,15 @@
         <div id="left-sidebar" style="width: 250px; min-width: 200px; max-width: 400px; border-right: 1px solid #ddd; display: flex; flex-direction: column;">
             <div id="structure-pane-header">
                 <div class="toggle-buttons structure-toggle-buttons">
-                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
                     <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
+                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
                 </div>
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                     <h2 id="structure-pane-title">Structure</h2>
-                    <button id="new-folder-btn" class="btn" title="Create New Folder" style="display: none; padding: 4px 8px; font-size: 11px;">+ Folder</button>
+                    <div style="display: flex; gap: 4px;">
+                        <button id="change-directory-btn" class="btn" title="Change Working Directory" style="display: none; padding: 4px 8px; font-size: 11px;">📁 Directory</button>
+                        <button id="new-folder-btn" class="btn" title="Create New Folder" style="display: none; padding: 4px 8px; font-size: 11px;">+ Folder</button>
+                    </div>
                 </div>
             </div>
             <div style="flex: 1; overflow-y: auto;">
@@ -435,16 +979,56 @@
         <!-- Main Content Area (Switches between editor and presentation) -->
         <div id="main-content" style="flex: 1; display: flex; flex-direction: column;">
             <!-- Content Mode Switcher -->
-            <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+            <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; padding: 0 16px;">
+                <!-- Navigation Controls -->
+                <div id="navigation-controls" style="display: flex; align-items: center; gap: 4px;">
+                    <button id="nav-back-btn" class="nav-btn" title="Go Back (Alt+Left)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                        ← Back
+                    </button>
+                    <button id="nav-forward-btn" class="nav-btn" title="Go Forward (Alt+Right)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                        Forward →
+                    </button>
+                    <div style="width: 1px; height: 20px; background: #ccc; margin: 0 8px;"></div>
+                    <span id="current-file-name" style="font-size: 11px; color: #666; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        No file selected
+                    </span>
+                </div>
+                
+                <!-- Mode Switcher -->
                 <div style="display: flex; gap: 4px; padding: 4px; background: white; border: 1px solid #ddd; border-radius: 6px;">
                     <button id="editor-mode-btn" class="mode-btn active" style="padding: 6px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Editor</button>
                     <button id="presentation-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Presentation</button>
                 </div>
+                
+                <!-- Spacer for balance -->
+                <div style="width: 200px;"></div>
             </div>
 
             <!-- Editor Content -->
             <div id="editor-content" class="content-view active">
                 <div id="editor-pane" style="flex: 2; min-width: 300px; position: relative; display: flex; flex-direction: column;">
+                    <!-- Editor Toolbar -->
+                    <div id="editor-toolbar" style="height: 32px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 8px; gap: 4px; flex-shrink: 0;">
+                        <button id="fold-all-btn" class="toolbar-btn" title="Fold All Sections (Ctrl+K, Ctrl+0)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            📁 Fold All
+                        </button>
+                        <button id="unfold-all-btn" class="toolbar-btn" title="Unfold All Sections (Ctrl+K, Ctrl+J)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            📂 Unfold All
+                        </button>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
+                        <button id="fold-current-btn" class="toolbar-btn" title="Fold Current Section (Ctrl+Shift+[)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            ⬇️ Fold
+                        </button>
+                        <button id="unfold-current-btn" class="toolbar-btn" title="Unfold Current Section (Ctrl+Shift+])" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            ⬆️ Unfold
+                        </button>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
+                        <span style="font-size: 11px; color: #666;">Code Folding</span>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
+                        <button id="global-search-btn" class="toolbar-btn" title="Global Search (Ctrl+Shift+F)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            🔍 Search All Files
+                        </button>
+                    </div>
                     <div id="editor-container" style="width: 100%; flex: 1;"></div>
                     <textarea id="fallback-editor" style="display: none; width: 100%; flex: 1; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
                     <!-- Status Bar -->
@@ -465,6 +1049,7 @@
                     <div class="toggle-buttons" style="padding: 8px; border-bottom: 1px solid #ddd; flex-shrink: 0;">
                         <button id="show-preview-btn" class="btn pane-toggle-button active">Preview</button>
                         <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
+                        <button id="show-search-btn" class="btn pane-toggle-button">Search</button>
                     </div>
                     <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                         <div id="preview-pane" class="content-pane">
@@ -483,6 +1068,37 @@
                                 </div>
                             </div>
                         </div>
+                        <div id="search-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
+                            <!-- Global Search Interface -->
+                            <div class="search-controls" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" id="global-search-input" placeholder="Search in all files..." style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 3px;">
+                                    <button id="global-search-execute" class="btn" title="Execute Search">Search</button>
+                                </div>
+                                <div class="search-options" style="display: flex; gap: 12px; font-size: 12px;">
+                                    <label style="display: flex; align-items: center; gap: 4px;">
+                                        <input type="checkbox" id="search-case-sensitive"> Case Sensitive
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 4px;">
+                                        <input type="checkbox" id="search-whole-word"> Whole Word
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 4px;">
+                                        <input type="checkbox" id="search-regex"> Regex
+                                    </label>
+                                </div>
+                                <div class="search-file-types" style="display: flex; gap: 8px; align-items: center; font-size: 12px;">
+                                    <span>Files:</span>
+                                    <input type="text" id="search-file-pattern" placeholder="*.md, *.txt" style="flex: 1; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 11px;">
+                                </div>
+                            </div>
+                            
+                            <!-- Search Results -->
+                            <div class="search-results-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 4px 0; border-bottom: 1px solid #eee;">
+                                <span id="search-results-count" style="font-size: 12px; color: #666;">No search performed</span>
+                                <button id="clear-search-results" class="btn" style="padding: 2px 6px; font-size: 11px;" title="Clear Results">Clear</button>
+                            </div>
+                            <div id="search-results" style="flex: 1; overflow-y: auto; font-size: 13px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -490,6 +1106,65 @@
             <!-- Presentation Content -->
             <div id="presentation-content" class="content-view">
                 <div id="presentation-root" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Find & Replace Dialog -->
+    <div id="find-replace-dialog" class="hidden">
+        <div class="find-replace-header">
+            <span>Find & Replace</span>
+            <button class="find-replace-close" id="find-replace-close">&times;</button>
+        </div>
+        
+        <div class="find-replace-field">
+            <label for="find-input">Find:</label>
+            <input type="text" id="find-input" class="find-replace-input" placeholder="Enter search text">
+        </div>
+        
+        <div class="find-replace-field">
+            <label for="replace-input">Replace:</label>
+            <input type="text" id="replace-input" class="find-replace-input" placeholder="Enter replacement text">
+        </div>
+        
+        <div class="find-replace-options">
+            <label class="find-replace-option">
+                <input type="checkbox" id="case-sensitive"> Case sensitive
+            </label>
+            <label class="find-replace-option">
+                <input type="checkbox" id="regex-mode"> Regex
+            </label>
+            <label class="find-replace-option">
+                <input type="checkbox" id="whole-word"> Whole word
+            </label>
+        </div>
+        
+        <div class="find-replace-actions">
+            <button class="find-replace-btn find-replace-primary" id="find-next">Find Next</button>
+            <button class="find-replace-btn" id="find-previous">Find Previous</button>
+            <button class="find-replace-btn" id="replace-current">Replace</button>
+            <button class="find-replace-btn" id="replace-all">Replace All</button>
+        </div>
+        
+        <div class="find-replace-stats" id="find-replace-stats">
+            <!-- Stats will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Folder Name Modal -->
+    <div id="folder-name-modal" class="hidden">
+        <div class="folder-name-dialog">
+            <div class="folder-name-header">Create New Folder</div>
+            
+            <div class="folder-name-field">
+                <label for="folder-name-input">Folder name:</label>
+                <input type="text" id="folder-name-input" class="folder-name-input" placeholder="Enter folder name">
+                <div class="folder-name-error" id="folder-name-error"></div>
+            </div>
+            
+            <div class="folder-name-actions">
+                <button class="folder-name-btn" id="folder-name-cancel">Cancel</button>
+                <button class="folder-name-btn primary" id="folder-name-create">Create</button>
             </div>
         </div>
     </div>

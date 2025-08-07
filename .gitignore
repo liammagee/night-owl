@@ -194,3 +194,7 @@ cython_debug/
 .cursorindexingignore
 
 node_modules/
+
+.DS_Store
+.ipynb_checkpoints
+.ipynb_checkpoints/

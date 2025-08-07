@@ -23,7 +23,30 @@ const showStructureBtn = document.getElementById('show-structure-btn');
 const showFilesBtn = document.getElementById('show-files-btn');
 const fileTreeView = document.getElementById('file-tree-view');
 const newFolderBtn = document.getElementById('new-folder-btn');
+const changeDirectoryBtn = document.getElementById('change-directory-btn');
 const chatMessages = document.getElementById('chat-messages');
+
+// Find & Replace elements
+const findReplaceDialog = document.getElementById('find-replace-dialog');
+const findReplaceClose = document.getElementById('find-replace-close');
+const findInput = document.getElementById('find-input');
+const replaceInput = document.getElementById('replace-input');
+const caseSensitive = document.getElementById('case-sensitive');
+const regexMode = document.getElementById('regex-mode');
+const wholeWord = document.getElementById('whole-word');
+const findNext = document.getElementById('find-next');
+const findPrevious = document.getElementById('find-previous');
+const replaceCurrent = document.getElementById('replace-current');
+const replaceAll = document.getElementById('replace-all');
+const findReplaceStats = document.getElementById('find-replace-stats');
+
+// Folder name modal elements
+const folderNameModal = document.getElementById('folder-name-modal');
+const folderNameInput = document.getElementById('folder-name-input');
+const folderNameError = document.getElementById('folder-name-error');
+const folderNameCancel = document.getElementById('folder-name-cancel');
+const folderNameCreate = document.getElementById('folder-name-create');
+
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
 const loadEditorToChatBtn = document.getElementById('load-editor-to-chat-btn'); // Get the new button
@@ -155,11 +178,16 @@ async function createInternalLinkFile(fullPath, originalLink) {
         
         if (result.success) {
             console.log(`[renderer.js] Created new file for internal link: ${result.filePath}`);
+            // Refresh file tree to show the new file
+            renderFileTree();
+            showNotification('File created from internal link', 'success');
         } else {
             console.error(`[renderer.js] Failed to create file for internal link:`, result.error);
+            showNotification('Failed to create file from internal link', 'error');
         }
     } catch (error) {
         console.error(`[renderer.js] Error creating file for internal link:`, error);
+        showNotification('Error creating file from internal link', 'error');
     }
 }
 
@@ -622,6 +650,232 @@ function slugify(text) {
         .replace(/-+$/, '');            // Trim - from end of text
 }
 
+// --- Markdown Folding Provider ---
+function registerMarkdownFoldingProvider() {
+    try {
+        monaco.languages.registerFoldingRangeProvider('markdown', {
+            provideFoldingRanges: function(model, context, token) {
+                console.log('[renderer.js] Folding provider called');
+                const foldingRanges = [];
+                const lines = model.getLinesContent(); // Use getLinesContent() instead
+                
+                console.log('[renderer.js] Processing', lines.length, 'lines for folding');
+                
+                // Simple header-based folding first
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    
+                    // Match headers (# ## ### etc.)
+                    const headerMatch = line.match(/^(#{1,6})\s+(.+)/);
+                    if (headerMatch) {
+                        const level = headerMatch[1].length;
+                        const startLine = i + 1; // Monaco uses 1-based line numbers
+                        
+                        // Find the next header of same or higher level (lower number)
+                        let endLine = lines.length;
+                        for (let j = i + 1; j < lines.length; j++) {
+                            const nextHeaderMatch = lines[j].match(/^(#{1,6})\s+(.+)/);
+                            if (nextHeaderMatch) {
+                                const nextLevel = nextHeaderMatch[1].length;
+                                if (nextLevel <= level) {
+                                    endLine = j;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Only create fold range if there's content to fold
+                        if (endLine > startLine + 1) {
+                            foldingRanges.push({
+                                start: startLine,
+                                end: endLine,
+                                kind: monaco.languages.FoldingRangeKind.Region
+                            });
+                            console.log('[renderer.js] Added header folding range:', startLine, '->', endLine);
+                        }
+                    }
+                    
+                    // Match code blocks
+                    const codeBlockMatch = line.match(/^```/);
+                    if (codeBlockMatch) {
+                        const startLine = i + 1;
+                        // Find closing ```
+                        for (let j = i + 1; j < lines.length; j++) {
+                            if (lines[j].match(/^```\s*$/)) {
+                                const endLine = j + 1;
+                                foldingRanges.push({
+                                    start: startLine,
+                                    end: endLine,
+                                    kind: monaco.languages.FoldingRangeKind.Region
+                                });
+                                console.log('[renderer.js] Added code block folding range:', startLine, '->', endLine);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                console.log('[renderer.js] Generated', foldingRanges.length, 'folding ranges');
+                return foldingRanges;
+            }
+        });
+        
+        console.log('[renderer.js] Markdown folding provider registered successfully');
+    } catch (error) {
+        console.error('[renderer.js] Error registering folding provider:', error);
+    }
+}
+
+// --- Folding Keyboard Shortcuts ---
+function addFoldingKeyboardShortcuts() {
+    // Fold current section (Ctrl/Cmd + Shift + [)
+    editor.addAction({
+        id: 'fold-current',
+        label: 'Fold Current Section',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.US_OPEN_SQUARE_BRACKET
+        ],
+        run: function() {
+            editor.getAction('editor.fold').run();
+        }
+    });
+    
+    // Unfold current section (Ctrl/Cmd + Shift + ])
+    editor.addAction({
+        id: 'unfold-current',
+        label: 'Unfold Current Section',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.US_CLOSE_SQUARE_BRACKET
+        ],
+        run: function() {
+            editor.getAction('editor.unfold').run();
+        }
+    });
+    
+    // Fold all sections (Ctrl/Cmd + K, Ctrl/Cmd + 0)
+    editor.addAction({
+        id: 'fold-all',
+        label: 'Fold All Sections',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_K,
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_0
+        ],
+        run: function() {
+            editor.getAction('editor.foldAll').run();
+        }
+    });
+    
+    // Unfold all sections (Ctrl/Cmd + K, Ctrl/Cmd + J)
+    editor.addAction({
+        id: 'unfold-all',
+        label: 'Unfold All Sections',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_K,
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_J
+        ],
+        run: function() {
+            editor.getAction('editor.unfoldAll').run();
+        }
+    });
+    
+    // Fold recursively (Ctrl/Cmd + K, Ctrl/Cmd + [)
+    editor.addAction({
+        id: 'fold-recursively',
+        label: 'Fold Recursively',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_K,
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.US_OPEN_SQUARE_BRACKET
+        ],
+        run: function() {
+            editor.getAction('editor.foldRecursively').run();
+        }
+    });
+    
+    // Unfold recursively (Ctrl/Cmd + K, Ctrl/Cmd + ])
+    editor.addAction({
+        id: 'unfold-recursively',
+        label: 'Unfold Recursively',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_K,
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.US_CLOSE_SQUARE_BRACKET
+        ],
+        run: function() {
+            editor.getAction('editor.unfoldRecursively').run();
+        }
+    });
+    
+    console.log('[renderer.js] Folding keyboard shortcuts added');
+}
+
+// --- Folding Toolbar Controls ---
+function addFoldingToolbarControls() {
+    // Get toolbar buttons
+    const foldAllBtn = document.getElementById('fold-all-btn');
+    const unfoldAllBtn = document.getElementById('unfold-all-btn');
+    const foldCurrentBtn = document.getElementById('fold-current-btn');
+    const unfoldCurrentBtn = document.getElementById('unfold-current-btn');
+    
+    if (foldAllBtn) {
+        foldAllBtn.addEventListener('click', () => {
+            editor.getAction('editor.foldAll').run();
+        });
+    }
+    
+    if (unfoldAllBtn) {
+        unfoldAllBtn.addEventListener('click', () => {
+            editor.getAction('editor.unfoldAll').run();
+        });
+    }
+    
+    if (foldCurrentBtn) {
+        foldCurrentBtn.addEventListener('click', () => {
+            editor.getAction('editor.fold').run();
+        });
+    }
+    
+    if (unfoldCurrentBtn) {
+        unfoldCurrentBtn.addEventListener('click', () => {
+            editor.getAction('editor.unfold').run();
+        });
+    }
+    
+    console.log('[renderer.js] Folding toolbar controls added');
+}
+
+// --- Navigation Controls Setup ---
+function setupNavigationControls() {
+    const backBtn = document.getElementById('nav-back-btn');
+    const forwardBtn = document.getElementById('nav-forward-btn');
+    
+    if (backBtn) {
+        backBtn.addEventListener('click', navigateBack);
+    }
+    
+    if (forwardBtn) {
+        forwardBtn.addEventListener('click', navigateForward);
+    }
+    
+    // Add keyboard shortcuts for navigation
+    document.addEventListener('keydown', (event) => {
+        // Alt+Left Arrow = Back
+        if (event.altKey && event.code === 'ArrowLeft') {
+            event.preventDefault();
+            navigateBack();
+        }
+        // Alt+Right Arrow = Forward
+        else if (event.altKey && event.code === 'ArrowRight') {
+            event.preventDefault();
+            navigateForward();
+        }
+    });
+    
+    // Initialize buttons state and load saved history
+    updateNavigationButtons();
+    loadNavigationHistoryFromSettings();
+    
+    console.log('[renderer.js] Navigation controls setup complete');
+}
+
 // --- Initialize Application ---
 function initializeApp() {
     console.log('[renderer.js] Initializing application...');
@@ -631,28 +885,57 @@ function initializeApp() {
         try {
             editor = monaco.editor.create(editorContainer, {
                 value: '# My Markdown Document\n\n' +
-                       '## Introduction\n' +
-                       'Welcome to the advanced Markdown editor. This document contains multiple sections and demonstrates various Markdown features.\n\n' +
-                       '## Features\n' +
-                       '- **Live Preview**: See your Markdown rendered in real time.\n' +
-                       '- **Editor**: Powered by Monaco.\n' +
-                       '- **Structure Pane**: Automatically extracts headings from your document.\n\n' +
-                       '### Code Example\n' +
+                       'This is the introduction to the document.\n\n' +
+                       '## Section One\n' +
+                       'This is content under section one.\n' +
+                       'More content here.\n\n' +
+                       '### Subsection A\n' +
+                       'Content for subsection A.\n' +
+                       'Additional details.\n\n' +
+                       '### Subsection B\n' +
+                       'Content for subsection B.\n' +
+                       'More information here.\n\n' +
+                       '## Section Two\n' +
+                       'This is content under section two.\n\n' +
                        '```javascript\n' +
                        'console.log("Hello, world!");\n' +
+                       'function test() {\n' +
+                       '    return "Code folding test";\n' +
+                       '}\n' +
                        '```\n\n' +
-                       '## Workflow\n' +
-                       '1. Write your Markdown.\n' +
-                       '2. The structure pane updates automatically.\n' +
-                       '3. View the live preview in real time.\n\n' +
-                       '## Conclusion\n' +
-                       'Thank you for using our editor.',
+                       '## Section Three\n' +
+                       'Final section content.\n' +
+                       'The end.',
                 language: 'markdown',
                 theme: 'vs-dark',
                 automaticLayout: true,
-                wordWrap: 'on'
+                wordWrap: 'on',
+                // Code folding options
+                folding: true,
+                foldingStrategy: 'auto', // Change from 'indentation' to 'auto'
+                foldingHighlight: true,
+                unfoldOnClickAfterEndOfLine: true,
+                showFoldingControls: 'always',
+                // Additional options for better folding experience
+                minimap: {
+                    enabled: true,
+                    showSlider: 'always'
+                },
+                scrollbar: {
+                    verticalScrollbarSize: 10,
+                    horizontalScrollbarSize: 10
+                }
             });
             console.log('[renderer.js] Monaco editor instance created.');
+            
+            // Register custom Markdown folding provider and add shortcuts
+            setTimeout(() => {
+                registerMarkdownFoldingProvider();
+                addFoldingKeyboardShortcuts();
+                addFoldingToolbarControls();
+                console.log('[renderer.js] Folding features initialized');
+            }, 100);
+            
             updatePreviewAndStructure(editor.getValue());
             editor.onDidChangeModelContent(() => {
                 const currentContent = editor.getValue();
@@ -956,6 +1239,11 @@ if (window.electronAPI) {
 function openFileInEditor(filePath, content) {
     console.log('[Renderer] Opening file in editor:', filePath);
     
+    // Add to navigation history and recent files (unless we're navigating history)
+    const fileName = filePath.split('/').pop();
+    addToNavigationHistory(filePath, fileName);
+    addFileToRecents(filePath);
+    
     // Store current file directory for image path resolution
     // Extract directory from file path
     const lastSlash = filePath.lastIndexOf('/');
@@ -1031,6 +1319,54 @@ function createFallbackEditor() {
     console.log('[renderer.js] Fallback editor created and initialized.');
 }
 
+// --- Global Keyboard Shortcuts ---
+document.addEventListener('keydown', (e) => {
+    // Only handle shortcuts when not in input fields (except find/replace inputs)
+    const isInInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+    const isInFindReplace = e.target === findInput || e.target === replaceInput;
+    
+    // Ctrl+F or Cmd+F: Open Find dialog
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        showFindReplaceDialog(false);
+        return;
+    }
+    
+    // Ctrl+H or Cmd+H: Open Find & Replace dialog
+    if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        showFindReplaceDialog(true);
+        return;
+    }
+    
+    // Ctrl+Shift+F or Cmd+Shift+F: Open Global Search
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        showRightPane('search');
+        if (globalSearchInput) {
+            globalSearchInput.focus();
+        }
+        return;
+    }
+    
+    // F3: Find Next (when find dialog is open or when not in input)
+    if (e.key === 'F3' && (!isInInput || isInFindReplace)) {
+        e.preventDefault();
+        if (e.shiftKey) {
+            findPreviousMatch();
+        } else {
+            findNextMatch();
+        }
+        return;
+    }
+    
+    // Escape: Close find dialog (global)
+    if (e.key === 'Escape' && !findReplaceDialog.classList.contains('hidden')) {
+        hideFindReplaceDialog();
+        return;
+    }
+});
+
 // Wait for the DOM to be fully loaded before trying to initialize
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[renderer.js] DOM fully loaded and parsed.');
@@ -1050,6 +1386,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('[renderer.js] Marked instance configured.');
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
         initializeApp(); // Initialize now that Marked is ready and DOM is loaded
+        setupNavigationControls(); // Setup navigation buttons and keyboard shortcuts
+        
+        // Initialize file tree view on startup
+        console.log('[renderer.js] Initializing file tree view on startup');
+        switchStructureView('file'); // Switch to file view
+        renderFileTree(); // Load the file tree
     } else {
         // If Marked is still not loaded here, there's a problem with the script tag or network.
         console.error('[renderer.js] CRITICAL: window.marked not found after DOMContentLoaded. Check Marked script tag in index.html and network connection.');
@@ -1188,7 +1530,7 @@ async function loadAppSettings() {
 }
 
 // --- Structure/File Pane Toggle Listeners ---
-let currentStructureView = 'structure'; // 'structure' or 'file'
+let currentStructureView = 'file'; // 'structure' or 'file' - default to files
 
 showStructureBtn.addEventListener('click', () => {
     if (currentStructureView !== 'structure') {
@@ -1206,6 +1548,91 @@ showFilesBtn.addEventListener('click', () => {
 newFolderBtn.addEventListener('click', async () => {
     console.log('[Renderer] New Folder button clicked');
     await createNewFolder();
+});
+
+// --- Change Directory Button Listener ---
+changeDirectoryBtn.addEventListener('click', async () => {
+    console.log('[Renderer] Change Directory button clicked');
+    try {
+        const result = await window.electronAPI.invoke('change-working-directory');
+        if (result.success) {
+            showNotification(`Working directory changed`, 'success');
+            // Refresh file tree to show new directory contents
+            renderFileTree();
+        } else if (!result.error.includes('cancelled')) {
+            showNotification(result.error, 'error');
+        }
+    } catch (error) {
+        console.error('[Renderer] Error changing directory:', error);
+        showNotification('Error changing working directory', 'error');
+    }
+});
+
+// --- Find & Replace Event Listeners ---
+findReplaceClose.addEventListener('click', hideFindReplaceDialog);
+
+// Button event listeners
+findNext.addEventListener('click', findNextMatch);
+findPrevious.addEventListener('click', findPreviousMatch);
+replaceCurrent.addEventListener('click', replaceCurrentMatch);
+replaceAll.addEventListener('click', replaceAllMatches);
+
+// Input event listeners
+findInput.addEventListener('input', performSearch);
+findInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+            findPreviousMatch();
+        } else {
+            findNextMatch();
+        }
+    } else if (e.key === 'Escape') {
+        hideFindReplaceDialog();
+    }
+});
+
+replaceInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        replaceCurrentMatch();
+    } else if (e.key === 'Escape') {
+        hideFindReplaceDialog();
+    }
+});
+
+// Option change listeners
+caseSensitive.addEventListener('change', performSearch);
+regexMode.addEventListener('change', performSearch);
+wholeWord.addEventListener('change', performSearch);
+
+// --- Folder Name Modal Event Listeners ---
+folderNameCancel.addEventListener('click', hideFolderNameModal);
+folderNameCreate.addEventListener('click', handleCreateFolder);
+
+// Handle Enter key in folder name input
+folderNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        handleCreateFolder();
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideFolderNameModal();
+    }
+});
+
+// Hide modal when clicking on backdrop
+folderNameModal.addEventListener('click', (e) => {
+    if (e.target === folderNameModal) {
+        hideFolderNameModal();
+    }
+});
+
+// Clear validation error when typing
+folderNameInput.addEventListener('input', () => {
+    if (folderNameError.style.display !== 'none') {
+        hideFolderNameError();
+    }
 });
 
 // --- Right Pane Toggle Listeners (Existing) ---
@@ -1242,6 +1669,7 @@ function switchStructureView(view) {
         structureList.style.display = ''; // Show structure list
         fileTreeView.style.display = 'none'; // Hide file tree
         newFolderBtn.style.display = 'none'; // Hide New Folder button
+        changeDirectoryBtn.style.display = 'none'; // Hide Change Directory button
         // Optionally, re-run structure update if needed
         // updateStructurePane(editor?.getValue() || '');
     } else { // view === 'file'
@@ -1251,29 +1679,67 @@ function switchStructureView(view) {
         structureList.style.display = 'none'; // Hide structure list
         fileTreeView.style.display = ''; // Show file tree
         newFolderBtn.style.display = ''; // Show New Folder button
+        changeDirectoryBtn.style.display = ''; // Show Change Directory button
         renderFileTree(); // Populate the file tree view
     }
 }
 
+// --- Folder Name Modal Functions ---
+function showFolderNameModal() {
+    folderNameModal.classList.remove('hidden');
+    folderNameInput.value = '';
+    folderNameError.style.display = 'none';
+    folderNameInput.focus();
+}
+
+function hideFolderNameModal() {
+    folderNameModal.classList.add('hidden');
+}
+
+function validateFolderName(name) {
+    if (!name || name.trim() === '') {
+        return 'Folder name cannot be empty.';
+    }
+    
+    const trimmedName = name.trim();
+    
+    if (!/^[a-zA-Z0-9_\-\s]+$/.test(trimmedName)) {
+        return 'Folder name can only contain letters, numbers, spaces, hyphens, and underscores.';
+    }
+    
+    return null; // Valid
+}
+
+function showFolderNameError(message) {
+    folderNameError.textContent = message;
+    folderNameError.style.display = 'block';
+    folderNameInput.style.borderColor = '#dc3545';
+}
+
+function hideFolderNameError() {
+    folderNameError.style.display = 'none';
+    folderNameInput.style.borderColor = '#ddd';
+}
+
 // --- Create New Folder Function ---
 async function createNewFolder() {
+    showFolderNameModal();
+}
+
+async function handleCreateFolder() {
+    const folderName = folderNameInput.value;
+    
+    // Validate folder name
+    const validationError = validateFolderName(folderName);
+    if (validationError) {
+        showFolderNameError(validationError);
+        return;
+    }
+    
+    hideFolderNameError();
+    const trimmedName = folderName.trim();
+    
     try {
-        // Prompt user for folder name
-        const folderName = prompt('Enter folder name:');
-        
-        if (!folderName || folderName.trim() === '') {
-            console.log('[Renderer] Folder creation cancelled or empty name');
-            return;
-        }
-        
-        const trimmedName = folderName.trim();
-        
-        // Validate folder name (basic validation)
-        if (!/^[a-zA-Z0-9_\-\s]+$/.test(trimmedName)) {
-            alert('Folder name can only contain letters, numbers, spaces, hyphens, and underscores.');
-            return;
-        }
-        
         console.log(`[Renderer] Creating new folder: ${trimmedName}`);
         
         // Send request to main process to create folder
@@ -1281,16 +1747,258 @@ async function createNewFolder() {
         
         if (result.success) {
             console.log(`[Renderer] Folder created successfully: ${result.folderPath}`);
+            hideFolderNameModal();
             // Refresh the file tree to show the new folder
             renderFileTree();
+            showNotification('Folder created successfully', 'success');
         } else {
             console.error(`[Renderer] Error creating folder: ${result.error}`);
-            alert(`Failed to create folder: ${result.error}`);
+            showFolderNameError(result.error);
         }
     } catch (error) {
-        console.error('[Renderer] Error in createNewFolder:', error);
-        alert('Failed to create folder. Please try again.');
+        console.error('[Renderer] Error in handleCreateFolder:', error);
+        showFolderNameError('Failed to create folder. Please try again.');
     }
+}
+
+// --- Find & Replace Functionality ---
+let currentSearchResults = [];
+let currentSearchIndex = -1;
+let currentDecorations = [];
+
+function showFindReplaceDialog(showReplace = false) {
+    findReplaceDialog.classList.remove('hidden');
+    
+    // Show/hide replace field
+    const replaceField = replaceInput.closest('.find-replace-field');
+    if (showReplace) {
+        replaceField.style.display = 'block';
+    } else {
+        replaceField.style.display = 'none';
+    }
+    
+    // Focus find input and select current selection if any
+    findInput.focus();
+    
+    if (editor && editor.getModel()) {
+        const selection = editor.getSelection();
+        if (selection && !selection.isEmpty()) {
+            const selectedText = editor.getModel().getValueInRange(selection);
+            findInput.value = selectedText;
+        }
+    }
+}
+
+function hideFindReplaceDialog() {
+    findReplaceDialog.classList.add('hidden');
+    clearSearchHighlights();
+    // Return focus to editor
+    if (editor) {
+        editor.focus();
+    }
+}
+
+function buildSearchQuery() {
+    const query = findInput.value;
+    if (!query) return null;
+    
+    let flags = 'g';
+    if (!caseSensitive.checked) {
+        flags += 'i';
+    }
+    
+    let pattern = query;
+    if (regexMode.checked) {
+        try {
+            return new RegExp(pattern, flags);
+        } catch (e) {
+            console.warn('Invalid regex pattern:', pattern);
+            return null;
+        }
+    } else {
+        // Escape special regex characters for literal search
+        pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        if (wholeWord.checked) {
+            pattern = '\\b' + pattern + '\\b';
+        }
+        
+        return new RegExp(pattern, flags);
+    }
+}
+
+function performSearch() {
+    if (!editor || !editor.getModel()) {
+        return;
+    }
+    
+    const regex = buildSearchQuery();
+    if (!regex) {
+        clearSearchHighlights();
+        updateSearchStats(0, -1);
+        return;
+    }
+    
+    const model = editor.getModel();
+    const text = model.getValue();
+    
+    // Find all matches
+    currentSearchResults = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        const startPos = model.getPositionAt(match.index);
+        const endPos = model.getPositionAt(match.index + match[0].length);
+        
+        currentSearchResults.push({
+            range: new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
+            text: match[0]
+        });
+        
+        // Prevent infinite loop for zero-length matches
+        if (match[0].length === 0) {
+            regex.lastIndex = match.index + 1;
+        }
+    }
+    
+    // Highlight all matches
+    highlightSearchResults();
+    
+    // Update stats
+    updateSearchStats(currentSearchResults.length, currentSearchIndex);
+    
+    // Move to first result if any
+    if (currentSearchResults.length > 0) {
+        currentSearchIndex = 0;
+        goToSearchResult(currentSearchIndex);
+    } else {
+        currentSearchIndex = -1;
+    }
+}
+
+function highlightSearchResults() {
+    if (!editor || !editor.getModel()) {
+        return;
+    }
+    
+    // Clear previous decorations
+    clearSearchHighlights();
+    
+    if (currentSearchResults.length === 0) {
+        return;
+    }
+    
+    // Create decorations for all matches
+    const decorations = currentSearchResults.map((result, index) => ({
+        range: result.range,
+        options: {
+            className: index === currentSearchIndex ? 'findMatch currentFindMatch' : 'findMatch',
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+        }
+    }));
+    
+    currentDecorations = editor.deltaDecorations(currentDecorations, decorations);
+}
+
+function clearSearchHighlights() {
+    if (editor && currentDecorations.length > 0) {
+        currentDecorations = editor.deltaDecorations(currentDecorations, []);
+    }
+}
+
+function updateSearchStats(totalResults, currentIndex) {
+    if (totalResults === 0) {
+        findReplaceStats.textContent = 'No results';
+    } else {
+        findReplaceStats.textContent = `${currentIndex + 1} of ${totalResults}`;
+    }
+}
+
+function goToSearchResult(index) {
+    if (!editor || index < 0 || index >= currentSearchResults.length) {
+        return;
+    }
+    
+    const result = currentSearchResults[index];
+    editor.setSelection(result.range);
+    editor.revealRangeInCenter(result.range);
+    
+    // Update current index and re-highlight
+    currentSearchIndex = index;
+    highlightSearchResults();
+    updateSearchStats(currentSearchResults.length, currentSearchIndex);
+}
+
+function findNextMatch() {
+    if (currentSearchResults.length === 0) {
+        performSearch();
+        return;
+    }
+    
+    let nextIndex = currentSearchIndex + 1;
+    if (nextIndex >= currentSearchResults.length) {
+        nextIndex = 0; // Wrap around
+    }
+    
+    goToSearchResult(nextIndex);
+}
+
+function findPreviousMatch() {
+    if (currentSearchResults.length === 0) {
+        performSearch();
+        return;
+    }
+    
+    let prevIndex = currentSearchIndex - 1;
+    if (prevIndex < 0) {
+        prevIndex = currentSearchResults.length - 1; // Wrap around
+    }
+    
+    goToSearchResult(prevIndex);
+}
+
+function replaceCurrentMatch() {
+    if (!editor || currentSearchIndex < 0 || currentSearchIndex >= currentSearchResults.length) {
+        return;
+    }
+    
+    const replacement = replaceInput.value;
+    const currentResult = currentSearchResults[currentSearchIndex];
+    
+    // Replace the text
+    editor.executeEdits('find-replace', [{
+        range: currentResult.range,
+        text: replacement
+    }]);
+    
+    // Re-search to update results
+    setTimeout(() => {
+        performSearch();
+    }, 10);
+}
+
+function replaceAllMatches() {
+    if (!editor || currentSearchResults.length === 0) {
+        return;
+    }
+    
+    const replacement = replaceInput.value;
+    
+    // Replace all matches in reverse order to maintain positions
+    const edits = currentSearchResults.reverse().map(result => ({
+        range: result.range,
+        text: replacement
+    }));
+    
+    editor.executeEdits('find-replace-all', edits);
+    
+    // Clear results and re-search
+    currentSearchResults = [];
+    currentSearchIndex = -1;
+    clearSearchHighlights();
+    
+    setTimeout(() => {
+        performSearch();
+    }, 10);
 }
 
 /**
@@ -1357,6 +2065,7 @@ function buildTreeHtml(node) {
             folderLi.classList.add('folder');
             folderLi.textContent = `📂 ${node.name}`; // Use open folder icon since expanded by default
             folderLi.dataset.path = node.path; // Store path if needed later
+            folderLi.draggable = true; // Make folders draggable
 
             // Process children and append to the children UL
             if (node.children && node.children.length > 0) {
@@ -1388,6 +2097,7 @@ function buildTreeHtml(node) {
         li.classList.add('file');
         li.textContent = `📄 ${node.name}`; // Simple file indicator
         li.dataset.path = node.path; // Store the full path for opening
+        li.draggable = true; // Make files draggable
         return li;
     }
 
@@ -1433,86 +2143,47 @@ fileTreeView.addEventListener('click', (event) => {
     }
 });
 
-// Add right-click context menu for file deletion
+// Global variables for cut/copy operations
+let clipboardItem = null; // { type: 'file'|'folder', path: string, operation: 'cut'|'copy' }
+
+// Add right-click context menu for file and folder management
 fileTreeView.addEventListener('contextmenu', (event) => {
     const target = event.target;
     
-    // Only show context menu for files, not folders
-    if (target.classList.contains('file') && target.dataset.path) {
+    // Show context menu for both files and folders
+    if ((target.classList.contains('file') || target.classList.contains('folder')) && target.dataset.path) {
         event.preventDefault(); // Prevent default context menu
         
-        const filePath = target.dataset.path;
-        const fileName = target.textContent.substring(2); // Remove the 📄 emoji
+        const itemPath = target.dataset.path;
+        const isFile = target.classList.contains('file');
+        const isFolder = target.classList.contains('folder');
+        const itemName = target.textContent.substring(2); // Remove the emoji
         
-        // Create a simple context menu
-        const contextMenu = document.createElement('div');
-        contextMenu.className = 'context-menu';
-        contextMenu.style.cssText = `
-            position: fixed;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 1000;
-            padding: 4px 0;
-            min-width: 120px;
-        `;
+        // Create context menu
+        const contextMenu = createContextMenu(event.pageX, event.pageY);
         
-        const deleteOption = document.createElement('div');
-        deleteOption.className = 'context-menu-item';
-        deleteOption.textContent = 'Delete File';
-        deleteOption.style.cssText = `
-            padding: 8px 12px;
-            cursor: pointer;
-            color: #dc3545;
-            font-size: 14px;
-        `;
-        
-        deleteOption.addEventListener('mouseenter', () => {
-            deleteOption.style.backgroundColor = '#f8f9fa';
-        });
-        
-        deleteOption.addEventListener('mouseleave', () => {
-            deleteOption.style.backgroundColor = '';
-        });
-        
-        deleteOption.addEventListener('click', async () => {
-            // Show confirmation dialog
-            const confirmed = await window.electronAPI.invoke('show-delete-confirm', {
-                fileName: fileName,
-                filePath: filePath
-            });
-            
-            if (confirmed) {
-                try {
-                    const result = await window.electronAPI.invoke('delete-file', filePath);
-                    if (result.success) {
-                        console.log('[Renderer] File deleted successfully:', filePath);
-                        // Refresh the file tree to show the file is gone
-                        renderFileTree();
-                    } else {
-                        console.error('[Renderer] Error deleting file:', result.error);
-                    }
-                } catch (error) {
-                    console.error('[Renderer] Error deleting file:', error);
-                }
+        // Add menu items based on item type
+        if (isFile) {
+            addMenuItem(contextMenu, 'Cut File', '✂️', () => handleCutCopy(itemPath, 'file', 'cut'));
+            addMenuItem(contextMenu, 'Copy File', '📋', () => handleCutCopy(itemPath, 'file', 'copy'));
+            addMenuSeparator(contextMenu);
+            addMenuItem(contextMenu, 'Delete File', '🗑️', () => handleDelete(itemPath, 'file', itemName), '#dc3545');
+        } else if (isFolder) {
+            addMenuItem(contextMenu, 'Cut Folder', '✂️', () => handleCutCopy(itemPath, 'folder', 'cut'));
+            addMenuItem(contextMenu, 'Copy Folder', '📋', () => handleCutCopy(itemPath, 'folder', 'copy'));
+            addMenuSeparator(contextMenu);
+            if (clipboardItem) {
+                addMenuItem(contextMenu, `Paste ${clipboardItem.type}`, '📁', () => handlePaste(itemPath));
             }
-            
-            // Remove context menu
-            document.body.removeChild(contextMenu);
-        });
-        
-        contextMenu.appendChild(deleteOption);
-        
-        // Position the context menu at the mouse position
-        contextMenu.style.left = event.pageX + 'px';
-        contextMenu.style.top = event.pageY + 'px';
+            addMenuSeparator(contextMenu);
+            addMenuItem(contextMenu, 'Delete Folder', '🗑️', () => handleDelete(itemPath, 'folder', itemName), '#dc3545');
+        }
         
         document.body.appendChild(contextMenu);
         
         // Remove context menu when clicking elsewhere
         const removeContextMenu = (e) => {
-            if (!contextMenu.contains(e.target)) {
+            if (contextMenu && !contextMenu.contains(e.target)) {
                 document.body.removeChild(contextMenu);
                 document.removeEventListener('click', removeContextMenu);
             }
@@ -1523,6 +2194,458 @@ fileTreeView.addEventListener('contextmenu', (event) => {
         }, 100);
     }
 });
+
+function createContextMenu(x, y) {
+    const contextMenu = document.createElement('div');
+    contextMenu.className = 'context-menu';
+    contextMenu.style.cssText = `
+        position: fixed;
+        background: var(--bg-color, white);
+        color: var(--text-color, black);
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        padding: 4px 0;
+        min-width: 160px;
+        font-size: 14px;
+        left: ${x}px;
+        top: ${y}px;
+    `;
+    return contextMenu;
+}
+
+function addMenuItem(menu, text, icon, onClick, color = null) {
+    const item = document.createElement('div');
+    item.className = 'context-menu-item';
+    item.innerHTML = `${icon} ${text}`;
+    item.style.cssText = `
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        ${color ? `color: ${color};` : ''}
+    `;
+    
+    item.addEventListener('mouseenter', () => {
+        item.style.backgroundColor = 'var(--hover-color, #f8f9fa)';
+    });
+    
+    item.addEventListener('mouseleave', () => {
+        item.style.backgroundColor = '';
+    });
+    
+    item.addEventListener('click', () => {
+        onClick();
+        document.body.removeChild(menu);
+    });
+    
+    menu.appendChild(item);
+}
+
+function addMenuSeparator(menu) {
+    const separator = document.createElement('div');
+    separator.style.cssText = `
+        height: 1px;
+        background: var(--border-color, #e9ecef);
+        margin: 4px 0;
+    `;
+    menu.appendChild(separator);
+}
+
+async function handleCutCopy(path, type, operation) {
+    clipboardItem = { path, type, operation };
+    console.log(`[Renderer] ${operation} ${type}:`, path);
+    
+    // Visual feedback - could add styling to show cut items
+    if (operation === 'cut') {
+        const element = document.querySelector(`[data-path="${path}"]`);
+        if (element) {
+            element.style.opacity = '0.5';
+        }
+    }
+}
+
+async function handlePaste(targetFolderPath) {
+    if (!clipboardItem) return;
+    
+    try {
+        const result = await window.electronAPI.invoke('move-item', {
+            sourcePath: clipboardItem.path,
+            targetPath: targetFolderPath,
+            operation: clipboardItem.operation,
+            type: clipboardItem.type
+        });
+        
+        if (result.success) {
+            console.log(`[Renderer] ${clipboardItem.operation} completed successfully`);
+            
+            // Clear clipboard if it was a cut operation
+            if (clipboardItem.operation === 'cut') {
+                clipboardItem = null;
+            }
+            
+            renderFileTree();
+        } else {
+            console.error('[Renderer] Error moving item:', result.error);
+            showNotification(`Error: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('[Renderer] Error moving item:', error);
+        showNotification('Error moving item', 'error');
+    }
+}
+
+async function handleDelete(path, type, name) {
+    try {
+        const result = await window.electronAPI.invoke('delete-item', {
+            path: path,
+            type: type,
+            name: name
+        });
+        
+        if (result.success) {
+            console.log(`[Renderer] ${type} deleted successfully:`, path);
+            renderFileTree();
+            showNotification(`${type === 'file' ? 'File' : 'Folder'} deleted successfully`, 'success');
+        } else {
+            console.error(`[Renderer] Error deleting ${type}:`, result.error);
+            showNotification(`Error: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error(`[Renderer] Error deleting ${type}:`, error);
+        showNotification(`Error deleting ${type}`, 'error');
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Create a simple notification
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 16px;
+        background: ${type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#007bff'};
+        color: white;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        z-index: 2000;
+        font-size: 14px;
+        max-width: 300px;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            document.body.removeChild(notification);
+        }
+    }, 3000);
+}
+
+// Global drag and drop state
+let draggedItem = null;
+
+// Navigation history system
+let navigationHistory = [];
+let currentHistoryIndex = -1;
+let isNavigatingHistory = false; // Prevent adding to history during back/forward navigation
+
+// --- Navigation History Management ---
+function addToNavigationHistory(filePath, fileName) {
+    if (isNavigatingHistory || !filePath) return;
+    
+    // Don't add duplicate consecutive entries
+    if (navigationHistory.length > 0 && 
+        navigationHistory[currentHistoryIndex]?.filePath === filePath) {
+        return;
+    }
+    
+    // Remove any forward history if we're not at the end
+    if (currentHistoryIndex < navigationHistory.length - 1) {
+        navigationHistory = navigationHistory.slice(0, currentHistoryIndex + 1);
+    }
+    
+    // Add new entry
+    navigationHistory.push({
+        filePath: filePath,
+        fileName: fileName || filePath.split('/').pop(),
+        timestamp: Date.now()
+    });
+    
+    currentHistoryIndex = navigationHistory.length - 1;
+    
+    // Limit history size
+    if (navigationHistory.length > 50) {
+        navigationHistory = navigationHistory.slice(-50);
+        currentHistoryIndex = navigationHistory.length - 1;
+    }
+    
+    updateNavigationButtons();
+    updateCurrentFileName(fileName);
+    
+    // Save navigation history to persistent settings
+    saveNavigationHistoryToSettings();
+    
+    console.log('[Navigation] Added to history:', fileName, 'Index:', currentHistoryIndex);
+}
+
+function navigateBack() {
+    if (currentHistoryIndex > 0) {
+        currentHistoryIndex--;
+        const historyItem = navigationHistory[currentHistoryIndex];
+        
+        console.log('[Navigation] Going back to:', historyItem.fileName);
+        
+        isNavigatingHistory = true;
+        openFileFromHistory(historyItem);
+    }
+}
+
+function navigateForward() {
+    if (currentHistoryIndex < navigationHistory.length - 1) {
+        currentHistoryIndex++;
+        const historyItem = navigationHistory[currentHistoryIndex];
+        
+        console.log('[Navigation] Going forward to:', historyItem.fileName);
+        
+        isNavigatingHistory = true;
+        openFileFromHistory(historyItem);
+    }
+}
+
+async function openFileFromHistory(historyItem) {
+    try {
+        const result = await window.electronAPI.invoke('open-file-path', historyItem.filePath);
+        if (result.success) {
+            openFileInEditor(result.filePath, result.content);
+            updateNavigationButtons();
+            updateCurrentFileName(historyItem.fileName);
+        } else {
+            console.error('[Navigation] Error opening file from history:', result.error);
+            showNotification(`Error opening ${historyItem.fileName}: ${result.error}`, 'error');
+            // Remove invalid entry from history
+            navigationHistory.splice(currentHistoryIndex, 1);
+            if (currentHistoryIndex >= navigationHistory.length) {
+                currentHistoryIndex = navigationHistory.length - 1;
+            }
+            updateNavigationButtons();
+        }
+    } catch (error) {
+        console.error('[Navigation] Error opening file from history:', error);
+        showNotification('Error navigating to file', 'error');
+    } finally {
+        isNavigatingHistory = false;
+    }
+}
+
+function updateNavigationButtons() {
+    const backBtn = document.getElementById('nav-back-btn');
+    const forwardBtn = document.getElementById('nav-forward-btn');
+    
+    if (backBtn) {
+        backBtn.disabled = currentHistoryIndex <= 0;
+        backBtn.title = currentHistoryIndex > 0 
+            ? `Go Back to: ${navigationHistory[currentHistoryIndex - 1].fileName} (Alt+Left)`
+            : 'Go Back (Alt+Left)';
+    }
+    
+    if (forwardBtn) {
+        forwardBtn.disabled = currentHistoryIndex >= navigationHistory.length - 1;
+        forwardBtn.title = currentHistoryIndex < navigationHistory.length - 1
+            ? `Go Forward to: ${navigationHistory[currentHistoryIndex + 1].fileName} (Alt+Right)`
+            : 'Go Forward (Alt+Right)';
+    }
+}
+
+function updateCurrentFileName(fileName) {
+    const currentFileNameEl = document.getElementById('current-file-name');
+    if (currentFileNameEl) {
+        currentFileNameEl.textContent = fileName || 'No file selected';
+        currentFileNameEl.title = fileName || '';
+    }
+}
+
+// --- Settings Integration ---
+async function saveNavigationHistoryToSettings() {
+    try {
+        await window.electronAPI.invoke('save-navigation-history', navigationHistory);
+    } catch (error) {
+        console.error('[Navigation] Error saving navigation history:', error);
+    }
+}
+
+async function loadNavigationHistoryFromSettings() {
+    try {
+        const savedHistory = await window.electronAPI.invoke('get-navigation-history');
+        if (Array.isArray(savedHistory) && savedHistory.length > 0) {
+            navigationHistory = savedHistory;
+            currentHistoryIndex = navigationHistory.length - 1;
+            updateNavigationButtons();
+            
+            // Set current file name if we have history
+            if (navigationHistory.length > 0) {
+                updateCurrentFileName(navigationHistory[currentHistoryIndex].fileName);
+            }
+            
+            console.log('[Navigation] Loaded navigation history:', navigationHistory.length, 'entries');
+        }
+    } catch (error) {
+        console.error('[Navigation] Error loading navigation history:', error);
+    }
+}
+
+async function addFileToRecents(filePath) {
+    try {
+        await window.electronAPI.invoke('add-recent-file', filePath);
+    } catch (error) {
+        console.error('[Settings] Error adding file to recents:', error);
+    }
+}
+
+// Add drag and drop event listeners to file tree
+fileTreeView.addEventListener('dragstart', (event) => {
+    const target = event.target;
+    console.log('[Renderer] Dragstart event on:', target, 'Classes:', target.classList.toString(), 'Draggable:', target.draggable);
+    
+    if ((target.classList.contains('file') || target.classList.contains('folder')) && target.dataset.path) {
+        draggedItem = {
+            element: target,
+            path: target.dataset.path,
+            type: target.classList.contains('file') ? 'file' : 'folder',
+            name: target.textContent.substring(2) // Remove emoji
+        };
+        
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', draggedItem.path);
+        
+        // Visual feedback
+        target.style.opacity = '0.5';
+        target.style.border = '2px dashed #007bff';
+        
+        console.log('[Renderer] Drag started:', draggedItem);
+    } else {
+        console.log('[Renderer] Drag not started - invalid target');
+    }
+}, true);
+
+fileTreeView.addEventListener('dragend', (event) => {
+    console.log('[Renderer] Drag ended');
+    // Don't clear draggedItem here immediately, let drop handle it
+    // Just reset visual feedback on the dragged element
+    if (draggedItem && draggedItem.element) {
+        draggedItem.element.style.opacity = '';
+        draggedItem.element.style.border = '';
+    }
+    
+    // Clear draggedItem after a short delay to allow drop event to process
+    setTimeout(() => {
+        if (draggedItem) {
+            draggedItem = null;
+        }
+        // Clear any remaining visual feedback
+        const allFolders = fileTreeView.querySelectorAll('.folder');
+        allFolders.forEach(folder => {
+            folder.style.backgroundColor = '';
+            folder.style.border = '';
+        });
+    }, 100);
+}, true);
+
+fileTreeView.addEventListener('dragover', (event) => {
+    const target = event.target;
+    if (target.classList.contains('folder') && target.dataset.path && draggedItem) {
+        event.preventDefault(); // Allow drop
+        event.dataTransfer.dropEffect = 'move';
+        
+        // Visual feedback for drop target
+        target.style.backgroundColor = 'var(--hover-color, #e3f2fd)';
+        target.style.border = '2px solid #007bff';
+        
+        console.log('[Renderer] Dragover on folder:', target.dataset.path);
+    }
+}, true);
+
+fileTreeView.addEventListener('dragleave', (event) => {
+    const target = event.target;
+    if (target.classList.contains('folder')) {
+        // Remove visual feedback
+        target.style.backgroundColor = '';
+        target.style.border = '';
+    }
+}, true);
+
+fileTreeView.addEventListener('drop', async (event) => {
+    console.log('[Renderer] Drop event');
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const target = event.target;
+    console.log('[Renderer] Drop target:', target, 'Classes:', target.classList.toString());
+    console.log('[Renderer] Dragged item:', draggedItem);
+    
+    // Validate we have all required data
+    if (!target.classList.contains('folder') || !target.dataset.path) {
+        console.log('[Renderer] Drop not processed - invalid target');
+        return;
+    }
+    
+    if (!draggedItem || !draggedItem.path || !draggedItem.type) {
+        console.log('[Renderer] Drop not processed - no valid dragged item');
+        showNotification('Drag and drop failed - no valid item being dragged', 'error');
+        return;
+    }
+    
+    const targetFolderPath = target.dataset.path;
+    
+    // Remove visual feedback
+    target.style.backgroundColor = '';
+    target.style.border = '';
+    
+    console.log('[Renderer] Attempting to move:', draggedItem.path, 'to:', targetFolderPath);
+    
+    // Don't allow dropping item into itself or its children
+    if (draggedItem.path === targetFolderPath || targetFolderPath.startsWith(draggedItem.path + '/')) {
+        showNotification('Cannot move item into itself or its subdirectory', 'error');
+        return;
+    }
+    
+    // Store reference to dragged item before it gets cleared
+    const itemToMove = {
+        path: draggedItem.path,
+        type: draggedItem.type,
+        name: draggedItem.name
+    };
+    
+    try {
+        const result = await window.electronAPI.invoke('move-item', {
+            sourcePath: itemToMove.path,
+            targetPath: targetFolderPath,
+            operation: 'cut', // Drag and drop is always move
+            type: itemToMove.type
+        });
+        
+        if (result.success) {
+            console.log('[Renderer] Drag and drop move completed successfully');
+            renderFileTree();
+            showNotification(`${itemToMove.type === 'file' ? 'File' : 'Folder'} moved successfully`, 'success');
+        } else {
+            console.error('[Renderer] Error in drag and drop move:', result.error);
+            showNotification(`Error: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('[Renderer] Error in drag and drop move:', error);
+        showNotification('Error moving item', 'error');
+    }
+    
+    // Clear the dragged item
+    draggedItem = null;
+}, true);
 
 // --- Theme Handling ---
 function applyTheme(isDarkMode) {
@@ -1860,12 +2983,14 @@ if (window.electronAPI) {
             const result = await window.electronAPI.invoke('perform-save', content);
             if (result.success) {
                 console.log(`[Renderer] File saved successfully to: ${result.filePath}`);
-                // Optional: Add UI feedback (e.g., status bar message)
+                // Refresh file tree to show new/updated file
+                renderFileTree();
+                showNotification('File saved successfully', 'success');
             } else {
                 // Check if it failed due to an error or just cancellation/non-error
                 if (result.error) {
                      console.error(`[Renderer] Save failed: ${result.error}`);
-                     // Optional: Show specific error to user
+                     showNotification(`Save failed: ${result.error}`, 'error');
                 } else {
                      console.log('[Renderer] Save operation did not complete (e.g., was cancelled).');
                      // Optional: Add different UI feedback for cancellation
@@ -1873,7 +2998,7 @@ if (window.electronAPI) {
             }
         } catch (error) {
             console.error('[Renderer] Error invoking perform-save:', error);
-            // Optional: Show error to user
+            showNotification('Error saving file', 'error');
         }
     });
 }
@@ -1887,12 +3012,14 @@ if (window.electronAPI) {
             const result = await window.electronAPI.invoke('perform-save-as', content);
              if (result.success) {
                 console.log(`[Renderer] File saved successfully (Save As) to: ${result.filePath}`);
-                // Optional: Add UI feedback
+                // Refresh file tree to show new/updated file
+                renderFileTree();
+                showNotification('File saved successfully', 'success');
              } else {
                  // Check if it failed due to an error or just cancellation/non-error
                  if (result.error) {
                       console.error(`[Renderer] Save As failed: ${result.error}`);
-                      // Optional: Show specific error to user
+                      showNotification(`Save As failed: ${result.error}`, 'error');
                  } else {
                       console.log('[Renderer] Save As operation did not complete (e.g., was cancelled).');
                       // Optional: Add different UI feedback for cancellation
@@ -1900,6 +3027,7 @@ if (window.electronAPI) {
              }
         } catch (error) {
             console.error('[Renderer] Error invoking perform-save-as:', error);
+            showNotification('Error saving file', 'error');
             // Optional: Show error to user
         }
     });
@@ -1935,3 +3063,222 @@ function saveCurrentLayout() {
     console.log('[renderer.js] Sending layout settings to main:', layoutData);
     window.electronAPI.send('save-layout', layoutData);
 }
+
+// --- Global Search Implementation ---
+let globalSearchResults = [];
+let searchInProgress = false;
+
+// Get search elements
+const showSearchBtn = document.getElementById('show-search-btn');
+const searchPane = document.getElementById('search-pane');
+const globalSearchInput = document.getElementById('global-search-input');
+const globalSearchBtn = document.getElementById('global-search-btn');
+const searchCaseSensitive = document.getElementById('search-case-sensitive');
+const searchRegex = document.getElementById('search-regex');
+const searchWholeWord = document.getElementById('search-whole-word');
+const searchFilePattern = document.getElementById('search-file-pattern');
+const searchResults = document.getElementById('search-results');
+const searchStatus = document.getElementById('search-status');
+
+// Initialize global search
+function initializeGlobalSearch() {
+    if (showSearchBtn) {
+        showSearchBtn.addEventListener('click', () => {
+            showRightPane('search');
+        });
+    }
+    
+    if (globalSearchBtn) {
+        globalSearchBtn.addEventListener('click', performGlobalSearch);
+    }
+    
+    if (globalSearchInput) {
+        globalSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                performGlobalSearch();
+            }
+        });
+    }
+}
+
+// Perform global search
+async function performGlobalSearch() {
+    if (!globalSearchInput || !window.electronAPI) return;
+    
+    const query = globalSearchInput.value.trim();
+    if (!query) {
+        showSearchStatus('Please enter a search term');
+        return;
+    }
+    
+    if (searchInProgress) {
+        showSearchStatus('Search in progress...');
+        return;
+    }
+    
+    searchInProgress = true;
+    showSearchStatus('Searching...');
+    clearSearchResults();
+    
+    try {
+        const options = {
+            caseSensitive: searchCaseSensitive?.checked || false,
+            wholeWord: searchWholeWord?.checked || false,
+            useRegex: searchRegex?.checked || false,
+            filePattern: searchFilePattern?.value || '*.{md,markdown,txt}'
+        };
+        
+        const result = await window.electronAPI.invoke('global-search', { query, options });
+        
+        if (result.success) {
+            globalSearchResults = result.results;
+            displaySearchResults(result.results, query);
+            showSearchStatus(`Found ${result.results.length} matches`);
+        } else {
+            showSearchStatus(`Search failed: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('[renderer.js] Global search error:', error);
+        showSearchStatus(`Search error: ${error.message}`);
+    } finally {
+        searchInProgress = false;
+    }
+}
+
+// Display search results
+function displaySearchResults(results, query) {
+    if (!searchResults) return;
+    
+    searchResults.innerHTML = '';
+    
+    if (results.length === 0) {
+        const noResultsDiv = document.createElement('div');
+        noResultsDiv.className = 'search-no-results';
+        noResultsDiv.textContent = 'No matches found';
+        searchResults.appendChild(noResultsDiv);
+        return;
+    }
+    
+    // Group results by file
+    const fileGroups = {};
+    results.forEach(result => {
+        if (!fileGroups[result.file]) {
+            fileGroups[result.file] = [];
+        }
+        fileGroups[result.file].push(result);
+    });
+    
+    // Create file sections
+    Object.entries(fileGroups).forEach(([filePath, fileResults]) => {
+        const fileSection = document.createElement('div');
+        fileSection.className = 'search-file-section';
+        
+        // File header
+        const fileHeader = document.createElement('div');
+        fileHeader.className = 'search-file-header';
+        fileHeader.innerHTML = `
+            <span class="search-file-name">${fileResults[0].fileName}</span>
+            <span class="search-file-count">${fileResults.length} matches</span>
+        `;
+        fileSection.appendChild(fileHeader);
+        
+        // File results
+        const fileResultsList = document.createElement('div');
+        fileResultsList.className = 'search-file-results';
+        
+        fileResults.forEach(result => {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'search-result-item';
+            resultDiv.innerHTML = `
+                <div class="search-result-line">
+                    <span class="search-result-line-number">Line ${result.line}</span>
+                    <span class="search-result-text">${highlightSearchMatch(result.text, query)}</span>
+                </div>
+            `;
+            
+            resultDiv.addEventListener('click', () => {
+                openFileAtLocation(result.file, result.line, result.column);
+            });
+            
+            fileResultsList.appendChild(resultDiv);
+        });
+        
+        fileSection.appendChild(fileResultsList);
+        searchResults.appendChild(fileSection);
+    });
+}
+
+// Highlight search matches in result text
+function highlightSearchMatch(text, query) {
+    if (!query) return escapeHtml(text);
+    
+    try {
+        const escaped = escapeHtml(text);
+        const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+        return escaped.replace(regex, '<mark class="search-highlight">$1</mark>');
+    } catch (error) {
+        return escapeHtml(text);
+    }
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Helper function to escape regex special characters
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Open file at specific location
+async function openFileAtLocation(filePath, line, column) {
+    try {
+        const result = await window.electronAPI.invoke('open-file-path', filePath);
+        if (result.success) {
+            // Set editor content
+            if (editor) {
+                editor.setValue(result.content);
+                editor.setPosition({ lineNumber: line, column: column });
+                editor.revealLineInCenter(line);
+                editor.focus();
+            }
+            
+            // Update current file tracking
+            await window.electronAPI.invoke('set-current-file', filePath);
+            addToNavigationHistory(filePath);
+            
+            // Update UI
+            updateWindowTitle(result.filePath);
+            updateCurrentFileName(result.filePath);
+            // Extract filename from path
+            const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'Unknown';
+            showNotification(`Opened ${fileName} at line ${line}`, 'info');
+        } else {
+            showNotification(`Failed to open file: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('[renderer.js] Error opening file from search:', error);
+        showNotification('Error opening file', 'error');
+    }
+}
+
+// Show search status message
+function showSearchStatus(message) {
+    if (searchStatus) {
+        searchStatus.textContent = message;
+    }
+}
+
+// Clear search results
+function clearSearchResults() {
+    if (searchResults) {
+        searchResults.innerHTML = '';
+    }
+}
+
+// Initialize global search when DOM is loaded
+document.addEventListener('DOMContentLoaded', initializeGlobalSearch);

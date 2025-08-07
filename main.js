@@ -8,6 +8,12 @@ const fsSync = require('fs');
 const { OpenAI } = require('openai');
 require('@electron/remote/main').initialize();
 
+// Set app name immediately - before anything else
+app.setName('Hegel Pedagogy AI');
+process.title = 'Hegel Pedagogy AI';
+console.log(`[main.js] App name set to: ${app.getName()}`);
+console.log(`[main.js] Process title set to: ${process.title}`);
+
 // Enable hot reload for electron app in development
 if (process.argv.includes('--dev')) {
   try {
@@ -56,8 +62,43 @@ const defaultSettings = {
     workingDirectory: app.getPath('documents'),
     currentFile: '',
     presentationMode: false,
-    presentationLayout: 'spiral'
+    presentationLayout: 'spiral',
+    // New settings for enhanced user experience
+    editor: {
+        fontSize: 14,
+        wordWrap: 'on',
+        showLineNumbers: true,
+        showMinimap: true,
+        folding: true
+    },
+    navigation: {
+        maxHistoryEntries: 50,
+        persistHistory: true,
+        history: []
+    },
+    ui: {
+        showToolbar: true,
+        compactMode: false,
+        autoSave: true,
+        autoSaveInterval: 2000 // milliseconds
+    },
+    // Recently opened files for quick access
+    recentFiles: [],
+    maxRecentFiles: 10
 };
+
+// Deep merge function for nested objects
+function deepMerge(target, source) {
+    const result = { ...target };
+    for (const key in source) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+            result[key] = deepMerge(target[key] || {}, source[key]);
+        } else {
+            result[key] = source[key];
+        }
+    }
+    return result;
+}
 
 // Load settings from disk
 function loadSettings() {
@@ -65,19 +106,81 @@ function loadSettings() {
         const fsSync = require('fs');
         if (fsSync.existsSync(SETTINGS_FILE)) {
             const raw = fsSync.readFileSync(SETTINGS_FILE, 'utf-8');
-            const loadedSettings = JSON.parse(raw);
-            appSettings = loadedSettings;
-            appSettings = { ...defaultSettings, ...appSettings };
-            if (loadedSettings.layout) {
-                appSettings.layout = { ...defaultSettings.layout, ...loadedSettings.layout };
+            
+            // Check if file is empty or corrupted
+            if (!raw || raw.trim().length === 0) {
+                console.warn('[main.js] Settings file is empty, using defaults.');
+                appSettings = JSON.parse(JSON.stringify(defaultSettings)); // Deep copy
+                saveSettings(); // Save defaults to fix the empty file
+                return;
             }
+            
+            const loadedSettings = JSON.parse(raw);
+            
+            // Deep merge to preserve nested structure
+            appSettings = deepMerge(defaultSettings, loadedSettings);
+            
+            // Validate critical settings
+            validateSettings();
+            
             console.log('[main.js] Loaded settings:', appSettings);
         } else {
             console.log('[main.js] No settings file found, using defaults.');
-            appSettings = defaultSettings;
+            appSettings = JSON.parse(JSON.stringify(defaultSettings)); // Deep copy
         }
     } catch (err) {
         console.error('[main.js] Failed to load settings:', err);
+        console.log('[main.js] Backing up corrupted settings file and using defaults.');
+        
+        // Backup the corrupted file if it exists
+        const fsSync = require('fs');
+        if (fsSync.existsSync(SETTINGS_FILE)) {
+            try {
+                const backupPath = SETTINGS_FILE + '.backup.' + Date.now();
+                fsSync.copyFileSync(SETTINGS_FILE, backupPath);
+                console.log(`[main.js] Corrupted settings backed up to: ${backupPath}`);
+            } catch (backupError) {
+                console.warn('[main.js] Could not backup corrupted settings:', backupError);
+            }
+        }
+        
+        // Use defaults and save them
+        appSettings = JSON.parse(JSON.stringify(defaultSettings)); // Deep copy
+        saveSettings();
+    }
+}
+
+// Validate and fix settings
+function validateSettings() {
+    // Ensure arrays exist
+    if (!Array.isArray(appSettings.recentFiles)) {
+        appSettings.recentFiles = [];
+    }
+    if (!appSettings.navigation || !Array.isArray(appSettings.navigation.history)) {
+        if (!appSettings.navigation) appSettings.navigation = {};
+        appSettings.navigation.history = [];
+    }
+    
+    // Validate working directory exists
+    if (appSettings.workingDirectory) {
+        const fs = require('fs');
+        try {
+            if (!fs.existsSync(appSettings.workingDirectory)) {
+                console.warn('[main.js] Working directory does not exist, resetting to default:', appSettings.workingDirectory);
+                appSettings.workingDirectory = defaultSettings.workingDirectory;
+            }
+        } catch (error) {
+            console.warn('[main.js] Error checking working directory:', error);
+            appSettings.workingDirectory = defaultSettings.workingDirectory;
+        }
+    }
+    
+    // Limit array sizes
+    if (appSettings.recentFiles.length > appSettings.maxRecentFiles) {
+        appSettings.recentFiles = appSettings.recentFiles.slice(0, appSettings.maxRecentFiles);
+    }
+    if (appSettings.navigation.history.length > appSettings.navigation.maxHistoryEntries) {
+        appSettings.navigation.history = appSettings.navigation.history.slice(-appSettings.navigation.maxHistoryEntries);
     }
 }
 
@@ -85,15 +188,97 @@ function loadSettings() {
 function saveSettings() {
     try {
         const fsSync = require('fs');
-        fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(appSettings, null, 2));
-        console.log('[main.js] Saved settings:', appSettings);
+        const settingsJson = JSON.stringify(appSettings, null, 2);
+        
+        // Validate JSON before writing
+        JSON.parse(settingsJson); // This will throw if invalid
+        
+        // Write atomically using a temporary file
+        const tempFile = SETTINGS_FILE + '.tmp';
+        fsSync.writeFileSync(tempFile, settingsJson);
+        fsSync.renameSync(tempFile, SETTINGS_FILE);
+        
+        console.log('[main.js] Saved settings');
     } catch (err) {
         console.error('[main.js] Failed to save settings:', err);
+        
+        // Clean up temp file if it exists
+        const fsSync = require('fs');
+        const tempFile = SETTINGS_FILE + '.tmp';
+        if (fsSync.existsSync(tempFile)) {
+            try {
+                fsSync.unlinkSync(tempFile);
+            } catch (cleanupErr) {
+                console.warn('[main.js] Could not clean up temp settings file:', cleanupErr);
+            }
+        }
     }
+}
+
+// Add file to recent files list
+function addToRecentFiles(filePath) {
+    if (!filePath || !appSettings.recentFiles) return;
+    
+    // Remove if already exists
+    appSettings.recentFiles = appSettings.recentFiles.filter(f => f.path !== filePath);
+    
+    // Add to beginning
+    appSettings.recentFiles.unshift({
+        path: filePath,
+        name: path.basename(filePath),
+        lastOpened: new Date().toISOString()
+    });
+    
+    // Limit size
+    if (appSettings.recentFiles.length > appSettings.maxRecentFiles) {
+        appSettings.recentFiles = appSettings.recentFiles.slice(0, appSettings.maxRecentFiles);
+    }
+    
+    saveSettings();
+}
+
+// Save navigation history
+function saveNavigationHistory(history) {
+    if (!appSettings.navigation.persistHistory) return;
+    
+    appSettings.navigation.history = history.slice(-appSettings.navigation.maxHistoryEntries);
+    saveSettings();
+}
+
+// Get settings for specific category
+function getSettings(category = null) {
+    if (category) {
+        return appSettings[category] || {};
+    }
+    return appSettings;
+}
+
+// Update settings for specific category
+function updateSettings(category, newSettings) {
+    if (category && appSettings[category]) {
+        appSettings[category] = { ...appSettings[category], ...newSettings };
+    } else {
+        appSettings = { ...appSettings, ...newSettings };
+    }
+    saveSettings();
 }
 
 // Load settings before app ready
 loadSettings();
+
+// Set additional app metadata
+if (process.platform !== 'darwin') {
+    // On non-macOS platforms, also set the desktop name
+    app.setDesktopName('Hegel Pedagogy AI');
+} else {
+    // Set macOS About panel information
+    app.setAboutPanelOptions({
+        applicationName: 'Hegel Pedagogy AI',
+        applicationVersion: '1.0.0',
+        version: '1.0.0',
+        credits: 'Advanced Markdown editor and presentation app for Hegelian philosophy and AI pedagogy'
+    });
+}
 
 // Save settings on shutdown
 app.on('before-quit', saveSettings);
@@ -120,6 +305,7 @@ function createWindow() {
     },
     title: 'Hegel Pedagogy AI - Advanced Editor & Presentations',
     titleBarStyle: 'hidden',
+    icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     show: false
   });
 
@@ -136,6 +322,8 @@ function createWindow() {
     
     if (process.argv.includes('--dev')) {
       mainWindow.webContents.openDevTools();
+      console.log(`[main.js] App name in ready-to-show: ${app.getName()}`);
+      console.log(`[main.js] Process title: ${process.title}`);
     }
   });
 
@@ -166,8 +354,12 @@ function createWindow() {
       const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
       console.log(`[main.js] Window finished loading. Sending initial theme: ${theme}`);
       mainWindow.webContents.send('theme-changed', theme);
-      mainWindow.webContents.send('refresh-file-tree');
-      console.log('[main.js] Sent refresh-file-tree signal to renderer.');
+      
+      // Send refresh signal with a slight delay to ensure renderer is ready
+      setTimeout(() => {
+        console.log('[main.js] Sending refresh-file-tree signal to renderer.');
+        mainWindow.webContents.send('refresh-file-tree');
+      }, 100);
   });
 
   // Save settings explicitly when the window is about to close
@@ -584,8 +776,21 @@ async function getFiles(dir) {
     for (const dirent of list) {
         const res = path.resolve(dir, dirent.name);
         if (dirent.isDirectory()) {
-            if (dirent.name !== 'node_modules' && !dirent.name.startsWith('.')) {
-                 results.push({ path: res, type: 'folder' });
+            // Skip node_modules, hidden directories, and .git
+            if (dirent.name !== 'node_modules' && 
+                !dirent.name.startsWith('.') && 
+                dirent.name !== '__pycache__') {
+                
+                // Add the folder itself
+                results.push({ path: res, type: 'folder' });
+                
+                // Recursively scan the subfolder for its contents
+                try {
+                    const subfolderFiles = await getFiles(res);
+                    results = results.concat(subfolderFiles);
+                } catch (error) {
+                    console.warn(`[main.js] Could not read subfolder ${res}:`, error.message);
+                }
             }
         } else {
             if (res.endsWith('.md') || res.endsWith('.markdown')) {
@@ -678,6 +883,124 @@ async function performSaveAs(content) {
         dialog.showErrorBox('Save As Error', `Failed to save the file: ${err.message}`);
         return { success: false, error: err.message };
     }
+}
+
+// Global search implementation
+async function performGlobalSearch(query, workingDir, options = {}) {
+    const {
+        caseSensitive = false,
+        wholeWord = false,
+        useRegex = false,
+        filePattern = '*.{md,markdown,txt}',
+        maxResults = 500
+    } = options;
+
+    const results = [];
+    
+    try {
+        // Create search pattern
+        let searchPattern;
+        if (useRegex) {
+            try {
+                searchPattern = new RegExp(query, caseSensitive ? 'gm' : 'gim');
+            } catch (error) {
+                throw new Error(`Invalid regex pattern: ${error.message}`);
+            }
+        } else {
+            // Escape special regex characters for literal search
+            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const wordBoundary = wholeWord ? '\\b' : '';
+            const flags = caseSensitive ? 'gm' : 'gim';
+            searchPattern = new RegExp(`${wordBoundary}${escapedQuery}${wordBoundary}`, flags);
+        }
+
+        // Get all markdown and text files recursively
+        const files = await getSearchableFiles(workingDir);
+        
+        for (const file of files) {
+            if (results.length >= maxResults) break;
+            
+            try {
+                const content = await fs.readFile(file.path, 'utf8');
+                const lines = content.split('\n');
+                
+                lines.forEach((line, lineIndex) => {
+                    if (results.length >= maxResults) return;
+                    
+                    const matches = [...line.matchAll(searchPattern)];
+                    matches.forEach(match => {
+                        if (results.length >= maxResults) return;
+                        
+                        results.push({
+                            file: file.path,
+                            fileName: path.basename(file.path),
+                            line: lineIndex + 1,
+                            column: match.index + 1,
+                            text: line.trim(),
+                            match: match[0],
+                            preview: getLinePreview(lines, lineIndex, 2)
+                        });
+                    });
+                });
+            } catch (error) {
+                console.warn(`[main.js] Could not search file ${file.path}:`, error.message);
+            }
+        }
+        
+        console.log(`[main.js] Global search found ${results.length} matches in ${files.length} files`);
+        return results;
+        
+    } catch (error) {
+        console.error('[main.js] Error in performGlobalSearch:', error);
+        throw error;
+    }
+}
+
+// Get searchable files in directory
+async function getSearchableFiles(dir) {
+    const files = [];
+    const searchableExtensions = ['.md', '.markdown', '.txt', '.text'];
+    
+    async function scanDirectory(currentDir) {
+        try {
+            const entries = await fs.readdir(currentDir, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                const fullPath = path.join(currentDir, entry.name);
+                
+                if (entry.isDirectory()) {
+                    // Skip hidden directories, node_modules, .git
+                    if (!entry.name.startsWith('.') && 
+                        entry.name !== 'node_modules' && 
+                        entry.name !== '__pycache__') {
+                        await scanDirectory(fullPath);
+                    }
+                } else if (entry.isFile()) {
+                    const ext = path.extname(entry.name).toLowerCase();
+                    if (searchableExtensions.includes(ext)) {
+                        files.push({ path: fullPath, name: entry.name });
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn(`[main.js] Could not scan directory ${currentDir}:`, error.message);
+        }
+    }
+    
+    await scanDirectory(dir);
+    return files;
+}
+
+// Get preview context around a line
+function getLinePreview(lines, lineIndex, contextLines = 2) {
+    const start = Math.max(0, lineIndex - contextLines);
+    const end = Math.min(lines.length, lineIndex + contextLines + 1);
+    
+    return lines.slice(start, end).map((line, index) => ({
+        lineNumber: start + index + 1,
+        text: line,
+        isMatch: start + index === lineIndex
+    }));
 }
 
 async function generateAndLoadLectureSummary() {
@@ -803,8 +1126,28 @@ async function openFile() {
 // --- App Initialization ---
 app.whenReady().then(() => {
   console.log('[main.js] App is ready via whenReady()');
-  currentWorkingDirectory = app.getPath('documents');
-  console.log(`[main.js] Initial working directory: ${currentWorkingDirectory}`);
+  
+  // Use saved working directory from settings, fallback to documents
+  if (appSettings.workingDirectory && appSettings.workingDirectory.length > 0) {
+    currentWorkingDirectory = appSettings.workingDirectory;
+    console.log(`[main.js] Using saved working directory: ${currentWorkingDirectory}`);
+  } else {
+    currentWorkingDirectory = app.getPath('documents');
+    console.log(`[main.js] Using default working directory: ${currentWorkingDirectory}`);
+  }
+
+  // Set dock icon on macOS
+  if (process.platform === 'darwin') {
+    const dockIconPath = path.join(__dirname, 'build', 'icon.png');
+    try {
+      if (require('fs').existsSync(dockIconPath)) {
+        app.dock.setIcon(dockIconPath);
+        console.log('[main.js] Dock icon set successfully');
+      }
+    } catch (error) {
+      console.warn('[main.js] Could not set dock icon:', error);
+    }
+  }
 
   // --- IPC Handlers ---
   
@@ -852,7 +1195,10 @@ app.whenReady().then(() => {
     console.log(`[main.js] Received request-file-tree for dir: ${currentWorkingDirectory}`);
     try {
         const files = await getFiles(currentWorkingDirectory);
+        console.log(`[main.js] Found ${files.length} files in directory`);
+        console.log(`[main.js] First few files:`, files.slice(0, 3));
         const tree = buildFileTree(currentWorkingDirectory, files);
+        console.log(`[main.js] Built file tree with ${tree.children ? tree.children.length : 0} root items`);
         return tree;
     } catch (error) {
         console.error(`[main.js] Error getting file tree for ${currentWorkingDirectory}:`, error);
@@ -954,14 +1300,65 @@ app.whenReady().then(() => {
      return await performSaveAs(content);
   });
 
-  ipcMain.handle('get-settings', () => {
-    return appSettings;
+  // Enhanced settings handlers
+  ipcMain.handle('get-settings', (event, category = null) => {
+    return getSettings(category);
   });
   
-  ipcMain.handle('set-settings', (event, newSettings) => {
-    appSettings = { ...appSettings, ...newSettings };
-    saveSettings();
+  ipcMain.handle('set-settings', (event, category, newSettings) => {
+    if (typeof category === 'string') {
+      updateSettings(category, newSettings);
+    } else {
+      // If category is actually the settings object (backwards compatibility)
+      appSettings = { ...appSettings, ...category };
+      saveSettings();
+    }
     return { success: true };
+  });
+
+  // Navigation history handlers
+  ipcMain.handle('save-navigation-history', (event, history) => {
+    saveNavigationHistory(history);
+  });
+
+  ipcMain.handle('get-navigation-history', () => {
+    return appSettings.navigation.history || [];
+  });
+
+  // Recent files handlers
+  ipcMain.handle('add-recent-file', (event, filePath) => {
+    addToRecentFiles(filePath);
+    return appSettings.recentFiles;
+  });
+
+  ipcMain.handle('get-recent-files', () => {
+    return appSettings.recentFiles || [];
+  });
+
+  // Working directory handler
+  ipcMain.handle('change-working-directory', async () => {
+    if (!mainWindow) return { success: false, error: 'No main window available' };
+    
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: 'Select Working Directory',
+      defaultPath: appSettings.workingDirectory
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      appSettings.workingDirectory = result.filePaths[0];
+      currentWorkingDirectory = appSettings.workingDirectory;
+      saveSettings();
+      
+      console.log('[main.js] Working directory changed to:', appSettings.workingDirectory);
+      return { 
+        success: true, 
+        path: appSettings.workingDirectory,
+        message: 'Working directory updated successfully'
+      };
+    }
+
+    return { success: false, error: 'Directory selection cancelled' };
   });
 
   // File deletion handlers
@@ -1006,6 +1403,102 @@ app.whenReady().then(() => {
     }
   });
 
+  // Enhanced delete handler for both files and folders
+  ipcMain.handle('delete-item', async (event, { path, type, name }) => {
+    try {
+      if (!path || typeof path !== 'string') {
+        throw new Error('Invalid path');
+      }
+
+      // Show confirmation dialog
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: `Delete ${type === 'file' ? 'File' : 'Folder'}`,
+        message: `Are you sure you want to delete "${name}"?`,
+        detail: type === 'folder' 
+          ? 'This will permanently delete the folder and all its contents. This action cannot be undone.'
+          : 'This action cannot be undone.',
+        buttons: ['Cancel', 'Delete'],
+        defaultId: 0,
+        cancelId: 0
+      });
+
+      if (result.response !== 1) {
+        return { success: false, error: 'User cancelled' };
+      }
+
+      // Delete the item
+      if (type === 'file') {
+        await fs.unlink(path);
+        console.log(`[main.js] File deleted successfully: ${path}`);
+        
+        // Clear current file if it was deleted
+        if (currentFilePath === path) {
+          currentFilePath = null;
+          if (mainWindow) {
+            mainWindow.setTitle('Hegel Pedagogy AI - Untitled');
+          }
+        }
+      } else if (type === 'folder') {
+        await fs.rm(path, { recursive: true, force: true });
+        console.log(`[main.js] Folder deleted successfully: ${path}`);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error(`[main.js] Error deleting ${type}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Move/copy handler
+  ipcMain.handle('move-item', async (event, { sourcePath, targetPath, operation, type }) => {
+    try {
+      if (!sourcePath || !targetPath || !operation || !type) {
+        throw new Error('Missing required parameters');
+      }
+
+      const sourceBasename = path.basename(sourcePath);
+      const destinationPath = path.join(targetPath, sourceBasename);
+
+      // Check if destination already exists
+      try {
+        await fs.access(destinationPath);
+        return { success: false, error: `A ${type} with this name already exists in the destination folder` };
+      } catch (error) {
+        // File doesn't exist, which is what we want
+      }
+
+      if (operation === 'cut') {
+        // Move the item
+        await fs.rename(sourcePath, destinationPath);
+        console.log(`[main.js] ${type} moved successfully from ${sourcePath} to ${destinationPath}`);
+        
+        // Update current file path if it was moved
+        if (currentFilePath === sourcePath) {
+          currentFilePath = destinationPath;
+          if (mainWindow) {
+            const fileName = path.basename(destinationPath);
+            mainWindow.setTitle(`Hegel Pedagogy AI - ${fileName}`);
+          }
+        }
+      } else if (operation === 'copy') {
+        // Copy the item
+        if (type === 'file') {
+          await fs.copyFile(sourcePath, destinationPath);
+        } else if (type === 'folder') {
+          await fs.cp(sourcePath, destinationPath, { recursive: true });
+        }
+        console.log(`[main.js] ${type} copied successfully from ${sourcePath} to ${destinationPath}`);
+      }
+
+      return { success: true, newPath: destinationPath };
+    } catch (error) {
+      console.error(`[main.js] Error ${operation}ing ${type}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.on('save-layout', (event, layoutData) => {
     console.log('[main.js] Received save-layout request:', layoutData);
     if (layoutData && 
@@ -1026,6 +1519,24 @@ app.whenReady().then(() => {
         console.warn('[main.js] Malformed layout data received:', layoutData);
     }
 });
+
+  // Global search handler
+  ipcMain.handle('global-search', async (event, { query, options = {} }) => {
+    try {
+      const workingDir = appSettings.workingDirectory || currentWorkingDirectory;
+      console.log(`[main.js] Global search for "${query}" in ${workingDir}`);
+      
+      if (!query || query.trim().length === 0) {
+        return { success: false, error: 'Search query is required' };
+      }
+      
+      const searchResults = await performGlobalSearch(query, workingDir, options);
+      return { success: true, results: searchResults };
+    } catch (error) {
+      console.error('[main.js] Error in global search:', error);
+      return { success: false, error: error.message };
+    }
+  });
 
   createWindow();
 
