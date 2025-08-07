@@ -1,41 +1,29 @@
-# Human and Machine Learning
+# My Markdown Document
 
-## Overview of Learning, Machinic and Otherwise
+This is the introduction to the document.
 
-[[lecture-1]]
+## Section One
+This is content under section one.
+More content here.
 
+### Subsection A
+Content for subsection A.
+Additional details.
 
-## Introducing Hegel: What can we learn about how machines learn from 200 year old philosophy?
+### Subsection B
+Content for subsection B.
+More information here.
 
-[[lecture-2]]
+## Section Two
+This is content under section two.
 
+```javascript
+console.log("Hello, world!");
+function test() {
+    return "Code folding test";
+}
+```
 
-## The Concept of Experience (`Ehfahrung') and the Journey
-
-[[lecture-3]]
-
-
-## Technical Interlude: What a Machine does When it 'Learns'
-
-[[lecture-4]]
-
-
-## The Problem of Consciousness for Learning 
-
-[[lecture-5]]
-
-
-## The Role of Technology in Human Learning
-
-[[lecture-6]]
-
-
-## Beyond Binaries: Technosymbiosis, CyberSociality and Other Relational Ideas
-
-[[lecture-7]]
-
-
-## (In)Conclusions? What next...
-
-[[lecture-8]]
-
+## Section Three
+Final section content.
+The end.

@@ -1006,27 +1006,67 @@
 
             <!-- Editor Content -->
             <div id="editor-content" class="content-view active">
-                <div id="editor-pane" style="flex: 2; min-width: 300px; position: relative; display: flex; flex-direction: column;">
+                <div id="editor-pane" style="flex: 2; min-width: 300px; position: relative; display: flex; flex-direction: column; overflow: hidden;">
                     <!-- Editor Toolbar -->
-                    <div id="editor-toolbar" style="height: 32px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 8px; gap: 4px; flex-shrink: 0;">
-                        <button id="fold-all-btn" class="toolbar-btn" title="Fold All Sections (Ctrl+K, Ctrl+0)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
-                            📁 Fold All
+                    <div id="editor-toolbar" style="height: 32px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 8px; gap: 2px; flex-shrink: 0; width: 100%; box-sizing: border-box; overflow-x: auto; white-space: nowrap;">
+                        <!-- Markdown Formatting Tools -->
+                        <button id="format-bold-btn" class="toolbar-btn" title="Bold (Ctrl+B)" style="padding: 3px 6px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px; font-weight: bold;">
+                            <strong>B</strong>
                         </button>
-                        <button id="unfold-all-btn" class="toolbar-btn" title="Unfold All Sections (Ctrl+K, Ctrl+J)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
-                            📂 Unfold All
+                        <button id="format-italic-btn" class="toolbar-btn" title="Italic (Ctrl+I)" style="padding: 3px 6px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px; font-style: italic;">
+                            <em>I</em>
+                        </button>
+                        <button id="format-code-btn" class="toolbar-btn" title="Inline Code (Ctrl+`)" style="padding: 3px 6px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: monospace;">
+                            &lt;&gt;
+                        </button>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
+                        <button id="format-h1-btn" class="toolbar-btn" title="Heading 1" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                            H1
+                        </button>
+                        <button id="format-h2-btn" class="toolbar-btn" title="Heading 2" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                            H2
+                        </button>
+                        <button id="format-h3-btn" class="toolbar-btn" title="Heading 3" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                            H3
+                        </button>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
+                        <button id="format-list-btn" class="toolbar-btn" title="Bulleted List" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            •
+                        </button>
+                        <button id="format-numbered-list-btn" class="toolbar-btn" title="Numbered List" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            1.
+                        </button>
+                        <button id="format-quote-btn" class="toolbar-btn" title="Blockquote" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            &gt;
+                        </button>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
+                        <button id="format-link-btn" class="toolbar-btn" title="Insert Link (Ctrl+K)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            🔗
+                        </button>
+                        <button id="format-image-btn" class="toolbar-btn" title="Insert Image" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            🖼️
+                        </button>
+                        <button id="format-table-btn" class="toolbar-btn" title="Insert Table" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            📊
                         </button>
                         <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
-                        <button id="fold-current-btn" class="toolbar-btn" title="Fold Current Section (Ctrl+Shift+[)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
-                            ⬇️ Fold
-                        </button>
-                        <button id="unfold-current-btn" class="toolbar-btn" title="Unfold Current Section (Ctrl+Shift+])" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
-                            ⬆️ Unfold
-                        </button>
+                        <span style="font-size: 11px; color: #666;">Format</span>
                         <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
-                        <span style="font-size: 11px; color: #666;">Code Folding</span>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
-                        <button id="global-search-btn" class="toolbar-btn" title="Global Search (Ctrl+Shift+F)" style="padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
-                            🔍 Search All Files
+                        <button id="fold-all-btn" class="toolbar-btn" title="Fold All Sections (Ctrl+K, Ctrl+0)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            📁
+                        </button>
+                        <button id="unfold-all-btn" class="toolbar-btn" title="Unfold All Sections (Ctrl+K, Ctrl+J)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            📂
+                        </button>
+                        <button id="fold-current-btn" class="toolbar-btn" title="Fold Current Section (Ctrl+Shift+[)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            ⬇️
+                        </button>
+                        <button id="unfold-current-btn" class="toolbar-btn" title="Unfold Current Section (Ctrl+Shift+])" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            ⬆️
+                        </button>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
+                        <button id="global-search-btn" class="toolbar-btn" title="Global Search (Ctrl+Shift+F)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            🔍
                         </button>
                     </div>
                     <div id="editor-container" style="width: 100%; flex: 1;"></div>

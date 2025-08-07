@@ -19,9 +19,16 @@ if (process.argv.includes('--dev')) {
   try {
     require('electron-reload')(__dirname, {
       electron: path.join(__dirname, 'node_modules', '.bin', 'electron'),
-      hardResetMethod: 'exit'
+      hardResetMethod: 'exit',
+      // Ignore user data directories to prevent reload when saving user files
+      ignored: [
+        /node_modules|[\/\\]\./,
+        /lectures[\/\\]/, // Ignore the lectures directory
+        /\.md$/, // Ignore markdown files anywhere
+        /settings\.json$/ // Ignore settings file changes
+      ]
     });
-    console.log('[main.js] Electron auto-reload enabled for development - files will refresh automatically!');
+    console.log('[main.js] Electron auto-reload enabled for development - app files only');
   } catch (error) {
     console.error('[main.js] Failed to enable electron-reload:', error);
   }
@@ -266,6 +273,14 @@ function updateSettings(category, newSettings) {
 // Load settings before app ready
 loadSettings();
 
+// Initialize currentFilePath from saved settings
+if (appSettings.currentFile && typeof appSettings.currentFile === 'string') {
+    currentFilePath = appSettings.currentFile;
+    console.log('[main.js] Initialized currentFilePath from settings:', currentFilePath);
+} else {
+    console.log('[main.js] No current file in settings, currentFilePath remains null');
+}
+
 // Set additional app metadata
 if (process.platform !== 'darwin') {
     // On non-macOS platforms, also set the desktop name
@@ -471,6 +486,25 @@ function createMainMenu() {
               if (mainWindow) {
                 console.log('[main.js] Save As menu item clicked. Triggering save-as in renderer.');
                 mainWindow.webContents.send('trigger-save-as');
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Export as HTML',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Export HTML menu item clicked. Triggering export-html in renderer.');
+                mainWindow.webContents.send('trigger-export-html');
+              }
+            }
+          },
+          {
+            label: 'Export as PDF',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Export PDF menu item clicked. Triggering export-pdf in renderer.');
+                mainWindow.webContents.send('trigger-export-pdf');
               }
             }
           },
@@ -1286,11 +1320,12 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('perform-save', async (event, content) => {
-    console.log(`[main.js] Received perform-save. Current path: ${currentFilePath}`);
-    if (currentFilePath) {
+    console.log(`[main.js] Received perform-save. Current path: "${currentFilePath}"`);
+    
+    if (currentFilePath && typeof currentFilePath === 'string' && currentFilePath.trim() !== '') {
         return await saveFile(currentFilePath, content);
     } else {
-        console.log('[main.js] No current path, triggering Save As dialog.');
+        console.log('[main.js] No valid current path, triggering Save As dialog.');
         return await performSaveAs(content);
     }
   });
@@ -1298,6 +1333,91 @@ app.whenReady().then(() => {
   ipcMain.handle('perform-save-as', async (event, content) => {
     console.log('[main.js] Received perform-save-as.');
      return await performSaveAs(content);
+  });
+
+  // Handle HTML export
+  ipcMain.handle('perform-export-html', async (event, content, htmlContent) => {
+    console.log('[main.js] Received perform-export-html.');
+    try {
+      const { dialog } = require('electron');
+      const defaultPath = currentFilePath ? 
+        currentFilePath.replace(/\.[^/.]+$/, '.html') : 
+        'export.html';
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export as HTML',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'HTML Files', extensions: ['html'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      await fs.writeFile(result.filePath, htmlContent, 'utf8');
+      console.log(`[main.js] HTML exported successfully to: ${result.filePath}`);
+      return { success: true, filePath: result.filePath };
+    } catch (error) {
+      console.error('[main.js] Error exporting HTML:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle PDF export
+  ipcMain.handle('perform-export-pdf', async (event, content, htmlContent) => {
+    console.log('[main.js] Received perform-export-pdf.');
+    try {
+      const { dialog } = require('electron');
+      const defaultPath = currentFilePath ? 
+        currentFilePath.replace(/\.[^/.]+$/, '.pdf') : 
+        'export.pdf';
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export as PDF',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'PDF Files', extensions: ['pdf'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      // Create a hidden window for PDF generation
+      const { BrowserWindow } = require('electron');
+      const pdfWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      });
+
+      // Load HTML content into the window
+      await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+      
+      // Generate PDF
+      const pdfBuffer = await pdfWindow.webContents.printToPDF({
+        marginsType: 0,
+        pageSize: 'A4',
+        printBackground: true,
+        landscape: false
+      });
+
+      pdfWindow.close();
+      
+      await fs.writeFile(result.filePath, pdfBuffer);
+      console.log(`[main.js] PDF exported successfully to: ${result.filePath}`);
+      return { success: true, filePath: result.filePath };
+    } catch (error) {
+      console.error('[main.js] Error exporting PDF:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   // Enhanced settings handlers

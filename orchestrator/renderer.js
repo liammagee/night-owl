@@ -1186,17 +1186,34 @@ async function loadAppSettings() {
         // --- Restore last opened file if present ---
         if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && appSettings.currentFile.length > 0) {
             console.log('[renderer.js] Attempting to reopen last file:', appSettings.currentFile);
-            window.electronAPI.invoke('open-file-path', appSettings.currentFile)
-                .then(result => {
-                    if (result.success && result.content) {
-                        openFileInEditor(result.filePath, result.content);
-                    } else {
-                        console.warn('[renderer.js] Could not reopen last file:', result.error);
-                    }
-                })
-                .catch(err => {
-                    console.error('[renderer.js] Error reopening last file:', err);
-                });
+            
+            // Wait a bit for Monaco editor to be ready before loading file
+            const loadFileWhenReady = () => {
+                if (typeof monaco !== 'undefined' && monaco.editor) {
+                    // Monaco is ready, load the file
+                    window.electronAPI.invoke('open-file-path', appSettings.currentFile)
+                        .then(result => {
+                            console.log('[renderer.js] File loading result:', result);
+                            if (result.success && result.content) {
+                                console.log(`[renderer.js] Successfully loaded file content, length: ${result.content.length}`);
+                                openFileInEditor(result.filePath, result.content);
+                                console.log('[renderer.js] openFileInEditor called - file should now be in editor');
+                            } else {
+                                console.warn('[renderer.js] Could not reopen last file:', result.error);
+                            }
+                        })
+                        .catch(err => {
+                            console.error('[renderer.js] Error reopening last file:', err);
+                        });
+                } else {
+                    // Monaco not ready yet, wait a bit more
+                    console.log('[renderer.js] Monaco not ready yet, waiting...');
+                    setTimeout(loadFileWhenReady, 100);
+                }
+            };
+            
+            // Start checking for Monaco readiness
+            loadFileWhenReady();
         }
 
         // 3. NOW set up the listener for future OS changes, only once
@@ -1349,6 +1366,35 @@ document.addEventListener('keydown', (e) => {
         return;
     }
     
+    // Markdown formatting shortcuts
+    // Ctrl+B or Cmd+B: Bold
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        formatText('**', '**', 'bold text');
+        return;
+    }
+    
+    // Ctrl+I or Cmd+I: Italic
+    if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+        e.preventDefault();
+        formatText('*', '*', 'italic text');
+        return;
+    }
+    
+    // Ctrl+` or Cmd+`: Inline code
+    if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+        e.preventDefault();
+        formatText('`', '`', 'code');
+        return;
+    }
+    
+    // Ctrl+K or Cmd+K: Insert link
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        insertLink();
+        return;
+    }
+    
     // F3: Find Next (when find dialog is open or when not in input)
     if (e.key === 'F3' && (!isInInput || isInFindReplace)) {
         e.preventDefault();
@@ -1466,68 +1512,6 @@ function applyLayoutSettings(layout) {
 // --- Settings Management ---
 let appSettings = {};
 
-// Function to load settings from main process
-async function loadAppSettings() {
-    if (!window.electronAPI) {
-        console.error('[renderer.js] electronAPI not available for loading settings.');
-        return;
-    }
-    try {
-        appSettings = await window.electronAPI.invoke('get-settings');
-        console.log('[renderer.js] Loaded settings:', appSettings);
-        let themeAppliedFromSettings = false;
-
-        // 1. Apply theme based on explicit settings ('light' or 'dark')
-        if (typeof appSettings.theme === 'string') {
-            if (appSettings.theme === 'dark') {
-                console.log('[renderer.js] Applying theme from setting: dark');
-                applyTheme(true);
-                themeAppliedFromSettings = true;
-            } else if (appSettings.theme === 'light') {
-                console.log('[renderer.js] Applying theme from setting: light');
-                applyTheme(false);
-                themeAppliedFromSettings = true;
-            }
-        }
-
-        // 2. If no specific theme set (or set to 'auto'), check initial OS theme
-        if (!themeAppliedFromSettings) {
-            console.log('[renderer.js] No explicit theme in settings or theme is auto, checking initial OS theme...');
-            try {
-                // Assuming 'get-initial-theme' returns boolean 'isDarkMode'
-                const osIsDarkMode = await window.electronAPI.invoke('get-initial-theme');
-                console.log('[renderer.js] Initial OS theme is:', osIsDarkMode ? 'dark' : 'light');
-                applyTheme(osIsDarkMode);
-            } catch (osThemeErr) {
-                console.error('[renderer.js] Failed to get initial OS theme:', osThemeErr);
-                // Apply a default fallback if OS theme check fails?
-                // applyTheme(false); // e.g., default to light
-            }
-        }
-
-        // 3. NOW set up the listener for future OS changes, only once
-        if (!window.electronAPI._themeListenerAttached) { // Use a flag to prevent duplicates
-            window.electronAPI.on('theme-updated', (osIsDarkMode) => {
-                console.log('[renderer.js] OS theme updated event received.');
-                // Skip OS updates if user has an explicit 'light' or 'dark' theme selected
-                if (typeof appSettings.theme === 'string' && (appSettings.theme === 'light' || appSettings.theme === 'dark')) {
-                    console.log('[renderer.js] Skipping OS theme update due to explicit user setting:', appSettings.theme);
-                    return;
-                }
-                // Apply theme based on OS update if setting is 'auto' or not set
-                console.log('[renderer.js] Applying OS theme update:', osIsDarkMode ? 'dark' : 'light');
-                applyTheme(osIsDarkMode);
-            });
-            window.electronAPI._themeListenerAttached = true; // Set flag
-            console.log('[renderer.js] OS theme update listener initialized.');
-        } else {
-            console.log('[renderer.js] OS theme update listener already attached.');
-        }
-
-    } catch (err) {
-        console.error('[renderer.js] Failed to load settings:', err);
-    }
-}
 
 // --- Structure/File Pane Toggle Listeners ---
 let currentStructureView = 'file'; // 'structure' or 'file' - default to files
@@ -2673,68 +2657,6 @@ function applyTheme(isDarkMode) {
     }
 }
 
-// Function to load settings from main process
-async function loadAppSettings() {
-    if (!window.electronAPI) {
-        console.error('[renderer.js] electronAPI not available for loading settings.');
-        return;
-    }
-    try {
-        appSettings = await window.electronAPI.invoke('get-settings');
-        console.log('[renderer.js] Loaded settings:', appSettings);
-        let themeAppliedFromSettings = false;
-
-        // 1. Apply theme based on explicit settings ('light' or 'dark')
-        if (typeof appSettings.theme === 'string') {
-            if (appSettings.theme === 'dark') {
-                console.log('[renderer.js] Applying theme from setting: dark');
-                applyTheme(true);
-                themeAppliedFromSettings = true;
-            } else if (appSettings.theme === 'light') {
-                console.log('[renderer.js] Applying theme from setting: light');
-                applyTheme(false);
-                themeAppliedFromSettings = true;
-            }
-        }
-
-        // 2. If no specific theme set (or set to 'auto'), check initial OS theme
-        if (!themeAppliedFromSettings) {
-            console.log('[renderer.js] No explicit theme in settings or theme is auto, checking initial OS theme...');
-            try {
-                // Assuming 'get-initial-theme' returns boolean 'isDarkMode'
-                const osIsDarkMode = await window.electronAPI.invoke('get-initial-theme');
-                console.log('[renderer.js] Initial OS theme is:', osIsDarkMode ? 'dark' : 'light');
-                applyTheme(osIsDarkMode);
-            } catch (osThemeErr) {
-                console.error('[renderer.js] Failed to get initial OS theme:', osThemeErr);
-                // Apply a default fallback if OS theme check fails?
-                // applyTheme(false); // e.g., default to light
-            }
-        }
-
-        // 3. NOW set up the listener for future OS changes, only once
-        if (!window.electronAPI._themeListenerAttached) { // Use a flag to prevent duplicates
-            window.electronAPI.on('theme-updated', (osIsDarkMode) => {
-                console.log('[renderer.js] OS theme updated event received.');
-                // Skip OS updates if user has an explicit 'light' or 'dark' theme selected
-                if (typeof appSettings.theme === 'string' && (appSettings.theme === 'light' || appSettings.theme === 'dark')) {
-                    console.log('[renderer.js] Skipping OS theme update due to explicit user setting:', appSettings.theme);
-                    return;
-                }
-                // Apply theme based on OS update if setting is 'auto' or not set
-                console.log('[renderer.js] Applying OS theme update:', osIsDarkMode ? 'dark' : 'light');
-                applyTheme(osIsDarkMode);
-            });
-            window.electronAPI._themeListenerAttached = true; // Set flag
-            console.log('[renderer.js] OS theme update listener initialized.');
-        } else {
-            console.log('[renderer.js] OS theme update listener already attached.');
-        }
-
-    } catch (err) {
-        console.error('[renderer.js] Failed to load settings:', err);
-    }
-}
 
 // Setup context menu listener
 setupContextMenuListener();
@@ -2979,12 +2901,12 @@ if (window.electronAPI) {
     window.electronAPI.on('trigger-save', async () => {
         console.log('[Renderer] Received trigger-save.');
         const content = getCurrentEditorContent();
+        
         try {
             const result = await window.electronAPI.invoke('perform-save', content);
             if (result.success) {
                 console.log(`[Renderer] File saved successfully to: ${result.filePath}`);
-                // Refresh file tree to show new/updated file
-                renderFileTree();
+                // Note: Removed renderFileTree() call to prevent unwanted file switching
                 showNotification('File saved successfully', 'success');
             } else {
                 // Check if it failed due to an error or just cancellation/non-error
@@ -3012,8 +2934,7 @@ if (window.electronAPI) {
             const result = await window.electronAPI.invoke('perform-save-as', content);
              if (result.success) {
                 console.log(`[Renderer] File saved successfully (Save As) to: ${result.filePath}`);
-                // Refresh file tree to show new/updated file
-                renderFileTree();
+                // Note: Removed renderFileTree() call to prevent unwanted file switching  
                 showNotification('File saved successfully', 'success');
              } else {
                  // Check if it failed due to an error or just cancellation/non-error
@@ -3034,6 +2955,158 @@ if (window.electronAPI) {
 }
 
 // --- End Save/Save As Logic ---
+
+// --- Export Logic ---
+
+// Handle HTML export signal from main process
+if (window.electronAPI) {
+    window.electronAPI.on('trigger-export-html', async () => {
+        console.log('[Renderer] Received trigger-export-html.');
+        const content = getCurrentEditorContent();
+        try {
+            // Generate HTML from markdown
+            const htmlContent = generateHTMLFromMarkdown(content);
+            const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent);
+            if (result.success) {
+                console.log(`[Renderer] HTML exported successfully to: ${result.filePath}`);
+                showNotification('HTML exported successfully', 'success');
+            } else if (!result.cancelled) {
+                console.error(`[Renderer] HTML export failed: ${result.error}`);
+                showNotification(result.error || 'HTML export failed', 'error');
+            }
+        } catch (error) {
+            console.error('[Renderer] Error during HTML export:', error);
+            showNotification('Error during HTML export', 'error');
+        }
+    });
+
+    window.electronAPI.on('trigger-export-pdf', async () => {
+        console.log('[Renderer] Received trigger-export-pdf.');
+        const content = getCurrentEditorContent();
+        try {
+            // Generate HTML from markdown
+            const htmlContent = generateHTMLFromMarkdown(content);
+            const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent);
+            if (result.success) {
+                console.log(`[Renderer] PDF exported successfully to: ${result.filePath}`);
+                showNotification('PDF exported successfully', 'success');
+            } else if (!result.cancelled) {
+                console.error(`[Renderer] PDF export failed: ${result.error}`);
+                showNotification(result.error || 'PDF export failed', 'error');
+            }
+        } catch (error) {
+            console.error('[Renderer] Error during PDF export:', error);
+            showNotification('Error during PDF export', 'error');
+        }
+    });
+}
+
+// Generate HTML from markdown content
+function generateHTMLFromMarkdown(markdownContent) {
+    if (!markdownContent) {
+        return '<html><head><title>Export</title></head><body><p>No content to export</p></body></html>';
+    }
+
+    // Check if marked is available (it should be loaded from CDN)
+    if (typeof marked === 'undefined') {
+        console.warn('[Renderer] Marked library not available, using plain text');
+        return `<html>
+<head>
+    <title>Export</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            line-height: 1.6; 
+        }
+    </style>
+</head>
+<body>
+    <pre>${escapeHtml(markdownContent)}</pre>
+</body>
+</html>`;
+    }
+
+    // Convert markdown to HTML using marked
+    const htmlBody = marked.parse(markdownContent);
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exported Document</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 40px 20px; 
+            line-height: 1.6; 
+            color: #333;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #2c3e50;
+            margin-top: 2em;
+            margin-bottom: 1em;
+        }
+        h1 { font-size: 2.5em; border-bottom: 2px solid #3498db; padding-bottom: 0.5em; }
+        h2 { font-size: 2em; border-bottom: 1px solid #bdc3c7; padding-bottom: 0.3em; }
+        h3 { font-size: 1.5em; }
+        p { margin-bottom: 1em; }
+        code {
+            background-color: #f8f9fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 1em;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        blockquote {
+            border-left: 4px solid #3498db;
+            margin: 1em 0;
+            padding: 0 1em;
+            color: #7f8c8d;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5em;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        ul, ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        li {
+            margin: 0.5em 0;
+        }
+        @media print {
+            body { margin: 0; padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    ${htmlBody}
+</body>
+</html>`;
+}
+
+// --- End Export Logic ---
 
 // --- Theme Change Listeners ---
 // --- Helper to Save Current Layout --- 
@@ -3282,3 +3355,644 @@ function clearSearchResults() {
 
 // Initialize global search when DOM is loaded
 document.addEventListener('DOMContentLoaded', initializeGlobalSearch);
+
+// --- Markdown Formatting Functions ---
+
+// Get references to formatting buttons
+const formatBoldBtn = document.getElementById('format-bold-btn');
+const formatItalicBtn = document.getElementById('format-italic-btn');
+const formatCodeBtn = document.getElementById('format-code-btn');
+const formatH1Btn = document.getElementById('format-h1-btn');
+const formatH2Btn = document.getElementById('format-h2-btn');
+const formatH3Btn = document.getElementById('format-h3-btn');
+const formatListBtn = document.getElementById('format-list-btn');
+const formatNumberedListBtn = document.getElementById('format-numbered-list-btn');
+const formatQuoteBtn = document.getElementById('format-quote-btn');
+const formatLinkBtn = document.getElementById('format-link-btn');
+const formatImageBtn = document.getElementById('format-image-btn');
+const formatTableBtn = document.getElementById('format-table-btn');
+
+// Initialize markdown formatting
+function initializeMarkdownFormatting() {
+    console.log('[renderer.js] Initializing markdown formatting...');
+    
+    if (formatBoldBtn) formatBoldBtn.addEventListener('click', () => formatText('**', '**', 'bold text'));
+    if (formatItalicBtn) formatItalicBtn.addEventListener('click', () => formatText('*', '*', 'italic text'));
+    if (formatCodeBtn) formatCodeBtn.addEventListener('click', () => formatText('`', '`', 'code'));
+    
+    if (formatH1Btn) formatH1Btn.addEventListener('click', () => formatHeading(1));
+    if (formatH2Btn) formatH2Btn.addEventListener('click', () => formatHeading(2));
+    if (formatH3Btn) formatH3Btn.addEventListener('click', () => formatHeading(3));
+    
+    if (formatListBtn) formatListBtn.addEventListener('click', () => formatList('-'));
+    if (formatNumberedListBtn) formatNumberedListBtn.addEventListener('click', () => formatList('1.'));
+    if (formatQuoteBtn) formatQuoteBtn.addEventListener('click', () => formatBlockquote());
+    
+    if (formatLinkBtn) formatLinkBtn.addEventListener('click', () => insertLink());
+    if (formatImageBtn) formatImageBtn.addEventListener('click', () => insertImage());
+    if (formatTableBtn) formatTableBtn.addEventListener('click', () => insertTable());
+    
+    console.log('[renderer.js] Markdown formatting initialized');
+}
+
+// Format text with wrap characters (bold, italic, code)
+function formatText(prefix, suffix, placeholder) {
+    if (!editor) return;
+    
+    const selection = editor.getSelection();
+    const selectedText = editor.getModel().getValueInRange(selection);
+    
+    if (selectedText) {
+        // Wrap selected text
+        const newText = prefix + selectedText + suffix;
+        editor.executeEdits('format-text', [{
+            range: selection,
+            text: newText
+        }]);
+        
+        // Update selection to include the new formatting
+        const endPos = {
+            lineNumber: selection.endLineNumber,
+            column: selection.endColumn + prefix.length + suffix.length
+        };
+        editor.setSelection(new monaco.Selection(
+            selection.startLineNumber,
+            selection.startColumn,
+            endPos.lineNumber,
+            endPos.column
+        ));
+    } else {
+        // Insert placeholder text with formatting
+        const position = editor.getPosition();
+        const newText = prefix + placeholder + suffix;
+        
+        editor.executeEdits('format-text', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: newText
+        }]);
+        
+        // Select the placeholder text for easy replacement
+        const startPos = {
+            lineNumber: position.lineNumber,
+            column: position.column + prefix.length
+        };
+        const endPos = {
+            lineNumber: position.lineNumber,
+            column: position.column + prefix.length + placeholder.length
+        };
+        
+        editor.setSelection(new monaco.Selection(
+            startPos.lineNumber,
+            startPos.column,
+            endPos.lineNumber,
+            endPos.column
+        ));
+    }
+    
+    editor.focus();
+    updatePreviewAndStructure(editor.getValue());
+}
+
+// Format headings
+function formatHeading(level) {
+    if (!editor) return;
+    
+    const position = editor.getPosition();
+    const lineContent = editor.getModel().getLineContent(position.lineNumber);
+    
+    // Remove existing heading markers
+    const cleanLine = lineContent.replace(/^#+\s*/, '');
+    
+    // Add new heading markers
+    const headingMarkers = '#'.repeat(level) + ' ';
+    const newLine = headingMarkers + cleanLine;
+    
+    // Replace the entire line
+    const range = new monaco.Range(
+        position.lineNumber, 1,
+        position.lineNumber, lineContent.length + 1
+    );
+    
+    editor.executeEdits('format-heading', [{
+        range: range,
+        text: newLine
+    }]);
+    
+    // Position cursor at end of line
+    editor.setPosition({
+        lineNumber: position.lineNumber,
+        column: newLine.length + 1
+    });
+    
+    editor.focus();
+    updatePreviewAndStructure(editor.getValue());
+}
+
+// Format lists
+function formatList(marker) {
+    if (!editor) return;
+    
+    const selection = editor.getSelection();
+    const model = editor.getModel();
+    
+    // Handle multiple lines if selected
+    const startLine = selection.startLineNumber;
+    const endLine = selection.endLineNumber;
+    
+    const edits = [];
+    
+    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+        const lineContent = model.getLineContent(lineNum);
+        
+        // Skip empty lines
+        if (lineContent.trim() === '') continue;
+        
+        // Remove existing list markers
+        const cleanLine = lineContent.replace(/^\s*[-*+]\s*/, '').replace(/^\s*\d+\.\s*/, '');
+        
+        // Add new list marker
+        const newLine = marker + ' ' + cleanLine.trim();
+        
+        edits.push({
+            range: new monaco.Range(lineNum, 1, lineNum, lineContent.length + 1),
+            text: newLine
+        });
+    }
+    
+    if (edits.length > 0) {
+        editor.executeEdits('format-list', edits);
+    } else {
+        // If no selection, create a new list item
+        const position = editor.getPosition();
+        const newText = marker + ' ';
+        
+        editor.executeEdits('format-list', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: newText
+        }]);
+        
+        editor.setPosition({
+            lineNumber: position.lineNumber,
+            column: position.column + newText.length
+        });
+    }
+    
+    editor.focus();
+    updatePreviewAndStructure(editor.getValue());
+}
+
+// Format blockquote
+function formatBlockquote() {
+    if (!editor) return;
+    
+    const selection = editor.getSelection();
+    const model = editor.getModel();
+    
+    const startLine = selection.startLineNumber;
+    const endLine = selection.endLineNumber;
+    
+    const edits = [];
+    
+    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+        const lineContent = model.getLineContent(lineNum);
+        
+        // Skip empty lines
+        if (lineContent.trim() === '') continue;
+        
+        // Remove existing blockquote markers
+        const cleanLine = lineContent.replace(/^\s*>\s*/, '');
+        
+        // Add blockquote marker
+        const newLine = '> ' + cleanLine.trim();
+        
+        edits.push({
+            range: new monaco.Range(lineNum, 1, lineNum, lineContent.length + 1),
+            text: newLine
+        });
+    }
+    
+    if (edits.length > 0) {
+        editor.executeEdits('format-blockquote', edits);
+    } else {
+        // If no selection, create a new blockquote
+        const position = editor.getPosition();
+        const newText = '> ';
+        
+        editor.executeEdits('format-blockquote', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: newText
+        }]);
+        
+        editor.setPosition({
+            lineNumber: position.lineNumber,
+            column: position.column + newText.length
+        });
+    }
+    
+    editor.focus();
+    updatePreviewAndStructure(editor.getValue());
+}
+
+// Insert link
+function insertLink() {
+    if (!editor) return;
+    
+    const selection = editor.getSelection();
+    const selectedText = editor.getModel().getValueInRange(selection);
+    
+    // Simple prompt for now - could be enhanced with a modal dialog
+    const url = prompt('Enter the URL:');
+    if (!url) return;
+    
+    const linkText = selectedText || prompt('Enter the link text:') || 'link';
+    const linkMarkdown = `[${linkText}](${url})`;
+    
+    editor.executeEdits('insert-link', [{
+        range: selection,
+        text: linkMarkdown
+    }]);
+    
+    editor.focus();
+    updatePreviewAndStructure(editor.getValue());
+}
+
+// Insert image
+function insertImage() {
+    if (!editor) return;
+    
+    const url = prompt('Enter the image URL:');
+    if (!url) return;
+    
+    const altText = prompt('Enter the alt text:') || 'image';
+    const imageMarkdown = `![${altText}](${url})`;
+    
+    const position = editor.getPosition();
+    editor.executeEdits('insert-image', [{
+        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        text: imageMarkdown
+    }]);
+    
+    editor.focus();
+    updatePreviewAndStructure(editor.getValue());
+}
+
+// Insert table
+function insertTable() {
+    if (!editor) return;
+    
+    const rows = parseInt(prompt('Number of rows:') || '3');
+    const cols = parseInt(prompt('Number of columns:') || '3');
+    
+    if (isNaN(rows) || isNaN(cols) || rows < 1 || cols < 1) return;
+    
+    let tableMarkdown = '';
+    
+    // Create header row
+    const headerCells = Array(cols).fill('Header').map((cell, i) => `${cell} ${i + 1}`);
+    tableMarkdown += '| ' + headerCells.join(' | ') + ' |\n';
+    
+    // Create separator row
+    const separators = Array(cols).fill('---');
+    tableMarkdown += '| ' + separators.join(' | ') + ' |\n';
+    
+    // Create data rows
+    for (let row = 1; row < rows; row++) {
+        const dataCells = Array(cols).fill('Data').map((cell, i) => `${cell} ${row}-${i + 1}`);
+        tableMarkdown += '| ' + dataCells.join(' | ') + ' |\n';
+    }
+    
+    const position = editor.getPosition();
+    editor.executeEdits('insert-table', [{
+        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        text: '\n' + tableMarkdown
+    }]);
+    
+    editor.focus();
+    updatePreviewAndStructure(editor.getValue());
+}
+
+// Initialize markdown formatting when DOM is loaded
+document.addEventListener('DOMContentLoaded', initializeMarkdownFormatting);
+
+// --- Auto-Numbering and Smart List Functions ---
+
+// Initialize smart list behavior
+function initializeSmartLists() {
+    if (!editor) return;
+    
+    console.log('[renderer.js] Initializing smart list behavior...');
+    
+    // Add Enter key command for list handling
+    editor.addCommand(monaco.KeyCode.Enter, () => {
+        if (handleListEnterKey()) {
+            return true; // Handled by list logic
+        }
+        
+        // Trigger default Enter behavior for normal text
+        editor.trigger('keyboard', 'type', { text: '\n' });
+        return true;
+    });
+    
+    // Add Tab key command for list indentation
+    editor.addCommand(monaco.KeyCode.Tab, () => {
+        if (handleListIndentation(true)) {
+            return true; // Handled
+        }
+        return false; // Let Monaco handle default Tab
+    });
+    
+    // Add Shift+Tab key command for list outdentation  
+    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
+        if (handleListIndentation(false)) {
+            return true; // Handled
+        }
+        return false; // Let Monaco handle default Shift+Tab
+    });
+    
+    console.log('[renderer.js] Smart list behavior initialized');
+}
+
+// Handle Enter key in lists for auto-continuation
+function handleListEnterKey() {
+    if (!editor) return false;
+    
+    const position = editor.getPosition();
+    const lineContent = editor.getModel().getLineContent(position.lineNumber);
+    const cursorColumn = position.column;
+    
+    // Check if we're on a list line
+    const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+    
+    if (listMatch) {
+        const [, indent, marker, content] = listMatch;
+        
+        // If the list item is empty (just marker + space), remove it and exit list
+        if (content.trim() === '' && cursorColumn <= indent.length + marker.length + 1) {
+            // Remove the list marker and return to normal line
+            const range = new monaco.Range(
+                position.lineNumber, 1,
+                position.lineNumber, lineContent.length + 1
+            );
+            
+            editor.executeEdits('exit-list', [{
+                range: range,
+                text: indent // Just keep the indentation
+            }]);
+            
+            editor.setPosition({
+                lineNumber: position.lineNumber,
+                column: indent.length + 1
+            });
+            
+            updatePreviewAndStructure(editor.getValue());
+            return true;
+        }
+        
+        // Continue the list with appropriate marker
+        let newMarker;
+        if (marker.match(/\d+\./)) {
+            // Numbered list - increment the number
+            const nextNumber = getNextListNumber(position.lineNumber, indent);
+            newMarker = nextNumber + '.';
+        } else {
+            // Bulleted list - use same marker
+            newMarker = marker;
+        }
+        
+        // Insert new line with continued list marker
+        const newListItem = '\n' + indent + newMarker + ' ';
+        
+        // Split the line at cursor position if we're in the middle
+        const beforeCursor = lineContent.substring(0, cursorColumn - 1);
+        const afterCursor = lineContent.substring(cursorColumn - 1);
+        
+        const edits = [
+            {
+                range: new monaco.Range(position.lineNumber, 1, position.lineNumber, lineContent.length + 1),
+                text: beforeCursor + newListItem + afterCursor
+            }
+        ];
+        
+        editor.executeEdits('continue-list', edits);
+        
+        // Position cursor after the new marker
+        editor.setPosition({
+            lineNumber: position.lineNumber + 1,
+            column: indent.length + newMarker.length + 2
+        });
+        
+        updatePreviewAndStructure(editor.getValue());
+        return true;
+    }
+    
+    return false; // Not in a list, use default Enter behavior
+}
+
+// Get the next number for a numbered list
+function getNextListNumber(currentLine, indent) {
+    const model = editor.getModel();
+    let lastNumber = 0;
+    
+    // Look backwards from current line to find the last number
+    for (let lineNum = currentLine - 1; lineNum >= 1; lineNum--) {
+        const lineContent = model.getLineContent(lineNum);
+        const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+        
+        if (listMatch) {
+            const [, lineIndent, marker] = listMatch;
+            
+            // If indentation doesn't match, we've left this list level
+            if (lineIndent.length !== indent.length) {
+                break;
+            }
+            
+            // If it's a numbered item at the same level
+            const numberMatch = marker.match(/(\d+)\./);
+            if (numberMatch) {
+                lastNumber = parseInt(numberMatch[1]);
+                break;
+            }
+            
+            // If it's a bullet at the same level, we've left the numbered section
+            if (marker.match(/[-*+]/)) {
+                break;
+            }
+        } else {
+            // Non-list line breaks the list
+            break;
+        }
+    }
+    
+    return lastNumber + 1;
+}
+
+// Handle Tab and Shift+Tab for list indentation
+function handleListIndentation(isIndent) {
+    if (!editor) return false;
+    
+    const position = editor.getPosition();
+    const lineContent = editor.getModel().getLineContent(position.lineNumber);
+    
+    // Check if we're on a list line
+    const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+    
+    if (listMatch) {
+        const [, indent, marker, content] = listMatch;
+        
+        let newIndent;
+        if (isIndent) {
+            // Add 2 spaces for indentation
+            newIndent = indent + '  ';
+        } else {
+            // Remove 2 spaces for outdentation (minimum 0)
+            newIndent = indent.length >= 2 ? indent.substring(2) : '';
+        }
+        
+        // For numbered lists, restart numbering at new indent level
+        let newMarker = marker;
+        if (marker.match(/\d+\./)) {
+            if (isIndent) {
+                newMarker = '1.'; // Start new nested numbered list
+            } else {
+                // When outdenting, get appropriate number for the parent level
+                const parentNumber = getNextListNumber(position.lineNumber, newIndent);
+                newMarker = parentNumber + '.';
+            }
+        }
+        
+        const newLine = newIndent + newMarker + ' ' + content;
+        
+        const range = new monaco.Range(
+            position.lineNumber, 1,
+            position.lineNumber, lineContent.length + 1
+        );
+        
+        editor.executeEdits('indent-list', [{
+            range: range,
+            text: newLine
+        }]);
+        
+        // Maintain cursor position relative to content
+        const newCursorColumn = newIndent.length + newMarker.length + 2 + 
+                              Math.max(0, position.column - (indent.length + marker.length + 2));
+        
+        editor.setPosition({
+            lineNumber: position.lineNumber,
+            column: Math.min(newCursorColumn, newLine.length + 1)
+        });
+        
+        updatePreviewAndStructure(editor.getValue());
+        return true;
+    }
+    
+    return false; // Not in a list, use default behavior
+}
+
+// Auto-renumber all numbered lists in the document
+function renumberAllLists() {
+    if (!editor) return;
+    
+    const model = editor.getModel();
+    const totalLines = model.getLineCount();
+    const edits = [];
+    
+    let currentListStart = -1;
+    let currentIndent = '';
+    let currentNumber = 1;
+    
+    for (let lineNum = 1; lineNum <= totalLines; lineNum++) {
+        const lineContent = model.getLineContent(lineNum);
+        const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+        
+        if (listMatch) {
+            const [, indent, marker, content] = listMatch;
+            
+            if (marker.match(/\d+\./)) {
+                // This is a numbered list item
+                
+                if (currentListStart === -1 || indent !== currentIndent) {
+                    // Starting a new numbered list or new indent level
+                    currentListStart = lineNum;
+                    currentIndent = indent;
+                    currentNumber = 1;
+                } else {
+                    // Continuing current numbered list
+                    currentNumber++;
+                }
+                
+                const correctMarker = currentNumber + '.';
+                if (marker !== correctMarker) {
+                    // Need to renumber this line
+                    const newLine = indent + correctMarker + ' ' + content;
+                    edits.push({
+                        range: new monaco.Range(lineNum, 1, lineNum, lineContent.length + 1),
+                        text: newLine
+                    });
+                }
+            } else {
+                // Bullet list item - resets numbered list tracking
+                currentListStart = -1;
+            }
+        } else {
+            // Non-list line - resets numbered list tracking
+            currentListStart = -1;
+        }
+    }
+    
+    if (edits.length > 0) {
+        editor.executeEdits('renumber-lists', edits);
+        updatePreviewAndStructure(editor.getValue());
+        console.log(`[renderer.js] Renumbered ${edits.length} list items`);
+    }
+}
+
+// Add renumber button to toolbar
+function addRenumberButton() {
+    const toolbar = document.getElementById('editor-toolbar');
+    if (!toolbar) return;
+    
+    // Find the "Format" separator and add the renumber button after it
+    const formatSeparator = Array.from(toolbar.children).find(child => 
+        child.textContent && child.textContent.includes('Format')
+    );
+    
+    if (formatSeparator) {
+        // Create renumber button
+        const renumberBtn = document.createElement('button');
+        renumberBtn.id = 'renumber-lists-btn';
+        renumberBtn.className = 'toolbar-btn';
+        renumberBtn.title = 'Renumber All Lists';
+        renumberBtn.style.cssText = 'padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;';
+        renumberBtn.innerHTML = '🔢 Renumber';
+        
+        renumberBtn.addEventListener('click', () => {
+            renumberAllLists();
+            showNotification('Lists renumbered successfully', 'success');
+        });
+        
+        // Insert after the Format separator
+        formatSeparator.parentNode.insertBefore(renumberBtn, formatSeparator.nextSibling);
+        
+        console.log('[renderer.js] Added renumber button to toolbar');
+    }
+}
+
+// Initialize smart lists after Monaco editor is ready
+function initializeSmartListsWhenReady() {
+    // Wait for editor to be initialized
+    const checkEditor = setInterval(() => {
+        if (editor && editor.getModel) {
+            clearInterval(checkEditor);
+            initializeSmartLists();
+            addRenumberButton();
+        }
+    }, 100);
+    
+    // Timeout after 5 seconds
+    setTimeout(() => {
+        clearInterval(checkEditor);
+    }, 5000);
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', initializeSmartListsWhenReady);
