@@ -2,7 +2,7 @@
 
 # TODOS
 
-1. Export to PDF / HTML
+1. Export to PDF / HTML - DONE
 2. Markdown formatting (bold / italic etc) - DONE
 3. Auto-numbering - DONE
 4. Separate paras with slide markers
