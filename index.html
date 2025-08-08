@@ -1056,6 +1056,9 @@
                         <button id="remove-slide-markers-btn" class="toolbar-btn" title="Remove All Slide Markers" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
                             📄✖️
                         </button>
+                        <button id="insert-speaker-notes-btn" class="toolbar-btn" title="Insert Speaker Notes Template" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                            📝
+                        </button>
                         <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
                         <span style="font-size: 11px; color: #666;">Format</span>
                         <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
@@ -1097,6 +1100,7 @@
                         <button id="show-preview-btn" class="btn pane-toggle-button active">Preview</button>
                         <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
                         <button id="show-search-btn" class="btn pane-toggle-button">Search</button>
+                        <button id="show-speaker-notes-btn" class="btn pane-toggle-button">📝 Notes</button>
                     </div>
                     <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                         <div id="preview-pane" class="content-pane">
@@ -1116,11 +1120,16 @@
                             </div>
                         </div>
                         <div id="search-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
-                            <!-- Global Search Interface -->
+                            <!-- Global Search and Replace Interface -->
                             <div class="search-controls" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="text" id="global-search-input" placeholder="Search in all files..." style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 3px;">
                                     <button id="global-search-execute" class="btn" title="Execute Search">Search</button>
+                                </div>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" id="global-replace-input" placeholder="Replace with..." style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 3px;">
+                                    <button id="global-replace-execute" class="btn" title="Replace All Matches" style="background: #dc3545; color: white;">Replace All</button>
+                                    <button id="global-replace-preview" class="btn" title="Preview Replacements">Preview</button>
                                 </div>
                                 <div class="search-options" style="display: flex; gap: 12px; font-size: 12px;">
                                     <label style="display: flex; align-items: center; gap: 4px;">
@@ -1146,13 +1155,46 @@
                             </div>
                             <div id="search-results" style="flex: 1; overflow-y: auto; font-size: 13px;"></div>
                         </div>
+                        
+                        <div id="speaker-notes-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
+                            <!-- Speaker Notes Interface -->
+                            <div class="speaker-notes-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #007bff;">
+                                <h3 style="margin: 0; color: #007bff; font-size: 16px;">📝 Speaker Notes</h3>
+                                <button id="toggle-speaker-notes-in-preview" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Toggle Notes in Preview">Show in Preview</button>
+                            </div>
+                            
+                            <div id="speaker-notes-content" style="flex: 1; overflow-y: auto; font-size: 14px; line-height: 1.6;">
+                                <p style="color: #666; text-align: center; padding: 20px;">
+                                    No speaker notes found.<br>
+                                    <small>Add notes using <code>```notes</code> blocks in your Markdown.</small>
+                                </p>
+                            </div>
+                            
+                            <div class="speaker-notes-help" style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 12px; color: #666;">
+                                <strong>Tip:</strong> Use <code>```notes</code> in your Markdown to add speaker notes that won't appear on slides.
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Presentation Content -->
-            <div id="presentation-content" class="content-view">
-                <div id="presentation-root" style="width: 100%; height: 100%;"></div>
+            <div id="presentation-content" class="content-view" style="display: flex; flex-direction: column;">
+                <!-- DEBUG: TEST PANEL - This should always be visible -->
+                <div style="height: 100px; background: orange; color: black; padding: 10px; font-weight: bold; border: 3px solid red;">
+                    🔍 DEBUG: If you can see this orange panel, the HTML layout is working. This is a test to verify the speaker notes area works.
+                </div>
+                <div id="presentation-root" style="width: 100%; flex: 1; min-height: 0;"></div>
+                <div id="speaker-notes-panel" style="height: 200px; background: #e74c3c; color: white; border-top: 4px solid #c0392b; padding: 16px; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: block; z-index: 1000;">
+                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+                        <h4 style="margin: 0; font-size: 14px; color: #ecf0f1;">📝 Speaker Notes</h4>
+                        <div style="flex: 1;"></div>
+                        <button id="toggle-speaker-notes-panel" style="background: #34495e; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Hide</button>
+                    </div>
+                    <div id="current-slide-notes" style="font-size: 13px; line-height: 1.4; color: #bdc3c7;">
+                        <strong>DEBUG: Speaker notes panel is working! This should always be visible in presentation mode.</strong>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1307,6 +1349,7 @@
           const [isPresenting, setIsPresenting] = useState(false);
           const [layoutType, setLayoutType] = useState('spiral');
           const [focusedSlide, setFocusedSlide] = useState(null);
+          const [speakerNotesVisible, setSpeakerNotesVisible] = useState(true);
           
           console.log('[React Component] Current slides count:', slides.length);
           console.log('[React Component] Current slide index:', currentSlide);
@@ -1314,8 +1357,14 @@
           const fileInputRef = useRef(null);
 
           // Sample markdown content for demo
-          const sampleMarkdown = `# Welcome to Hegel Pedagogy AI
-A unified platform for philosophical exploration and learning.
+          const sampleMarkdown = `# SAMPLE CONTENT TEST
+This is sample content to test speaker notes.
+
+\`\`\`notes
+🔴 SAMPLE SPEAKER NOTES: If you can see this, the speaker notes parsing is working correctly!
+
+This is a test of the speaker notes functionality in presentation mode.
+\`\`\`
 
 ---
 
@@ -1324,6 +1373,17 @@ A unified platform for philosophical exploration and learning.
 - Interactive presentation capabilities
 - Integrated file management
 - Philosophical content support
+
+\`\`\`notes
+Explain each bullet point briefly:
+
+1. Advanced editor - mention Monaco editor, syntax highlighting
+2. Presentation capabilities - this is what they're seeing now!
+3. File management - integrated file tree, folder operations
+4. Philosophical content - specifically designed for philosophy education
+
+Ask if anyone has questions about the core features before moving on.
+\`\`\`
 
 ---
 
@@ -1340,6 +1400,22 @@ A unified platform for philosophical exploration and learning.
 - Smooth transitions
 - Interactive navigation
 
+\`\`\`notes
+Demonstrate the dual modes:
+
+Editor Mode:
+- Show how the editor looks
+- Mention real-time preview
+- AI chat for philosophical discussions
+
+Presentation Mode:
+- This is what we're in right now
+- Mention zoom capabilities (demonstrate if needed)
+- Different layouts available (spiral, grid, linear, circle)
+
+Transition: "Now let's talk about the philosophical foundation..."
+\`\`\`
+
 ---
 
 ## Philosophical Focus
@@ -1351,6 +1427,22 @@ A unified platform for philosophical exploration and learning.
 ### AI & Pedagogy
 Integration of artificial intelligence with philosophical education.
 
+\`\`\`notes
+This is the core philosophical concept we're exploring:
+
+Hegelian Dialectic explanation:
+- Thesis: Starting point, initial idea
+- Antithesis: Opposition, contradiction, challenge
+- Synthesis: Resolution that preserves and transcends both
+
+Give a concrete example if time permits - maybe democracy/authoritarianism -> constitutional democracy.
+
+AI & Pedagogy:
+- Not replacing human instruction
+- Augmenting and enhancing learning
+- Helping students explore complex philosophical concepts
+\`\`\`
+
 ---
 
 ## Getting Started
@@ -1360,12 +1452,39 @@ Integration of artificial intelligence with philosophical education.
 4. Create engaging presentations
 5. Explore philosophical concepts
 
+\`\`\`notes
+Practical steps for new users:
+
+1. Mode switching - use the buttons at the top
+2. File loading - integrated file system
+3. AI assistance - context-aware help for philosophical concepts
+4. Presentations - what they're experiencing now
+5. Exploration - encourage experimentation
+
+Remind them that speaker notes like these are available in presentation mode!
+
+Next: Thank them and open for questions.
+\`\`\`
+
 ---
 
 ## Thank You!
 Welcome to the future of philosophical education.
 
-*Happy learning and presenting!*`;
+*Happy learning and presenting!*
+
+\`\`\`notes
+Closing remarks:
+
+- Thank the audience for their attention
+- Emphasize the innovative nature of combining AI with philosophy
+- Invite questions and discussion
+- Mention that this is just the beginning
+
+End with: "Are there any questions about the platform or its philosophical applications?"
+
+Note: You can press 'N' to toggle these speaker notes on/off during presentation.
+\`\`\``;
 
           // Calculate slide positioning based on layout type
           const calculateSlidePosition = (index, total) => {
@@ -1502,30 +1621,71 @@ Welcome to the future of philosophical education.
             return html;
           };
 
+          // Extract speaker notes from slide content
+          const extractSpeakerNotes = (slideContent) => {
+            console.log('[React Presentation] Extracting speaker notes from:', slideContent);
+            
+            // More flexible regex pattern for speaker notes
+            const notesRegex = /```notes\s*\n([\s\S]*?)\n```/g;
+            const notes = [];
+            let match;
+            
+            while ((match = notesRegex.exec(slideContent)) !== null) {
+              const noteContent = match[1].trim();
+              console.log('[React Presentation] Found speaker note:', noteContent);
+              notes.push(noteContent);
+            }
+            
+            // Remove speaker notes from slide content (more flexible pattern)
+            const cleanContent = slideContent.replace(/```notes\s*\n[\s\S]*?\n```/g, '').trim();
+            
+            const result = { 
+              cleanContent, 
+              speakerNotes: notes.join('\n\n') 
+            };
+            
+            console.log('[React Presentation] Speaker notes extraction result:', result);
+            return result;
+          };
+
           // Parse markdown into slides
           const parseMarkdown = (markdown) => {
             const slideTexts = markdown.split('---').map(slide => slide.trim()).filter(slide => slide);
-            return slideTexts.map((text, index) => ({
-              id: index,
-              content: text,
-              position: calculateSlidePosition(index, slideTexts.length),
-              parsed: parseMarkdownContent(text)
-            }));
+            return slideTexts.map((text, index) => {
+              const { cleanContent, speakerNotes } = extractSpeakerNotes(text);
+              return {
+                id: index,
+                content: text,
+                cleanContent: cleanContent,
+                speakerNotes: speakerNotes,
+                position: calculateSlidePosition(index, slideTexts.length),
+                parsed: parseMarkdownContent(cleanContent) // Parse only clean content
+              };
+            });
           };
 
-          // Initialize with sample content (only once)
+          // Initialize - wait for content from editor or use sample as fallback
           useEffect(() => {
-            // Check if there's pending content from Generate Summary
-            if (window.pendingPresentationContent) {
-              console.log('[React Presentation] Found pending content, using it instead of sample');
-              const pendingSlides = parseMarkdown(window.pendingPresentationContent);
-              setSlides(pendingSlides);
-              window.pendingPresentationContent = null; // Clear it after use
-            } else {
-              console.log('[React Presentation] No pending content, using sample');
-              const initialSlides = parseMarkdown(sampleMarkdown);
-              setSlides(initialSlides);
-            }
+            console.log('[React Presentation] Initializing presentation component');
+            
+            // Brief delay to allow content synchronization from editor
+            const initTimeout = setTimeout(() => {
+              // Check if there's pending content from Generate Summary or fresh editor content
+              if (window.pendingPresentationContent) {
+                console.log('[React Presentation] Found pending content, using it instead of sample');
+                const pendingSlides = parseMarkdown(window.pendingPresentationContent);
+                console.log('[React Presentation] Parsed pending slides:', pendingSlides);
+                setSlides(pendingSlides);
+                window.pendingPresentationContent = null; // Clear it after use
+              } else {
+                console.log('[React Presentation] No pending content, using sample content');
+                const initialSlides = parseMarkdown(sampleMarkdown);
+                console.log('[React Presentation] Parsed sample slides:', initialSlides);
+                setSlides(initialSlides);
+              }
+            }, 100); // Small delay to allow content synchronization
+            
+            return () => clearTimeout(initTimeout);
           }, []);
 
           // Listen for content updates from the lecture summary generator
@@ -1538,8 +1698,10 @@ Welcome to the future of philosophical education.
               
               if (newContent && newContent.trim()) {
                 console.log('[React Presentation] Parsing new content into slides...');
+                console.log('[React Presentation] Raw content preview:', newContent.substring(0, 200));
                 const newSlides = parseMarkdown(newContent);
                 console.log('[React Presentation] Generated slides count:', newSlides.length);
+                console.log('[React Presentation] First slide preview:', newSlides[0]);
                 
                 setSlides(newSlides);
                 setCurrentSlide(0);
@@ -1803,6 +1965,95 @@ Welcome to the future of philosophical education.
             window.addEventListener('keydown', handleKeyPress);
             return () => window.removeEventListener('keydown', handleKeyPress);
           }, [currentSlide, goToSlide]);
+
+          // Update speaker notes display when current slide changes
+          useEffect(() => {
+            const updateSpeakerNotes = () => {
+              const notesPanel = document.getElementById('speaker-notes-panel');
+              const notesContent = document.getElementById('current-slide-notes');
+              
+              console.log('[React Presentation] Updating speaker notes, currentSlide:', currentSlide, 'slides:', slides.length);
+              
+              if (notesPanel && notesContent && slides.length > 0 && slides[currentSlide]) {
+                const currentSlideData = slides[currentSlide];
+                console.log('[React Presentation] Current slide data:', currentSlideData);
+                console.log('[React Presentation] Speaker notes for slide:', currentSlideData.speakerNotes);
+                
+                if (currentSlideData.speakerNotes && currentSlideData.speakerNotes.trim()) {
+                  // Show panel when there are notes
+                  notesPanel.style.display = speakerNotesVisible ? 'block' : 'none';
+                  
+                  // Format the speaker notes with line breaks
+                  const formattedNotes = currentSlideData.speakerNotes
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line)
+                    .map(line => `<p style="margin-bottom: 8px;">${line}</p>`)
+                    .join('');
+                  
+                  console.log('[React Presentation] Formatted notes:', formattedNotes);
+                  notesContent.innerHTML = formattedNotes || '<em>No speaker notes for this slide.</em>';
+                } else {
+                  // No notes for this slide, but keep panel visible
+                  console.log('[React Presentation] No speaker notes found for this slide');
+                  notesPanel.style.display = speakerNotesVisible ? 'block' : 'none';
+                  notesContent.innerHTML = '<em>No speaker notes for this slide.</em>';
+                }
+              } else {
+                console.log('[React Presentation] Speaker notes update conditions not met:', {
+                  notesPanel: !!notesPanel,
+                  notesContent: !!notesContent,
+                  slidesLength: slides.length,
+                  currentSlide: currentSlide,
+                  slideExists: !!(slides.length > 0 && slides[currentSlide])
+                });
+              }
+            };
+
+            updateSpeakerNotes();
+          }, [currentSlide, slides, speakerNotesVisible]);
+
+          // Initialize speaker notes panel toggle
+          useEffect(() => {
+            const toggleButton = document.getElementById('toggle-speaker-notes-panel');
+            const notesPanel = document.getElementById('speaker-notes-panel');
+            
+            if (toggleButton && notesPanel) {
+              const handleToggle = () => {
+                const newVisibility = !speakerNotesVisible;
+                setSpeakerNotesVisible(newVisibility);
+                notesPanel.style.display = newVisibility ? 'block' : 'none';
+                toggleButton.textContent = newVisibility ? 'Hide' : 'Show';
+                
+                // Remember if user manually hid the panel
+                if (!newVisibility) {
+                  localStorage.setItem('speakerNotesAutoHidden', 'true');
+                } else {
+                  localStorage.removeItem('speakerNotesAutoHidden');
+                }
+              };
+              
+              toggleButton.addEventListener('click', handleToggle);
+              
+              // Also add keyboard shortcut for toggling notes (N key)
+              const handleKeyToggle = (e) => {
+                if (e.key === 'n' || e.key === 'N') {
+                  const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+                  if (!isInputFocused) {
+                    e.preventDefault();
+                    handleToggle();
+                  }
+                }
+              };
+              
+              window.addEventListener('keydown', handleKeyToggle);
+              
+              return () => {
+                toggleButton.removeEventListener('click', handleToggle);
+                window.removeEventListener('keydown', handleKeyToggle);
+              };
+            }
+          }, [speakerNotesVisible]);
 
           // Mouse handlers for panning
           const handleMouseDown = (e) => {
@@ -2141,32 +2392,72 @@ Welcome to the future of philosophical education.
               }
             }
             
-            // Check for pending content first (from Generate Summary)
-            if (window.pendingPresentationContent) {
-              console.log('[Mode Switching] Applying pending presentation content');
-              const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
-                detail: { content: window.pendingPresentationContent }
-              });
-              window.dispatchEvent(contentUpdateEvent);
+            // Always get the latest content from the editor when switching to presentation mode
+            console.log('[Mode Switching] Getting fresh content from editor for presentation mode');
+            let currentContent = '';
+            
+            // Priority 1: Try getCurrentEditorContent function (from renderer.js)
+            if (typeof getCurrentEditorContent === 'function') {
+              try {
+                currentContent = getCurrentEditorContent();
+                console.log('[Mode Switching] Retrieved fresh content from getCurrentEditorContent(), length:', currentContent.length);
+              } catch (error) {
+                console.warn('[Mode Switching] Error calling getCurrentEditorContent():', error);
+              }
             }
-            // Otherwise, sync editor content if available
-            else {
-              // Try to get current editor content
-              let currentContent = '';
-              if (window.editor && typeof window.editor.getValue === 'function') {
+            
+            // Priority 2: Try getting content directly from editor global variable
+            if (!currentContent && window.editor && typeof window.editor.getValue === 'function') {
+              try {
                 currentContent = window.editor.getValue();
-                console.log('[Mode Switching] Got content from Monaco editor, length:', currentContent.length);
-              } else if (presentationEditorContent) {
-                currentContent = presentationEditorContent;
-                console.log('[Mode Switching] Using stored presentation content, length:', currentContent.length);
+                console.log('[Mode Switching] Retrieved content directly from window.editor, length:', currentContent.length);
+              } catch (error) {
+                console.warn('[Mode Switching] Error getting content from window.editor:', error);
+              }
+            }
+            
+            // Priority 3: Try getting content from the global editor variable (without window prefix)
+            if (!currentContent && typeof editor !== 'undefined' && editor && typeof editor.getValue === 'function') {
+              try {
+                currentContent = editor.getValue();
+                console.log('[Mode Switching] Retrieved content from global editor variable, length:', currentContent.length);
+              } catch (error) {
+                console.warn('[Mode Switching] Error getting content from global editor:', error);
+              }
+            }
+            
+            // Fallback 1: Use pending content (from Generate Summary) if no editor content
+            if (!currentContent && window.pendingPresentationContent) {
+              currentContent = window.pendingPresentationContent;
+              console.log('[Mode Switching] No editor content available, using pending presentation content, length:', currentContent.length);
+            }
+            
+            // Fallback 2: Use stored content as last resort
+            if (!currentContent && presentationEditorContent) {
+              currentContent = presentationEditorContent;
+              console.log('[Mode Switching] Using last resort stored presentation content, length:', currentContent.length);
+            }
+            
+            // Sync the content to presentation
+            if (currentContent) {
+              console.log('[Mode Switching] Syncing fresh content to presentation');
+              
+              // Always try both methods to ensure content gets to the React component
+              if (window.syncContentToPresentation) {
+                window.syncContentToPresentation(currentContent);
               }
               
-              if (currentContent && window.syncContentToPresentation) {
-                console.log('[Mode Switching] Syncing content to presentation');
-                window.syncContentToPresentation(currentContent);
-              } else {
-                console.log('[Mode Switching] No content to sync or sync function not available');
-              }
+              // Also dispatch the event directly
+              console.log('[Mode Switching] Dispatching content update event directly');
+              const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
+                detail: { content: currentContent }
+              });
+              window.dispatchEvent(contentUpdateEvent);
+              
+              // Also set it directly for immediate access
+              window.pendingPresentationContent = currentContent;
+            } else {
+              console.warn('[Mode Switching] No content available to sync to presentation');
             }
           } else {
             document.body.classList.remove('presentation-mode');

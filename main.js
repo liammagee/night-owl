@@ -1025,6 +1025,115 @@ async function getSearchableFiles(dir) {
     return files;
 }
 
+// Global replace implementation
+async function performGlobalReplace(searchQuery, replaceText, searchResults, options = {}) {
+    const {
+        caseSensitive = false,
+        wholeWord = false,
+        useRegex = false,
+        previewOnly = false
+    } = options;
+
+    console.log(`[main.js] Performing global replace ${previewOnly ? '(preview)' : '(execute)'}`);
+    
+    // Group search results by file
+    const fileGroups = {};
+    searchResults.forEach(result => {
+        if (!fileGroups[result.file]) {
+            fileGroups[result.file] = [];
+        }
+        fileGroups[result.file].push(result);
+    });
+
+    const results = [];
+    const modifiedFilePaths = [];
+    let totalReplacements = 0;
+
+    for (const [filePath, fileResults] of Object.entries(fileGroups)) {
+        try {
+            const originalContent = await fs.readFile(filePath, 'utf8');
+            const lines = originalContent.split('\n');
+            let modifiedLines = [...lines];
+            let fileReplacements = 0;
+            const fileResults_sorted = fileResults.sort((a, b) => b.line - a.line); // Sort in reverse order
+
+            // Create search pattern
+            let searchPattern;
+            if (useRegex) {
+                try {
+                    searchPattern = new RegExp(searchQuery, caseSensitive ? 'g' : 'gi');
+                } catch (error) {
+                    throw new Error(`Invalid regex pattern: ${error.message}`);
+                }
+            } else {
+                const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const wordBoundary = wholeWord ? '\\b' : '';
+                const flags = caseSensitive ? 'g' : 'gi';
+                searchPattern = new RegExp(`${wordBoundary}${escapedQuery}${wordBoundary}`, flags);
+            }
+
+            // Process replacements
+            for (const result of fileResults_sorted) {
+                const lineIndex = result.line - 1; // Convert to 0-based index
+                if (lineIndex >= 0 && lineIndex < modifiedLines.length) {
+                    const originalLine = modifiedLines[lineIndex];
+                    const newLine = originalLine.replace(searchPattern, replaceText);
+                    
+                    if (newLine !== originalLine) {
+                        if (previewOnly) {
+                            results.push({
+                                file: filePath,
+                                fileName: path.basename(filePath),
+                                line: result.line,
+                                originalLine: originalLine,
+                                replacedLine: newLine
+                            });
+                        } else {
+                            modifiedLines[lineIndex] = newLine;
+                            results.push({
+                                file: filePath,
+                                fileName: path.basename(filePath),
+                                line: result.line
+                            });
+                        }
+                        fileReplacements++;
+                        totalReplacements++;
+                    }
+                }
+            }
+
+            // Write modified content to file (only if not preview and changes were made)
+            if (!previewOnly && fileReplacements > 0) {
+                const newContent = modifiedLines.join('\n');
+                await fs.writeFile(filePath, newContent, 'utf8');
+                modifiedFilePaths.push(filePath);
+                console.log(`[main.js] Modified ${filePath} with ${fileReplacements} replacements`);
+            }
+
+        } catch (error) {
+            console.error(`[main.js] Error processing file ${filePath}:`, error);
+            // Continue with other files
+        }
+    }
+
+    const fileCount = Object.keys(fileGroups).length;
+    
+    if (previewOnly) {
+        return {
+            preview: results,
+            matchCount: totalReplacements,
+            fileCount: fileCount
+        };
+    } else {
+        return {
+            results: results,
+            replacedCount: totalReplacements,
+            modifiedFiles: modifiedFilePaths.length,
+            modifiedFilePaths: modifiedFilePaths
+        };
+    }
+}
+
 // Get preview context around a line
 function getLinePreview(lines, lineIndex, contextLines = 2) {
     const start = Math.max(0, lineIndex - contextLines);
@@ -1333,6 +1442,49 @@ app.whenReady().then(() => {
   ipcMain.handle('perform-save-as', async (event, content) => {
     console.log('[main.js] Received perform-save-as.');
      return await performSaveAs(content);
+  });
+
+  // Check if a file exists
+  ipcMain.handle('check-file-exists', async (event, filePath) => {
+    try {
+      const stats = await fs.stat(filePath);
+      return stats.isFile();
+    } catch (error) {
+      return false; // File doesn't exist or other error
+    }
+  });
+
+  // Create internal link file automatically
+  ipcMain.handle('create-internal-link-file', async (event, { filePath, content, originalLink }) => {
+    console.log(`[main.js] Creating internal link file: ${filePath}`);
+    try {
+      // Ensure directory exists
+      const dirPath = path.dirname(filePath);
+      await fs.mkdir(dirPath, { recursive: true });
+      
+      // Write the file
+      await fs.writeFile(filePath, content, 'utf8');
+      
+      console.log(`[main.js] Internal link file created successfully: ${filePath}`);
+      
+      // Update current file path
+      currentFilePath = filePath;
+      if (mainWindow) {
+        mainWindow.setTitle(`Hegel Pedagogy AI - ${path.basename(filePath)}`);
+      }
+      
+      return { 
+        success: true, 
+        filePath: filePath,
+        message: `Created file for internal link: ${originalLink}`
+      };
+    } catch (error) {
+      console.error(`[main.js] Error creating internal link file: ${error.message}`);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
   });
 
   // Handle HTML export
@@ -1654,6 +1806,23 @@ app.whenReady().then(() => {
       return { success: true, results: searchResults };
     } catch (error) {
       console.error('[main.js] Error in global search:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Global replace handler
+  ipcMain.handle('global-replace', async (event, { searchQuery, replaceText, searchResults, options = {} }) => {
+    try {
+      console.log(`[main.js] Global replace "${searchQuery}" with "${replaceText}"`);
+      
+      if (!searchQuery || !searchResults || searchResults.length === 0) {
+        return { success: false, error: 'Invalid search parameters' };
+      }
+      
+      const result = await performGlobalReplace(searchQuery, replaceText, searchResults, options);
+      return { success: true, ...result };
+    } catch (error) {
+      console.error('[main.js] Error in global replace:', error);
       return { success: false, error: error.message };
     }
   });

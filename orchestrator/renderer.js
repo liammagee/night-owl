@@ -15,6 +15,10 @@ let autoSaveTimer = null;
 let hasUnsavedChanges = false;
 let lastSavedContent = '';
 
+// Speaker notes variables
+let currentSpeakerNotes = [];
+let speakerNotesVisible = false;
+
 // --- DOM Elements ---
 const editorContainer = document.getElementById('editor-container');
 const previewContent = document.getElementById('preview-content');
@@ -97,6 +101,34 @@ function updateStatusBar(content) {
     }
 }
 
+// --- Process Speaker Notes Extension ---
+function processSpeakerNotes(content) {
+    // Extract speaker notes from ```notes blocks
+    const speakerNotesRegex = /```notes\n([\s\S]*?)\n```/g;
+    const extractedNotes = [];
+    let noteIndex = 0;
+    
+    // Replace speaker notes blocks with placeholders and extract content
+    const processedContent = content.replace(speakerNotesRegex, (match, notesContent) => {
+        const noteId = `speaker-note-${noteIndex}`;
+        extractedNotes.push({
+            id: noteId,
+            content: notesContent.trim(),
+            index: noteIndex
+        });
+        noteIndex++;
+        
+        // Return a placeholder that will be processed later
+        return `<div class="speaker-notes-placeholder" data-note-id="${noteId}" style="display: none;"></div>`;
+    });
+    
+    // Store extracted notes globally
+    currentSpeakerNotes = extractedNotes;
+    console.log(`[renderer.js] Extracted ${extractedNotes.length} speaker note blocks`);
+    
+    return processedContent;
+}
+
 // --- Process Obsidian-style Internal Links ---
 function processInternalLinks(content) {
     // Regular expression to match [[link]] and [[link|display text]] patterns
@@ -162,38 +194,178 @@ async function openInternalLink(filePath, originalLink) {
         } else {
             console.warn(`[renderer.js] Could not open internal link: ${result.error}`);
             
-            // Offer to create the file
-            const shouldCreate = confirm(`File "${filePath}" not found. Would you like to create it?`);
-            if (shouldCreate) {
-                await createInternalLinkFile(fullPath, originalLink);
-            }
+            // Try to automatically create the file based on current content
+            await autoCreateInternalLinkFile(fullPath, originalLink, filePath);
         }
     } catch (error) {
         console.error(`[renderer.js] Error opening internal link:`, error);
     }
 }
 
-// --- Create New File for Internal Link ---
-async function createInternalLinkFile(fullPath, originalLink) {
+// --- Automatically Create New File for Internal Link ---
+async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
     try {
-        // Create basic content for the new file
-        const initialContent = `# ${originalLink}\n\nThis file was created from an internal link.\n\n`;
+        console.log(`[renderer.js] Auto-creating file for internal link: ${fullPath}`);
         
-        const result = await window.electronAPI.invoke('perform-save-as', initialContent);
+        // Check if file already exists to detect conflicts
+        const fileExists = await window.electronAPI.invoke('check-file-exists', fullPath);
+        
+        if (fileExists) {
+            console.log(`[renderer.js] File already exists: ${fullPath}`);
+            // Show conflict dialog and let user decide
+            const shouldOverwrite = confirm(`File "${filePath}" already exists. Would you like to open it instead?`);
+            if (shouldOverwrite) {
+                // Try to open the existing file
+                const result = await window.electronAPI.invoke('open-file-path', fullPath);
+                if (result.success) {
+                    openFileInEditor(result.filePath, result.content);
+                    return;
+                }
+            }
+            return; // User chose not to overwrite, or opening failed
+        }
+        
+        // Generate content based on the current file and context
+        const newFileContent = await generateContentForInternalLink(originalLink, filePath);
+        
+        // Create the file automatically at the expected path
+        const result = await window.electronAPI.invoke('create-internal-link-file', {
+            filePath: fullPath,
+            content: newFileContent,
+            originalLink: originalLink
+        });
         
         if (result.success) {
-            console.log(`[renderer.js] Created new file for internal link: ${result.filePath}`);
+            console.log(`[renderer.js] Auto-created file for internal link: ${result.filePath}`);
+            
             // Refresh file tree to show the new file
             renderFileTree();
-            showNotification('File created from internal link', 'success');
+            
+            // Automatically open the new file
+            openFileInEditor(result.filePath, newFileContent);
+            
+            showNotification(`Created "${fullPath.split('/').pop()}" from internal link`, 'success');
         } else {
-            console.error(`[renderer.js] Failed to create file for internal link:`, result.error);
-            showNotification('Failed to create file from internal link', 'error');
+            console.error(`[renderer.js] Failed to auto-create file for internal link:`, result.error);
+            
+            // Fall back to manual creation with dialog
+            const shouldCreateManually = confirm(`Failed to automatically create "${filePath}". Would you like to choose a location manually?`);
+            if (shouldCreateManually) {
+                const manualResult = await window.electronAPI.invoke('perform-save-as', newFileContent);
+                if (manualResult.success) {
+                    renderFileTree();
+                    showNotification('File created from internal link', 'success');
+                }
+            }
         }
     } catch (error) {
-        console.error(`[renderer.js] Error creating file for internal link:`, error);
+        console.error(`[renderer.js] Error auto-creating file for internal link:`, error);
         showNotification('Error creating file from internal link', 'error');
     }
+}
+
+// --- Generate Content for Internal Link File ---
+async function generateContentForInternalLink(originalLink, filePath) {
+    let content = '';
+    
+    try {
+        // Get current file content and metadata
+        const currentContent = getCurrentEditorContent();
+        const currentFileName = window.currentFilePath ? window.currentFilePath.split('/').pop().replace('.md', '') : '';
+        
+        // Extract context around the internal link from current content
+        const linkContext = extractLinkContext(currentContent, originalLink);
+        
+        // Generate structured content for the new file
+        content = `# ${originalLink}\n\n`;
+        
+        // Add back-reference to the source file
+        if (currentFileName) {
+            content += `*Referenced from: [[${currentFileName}]]*\n\n`;
+        }
+        
+        // Add context if found
+        if (linkContext.contextBefore || linkContext.contextAfter) {
+            content += `## Context\n\n`;
+            if (linkContext.contextBefore) {
+                content += `${linkContext.contextBefore}\n\n`;
+            }
+            content += `**→ [[${originalLink}]] ←** *(This file)*\n\n`;
+            if (linkContext.contextAfter) {
+                content += `${linkContext.contextAfter}\n\n`;
+            }
+        }
+        
+        // Add template sections based on the link name
+        content += generateTemplateSections(originalLink);
+        
+        console.log(`[renderer.js] Generated ${content.length} characters of content for internal link file`);
+        
+    } catch (error) {
+        console.error('[renderer.js] Error generating content for internal link:', error);
+        // Fall back to basic content
+        content = `# ${originalLink}\n\n*This file was automatically created from an internal link.*\n\n## Notes\n\n`;
+    }
+    
+    return content;
+}
+
+// --- Extract Context Around Internal Link ---
+function extractLinkContext(content, linkText) {
+    const linkPattern = new RegExp(`\\[\\[${linkText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\|[^\\]]+)?\\]\\]`, 'g');
+    const lines = content.split('\n');
+    
+    let contextBefore = '';
+    let contextAfter = '';
+    
+    // Find the line containing the link
+    for (let i = 0; i < lines.length; i++) {
+        if (linkPattern.test(lines[i])) {
+            // Get context before (previous 1-2 lines)
+            const beforeLines = [];
+            for (let j = Math.max(0, i - 2); j < i; j++) {
+                const line = lines[j].trim();
+                if (line && !line.startsWith('#')) {
+                    beforeLines.push(line);
+                }
+            }
+            contextBefore = beforeLines.join(' ');
+            
+            // Get context after (next 1-2 lines) 
+            const afterLines = [];
+            for (let j = i + 1; j < Math.min(lines.length, i + 3); j++) {
+                const line = lines[j].trim();
+                if (line && !line.startsWith('#')) {
+                    afterLines.push(line);
+                }
+            }
+            contextAfter = afterLines.join(' ');
+            break;
+        }
+    }
+    
+    return { contextBefore, contextAfter };
+}
+
+// --- Generate Template Sections Based on Link Name ---
+function generateTemplateSections(linkName) {
+    let sections = '';
+    
+    // Analyze the link name to suggest appropriate sections
+    const lowerName = linkName.toLowerCase();
+    
+    if (lowerName.includes('concept') || lowerName.includes('theory') || lowerName.includes('principle')) {
+        sections += `## Definition\n\n*What is ${linkName}?*\n\n## Key Components\n\n- \n- \n- \n\n## Applications\n\n*How is this concept used?*\n\n## Related Concepts\n\n- \n- \n\n`;
+    } else if (lowerName.includes('lecture') || lowerName.includes('lesson') || lowerName.includes('chapter')) {
+        sections += `## Overview\n\n*Brief summary of this ${lowerName.includes('lecture') ? 'lecture' : 'chapter'}*\n\n## Key Points\n\n1. \n2. \n3. \n\n## Discussion Questions\n\n- \n- \n\n## Further Reading\n\n- \n\n`;
+    } else if (lowerName.includes('example') || lowerName.includes('case')) {
+        sections += `## Description\n\n*Describe the ${lowerName.includes('example') ? 'example' : 'case'}*\n\n## Analysis\n\n*What does this demonstrate?*\n\n## Implications\n\n*What can we learn from this?*\n\n## Related Examples\n\n- \n- \n\n`;
+    } else {
+        // Generic template
+        sections += `## Overview\n\n*Brief description of ${linkName}*\n\n## Details\n\n*More detailed information*\n\n## Notes\n\n- \n- \n\n## Related Topics\n\n- \n- \n\n`;
+    }
+    
+    return sections;
 }
 
 // --- Update Function Definition ---
@@ -244,13 +416,20 @@ function updatePreviewAndStructure(markdownContent) {
         };
 
         if (window.marked) {
-            // Process Obsidian-style [[]] internal links before marked parsing
-            let processedContent = processInternalLinks(markdownContent);
+            // Process speaker notes first to extract them
+            let processedContent = processSpeakerNotes(markdownContent);
+            
+            // Process Obsidian-style [[]] internal links
+            processedContent = processInternalLinks(processedContent);
             
             // Use the custom renderer with marked.parse
             const htmlContent = window.marked.parse(processedContent, { renderer: renderer, gfm: true, breaks: true });
             previewContent.innerHTML = htmlContent;
-            console.log('[renderer.js] Preview updated with heading IDs and internal links.');
+            
+            // Update speaker notes display if visible
+            updateSpeakerNotesDisplay();
+            
+            console.log('[renderer.js] Preview updated with heading IDs, internal links, and speaker notes.');
         } else {
             console.warn('[renderer.js] Marked instance not available yet');
             previewContent.innerHTML = '<p>Markdown preview loading...</p>';
@@ -1638,24 +1817,56 @@ folderNameInput.addEventListener('input', () => {
     }
 });
 
-// --- Right Pane Toggle Listeners (Existing) ---
+// --- Right Pane Toggle Listeners (Updated to use unified function) ---
 showPreviewBtn.addEventListener('click', () => {
-    if (previewPane.style.display === 'none') {
-        previewPane.style.display = '';
-        chatPane.style.display = 'none';
-        showPreviewBtn.classList.add('active');
-        showChatBtn.classList.remove('active');
-    }
+    showRightPane('preview');
 });
 
 showChatBtn.addEventListener('click', () => {
-    if (chatPane.style.display === 'none') {
-        chatPane.style.display = '';
-        previewPane.style.display = 'none';
-        showChatBtn.classList.add('active');
-        showPreviewBtn.classList.remove('active');
-    }
+    showRightPane('chat');
 });
+
+// --- Right Pane Switching Function ---
+function showRightPane(paneType) {
+    // Hide all content panes
+    if (previewPane) previewPane.style.display = 'none';
+    if (chatPane) chatPane.style.display = 'none';
+    if (searchPane) searchPane.style.display = 'none';
+    if (speakerNotesPane) speakerNotesPane.style.display = 'none';
+    
+    // Remove active state from all toggle buttons
+    if (showPreviewBtn) showPreviewBtn.classList.remove('active');
+    if (showChatBtn) showChatBtn.classList.remove('active');
+    if (showSearchBtn) showSearchBtn.classList.remove('active');
+    if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.remove('active');
+    
+    // Show the requested pane and activate its button
+    switch (paneType) {
+        case 'preview':
+            if (previewPane) previewPane.style.display = '';
+            if (showPreviewBtn) showPreviewBtn.classList.add('active');
+            break;
+        case 'chat':
+            if (chatPane) chatPane.style.display = '';
+            if (showChatBtn) showChatBtn.classList.add('active');
+            break;
+        case 'search':
+            if (searchPane) searchPane.style.display = '';
+            if (showSearchBtn) showSearchBtn.classList.add('active');
+            break;
+        case 'speaker-notes':
+            if (speakerNotesPane) speakerNotesPane.style.display = '';
+            if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.add('active');
+            // Update speaker notes content when pane is shown
+            updateSpeakerNotesDisplay();
+            break;
+        default:
+            // Default to preview if unknown pane type
+            if (previewPane) previewPane.style.display = '';
+            if (showPreviewBtn) showPreviewBtn.classList.add('active');
+            break;
+    }
+}
 
 // --- Structure Pane / File Tree Functions ---
 
@@ -2033,6 +2244,81 @@ async function renderFileTree() {
 }
 
 /**
+ * Refreshes the contents of a specific folder in the file tree.
+ * @param {string} folderPath - The path of the folder to refresh
+ * @param {HTMLElement} childrenList - The UL element containing the folder's children
+ */
+async function refreshFolderContents(folderPath, childrenList) {
+    console.log(`[Renderer] Refreshing folder contents: ${folderPath}`);
+    
+    try {
+        // Add a loading indicator
+        childrenList.innerHTML = '<li style="color: #999; font-style: italic;">Refreshing...</li>';
+        
+        // Request updated file tree for the specific folder
+        const updatedTree = await window.electronAPI.invoke('request-file-tree');
+        
+        if (updatedTree && updatedTree.children) {
+            // Find the specific folder node in the updated tree
+            const folderNode = findNodeByPath(updatedTree, folderPath);
+            
+            if (folderNode && folderNode.children) {
+                // Clear the children list
+                childrenList.innerHTML = '';
+                
+                // Rebuild the folder's children
+                folderNode.children.forEach(childNode => {
+                    const childElement = buildTreeHtml(childNode);
+                    if (childElement) {
+                        if (childElement instanceof DocumentFragment) {
+                            childrenList.appendChild(childElement);
+                        } else {
+                            childrenList.appendChild(childElement);
+                        }
+                    }
+                });
+                
+                console.log(`[Renderer] Successfully refreshed folder: ${folderPath} with ${folderNode.children.length} items`);
+            } else {
+                childrenList.innerHTML = '<li style="color: #999;">Empty folder</li>';
+                console.log(`[Renderer] Folder is empty or not found: ${folderPath}`);
+            }
+        } else {
+            childrenList.innerHTML = '<li style="color: #ff6b6b;">Error refreshing folder</li>';
+            console.error('[Renderer] Failed to get updated file tree data');
+        }
+    } catch (error) {
+        console.error(`[Renderer] Error refreshing folder ${folderPath}:`, error);
+        childrenList.innerHTML = '<li style="color: #ff6b6b;">Error refreshing folder</li>';
+    }
+}
+
+/**
+ * Recursively searches for a node with the specified path in the file tree.
+ * @param {object} node - The current node to search
+ * @param {string} targetPath - The path to search for
+ * @returns {object|null} The found node or null
+ */
+function findNodeByPath(node, targetPath) {
+    if (!node) return null;
+    
+    // Check if this node matches the target path
+    if (node.path === targetPath) {
+        return node;
+    }
+    
+    // Recursively search children
+    if (node.children) {
+        for (const child of node.children) {
+            const found = findNodeByPath(child, targetPath);
+            if (found) return found;
+        }
+    }
+    
+    return null;
+}
+
+/**
  * Recursively builds the HTML UL/LI structure for the file tree.
  * @param {object} node - The current node (file or folder) in the tree data.
  * @returns {HTMLElement | DocumentFragment | null} The generated UL/LI element or a fragment containing multiple elements.
@@ -2139,9 +2425,22 @@ fileTreeView.addEventListener('click', (event) => {
          if (childrenList && childrenList.tagName === 'UL' && childrenList.classList.contains('file-tree-children')) { 
                    // Toggle visibility
                    const isVisible = childrenList.style.display !== 'none';
-                   childrenList.style.display = isVisible ? 'none' : '';
-                   // Optional: Change folder icon based on state
-                   target.textContent = isVisible ? `📁 ${target.textContent.substring(2)}` : `📂 ${target.textContent.substring(2)}`;
+                   
+                   if (isVisible) {
+                       // Collapsing - just hide
+                       childrenList.style.display = 'none';
+                       target.textContent = `📁 ${target.textContent.substring(2)}`;
+                   } else {
+                       // Expanding - refresh contents and show
+                       childrenList.style.display = '';
+                       target.textContent = `📂 ${target.textContent.substring(2)}`;
+                       
+                       // Refresh folder contents when expanding
+                       const folderPath = target.dataset.path;
+                       if (folderPath) {
+                           refreshFolderContents(folderPath, childrenList);
+                       }
+                   }
          }
     }
 });
@@ -3174,6 +3473,11 @@ const searchFilePattern = document.getElementById('search-file-pattern');
 const searchResults = document.getElementById('search-results');
 const searchStatus = document.getElementById('search-status');
 
+// Get replace elements
+const globalReplaceInput = document.getElementById('global-replace-input');
+const globalReplaceExecuteBtn = document.getElementById('global-replace-execute');
+const globalReplacePreviewBtn = document.getElementById('global-replace-preview');
+
 // Initialize global search
 function initializeGlobalSearch() {
     if (showSearchBtn) {
@@ -3191,6 +3495,28 @@ function initializeGlobalSearch() {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 performGlobalSearch();
+            }
+        });
+    }
+    
+    // Replace functionality event handlers
+    if (globalReplaceExecuteBtn) {
+        globalReplaceExecuteBtn.addEventListener('click', () => {
+            performGlobalReplace(false); // false = execute replacement
+        });
+    }
+    
+    if (globalReplacePreviewBtn) {
+        globalReplacePreviewBtn.addEventListener('click', () => {
+            performGlobalReplace(true); // true = preview only
+        });
+    }
+    
+    if (globalReplaceInput) {
+        globalReplaceInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                performGlobalReplace(false); // Ctrl+Enter to execute
             }
         });
     }
@@ -3360,6 +3686,94 @@ async function openFileAtLocation(filePath, line, column) {
     }
 }
 
+// Perform global replace
+async function performGlobalReplace(previewOnly = false) {
+    if (!globalSearchInput || !globalReplaceInput || !window.electronAPI) return;
+    
+    const searchQuery = globalSearchInput.value.trim();
+    const replaceText = globalReplaceInput.value; // Allow empty replace text
+    
+    if (!searchQuery) {
+        showSearchStatus('Please enter a search term first');
+        return;
+    }
+    
+    // Check if we have search results
+    if (!globalSearchResults || globalSearchResults.length === 0) {
+        showSearchStatus('Please perform a search first');
+        return;
+    }
+    
+    if (searchInProgress) {
+        showSearchStatus('Operation in progress...');
+        return;
+    }
+    
+    // Show confirmation dialog for actual replacement
+    if (!previewOnly) {
+        const matchCount = globalSearchResults.length;
+        const fileCount = [...new Set(globalSearchResults.map(r => r.file))].length;
+        const confirmed = confirm(
+            `Are you sure you want to replace ${matchCount} occurrences in ${fileCount} files?\n\n` +
+            `Search: "${searchQuery}"\n` +
+            `Replace with: "${replaceText}"\n\n` +
+            `This action cannot be undone.`
+        );
+        
+        if (!confirmed) {
+            showSearchStatus('Replace operation cancelled');
+            return;
+        }
+    }
+    
+    searchInProgress = true;
+    showSearchStatus(previewOnly ? 'Generating preview...' : 'Replacing...');
+    
+    try {
+        const options = {
+            caseSensitive: searchCaseSensitive?.checked || false,
+            wholeWord: searchWholeWord?.checked || false,
+            useRegex: searchRegex?.checked || false,
+            filePattern: searchFilePattern?.value || '*.{md,markdown,txt}',
+            previewOnly: previewOnly
+        };
+        
+        const result = await window.electronAPI.invoke('global-replace', {
+            searchQuery,
+            replaceText,
+            searchResults: globalSearchResults,
+            options
+        });
+        
+        if (result.success) {
+            if (previewOnly) {
+                displayReplacePreview(result.preview, searchQuery, replaceText);
+                showSearchStatus(`Preview: ${result.matchCount} matches would be replaced in ${result.fileCount} files`);
+            } else {
+                displayReplaceResults(result.results, searchQuery, replaceText);
+                showSearchStatus(`Replaced ${result.replacedCount} occurrences in ${result.modifiedFiles} files`);
+                
+                // Clear search results since files have been modified
+                globalSearchResults = [];
+                
+                // Refresh current file if it was modified
+                if (result.modifiedFilePaths && result.modifiedFilePaths.includes(window.currentFilePath)) {
+                    if (confirm('The current file was modified. Would you like to reload it?')) {
+                        location.reload();
+                    }
+                }
+            }
+        } else {
+            showSearchStatus(`Error: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('[renderer.js] Error in global replace:', error);
+        showSearchStatus('Error during replace operation');
+    } finally {
+        searchInProgress = false;
+    }
+}
+
 // Show search status message
 function showSearchStatus(message) {
     if (searchStatus) {
@@ -3374,8 +3788,154 @@ function clearSearchResults() {
     }
 }
 
+// Display replace preview
+function displayReplacePreview(previewData, searchQuery, replaceText) {
+    if (!searchResults) return;
+    
+    searchResults.innerHTML = '';
+    
+    if (!previewData || previewData.length === 0) {
+        const noResultsDiv = document.createElement('div');
+        noResultsDiv.className = 'search-no-results';
+        noResultsDiv.textContent = 'No matches to preview';
+        searchResults.appendChild(noResultsDiv);
+        return;
+    }
+    
+    // Add preview header
+    const previewHeader = document.createElement('div');
+    previewHeader.className = 'replace-preview-header';
+    previewHeader.innerHTML = `
+        <div style="background: #f8f9fa; padding: 8px; border-radius: 4px; margin-bottom: 12px; border-left: 3px solid #007bff;">
+            <strong>Replace Preview</strong><br>
+            <small>Search: <code>${escapeHtml(searchQuery)}</code> → Replace: <code>${escapeHtml(replaceText)}</code></small>
+        </div>
+    `;
+    searchResults.appendChild(previewHeader);
+    
+    // Group preview by file
+    const fileGroups = {};
+    previewData.forEach(item => {
+        if (!fileGroups[item.file]) {
+            fileGroups[item.file] = [];
+        }
+        fileGroups[item.file].push(item);
+    });
+    
+    // Create file sections
+    Object.entries(fileGroups).forEach(([filePath, filePreview]) => {
+        const fileSection = document.createElement('div');
+        fileSection.className = 'search-file-section';
+        
+        const fileHeader = document.createElement('div');
+        fileHeader.className = 'search-file-header';
+        fileHeader.innerHTML = `
+            <span class="search-file-name">${filePreview[0].fileName}</span>
+            <span class="search-file-count">${filePreview.length} replacements</span>
+        `;
+        fileSection.appendChild(fileHeader);
+        
+        const fileResultsList = document.createElement('div');
+        fileResultsList.className = 'search-file-results';
+        
+        filePreview.forEach(item => {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'replace-preview-item';
+            resultDiv.innerHTML = `
+                <div class="replace-preview-line" style="margin: 4px 0; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Line ${item.line}</div>
+                    <div style="font-family: monospace; font-size: 12px;">
+                        <div style="color: #dc3545;">- ${escapeHtml(item.originalLine)}</div>
+                        <div style="color: #28a745;">+ ${escapeHtml(item.replacedLine)}</div>
+                    </div>
+                </div>
+            `;
+            fileResultsList.appendChild(resultDiv);
+        });
+        
+        fileSection.appendChild(fileResultsList);
+        searchResults.appendChild(fileSection);
+    });
+}
+
+// Display replace results
+function displayReplaceResults(resultsData, searchQuery, replaceText) {
+    if (!searchResults) return;
+    
+    searchResults.innerHTML = '';
+    
+    if (!resultsData || resultsData.length === 0) {
+        const noResultsDiv = document.createElement('div');
+        noResultsDiv.className = 'search-no-results';
+        noResultsDiv.textContent = 'No replacements made';
+        searchResults.appendChild(noResultsDiv);
+        return;
+    }
+    
+    // Add results header
+    const resultsHeader = document.createElement('div');
+    resultsHeader.className = 'replace-results-header';
+    resultsHeader.innerHTML = `
+        <div style="background: #d4edda; padding: 8px; border-radius: 4px; margin-bottom: 12px; border-left: 3px solid #28a745;">
+            <strong>Replacement Complete</strong><br>
+            <small>Replaced: <code>${escapeHtml(searchQuery)}</code> → <code>${escapeHtml(replaceText)}</code></small>
+        </div>
+    `;
+    searchResults.appendChild(resultsHeader);
+    
+    // Group results by file
+    const fileGroups = {};
+    resultsData.forEach(item => {
+        if (!fileGroups[item.file]) {
+            fileGroups[item.file] = [];
+        }
+        fileGroups[item.file].push(item);
+    });
+    
+    // Create file sections
+    Object.entries(fileGroups).forEach(([filePath, fileResults]) => {
+        const fileSection = document.createElement('div');
+        fileSection.className = 'search-file-section';
+        
+        const fileHeader = document.createElement('div');
+        fileHeader.className = 'search-file-header';
+        fileHeader.innerHTML = `
+            <span class="search-file-name">${fileResults[0].fileName}</span>
+            <span class="search-file-count">${fileResults.length} replaced</span>
+        `;
+        fileSection.appendChild(fileHeader);
+        
+        const fileResultsList = document.createElement('div');
+        fileResultsList.className = 'search-file-results';
+        
+        fileResults.forEach(item => {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'replace-result-item';
+            resultDiv.innerHTML = `
+                <div style="margin: 2px 0; padding: 4px; font-size: 12px; background: #f8f9fa;">
+                    Line ${item.line}: Replaced "${escapeHtml(searchQuery)}" with "${escapeHtml(replaceText)}"
+                </div>
+            `;
+            fileResultsList.appendChild(resultDiv);
+        });
+        
+        fileSection.appendChild(fileResultsList);
+        searchResults.appendChild(fileSection);
+    });
+}
+
+// Utility function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Initialize global search when DOM is loaded
 document.addEventListener('DOMContentLoaded', initializeGlobalSearch);
+
+// Initialize speaker notes when DOM is loaded
+document.addEventListener('DOMContentLoaded', initializeSpeakerNotes);
 
 // --- Markdown Formatting Functions ---
 
@@ -3394,6 +3954,13 @@ const formatImageBtn = document.getElementById('format-image-btn');
 const formatTableBtn = document.getElementById('format-table-btn');
 const autoSlideMarkersBtn = document.getElementById('auto-slide-markers-btn');
 const removeSlideMarkersBtn = document.getElementById('remove-slide-markers-btn');
+const insertSpeakerNotesBtn = document.getElementById('insert-speaker-notes-btn');
+
+// Speaker notes elements
+const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
+const speakerNotesPane = document.getElementById('speaker-notes-pane');
+const speakerNotesContent = document.getElementById('speaker-notes-content');
+const toggleSpeakerNotesInPreviewBtn = document.getElementById('toggle-speaker-notes-in-preview');
 
 // Initialize markdown formatting
 function initializeMarkdownFormatting() {
@@ -3416,6 +3983,7 @@ function initializeMarkdownFormatting() {
     if (formatTableBtn) formatTableBtn.addEventListener('click', () => insertTable());
     if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', () => addSlideMarkersToParagraphs());
     if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', () => removeAllSlideMarkers());
+    if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', () => insertSpeakerNotesTemplate());
     
     console.log('[renderer.js] Markdown formatting initialized');
 }
@@ -3807,6 +4375,116 @@ function removeAllSlideMarkers() {
     editor.setValue(newContent);
     updatePreviewAndStructure(newContent);
     console.log(`[renderer.js] Successfully removed ${slideMarkerCount} slide markers`);
+}
+
+// --- Speaker Notes Functionality ---
+
+// Insert speaker notes template
+function insertSpeakerNotesTemplate() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot insert speaker notes template - no editor available');
+        return;
+    }
+    
+    const position = editor.getPosition();
+    const template = '\n\n```notes\nAdd your speaker notes here.\n\nRemember to:\n- Speak clearly and at a moderate pace\n- Make eye contact with your audience\n- Pause for questions\n```\n\n';
+    
+    editor.executeEdits('insert-speaker-notes', [{
+        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        text: template
+    }]);
+    
+    // Position cursor inside the notes block
+    const newPosition = {
+        lineNumber: position.lineNumber + 2,
+        column: 1
+    };
+    editor.setPosition(newPosition);
+    editor.focus();
+    
+    updatePreviewAndStructure(editor.getValue());
+    console.log('[renderer.js] Inserted speaker notes template');
+}
+
+// Update speaker notes display
+function updateSpeakerNotesDisplay() {
+    if (!speakerNotesContent) return;
+    
+    if (currentSpeakerNotes.length === 0) {
+        speakerNotesContent.innerHTML = `
+            <p style="color: #666; text-align: center; padding: 20px;">
+                No speaker notes found.<br>
+                <small>Add notes using <code>\`\`\`notes</code> blocks in your Markdown.</small>
+            </p>
+        `;
+        return;
+    }
+    
+    let notesHtml = '';
+    currentSpeakerNotes.forEach((note, index) => {
+        const noteContent = window.marked ? window.marked.parse(note.content) : note.content.replace(/\n/g, '<br>');
+        notesHtml += `
+            <div class="speaker-note" style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;">
+                <div class="speaker-note-header" style="font-size: 12px; color: #666; margin-bottom: 8px; font-weight: bold;">
+                    📝 Note ${index + 1}
+                </div>
+                <div class="speaker-note-content" style="line-height: 1.6;">
+                    ${noteContent}
+                </div>
+            </div>
+        `;
+    });
+    
+    speakerNotesContent.innerHTML = notesHtml;
+    console.log(`[renderer.js] Updated speaker notes display with ${currentSpeakerNotes.length} notes`);
+}
+
+// Toggle speaker notes visibility in preview
+function toggleSpeakerNotesInPreview() {
+    speakerNotesVisible = !speakerNotesVisible;
+    
+    const placeholders = document.querySelectorAll('.speaker-notes-placeholder');
+    placeholders.forEach(placeholder => {
+        if (speakerNotesVisible) {
+            const noteId = placeholder.getAttribute('data-note-id');
+            const note = currentSpeakerNotes.find(n => n.id === noteId);
+            if (note) {
+                const noteContent = window.marked ? window.marked.parse(note.content) : note.content.replace(/\n/g, '<br>');
+                placeholder.innerHTML = `
+                    <div class="speaker-notes-preview" style="margin: 8px 0; padding: 8px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; font-size: 12px;">
+                        <div style="font-weight: bold; color: #856404; margin-bottom: 4px;">📝 Speaker Notes:</div>
+                        <div style="color: #856404;">${noteContent}</div>
+                    </div>
+                `;
+                placeholder.style.display = 'block';
+            }
+        } else {
+            placeholder.innerHTML = '';
+            placeholder.style.display = 'none';
+        }
+    });
+    
+    // Update button text
+    if (toggleSpeakerNotesInPreviewBtn) {
+        toggleSpeakerNotesInPreviewBtn.textContent = speakerNotesVisible ? 'Hide in Preview' : 'Show in Preview';
+    }
+    
+    console.log(`[renderer.js] Speaker notes in preview: ${speakerNotesVisible ? 'visible' : 'hidden'}`);
+}
+
+// Initialize speaker notes functionality
+function initializeSpeakerNotes() {
+    if (showSpeakerNotesBtn) {
+        showSpeakerNotesBtn.addEventListener('click', () => {
+            showRightPane('speaker-notes');
+        });
+    }
+    
+    if (toggleSpeakerNotesInPreviewBtn) {
+        toggleSpeakerNotesInPreviewBtn.addEventListener('click', toggleSpeakerNotesInPreview);
+    }
+    
+    console.log('[renderer.js] Speaker notes functionality initialized');
 }
 
 // --- Auto-save functionality ---
