@@ -325,7 +325,7 @@ async function getFiles(dir) {
             }
         } else {
             // Only include Markdown files
-            if (res.endsWith('.md') || res.endsWith('.markdown')) {
+            if (res.endsWith('.md') || res.endsWith('.markdown') || res.endsWith('.bib') || res.endsWith('.pdf') || res.endsWith('.html') || res.endsWith('.htm')) {
                 results.push({ path: res, type: 'file' });
             }
         }
@@ -402,6 +402,9 @@ async function performSaveAs(content) {
             defaultPath: currentFilePath || path.join(app.getPath('documents'), 'untitled.md'),
             filters: [
                 { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+                { name: 'BibTeX Files', extensions: ['bib'] },
+                { name: 'PDF Files', extensions: ['pdf'] },
+                { name: 'HTML Files', extensions: ['html', 'htm'] },
                 { name: 'All Files', extensions: ['*'] }
             ]
         });
@@ -430,6 +433,9 @@ async function openFile() {
             properties: ['openFile'],
             filters: [
                 { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+                { name: 'BibTeX Files', extensions: ['bib'] },
+                { name: 'PDF Files', extensions: ['pdf'] },
+                { name: 'HTML Files', extensions: ['html', 'htm'] },
                 { name: 'All Files', extensions: ['*'] }
             ]
         });
@@ -692,6 +698,31 @@ Keep it concise and focused on the most important points.`;
     } catch (error) {
       console.error('[orchestrator/main.js] Error extracting notes content:', error);
       return { error: 'An error occurred while extracting notes content.' };
+    }
+  });
+
+  // Check if a file exists
+  ipcMain.handle('check-file-exists', async (event, filePath) => {
+    try {
+      await fs.access(filePath);
+      console.log(`[orchestrator/main.js] File exists: ${filePath}`);
+      return true;
+    } catch (error) {
+      console.log(`[orchestrator/main.js] File does not exist: ${filePath}`);
+      return false;
+    }
+  });
+
+  // Open external file handler
+  ipcMain.handle('open-external', async (event, filePath) => {
+    try {
+      const { shell } = require('electron');
+      await shell.openPath(filePath);
+      console.log(`[orchestrator/main.js] Opened external file: ${filePath}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[orchestrator/main.js] Failed to open external file: ${filePath}`, error);
+      return { success: false, error: error.message };
     }
   });
 

@@ -7,9 +7,9 @@
 3. Auto-numbering - DONE
 4. Separate paras with slide markers - DONE
 5. Finish global search - DONE
-6. Integrated AI text tools
-7. Referencing support
-8. PDF viewing
+6. Integrated AI text tools - DONE
+7. Referencing support - DONE
+8. PDF viewing - DONE
 9. Annotations
 10. Custom markdown for slide & notes - DONE
 11. Fix Save = Refresh - DONE
@@ -19,4 +19,4 @@
 15. Math integration
 16. Global find & replace - DONE
 17. TODOs as Kanban 
-18. Export as Powerpoint
+18. Export as Powerpoint - DONE

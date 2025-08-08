@@ -141,7 +141,7 @@ function processInternalLinks(content) {
         
         // Convert to file path (assume .md extension if not present)
         let filePath = cleanLink;
-        if (!filePath.endsWith('.md') && !filePath.includes('.')) {
+        if (!filePath.endsWith('.md') && !filePath.endsWith('.bib') && !filePath.endsWith('.pdf') && !filePath.endsWith('.html') && !filePath.endsWith('.htm') && !filePath.includes('.')) {
             filePath += '.md';
         }
         
@@ -1191,12 +1191,120 @@ function setupNavigationControls() {
     console.log('[renderer.js] Navigation controls setup complete');
 }
 
+// --- BibTeX Language Registration ---
+function registerBibTeXLanguage() {
+    console.log('[renderer.js] Registering BibTeX language support...');
+    
+    // Register the BibTeX language
+    monaco.languages.register({ id: 'bibtex' });
+    
+    // Define BibTeX tokens for syntax highlighting
+    monaco.languages.setMonarchTokensProvider('bibtex', {
+        tokenizer: {
+            root: [
+                // Entry types (@article, @book, etc.)
+                [/@\w+/, 'keyword'],
+                
+                // Entry keys (the citation key after the entry type)
+                [/\{\s*([^,\s}]+)/, 'entity.name.function'],
+                
+                // Field names (title, author, year, etc.)
+                [/\b(title|author|editor|journal|booktitle|year|volume|number|pages|publisher|address|isbn|doi|url|note|keywords|abstract)\s*=/, 'attribute.name'],
+                
+                // Quoted strings
+                [/"([^"]*)"/, 'string'],
+                
+                // Braced strings
+                [/\{([^{}]*)\}/, 'string'],
+                
+                // Numbers
+                [/\b\d+\b/, 'number'],
+                
+                // Comments
+                [/%.*$/, 'comment'],
+                
+                // Braces and brackets
+                [/[{}\[\]]/, 'bracket'],
+                
+                // Commas and equals
+                [/[,=]/, 'delimiter'],
+                
+                // Whitespace
+                [/\s+/, 'white']
+            ]
+        }
+    });
+    
+    // Define BibTeX language configuration
+    monaco.languages.setLanguageConfiguration('bibtex', {
+        brackets: [
+            ['{', '}'],
+            ['[', ']'],
+            ['(', ')']
+        ],
+        autoClosingPairs: [
+            { open: '{', close: '}' },
+            { open: '[', close: ']' },
+            { open: '(', close: ')' },
+            { open: '"', close: '"' }
+        ],
+        surroundingPairs: [
+            { open: '{', close: '}' },
+            { open: '[', close: ']' },
+            { open: '(', close: ')' },
+            { open: '"', close: '"' }
+        ],
+        comments: {
+            lineComment: '%'
+        }
+    });
+    
+    // Define theme colors for BibTeX
+    monaco.editor.defineTheme('bibtex-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [
+            { token: 'keyword', foreground: '569cd6', fontStyle: 'bold' },
+            { token: 'entity.name.function', foreground: 'dcdcaa' },
+            { token: 'attribute.name', foreground: '9cdcfe' },
+            { token: 'string', foreground: 'ce9178' },
+            { token: 'number', foreground: 'b5cea8' },
+            { token: 'comment', foreground: '6a9955', fontStyle: 'italic' },
+            { token: 'bracket', foreground: 'ffd700' },
+            { token: 'delimiter', foreground: 'd4d4d4' }
+        ],
+        colors: {}
+    });
+    
+    monaco.editor.defineTheme('bibtex-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [
+            { token: 'keyword', foreground: '0000ff', fontStyle: 'bold' },
+            { token: 'entity.name.function', foreground: '795e26' },
+            { token: 'attribute.name', foreground: '001080' },
+            { token: 'string', foreground: 'a31515' },
+            { token: 'number', foreground: '09885a' },
+            { token: 'comment', foreground: '008000', fontStyle: 'italic' },
+            { token: 'bracket', foreground: 'af00db' },
+            { token: 'delimiter', foreground: '000000' }
+        ],
+        colors: {}
+    });
+    
+    console.log('[renderer.js] BibTeX language support registered successfully.');
+}
+
 // --- Initialize Application ---
 function initializeApp() {
     console.log('[renderer.js] Initializing application...');
     console.log('[renderer.js] Initializing Monaco editor...');
     require(['vs/editor/editor.main'], function() {
         console.log('[renderer.js] Monaco module loaded.');
+        
+        // Register BibTeX language support
+        registerBibTeXLanguage();
+        
         try {
             editor = monaco.editor.create(editorContainer, {
                 value: '# My Markdown Document\n\n' +
@@ -1578,6 +1686,12 @@ if (window.electronAPI) {
 function openFileInEditor(filePath, content) {
     console.log('[Renderer] Opening file in editor:', filePath);
     
+    // Detect file type
+    const isPDF = filePath.endsWith('.pdf');
+    const isHTML = filePath.endsWith('.html') || filePath.endsWith('.htm');
+    const isBibTeX = filePath.endsWith('.bib');
+    const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+    
     // Set current file path globally for auto-save
     window.currentFilePath = filePath;
     
@@ -1592,6 +1706,100 @@ function openFileInEditor(filePath, content) {
     window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
     console.log('[Renderer] Set current file directory:', window.currentFileDirectory);
     
+    // Handle PDF files
+    if (isPDF) {
+        handlePDFFile(filePath);
+        return;
+    }
+    
+    // Handle HTML files
+    if (isHTML) {
+        handleHTMLFile(filePath, content);
+        return;
+    }
+    
+    // Handle editable files (Markdown, BibTeX)
+    handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
+}
+
+// Handle PDF file opening
+function handlePDFFile(filePath) {
+    console.log('[Renderer] Handling PDF file:', filePath);
+    
+    // Check for associated Markdown file
+    const baseName = filePath.replace(/\.pdf$/i, '');
+    const associatedMdFile = baseName + '.md';
+    
+    // Check if associated markdown file exists
+    window.electronAPI.invoke('check-file-exists', associatedMdFile)
+        .then(exists => {
+            if (exists) {
+                console.log('[Renderer] Found associated markdown file:', associatedMdFile);
+                // Load the markdown file in the editor
+                return window.electronAPI.invoke('open-file-path', associatedMdFile);
+            }
+            return null;
+        })
+        .then(markdownResult => {
+            if (markdownResult && markdownResult.success) {
+                console.log('[Renderer] Loading associated markdown file in editor');
+                handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
+            } else {
+                // No associated markdown, just clear the editor
+                clearEditor();
+            }
+            
+            // Display PDF in preview panel
+            displayPDFInPreview(filePath);
+        })
+        .catch(error => {
+            console.error('[Renderer] Error checking for associated markdown:', error);
+            clearEditor();
+            displayPDFInPreview(filePath);
+        });
+}
+
+// Handle HTML file opening
+function handleHTMLFile(filePath, content) {
+    console.log('[Renderer] Handling HTML file:', filePath);
+    
+    // Check for associated Markdown file
+    const baseName = filePath.replace(/\.html?$/i, '');
+    const associatedMdFile = baseName + '.md';
+    
+    // Check if associated markdown file exists
+    window.electronAPI.invoke('check-file-exists', associatedMdFile)
+        .then(exists => {
+            if (exists) {
+                console.log('[Renderer] Found associated markdown file:', associatedMdFile);
+                // Load the markdown file in the editor
+                return window.electronAPI.invoke('open-file-path', associatedMdFile);
+            }
+            return null;
+        })
+        .then(markdownResult => {
+            if (markdownResult && markdownResult.success) {
+                console.log('[Renderer] Loading associated markdown file in editor');
+                handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
+            } else {
+                // No associated markdown, just clear the editor
+                clearEditor();
+            }
+            
+            // Display HTML in preview panel
+            displayHTMLInPreview(content, filePath);
+        })
+        .catch(error => {
+            console.error('[Renderer] Error checking for associated markdown:', error);
+            clearEditor();
+            displayHTMLInPreview(content, filePath);
+        });
+}
+
+// Handle editable files (Markdown, BibTeX)
+function handleEditableFile(filePath, content, fileTypes) {
+    console.log('[Renderer] Handling editable file:', filePath, fileTypes);
+    
     // Set up internal link click handler if not already done
     if (!window.internalLinkHandlerSetup) {
         document.addEventListener('click', handleInternalLinkClick);
@@ -1599,9 +1807,29 @@ function openFileInEditor(filePath, content) {
         console.log('[Renderer] Internal link click handler set up');
     }
     
-    // Set editor content (Monaco or fallback)
+    // Set editor content and language (Monaco or fallback)
     if (editor && typeof editor.setValue === 'function') {
         editor.setValue(content);
+        
+        // Configure language and theme based on file type
+        if (fileTypes.isBibTeX) {
+            const model = editor.getModel();
+            if (model) {
+                monaco.editor.setModelLanguage(model, 'bibtex');
+                // Apply appropriate BibTeX theme based on current theme
+                const isDarkTheme = editor._themeService?.getColorTheme()?.type === 'dark' || 
+                                  window.currentTheme === 'dark';
+                editor.updateOptions({ theme: isDarkTheme ? 'bibtex-dark' : 'bibtex-light' });
+                console.log('[Renderer] Configured editor for BibTeX file with', isDarkTheme ? 'dark' : 'light', 'theme');
+            }
+        } else {
+            // Default to markdown for .md files and others
+            const model = editor.getModel();
+            if (model) {
+                monaco.editor.setModelLanguage(model, 'markdown');
+                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'vs-dark' : 'vs' });
+            }
+        }
     } else if (fallbackEditor) {
         fallbackEditor.value = content;
     }
@@ -1622,6 +1850,81 @@ function openFileInEditor(filePath, content) {
     
     // Save current file to settings (redundant, but ensures consistency)
     window.electronAPI.invoke('set-current-file', filePath);
+}
+
+// Clear the editor
+function clearEditor() {
+    console.log('[Renderer] Clearing editor for non-editable file');
+    if (editor && typeof editor.setValue === 'function') {
+        editor.setValue('# File Preview\n\nThis file is displayed in the preview panel.');
+    } else if (fallbackEditor) {
+        fallbackEditor.value = '# File Preview\n\nThis file is displayed in the preview panel.';
+    }
+    lastSavedContent = '';
+    hasUnsavedChanges = false;
+    updateUnsavedIndicator(false);
+}
+
+// Display PDF in preview panel
+function displayPDFInPreview(filePath) {
+    console.log('[Renderer] Displaying PDF in preview:', filePath);
+    const previewContent = document.getElementById('preview-content');
+    
+    if (previewContent) {
+        // Create PDF viewer using HTML5 embed or iframe
+        const pdfViewer = `
+            <div class="pdf-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
+                <div class="pdf-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); font-weight: bold; flex-shrink: 0; font-size: 14px;">
+                    📄 ${filePath.split('/').pop()}
+                </div>
+                <div style="flex: 1; position: relative; overflow: hidden; min-height: 0;">
+                    <embed src="file://${filePath}" type="application/pdf" width="100%" height="100%" style="border: none; display: block;">
+                    <div class="pdf-fallback" style="display: none; padding: 20px; text-align: center; color: #666;">
+                        <p>📄 PDF preview not available</p>
+                        <p><small>Path: ${filePath}</small></p>
+                        <button onclick="window.electronAPI.invoke('open-external', '${filePath}')" style="margin-top: 10px; padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">Open in External Viewer</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        previewContent.innerHTML = pdfViewer;
+        
+        // Handle PDF load errors
+        const embed = previewContent.querySelector('embed');
+        if (embed) {
+            embed.onerror = () => {
+                console.warn('[Renderer] PDF embed failed, showing fallback');
+                embed.style.display = 'none';
+                previewContent.querySelector('.pdf-fallback').style.display = 'block';
+            };
+        }
+    }
+}
+
+// Display HTML in preview panel
+function displayHTMLInPreview(htmlContent, filePath) {
+    console.log('[Renderer] Displaying HTML in preview:', filePath);
+    const previewContent = document.getElementById('preview-content');
+    
+    if (previewContent) {
+        // Create HTML preview with safety measures
+        const htmlViewer = `
+            <div class="html-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
+                <div class="html-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); font-weight: bold; flex-shrink: 0; font-size: 14px;">
+                    🌐 ${filePath.split('/').pop()}
+                </div>
+                <div style="flex: 1; overflow: hidden; position: relative; min-height: 0;">
+                    <iframe srcdoc="${htmlContent.replace(/"/g, '&quot;')}" 
+                            style="width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;"
+                            sandbox="allow-scripts allow-same-origin">
+                    </iframe>
+                </div>
+            </div>
+        `;
+        
+        previewContent.innerHTML = htmlViewer;
+    }
 }
 
 // Update cursor position for fallback textarea editor
@@ -3416,12 +3719,35 @@ if (window.electronAPI) {
         console.log('[Renderer] Received trigger-export-html.');
         const content = getCurrentEditorContent();
         try {
+            // Show initial notification
+            showNotification('Preparing HTML export...', 'info');
+            
             // Generate HTML from markdown
             const htmlContent = generateHTMLFromMarkdown(content);
-            const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent);
+            
+            // Export options for enhanced pandoc support
+            const exportOptions = {
+                usePandoc: true,
+                pandocArgs: [
+                    '--mathjax', // Enable math rendering
+                    '--highlight-style=github', // Code syntax highlighting
+                    '--css=pandoc.css' // Add custom styling if available
+                ]
+            };
+            
+            const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent, exportOptions);
             if (result.success) {
                 console.log(`[Renderer] HTML exported successfully to: ${result.filePath}`);
-                showNotification('HTML exported successfully', 'success');
+                
+                // Enhanced success message
+                let message = 'HTML exported successfully';
+                if (result.usedPandoc) {
+                    message += ' (with Pandoc)';
+                    if (result.bibFilesFound > 0) {
+                        message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
+                    }
+                }
+                showNotification(message, 'success');
             } else if (!result.cancelled) {
                 console.error(`[Renderer] HTML export failed: ${result.error}`);
                 showNotification(result.error || 'HTML export failed', 'error');
@@ -3432,16 +3758,84 @@ if (window.electronAPI) {
         }
     });
 
+    // Handle HTML export with references signal from main process
+    window.electronAPI.on('trigger-export-html-pandoc', async () => {
+        console.log('[Renderer] Received trigger-export-html-pandoc.');
+        const content = getCurrentEditorContent();
+        try {
+            // Show initial notification
+            showNotification('Preparing HTML export with references...', 'info');
+            
+            // Generate HTML from markdown
+            const htmlContent = generateHTMLFromMarkdown(content);
+            
+            // Export options for pandoc with bibliography support
+            const exportOptions = {
+                usePandoc: true,
+                pandocArgs: [
+                    '--mathjax', // Enable math rendering
+                    '--highlight-style=pygments' // Code syntax highlighting
+                ]
+            };
+            
+            const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, htmlContent, exportOptions);
+            if (result.success) {
+                console.log(`[Renderer] HTML with references exported successfully to: ${result.filePath}`);
+                
+                // Enhanced success message
+                let message = 'HTML with references exported successfully';
+                if (result.bibFilesFound > 0) {
+                    message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
+                } else {
+                    message += ' (no bibliography files found)';
+                }
+                showNotification(message, 'success');
+            } else if (!result.cancelled) {
+                console.error(`[Renderer] HTML with references export failed: ${result.error}`);
+                showNotification(result.error || 'HTML with references export failed', 'error');
+            }
+        } catch (error) {
+            console.error('[Renderer] Error during HTML with references export:', error);
+            showNotification('Error during HTML with references export', 'error');
+        }
+    });
+
     window.electronAPI.on('trigger-export-pdf', async () => {
         console.log('[Renderer] Received trigger-export-pdf.');
         const content = getCurrentEditorContent();
         try {
+            // Show initial notification
+            showNotification('Preparing PDF export...', 'info');
+            
             // Generate HTML from markdown
             const htmlContent = generateHTMLFromMarkdown(content);
-            const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent);
+            
+            // Export options for enhanced pandoc support
+            const exportOptions = {
+                usePandoc: true,
+                pandocArgs: [
+                    '--mathjax', // Enable math rendering
+                    '--highlight-style=github', // Code syntax highlighting
+                    '--variable', 'linkcolor:blue',
+                    '--variable', 'urlcolor:blue'
+                ]
+            };
+            
+            const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent, exportOptions);
             if (result.success) {
                 console.log(`[Renderer] PDF exported successfully to: ${result.filePath}`);
-                showNotification('PDF exported successfully', 'success');
+                
+                // Enhanced success message
+                let message = 'PDF exported successfully';
+                if (result.usedPandoc) {
+                    message += ' (with Pandoc)';
+                    if (result.bibFilesFound > 0) {
+                        message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
+                    }
+                } else {
+                    message += ' (using Electron renderer)';
+                }
+                showNotification(message, 'success');
             } else if (!result.cancelled) {
                 console.error(`[Renderer] PDF export failed: ${result.error}`);
                 showNotification(result.error || 'PDF export failed', 'error');
@@ -3449,6 +3843,81 @@ if (window.electronAPI) {
         } catch (error) {
             console.error('[Renderer] Error during PDF export:', error);
             showNotification('Error during PDF export', 'error');
+        }
+    });
+
+    window.electronAPI.on('trigger-export-pptx', async () => {
+        console.log('[Renderer] Received trigger-export-pptx.');
+        const content = getCurrentEditorContent();
+        try {
+            // Show initial notification
+            showNotification('Preparing PowerPoint export...', 'info');
+            
+            // Export options for PowerPoint
+            const exportOptions = {
+                usePandoc: true,
+                pandocArgs: [
+                    '--variable', 'theme:metropolis', // Clean theme
+                    '--variable', 'aspectratio:169'   // 16:9 aspect ratio
+                ]
+            };
+            
+            const result = await window.electronAPI.invoke('perform-export-pptx', content, exportOptions);
+            if (result.success) {
+                console.log(`[Renderer] PowerPoint exported successfully to: ${result.filePath}`);
+                
+                // Enhanced success message
+                let message = `PowerPoint exported successfully (${result.slidesCreated} slide${result.slidesCreated === 1 ? '' : 's'})`;
+                if (result.bibFilesFound > 0) {
+                    message += ` with ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
+                }
+                showNotification(message, 'success');
+            } else if (!result.cancelled) {
+                console.error(`[Renderer] PowerPoint export failed: ${result.error}`);
+                showNotification(result.error || 'PowerPoint export failed', 'error');
+            }
+        } catch (error) {
+            console.error('[Renderer] Error during PowerPoint export:', error);
+            showNotification('Error during PowerPoint export', 'error');
+        }
+    });
+
+    window.electronAPI.on('trigger-export-pdf-pandoc', async () => {
+        console.log('[Renderer] Received trigger-export-pdf-pandoc.');
+        const content = getCurrentEditorContent();
+        try {
+            // Show initial notification
+            showNotification('Preparing PDF export with references...', 'info');
+            
+            // Export options for enhanced PDF with references
+            const exportOptions = {
+                pandocArgs: [
+                    '--variable', 'linkcolor:blue',
+                    '--variable', 'urlcolor:blue',
+                    '--variable', 'toccolor:black'
+                    // Note: removed eisvogel template as it may not be installed
+                ]
+            };
+            
+            const result = await window.electronAPI.invoke('perform-export-pdf-pandoc', content, exportOptions);
+            if (result.success) {
+                console.log(`[Renderer] PDF with references exported successfully to: ${result.filePath}`);
+                
+                // Enhanced success message
+                let message = 'PDF with references exported successfully';
+                if (result.bibFilesFound > 0) {
+                    message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
+                } else {
+                    message += ' (no bibliography files found)';
+                }
+                showNotification(message, 'success');
+            } else if (!result.cancelled) {
+                console.error(`[Renderer] PDF with references export failed: ${result.error}`);
+                showNotification(result.error || 'PDF export with references failed', 'error');
+            }
+        } catch (error) {
+            console.error('[Renderer] Error during PDF with references export:', error);
+            showNotification('Error during PDF export with references', 'error');
         }
     });
 }

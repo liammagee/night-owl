@@ -2,7 +2,18 @@
 
 ## Overview
 
+---
+
+## Comparative Analysis of Human and Machine Learning
+
+- The course provides an overview of both human and machine learning.
+- It aims to identify similarities between human and machine learning processes.
+- It emphasizes the distinguishing factors between human and machine learning.
+- This course employs a comparative and contrastive approach towards understanding learning processes.
+
+```notes
 This course presents an outline of human and machine learning. As the title suggests, this involves a process of comparison and contrast: what is common to both human and machine learning, and what distinguishes them. 
+```
 
 
 ---

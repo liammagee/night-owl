@@ -499,11 +499,38 @@ function createMainMenu() {
             }
           },
           {
+            label: 'Export as HTML (with References)',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Export HTML with References menu item clicked. Triggering export-html-pandoc in renderer.');
+                mainWindow.webContents.send('trigger-export-html-pandoc');
+              }
+            }
+          },
+          {
             label: 'Export as PDF',
             click: () => {
               if (mainWindow) {
                 console.log('[main.js] Export PDF menu item clicked. Triggering export-pdf in renderer.');
                 mainWindow.webContents.send('trigger-export-pdf');
+              }
+            }
+          },
+          {
+            label: 'Export as PDF (with References)',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Export PDF with References menu item clicked. Triggering export-pdf-pandoc in renderer.');
+                mainWindow.webContents.send('trigger-export-pdf-pandoc');
+              }
+            }
+          },
+          {
+            label: 'Export as PowerPoint',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Export PowerPoint menu item clicked. Triggering export-pptx in renderer.');
+                mainWindow.webContents.send('trigger-export-pptx');
               }
             }
           },
@@ -826,7 +853,7 @@ async function getFiles(dir) {
                 }
             }
         } else {
-            if (res.endsWith('.md') || res.endsWith('.markdown')) {
+            if (res.endsWith('.md') || res.endsWith('.markdown') || res.endsWith('.bib') || res.endsWith('.pdf') || res.endsWith('.html') || res.endsWith('.htm')) {
                 results.push({ path: res, type: 'file' });
             }
         }
@@ -899,6 +926,9 @@ async function performSaveAs(content) {
             defaultPath: currentFilePath || path.join(app.getPath('documents'), 'untitled.md'),
             filters: [
                 { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+                { name: 'BibTeX Files', extensions: ['bib'] },
+                { name: 'PDF Files', extensions: ['pdf'] },
+                { name: 'HTML Files', extensions: ['html', 'htm'] },
                 { name: 'All Files', extensions: ['*'] }
             ]
         });
@@ -1239,6 +1269,9 @@ async function openFile() {
             properties: ['openFile'],
             filters: [
                 { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+                { name: 'BibTeX Files', extensions: ['bib'] },
+                { name: 'PDF Files', extensions: ['pdf'] },
+                { name: 'HTML Files', extensions: ['html', 'htm'] },
                 { name: 'All Files', extensions: ['*'] }
             ]
         });
@@ -1738,11 +1771,15 @@ Keep it concise and focused on the most important points.`;
     }
   });
 
-  // Handle HTML export
-  ipcMain.handle('perform-export-html', async (event, content, htmlContent) => {
-    console.log('[main.js] Received perform-export-html.');
+  // Handle HTML export with pandoc and bibliography support
+  ipcMain.handle('perform-export-html', async (event, content, htmlContent, exportOptions) => {
+    console.log('[main.js] Received perform-export-html with options:', exportOptions);
     try {
       const { dialog } = require('electron');
+      const { spawn } = require('child_process');
+      const path = require('path');
+      const os = require('os');
+      
       const defaultPath = currentFilePath ? 
         currentFilePath.replace(/\.[^/.]+$/, '.html') : 
         'export.html';
@@ -1759,20 +1796,202 @@ Keep it concise and focused on the most important points.`;
         return { success: false, cancelled: true };
       }
 
-      await fs.writeFile(result.filePath, htmlContent, 'utf8');
+      // Try to use pandoc if available
+      const hasPandoc = await checkPandocAvailability();
+      let finalHtml = htmlContent;
+      
+      if (hasPandoc && exportOptions?.usePandoc !== false) {
+        console.log('[main.js] Using pandoc for HTML export');
+        
+        // Find .bib files in current directory
+        const bibFiles = await findBibFiles();
+        
+        // Create temporary markdown file
+        const tempDir = os.tmpdir();
+        const tempMdFile = path.join(tempDir, 'temp_export.md');
+        await fs.writeFile(tempMdFile, content, 'utf8');
+        
+        try {
+          const pandocArgs = [
+            tempMdFile,
+            '-f', 'markdown',
+            '-t', 'html5',
+            '--standalone',
+            '--toc',
+            '--toc-depth=3',
+            '--number-sections'
+          ];
+          
+          // Add bibliography support if .bib files found
+          if (bibFiles.length > 0) {
+            console.log(`[main.js] Found ${bibFiles.length} .bib file(s):`, bibFiles.map(f => path.basename(f)));
+            pandocArgs.push('--citeproc');
+            bibFiles.forEach(bibFile => {
+              pandocArgs.push('--bibliography', bibFile);
+            });
+            // Add citation style
+            const cslStyle = await getDefaultCSLStyle();
+            if (cslStyle) {
+              pandocArgs.push('--csl', cslStyle);
+            }
+          }
+          
+          // Add custom pandoc options if provided
+          if (exportOptions?.pandocArgs) {
+            pandocArgs.push(...exportOptions.pandocArgs);
+          }
+          
+          finalHtml = await runPandoc(pandocArgs);
+          console.log('[main.js] Pandoc HTML export completed successfully');
+        } catch (pandocError) {
+          console.warn('[main.js] Pandoc export failed, falling back to basic HTML:', pandocError.message);
+          // Fall back to the original HTML content
+        } finally {
+          // Clean up temp file
+          try {
+            await fs.unlink(tempMdFile);
+          } catch (e) {
+            console.warn('[main.js] Could not clean up temp file:', e.message);
+          }
+        }
+      } else if (!hasPandoc) {
+        console.log('[main.js] Pandoc not available, using basic HTML export');
+      }
+
+      await fs.writeFile(result.filePath, finalHtml, 'utf8');
       console.log(`[main.js] HTML exported successfully to: ${result.filePath}`);
-      return { success: true, filePath: result.filePath };
+      return { 
+        success: true, 
+        filePath: result.filePath, 
+        usedPandoc: hasPandoc && exportOptions?.usePandoc !== false,
+        bibFilesFound: hasPandoc ? (await findBibFiles()).length : 0
+      };
     } catch (error) {
       console.error('[main.js] Error exporting HTML:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // Handle PDF export
-  ipcMain.handle('perform-export-pdf', async (event, content, htmlContent) => {
-    console.log('[main.js] Received perform-export-pdf.');
+  // Handle HTML export with pandoc and bibliography support (with References)
+  ipcMain.handle('perform-export-html-pandoc', async (event, content, htmlContent, exportOptions) => {
+    console.log('[main.js] Received perform-export-html-pandoc with options:', exportOptions);
     try {
       const { dialog } = require('electron');
+      const path = require('path');
+      const os = require('os');
+      
+      const defaultPath = currentFilePath ? 
+        currentFilePath.replace(/\.[^/.]+$/, '.html') : 
+        'export.html';
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export as HTML (with References)',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'HTML Files', extensions: ['html'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      console.log('[main.js] Using pandoc for HTML export with bibliography support');
+      
+      // Find .bib files for citations
+      const bibFiles = await findBibFiles();
+      
+      // Create temporary markdown file
+      const tempDir = os.tmpdir();
+      const tempMdFile = path.join(tempDir, 'temp_html_pandoc_export.md');
+      console.log('\n=== HTML PANDOC EXPORT DEBUG ===');
+      console.log('[main.js] Working directory:', currentWorkingDirectory);
+      console.log('[main.js] Temp directory:', tempDir);
+      console.log('[main.js] Temp markdown file:', tempMdFile);
+      
+      await fs.writeFile(tempMdFile, content);
+      console.log('[main.js] Written markdown content to temp file');
+      
+      // Prepare pandoc args for HTML with bibliography
+      const pandocArgs = [
+        tempMdFile,
+        '-t', 'html5',
+        '--standalone',
+        '--mathjax',
+        '--highlight-style=pygments',
+        '-o', result.filePath
+      ];
+      
+      if (bibFiles.length > 0) {
+        console.log('[main.js] Found .bib files:', bibFiles);
+        pandocArgs.push('--citeproc');
+        bibFiles.forEach(bibFile => {
+          pandocArgs.push('--bibliography', bibFile);
+        });
+        const cslStyle = await getDefaultCSLStyle();
+        if (cslStyle) {
+          console.log('[main.js] Adding CSL style for HTML:', cslStyle);
+          pandocArgs.push('--csl', cslStyle);
+        }
+      }
+      
+      // Change to the correct working directory before running pandoc
+      const originalCwd = process.cwd();
+      if (currentWorkingDirectory && currentWorkingDirectory !== originalCwd) {
+        console.log('[main.js] Changing working directory from', originalCwd, 'to', currentWorkingDirectory);
+        process.chdir(currentWorkingDirectory);
+      }
+      
+      try {
+        console.log('[main.js] Running pandoc with args:', pandocArgs);
+        
+        // Add custom pandoc options if provided
+        if (exportOptions?.pandocArgs) {
+          console.log('[main.js] Adding custom pandoc args:', exportOptions.pandocArgs);
+          pandocArgs.push(...exportOptions.pandocArgs);
+        }
+        
+        await runPandoc(pandocArgs);
+        
+        console.log('[main.js] Pandoc HTML export completed successfully');
+        
+        return {
+          success: true,
+          filePath: result.filePath,
+          usedPandoc: true,
+          bibFilesFound: bibFiles.length
+        };
+        
+      } finally {
+        // Restore original working directory
+        if (currentWorkingDirectory && currentWorkingDirectory !== originalCwd) {
+          console.log('[main.js] Restoring working directory to', originalCwd);
+          process.chdir(originalCwd);
+        }
+        
+        // Clean up temp file
+        try {
+          await fs.unlink(tempMdFile);
+          console.log('[main.js] Cleaned up temp markdown file');
+        } catch (cleanupError) {
+          console.warn('[main.js] Could not clean up temp file:', cleanupError.message);
+        }
+      }
+    } catch (error) {
+      console.error('[main.js] Error in pandoc HTML export:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle PDF export with pandoc and bibliography support
+  ipcMain.handle('perform-export-pdf', async (event, content, htmlContent, exportOptions) => {
+    console.log('[main.js] Received perform-export-pdf with options:', exportOptions);
+    try {
+      const { dialog } = require('electron');
+      const { spawn } = require('child_process');
+      const path = require('path');
+      const os = require('os');
+      
       const defaultPath = currentFilePath ? 
         currentFilePath.replace(/\.[^/.]+$/, '.pdf') : 
         'export.pdf';
@@ -1789,7 +2008,87 @@ Keep it concise and focused on the most important points.`;
         return { success: false, cancelled: true };
       }
 
-      // Create a hidden window for PDF generation
+      // Try to use pandoc if available
+      const hasPandoc = await checkPandocAvailability();
+      
+      if (hasPandoc && exportOptions?.usePandoc !== false) {
+        console.log('[main.js] Using pandoc for PDF export');
+        
+        // Find .bib files in current directory
+        const bibFiles = await findBibFiles();
+        
+        // Create temporary markdown file
+        const tempDir = os.tmpdir();
+        const tempMdFile = path.join(tempDir, 'temp_export.md');
+        await fs.writeFile(tempMdFile, content, 'utf8');
+        
+        try {
+          const pandocArgs = [
+            tempMdFile,
+            '-f', 'markdown',
+            '-t', 'pdf',
+            '--toc',
+            '--toc-depth=3',
+            '--number-sections',
+            '-o', result.filePath
+          ];
+          
+          // Add bibliography support if .bib files found
+          if (bibFiles.length > 0) {
+            console.log(`[main.js] Found ${bibFiles.length} .bib file(s):`, bibFiles.map(f => path.basename(f)));
+            pandocArgs.push('--citeproc');
+            bibFiles.forEach(bibFile => {
+              pandocArgs.push('--bibliography', bibFile);
+            });
+            // Add citation style
+            const cslStyle = await getDefaultCSLStyle();
+            if (cslStyle) {
+              pandocArgs.push('--csl', cslStyle);
+            }
+          }
+          
+          // Add PDF-specific options
+          pandocArgs.push('--variable', 'geometry:margin=1in');
+          pandocArgs.push('--variable', 'fontsize=12pt');
+          pandocArgs.push('--variable', 'papersize=a4');
+          
+          // Add custom pandoc options if provided
+          if (exportOptions?.pandocArgs) {
+            pandocArgs.push(...exportOptions.pandocArgs);
+          }
+          
+          await runPandoc(pandocArgs);
+          console.log('[main.js] Pandoc PDF export completed successfully');
+          
+          // Clean up temp file
+          try {
+            await fs.unlink(tempMdFile);
+          } catch (e) {
+            console.warn('[main.js] Could not clean up temp file:', e.message);
+          }
+          
+          return { 
+            success: true, 
+            filePath: result.filePath, 
+            usedPandoc: true,
+            bibFilesFound: bibFiles.length
+          };
+        } catch (pandocError) {
+          console.warn('[main.js] Pandoc PDF export failed, falling back to Electron PDF:', pandocError.message);
+          // Fall back to Electron's PDF generation
+          
+          // Clean up temp file
+          try {
+            await fs.unlink(tempMdFile);
+          } catch (e) {
+            console.warn('[main.js] Could not clean up temp file:', e.message);
+          }
+        }
+      }
+      
+      // Fallback to Electron's built-in PDF generation
+      console.log('[main.js] Using Electron for PDF generation');
+      
       const { BrowserWindow } = require('electron');
       const pdfWindow = new BrowserWindow({
         width: 800,
@@ -1816,9 +2115,526 @@ Keep it concise and focused on the most important points.`;
       
       await fs.writeFile(result.filePath, pdfBuffer);
       console.log(`[main.js] PDF exported successfully to: ${result.filePath}`);
-      return { success: true, filePath: result.filePath };
+      return { 
+        success: true, 
+        filePath: result.filePath, 
+        usedPandoc: false,
+        bibFilesFound: 0
+      };
     } catch (error) {
       console.error('[main.js] Error exporting PDF:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle PowerPoint export with pandoc
+  ipcMain.handle('perform-export-pptx', async (event, content, exportOptions) => {
+    console.log('[main.js] Received perform-export-pptx with options:', exportOptions);
+    try {
+      const { dialog } = require('electron');
+      const { spawn } = require('child_process');
+      const path = require('path');
+      const os = require('os');
+      
+      const defaultPath = currentFilePath ? 
+        currentFilePath.replace(/\.[^/.]+$/, '.pptx') : 
+        'export.pptx';
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export as PowerPoint',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'PowerPoint Files', extensions: ['pptx'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      // Check if pandoc is available
+      const hasPandoc = await checkPandocAvailability();
+      
+      if (!hasPandoc) {
+        return { 
+          success: false, 
+          error: 'Pandoc is required for PowerPoint export. Please install pandoc from https://pandoc.org/' 
+        };
+      }
+
+      console.log('[main.js] Using pandoc for PowerPoint export');
+      
+      // Process markdown content to extract slides and speaker notes
+      const processedContent = await processMarkdownForPowerPoint(content);
+      
+      // Find .bib files for citations
+      const bibFiles = await findBibFiles();
+      
+      // Create temporary markdown file
+      const tempDir = os.tmpdir();
+      const tempMdFile = path.join(tempDir, 'temp_powerpoint_export.md');
+      console.log('\n=== POWERPOINT EXPORT DEBUG ===');
+      console.log('[main.js] Working directory:', currentWorkingDirectory);
+      console.log('[main.js] Temp directory:', tempDir);
+      console.log('[main.js] Temp markdown file:', tempMdFile);
+      console.log('[main.js] Output file:', result.filePath);
+      
+      await fs.writeFile(tempMdFile, processedContent, 'utf8');
+      console.log('[main.js] Temp file written, size:', processedContent.length, 'characters');
+      console.log('[main.js] Processed content preview:', processedContent.substring(0, 300), '...');
+      console.log('=== END EXPORT DEBUG ===\n');
+      
+      try {
+        const pandocArgs = [
+          tempMdFile,
+          '-f', 'markdown',
+          '-t', 'pptx',
+          '--slide-level=2', // H2 headers create new slides
+          '-o', result.filePath
+        ];
+        
+        // Add bibliography support if .bib files found
+        if (bibFiles.length > 0) {
+          console.log(`[main.js] Found ${bibFiles.length} .bib file(s) for PowerPoint:`, bibFiles.map(f => path.basename(f)));
+          console.log('[main.js] Adding --citeproc for citation processing');
+          pandocArgs.push('--citeproc');
+          bibFiles.forEach((bibFile, index) => {
+            console.log(`[main.js] Adding bibliography [${index + 1}]: ${bibFile}`);
+            pandocArgs.push('--bibliography', bibFile);
+          });
+          const cslStyle = await getDefaultCSLStyle();
+          if (cslStyle) {
+            console.log('[main.js] Adding CSL style:', cslStyle);
+            pandocArgs.push('--csl', cslStyle);
+          } else {
+            console.log('[main.js] No CSL style specified - using pandoc default');
+          }
+        } else {
+          console.log('[main.js] No bibliography files found - citations will not be processed');
+        }
+        
+        // Add PowerPoint-specific options
+        if (exportOptions?.pandocArgs) {
+          pandocArgs.push(...exportOptions.pandocArgs);
+        }
+        
+        await runPandoc(pandocArgs);
+        console.log('[main.js] PowerPoint export completed successfully');
+        
+        // Clean up temp file
+        try {
+          await fs.unlink(tempMdFile);
+        } catch (e) {
+          console.warn('[main.js] Could not clean up temp file:', e.message);
+        }
+        
+        return { 
+          success: true, 
+          filePath: result.filePath,
+          slidesCreated: processedContent.match(/^## /gm)?.length || 0,
+          bibFilesFound: bibFiles.length
+        };
+      } catch (pandocError) {
+        console.error('[main.js] PowerPoint export failed:', pandocError.message);
+        
+        // Clean up temp file
+        try {
+          await fs.unlink(tempMdFile);
+        } catch (e) {
+          console.warn('[main.js] Could not clean up temp file:', e.message);
+        }
+        
+        return { 
+          success: false, 
+          error: `PowerPoint export failed: ${pandocError.message}` 
+        };
+      }
+    } catch (error) {
+      console.error('[main.js] Error exporting PowerPoint:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle PDF export with pandoc (with full bibliography support)
+  ipcMain.handle('perform-export-pdf-pandoc', async (event, content, exportOptions) => {
+    console.log('[main.js] Received perform-export-pdf-pandoc with options:', exportOptions);
+    try {
+      const { dialog } = require('electron');
+      const path = require('path');
+      const os = require('os');
+      
+      const defaultPath = currentFilePath ? 
+        currentFilePath.replace(/\.[^/.]+$/, '.pdf') : 
+        'export.pdf';
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export as PDF (with References)',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'PDF Files', extensions: ['pdf'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      // Check if pandoc is available
+      const hasPandoc = await checkPandocAvailability();
+      
+      if (!hasPandoc) {
+        return { 
+          success: false, 
+          error: 'Pandoc is required for PDF export with references. Please install pandoc from https://pandoc.org/' 
+        };
+      }
+
+      console.log('[main.js] Using pandoc for PDF export with bibliography support');
+      
+      // Find .bib files for citations
+      const bibFiles = await findBibFiles();
+      
+      // Create temporary markdown file
+      const tempDir = os.tmpdir();
+      const tempMdFile = path.join(tempDir, 'temp_pdf_pandoc_export.md');
+      console.log('\n=== PDF PANDOC EXPORT DEBUG ===');
+      console.log('[main.js] Working directory:', currentWorkingDirectory);
+      console.log('[main.js] Temp directory:', tempDir);
+      console.log('[main.js] Temp markdown file:', tempMdFile);
+      console.log('[main.js] Output file:', result.filePath);
+      
+      await fs.writeFile(tempMdFile, content, 'utf8');
+      console.log('[main.js] Temp file written, size:', content.length, 'characters');
+      console.log('[main.js] Content preview (first 500 chars):');
+      console.log(content.substring(0, 500));
+      console.log('[main.js] Content preview (last 500 chars):');
+      console.log(content.substring(Math.max(0, content.length - 500)));
+      console.log('=== END PDF PANDOC EXPORT DEBUG ===\n');
+      
+      try {
+        const pandocArgs = [
+          tempMdFile,
+          '-f', 'markdown',
+          '-t', 'pdf',
+          '--toc',
+          '--toc-depth=3',
+          '--number-sections'
+        ];
+        
+        // Add bibliography support if .bib files found
+        if (bibFiles.length > 0) {
+          console.log(`[main.js] Found ${bibFiles.length} .bib file(s) for PDF:`, bibFiles.map(f => path.basename(f)));
+          console.log('[main.js] Adding --citeproc for citation processing');
+          pandocArgs.push('--citeproc');
+          bibFiles.forEach((bibFile, index) => {
+            console.log(`[main.js] Adding bibliography [${index + 1}]: ${bibFile}`);
+            pandocArgs.push('--bibliography', bibFile);
+          });
+          const cslStyle = await getDefaultCSLStyle();
+          if (cslStyle) {
+            console.log('[main.js] Adding CSL style:', cslStyle);
+            pandocArgs.push('--csl', cslStyle);
+          } else {
+            console.log('[main.js] No CSL style specified - using pandoc default');
+          }
+        } else {
+          console.log('[main.js] No bibliography files found - citations will not be processed');
+        }
+        
+        // Add output file last
+        pandocArgs.push('-o', result.filePath);
+        
+        // Add PDF-specific formatting options
+        pandocArgs.push('--pdf-engine=pdflatex');
+        pandocArgs.push('--variable', 'geometry:margin=1in');
+        pandocArgs.push('--variable', 'fontsize=12pt');
+        pandocArgs.push('--variable', 'papersize=a4');
+        pandocArgs.push('--variable', 'documentclass=article');
+        
+        // Add enhanced features
+        pandocArgs.push('--highlight-style=pygments'); // Code syntax highlighting
+        pandocArgs.push('--pdf-engine=xelatex'); // Better Unicode support
+        // Note: Math rendering works differently for PDF output
+        
+        // Add custom pandoc options if provided
+        if (exportOptions?.pandocArgs) {
+          console.log('[main.js] Adding custom pandoc args:', exportOptions.pandocArgs);
+          pandocArgs.push(...exportOptions.pandocArgs);
+        }
+        
+        await runPandoc(pandocArgs);
+        console.log('[main.js] Pandoc PDF export completed successfully');
+        
+        // Clean up temp file
+        try {
+          await fs.unlink(tempMdFile);
+        } catch (e) {
+          console.warn('[main.js] Could not clean up temp file:', e.message);
+        }
+        
+        return { 
+          success: true, 
+          filePath: result.filePath,
+          method: 'pandoc',
+          bibFilesFound: bibFiles.length
+        };
+      } catch (pandocError) {
+        console.error('[main.js] Pandoc PDF export failed:', pandocError.message);
+        
+        // Clean up temp file
+        try {
+          await fs.unlink(tempMdFile);
+        } catch (e) {
+          console.warn('[main.js] Could not clean up temp file:', e.message);
+        }
+        
+        return { 
+          success: false, 
+          error: `Pandoc PDF export failed: ${pandocError.message}` 
+        };
+      }
+    } catch (error) {
+      console.error('[main.js] Error in pandoc PDF export:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // --- Export Helper Functions ---
+  
+  // Check if pandoc is available
+  async function checkPandocAvailability() {
+    return new Promise((resolve) => {
+      const { spawn } = require('child_process');
+      const pandoc = spawn('pandoc', ['--version']);
+      
+      let output = '';
+      pandoc.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      pandoc.on('close', (code) => {
+        if (code === 0 && output.includes('pandoc')) {
+          console.log('[main.js] Pandoc is available:', output.split('\n')[0]);
+          resolve(true);
+        } else {
+          console.log('[main.js] Pandoc not found or not working');
+          resolve(false);
+        }
+      });
+      
+      pandoc.on('error', () => {
+        console.log('[main.js] Pandoc not available (command not found)');
+        resolve(false);
+      });
+    });
+  }
+  
+  // Find .bib files in the current working directory
+  async function findBibFiles() {
+    try {
+      const path = require('path');
+      const workingDir = currentWorkingDirectory || app.getPath('documents');
+      
+      console.log('\n=== BIBLIOGRAPHY DETECTION ===');
+      console.log('[main.js] Looking for .bib files in:', workingDir);
+      
+      const items = await fs.readdir(workingDir, { withFileTypes: true });
+      const bibFiles = [];
+      const allFiles = [];
+      
+      for (const item of items) {
+        if (item.isFile()) {
+          allFiles.push(item.name);
+          if (item.name.endsWith('.bib')) {
+            const fullPath = path.join(workingDir, item.name);
+            bibFiles.push(fullPath);
+            
+            // Check file size and contents preview
+            try {
+              const stats = await fs.stat(fullPath);
+              const content = await fs.readFile(fullPath, 'utf8');
+              const entryCount = (content.match(/@\w+\{/g) || []).length;
+              console.log(`[main.js] Found .bib file: ${item.name}`);
+              console.log(`  - Size: ${stats.size} bytes`);
+              console.log(`  - Entries: ${entryCount}`);
+              console.log(`  - Path: ${fullPath}`);
+              if (content.length > 0) {
+                const preview = content.substring(0, 200).replace(/\n/g, ' ');
+                console.log(`  - Preview: ${preview}...`);
+              }
+            } catch (readError) {
+              console.warn(`[main.js] Could not read .bib file ${fullPath}:`, readError.message);
+            }
+          }
+        }
+      }
+      
+      console.log(`[main.js] Directory contains ${allFiles.length} files total:`);
+      console.log('[main.js] All files:', allFiles.slice(0, 10).join(', '), allFiles.length > 10 ? '...' : '');
+      console.log(`[main.js] Bibliography files found: ${bibFiles.length}`);
+      bibFiles.forEach((file, index) => {
+        console.log(`  [${index + 1}]: ${path.basename(file)}`);
+      });
+      console.log('=== END BIBLIOGRAPHY DETECTION ===\n');
+      
+      return bibFiles;
+    } catch (error) {
+      console.warn('[main.js] Error looking for .bib files:', error.message);
+      return [];
+    }
+  }
+  
+  // Get default CSL style (Chicago style as a reasonable academic default)
+  async function getDefaultCSLStyle() {
+    // Check if we can use a built-in style or need to download one
+    // For now, let's try without a custom CSL style to use pandoc defaults
+    console.log('[main.js] Using pandoc default citation style (no custom CSL)');
+    return null; // Return null to skip CSL specification
+  }
+  
+  // Run pandoc with given arguments
+  async function runPandoc(args) {
+    return new Promise((resolve, reject) => {
+      const { spawn } = require('child_process');
+      
+      console.log('\n=== PANDOC COMMAND DEBUG ===');
+      console.log('[main.js] Full pandoc command:');
+      console.log('pandoc', args.join(' '));
+      console.log('\n[main.js] Args breakdown:');
+      args.forEach((arg, index) => {
+        console.log(`  [${index}]: ${arg}`);
+      });
+      console.log('=== END PANDOC COMMAND DEBUG ===\n');
+      
+      const pandoc = spawn('pandoc', args);
+      let output = '';
+      let errorOutput = '';
+      
+      pandoc.stdout.on('data', (data) => {
+        const outputText = data.toString();
+        output += outputText;
+        if (outputText.trim()) {
+          console.log('[main.js] Pandoc stdout:', outputText.trim());
+        }
+      });
+      
+      pandoc.stderr.on('data', (data) => {
+        const errorText = data.toString();
+        errorOutput += errorText;
+        console.log('[main.js] Pandoc stderr:', errorText.trim());
+      });
+      
+      pandoc.on('close', (code) => {
+        if (code === 0) {
+          console.log('[main.js] Pandoc completed successfully');
+          resolve(output);
+        } else {
+          console.error('[main.js] Pandoc failed with code:', code);
+          console.error('[main.js] Pandoc error output:', errorOutput);
+          reject(new Error(`Pandoc failed with code ${code}: ${errorOutput}`));
+        }
+      });
+      
+      pandoc.on('error', (error) => {
+        console.error('[main.js] Pandoc spawn error:', error.message);
+        reject(error);
+      });
+    });
+  }
+  
+  // Process markdown content for PowerPoint export
+  async function processMarkdownForPowerPoint(content) {
+    console.log('[main.js] Processing markdown content for PowerPoint export');
+    
+    // Split content by slide markers (---)
+    const slides = content.split(/^---\s*$/gm);
+    const processedSlides = [];
+    
+    for (let i = 0; i < slides.length; i++) {
+      let slideContent = slides[i].trim();
+      
+      if (slideContent === '') continue;
+      
+      // Extract speaker notes from ```notes blocks
+      const notesBlocks = [];
+      let cleanContent = slideContent;
+      
+      // Find all ```notes blocks and extract them
+      const notesRegex = /```notes\s*\n([\s\S]*?)\n```/g;
+      let match;
+      
+      while ((match = notesRegex.exec(slideContent)) !== null) {
+        notesBlocks.push(match[1].trim());
+      }
+      
+      // Remove notes blocks from main content
+      cleanContent = cleanContent.replace(/```notes\s*\n[\s\S]*?\n```/g, '').trim();
+      
+      // Ensure slide has a title (H2 level for pandoc slide-level=2)
+      if (!cleanContent.match(/^## /m)) {
+        // If no H2 found, check for H1 and convert it
+        if (cleanContent.match(/^# /m)) {
+          cleanContent = cleanContent.replace(/^# /gm, '## ');
+        } else {
+          // If no heading at all, add a default one
+          const firstLine = cleanContent.split('\n')[0];
+          const title = firstLine.length > 50 ? 'Slide' : firstLine.replace(/[#*_`]/g, '').trim() || 'Slide';
+          cleanContent = `## ${title}\n\n${cleanContent}`;
+        }
+      }
+      
+      // Add speaker notes as pandoc div syntax
+      if (notesBlocks.length > 0) {
+        const notesContent = notesBlocks.join('\n\n');
+        cleanContent += `\n\n::: notes\n${notesContent}\n:::`;
+      }
+      
+      processedSlides.push(cleanContent);
+    }
+    
+    // If no slides found (no --- markers), treat the entire content as one slide
+    if (processedSlides.length === 0) {
+      let singleSlide = content.trim();
+      
+      // Extract speaker notes
+      const notesBlocks = [];
+      const notesRegex = /```notes\s*\n([\s\S]*?)\n```/g;
+      let match;
+      
+      while ((match = notesRegex.exec(singleSlide)) !== null) {
+        notesBlocks.push(match[1].trim());
+      }
+      
+      // Remove notes blocks from main content
+      singleSlide = singleSlide.replace(/```notes\s*\n[\s\S]*?\n```/g, '').trim();
+      
+      // Ensure we have H2 headers for slides
+      singleSlide = singleSlide.replace(/^# /gm, '## ');
+      
+      // Add speaker notes
+      if (notesBlocks.length > 0) {
+        const notesContent = notesBlocks.join('\n\n');
+        singleSlide += `\n\n::: notes\n${notesContent}\n:::`;
+      }
+      
+      processedSlides.push(singleSlide);
+    }
+    
+    const result = processedSlides.join('\n\n---\n\n');
+    console.log(`[main.js] Processed ${processedSlides.length} slides for PowerPoint`);
+    
+    return result;
+  }
+
+  // Open external file handler
+  ipcMain.handle('open-external', async (event, filePath) => {
+    try {
+      const { shell } = require('electron');
+      await shell.openPath(filePath);
+      console.log(`[main.js] Opened external file: ${filePath}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[main.js] Failed to open external file: ${filePath}`, error);
       return { success: false, error: error.message };
     }
   });
