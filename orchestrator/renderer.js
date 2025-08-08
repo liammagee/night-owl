@@ -10,6 +10,11 @@ console.log('[renderer.js] Script executing...');
 let editor = null;
 let markedInstance = null;
 
+// Auto-save variables
+let autoSaveTimer = null;
+let hasUnsavedChanges = false;
+let lastSavedContent = '';
+
 // --- DOM Elements ---
 const editorContainer = document.getElementById('editor-container');
 const previewContent = document.getElementById('preview-content');
@@ -940,7 +945,11 @@ function initializeApp() {
             editor.onDidChangeModelContent(() => {
                 const currentContent = editor.getValue();
                 updatePreviewAndStructure(currentContent);
+                scheduleAutoSave(); // Schedule auto-save when content changes
             });
+            
+            // Initialize auto-save after editor is ready
+            initializeAutoSave();
             
             // Update cursor position when cursor moves
             editor.onDidChangeCursorPosition(() => {
@@ -1149,6 +1158,8 @@ async function loadAppSettings() {
     }
     try {
         appSettings = await window.electronAPI.invoke('get-settings');
+        window.appSettings = appSettings; // Make settings globally available
+        window.currentFilePath = appSettings.currentFile || null; // Set current file path globally
         console.log('[renderer.js] Loaded settings:', appSettings);
         let themeAppliedFromSettings = false;
 
@@ -1256,6 +1267,9 @@ if (window.electronAPI) {
 function openFileInEditor(filePath, content) {
     console.log('[Renderer] Opening file in editor:', filePath);
     
+    // Set current file path globally for auto-save
+    window.currentFilePath = filePath;
+    
     // Add to navigation history and recent files (unless we're navigating history)
     const fileName = filePath.split('/').pop();
     addToNavigationHistory(filePath, fileName);
@@ -1280,6 +1294,11 @@ function openFileInEditor(filePath, content) {
     } else if (fallbackEditor) {
         fallbackEditor.value = content;
     }
+    
+    // Update last saved content for auto-save tracking
+    lastSavedContent = content;
+    hasUnsavedChanges = false;
+    updateUnsavedIndicator(false);
     
     // Update preview and structure
     updatePreviewAndStructure(content);
@@ -2303,7 +2322,7 @@ async function handleDelete(path, type, name) {
     }
 }
 
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', timeout = 3000) {
     // Create a simple notification
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
@@ -2324,12 +2343,12 @@ function showNotification(message, type = 'info') {
     
     document.body.appendChild(notification);
     
-    // Auto-remove after 3 seconds
+    // Auto-remove after specified timeout
     setTimeout(() => {
         if (notification.parentNode) {
             document.body.removeChild(notification);
         }
-    }, 3000);
+    }, timeout);
 }
 
 // Global drag and drop state
@@ -2908,6 +2927,7 @@ if (window.electronAPI) {
                 console.log(`[Renderer] File saved successfully to: ${result.filePath}`);
                 // Note: Removed renderFileTree() call to prevent unwanted file switching
                 showNotification('File saved successfully', 'success');
+                markContentAsSaved(); // Mark content as saved for auto-save
             } else {
                 // Check if it failed due to an error or just cancellation/non-error
                 if (result.error) {
@@ -2936,6 +2956,7 @@ if (window.electronAPI) {
                 console.log(`[Renderer] File saved successfully (Save As) to: ${result.filePath}`);
                 // Note: Removed renderFileTree() call to prevent unwanted file switching  
                 showNotification('File saved successfully', 'success');
+                markContentAsSaved(); // Mark content as saved for auto-save
              } else {
                  // Check if it failed due to an error or just cancellation/non-error
                  if (result.error) {
@@ -3371,6 +3392,8 @@ const formatQuoteBtn = document.getElementById('format-quote-btn');
 const formatLinkBtn = document.getElementById('format-link-btn');
 const formatImageBtn = document.getElementById('format-image-btn');
 const formatTableBtn = document.getElementById('format-table-btn');
+const autoSlideMarkersBtn = document.getElementById('auto-slide-markers-btn');
+const removeSlideMarkersBtn = document.getElementById('remove-slide-markers-btn');
 
 // Initialize markdown formatting
 function initializeMarkdownFormatting() {
@@ -3391,6 +3414,8 @@ function initializeMarkdownFormatting() {
     if (formatLinkBtn) formatLinkBtn.addEventListener('click', () => insertLink());
     if (formatImageBtn) formatImageBtn.addEventListener('click', () => insertImage());
     if (formatTableBtn) formatTableBtn.addEventListener('click', () => insertTable());
+    if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', () => addSlideMarkersToParagraphs());
+    if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', () => removeAllSlideMarkers());
     
     console.log('[renderer.js] Markdown formatting initialized');
 }
@@ -3669,6 +3694,233 @@ function insertTable() {
     
     editor.focus();
     updatePreviewAndStructure(editor.getValue());
+}
+
+// Add slide markers to paragraphs that don't already have them
+function addSlideMarkersToParagraphs() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot add slide markers - no editor available');
+        return;
+    }
+    
+    const content = editor.getValue();
+    const lines = content.split('\n');
+    const newLines = [];
+    let i = 0;
+    
+    console.log('[renderer.js] Adding slide markers to paragraphs...');
+    
+    while (i < lines.length) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Add current line
+        newLines.push(line);
+        
+        // Check if this is the end of a paragraph (non-empty line followed by empty line or end of file)
+        if (trimmed !== '' && 
+            (i === lines.length - 1 || lines[i + 1].trim() === '')) {
+            
+            // Check if the next non-empty line is already a slide marker
+            let nextNonEmptyIndex = i + 1;
+            while (nextNonEmptyIndex < lines.length && lines[nextNonEmptyIndex].trim() === '') {
+                nextNonEmptyIndex++;
+            }
+            
+            // Don't add slide marker if:
+            // - Next non-empty line is already a slide marker (---)
+            // - Current line is already a slide marker
+            // - Current line is a heading (#)
+            // - We're at the very end of the document
+            const isCurrentSlideMarker = trimmed === '---';
+            const isCurrentHeading = trimmed.match(/^#+\s/);
+            const nextLine = nextNonEmptyIndex < lines.length ? lines[nextNonEmptyIndex].trim() : '';
+            const isNextSlideMarker = nextLine === '---';
+            const isAtEnd = i === lines.length - 1;
+            
+            if (!isCurrentSlideMarker && !isCurrentHeading && !isNextSlideMarker && !isAtEnd) {
+                // Add empty line if there isn't one already
+                if (i < lines.length - 1 && lines[i + 1].trim() !== '') {
+                    newLines.push('');
+                }
+                // Add slide marker
+                newLines.push('---');
+                console.log(`[renderer.js] Added slide marker after line ${i + 1}: "${trimmed}"`);
+            }
+        }
+        
+        i++;
+    }
+    
+    const newContent = newLines.join('\n');
+    if (newContent !== content) {
+        editor.setValue(newContent);
+        updatePreviewAndStructure(newContent);
+        console.log('[renderer.js] Slide markers added successfully');
+    } else {
+        console.log('[renderer.js] No slide markers needed to be added');
+    }
+}
+
+// Remove all slide markers from the document with confirmation
+function removeAllSlideMarkers() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot remove slide markers - no editor available');
+        return;
+    }
+    
+    const content = editor.getValue();
+    const slideMarkerCount = (content.match(/^---$/gm) || []).length;
+    
+    if (slideMarkerCount === 0) {
+        alert('No slide markers found in the document.');
+        return;
+    }
+    
+    // Show confirmation dialog
+    const confirmed = confirm(`Are you sure you want to remove all ${slideMarkerCount} slide markers from the document?\n\nThis action cannot be undone.`);
+    
+    if (!confirmed) {
+        console.log('[renderer.js] User cancelled slide marker removal');
+        return;
+    }
+    
+    console.log('[renderer.js] Removing all slide markers...');
+    
+    const lines = content.split('\n');
+    const newLines = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Skip lines that are just slide markers
+        if (trimmed === '---') {
+            console.log(`[renderer.js] Removed slide marker at line ${i + 1}`);
+            continue;
+        }
+        
+        newLines.push(line);
+    }
+    
+    const newContent = newLines.join('\n');
+    editor.setValue(newContent);
+    updatePreviewAndStructure(newContent);
+    console.log(`[renderer.js] Successfully removed ${slideMarkerCount} slide markers`);
+}
+
+// --- Auto-save functionality ---
+
+// Initialize auto-save functionality
+function initializeAutoSave() {
+    if (!window.appSettings || !window.appSettings.ui || !window.appSettings.ui.autoSave) {
+        console.log('[renderer.js] Auto-save disabled in settings');
+        return;
+    }
+    
+    const interval = window.appSettings.ui.autoSaveInterval || 2000; // Default 2 seconds
+    console.log(`[renderer.js] Auto-save initialized with ${interval}ms interval`);
+    
+    // Set initial saved content
+    if (editor) {
+        lastSavedContent = editor.getValue();
+    }
+}
+
+// Mark that there are unsaved changes and schedule auto-save
+function scheduleAutoSave() {
+    if (!window.appSettings?.ui?.autoSave) return;
+    
+    const currentContent = editor ? editor.getValue() : '';
+    
+    // Check if content has actually changed
+    if (currentContent === lastSavedContent) {
+        hasUnsavedChanges = false;
+        return;
+    }
+    
+    hasUnsavedChanges = true;
+    
+    // Clear existing timer
+    if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+    }
+    
+    // Schedule auto-save
+    const interval = window.appSettings.ui.autoSaveInterval || 2000;
+    autoSaveTimer = setTimeout(() => {
+        performAutoSave();
+    }, interval);
+    
+    // Update status indicator
+    updateUnsavedIndicator(true);
+}
+
+// Perform the actual auto-save
+async function performAutoSave() {
+    if (!hasUnsavedChanges || !editor) {
+        return;
+    }
+    
+    try {
+        const content = editor.getValue();
+        console.log('[renderer.js] Performing auto-save...');
+        
+        // Only save if we have a current file path
+        if (window.currentFilePath && window.electronAPI) {
+            const result = await window.electronAPI.invoke('perform-save', content);
+            
+            if (result.success) {
+                lastSavedContent = content;
+                hasUnsavedChanges = false;
+                updateUnsavedIndicator(false);
+                console.log('[renderer.js] Auto-save completed successfully');
+                showNotification('Auto-saved', 'success', 1000); // Brief notification
+                
+                // Update current file path if this was a save-as operation
+                if (result.filePath && result.filePath !== window.currentFilePath) {
+                    window.currentFilePath = result.filePath;
+                    if (window.electronAPI) {
+                        window.electronAPI.invoke('set-current-file', result.filePath);
+                    }
+                }
+            } else {
+                console.warn('[renderer.js] Auto-save failed:', result.error);
+            }
+        } else {
+            console.log('[renderer.js] Auto-save skipped - no file path or API unavailable');
+        }
+    } catch (error) {
+        console.error('[renderer.js] Auto-save error:', error);
+    }
+}
+
+// Update the unsaved changes indicator
+function updateUnsavedIndicator(hasUnsaved) {
+    const currentFileName = document.getElementById('current-file-name');
+    if (currentFileName) {
+        const text = currentFileName.textContent;
+        if (hasUnsaved && !text.includes('●')) {
+            currentFileName.textContent = '● ' + text;
+        } else if (!hasUnsaved && text.includes('●')) {
+            currentFileName.textContent = text.replace('● ', '');
+        }
+    }
+}
+
+// Mark content as saved (called when user manually saves)
+function markContentAsSaved() {
+    if (editor) {
+        lastSavedContent = editor.getValue();
+        hasUnsavedChanges = false;
+        updateUnsavedIndicator(false);
+        
+        // Clear auto-save timer
+        if (autoSaveTimer) {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = null;
+        }
+    }
 }
 
 // Initialize markdown formatting when DOM is loaded
