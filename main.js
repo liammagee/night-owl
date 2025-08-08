@@ -59,38 +59,168 @@ let appSettings = {};
 
 // Default settings structure
 const defaultSettings = {
-    theme: 'light',
+    // === Theme and Appearance ===
+    theme: 'auto', // 'light', 'dark', 'auto'
+    customThemes: {}, // User-defined theme overrides
+    
+    // === Layout Configuration ===
     layout: {
         structureWidth: '18%',
         editorWidth: '45%',
         rightWidth: '37%'
     },
+    
+    // === File System ===
     workingDirectory: app.getPath('documents'),
     currentFile: '',
-    presentationMode: false,
-    presentationLayout: 'spiral',
-    // New settings for enhanced user experience
+    defaultFileType: '.md', // Default extension for new files
+    
+    // === Presentation Settings ===
+    presentation: {
+        mode: false,
+        layout: 'spiral', // 'spiral', 'linear', 'grid', 'circle', 'tree', 'zigzag'
+        autoAdvance: false,
+        autoAdvanceInterval: 5000, // milliseconds
+        showSpeakerNotes: true
+    },
+    
+    // === Editor Configuration ===
     editor: {
         fontSize: 14,
-        wordWrap: 'on',
+        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+        wordWrap: 'on', // 'on', 'off', 'wordWrapColumn'
         showLineNumbers: true,
         showMinimap: true,
-        folding: true
+        folding: true,
+        tabSize: 2,
+        insertSpaces: true,
+        autoIndent: 'full', // 'none', 'keep', 'brackets', 'advanced', 'full'
+        cursorStyle: 'line', // 'line', 'block', 'underline'
+        renderWhitespace: 'selection', // 'none', 'boundary', 'selection', 'all'
+        highlightActiveLine: true,
+        scrollBeyondLastLine: true
     },
+    
+    // === AI Configuration ===
+    ai: {
+        preferredProvider: 'auto', // 'auto', 'openai', 'anthropic', 'groq', 'openrouter'
+        models: {
+            openai: 'gpt-4o',
+            anthropic: 'claude-3-5-sonnet-20241022',
+            groq: 'llama-3.1-70b-versatile',
+            openrouter: 'anthropic/claude-3.5-sonnet'
+        },
+        temperature: 0.7,
+        maxTokens: 2000,
+        enableChat: true,
+        enableSummarization: true,
+        enableNoteExtraction: true,
+        chatHistory: {
+            persist: true,
+            maxEntries: 100,
+            autoSave: true
+        },
+        responseFormat: 'markdown' // 'plain', 'markdown', 'html'
+    },
+    
+    // === Export Settings ===
+    export: {
+        defaultFormat: 'pdf',
+        includeReferences: true,
+        pandoc: {
+            pdfEngine: 'pdflatex', // 'pdflatex', 'xelatex', 'lualatex'
+            citationStyle: 'chicago-author-date', // CSL style name
+            includeTableOfContents: true,
+            tocDepth: 3,
+            numberSections: true
+        },
+        html: {
+            standalone: true,
+            mathRenderer: 'mathjax', // 'mathjax', 'katex', 'none'
+            syntaxHighlighting: 'pygments',
+            includeCSS: false
+        }
+    },
+    
+    // === Navigation and History ===
     navigation: {
         maxHistoryEntries: 50,
         persistHistory: true,
-        history: []
+        history: [],
+        enableBreadcrumbs: true,
+        showFileTree: true,
+        autoExpandFolders: false
     },
+    
+    // === UI Preferences ===
     ui: {
         showToolbar: true,
+        showStatusBar: true,
         compactMode: false,
-        autoSave: true,
-        autoSaveInterval: 2000 // milliseconds
+        showWelcomeScreen: true,
+        confirmBeforeClose: false,
+        language: 'en', // Future: internationalization support
+        dateFormat: 'ISO', // 'ISO', 'US', 'EU', 'relative'
     },
-    // Recently opened files for quick access
-    recentFiles: [],
-    maxRecentFiles: 10
+    
+    // === Auto-save and Backup ===
+    autoSave: {
+        enabled: true,
+        interval: 2000, // milliseconds
+        createBackups: true,
+        maxBackups: 5,
+        backupLocation: 'default' // 'default' uses app data directory
+    },
+    
+    // === Performance ===
+    performance: {
+        enablePreviewCache: true,
+        maxCacheSize: 50, // MB
+        enableLazyLoading: true,
+        renderTimeout: 5000 // milliseconds
+    },
+    
+    // === Recently opened files and workspaces ===
+    recents: {
+        files: [],
+        workspaces: [],
+        maxFiles: 10,
+        maxWorkspaces: 5
+    },
+    
+    // === Notifications ===
+    notifications: {
+        enabled: true,
+        position: 'bottom-right', // 'top-left', 'top-right', 'bottom-left', 'bottom-right'
+        duration: 3000, // milliseconds, 0 = permanent
+        showProgress: true
+    },
+    
+    // === Search and Replace ===
+    search: {
+        caseSensitive: false,
+        wholeWord: false,
+        regex: false,
+        highlightMatches: true,
+        maxResults: 1000
+    },
+    
+    // === Accessibility ===
+    accessibility: {
+        highContrast: false,
+        reducedMotion: false,
+        screenReaderOptimized: false,
+        fontSize: 'normal', // 'small', 'normal', 'large', 'larger'
+    },
+    
+    // === Advanced Developer Options ===
+    advanced: {
+        enableDebugMode: false,
+        showPerformanceMetrics: false,
+        enableExperimentalFeatures: false,
+        customCSSPath: '', // Path to custom CSS file
+        pluginPaths: [] // Paths to custom plugins (future feature)
+    }
 };
 
 // Deep merge function for nested objects
@@ -158,13 +288,47 @@ function loadSettings() {
 
 // Validate and fix settings
 function validateSettings() {
+    // Ensure critical nested objects exist
+    if (!appSettings.navigation) appSettings.navigation = {};
+    if (!appSettings.recents) appSettings.recents = {};
+    if (!appSettings.ai) appSettings.ai = {};
+    if (!appSettings.editor) appSettings.editor = {};
+    if (!appSettings.export) appSettings.export = {};
+    if (!appSettings.ui) appSettings.ui = {};
+    if (!appSettings.autoSave) appSettings.autoSave = {};
+    if (!appSettings.presentation) appSettings.presentation = {};
+    if (!appSettings.accessibility) appSettings.accessibility = {};
+    if (!appSettings.advanced) appSettings.advanced = {};
+    
     // Ensure arrays exist
-    if (!Array.isArray(appSettings.recentFiles)) {
-        appSettings.recentFiles = [];
-    }
-    if (!appSettings.navigation || !Array.isArray(appSettings.navigation.history)) {
-        if (!appSettings.navigation) appSettings.navigation = {};
+    if (!Array.isArray(appSettings.navigation.history)) {
         appSettings.navigation.history = [];
+    }
+    if (!Array.isArray(appSettings.recents.files)) {
+        appSettings.recents.files = [];
+    }
+    if (!Array.isArray(appSettings.recents.workspaces)) {
+        appSettings.recents.workspaces = [];
+    }
+    
+    // Backward compatibility: migrate old recentFiles to new structure
+    if (Array.isArray(appSettings.recentFiles)) {
+        appSettings.recents.files = appSettings.recentFiles;
+        delete appSettings.recentFiles;
+    }
+    if (appSettings.maxRecentFiles) {
+        appSettings.recents.maxFiles = appSettings.maxRecentFiles;
+        delete appSettings.maxRecentFiles;
+    }
+    
+    // Backward compatibility: migrate old presentationMode and presentationLayout
+    if (typeof appSettings.presentationMode !== 'undefined') {
+        appSettings.presentation.mode = appSettings.presentationMode;
+        delete appSettings.presentationMode;
+    }
+    if (appSettings.presentationLayout) {
+        appSettings.presentation.layout = appSettings.presentationLayout;
+        delete appSettings.presentationLayout;
     }
     
     // Validate working directory exists
@@ -181,12 +345,38 @@ function validateSettings() {
         }
     }
     
-    // Limit array sizes
-    if (appSettings.recentFiles.length > appSettings.maxRecentFiles) {
-        appSettings.recentFiles = appSettings.recentFiles.slice(0, appSettings.maxRecentFiles);
+    // Validate numeric settings have reasonable bounds
+    if (appSettings.editor && typeof appSettings.editor.fontSize === 'number') {
+        appSettings.editor.fontSize = Math.max(8, Math.min(72, appSettings.editor.fontSize));
     }
-    if (appSettings.navigation.history.length > appSettings.navigation.maxHistoryEntries) {
-        appSettings.navigation.history = appSettings.navigation.history.slice(-appSettings.navigation.maxHistoryEntries);
+    if (appSettings.autoSave && typeof appSettings.autoSave.interval === 'number') {
+        appSettings.autoSave.interval = Math.max(1000, Math.min(30000, appSettings.autoSave.interval));
+    }
+    if (appSettings.ai && typeof appSettings.ai.temperature === 'number') {
+        appSettings.ai.temperature = Math.max(0, Math.min(2, appSettings.ai.temperature));
+    }
+    if (appSettings.ai && typeof appSettings.ai.maxTokens === 'number') {
+        appSettings.ai.maxTokens = Math.max(100, Math.min(8000, appSettings.ai.maxTokens));
+    }
+    
+    // Validate theme setting
+    if (appSettings.theme && !['light', 'dark', 'auto'].includes(appSettings.theme)) {
+        appSettings.theme = defaultSettings.theme;
+    }
+    
+    // Limit array sizes
+    const maxFiles = appSettings.recents.maxFiles || defaultSettings.recents.maxFiles;
+    const maxWorkspaces = appSettings.recents.maxWorkspaces || defaultSettings.recents.maxWorkspaces;
+    const maxHistoryEntries = appSettings.navigation.maxHistoryEntries || defaultSettings.navigation.maxHistoryEntries;
+    
+    if (appSettings.recents.files.length > maxFiles) {
+        appSettings.recents.files = appSettings.recents.files.slice(0, maxFiles);
+    }
+    if (appSettings.recents.workspaces.length > maxWorkspaces) {
+        appSettings.recents.workspaces = appSettings.recents.workspaces.slice(0, maxWorkspaces);
+    }
+    if (appSettings.navigation.history.length > maxHistoryEntries) {
+        appSettings.navigation.history = appSettings.navigation.history.slice(-maxHistoryEntries);
     }
 }
 
@@ -223,21 +413,54 @@ function saveSettings() {
 
 // Add file to recent files list
 function addToRecentFiles(filePath) {
-    if (!filePath || !appSettings.recentFiles) return;
+    if (!filePath) return;
+    
+    // Ensure recents structure exists
+    if (!appSettings.recents) appSettings.recents = {};
+    if (!Array.isArray(appSettings.recents.files)) appSettings.recents.files = [];
     
     // Remove if already exists
-    appSettings.recentFiles = appSettings.recentFiles.filter(f => f.path !== filePath);
+    appSettings.recents.files = appSettings.recents.files.filter(f => f.path !== filePath);
     
     // Add to beginning
-    appSettings.recentFiles.unshift({
+    appSettings.recents.files.unshift({
         path: filePath,
         name: path.basename(filePath),
+        lastOpened: new Date().toISOString(),
+        type: path.extname(filePath) || 'unknown'
+    });
+    
+    // Limit size
+    const maxFiles = appSettings.recents.maxFiles || defaultSettings.recents.maxFiles;
+    if (appSettings.recents.files.length > maxFiles) {
+        appSettings.recents.files = appSettings.recents.files.slice(0, maxFiles);
+    }
+    
+    saveSettings();
+}
+
+// Add workspace to recent workspaces list
+function addToRecentWorkspaces(workspacePath) {
+    if (!workspacePath) return;
+    
+    // Ensure recents structure exists
+    if (!appSettings.recents) appSettings.recents = {};
+    if (!Array.isArray(appSettings.recents.workspaces)) appSettings.recents.workspaces = [];
+    
+    // Remove if already exists
+    appSettings.recents.workspaces = appSettings.recents.workspaces.filter(w => w.path !== workspacePath);
+    
+    // Add to beginning
+    appSettings.recents.workspaces.unshift({
+        path: workspacePath,
+        name: path.basename(workspacePath),
         lastOpened: new Date().toISOString()
     });
     
     // Limit size
-    if (appSettings.recentFiles.length > appSettings.maxRecentFiles) {
-        appSettings.recentFiles = appSettings.recentFiles.slice(0, appSettings.maxRecentFiles);
+    const maxWorkspaces = appSettings.recents.maxWorkspaces || defaultSettings.recents.maxWorkspaces;
+    if (appSettings.recents.workspaces.length > maxWorkspaces) {
+        appSettings.recents.workspaces = appSettings.recents.workspaces.slice(0, maxWorkspaces);
     }
     
     saveSettings();
@@ -249,6 +472,83 @@ function saveNavigationHistory(history) {
     
     appSettings.navigation.history = history.slice(-appSettings.navigation.maxHistoryEntries);
     saveSettings();
+}
+
+// Settings utility functions
+function getSettingsCategory(category) {
+    return appSettings[category] || defaultSettings[category] || {};
+}
+
+function updateSettingsCategory(category, updates) {
+    if (!appSettings[category]) {
+        appSettings[category] = {};
+    }
+    
+    // Deep merge the updates
+    appSettings[category] = deepMerge(appSettings[category], updates);
+    saveSettings();
+    
+    return appSettings[category];
+}
+
+function resetSettingsCategory(category) {
+    if (defaultSettings[category]) {
+        appSettings[category] = JSON.parse(JSON.stringify(defaultSettings[category]));
+        saveSettings();
+        return appSettings[category];
+    }
+    return null;
+}
+
+function exportSettings() {
+    // Return a clean copy of settings without sensitive information
+    const exportData = JSON.parse(JSON.stringify(appSettings));
+    
+    // Remove or mask sensitive data if needed
+    if (exportData.advanced && exportData.advanced.enableDebugMode !== undefined) {
+        delete exportData.advanced.enableDebugMode;
+    }
+    
+    return {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        settings: exportData
+    };
+}
+
+function importSettings(importData) {
+    try {
+        if (!importData || !importData.settings) {
+            throw new Error('Invalid settings import data');
+        }
+        
+        // Validate the imported data structure
+        const imported = importData.settings;
+        
+        // Merge with current settings, preserving critical data
+        const criticalData = {
+            currentFile: appSettings.currentFile,
+            workingDirectory: appSettings.workingDirectory,
+            navigation: appSettings.navigation
+        };
+        
+        // Deep merge imported settings with defaults first
+        appSettings = deepMerge(defaultSettings, imported);
+        
+        // Restore critical data
+        appSettings = deepMerge(appSettings, criticalData);
+        
+        // Validate the merged settings
+        validateSettings();
+        
+        // Save the new settings
+        saveSettings();
+        
+        return { success: true, message: 'Settings imported successfully' };
+    } catch (error) {
+        console.error('[main.js] Error importing settings:', error);
+        return { success: false, error: error.message };
+    }
 }
 
 // Get settings for specific category
@@ -454,7 +754,7 @@ function createMainMenu() {
                         console.log(`[main.js] Folder selected: ${folderPath}`);
                         currentWorkingDirectory = folderPath;
                         appSettings.workingDirectory = folderPath;
-                        saveSettings();
+                        addToRecentWorkspaces(folderPath); // Track workspace in recents
                         currentFilePath = null;
                         mainWindow.setTitle('Hegel Pedagogy AI - Untitled'); 
                         mainWindow.webContents.send('refresh-file-tree');
@@ -698,9 +998,10 @@ function createMainMenu() {
               {
                 label: 'Spiral',
                 type: 'radio',
-                checked: appSettings.presentationLayout === 'spiral',
+                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'spiral',
                 click: () => {
-                  appSettings.presentationLayout = 'spiral';
+                  if (!appSettings.presentation) appSettings.presentation = {};
+                  appSettings.presentation.layout = 'spiral';
                   saveSettings();
                   mainWindow?.webContents.send('change-layout', 'spiral');
                 }
@@ -708,9 +1009,10 @@ function createMainMenu() {
               {
                 label: 'Linear',
                 type: 'radio',
-                checked: appSettings.presentationLayout === 'linear',
+                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'linear',
                 click: () => {
-                  appSettings.presentationLayout = 'linear';
+                  if (!appSettings.presentation) appSettings.presentation = {};
+                  appSettings.presentation.layout = 'linear';
                   saveSettings();
                   mainWindow?.webContents.send('change-layout', 'linear');
                 }
@@ -718,9 +1020,10 @@ function createMainMenu() {
               {
                 label: 'Grid',
                 type: 'radio',
-                checked: appSettings.presentationLayout === 'grid',
+                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'grid',
                 click: () => {
-                  appSettings.presentationLayout = 'grid';
+                  if (!appSettings.presentation) appSettings.presentation = {};
+                  appSettings.presentation.layout = 'grid';
                   saveSettings();
                   mainWindow?.webContents.send('change-layout', 'grid');
                 }
@@ -728,9 +1031,10 @@ function createMainMenu() {
               {
                 label: 'Circle',
                 type: 'radio',
-                checked: appSettings.presentationLayout === 'circle',
+                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'circle',
                 click: () => {
-                  appSettings.presentationLayout = 'circle';
+                  if (!appSettings.presentation) appSettings.presentation = {};
+                  appSettings.presentation.layout = 'circle';
                   saveSettings();
                   mainWindow?.webContents.send('change-layout', 'circle');
                 }
@@ -738,9 +1042,10 @@ function createMainMenu() {
               {
                 label: 'Tree',
                 type: 'radio',
-                checked: appSettings.presentationLayout === 'tree',
+                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'tree',
                 click: () => {
-                  appSettings.presentationLayout = 'tree';
+                  if (!appSettings.presentation) appSettings.presentation = {};
+                  appSettings.presentation.layout = 'tree';
                   saveSettings();
                   mainWindow?.webContents.send('change-layout', 'tree');
                 }
@@ -748,14 +1053,156 @@ function createMainMenu() {
               {
                 label: 'Zigzag',
                 type: 'radio',
-                checked: appSettings.presentationLayout === 'zigzag',
+                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'zigzag',
                 click: () => {
-                  appSettings.presentationLayout = 'zigzag';
+                  if (!appSettings.presentation) appSettings.presentation = {};
+                  appSettings.presentation.layout = 'zigzag';
                   saveSettings();
                   mainWindow?.webContents.send('change-layout', 'zigzag');
                 }
               }
             ]
+          }
+        ]
+      },
+      {
+        label: 'Settings',
+        submenu: [
+          {
+            label: 'Preferences...',
+            accelerator: 'CmdOrCtrl+,',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Opening settings dialog');
+                mainWindow.webContents.send('open-settings-dialog');
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'AI Configuration',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Opening AI configuration dialog');
+                mainWindow.webContents.send('open-ai-settings-dialog');
+              }
+            }
+          },
+          {
+            label: 'Editor Settings',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Opening editor settings dialog');
+                mainWindow.webContents.send('open-editor-settings-dialog');
+              }
+            }
+          },
+          {
+            label: 'Export Preferences',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Opening export settings dialog');
+                mainWindow.webContents.send('open-export-settings-dialog');
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Import Settings...',
+            click: async () => {
+              try {
+                const result = await dialog.showOpenDialog(mainWindow, {
+                  title: 'Import Settings',
+                  defaultPath: app.getPath('documents'),
+                  filters: [
+                    { name: 'JSON Files', extensions: ['json'] },
+                    { name: 'All Files', extensions: ['*'] }
+                  ],
+                  properties: ['openFile']
+                });
+
+                if (!result.canceled && result.filePaths.length > 0) {
+                  const fs = require('fs').promises;
+                  const importData = JSON.parse(await fs.readFile(result.filePaths[0], 'utf8'));
+                  const importResult = importSettings(importData);
+                  
+                  if (importResult.success) {
+                    dialog.showMessageBox(mainWindow, {
+                      type: 'info',
+                      title: 'Import Complete',
+                      message: 'Settings imported successfully',
+                      detail: 'The application will restart to apply the new settings.'
+                    });
+                    app.relaunch();
+                    app.exit();
+                  } else {
+                    dialog.showErrorBox('Import Failed', importResult.error);
+                  }
+                }
+              } catch (error) {
+                dialog.showErrorBox('Import Error', error.message);
+              }
+            }
+          },
+          {
+            label: 'Export Settings...',
+            click: async () => {
+              try {
+                const result = await dialog.showSaveDialog(mainWindow, {
+                  title: 'Export Settings',
+                  defaultPath: path.join(app.getPath('documents'), 'hegel-pedagogy-ai-settings.json'),
+                  filters: [
+                    { name: 'JSON Files', extensions: ['json'] },
+                    { name: 'All Files', extensions: ['*'] }
+                  ]
+                });
+
+                if (!result.canceled) {
+                  const fs = require('fs').promises;
+                  const exportData = exportSettings();
+                  await fs.writeFile(result.filePath, JSON.stringify(exportData, null, 2));
+                  
+                  dialog.showMessageBox(mainWindow, {
+                    type: 'info',
+                    title: 'Export Complete',
+                    message: 'Settings exported successfully',
+                    detail: `Settings saved to: ${result.filePath}`
+                  });
+                }
+              } catch (error) {
+                dialog.showErrorBox('Export Error', error.message);
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Reset All Settings',
+            click: () => {
+              dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: 'Reset Settings',
+                message: 'Are you sure you want to reset all settings to their default values?',
+                detail: 'This action cannot be undone. The application will restart after resetting.',
+                buttons: ['Cancel', 'Reset'],
+                defaultId: 0,
+                cancelId: 0
+              }).then((result) => {
+                if (result.response === 1) {
+                  // Reset to defaults
+                  appSettings = JSON.parse(JSON.stringify(defaultSettings));
+                  saveSettings();
+                  
+                  dialog.showMessageBox(mainWindow, {
+                    type: 'info',
+                    title: 'Reset Complete',
+                    message: 'All settings have been reset to defaults',
+                    detail: 'The application will restart to apply the changes.'
+                  });
+                  app.relaunch();
+                  app.exit();
+                }
+              });
+            }
           }
         ]
       },
@@ -2653,6 +3100,27 @@ Keep it concise and focused on the most important points.`;
       saveSettings();
     }
     return { success: true };
+  });
+
+  // New category-specific settings handlers
+  ipcMain.handle('get-settings-category', (event, category) => {
+    return getSettingsCategory(category);
+  });
+
+  ipcMain.handle('update-settings-category', (event, category, updates) => {
+    return updateSettingsCategory(category, updates);
+  });
+
+  ipcMain.handle('reset-settings-category', (event, category) => {
+    return resetSettingsCategory(category);
+  });
+
+  ipcMain.handle('export-settings', () => {
+    return exportSettings();
+  });
+
+  ipcMain.handle('import-settings', (event, importData) => {
+    return importSettings(importData);
   });
 
   // Navigation history handlers

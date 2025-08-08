@@ -20,3 +20,6 @@
 16. Global find & replace - DONE
 17. TODOs as Kanban 
 18. Export as Powerpoint - DONE
+19. Custom presentation templates
+20. Settings
+21. Refactor duplicate code
