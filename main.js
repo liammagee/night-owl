@@ -1507,6 +1507,178 @@ app.whenReady().then(() => {
     }
   });
 
+  // Test handler for debugging AI service
+  ipcMain.handle('test-ai-service', async (event) => {
+    console.log('[main.js] Testing AI service...');
+    
+    if (!aiService) {
+      return { success: false, error: 'AI Service not initialized' };
+    }
+    
+    console.log('[main.js] Available providers:', aiService.getAvailableProviders());
+    console.log('[main.js] Default provider:', aiService.getDefaultProvider());
+    
+    try {
+      const testMessage = 'Hello, this is a test message. Please respond with "Test successful".';
+      console.log('[main.js] Sending test message...');
+      
+      const response = await aiService.sendMessage(testMessage);
+      console.log('[main.js] Test response received:', response);
+      
+      return { 
+        success: true, 
+        provider: response.provider,
+        model: response.model,
+        response: response.response 
+      };
+    } catch (error) {
+      console.error('[main.js] Test failed:', error);
+      return { 
+        success: false, 
+        error: error.message,
+        stack: error.stack
+      };
+    }
+  });
+
+  // AI Text Summarization Handler
+  ipcMain.handle('summarize-text-to-notes', async (event, selectedText) => {
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+      console.error('[main.js] AI Service not available. Cannot summarize text.');
+      return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
+    }
+    
+    if (!selectedText || typeof selectedText !== 'string' || selectedText.trim() === '') {
+      console.error('[main.js] Invalid text received for summarization.');
+      return { error: 'Invalid text format.' };
+    }
+    
+    console.log(`[main.js] Received text for summarization: "${selectedText.substring(0, 100)}..."`);
+    
+    try {
+      const prompt = `Please analyze the following text and provide:
+1. A concise heading that captures the main topic
+2. 2-4 bullet points summarizing the key ideas
+
+Text to analyze:
+"${selectedText}"
+
+Format your response as:
+HEADING: [your heading here]
+BULLETS:
+- [bullet point 1]
+- [bullet point 2]
+- [bullet point 3]
+- [bullet point 4]
+
+Keep it concise and focused on the most important points.`;
+
+      const response = await aiService.sendMessage(prompt, {
+        temperature: 1.0, // Lower temperature for more focused summaries
+        maxTokens: 300
+      });
+      
+      console.log(`[main.js] AI summarization from ${response.provider}: Generated heading and bullets`);
+      
+      // Parse the response to extract heading and bullets
+      const responseText = response.response;
+      const headingMatch = responseText.match(/HEADING:\s*(.+?)(?:\n|BULLETS:|$)/i);
+      const bulletsMatch = responseText.match(/BULLETS:\s*([\s\S]*)/i);
+      
+      let heading = 'Summary';
+      let bullets = [];
+      
+      if (headingMatch) {
+        heading = headingMatch[1].trim();
+      }
+      
+      if (bulletsMatch) {
+        const bulletText = bulletsMatch[1];
+        bullets = bulletText
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.startsWith('-') || line.startsWith('•'))
+          .map(line => line.replace(/^[-•]\s*/, ''));
+      }
+      
+      // Create the visible summary content (heading + bullets)
+      const summaryContent = bullets.length > 0 
+        ? `## ${heading}\n\n${bullets.map(bullet => `- ${bullet}`).join('\n')}`
+        : `## ${heading}\n\n- ${responseText.replace(/^(HEADING:|BULLETS:)/gm, '').trim()}`;
+      
+      // Create the replacement text: slide marker + summary above + original text in notes
+      const wrappedText = `---\n\n${summaryContent}\n\n\`\`\`notes\n${selectedText}\n\`\`\``;
+      
+      return {
+        success: true,
+        heading,
+        bullets,
+        summaryContent,
+        wrappedText,
+        provider: response.provider,
+        model: response.model
+      };
+    } catch (error) {
+      console.error('[main.js] Error in AI text summarization:', error);
+      let errorMessage = 'An error occurred while summarizing the text.';
+      
+      if (error.message) {
+        if (error.message.includes('401')) {
+          errorMessage = 'Invalid API key. Please check your API key configuration.';
+        } else if (error.message.includes('429')) {
+          errorMessage = 'Rate limit exceeded. Please try again later.';
+        } else if (error.message.includes('402')) {
+          errorMessage = 'Quota exceeded. Please check your billing.';
+        } else {
+          errorMessage = `API Error: ${error.message}`;
+        }
+      }
+      
+      return { error: errorMessage };
+    }
+  });
+
+  // Extract Notes Content Handler
+  ipcMain.handle('extract-notes-content', async (event, selectedText) => {
+    if (!selectedText || typeof selectedText !== 'string' || selectedText.trim() === '') {
+      console.error('[main.js] Invalid text received for notes extraction.');
+      return { error: 'Invalid text format.' };
+    }
+    
+    console.log(`[main.js] Received text for notes extraction: "${selectedText.substring(0, 100)}..."`);
+    
+    try {
+      // Look for ```notes blocks in the selected text
+      const notesRegex = /```notes\s*\n([\s\S]*?)\n```/gi;
+      const matches = [];
+      let match;
+      
+      while ((match = notesRegex.exec(selectedText)) !== null) {
+        matches.push(match[1].trim());
+      }
+      
+      if (matches.length === 0) {
+        return {
+          error: 'No ```notes blocks found in the selected text.'
+        };
+      }
+      
+      // Join all found notes content with double newlines
+      const extractedContent = matches.join('\n\n');
+      
+      console.log(`[main.js] Successfully extracted ${matches.length} notes block(s)`);
+      
+      return {
+        success: true,
+        extractedContent,
+        blocksFound: matches.length
+      };
+    } catch (error) {
+      console.error('[main.js] Error extracting notes content:', error);
+      return { error: 'An error occurred while extracting notes content.' };
+    }
+  });
+
   ipcMain.handle('perform-save', async (event, content) => {
     console.log(`[main.js] Received perform-save. Current path: "${currentFilePath}"`);
     

@@ -16,6 +16,7 @@
     "dotenv": "^16.4.5",
     "lucide-react": "^0.523.0",
     "monaco-editor": "^0.52.2",
+    "node-fetch": "^3.3.2",
     "openai": "^4.76.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

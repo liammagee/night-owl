@@ -1,6 +1,19 @@
 // AI Service - Abstracted interface for multiple AI providers
 const { OpenAI } = require('openai');
 
+// Check if fetch is available, if not use a fallback or require node-fetch
+let fetch;
+try {
+  fetch = globalThis.fetch;
+  if (!fetch) {
+    // For CommonJS with node-fetch v3 (ESM), we need to use dynamic import
+    console.log('[AIService] Using node-fetch for API calls');
+    fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+  }
+} catch (error) {
+  console.warn('[AIService] fetch not available, some providers may not work:', error.message);
+}
+
 class AIService {
   constructor() {
     this.providers = new Map();
@@ -69,6 +82,13 @@ class AIService {
       }
     }
 
+    // Set default provider based on environment variable
+    const envDefaultProvider = process.env.DEFAULT_AI_PROVIDER;
+    if (envDefaultProvider && this.providers.has(envDefaultProvider)) {
+      this.defaultProvider = envDefaultProvider;
+      console.log(`[AIService] Default provider set from environment: ${this.defaultProvider}`);
+    }
+    
     console.log(`[AIService] Initialized ${this.providers.size} providers. Default: ${this.defaultProvider}`);
   }
 
@@ -81,11 +101,15 @@ class AIService {
       maxTokens = 2000
     } = options;
 
+    console.log(`[AIService] sendMessage called with provider: ${provider}, model: ${model}`);
+    console.log(`[AIService] Available providers:`, Array.from(this.providers.keys()));
+
     if (!this.providers.has(provider)) {
       throw new Error(`Provider '${provider}' not available. Available providers: ${Array.from(this.providers.keys()).join(', ')}`);
     }
 
     const providerInstance = this.providers.get(provider);
+    console.log(`[AIService] Using provider instance:`, providerInstance.constructor.name);
     
     try {
       const response = await providerInstance.sendMessage(message, {
@@ -103,7 +127,8 @@ class AIService {
         usage: response.usage
       };
     } catch (error) {
-      console.error(`[AIService] Error with ${provider}:`, error);
+      console.error(`[AIService] Error with ${provider}:`, error.message);
+      console.error(`[AIService] Full error:`, error);
       throw error;
     }
   }
@@ -157,31 +182,48 @@ class OpenAIProvider extends BaseProvider {
 
   async sendMessage(message, options) {
     const {
-      model = process.env.OPENAI_MODEL || 'gpt-4',
+      model = process.env.OPENAI_MODEL || 'gpt-5-mini',
       systemMessage,
       temperature = 0.7,
       maxTokens = 2000
     } = options;
 
-    const completion = await this.client.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: message }
-      ],
-      temperature,
-      max_tokens: maxTokens
-    });
+    console.log(`[OpenAIProvider] Sending message with model: ${model}`);
+    console.log(`[OpenAIProvider] Message length: ${message.length}`);
 
-    return {
-      content: completion.choices[0]?.message?.content,
-      model: completion.model,
-      usage: completion.usage
-    };
+    try {
+      const completion = await this.client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: message }
+        ],
+        temperature,
+        max_completion_tokens: maxTokens
+      });
+
+      console.log(`[OpenAIProvider] Received response with ${completion.choices?.length} choices`);
+
+      return {
+        content: completion.choices[0]?.message?.content,
+        model: completion.model,
+        usage: completion.usage
+      };
+    } catch (error) {
+      console.error(`[OpenAIProvider] API call failed:`, error.message);
+      if (error.response) {
+        console.error(`[OpenAIProvider] API response status:`, error.response.status);
+        console.error(`[OpenAIProvider] API response data:`, error.response.data);
+      }
+      throw error;
+    }
   }
 
   getAvailableModels() {
     return [
+      'gpt-5',
+      'gpt-5-mini',
+      'gpt-5-nano',
       'gpt-4',
       'gpt-4-turbo',
       'gpt-4o',
@@ -239,6 +281,10 @@ class AnthropicProvider extends BaseProvider {
 
   getAvailableModels() {
     return [
+      'claude-opus-4-1-20250805',
+      'claude-opus-4-20250514',
+      'claude-sonnet-4-20250514',
+      'claude-3-7-sonnet-20250219',
       'claude-3-5-sonnet-20241022',
       'claude-3-5-haiku-20241022',
       'claude-3-opus-20240229',

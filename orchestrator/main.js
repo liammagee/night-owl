@@ -4,23 +4,21 @@ require('dotenv').config(); // Load .env file
 const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs').promises; // Use promises API
-const { OpenAI } = require('openai'); // Import OpenAI
+const AIService = require('../services/aiService');
 require('@electron/remote/main').initialize();
 
-// --- OpenAI Client Initialization ---
-let openai;
+// --- AI Service Initialization ---
+let aiService;
 try {
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn('[main.js] WARNING: OPENAI_API_KEY not found in .env file. AI Chat feature will be disabled.');
-  } else {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-    console.log('[main.js] OpenAI client initialized.');
+  aiService = new AIService();
+  console.log('[orchestrator/main.js] AI Service initialized with providers:', aiService.getAvailableProviders());
+  
+  if (aiService.getAvailableProviders().length === 0) {
+    console.warn('[orchestrator/main.js] WARNING: No AI providers configured. AI Chat feature will be disabled.');
+    console.warn('[orchestrator/main.js] Please add API keys to your .env file. See .env.example for details.');
   }
 } catch (error) {
-    console.error('[main.js] Error initializing OpenAI client:', error);
-    // Optionally show an error dialog to the user
+  console.error('[orchestrator/main.js] Error initializing AI Service:', error);
 }
 
 // --- Global Variables ---
@@ -519,46 +517,181 @@ app.whenReady().then(() => {
 });
 
   ipcMain.handle('send-chat-message', async (event, userMessage) => {
-    if (!openai) {
-        console.error('[main.js] OpenAI client not initialized. Cannot send chat message.');
-        return { error: 'AI Client not configured. Please check server logs and API key.' };
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+        console.error('[orchestrator/main.js] AI Service not available. Cannot send chat message.');
+        return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
     if (!userMessage || typeof userMessage !== 'string' || userMessage.trim() === '') {
-        console.error('[main.js] Invalid user message received.');
+        console.error('[orchestrator/main.js] Invalid user message received.');
         return { error: 'Invalid message format.' };
     }
-    console.log(`[main.js] Received chat message: "${userMessage}"`);
+    console.log(`[orchestrator/main.js] Received chat message: "${userMessage.substring(0, 100)}..."`);
+    
     try {
-      const completion = await openai.chat.completions.create({
-          model: 'o3', // Or specify another model like 'gpt-4'
-          messages: [
-              { role: 'system', content: 'You are a helpful assistant integrated into a Markdown editor.' },
-              { role: 'user', content: userMessage }
-          ],
-      });
-      const aiResponse = completion.choices[0]?.message?.content;
-      console.log(`[main.js] OpenAI response: "${aiResponse}"`);
-      if (aiResponse) {
-          return { response: aiResponse };
-      } else {
-          console.error('[main.js] OpenAI response format invalid:', completion);
-          return { error: 'Received an unexpected response format from the AI.' };
-      }
+      const response = await aiService.sendMessage(userMessage);
+      console.log(`[orchestrator/main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      
+      return {
+        response: response.response,
+        provider: response.provider,
+        model: response.model,
+        usage: response.usage
+      };
     } catch (error) {
-        console.error('[main.js] Error calling OpenAI API:', error);
+        console.error('[orchestrator/main.js] Error calling AI API:', error);
         let errorMessage = 'An error occurred while contacting the AI service.';
-        if (error.response) {
-          console.error('API Error Status:', error.response.status);
-          console.error('API Error Data:', error.response.data);
-          if (error.response.status === 401) {
-               errorMessage = 'Authentication error. Please check your OpenAI API key.';
-          } else if (error.response.status === 429) {
-               errorMessage = 'API rate limit exceeded. Please try again later.';
-          }
-        } else if (error.request) {
-          errorMessage = 'Network error. Could not reach the AI service.';
+        
+        if (error.message) {
+            if (error.message.includes('401')) {
+                errorMessage = 'Invalid API key. Please check your API key configuration.';
+            } else if (error.message.includes('429')) {
+                errorMessage = 'Rate limit exceeded. Please try again later.';
+            } else if (error.message.includes('402')) {
+                errorMessage = 'Quota exceeded. Please check your billing.';
+            } else {
+                errorMessage = `API Error: ${error.message}`;
+            }
         }
+        
         return { error: errorMessage };
+    }
+  });
+
+  // AI Text Summarization Handler
+  ipcMain.handle('summarize-text-to-notes', async (event, selectedText) => {
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+      console.error('[orchestrator/main.js] AI Service not available. Cannot summarize text.');
+      return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
+    }
+    
+    if (!selectedText || typeof selectedText !== 'string' || selectedText.trim() === '') {
+      console.error('[orchestrator/main.js] Invalid text received for summarization.');
+      return { error: 'Invalid text format.' };
+    }
+    
+    console.log(`[orchestrator/main.js] Received text for summarization: "${selectedText.substring(0, 100)}..."`);
+    
+    try {
+      const prompt = `Please analyze the following text and provide:
+1. A concise heading that captures the main topic
+2. 2-4 bullet points summarizing the key ideas
+
+Text to analyze:
+"${selectedText}"
+
+Format your response as:
+HEADING: [your heading here]
+BULLETS:
+- [bullet point 1]
+- [bullet point 2]
+- [bullet point 3]
+- [bullet point 4]
+
+Keep it concise and focused on the most important points.`;
+
+      const response = await aiService.sendMessage(prompt, {
+        temperature: 1.0, // Lower temperature for more focused summaries
+        maxTokens: 300
+      });
+      
+      console.log(`[orchestrator/main.js] AI summarization from ${response.provider}: Generated heading and bullets`);
+      
+      // Parse the response to extract heading and bullets
+      const responseText = response.response;
+      const headingMatch = responseText.match(/HEADING:\s*(.+?)(?:\n|BULLETS:|$)/i);
+      const bulletsMatch = responseText.match(/BULLETS:\s*([\s\S]*)/i);
+      
+      let heading = 'Summary';
+      let bullets = [];
+      
+      if (headingMatch) {
+        heading = headingMatch[1].trim();
+      }
+      
+      if (bulletsMatch) {
+        const bulletText = bulletsMatch[1];
+        bullets = bulletText
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.startsWith('-') || line.startsWith('•'))
+          .map(line => line.replace(/^[-•]\s*/, ''));
+      }
+      
+      // Create the visible summary content (heading + bullets)
+      const summaryContent = bullets.length > 0 
+        ? `## ${heading}\n\n${bullets.map(bullet => `- ${bullet}`).join('\n')}`
+        : `## ${heading}\n\n- ${responseText.replace(/^(HEADING:|BULLETS:)/gm, '').trim()}`;
+      
+      // Create the replacement text: slide marker + summary above + original text in notes
+      const wrappedText = `---\n\n${summaryContent}\n\n\`\`\`notes\n${selectedText}\n\`\`\``;
+      
+      return {
+        success: true,
+        heading,
+        bullets,
+        summaryContent,
+        wrappedText,
+        provider: response.provider,
+        model: response.model
+      };
+    } catch (error) {
+      console.error('[orchestrator/main.js] Error in AI text summarization:', error);
+      let errorMessage = 'An error occurred while summarizing the text.';
+      
+      if (error.message) {
+        if (error.message.includes('401')) {
+          errorMessage = 'Invalid API key. Please check your API key configuration.';
+        } else if (error.message.includes('429')) {
+          errorMessage = 'Rate limit exceeded. Please try again later.';
+        } else if (error.message.includes('402')) {
+          errorMessage = 'Quota exceeded. Please check your billing.';
+        } else {
+          errorMessage = `API Error: ${error.message}`;
+        }
+      }
+      
+      return { error: errorMessage };
+    }
+  });
+
+  // Extract Notes Content Handler
+  ipcMain.handle('extract-notes-content', async (event, selectedText) => {
+    if (!selectedText || typeof selectedText !== 'string' || selectedText.trim() === '') {
+      console.error('[orchestrator/main.js] Invalid text received for notes extraction.');
+      return { error: 'Invalid text format.' };
+    }
+    
+    console.log(`[orchestrator/main.js] Received text for notes extraction: "${selectedText.substring(0, 100)}..."`);
+    
+    try {
+      // Look for ```notes blocks in the selected text
+      const notesRegex = /```notes\s*\n([\s\S]*?)\n```/gi;
+      const matches = [];
+      let match;
+      
+      while ((match = notesRegex.exec(selectedText)) !== null) {
+        matches.push(match[1].trim());
+      }
+      
+      if (matches.length === 0) {
+        return {
+          error: 'No ```notes blocks found in the selected text.'
+        };
+      }
+      
+      // Join all found notes content with double newlines
+      const extractedContent = matches.join('\n\n');
+      
+      console.log(`[orchestrator/main.js] Successfully extracted ${matches.length} notes block(s)`);
+      
+      return {
+        success: true,
+        extractedContent,
+        blocksFound: matches.length
+      };
+    } catch (error) {
+      console.error('[orchestrator/main.js] Error extracting notes content:', error);
+      return { error: 'An error occurred while extracting notes content.' };
     }
   });
 

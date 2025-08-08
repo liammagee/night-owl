@@ -1026,6 +1026,137 @@ function addFoldingToolbarControls() {
     console.log('[renderer.js] Folding toolbar controls added');
 }
 
+// --- AI Summarization Action ---
+function addAISummarizationAction() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot add AI summarization action: editor not available');
+        return;
+    }
+    
+    // Add context menu action for AI summarization
+    editor.addAction({
+        id: 'ai-summarize-to-notes',
+        label: '🤖 Summarize to Speaker Notes',
+        contextMenuGroupId: 'modification',
+        contextMenuOrder: 1.5,
+        
+        // Show only when text is selected
+        precondition: 'editorHasSelection',
+        
+        run: async function(ed) {
+            const selection = ed.getSelection();
+            const selectedText = ed.getModel().getValueInRange(selection);
+            
+            if (!selectedText || selectedText.trim() === '') {
+                console.warn('[renderer.js] No text selected for AI summarization');
+                showNotification('Please select some text to summarize', 'warning');
+                return;
+            }
+            
+            console.log(`[renderer.js] Starting AI summarization for selected text: "${selectedText.substring(0, 100)}..."`);
+            
+            try {
+                // Show loading indicator
+                showNotification('Generating speaker notes...', 'info');
+                
+                // Call the AI summarization service
+                const result = await window.electronAPI.invoke('summarize-text-to-notes', selectedText);
+                
+                if (result.error) {
+                    console.error('[renderer.js] AI summarization failed:', result.error);
+                    showNotification(`Error: ${result.error}`, 'error');
+                    return;
+                }
+                
+                if (result.success) {
+                    console.log(`[renderer.js] AI summarization successful from ${result.provider}`);
+                    
+                    // Replace selected text with the wrapped notes
+                    ed.executeEdits('ai-summarization', [{
+                        range: selection,
+                        text: result.wrappedText
+                    }]);
+                    
+                    showNotification(`Speaker notes generated using ${result.provider} (${result.model})`, 'success');
+                    
+                    // Log the transformation for debugging
+                    console.log('[renderer.js] Original text replaced with notes:', {
+                        original: selectedText.substring(0, 100) + '...',
+                        heading: result.heading,
+                        bullets: result.bullets,
+                        provider: result.provider,
+                        model: result.model
+                    });
+                }
+            } catch (error) {
+                console.error('[renderer.js] Error in AI summarization:', error);
+                showNotification('Failed to generate speaker notes. Please try again.', 'error');
+            }
+        }
+    });
+    
+    // Add context menu action for extracting notes content
+    editor.addAction({
+        id: 'extract-notes-content',
+        label: '📝 Extract Notes Content',
+        contextMenuGroupId: 'modification',
+        contextMenuOrder: 1.6,
+        
+        // Show only when text is selected
+        precondition: 'editorHasSelection',
+        
+        run: async function(ed) {
+            const selection = ed.getSelection();
+            const selectedText = ed.getModel().getValueInRange(selection);
+            
+            if (!selectedText || selectedText.trim() === '') {
+                console.warn('[renderer.js] No text selected for notes extraction');
+                showNotification('Please select some text to extract notes from', 'warning');
+                return;
+            }
+            
+            console.log(`[renderer.js] Starting notes extraction for selected text: "${selectedText.substring(0, 100)}..."`);
+            
+            try {
+                // Show loading indicator
+                showNotification('Extracting notes content...', 'info');
+                
+                // Call the notes extraction service
+                const result = await window.electronAPI.invoke('extract-notes-content', selectedText);
+                
+                if (result.error) {
+                    console.error('[renderer.js] Notes extraction failed:', result.error);
+                    showNotification(`Error: ${result.error}`, 'error');
+                    return;
+                }
+                
+                if (result.success) {
+                    console.log(`[renderer.js] Notes extraction successful: found ${result.blocksFound} block(s)`);
+                    
+                    // Replace selected text with the extracted notes content
+                    ed.executeEdits('extract-notes', [{
+                        range: selection,
+                        text: result.extractedContent
+                    }]);
+                    
+                    // Show success notification
+                    const message = `Extracted content from ${result.blocksFound} notes block${result.blocksFound === 1 ? '' : 's'}`;
+                    showNotification(message, 'success');
+                } else {
+                    console.warn('[renderer.js] Notes extraction returned no success flag');
+                    showNotification('Failed to extract notes content', 'error');
+                }
+                
+            } catch (error) {
+                console.error('[renderer.js] Notes extraction failed:', error);
+                showNotification('Failed to extract notes content', 'error');
+            }
+        }
+    });
+    
+    console.log('[renderer.js] AI summarization and notes extraction context menu actions added');
+}
+
 // --- Navigation Controls Setup ---
 function setupNavigationControls() {
     const backBtn = document.getElementById('nav-back-btn');
@@ -1117,7 +1248,8 @@ function initializeApp() {
                 registerMarkdownFoldingProvider();
                 addFoldingKeyboardShortcuts();
                 addFoldingToolbarControls();
-                console.log('[renderer.js] Folding features initialized');
+                addAISummarizationAction();
+                console.log('[renderer.js] Folding features and AI actions initialized');
             }, 100);
             
             updatePreviewAndStructure(editor.getValue());

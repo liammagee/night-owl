@@ -3,10 +3,6 @@
 ## Consciousness
 
 
----
-
-
-### Hi Vanicka
 
 
 
