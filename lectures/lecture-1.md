@@ -8,7 +8,13 @@ This course presents an outline of human and machine learning. As the title sugg
 ---
 
 
+## philosophy
+
+ - summary
+
+```notes
 This process is something that, for this course, I want to approach in a philosophical way. What I mean by this is that, alongside texts from areas of child psychology, linguistics and computer science, I want us to investigate the idea of "learning" through a fundamentally *philosophical* type of inquiry. This I think leads us to think about less about learning as a set of features that pertain to humans, machines or both, and more about learning as itself a process that ranges across a set of common distinctions: between human and machine, but also between individual and society, between child and adult, and so on. It will also help us, I hope, to think about learning as something cooperative, involving both social and technical, or what are sometimes thought as sociotechnical systems. I've coined the term "symbiotic pedagogy" to describe this kind of cooperation. Finally, we might conclude by developing some normative claims: about what constitutes legitimate as opposed to illegitimate forms of human and machine learning. 
+```
 
 ---
 

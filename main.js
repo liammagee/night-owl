@@ -5,7 +5,7 @@ const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('elec
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
-const { OpenAI } = require('openai');
+const AIService = require('./services/aiService');
 require('@electron/remote/main').initialize();
 
 // Set app name immediately - before anything else
@@ -34,19 +34,18 @@ if (process.argv.includes('--dev')) {
   }
 }
 
-// --- OpenAI Client Initialization ---
-let openai;
+// --- AI Service Initialization ---
+let aiService;
 try {
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn('[main.js] WARNING: OPENAI_API_KEY not found in .env file. AI Chat feature will be disabled.');
-  } else {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-    console.log('[main.js] OpenAI client initialized.');
+  aiService = new AIService();
+  console.log('[main.js] AI Service initialized with providers:', aiService.getAvailableProviders());
+  
+  if (aiService.getAvailableProviders().length === 0) {
+    console.warn('[main.js] WARNING: No AI providers configured. AI Chat feature will be disabled.');
+    console.warn('[main.js] Please add API keys to your .env file. See .env.example for details.');
   }
 } catch (error) {
-    console.error('[main.js] Error initializing OpenAI client:', error);
+  console.error('[main.js] Error initializing AI Service:', error);
 }
 
 // --- Global Variables ---
@@ -1385,45 +1384,125 @@ app.whenReady().then(() => {
 });
 
   ipcMain.handle('send-chat-message', async (event, userMessage) => {
-    if (!openai) {
-        console.error('[main.js] OpenAI client not initialized. Cannot send chat message.');
-        return { error: 'AI Client not configured. Please check server logs and API key.' };
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+        console.error('[main.js] AI Service not available. Cannot send chat message.');
+        return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
     if (!userMessage || typeof userMessage !== 'string' || userMessage.trim() === '') {
         console.error('[main.js] Invalid user message received.');
         return { error: 'Invalid message format.' };
     }
-    console.log(`[main.js] Received chat message: "${userMessage}"`);
+    console.log(`[main.js] Received chat message: "${userMessage.substring(0, 100)}..."`);
+    
     try {
-      const completion = await openai.chat.completions.create({
-          model: 'gpt-4',
-          messages: [
-              { role: 'system', content: 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.' },
-              { role: 'user', content: userMessage }
-          ],
-      });
-      const aiResponse = completion.choices[0]?.message?.content;
-      console.log(`[main.js] OpenAI response: "${aiResponse}"`);
-      if (aiResponse) {
-          return { response: aiResponse };
-      } else {
-          console.error('[main.js] OpenAI response format invalid:', completion);
-          return { error: 'Received an unexpected response format from the AI.' };
-      }
+      const response = await aiService.sendMessage(userMessage);
+      console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      
+      return {
+        response: response.response,
+        provider: response.provider,
+        model: response.model,
+        usage: response.usage
+      };
     } catch (error) {
-        console.error('[main.js] Error calling OpenAI API:', error);
+        console.error('[main.js] Error calling AI API:', error);
         let errorMessage = 'An error occurred while contacting the AI service.';
-        if (error.response) {
-          console.error('API Error Status:', error.response.status);
-          console.error('API Error Data:', error.response.data);
-          if (error.response.status === 401) {
-               errorMessage = 'Authentication error. Please check your OpenAI API key.';
-          } else if (error.response.status === 429) {
-               errorMessage = 'API rate limit exceeded. Please try again later.';
-          }
-        } else if (error.request) {
-          errorMessage = 'Network error. Could not reach the AI service.';
+        
+        if (error.message) {
+            if (error.message.includes('401')) {
+                errorMessage = 'Invalid API key. Please check your API key configuration.';
+            } else if (error.message.includes('429')) {
+                errorMessage = 'Rate limit exceeded. Please try again later.';
+            } else if (error.message.includes('402')) {
+                errorMessage = 'Quota exceeded. Please check your billing.';
+            } else {
+                errorMessage = `API Error: ${error.message}`;
+            }
         }
+        
+        return { error: errorMessage };
+    }
+  });
+
+  // AI Provider Management Handlers
+  ipcMain.handle('get-available-ai-providers', async (event) => {
+    if (!aiService) {
+      return { providers: [], defaultProvider: null };
+    }
+    
+    return {
+      providers: aiService.getAvailableProviders(),
+      defaultProvider: aiService.getDefaultProvider()
+    };
+  });
+
+  ipcMain.handle('get-provider-models', async (event, provider) => {
+    if (!aiService) {
+      return { models: [] };
+    }
+    
+    try {
+      const models = aiService.getProviderModels(provider);
+      return { models };
+    } catch (error) {
+      console.error('[main.js] Error getting provider models:', error);
+      return { models: [], error: error.message };
+    }
+  });
+
+  ipcMain.handle('set-default-ai-provider', async (event, provider) => {
+    if (!aiService) {
+      return { success: false, error: 'AI Service not available' };
+    }
+    
+    try {
+      aiService.setDefaultProvider(provider);
+      return { success: true };
+    } catch (error) {
+      console.error('[main.js] Error setting default provider:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('send-chat-message-with-options', async (event, userMessage, options = {}) => {
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+        console.error('[main.js] AI Service not available. Cannot send chat message.');
+        return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
+    }
+    if (!userMessage || typeof userMessage !== 'string' || userMessage.trim() === '') {
+        console.error('[main.js] Invalid user message received.');
+        return { error: 'Invalid message format.' };
+    }
+    
+    console.log(`[main.js] Received chat message with options: "${userMessage.substring(0, 100)}..."`);
+    console.log('[main.js] Chat options:', options);
+    
+    try {
+      const response = await aiService.sendMessage(userMessage, options);
+      console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      
+      return {
+        response: response.response,
+        provider: response.provider,
+        model: response.model,
+        usage: response.usage
+      };
+    } catch (error) {
+        console.error('[main.js] Error calling AI API:', error);
+        let errorMessage = 'An error occurred while contacting the AI service.';
+        
+        if (error.message) {
+            if (error.message.includes('401')) {
+                errorMessage = 'Invalid API key. Please check your API key configuration.';
+            } else if (error.message.includes('429')) {
+                errorMessage = 'Rate limit exceeded. Please try again later.';
+            } else if (error.message.includes('402')) {
+                errorMessage = 'Quota exceeded. Please check your billing.';
+            } else {
+                errorMessage = `API Error: ${error.message}`;
+            }
+        }
+        
         return { error: errorMessage };
     }
   });

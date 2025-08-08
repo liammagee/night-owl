@@ -1179,20 +1179,21 @@
             </div>
 
             <!-- Presentation Content -->
-            <div id="presentation-content" class="content-view" style="display: flex; flex-direction: column;">
-                <!-- DEBUG: TEST PANEL - This should always be visible -->
-                <div style="height: 100px; background: orange; color: black; padding: 10px; font-weight: bold; border: 3px solid red;">
-                    🔍 DEBUG: If you can see this orange panel, the HTML layout is working. This is a test to verify the speaker notes area works.
-                </div>
+            <div id="presentation-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
                 <div id="presentation-root" style="width: 100%; flex: 1; min-height: 0;"></div>
-                <div id="speaker-notes-panel" style="height: 200px; background: #e74c3c; color: white; border-top: 4px solid #c0392b; padding: 16px; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: block; z-index: 1000;">
-                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+                <div id="speaker-notes-panel" style="position: absolute; bottom: 0; left: 0; right: 0; height: 180px; background: #2c3e50; color: white; border-top: 3px solid #34495e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: none; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.3); min-height: 80px; max-height: 60vh;">
+                    <!-- Resize Handle -->
+                    <div id="speaker-notes-resize-handle" style="position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #34495e; cursor: ns-resize; border-radius: 4px 4px 0 0; display: flex; align-items: center; justify-content: center;">
+                        <div style="width: 40px; height: 3px; background: #7f8c8d; border-radius: 2px;"></div>
+                    </div>
+                    <!-- Header -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 16px 8px 16px; padding-top: 8px;">
                         <h4 style="margin: 0; font-size: 14px; color: #ecf0f1;">📝 Speaker Notes</h4>
-                        <div style="flex: 1;"></div>
                         <button id="toggle-speaker-notes-panel" style="background: #34495e; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Hide</button>
                     </div>
-                    <div id="current-slide-notes" style="font-size: 13px; line-height: 1.4; color: #bdc3c7;">
-                        <strong>DEBUG: Speaker notes panel is working! This should always be visible in presentation mode.</strong>
+                    <!-- Scrollable Content -->
+                    <div id="current-slide-notes" style="font-size: 13px; line-height: 1.4; color: #bdc3c7; padding: 0 16px 16px 16px; overflow-y: auto; height: calc(100% - 60px);">
+                        <em>No speaker notes for this slide.</em>
                     </div>
                 </div>
             </div>
@@ -2345,6 +2346,75 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         let currentMode = 'editor';
         let presentationEditorContent = '';
 
+        // Speaker Notes Functions
+        function extractSpeakerNotes(content) {
+          if (!content) return [];
+          
+          // Split content by slide markers
+          const slides = content.split(/\n---\n|\n--- \n/);
+          const speakerNotes = [];
+          
+          slides.forEach((slide, index) => {
+            // Extract notes using regex
+            const notesRegex = /```notes\s*\n([\s\S]*?)\n```/g;
+            const slideNotes = [];
+            let match;
+            
+            while ((match = notesRegex.exec(slide)) !== null) {
+              slideNotes.push(match[1].trim());
+            }
+            
+            speakerNotes.push(slideNotes.join('\n\n'));
+          });
+          
+          return speakerNotes;
+        }
+        
+        function showSpeakerNotesPanel(content) {
+          const panel = document.getElementById('speaker-notes-panel');
+          const notesContainer = document.getElementById('current-slide-notes');
+          
+          if (panel && notesContainer) {
+            panel.style.display = 'block';
+            
+            // Extract all speaker notes
+            const allNotes = extractSpeakerNotes(content);
+            const currentSlideNotes = allNotes[0] || ''; // Start with first slide
+            
+            if (currentSlideNotes) {
+              notesContainer.innerHTML = currentSlideNotes.replace(/\n/g, '<br>');
+            } else {
+              notesContainer.innerHTML = '<em>No speaker notes for this slide.</em>';
+            }
+            
+            console.log('[Speaker Notes] Panel shown with notes:', currentSlideNotes);
+          }
+        }
+        
+        function hideSpeakerNotesPanel() {
+          const panel = document.getElementById('speaker-notes-panel');
+          if (panel) {
+            panel.style.display = 'none';
+            console.log('[Speaker Notes] Panel hidden');
+          }
+        }
+        
+        function updateSpeakerNotes(slideIndex, content) {
+          const notesContainer = document.getElementById('current-slide-notes');
+          if (notesContainer) {
+            const allNotes = extractSpeakerNotes(content);
+            const currentSlideNotes = allNotes[slideIndex] || '';
+            
+            if (currentSlideNotes) {
+              notesContainer.innerHTML = currentSlideNotes.replace(/\n/g, '<br>');
+            } else {
+              notesContainer.innerHTML = '<em>No speaker notes for this slide.</em>';
+            }
+            
+            console.log('[Speaker Notes] Updated for slide', slideIndex, ':', currentSlideNotes);
+          }
+        }
+
         function switchToMode(modeName) {
           console.log('[Mode Switching] Switching to:', modeName);
           
@@ -2456,17 +2526,93 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               
               // Also set it directly for immediate access
               window.pendingPresentationContent = currentContent;
+              
+              // Show speaker notes panel and populate with notes
+              showSpeakerNotesPanel(currentContent);
             } else {
               console.warn('[Mode Switching] No content available to sync to presentation');
+              showSpeakerNotesPanel('');
             }
           } else {
             document.body.classList.remove('presentation-mode');
+            hideSpeakerNotesPanel();
           }
 
           currentMode = modeName;
         }
 
         // Set up mode switching
+        function setupSpeakerNotesResize() {
+          const panel = document.getElementById('speaker-notes-panel');
+          const resizeHandle = document.getElementById('speaker-notes-resize-handle');
+          const presentationContent = document.getElementById('presentation-content');
+          
+          if (!panel || !resizeHandle || !presentationContent) return;
+          
+          let isResizing = false;
+          let startY = 0;
+          let startHeight = 0;
+          
+          // Mouse down on resize handle
+          resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = panel.offsetHeight;
+            
+            // Prevent text selection during drag
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'ns-resize';
+            
+            console.log('[Speaker Notes] Started resizing, startY:', startY, 'startHeight:', startHeight);
+            e.preventDefault();
+          });
+          
+          // Mouse move for resizing
+          document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            const deltaY = startY - e.clientY; // Inverted because panel grows upward
+            const newHeight = Math.max(80, Math.min(startHeight + deltaY, presentationContent.offsetHeight * 0.6));
+            
+            panel.style.height = newHeight + 'px';
+            console.log('[Speaker Notes] Resizing, deltaY:', deltaY, 'newHeight:', newHeight);
+          });
+          
+          // Mouse up to stop resizing
+          document.addEventListener('mouseup', () => {
+            if (isResizing) {
+              isResizing = false;
+              document.body.style.userSelect = '';
+              document.body.style.cursor = '';
+              console.log('[Speaker Notes] Finished resizing');
+            }
+          });
+          
+          // Touch events for mobile support
+          resizeHandle.addEventListener('touchstart', (e) => {
+            isResizing = true;
+            startY = e.touches[0].clientY;
+            startHeight = panel.offsetHeight;
+            e.preventDefault();
+          });
+          
+          document.addEventListener('touchmove', (e) => {
+            if (!isResizing) return;
+            
+            const deltaY = startY - e.touches[0].clientY;
+            const newHeight = Math.max(80, Math.min(startHeight + deltaY, presentationContent.offsetHeight * 0.6));
+            
+            panel.style.height = newHeight + 'px';
+            e.preventDefault();
+          });
+          
+          document.addEventListener('touchend', () => {
+            if (isResizing) {
+              isResizing = false;
+            }
+          });
+        }
+
         function setupModeSwitching() {
           console.log('[Mode Switching] Setting up mode switching...');
 
@@ -2487,6 +2633,23 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               switchToMode('presentation');
             });
           }
+          
+          // Set up speaker notes toggle
+          const toggleButton = document.getElementById('toggle-speaker-notes-panel');
+          if (toggleButton) {
+            toggleButton.addEventListener('click', () => {
+              const panel = document.getElementById('speaker-notes-panel');
+              if (panel) {
+                const isVisible = panel.style.display !== 'none';
+                panel.style.display = isVisible ? 'none' : 'block';
+                toggleButton.textContent = isVisible ? 'Show' : 'Hide';
+                console.log('[Speaker Notes] Panel toggled:', isVisible ? 'hidden' : 'shown');
+              }
+            });
+          }
+          
+          // Set up speaker notes panel resizing
+          setupSpeakerNotesResize();
 
           // Render React presentation component
           const presentationRoot = document.getElementById('presentation-root');
@@ -2595,6 +2758,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
         // Expose mode switching globally
         window.switchToMode = switchToMode;
+        window.updateSpeakerNotes = updateSpeakerNotes;
     </script>
 </body>
 </html>
