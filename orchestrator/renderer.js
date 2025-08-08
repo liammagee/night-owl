@@ -3678,114 +3678,105 @@ document.addEventListener('DOMContentLoaded', initializeMarkdownFormatting);
 
 // Initialize smart list behavior
 function initializeSmartLists() {
-    if (!editor) return;
+    if (!editor) {
+        console.log('[renderer.js] Cannot initialize smart lists - no editor');
+        return;
+    }
     
-    console.log('[renderer.js] Initializing smart list behavior...');
-    
-    // Add Enter key command for list handling
-    editor.addCommand(monaco.KeyCode.Enter, () => {
-        if (handleListEnterKey()) {
-            return true; // Handled by list logic
+    // Use onKeyDown for better control over Enter key
+    editor.onKeyDown((e) => {
+        if (e.keyCode === monaco.KeyCode.Enter) {
+            if (handleSimpleListEnter()) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
         }
-        
-        // Trigger default Enter behavior for normal text
-        editor.trigger('keyboard', 'type', { text: '\n' });
-        return true;
     });
     
-    // Add Tab key command for list indentation
-    editor.addCommand(monaco.KeyCode.Tab, () => {
-        if (handleListIndentation(true)) {
-            return true; // Handled
-        }
-        return false; // Let Monaco handle default Tab
-    });
-    
-    // Add Shift+Tab key command for list outdentation  
-    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
-        if (handleListIndentation(false)) {
-            return true; // Handled
-        }
-        return false; // Let Monaco handle default Shift+Tab
-    });
-    
-    console.log('[renderer.js] Smart list behavior initialized');
+    console.log('[renderer.js] Smart list behavior initialized with onKeyDown');
 }
 
-// Handle Enter key in lists for auto-continuation
-function handleListEnterKey() {
-    if (!editor) return false;
+// Simple list enter handler
+function handleSimpleListEnter() {
+    if (!editor) {
+        return false;
+    }
     
-    const position = editor.getPosition();
-    const lineContent = editor.getModel().getLineContent(position.lineNumber);
-    const cursorColumn = position.column;
-    
-    // Check if we're on a list line
-    const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
-    
-    if (listMatch) {
-        const [, indent, marker, content] = listMatch;
+    try {
+        const position = editor.getPosition();
+        const lineContent = editor.getModel().getLineContent(position.lineNumber);
         
-        // If the list item is empty (just marker + space), remove it and exit list
-        if (content.trim() === '' && cursorColumn <= indent.length + marker.length + 1) {
-            // Remove the list marker and return to normal line
-            const range = new monaco.Range(
-                position.lineNumber, 1,
-                position.lineNumber, lineContent.length + 1
-            );
+        // Check if current line is a numbered list item
+        const numberedMatch = lineContent.match(/^(\s*)(\d+)\.\s+(.*)$/);
+        if (numberedMatch) {
+            const [, indent, currentNum, content] = numberedMatch;
             
-            editor.executeEdits('exit-list', [{
-                range: range,
-                text: indent // Just keep the indentation
+            // If empty list item, exit list
+            if (content.trim() === '') {
+                editor.executeEdits('exit-list', [{
+                    range: new monaco.Range(position.lineNumber, 1, position.lineNumber, lineContent.length + 1),
+                    text: indent
+                }]);
+                return true;
+            }
+            
+            // Create next numbered item
+            const nextNum = parseInt(currentNum) + 1;
+            const newText = '\n' + indent + nextNum + '. ';
+            
+            // Insert at current cursor position
+            editor.executeEdits('continue-list', [{
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: newText
             }]);
             
+            // Move cursor to end of new line
             editor.setPosition({
-                lineNumber: position.lineNumber,
-                column: indent.length + 1
+                lineNumber: position.lineNumber + 1,
+                column: indent.length + nextNum.toString().length + 3
             });
             
-            updatePreviewAndStructure(editor.getValue());
             return true;
         }
         
-        // Continue the list with appropriate marker
-        let newMarker;
-        if (marker.match(/\d+\./)) {
-            // Numbered list - increment the number
-            const nextNumber = getNextListNumber(position.lineNumber, indent);
-            newMarker = nextNumber + '.';
-        } else {
-            // Bulleted list - use same marker
-            newMarker = marker;
+        // Check if current line is a bulleted list item
+        const bulletMatch = lineContent.match(/^(\s*)([-*+])\s+(.*)$/);
+        if (bulletMatch) {
+            const [, indent, bullet, content] = bulletMatch;
+            
+            // If empty list item, exit list  
+            if (content.trim() === '') {
+                editor.executeEdits('exit-list', [{
+                    range: new monaco.Range(position.lineNumber, 1, position.lineNumber, lineContent.length + 1),
+                    text: indent
+                }]);
+                return true;
+            }
+            
+            // Create next bulleted item
+            const newText = '\n' + indent + bullet + ' ';
+            
+            // Insert at current cursor position
+            editor.executeEdits('continue-list', [{
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: newText
+            }]);
+            
+            // Move cursor to end of new line
+            editor.setPosition({
+                lineNumber: position.lineNumber + 1,
+                column: indent.length + bullet.length + 2
+            });
+            
+            return true;
         }
         
-        // Insert new line with continued list marker
-        const newListItem = '\n' + indent + newMarker + ' ';
+        return false; // Let Monaco handle default Enter behavior
         
-        // Split the line at cursor position if we're in the middle
-        const beforeCursor = lineContent.substring(0, cursorColumn - 1);
-        const afterCursor = lineContent.substring(cursorColumn - 1);
-        
-        const edits = [
-            {
-                range: new monaco.Range(position.lineNumber, 1, position.lineNumber, lineContent.length + 1),
-                text: beforeCursor + newListItem + afterCursor
-            }
-        ];
-        
-        editor.executeEdits('continue-list', edits);
-        
-        // Position cursor after the new marker
-        editor.setPosition({
-            lineNumber: position.lineNumber + 1,
-            column: indent.length + newMarker.length + 2
-        });
-        
-        updatePreviewAndStructure(editor.getValue());
-        return true;
+    } catch (error) {
+        console.error('[handleSimpleListEnter] Error:', error);
+        return false;
     }
-    
-    return false; // Not in a list, use default Enter behavior
 }
 
 // Get the next number for a numbered list

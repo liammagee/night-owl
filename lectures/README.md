@@ -27,5 +27,3 @@ function test() {
 ## Section Three
 Final section content.
 The end.
-
-as
