@@ -12,7 +12,7 @@
 8. PDF viewing - DONE
 9. Annotations
 10. Custom markdown for slide & notes - DONE
-11. FiSave = Refresh - DONE
+11. Fix Save = Refresh - DONE
 12. Autosave - DONE
 13. "Suck up" linked content into preview (non-recursive)
 14. Concept tagging
