@@ -587,6 +587,17 @@ function updatePreviewAndStructure(markdownContent) {
     console.log('[renderer.js] Current file path:', window.currentFilePath);
     console.log('[renderer.js] Markdown content length:', markdownContent?.length || 0);
     
+    // Check if we should suppress this preview update (for PDF/non-markdown files)
+    if (window.suppressNextPreviewUpdate || window.suppressPreviewUpdateCount > 0) {
+        console.log('[renderer.js] Suppressing preview update as requested');
+        window.suppressNextPreviewUpdate = false;
+        if (window.suppressPreviewUpdateCount > 0) {
+            window.suppressPreviewUpdateCount--;
+            console.log('[renderer.js] Remaining suppression count:', window.suppressPreviewUpdateCount);
+        }
+        return;
+    }
+    
     if (!previewContent) {
         console.error('[renderer.js] previewContent element not found!');
         return; // Don't proceed if the element is missing
@@ -2264,6 +2275,9 @@ function openFileInEditor(filePath, content) {
     // Set current file path globally for auto-save
     window.currentFilePath = filePath;
     
+    // Highlight the currently opened file in the file tree
+    highlightCurrentFileInTree(filePath);
+    
     // Add to navigation history and recent files (unless we're navigating history)
     const fileName = filePath.split('/').pop();
     addToNavigationHistory(filePath, fileName);
@@ -2312,18 +2326,20 @@ function handlePDFFile(filePath) {
         .then(markdownResult => {
             if (markdownResult && markdownResult.success) {
                 console.log('[Renderer] Loading associated markdown file in editor');
+                // Set a counter for multiple suppression calls
+                window.suppressPreviewUpdateCount = 2; // For both Monaco event and handleEditableFile call
                 handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
             } else {
-                // No associated markdown, just clear the editor
-                clearEditor();
+                // No associated markdown, clear editor without updating preview
+                clearEditor(true);
             }
             
-            // Display PDF in preview panel
+            // Display PDF in preview panel (this should not be overridden)
             displayPDFInPreview(filePath);
         })
         .catch(error => {
             console.error('[Renderer] Error checking for associated markdown:', error);
-            clearEditor();
+            clearEditor(true);
             displayPDFInPreview(filePath);
         });
 }
@@ -2349,23 +2365,30 @@ function handleHTMLFile(filePath, content) {
         .then(markdownResult => {
             if (markdownResult && markdownResult.success) {
                 console.log('[Renderer] Loading associated markdown file in editor');
+                // Set suppression counter for both Monaco event and handleEditableFile call
+                window.suppressPreviewUpdateCount = 2;
                 handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
             } else {
-                // No associated markdown, just clear the editor
-                clearEditor();
+                // No associated markdown, load the HTML content in the editor
+                console.log('[Renderer] No associated markdown found, loading HTML content in editor');
+                // Suppress preview updates so HTML file content shows in preview, not markdown rendering
+                window.suppressPreviewUpdateCount = 2;
+                handleEditableFile(filePath, content, { isHTML: true });
             }
             
-            // Display HTML in preview panel
+            // Display HTML in preview panel (should not be overridden by markdown rendering)
             displayHTMLInPreview(content, filePath);
         })
         .catch(error => {
             console.error('[Renderer] Error checking for associated markdown:', error);
-            clearEditor();
+            // Fallback to loading HTML content in editor
+            window.suppressPreviewUpdateCount = 2;
+            handleEditableFile(filePath, content, { isHTML: true });
             displayHTMLInPreview(content, filePath);
         });
 }
 
-// Handle editable files (Markdown, BibTeX)
+// Handle editable files (Markdown, BibTeX, HTML)
 function handleEditableFile(filePath, content, fileTypes) {
     console.log('[Renderer] Handling editable file:', filePath, fileTypes);
     
@@ -2381,22 +2404,24 @@ function handleEditableFile(filePath, content, fileTypes) {
         editor.setValue(content);
         
         // Configure language and theme based on file type
-        if (fileTypes.isBibTeX) {
-            const model = editor.getModel();
-            if (model) {
+        const model = editor.getModel();
+        if (model) {
+            if (fileTypes.isBibTeX) {
                 monaco.editor.setModelLanguage(model, 'bibtex');
                 // Apply appropriate BibTeX theme based on current theme
                 const isDarkTheme = editor._themeService?.getColorTheme()?.type === 'dark' || 
                                   window.currentTheme === 'dark';
                 editor.updateOptions({ theme: isDarkTheme ? 'bibtex-dark' : 'bibtex-light' });
                 console.log('[Renderer] Configured editor for BibTeX file with', isDarkTheme ? 'dark' : 'light', 'theme');
-            }
-        } else {
-            // Default to markdown for .md files and others
-            const model = editor.getModel();
-            if (model) {
+            } else if (fileTypes.isHTML) {
+                monaco.editor.setModelLanguage(model, 'html');
+                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'vs-dark' : 'vs' });
+                console.log('[Renderer] Configured editor for HTML file');
+            } else {
+                // Default to markdown for .md files and others
                 monaco.editor.setModelLanguage(model, 'markdown');
                 editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'vs-dark' : 'vs' });
+                console.log('[Renderer] Configured editor for Markdown file');
             }
         }
     } else if (fallbackEditor) {
@@ -2408,8 +2433,13 @@ function handleEditableFile(filePath, content, fileTypes) {
     hasUnsavedChanges = false;
     updateUnsavedIndicator(false);
     
-    // Update preview and structure
-    updatePreviewAndStructure(content);
+    // Update preview and structure (unless suppressed)
+    if (!window.suppressNextPreviewUpdate && !window.suppressPreviewUpdateCount) {
+        updatePreviewAndStructure(content);
+    } else {
+        console.log('[Renderer] Skipping preview update in handleEditableFile due to suppression');
+        // Don't clear the flags here - let updatePreviewAndStructure handle the counters
+    }
     
     // Sync content to presentation view (if available)
     if (window.syncContentToPresentation) {
@@ -2422,13 +2452,19 @@ function handleEditableFile(filePath, content, fileTypes) {
 }
 
 // Clear the editor
-function clearEditor() {
-    console.log('[Renderer] Clearing editor for non-editable file');
+function clearEditor(suppressPreviewUpdate = false) {
+    console.log('[Renderer] Clearing editor for non-editable file, suppressPreviewUpdate:', suppressPreviewUpdate);
+    
     if (editor && typeof editor.setValue === 'function') {
+        if (suppressPreviewUpdate) {
+            // Set a flag to prevent the next preview update
+            window.suppressNextPreviewUpdate = true;
+        }
         editor.setValue('# File Preview\n\nThis file is displayed in the preview panel.');
     } else if (fallbackEditor) {
         fallbackEditor.value = '# File Preview\n\nThis file is displayed in the preview panel.';
     }
+    
     lastSavedContent = '';
     hasUnsavedChanges = false;
     updateUnsavedIndicator(false);
@@ -3397,9 +3433,43 @@ function buildTreeHtml(node) {
     return null; // Should not happen with valid data
 }
 
+// Function to highlight the currently opened file in the file tree
+function highlightCurrentFileInTree(filePath) {
+    if (!filePath) return;
+    
+    // Remove 'selected' class from all items
+    const allItems = fileTreeView.querySelectorAll('.file, .folder');
+    allItems.forEach(item => item.classList.remove('selected'));
+    
+    // Find the file item with the matching path
+    const fileItems = fileTreeView.querySelectorAll('.file');
+    fileItems.forEach(item => {
+        if (item.dataset.path === filePath) {
+            item.classList.add('selected');
+            
+            // Scroll the selected item into view if it's not visible
+            item.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+                inline: 'nearest'
+            });
+        }
+    });
+}
+
 // Add event listener to the file tree container for delegation
 fileTreeView.addEventListener('click', (event) => {
     const target = event.target;
+
+    // Handle selection highlighting for both files and folders
+    if ((target.classList.contains('file') || target.classList.contains('folder')) && target.dataset.path) {
+        // Remove 'selected' class from all items
+        const allItems = fileTreeView.querySelectorAll('.file, .folder');
+        allItems.forEach(item => item.classList.remove('selected'));
+        
+        // Add 'selected' class to clicked item
+        target.classList.add('selected');
+    }
 
     // Check if a file was clicked
     if (target.classList.contains('file') && target.dataset.path) {
@@ -7746,4 +7816,354 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
         console.error('[Kanban] Error updating file:', error);
         throw error;
     }
+}
+
+// =====================================
+// COMMAND PALETTE SYSTEM
+// =====================================
+
+let commandPalette = null;
+let commandRegistry = new Map();
+
+// Register all available commands
+function initializeCommandPalette() {
+    // File Operations
+    registerCommand('file.new', 'File: New File', () => newFile(), 'Cmd+N');
+    registerCommand('file.open', 'File: Open File', () => openFile(), 'Cmd+O');
+    registerCommand('file.save', 'File: Save', () => saveFile(), 'Cmd+S');
+    registerCommand('file.saveAs', 'File: Save As...', () => saveAsFile(), 'Cmd+Shift+S');
+    registerCommand('file.openFolder', 'File: Open Folder', () => changeDirectory(), 'Cmd+Shift+O');
+    registerCommand('file.newFolder', 'File: New Folder', () => showNewFolderModal());
+    
+    // Edit Operations
+    registerCommand('edit.find', 'Edit: Find and Replace', () => showFindReplaceDialog(), 'Cmd+F');
+    registerCommand('edit.findGlobal', 'Edit: Global Search', () => showGlobalSearchDialog(), 'Cmd+Shift+F');
+    registerCommand('edit.undo', 'Edit: Undo', () => editor?.trigger('source', 'undo'), 'Cmd+Z');
+    registerCommand('edit.redo', 'Edit: Redo', () => editor?.trigger('source', 'redo'), 'Cmd+Shift+Z');
+    
+    // View Operations
+    registerCommand('view.togglePreview', 'View: Toggle Preview', () => togglePreview(), 'Cmd+Shift+V');
+    registerCommand('view.toggleStructure', 'View: Toggle Structure Panel', () => toggleStructurePane());
+    registerCommand('view.toggleFiles', 'View: Toggle File Explorer', () => toggleFilePane());
+    registerCommand('view.presentationMode', 'View: Enter Presentation Mode', () => enterPresentationMode(), 'F5');
+    registerCommand('view.kanban', 'View: Open Kanban Board', () => showKanbanBoard(), 'Cmd+K');
+    
+    // Formatting
+    registerCommand('format.bold', 'Format: Bold', () => applyMarkdownFormatting('**'), 'Cmd+B');
+    registerCommand('format.italic', 'Format: Italic', () => applyMarkdownFormatting('*'), 'Cmd+I');
+    registerCommand('format.code', 'Format: Inline Code', () => applyMarkdownFormatting('`'), 'Cmd+`');
+    registerCommand('format.codeBlock', 'Format: Code Block', () => insertCodeBlock(), 'Cmd+Shift+`');
+    registerCommand('format.link', 'Format: Insert Link', () => insertLink(), 'Cmd+L');
+    registerCommand('format.image', 'Format: Insert Image', () => insertImage());
+    registerCommand('format.table', 'Format: Insert Table', () => insertTable());
+    registerCommand('format.heading1', 'Format: Heading 1', () => insertHeading(1), 'Cmd+1');
+    registerCommand('format.heading2', 'Format: Heading 2', () => insertHeading(2), 'Cmd+2');
+    registerCommand('format.heading3', 'Format: Heading 3', () => insertHeading(3), 'Cmd+3');
+    
+    // Annotations
+    registerCommand('annotation.comment', 'Annotation: Insert Comment', () => insertCommentAnnotation());
+    registerCommand('annotation.highlight', 'Annotation: Insert Highlight', () => insertHighlightAnnotation());
+    registerCommand('annotation.block', 'Annotation: Insert Block', () => insertBlockAnnotation());
+    
+    // Navigation
+    registerCommand('nav.back', 'Navigate: Back', () => navigateBack());
+    registerCommand('nav.forward', 'Navigate: Forward', () => navigateForward());
+    registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => showGoToLineDialog(), 'Ctrl+G');
+    
+    // Folding
+    registerCommand('fold.all', 'Fold: Fold All', () => foldAll());
+    registerCommand('fold.unfoldAll', 'Fold: Unfold All', () => unfoldAll());
+    registerCommand('fold.current', 'Fold: Fold Current', () => foldCurrent());
+    registerCommand('fold.unfoldCurrent', 'Fold: Unfold Current', () => unfoldCurrent());
+    
+    // Export
+    registerCommand('export.pdf', 'Export: PDF', () => exportToPDF());
+    registerCommand('export.pdfWithRefs', 'Export: PDF with References', () => exportToPDFWithReferences());
+    registerCommand('export.html', 'Export: HTML', () => exportToHTML());
+    registerCommand('export.htmlWithRefs', 'Export: HTML with References', () => exportToHTMLWithReferences());
+    registerCommand('export.powerpoint', 'Export: PowerPoint', () => exportToPowerPoint());
+    
+    // AI Operations
+    registerCommand('ai.summarize', 'AI: Summarize Document', () => summarizeDocument());
+    registerCommand('ai.chat', 'AI: Open Chat', () => openAIChat());
+    
+    // Settings
+    registerCommand('settings.open', 'Settings: Open Preferences', () => openSettings(), 'Cmd+,');
+    registerCommand('settings.theme.toggle', 'Settings: Toggle Theme', () => toggleTheme());
+    
+    // Speaker Notes
+    registerCommand('speaker.toggle', 'Speaker Notes: Toggle View', () => toggleSpeakerNotesView());
+    registerCommand('speaker.add', 'Speaker Notes: Add Note', () => addSpeakerNote());
+    
+    console.log(`[CommandPalette] Registered ${commandRegistry.size} commands`);
+}
+
+function registerCommand(id, label, action, shortcut = null) {
+    commandRegistry.set(id, {
+        id,
+        label,
+        action,
+        shortcut,
+        searchText: label.toLowerCase()
+    });
+}
+
+function showCommandPalette() {
+    if (commandPalette) {
+        hideCommandPalette();
+        return;
+    }
+    
+    // Create command palette overlay
+    commandPalette = document.createElement('div');
+    commandPalette.className = 'command-palette-overlay';
+    commandPalette.innerHTML = `
+        <div class="command-palette">
+            <div class="command-palette-input-container">
+                <input type="text" class="command-palette-input" placeholder="Type a command..." autocomplete="off" spellcheck="false">
+                <div class="command-palette-shortcut">Ctrl+Shift+P</div>
+            </div>
+            <div class="command-palette-results" id="command-results"></div>
+        </div>
+    `;
+    
+    document.body.appendChild(commandPalette);
+    
+    const input = commandPalette.querySelector('.command-palette-input');
+    const results = commandPalette.querySelector('.command-palette-results');
+    
+    // Focus input
+    setTimeout(() => input.focus(), 10);
+    
+    // Show all commands initially
+    updateCommandResults('', results);
+    
+    // Handle input changes
+    input.addEventListener('input', (e) => {
+        selectedIndex = 0; // Reset selection when search changes
+        updateCommandResults(e.target.value, results);
+    });
+    
+    // Handle keyboard navigation
+    let selectedIndex = 0;
+    input.addEventListener('keydown', (e) => {
+        const items = results.querySelectorAll('.command-item');
+        
+        switch (e.key) {
+            case 'Escape':
+                e.preventDefault();
+                hideCommandPalette();
+                break;
+                
+            case 'ArrowDown':
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateSelection(items, selectedIndex);
+                break;
+                
+            case 'ArrowUp':
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                updateSelection(items, selectedIndex);
+                break;
+                
+            case 'Enter':
+                e.preventDefault();
+                const selectedItem = items[selectedIndex];
+                if (selectedItem) {
+                    executeCommand(selectedItem.dataset.commandId);
+                }
+                hideCommandPalette();
+                break;
+        }
+    });
+    
+    // Handle click outside to close
+    commandPalette.addEventListener('click', (e) => {
+        if (e.target === commandPalette) {
+            hideCommandPalette();
+        }
+    });
+}
+
+function updateCommandResults(query, resultsContainer) {
+    const filteredCommands = Array.from(commandRegistry.values())
+        .filter(cmd => cmd.searchText.includes(query.toLowerCase()))
+        .slice(0, 50); // Show more results to test scrolling
+    
+    resultsContainer.innerHTML = filteredCommands.map((cmd, index) => `
+        <div class="command-item ${index === 0 ? 'selected' : ''}" data-command-id="${cmd.id}">
+            <div class="command-label">${highlightMatch(cmd.label, query)}</div>
+            ${cmd.shortcut ? `<div class="command-shortcut">${cmd.shortcut}</div>` : ''}
+        </div>
+    `).join('');
+    
+    // Add click handlers
+    resultsContainer.querySelectorAll('.command-item').forEach(item => {
+        item.addEventListener('click', () => {
+            executeCommand(item.dataset.commandId);
+            hideCommandPalette();
+        });
+    });
+}
+
+function highlightMatch(text, query) {
+    if (!query) return text;
+    
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<mark>$1</mark>');
+}
+
+function updateSelection(items, selectedIndex) {
+    items.forEach((item, index) => {
+        item.classList.toggle('selected', index === selectedIndex);
+    });
+    
+    // Scroll selected item into view
+    const selectedItem = items[selectedIndex];
+    if (selectedItem) {
+        selectedItem.scrollIntoView({ 
+            block: 'nearest', 
+            behavior: 'smooth',
+            inline: 'nearest'
+        });
+    }
+}
+
+function executeCommand(commandId) {
+    const command = commandRegistry.get(commandId);
+    if (command) {
+        console.log(`[CommandPalette] Executing command: ${command.label}`);
+        try {
+            command.action();
+        } catch (error) {
+            console.error(`[CommandPalette] Error executing command ${commandId}:`, error);
+            showNotification(`Error executing command: ${command.label}`, 'error');
+        }
+    }
+}
+
+function hideCommandPalette() {
+    if (commandPalette) {
+        commandPalette.remove();
+        commandPalette = null;
+    }
+}
+
+// Add global keyboard shortcut for command palette
+document.addEventListener('keydown', (e) => {
+    // Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows/Linux)
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyP') {
+        e.preventDefault();
+        showCommandPalette();
+    }
+});
+
+// Initialize command palette when DOM is ready
+document.addEventListener('DOMContentLoaded', initializeCommandPalette);
+
+// Missing command functions
+function showGoToLineDialog() {
+    if (!editor) return;
+    
+    const lineCount = editor.getModel().getLineCount();
+    const currentLine = editor.getPosition().lineNumber;
+    
+    const line = prompt(`Go to line (1-${lineCount}):`, currentLine.toString());
+    if (line && !isNaN(parseInt(line))) {
+        const lineNum = Math.max(1, Math.min(parseInt(line), lineCount));
+        editor.setPosition({ lineNumber: lineNum, column: 1 });
+        editor.focus();
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    
+    // Apply theme
+    if (newTheme === 'dark') {
+        document.body.classList.add('dark-theme');
+    } else {
+        document.body.classList.remove('dark-theme');
+    }
+    
+    // Update Monaco editor theme
+    if (editor) {
+        monaco.editor.setTheme(newTheme === 'dark' ? 'vs-dark' : 'vs');
+    }
+    
+    // Save to settings
+    if (window.electronAPI) {
+        window.electronAPI.invoke('update-settings', { theme: newTheme });
+    }
+    
+    showNotification(`Switched to ${newTheme} theme`, 'success');
+}
+
+function addSpeakerNote() {
+    if (!editor) return;
+    
+    const position = editor.getPosition();
+    const note = prompt('Enter speaker note:');
+    
+    if (note) {
+        const noteText = `\n\n::: speaker-note\n${note}\n:::\n\n`;
+        editor.executeEdits('add-speaker-note', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: noteText
+        }]);
+        editor.setPosition({ lineNumber: position.lineNumber + 4, column: 1 });
+    }
+}
+
+// Export functions - using proper trigger system
+function exportToPDF() {
+    if (!currentFilePath) {
+        showNotification('Please open a file first', 'error');
+        return;
+    }
+    
+    console.log('[Export] Triggering PDF export...');
+    window.electronAPI.invoke('trigger-export', 'pdf');
+}
+
+function exportToPDFWithReferences() {
+    if (!currentFilePath) {
+        showNotification('Please open a file first', 'error');
+        return;
+    }
+    
+    console.log('[Export] Triggering PDF export with references...');
+    window.electronAPI.invoke('trigger-export', 'pdf-pandoc');
+}
+
+function exportToHTML() {
+    if (!currentFilePath) {
+        showNotification('Please open a file first', 'error');
+        return;
+    }
+    
+    console.log('[Export] Triggering HTML export...');
+    window.electronAPI.invoke('trigger-export', 'html');
+}
+
+function exportToHTMLWithReferences() {
+    if (!currentFilePath) {
+        showNotification('Please open a file first', 'error');
+        return;
+    }
+    
+    console.log('[Export] Triggering HTML export with references...');
+    window.electronAPI.invoke('trigger-export', 'html-pandoc');
+}
+
+function exportToPowerPoint() {
+    if (!currentFilePath) {
+        showNotification('Please open a file first', 'error');
+        return;
+    }
+    
+    console.log('[Export] Triggering PowerPoint export...');
+    window.electronAPI.invoke('trigger-export', 'pptx');
 }

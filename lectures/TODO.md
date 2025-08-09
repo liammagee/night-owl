@@ -10,7 +10,7 @@
 6. Integrated AI text tools - DONE
 7. Referencing support - DONE
 8. PDF viewing - DONE
-9. Annotations
+9. Annotations - IN PROGRESS
 10. Custom markdown for slide & notes - DONE
 11. Fix Save = Refresh - DONE
 12. Autosave - DONE
@@ -26,6 +26,6 @@
 22. Reference autocomplete - DONE
 23. Toggle panes - DONE
 24. Fix Icon - DONE
-25. Cmd+P / Cmd+Shift+P
+25. Cmd+P / Cmd+Shift+P - IN PROGRESS
 
  

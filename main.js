@@ -3407,6 +3407,41 @@ Keep it concise and focused on the most important points.`;
     }
 });
 
+  // Export trigger handler
+  ipcMain.handle('trigger-export', async (event, exportType) => {
+    console.log(`[main.js] Received trigger-export request: ${exportType}`);
+    
+    if (!mainWindow) {
+      console.error('[main.js] No main window available for export trigger');
+      return;
+    }
+    
+    switch (exportType) {
+      case 'html':
+        console.log('[main.js] Triggering HTML export');
+        mainWindow.webContents.send('trigger-export-html');
+        break;
+      case 'html-pandoc':
+        console.log('[main.js] Triggering HTML export with references');
+        mainWindow.webContents.send('trigger-export-html-pandoc');
+        break;
+      case 'pdf':
+        console.log('[main.js] Triggering PDF export');
+        mainWindow.webContents.send('trigger-export-pdf');
+        break;
+      case 'pdf-pandoc':
+        console.log('[main.js] Triggering PDF export with references');
+        mainWindow.webContents.send('trigger-export-pdf-pandoc');
+        break;
+      case 'pptx':
+        console.log('[main.js] Triggering PowerPoint export');
+        mainWindow.webContents.send('trigger-export-pptx');
+        break;
+      default:
+        console.error(`[main.js] Unknown export type: ${exportType}`);
+    }
+  });
+
   // Global search handler
   ipcMain.handle('global-search', async (event, { query, options = {} }) => {
     try {

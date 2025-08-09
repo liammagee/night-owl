@@ -255,7 +255,23 @@ h2 {
 
 #file-tree-view li.folder:hover,
 #file-tree-view li.file:hover {
-    background-color: var(--hover-bg-color);
+    background-color: rgba(0, 123, 255, 0.1);
+    border-radius: 4px;
+    padding-left: 4px;
+    transition: all 0.15s ease;
+}
+
+#file-tree-view li.folder:active,
+#file-tree-view li.file:active {
+    background-color: rgba(0, 123, 255, 0.2);
+    transform: translateX(2px);
+}
+
+#file-tree-view li.folder.selected,
+#file-tree-view li.file.selected {
+    background-color: rgba(0, 123, 255, 0.25);
+    border-left: 3px solid #007bff;
+    font-weight: 500;
 }
 
 /* --- Right Pane (Preview/Chat) --- */
@@ -512,7 +528,23 @@ body.dark-mode {
 /* Style file tree in dark mode */
 .dark-mode #file-tree-view .file:hover,
 .dark-mode #file-tree-view .folder:hover {
-    background-color: #333333;
+    background-color: rgba(100, 149, 237, 0.15);
+    border-radius: 4px;
+    padding-left: 4px;
+    transition: all 0.15s ease;
+}
+
+.dark-mode #file-tree-view .file:active,
+.dark-mode #file-tree-view .folder:active {
+    background-color: rgba(100, 149, 237, 0.25);
+    transform: translateX(2px);
+}
+
+.dark-mode #file-tree-view .file.selected,
+.dark-mode #file-tree-view .folder.selected {
+    background-color: rgba(100, 149, 237, 0.3);
+    border-left: 3px solid #6495ed;
+    font-weight: 500;
 }
 
 /* Dark mode markdown styles */
@@ -1046,4 +1078,206 @@ body.dark-theme .annotation-highlight {
 
 body.dark-theme .annotation-highlight:hover {
     background-color: rgba(255, 193, 7, 0.5);
+}
+
+/* =====================================
+   COMMAND PALETTE STYLES
+   ===================================== */
+
+.command-palette-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 15vh;
+    animation: paletteOverlayFadeIn 0.15s ease-out;
+}
+
+.command-palette {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 
+        0 16px 70px rgba(0, 0, 0, 0.2),
+        0 4px 25px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+    min-width: 500px;
+    max-width: 600px;
+    max-height: 60vh;
+    overflow: hidden;
+    animation: paletteSlideIn 0.2s ease-out;
+}
+
+.command-palette-input-container {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    position: relative;
+}
+
+.command-palette-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 16px;
+    color: #1f2937;
+    background: transparent;
+    font-family: inherit;
+}
+
+.command-palette-input::placeholder {
+    color: #9ca3af;
+}
+
+.command-palette-shortcut {
+    font-size: 12px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-weight: 500;
+}
+
+.command-palette-results {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+}
+
+.command-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+    border: none;
+    background: none;
+    font-size: 14px;
+}
+
+.command-item:hover,
+.command-item.selected {
+    background: #f3f4f6;
+}
+
+.command-label {
+    flex: 1;
+    text-align: left;
+    color: #1f2937;
+    font-weight: 400;
+}
+
+.command-label mark {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 0;
+    font-weight: 600;
+}
+
+.command-shortcut {
+    font-size: 11px;
+    color: #6b7280;
+    background: #f9fafb;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-weight: 500;
+    margin-left: 12px;
+}
+
+/* Animations */
+@keyframes paletteOverlayFadeIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes paletteSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Dark mode support for command palette */
+body.dark-theme .command-palette {
+    background: #1f2937;
+    border: 1px solid #374151;
+    box-shadow: 
+        0 16px 70px rgba(0, 0, 0, 0.6),
+        0 4px 25px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+body.dark-theme .command-palette-input-container {
+    border-bottom-color: #374151;
+}
+
+body.dark-theme .command-palette-input {
+    color: #f9fafb;
+}
+
+body.dark-theme .command-palette-input::placeholder {
+    color: #6b7280;
+}
+
+body.dark-theme .command-palette-shortcut {
+    background: #374151;
+    color: #9ca3af;
+}
+
+body.dark-theme .command-item:hover,
+body.dark-theme .command-item.selected {
+    background: #374151;
+}
+
+body.dark-theme .command-label {
+    color: #f3f4f6;
+}
+
+body.dark-theme .command-label mark {
+    background: #92400e;
+    color: #fef3c7;
+}
+
+body.dark-theme .command-shortcut {
+    background: #4b5563;
+    color: #9ca3af;
+}
+
+/* Scrollbar styling for command palette */
+.command-palette-results::-webkit-scrollbar {
+    width: 6px;
+}
+
+.command-palette-results::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.command-palette-results::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+}
+
+body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
+    background: #4b5563;
 }
