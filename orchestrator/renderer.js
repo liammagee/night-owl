@@ -101,6 +101,23 @@ function updateStatusBar(content) {
     }
 }
 
+function updateStatusBarWithKanban(totalTasks, doneTasks) {
+    const wordCountEl = document.getElementById('word-count');
+    const charCountEl = document.getElementById('char-count');
+    const lineCountEl = document.getElementById('line-count');
+    const cursorPosEl = document.getElementById('cursor-position');
+    
+    // Calculate progress
+    const inProgressTasks = totalTasks - doneTasks;
+    const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+    
+    // Update status bar elements with Kanban stats
+    if (wordCountEl) wordCountEl.textContent = `📋 Total Tasks: ${totalTasks}`;
+    if (charCountEl) charCountEl.textContent = `✅ Completed: ${doneTasks}`;
+    if (lineCountEl) lineCountEl.textContent = `⏳ Remaining: ${inProgressTasks}`;
+    if (cursorPosEl) cursorPosEl.textContent = `📊 Progress: ${progressPercent}%`;
+}
+
 // --- Process Speaker Notes Extension ---
 function processSpeakerNotes(content) {
     // Extract speaker notes from ```notes blocks
@@ -371,15 +388,109 @@ function generateTemplateSections(linkName) {
 // --- Update Function Definition ---
 function updatePreviewAndStructure(markdownContent) {
     console.log('[renderer.js] Updating preview and structure...'); // Add logging
+    console.log('[renderer.js] Current file path:', window.currentFilePath);
+    console.log('[renderer.js] Markdown content length:', markdownContent?.length || 0);
+    
     if (!previewContent) {
         console.error('[renderer.js] previewContent element not found!');
         return; // Don't proceed if the element is missing
+    }
+    
+    // Check if this should be rendered as a Kanban board (async)
+    const currentFilePath = window.currentFilePath;
+    console.log('[renderer.js] About to check Kanban rendering for:', currentFilePath);
+    
+    if (currentFilePath) {
+        // Handle Kanban check asynchronously
+        window.electronAPI.invoke('get-settings')
+            .then(settings => {
+                console.log('[renderer.js] Got settings for Kanban check:', settings?.kanban ? 'Kanban settings found' : 'No Kanban settings');
+                console.log('[renderer.js] Full Kanban settings:', JSON.stringify(settings?.kanban, null, 2));
+                if (shouldRenderAsKanban(currentFilePath, settings)) {
+                    console.log('[renderer.js] Rendering as Kanban board...');
+                    // Add visual indicator to title
+                    document.title = '📋 Kanban: ' + (currentFilePath.split('/').pop() || 'TODO');
+                    
+                    // Parse and render Kanban board
+                    const parsedKanban = parseKanbanFromMarkdown(markdownContent, settings);
+                    const kanbanHtml = renderKanbanBoard(parsedKanban, currentFilePath);
+                    
+                    previewContent.innerHTML = kanbanHtml;
+                    
+                    // Force horizontal scrolling after Kanban renders
+                    setTimeout(() => {
+                        forceKanbanHorizontalScroll();
+                    }, 100);
+                    
+                    // Setup drag and drop if enabled
+                    if (settings.kanban?.enableDragDrop) {
+                        const kanbanBoard = previewContent.querySelector('.kanban-board');
+                        if (kanbanBoard) {
+                            setupKanbanDragAndDrop(kanbanBoard, currentFilePath);
+                        }
+                    }
+                    
+                    // Update status bar with Kanban stats
+                    const totalTasks = parsedKanban.tasks.length;
+                    const doneTasks = parsedKanban.tasksByColumn.done?.length || 0;
+                    updateStatusBarWithKanban(totalTasks, doneTasks);
+                    
+                    // Clear structure pane for Kanban view
+                    const structureList = document.getElementById('structure-list');
+                    if (structureList) {
+                        structureList.innerHTML = '<li>📋 Kanban Board View</li>';
+                    }
+                    
+                    // Adjust layout for Kanban view - minimize editor pane
+                    const editorPane = document.getElementById('editor-pane');
+                    const previewPane = document.getElementById('preview-pane');
+                    if (editorPane && previewPane) {
+                        editorPane.style.flex = '0 0 300px'; // Minimize editor to 300px
+                        previewPane.style.flex = '1'; // Preview takes remaining space
+                        console.log('[renderer.js] Adjusted layout for Kanban view');
+                    }
+                    
+                    return; // Exit early for Kanban rendering
+                }
+                
+                // Not a Kanban file - render as regular markdown
+                document.title = '📝 ' + (currentFilePath.split('/').pop() || 'Markdown');
+                renderRegularMarkdown(markdownContent);
+            })
+            .catch(error => {
+                console.error('[renderer.js] Error checking Kanban rendering:', error);
+                // Fall back to regular markdown rendering
+                renderRegularMarkdown(markdownContent);
+            });
+        
+        return; // Exit to avoid double rendering
+    }
+    
+    // If no currentFilePath, render regular markdown
+    renderRegularMarkdown(markdownContent);
+}
+
+function renderRegularMarkdown(markdownContent) {
+    // Restore normal layout (in case we're switching from Kanban view)
+    const editorPane = document.getElementById('editor-pane');
+    const previewPane = document.getElementById('preview-pane');
+    if (editorPane && previewPane) {
+        editorPane.style.flex = '1'; // 50% width for editor
+        previewPane.style.flex = '1'; // 50% width for preview
+        console.log('[renderer.js] Restored normal layout from Kanban view');
     }
     
     // Update status bar with current content
     updateStatusBar(markdownContent);
 
     try {
+        // Check if marked is available
+        if (typeof marked === 'undefined') {
+            console.error('[renderer.js] Marked library not loaded, using fallback');
+            previewContent.innerHTML = '<pre>' + markdownContent + '</pre>';
+            return;
+        }
+        
         // Create a custom Marked renderer
         const renderer = new marked.Renderer();
         const originalHeading = renderer.heading.bind(renderer); // Keep original renderer
@@ -1683,6 +1794,48 @@ if (window.electronAPI) {
 }
 
 // Helper to open file in editor
+async function refreshCurrentFile() {
+    if (!currentFilePath) {
+        console.log('[Renderer] No current file to refresh');
+        return;
+    }
+    
+    try {
+        console.log('[Renderer] Refreshing current file:', currentFilePath);
+        console.log('[Renderer] Before refresh - editor content preview:', editor ? editor.getValue().substring(0, 200) : 'No editor');
+        
+        const result = await window.electronAPI.invoke('open-file-path', currentFilePath);
+        console.log('[Renderer] Open-file result:', result.success ? 'Success' : 'Failed', result.error);
+        
+        if (result.success) {
+            console.log('[Renderer] New file content preview:', result.content.substring(0, 200));
+            
+            // Preserve the current cursor position if possible
+            const editor = document.querySelector('.editor textarea');
+            const cursorPos = editor ? editor.selectionStart : 0;
+            
+            openFileInEditor(result.filePath, result.content);
+            
+            // Restore cursor position
+            if (editor && cursorPos) {
+                setTimeout(() => {
+                    const newEditor = document.querySelector('.editor textarea');
+                    if (newEditor) {
+                        newEditor.setSelectionRange(cursorPos, cursorPos);
+                    }
+                }, 100);
+            }
+            
+            console.log('[Renderer] File refreshed successfully');
+            console.log('[Renderer] After refresh - editor content preview:', editor ? editor.getValue().substring(0, 200) : 'No editor');
+        } else {
+            console.error('[Renderer] Failed to refresh file:', result.error);
+        }
+    } catch (error) {
+        console.error('[Renderer] Error refreshing current file:', error);
+    }
+}
+
 function openFileInEditor(filePath, content) {
     console.log('[Renderer] Opening file in editor:', filePath);
     
@@ -5540,6 +5693,188 @@ function initializeSmartListsWhenReady() {
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', initializeSmartListsWhenReady);
 
+// === Pane Toggle Functionality ===
+let sidebarVisible = true;
+let editorVisible = true;
+let previewVisible = true;
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('left-sidebar');
+    const resizer = document.getElementById('sidebar-resizer');
+    const toggleBtn = document.getElementById('toggle-sidebar-btn');
+    
+    if (sidebarVisible) {
+        sidebar.style.display = 'none';
+        resizer.style.display = 'none';
+        toggleBtn.style.background = '#ccc';
+        toggleBtn.style.color = '#666';
+    } else {
+        sidebar.style.display = 'flex';
+        resizer.style.display = 'block';
+        toggleBtn.style.background = '#007acc';
+        toggleBtn.style.color = 'white';
+    }
+    sidebarVisible = !sidebarVisible;
+}
+
+function toggleEditor() {
+    const editorPane = document.getElementById('editor-pane');
+    const toggleBtn = document.getElementById('toggle-editor-btn');
+    
+    if (editorVisible) {
+        editorPane.style.display = 'none';
+        toggleBtn.style.background = '#ccc';
+        toggleBtn.style.color = '#666';
+        // Adjust preview to take full width
+        const previewPane = document.getElementById('preview-pane');
+        if (previewPane) previewPane.style.flex = '1';
+    } else {
+        editorPane.style.display = 'flex';
+        toggleBtn.style.background = '#007acc';
+        toggleBtn.style.color = 'white';
+        // Restore normal layout proportions
+        refreshLayoutProportions();
+    }
+    editorVisible = !editorVisible;
+}
+
+function togglePreview() {
+    const previewPane = document.getElementById('preview-pane');
+    const toggleBtn = document.getElementById('toggle-preview-btn');
+    
+    if (previewVisible) {
+        previewPane.style.display = 'none';
+        toggleBtn.style.background = '#ccc';
+        toggleBtn.style.color = '#666';
+        // Adjust editor to take full width
+        const editorPane = document.getElementById('editor-pane');
+        if (editorPane) editorPane.style.flex = '1';
+    } else {
+        previewPane.style.display = 'flex';
+        toggleBtn.style.background = '#007acc';
+        toggleBtn.style.color = 'white';
+        // Restore normal layout proportions
+        refreshLayoutProportions();
+    }
+    previewVisible = !previewVisible;
+}
+
+function refreshLayoutProportions() {
+    const editorPane = document.getElementById('editor-pane');
+    const previewPane = document.getElementById('preview-pane');
+    
+    // Check if we're in Kanban view
+    const isKanban = document.querySelector('.kanban-board') !== null;
+    
+    if (editorVisible && previewVisible) {
+        if (isKanban) {
+            editorPane.style.flex = '0 0 300px';
+            previewPane.style.flex = '1';
+        } else {
+            editorPane.style.flex = '1';
+            previewPane.style.flex = '1';
+        }
+    }
+}
+
+function forceKanbanHorizontalScroll() {
+    const previewContent = document.getElementById('preview-content');
+    const kanbanBoard = document.querySelector('.kanban-board');
+    
+    if (!previewContent || !kanbanBoard) {
+        console.log('[Kanban] Preview content or Kanban board not found for scroll setup');
+        return;
+    }
+    
+    console.log('[Kanban] Setting up horizontal scroll...');
+    
+    // CORRECT APPROACH: Constrain the parent containers that are too wide
+    // The issue is the main content area is enormous, making preview-content expand
+    
+    // Find and constrain the problematic parent containers
+    const previewPane = document.getElementById('preview-pane');
+    const editorContent = document.getElementById('editor-content');
+    
+    console.log('[Kanban] Preview content width:', previewContent.offsetWidth + 'px');
+    console.log('[Kanban] Preview pane width:', previewPane ? previewPane.offsetWidth : 'not found');
+    console.log('[Kanban] Editor content width:', editorContent ? editorContent.offsetWidth : 'not found');
+    
+    // Constrain the preview pane to a reasonable width for Kanban viewing
+    const maxKanbanContainerWidth = 1200; // Reasonable max width for Kanban
+    
+    if (previewPane) {
+        previewPane.style.setProperty('max-width', maxKanbanContainerWidth + 'px', 'important');
+        previewPane.style.setProperty('overflow-x', 'auto', 'important');
+        previewPane.style.setProperty('overflow-y', 'auto', 'important');
+        console.log('[Kanban] Constrained preview pane to max', maxKanbanContainerWidth + 'px');
+    }
+    
+    // Set overflow properties on preview content
+    previewContent.style.setProperty('overflow-x', 'auto', 'important');
+    previewContent.style.setProperty('overflow-y', 'auto', 'important');
+    
+    // Make Kanban board wider than the constrained container
+    const columns = kanbanBoard.querySelectorAll('.kanban-column');
+    const minColumnWidth = 350; // Good column width for readability
+    const calculatedWidth = columns.length * (minColumnWidth + 16) + 32; // columns * (width + gap) + padding
+    const requiredWidth = Math.max(calculatedWidth, maxKanbanContainerWidth + 200); // Ensure overflow
+    
+    console.log('[Kanban] Found', columns.length, 'columns');
+    console.log('[Kanban] Calculated Kanban width:', calculatedWidth + 'px');
+    console.log('[Kanban] Required width for overflow:', requiredWidth + 'px');
+    
+    // Apply natural sizing to Kanban board
+    kanbanBoard.style.setProperty('min-width', requiredWidth + 'px', 'important');
+    kanbanBoard.style.setProperty('width', 'max-content', 'important');
+    kanbanBoard.style.setProperty('flex-shrink', '0', 'important');
+    
+    // Ensure columns have appropriate width
+    columns.forEach(column => {
+        column.style.setProperty('min-width', minColumnWidth + 'px', 'important');
+        column.style.setProperty('max-width', minColumnWidth + 'px', 'important');
+        column.style.setProperty('flex-shrink', '0', 'important');
+    });
+    
+    // Force reflow
+    previewContent.offsetHeight;
+    
+    console.log('[Kanban] After setup:');
+    console.log('[Kanban] - Preview pane client width:', previewPane ? previewPane.clientWidth : 'N/A');
+    console.log('[Kanban] - Preview content client width:', previewContent.clientWidth);
+    console.log('[Kanban] - Preview content scroll width:', previewContent.scrollWidth);
+    console.log('[Kanban] - Horizontal scroll available:', previewContent.scrollWidth > previewContent.clientWidth);
+    
+    if (previewContent.scrollWidth > previewContent.clientWidth) {
+        console.log('[Kanban] SUCCESS! Horizontal scrolling should now be available');
+        // Test the scroll
+        setTimeout(() => {
+            previewContent.scrollLeft = 100;
+            setTimeout(() => previewContent.scrollLeft = 0, 1000);
+        }, 500);
+    } else {
+        console.log('[Kanban] Still no overflow - may need further adjustment');
+    }
+}
+
+// Initialize pane toggles
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+    const toggleEditorBtn = document.getElementById('toggle-editor-btn');
+    const togglePreviewBtn = document.getElementById('toggle-preview-btn');
+    
+    if (toggleSidebarBtn) {
+        toggleSidebarBtn.addEventListener('click', toggleSidebar);
+    }
+    
+    if (toggleEditorBtn) {
+        toggleEditorBtn.addEventListener('click', toggleEditor);
+    }
+    
+    if (togglePreviewBtn) {
+        togglePreviewBtn.addEventListener('click', togglePreview);
+    }
+});
+
 // === Settings Dialog Implementation ===
 
 let settingsDialog = null;
@@ -5738,6 +6073,7 @@ function createSettingsSidebar() {
         { id: 'editor', label: 'Editor', icon: '📝' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
         { id: 'export', label: 'Export', icon: '📤' },
+        { id: 'kanban', label: 'Kanban', icon: '📋' },
         { id: 'advanced', label: 'Advanced', icon: '🔧' }
     ];
     
@@ -5815,6 +6151,8 @@ function generateSettingsContent(category) {
             return generateAISettings();
         case 'export':
             return generateExportSettings();
+        case 'kanban':
+            return generateKanbanSettings();
         case 'advanced':
             return generateAdvancedSettings();
         default:
@@ -6057,6 +6395,71 @@ function generateExportSettings() {
     `;
 }
 
+function generateKanbanSettings() {
+    const kanbanSettings = currentSettings.kanban || {};
+    const todoFilePatterns = kanbanSettings.todoFilePatterns || [];
+    const columns = kanbanSettings.columns || [];
+    const doneMarkers = kanbanSettings.doneMarkers || [];
+    const inProgressMarkers = kanbanSettings.inProgressMarkers || [];
+    
+    return `
+        <div class="settings-section">
+            <h3>TODO File Patterns</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="text" id="todo-file-patterns" value="${todoFilePatterns.join(', ')}" placeholder="TODO.md, TODOS.md, todo.md">
+                    <span>File patterns that should render as Kanban boards (comma-separated)</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Task Status Markers</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="text" id="done-markers" value="${doneMarkers.join(', ')}" placeholder="DONE, COMPLETED, ✓">
+                    <span>Done status markers (comma-separated)</span>
+                </label>
+                <label>
+                    <input type="text" id="inprogress-markers" value="${inProgressMarkers.join(', ')}" placeholder="IN PROGRESS, DOING, ⏳">
+                    <span>In Progress status markers (comma-separated)</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Kanban Board Options</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="kanban-drag-drop" ${kanbanSettings.enableDragDrop ? 'checked' : ''}>
+                    <span>Enable drag and drop for tasks</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="kanban-auto-save" ${kanbanSettings.autoSave ? 'checked' : ''}>
+                    <span>Auto-save changes when tasks are moved</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Kanban Columns</h3>
+            <div class="settings-group">
+                <p>Configure your Kanban board columns:</p>
+                <div id="kanban-columns-editor">
+                    ${columns.map((col, index) => `
+                        <div class="kanban-column-row" data-index="${index}">
+                            <input type="text" class="column-name" value="${col.name}" placeholder="Column Name">
+                            <input type="color" class="column-color" value="${col.color}">
+                            <button type="button" class="remove-column" onclick="removeKanbanColumn(${index})">×</button>
+                        </div>
+                    `).join('')}
+                </div>
+                <button type="button" onclick="addKanbanColumn()">Add Column</button>
+            </div>
+        </div>
+    `;
+}
+
 function generateAdvancedSettings() {
     return `
         <div class="settings-section">
@@ -6223,6 +6626,57 @@ function collectSettingsFromForm() {
         updatedSettings.export.includeReferences = includeReferences;
     }
     
+    // Kanban settings
+    const todoFilePatterns = document.getElementById('todo-file-patterns')?.value;
+    if (todoFilePatterns !== undefined) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.todoFilePatterns = todoFilePatterns.split(',').map(p => p.trim()).filter(p => p);
+    }
+    
+    const doneMarkers = document.getElementById('done-markers')?.value;
+    if (doneMarkers !== undefined) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.doneMarkers = doneMarkers.split(',').map(p => p.trim()).filter(p => p);
+    }
+    
+    const inprogressMarkers = document.getElementById('inprogress-markers')?.value;
+    if (inprogressMarkers !== undefined) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.inProgressMarkers = inprogressMarkers.split(',').map(p => p.trim()).filter(p => p);
+    }
+    
+    const kanbanDragDrop = document.getElementById('kanban-drag-drop')?.checked;
+    if (kanbanDragDrop !== undefined) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.enableDragDrop = kanbanDragDrop;
+    }
+    
+    const kanbanAutoSave = document.getElementById('kanban-auto-save')?.checked;
+    if (kanbanAutoSave !== undefined) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.autoSave = kanbanAutoSave;
+    }
+    
+    // Kanban columns
+    const kanbanColumnsEditor = document.getElementById('kanban-columns-editor');
+    if (kanbanColumnsEditor) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.columns = [];
+        
+        Array.from(kanbanColumnsEditor.children).forEach((row, index) => {
+            const nameInput = row.querySelector('.column-name');
+            const colorInput = row.querySelector('.column-color');
+            
+            if (nameInput && colorInput) {
+                updatedSettings.kanban.columns.push({
+                    id: nameInput.value.toLowerCase().replace(/\s+/g, '-'),
+                    name: nameInput.value,
+                    color: colorInput.value
+                });
+            }
+        });
+    }
+    
     return updatedSettings;
 }
 
@@ -6272,5 +6726,343 @@ function resetSettingsFromDialog() {
     if (confirm('Are you sure you want to reset all settings to their default values? This action cannot be undone.')) {
         // This will be handled by the main process menu action
         showNotification('Use Settings → Reset All Settings from the main menu', 'info');
+    }
+}
+
+// === Kanban Settings Helper Functions ===
+
+function addKanbanColumn() {
+    const editor = document.getElementById('kanban-columns-editor');
+    if (!editor) return;
+    
+    const index = editor.children.length;
+    const newColumn = document.createElement('div');
+    newColumn.className = 'kanban-column-row';
+    newColumn.dataset.index = index;
+    newColumn.innerHTML = `
+        <input type="text" class="column-name" value="New Column" placeholder="Column Name">
+        <input type="color" class="column-color" value="#f0f0f0">
+        <button type="button" class="remove-column" onclick="removeKanbanColumn(${index})">×</button>
+    `;
+    editor.appendChild(newColumn);
+}
+
+function removeKanbanColumn(index) {
+    const editor = document.getElementById('kanban-columns-editor');
+    if (!editor) return;
+    
+    const row = editor.querySelector(`[data-index="${index}"]`);
+    if (row) {
+        row.remove();
+        
+        // Reindex remaining rows
+        Array.from(editor.children).forEach((child, newIndex) => {
+            child.dataset.index = newIndex;
+            const removeBtn = child.querySelector('.remove-column');
+            if (removeBtn) {
+                removeBtn.setAttribute('onclick', `removeKanbanColumn(${newIndex})`);
+            }
+        });
+    }
+}
+
+// === Kanban Board Functions ===
+
+function shouldRenderAsKanban(filePath, settings) {
+    console.log('[Kanban] shouldRenderAsKanban called with:', { filePath, settings: settings?.kanban });
+    
+    if (!settings?.kanban?.todoFilePatterns) {
+        console.log('[Kanban] No todoFilePatterns found in settings');
+        return false;
+    }
+    
+    const fileName = filePath.split('/').pop() || '';
+    console.log('[Kanban] Extracted fileName:', fileName);
+    console.log('[Kanban] Available patterns:', settings.kanban.todoFilePatterns);
+    
+    const shouldRender = settings.kanban.todoFilePatterns.some(pattern => {
+        const regex = new RegExp(pattern.replace('*', '.*').replace(/\./g, '\\.'), 'i');
+        const matches = regex.test(fileName);
+        console.log('[Kanban] Testing pattern:', pattern, 'against fileName:', fileName, 'matches:', matches);
+        return matches;
+    });
+    
+    console.log('[Kanban] Final shouldRender result:', shouldRender);
+    return shouldRender;
+}
+
+function parseKanbanFromMarkdown(content, settings) {
+    const kanbanSettings = settings?.kanban || {};
+    const doneMarkers = kanbanSettings.doneMarkers || ['DONE', 'COMPLETED', '✓', '✔', '[x]', '[X]'];
+    const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS', 'DOING', '⏳', '[~]'];
+    const columns = kanbanSettings.columns || [
+        { id: 'todo', name: 'To Do', color: '#e3f2fd' },
+        { id: 'inprogress', name: 'In Progress', color: '#fff3e0' },
+        { id: 'done', name: 'Done', color: '#e8f5e8' }
+    ];
+    
+    const tasks = [];
+    const lines = content.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // Match numbered lists (1. 2. etc.) or bullet points (- * +)
+        const listMatch = line.match(/^(\d+\.\s*|\*\s*|\-\s*|\+\s*)(.*)/);
+        if (listMatch) {
+            const taskText = listMatch[2].trim();
+            if (!taskText) continue;
+            
+            let status = 'todo';
+            let cleanText = taskText;
+            
+            // Check for done markers
+            const hasDoneMarker = doneMarkers.some(marker => {
+                if (taskText.toUpperCase().includes(marker.toUpperCase())) {
+                    cleanText = taskText.replace(new RegExp(marker, 'gi'), '').trim();
+                    // Remove common separators left behind
+                    cleanText = cleanText.replace(/^[-\s]*|[-\s]*$/g, '').trim();
+                    return true;
+                }
+                return false;
+            });
+            
+            if (hasDoneMarker) {
+                status = 'done';
+            } else {
+                // Check for in-progress markers
+                const hasInProgressMarker = inProgressMarkers.some(marker => {
+                    if (taskText.toUpperCase().includes(marker.toUpperCase())) {
+                        cleanText = taskText.replace(new RegExp(marker, 'gi'), '').trim();
+                        cleanText = cleanText.replace(/^[-\s]*|[-\s]*$/g, '').trim();
+                        return true;
+                    }
+                    return false;
+                });
+                
+                if (hasInProgressMarker) {
+                    status = 'inprogress';
+                }
+            }
+            
+            tasks.push({
+                id: `task-${i}`,
+                number: listMatch[1].trim(),
+                text: cleanText,
+                originalText: taskText,
+                status: status,
+                lineNumber: i
+            });
+        }
+    }
+    
+    // Group tasks by status
+    const tasksByColumn = {};
+    columns.forEach(column => {
+        tasksByColumn[column.id] = tasks.filter(task => task.status === column.id);
+    });
+    
+    return { columns, tasks, tasksByColumn };
+}
+
+function renderKanbanBoard(parsedKanban, filePath) {
+    const { columns, tasksByColumn } = parsedKanban;
+    
+    let boardHtml = '<div class="kanban-board" data-file-path="' + filePath + '">';
+    
+    columns.forEach(column => {
+        const tasks = tasksByColumn[column.id] || [];
+        
+        boardHtml += `
+            <div class="kanban-column" data-column-id="${column.id}" style="background-color: ${column.color}">
+                <div class="kanban-column-header">${column.name} (${tasks.length})</div>
+                <div class="kanban-tasks" data-column="${column.id}">
+        `;
+        
+        tasks.forEach(task => {
+            boardHtml += `
+                <div class="kanban-task" 
+                     data-task-id="${task.id}"
+                     data-line-number="${task.lineNumber}"
+                     data-original-status="${task.status}"
+                     draggable="true">
+                    <div class="kanban-task-number">${task.number}</div>
+                    <div class="kanban-task-text">${task.text}</div>
+                </div>
+            `;
+        });
+        
+        boardHtml += `
+                </div>
+            </div>
+        `;
+    });
+    
+    boardHtml += '</div>';
+    
+    return boardHtml;
+}
+
+function setupKanbanDragAndDrop(container, filePath) {
+    const tasks = container.querySelectorAll('.kanban-task');
+    const columns = container.querySelectorAll('.kanban-tasks');
+    
+    // Setup drag events for tasks
+    tasks.forEach(task => {
+        task.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', task.dataset.taskId);
+            task.classList.add('dragging');
+        });
+        
+        task.addEventListener('dragend', () => {
+            task.classList.remove('dragging');
+        });
+    });
+    
+    // Setup drop events for columns
+    columns.forEach(column => {
+        column.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            column.parentElement.classList.add('drag-over');
+        });
+        
+        column.addEventListener('dragleave', (e) => {
+            if (!column.contains(e.relatedTarget)) {
+                column.parentElement.classList.remove('drag-over');
+            }
+        });
+        
+        column.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            column.parentElement.classList.remove('drag-over');
+            
+            const taskId = e.dataTransfer.getData('text/plain');
+            const task = container.querySelector(`[data-task-id="${taskId}"]`);
+            
+            if (task && task.parentElement !== column) {
+                const newColumnId = column.dataset.column;
+                const oldColumnId = task.dataset.originalStatus;
+                
+                // Move the task visually
+                column.appendChild(task);
+                task.dataset.originalStatus = newColumnId;
+                
+                // Update column headers
+                updateKanbanColumnHeaders(container);
+                
+                // Save the change back to the file
+                try {
+                    // Temporarily disable auto-save to prevent conflicts
+                    const wasAutoSaveEnabled = window.appSettings?.ui?.autoSave;
+                    if (wasAutoSaveEnabled && autoSaveTimer) {
+                        clearTimeout(autoSaveTimer);
+                        autoSaveTimer = null;
+                        console.log('[Kanban] Temporarily disabled auto-save during Kanban update');
+                    }
+                    
+                    await updateKanbanTaskInFile(filePath, task, newColumnId);
+                    showNotification('Task moved successfully', 'success');
+                    
+                    // Refresh the editor content if this file is currently open
+                    if (currentFilePath === filePath) {
+                        console.log('[Kanban] Refreshing editor content after task update');
+                        await refreshCurrentFile();
+                        
+                        // Update the lastSavedContent to prevent auto-save conflicts
+                        if (editor) {
+                            lastSavedContent = editor.getValue();
+                            hasUnsavedChanges = false;
+                            updateUnsavedIndicator(false);
+                        }
+                    }
+                    
+                    // Re-enable auto-save after a short delay
+                    if (wasAutoSaveEnabled) {
+                        setTimeout(() => {
+                            console.log('[Kanban] Re-enabled auto-save after Kanban update');
+                        }, 500);
+                    }
+                } catch (error) {
+                    console.error('Error updating task:', error);
+                    showNotification('Error saving task change', 'error');
+                    
+                    // Revert the visual change on error
+                    const originalColumn = container.querySelector(`[data-column="${oldColumnId}"]`);
+                    if (originalColumn) {
+                        originalColumn.appendChild(task);
+                        task.dataset.originalStatus = oldColumnId;
+                        updateKanbanColumnHeaders(container);
+                    }
+                }
+            }
+        });
+    });
+}
+
+function updateKanbanColumnHeaders(container) {
+    const columns = container.querySelectorAll('.kanban-column');
+    columns.forEach(column => {
+        const header = column.querySelector('.kanban-column-header');
+        const tasks = column.querySelectorAll('.kanban-task');
+        const columnName = header.textContent.replace(/\s*\(\d+\)$/, '');
+        header.textContent = `${columnName} (${tasks.length})`;
+    });
+}
+
+async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
+    console.log(`[Kanban] === Starting updateKanbanTaskInFile ===`);
+    console.log(`[Kanban] FilePath: ${filePath}`);
+    console.log(`[Kanban] NewStatus: ${newStatus}`);
+    console.log(`[Kanban] TaskElement dataset:`, taskElement.dataset);
+    
+    try {
+        // Get current file content
+        console.log(`[Kanban] Reading current file content...`);
+        const content = await window.electronAPI.invoke('read-file', filePath);
+        console.log(`[Kanban] File content length: ${content.length}`);
+        console.log(`[Kanban] File content preview:`, content.substring(0, 300));
+        
+        const lines = content.split('\n');
+        const lineNumber = parseInt(taskElement.dataset.lineNumber);
+        console.log(`[Kanban] Target line number: ${lineNumber}`);
+        
+        if (lineNumber >= 0 && lineNumber < lines.length) {
+            const originalLine = lines[lineNumber];
+            const taskText = taskElement.querySelector('.kanban-task-text').textContent;
+            
+            // Get current settings to determine markers
+            const settings = await window.electronAPI.invoke('get-settings');
+            const kanbanSettings = settings.kanban || {};
+            const doneMarkers = kanbanSettings.doneMarkers || ['DONE'];
+            const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS'];
+            
+            // Remove existing status markers
+            let newLine = originalLine;
+            [...doneMarkers, ...inProgressMarkers].forEach(marker => {
+                newLine = newLine.replace(new RegExp(`\\s*-\\s*${marker}\\s*`, 'gi'), '');
+                newLine = newLine.replace(new RegExp(`\\s*${marker}\\s*-\\s*`, 'gi'), '');
+                newLine = newLine.replace(new RegExp(`\\s*${marker}\\s*`, 'gi'), '');
+            });
+            
+            // Add new status marker
+            if (newStatus === 'done') {
+                newLine = newLine.trim() + ' - ' + doneMarkers[0];
+            } else if (newStatus === 'inprogress') {
+                newLine = newLine.trim() + ' - ' + inProgressMarkers[0];
+            }
+            
+            // Update the line
+            lines[lineNumber] = newLine;
+            
+            // Save the file
+            console.log(`[Kanban] About to write file with updated content:`, lines[lineNumber]);
+            await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+            
+            console.log(`[Kanban] Updated task on line ${lineNumber} to status: ${newStatus}`);
+        }
+    } catch (error) {
+        console.error('[Kanban] Error updating file:', error);
+        throw error;
     }
 }

@@ -124,11 +124,48 @@ h2 {
 #structure-list li.level-6 { padding-left: 75px; }
 
 /* Basic Preview Styling */
+#preview-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: visible; /* Allow child overflow to be visible */
+    min-height: 0;
+    position: relative; /* Ensure proper positioning context */
+}
+
 #preview-content {
     flex-grow: 1; /* Allow content to take available space */
-    overflow-y: auto; /* Scroll if needed */
+    overflow-x: scroll !important; /* Force horizontal scrollbar */
+    overflow-y: auto; /* Vertical scroll as needed */
     /* Add this to help flex item sizing when content overflows */
     min-height: 0;
+    /* Force scrollbars to show when needed */
+    scrollbar-width: auto;
+    /* Ensure content can expand beyond container */
+    width: 100%;
+    position: relative;
+    /* Ensure scrollbars are visible */
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure scrollbars are visible on all browsers */
+#preview-content::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+#preview-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 6px;
+}
+
+#preview-content::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 6px;
+}
+
+#preview-content::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }
 
 #preview-content h1, #preview-content h2, #preview-content h3 {
@@ -586,3 +623,124 @@ body.dark-mode #preview-content hr {
 body.dark-mode #preview-content {
     border: 4px solid green !important;
 } */
+
+/* === Kanban Settings Styles === */
+.kanban-column-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+    background: var(--bg-secondary, #f8f9fa);
+    border-radius: 4px;
+    border: 1px solid var(--border-color, #e1e4e8);
+}
+
+.kanban-column-row input.column-name {
+    flex: 1;
+    min-width: 120px;
+    padding: 6px;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 4px;
+    background: var(--input-bg, white);
+    color: var(--input-fg, black);
+}
+
+.kanban-column-row input.column-color {
+    width: 40px;
+    height: 30px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.kanban-column-row .remove-column {
+    width: 30px;
+    height: 30px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.kanban-column-row .remove-column:hover {
+    background: #c82333;
+}
+
+/* === Kanban Board Styles === */
+.kanban-board {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    overflow-x: visible; /* Let parent handle scrolling */
+    overflow-y: visible;
+    min-height: 500px;
+    background: var(--editor-bg, white);
+    border-radius: 8px;
+    width: max-content; /* Natural width based on content */
+    flex-shrink: 0; /* Don't allow shrinking */
+}
+
+.kanban-column {
+    background: var(--bg-secondary, #f8f9fa);
+    border-radius: 8px;
+    padding: 16px;
+    min-width: 300px; /* Slightly wider for better readability */
+    max-width: 400px; /* Allow columns to be a bit wider */
+    flex: 0 0 auto; /* Don't shrink columns */
+    display: flex;
+    flex-direction: column;
+    border: 2px solid var(--border-color, #e1e4e8);
+}
+
+.kanban-column-header {
+    font-weight: bold;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-color, #e1e4e8);
+    text-align: center;
+}
+
+.kanban-tasks {
+    flex: 1;
+    min-height: 100px;
+}
+
+.kanban-task {
+    background: var(--editor-bg, white);
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: move;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: box-shadow 0.2s;
+}
+
+.kanban-task:hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.kanban-task.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg);
+}
+
+.kanban-column.drag-over {
+    background: var(--highlight-bg, #e3f2fd);
+    border-color: var(--accent-color, #007bff);
+}
+
+.kanban-task-number {
+    font-size: 12px;
+    color: var(--text-muted, #666);
+    font-weight: bold;
+}
+
+.kanban-task-text {
+    margin-top: 4px;
+    line-height: 1.4;
+}

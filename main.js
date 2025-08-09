@@ -48,6 +48,39 @@ try {
   console.error('[main.js] Error initializing AI Service:', error);
 }
 
+// --- Process Event Handlers ---
+// Handle uncaught exceptions and EPIPE errors
+process.on('uncaughtException', (err) => {
+  if (err.code === 'EPIPE') {
+    // EPIPE errors occur when stdout pipe is closed - ignore them
+    return;
+  }
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Handle process termination gracefully
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down gracefully...');
+  if (mainWindow) {
+    mainWindow.close();
+  } else {
+    app.quit();
+  }
+});
+
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  if (mainWindow) {
+    mainWindow.close();
+  } else {
+    app.quit();
+  }
+});
+
 // --- Global Variables ---
 let mainWindow = null;
 let currentFilePath = null;
@@ -211,6 +244,20 @@ const defaultSettings = {
         reducedMotion: false,
         screenReaderOptimized: false,
         fontSize: 'normal', // 'small', 'normal', 'large', 'larger'
+    },
+    
+    // === Kanban Board Settings ===
+    kanban: {
+        todoFilePatterns: ['TODO.md', 'TODOS.md', 'todo.md', 'todos.md', 'TASKS.md', 'tasks.md'],
+        columns: [
+            { id: 'todo', name: 'To Do', color: '#e3f2fd' },
+            { id: 'inprogress', name: 'In Progress', color: '#fff3e0' },
+            { id: 'done', name: 'Done', color: '#e8f5e8' }
+        ],
+        doneMarkers: ['DONE', 'COMPLETED', '✓', '✔', '[x]', '[X]'],
+        inProgressMarkers: ['IN PROGRESS', 'DOING', '⏳', '[~]'],
+        enableDragDrop: true,
+        autoSave: true
     },
     
     // === Advanced Developer Options ===
@@ -1861,6 +1908,38 @@ app.whenReady().then(() => {
         console.error('[main.js] Error opening file by path:', err);
         return { success: false, error: err.message };
     }
+});
+
+// Kanban board file operations
+ipcMain.handle('read-file', async (event, filePath) => {
+  try {
+      if (!filePath || typeof filePath !== 'string') {
+          throw new Error('No file path specified');
+      }
+      const content = await fs.readFile(filePath, 'utf8');
+      console.log(`[main.js] Read file for Kanban: ${filePath}`);
+      return content;
+  } catch (err) {
+      console.error(`[main.js] Failed to read file at ${filePath}:`, err);
+      throw err;
+  }
+});
+
+ipcMain.handle('write-file', async (event, filePath, content) => {
+  try {
+      if (!filePath || typeof filePath !== 'string') {
+          throw new Error('No file path specified');
+      }
+      if (typeof content !== 'string') {
+          throw new Error('Content must be a string');
+      }
+      await fs.writeFile(filePath, content, 'utf8');
+      console.log(`[main.js] Wrote file for Kanban: ${filePath}`);
+      return { success: true };
+  } catch (err) {
+      console.error(`[main.js] Failed to write file at ${filePath}:`, err);
+      throw err;
+  }
 });
 
   ipcMain.handle('send-chat-message', async (event, userMessage) => {
