@@ -18,13 +18,13 @@
 14. Concept tagging
 15. Math integration
 16. Global find & replace - DONE
-17. TODOs as Kanban - IN PROGRESS
+17. TODOs as Kanban - DONE
 18. Export as Powerpoint - DONE
 19. Custom presentation templates
 20. Settings - DONE
 21. Refactor duplicate code - DONE
 22. Reference autocomplete
-23. Toggle panes - IN PROGRESS
+23. Toggle panes - DONE
 
  When I'm editing a Markdown file and there is one or more .bib  │
 │   files, make it so that when I enter '[@', a list of             │

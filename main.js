@@ -131,7 +131,8 @@ const defaultSettings = {
         cursorStyle: 'line', // 'line', 'block', 'underline'
         renderWhitespace: 'selection', // 'none', 'boundary', 'selection', 'all'
         highlightActiveLine: true,
-        scrollBeyondLastLine: true
+        scrollBeyondLastLine: true,
+        enableCitationAutocomplete: true // Enable citation autocomplete on [@
     },
     
     // === AI Configuration ===

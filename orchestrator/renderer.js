@@ -1406,6 +1406,125 @@ function registerBibTeXLanguage() {
     console.log('[renderer.js] BibTeX language support registered successfully.');
 }
 
+// --- Citation Autocomplete Functionality ---
+let bibEntries = [];
+
+// Parse BibTeX entries from content
+function parseBibTeX(content) {
+    const entries = [];
+    const entryRegex = /@(\w+)\s*\{\s*([^,\s}]+)\s*,([^}]*)\}/g;
+    let match;
+    
+    while ((match = entryRegex.exec(content)) !== null) {
+        const type = match[1];
+        const key = match[2];
+        const fields = match[3];
+        
+        // Extract title and author for better display
+        const titleMatch = fields.match(/title\s*=\s*[{"']([^}"']*)[}"']/i);
+        const authorMatch = fields.match(/author\s*=\s*[{"']([^}"']*)[}"']/i);
+        const yearMatch = fields.match(/year\s*=\s*[{"']?(\d{4})[}"']?/i);
+        
+        const title = titleMatch ? titleMatch[1] : '';
+        const author = authorMatch ? authorMatch[1] : '';
+        const year = yearMatch ? yearMatch[1] : '';
+        
+        entries.push({
+            key: key,
+            type: type,
+            title: title,
+            author: author,
+            year: year
+        });
+    }
+    
+    return entries;
+}
+
+// Load BibTeX files from the lectures directory
+async function loadBibTeXFiles() {
+    try {
+        const bibFiles = ['references.bib', 'sample-bibliography.bib'];
+        bibEntries = [];
+        
+        for (const fileName of bibFiles) {
+            try {
+                const content = await window.electronAPI.invoke('read-file', `lectures/${fileName}`);
+                const entries = parseBibTeX(content);
+                bibEntries.push(...entries);
+                console.log(`[renderer.js] Loaded ${entries.length} entries from ${fileName}`);
+            } catch (error) {
+                console.log(`[renderer.js] Could not load ${fileName}:`, error.message);
+            }
+        }
+        
+        console.log(`[renderer.js] Total BibTeX entries loaded: ${bibEntries.length}`);
+        return bibEntries;
+    } catch (error) {
+        console.error('[renderer.js] Error loading BibTeX files:', error);
+        return [];
+    }
+}
+
+// Register citation autocomplete provider for Markdown
+function registerCitationAutocomplete() {
+    console.log('[renderer.js] Registering citation autocomplete provider...');
+    
+    monaco.languages.registerCompletionItemProvider('markdown', {
+        triggerCharacters: ['@'],
+        provideCompletionItems: function(model, position) {
+            // Get current line text
+            const currentLine = model.getLineContent(position.lineNumber);
+            const textBeforePointer = currentLine.substring(0, position.column - 1);
+            
+            // Look for citation pattern: [@...] where we're after the @
+            const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
+            
+            if (!citationMatch) {
+                return { suggestions: [] };
+            }
+            
+            const searchTerm = citationMatch[1] || '';
+            
+            // Filter entries based on search term
+            const suggestions = bibEntries
+                .filter(entry => {
+                    if (!searchTerm) return true;
+                    const searchLower = searchTerm.toLowerCase();
+                    return entry.key.toLowerCase().includes(searchLower) ||
+                           entry.title.toLowerCase().includes(searchLower) ||
+                           entry.author.toLowerCase().includes(searchLower);
+                })
+                .map(entry => {
+                    // Create a detailed description
+                    const description = [
+                        entry.author && `Author: ${entry.author}`,
+                        entry.year && `Year: ${entry.year}`,
+                        entry.title && `Title: ${entry.title}`
+                    ].filter(Boolean).join('\n');
+                    
+                    return {
+                        label: entry.key,
+                        kind: monaco.languages.CompletionItemKind.Reference,
+                        insertText: entry.key,
+                        detail: `@${entry.type}`,
+                        documentation: description,
+                        range: {
+                            startLineNumber: position.lineNumber,
+                            endLineNumber: position.lineNumber,
+                            startColumn: position.column - searchTerm.length,
+                            endColumn: position.column
+                        }
+                    };
+                });
+            
+            return { suggestions: suggestions };
+        }
+    });
+    
+    console.log('[renderer.js] Citation autocomplete provider registered successfully.');
+}
+
 // --- Initialize Application ---
 function initializeApp() {
     console.log('[renderer.js] Initializing application...');
@@ -1444,6 +1563,9 @@ function initializeApp() {
                 theme: 'vs-dark',
                 automaticLayout: true,
                 wordWrap: 'on',
+                // Conditionally disable auto-closing brackets based on citation autocomplete setting
+                autoClosingBrackets: 'beforeWhitespace', // Will be updated after settings load
+                autoClosingQuotes: 'never',
                 // Code folding options
                 folding: true,
                 foldingStrategy: 'auto', // Change from 'indentation' to 'auto'
@@ -1480,6 +1602,32 @@ function initializeApp() {
             
             // Initialize auto-save after editor is ready
             initializeAutoSave();
+            
+            // Load settings and conditionally enable citation autocomplete
+            window.electronAPI.invoke('get-settings').then(settings => {
+                window.appSettings = settings;
+                
+                // Update editor options based on settings
+                if (settings?.editor?.enableCitationAutocomplete !== false) {
+                    editor.updateOptions({
+                        autoClosingBrackets: 'never' // Disable auto-closing brackets for citation autocomplete
+                    });
+                    
+                    // Load BibTeX files and register citation autocomplete
+                    loadBibTeXFiles().then(() => {
+                        registerCitationAutocomplete();
+                    });
+                }
+            }).catch(error => {
+                console.error('[renderer.js] Error loading settings:', error);
+                // Fallback: enable citation autocomplete by default
+                editor.updateOptions({
+                    autoClosingBrackets: 'never'
+                });
+                loadBibTeXFiles().then(() => {
+                    registerCitationAutocomplete();
+                });
+            });
             
             // Update cursor position when cursor moves
             editor.onDidChangeCursorPosition(() => {
@@ -6268,6 +6416,11 @@ function generateEditorSettings() {
                     <input type="number" id="tab-size" value="${currentSettings.editor?.tabSize || 2}" min="1" max="8">
                     <span>Tab Size</span>
                 </label>
+                <label>
+                    <input type="checkbox" id="enable-citation-autocomplete" ${currentSettings.editor?.enableCitationAutocomplete !== false ? 'checked' : ''}>
+                    <span>Enable Citation Autocomplete</span>
+                    <small class="setting-description">Show suggestions when typing [@. Disables bracket auto-completion.</small>
+                </label>
             </div>
         </div>
     `;
@@ -6592,6 +6745,18 @@ function collectSettingsFromForm() {
     if (wordWrap !== undefined) {
         if (!updatedSettings.editor) updatedSettings.editor = {};
         updatedSettings.editor.wordWrap = wordWrap ? 'on' : 'off';
+    }
+    
+    const tabSize = document.getElementById('tab-size')?.value;
+    if (tabSize) {
+        if (!updatedSettings.editor) updatedSettings.editor = {};
+        updatedSettings.editor.tabSize = parseInt(tabSize);
+    }
+    
+    const enableCitationAutocomplete = document.getElementById('enable-citation-autocomplete')?.checked;
+    if (enableCitationAutocomplete !== undefined) {
+        if (!updatedSettings.editor) updatedSettings.editor = {};
+        updatedSettings.editor.enableCitationAutocomplete = enableCitationAutocomplete;
     }
     
     // AI settings
