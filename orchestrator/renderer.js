@@ -477,7 +477,19 @@ function renderRegularMarkdown(markdownContent) {
     if (editorPane && previewPane) {
         editorPane.style.flex = '1'; // 50% width for editor
         previewPane.style.flex = '1'; // 50% width for preview
-        console.log('[renderer.js] Restored normal layout from Kanban view');
+        
+        // Remove Kanban-specific width constraints
+        previewPane.style.removeProperty('max-width');
+        previewPane.style.removeProperty('overflow-x');
+        previewPane.style.removeProperty('overflow-y');
+        
+        console.log('[renderer.js] Restored normal layout and removed Kanban constraints');
+    }
+    
+    // Also remove overflow constraints from preview content
+    if (previewContent) {
+        previewContent.style.removeProperty('overflow-x');
+        previewContent.style.removeProperty('overflow-y');
     }
     
     // Update status bar with current content

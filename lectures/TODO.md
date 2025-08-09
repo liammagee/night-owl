@@ -23,9 +23,8 @@
 19. Custom presentation templates
 20. Settings - DONE
 21. Refactor duplicate code - DONE
-22. Reference autocomplete
+22. Reference autocomplete - DONE
 23. Toggle panes - DONE
+24. Fix Icon - DONE
 
- When I'm editing a Markdown file and there is one or more .bib  │
-│   files, make it so that when I enter '[@', a list of             │
-│   autocomplete options appears   
+ 
