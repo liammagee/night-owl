@@ -12,14 +12,14 @@ https://education.illinois.edu/course/EPOL/479
 
 EPOL 479: Machine and Human Learning
 
-This course examines the differences between machine and human learning and the ways in which machines can complement human learning. It examines technical definitions of supervised and unsupervised machine learning, as well as broader views of mechanical intelligence able to replicate or exceed human intelligence. The course will also explore practical applications of learning analytics and artificial intelligence in learning management systems and other educational tools and critically interrogate the applications of AI in education. 
+<!-- @note: This is a note -->This course examines the differences between machine and human learning and the ways in which machines can complement human learning. It examines technical definitions of supervised and unsupervised machine learning, as well as broader views of mechanical intelligence able to replicate or exceed human intelligence. The course will also explore practical applications of learning analytics and artificial intelligence in learning management systems and other educational tools and critically interrogate the applications of AI in education. 
 
 CGScholar Learning Module: Machine and Human Learning
 Textbook:
 College of Education link: EPOL 479: Machine Human Learning
 
 
-## "Are You Paying Attention?" Overview of Learning, Machinic and Otherwise
+## "May I Have Your Attention Please?" 
 
 
 [[lecture-1]]
@@ -30,33 +30,33 @@ College of Education link: EPOL 479: Machine Human Learning
 [[lecture-2]]
 
 
-## *Robo-Phenomenology*: The Machine Reads Phenomenology of Mind
+## Technical Interlude: What a Machine does When it 'Learns'
 
 
 
 [[lecture-3]]
 
 
-## Technical Interlude: What a Machine does When it 'Learns'
-
 [[lecture-4]]
 
 
-## Back to Hegel: The Problem of Consciousness for Machine Learning 
+## *Robo-Phenomenology*: The Machine Reads Phenomenology of Mind
+
 
 [[lecture-5]]
 
+## Does Learning Imply Consciousness? Can We have Nonconscious Learning?
 
-## From Writing to LLMs: The Anxieties of Technological Influence on Human Learning
+
 
 [[lecture-6]]
 
+## From Writing to LLMs: The Anxieties of Technological Influence on Human Learning
 
-## Beyond Binary: Technosymbiosis, CyberSociality and Other Relational Ideas
 
 [[lecture-7]]
 
 
-## (In)Conclusions? What next...
+## Beyond Binary: Technosymbiosis, CyberSociality and Other Relational Ideas
 
 [[lecture-8]]

@@ -168,6 +168,202 @@ function processInternalLinks(content) {
     });
 }
 
+// --- Process Annotations ---
+function processAnnotations(text) {
+    // Global annotation counter for unique IDs
+    if (!window.annotationCounter) {
+        window.annotationCounter = 0;
+    }
+    
+    console.log('[renderer.js] Processing annotations on content length:', text.length);
+    let processedText = text;
+    
+    // 1. Process HTML comment annotations: <!-- @note: This is an annotation -->
+    const commentAnnotationRegex = /<!--\s*@(\w+):\s*(.*?)\s*-->/g;
+    let commentMatches = 0;
+    processedText = processedText.replace(commentAnnotationRegex, (match, type, content) => {
+        commentMatches++;
+        console.log(`[renderer.js] Found comment annotation #${commentMatches}:`, type, content);
+        const id = `annotation-${++window.annotationCounter}`;
+        const marker = createAnnotationMarker(id, type, content, 'comment');
+        console.log(`[renderer.js] Generated marker:`, marker);
+        return marker;
+    });
+    console.log(`[renderer.js] Processed ${commentMatches} comment annotations`);
+    
+    // 2. Process inline highlight annotations: ==text=={@note Important concept}
+    const inlineAnnotationRegex = /==(.*?)==\{@(\w+)\s+(.*?)\}/g;
+    let inlineMatches = 0;
+    processedText = processedText.replace(inlineAnnotationRegex, (match, highlightText, type, content) => {
+        inlineMatches++;
+        console.log(`[renderer.js] Found inline annotation #${inlineMatches}:`, highlightText, type, content);
+        const id = `annotation-${++window.annotationCounter}`;
+        const marker = createAnnotationMarker(id, type, content, 'inline');
+        return `<mark class="annotation-highlight" data-annotation-id="${id}">${highlightText}</mark>${marker}`;
+    });
+    console.log(`[renderer.js] Processed ${inlineMatches} inline annotations`);
+    
+    // 3. Process block annotations: :::annotation type="note" author="instructor" ... :::
+    const blockAnnotationRegex = /:::\s*annotation\s+(.*?)\n([\s\S]*?)\n:::/g;
+    let blockMatches = 0;
+    processedText = processedText.replace(blockAnnotationRegex, (match, attributes, content) => {
+        blockMatches++;
+        console.log(`[renderer.js] Found block annotation #${blockMatches}:`, attributes, content);
+        const id = `annotation-${++window.annotationCounter}`;
+        
+        // Parse attributes
+        const attrs = {};
+        const attrRegex = /(\w+)=["']([^"']*?)["']/g;
+        let attrMatch;
+        while ((attrMatch = attrRegex.exec(attributes)) !== null) {
+            attrs[attrMatch[1]] = attrMatch[2];
+        }
+        
+        const type = attrs.type || 'note';
+        const marker = createAnnotationMarker(id, type, content, 'block', attrs);
+        
+        return `<div class="annotation-block" data-annotation-id="${id}">${content}</div>${marker}`;
+    });
+    console.log(`[renderer.js] Processed ${blockMatches} block annotations`);
+    
+    console.log('[renderer.js] Final processed text length:', processedText.length);
+    return processedText;
+}
+
+// --- Create Annotation Marker ---
+function createAnnotationMarker(id, type, content, style, attrs = {}) {
+    const author = attrs.author || 'Anonymous';
+    const timestamp = attrs.timestamp || new Date().toISOString();
+    
+    // Store annotation data globally
+    if (!window.annotations) {
+        window.annotations = new Map();
+    }
+    
+    window.annotations.set(id, {
+        id,
+        type,
+        content,
+        style,
+        author,
+        timestamp,
+        attrs
+    });
+    
+    // Create the visual marker based on style
+    let markerClass = 'annotation-marker';
+    let markerSymbol = '💬';
+    
+    switch (type) {
+        case 'note':
+            markerSymbol = '📝';
+            markerClass += ' annotation-note';
+            break;
+        case 'thought':
+            markerSymbol = '💭';
+            markerClass += ' annotation-thought';
+            break;
+        case 'link':
+            markerSymbol = '🔗';
+            markerClass += ' annotation-link';
+            break;
+        case 'question':
+            markerSymbol = '❓';
+            markerClass += ' annotation-question';
+            break;
+        case 'warning':
+            markerSymbol = '⚠️';
+            markerClass += ' annotation-warning';
+            break;
+        default:
+            markerSymbol = '💬';
+            markerClass += ' annotation-default';
+    }
+    
+    return `<span class="${markerClass}" 
+                  data-annotation-id="${id}" 
+                  data-annotation-type="${type}"
+                  data-annotation-style="${style}"
+                  title="Click to view ${type}"
+                  onclick="showAnnotationTooltip('${id}')">${markerSymbol}</span>`;
+}
+
+// --- Show Annotation Tooltip ---
+function showAnnotationTooltip(annotationId) {
+    const annotation = window.annotations?.get(annotationId);
+    if (!annotation) {
+        console.warn(`[renderer.js] Annotation not found: ${annotationId}`);
+        return;
+    }
+    
+    // Remove any existing tooltip
+    const existingTooltip = document.querySelector('.annotation-tooltip');
+    if (existingTooltip) {
+        existingTooltip.remove();
+    }
+    
+    // Create tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.className = 'annotation-tooltip';
+    tooltip.innerHTML = `
+        <div class="annotation-tooltip-header">
+            <span class="annotation-type">${annotation.type}</span>
+            <span class="annotation-author">${annotation.author}</span>
+            <button class="annotation-close" onclick="hideAnnotationTooltip()">&times;</button>
+        </div>
+        <div class="annotation-content">${annotation.content}</div>
+        <div class="annotation-timestamp">${new Date(annotation.timestamp).toLocaleString()}</div>
+    `;
+    
+    // Position tooltip near the marker with smart positioning
+    const marker = document.querySelector(`[data-annotation-id="${annotationId}"]`);
+    if (marker) {
+        const rect = marker.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const tooltipWidth = 350; // max-width from CSS
+        const tooltipHeight = 200; // estimated height
+        
+        let left = rect.right + 15;
+        let top = rect.top;
+        
+        // Check if tooltip would go off screen horizontally
+        if (left + tooltipWidth > viewportWidth - 20) {
+            left = rect.left - tooltipWidth - 15; // Show on left side instead
+        }
+        
+        // Check if tooltip would go off screen vertically
+        if (top + tooltipHeight > viewportHeight - 20) {
+            top = viewportHeight - tooltipHeight - 20;
+        }
+        
+        // Ensure tooltip doesn't go above viewport
+        if (top < 20) {
+            top = 20;
+        }
+        
+        tooltip.style.position = 'fixed';
+        tooltip.style.left = `${Math.max(10, left)}px`;
+        tooltip.style.top = `${top}px`;
+        tooltip.style.zIndex = '10000';
+        
+        // Adjust arrow position based on tooltip position
+        const arrowLeft = left < rect.right ? tooltipWidth - 30 : 20;
+        tooltip.style.setProperty('--arrow-left', `${arrowLeft}px`);
+    }
+    
+    document.body.appendChild(tooltip);
+    console.log(`[renderer.js] Showing annotation tooltip for: ${annotationId}`);
+}
+
+// --- Hide Annotation Tooltip ---
+function hideAnnotationTooltip() {
+    const tooltip = document.querySelector('.annotation-tooltip');
+    if (tooltip) {
+        tooltip.remove();
+    }
+}
+
 // --- Handle Internal Link Clicks ---
 function handleInternalLinkClick(event) {
     if (event.target.classList.contains('internal-link')) {
@@ -471,6 +667,7 @@ function updatePreviewAndStructure(markdownContent) {
 }
 
 function renderRegularMarkdown(markdownContent) {
+    console.log('[renderer.js] renderRegularMarkdown called with content length:', markdownContent.length);
     // Restore normal layout (in case we're switching from Kanban view)
     const editorPane = document.getElementById('editor-pane');
     const previewPane = document.getElementById('preview-pane');
@@ -478,18 +675,73 @@ function renderRegularMarkdown(markdownContent) {
         editorPane.style.flex = '1'; // 50% width for editor
         previewPane.style.flex = '1'; // 50% width for preview
         
-        // Remove Kanban-specific width constraints
-        previewPane.style.removeProperty('max-width');
-        previewPane.style.removeProperty('overflow-x');
-        previewPane.style.removeProperty('overflow-y');
+        // Force remove Kanban-specific width constraints (including !important ones)
+        previewPane.style.setProperty('max-width', 'none', 'important');
+        previewPane.style.setProperty('overflow-x', 'visible', 'important');
+        previewPane.style.setProperty('overflow-y', 'visible', 'important');
+        
+        // Then remove the properties entirely to let CSS defaults take over
+        setTimeout(() => {
+            previewPane.style.removeProperty('max-width');
+            previewPane.style.removeProperty('overflow-x');
+            previewPane.style.removeProperty('overflow-y');
+        }, 10);
         
         console.log('[renderer.js] Restored normal layout and removed Kanban constraints');
     }
     
+    // Also reset any problematic saved layout that might be causing width issues
+    const leftSidebar = document.getElementById('left-sidebar');
+    if (leftSidebar && editorPane && previewPane) {
+        // Check for corrupted layout values and reset if necessary
+        let shouldResetLayout = false;
+        
+        try {
+            const settings = window.appSettings;
+            if (settings?.layout) {
+                const rightWidthNum = parseFloat(settings.layout.rightWidth);
+                const editorWidthNum = parseFloat(settings.layout.editorWidth);
+                const structureWidthNum = parseFloat(settings.layout.structureWidth);
+                
+                // If any width is over 80% or the total is over 120%, layout is corrupted
+                if (rightWidthNum > 80 || editorWidthNum > 80 || structureWidthNum > 80 ||
+                    (rightWidthNum + editorWidthNum + structureWidthNum) > 120) {
+                    shouldResetLayout = true;
+                    console.log('[renderer.js] Detected corrupted layout values, resetting');
+                }
+            }
+        } catch (error) {
+            shouldResetLayout = true;
+            console.log('[renderer.js] Error checking layout, resetting to defaults');
+        }
+        
+        if (shouldResetLayout) {
+            // Reset to sensible default layout when switching from Kanban
+            leftSidebar.style.flex = '0 0 18%';
+            editorPane.style.flex = '0 0 41%';
+            previewPane.style.flex = '0 0 41%';
+            console.log('[renderer.js] Reset to default layout percentages');
+            
+            // Also save the corrected layout
+            if (window.electronAPI) {
+                window.electronAPI.invoke('set-settings', 'layout', {
+                    structureWidth: '18%',
+                    editorWidth: '41%',
+                    rightWidth: '41%'
+                }).catch(error => console.error('Failed to save corrected layout:', error));
+            }
+        }
+    }
+    
     // Also remove overflow constraints from preview content
     if (previewContent) {
-        previewContent.style.removeProperty('overflow-x');
-        previewContent.style.removeProperty('overflow-y');
+        previewContent.style.setProperty('overflow-x', 'visible', 'important');
+        previewContent.style.setProperty('overflow-y', 'visible', 'important');
+        
+        setTimeout(() => {
+            previewContent.style.removeProperty('overflow-x');
+            previewContent.style.removeProperty('overflow-y');
+        }, 10);
     }
     
     // Update status bar with current content
@@ -507,6 +759,7 @@ function renderRegularMarkdown(markdownContent) {
         const renderer = new marked.Renderer();
         const originalHeading = renderer.heading.bind(renderer); // Keep original renderer
         const originalImage = renderer.image.bind(renderer); // Keep original image renderer
+        const originalParagraph = renderer.paragraph.bind(renderer); // Keep original paragraph renderer
 
         // Override the heading method
         renderer.heading = (text, level, raw) => {
@@ -539,10 +792,13 @@ function renderRegularMarkdown(markdownContent) {
         };
 
         if (window.marked) {
-            // Process speaker notes first to extract them
-            let processedContent = processSpeakerNotes(markdownContent);
+            // Process content in the correct order: annotations first, then speaker notes, then internal links
+            let processedContent = processAnnotations(markdownContent);
             
-            // Process Obsidian-style [[]] internal links
+            // Process speaker notes after annotations
+            processedContent = processSpeakerNotes(processedContent);
+            
+            // Process Obsidian-style [[]] internal links last
             processedContent = processInternalLinks(processedContent);
             
             // Use the custom renderer with marked.parse
@@ -4920,6 +5176,15 @@ function initializeMarkdownFormatting() {
     if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', () => removeAllSlideMarkers());
     if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', () => insertSpeakerNotesTemplate());
     
+    // Annotation button event handlers
+    const insertCommentAnnotationBtn = document.getElementById('insert-comment-annotation-btn');
+    const insertHighlightAnnotationBtn = document.getElementById('insert-highlight-annotation-btn');
+    const insertBlockAnnotationBtn = document.getElementById('insert-block-annotation-btn');
+    
+    if (insertCommentAnnotationBtn) insertCommentAnnotationBtn.addEventListener('click', () => insertCommentAnnotation());
+    if (insertHighlightAnnotationBtn) insertHighlightAnnotationBtn.addEventListener('click', () => insertHighlightAnnotation());
+    if (insertBlockAnnotationBtn) insertBlockAnnotationBtn.addEventListener('click', () => insertBlockAnnotation());
+    
     console.log('[renderer.js] Markdown formatting initialized');
 }
 
@@ -5339,6 +5604,245 @@ function insertSpeakerNotesTemplate() {
     
     updatePreviewAndStructure(editor.getValue());
     console.log('[renderer.js] Inserted speaker notes template');
+}
+
+// --- Annotation Insertion Functions ---
+
+function insertCommentAnnotation() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot insert comment annotation - no editor available');
+        return;
+    }
+    
+    const selection = editor.getSelection();
+    const position = editor.getPosition();
+    
+    showAnnotationDialog('comment', (result) => {
+        if (result) {
+            const template = `<!-- @${result.type}: ${result.content.trim()} -->`;
+            
+            editor.executeEdits('insert-comment-annotation', [{
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: template
+            }]);
+            
+            editor.focus();
+            updatePreviewAndStructure(editor.getValue());
+            console.log(`[renderer.js] Inserted comment annotation: ${result.type}`);
+        }
+    });
+}
+
+function insertHighlightAnnotation() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot insert highlight annotation - no editor available');
+        return;
+    }
+    
+    const selection = editor.getSelection();
+    const selectedText = editor.getModel().getValueInRange(selection);
+    
+    if (!selectedText || selectedText.trim() === '') {
+        showNotification('Please select text to highlight before adding an annotation.', 'warning');
+        return;
+    }
+    
+    showAnnotationDialog('highlight', (result) => {
+        if (result) {
+            const template = `==${selectedText}=={@${result.type} ${result.content.trim()}}`;
+            
+            editor.executeEdits('insert-highlight-annotation', [{
+                range: selection,
+                text: template
+            }]);
+            
+            editor.focus();
+            updatePreviewAndStructure(editor.getValue());
+            console.log(`[renderer.js] Inserted highlight annotation: ${result.type}`);
+        }
+    });
+}
+
+function insertBlockAnnotation() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot insert block annotation - no editor available');
+        return;
+    }
+    
+    const position = editor.getPosition();
+    
+    showAnnotationDialog('block', (result) => {
+        if (result) {
+            const template = `\n:::annotation type="${result.type}" author="${result.author}"\n${result.content.trim()}\n:::\n`;
+            
+            editor.executeEdits('insert-block-annotation', [{
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: template
+            }]);
+            
+            editor.focus();
+            updatePreviewAndStructure(editor.getValue());
+            console.log(`[renderer.js] Inserted block annotation: ${result.type}`);
+        }
+    });
+}
+
+// --- Annotation Dialog Functions ---
+
+function showAnnotationDialog(annotationType, callback) {
+    // Remove any existing dialog
+    const existingDialog = document.querySelector('.annotation-dialog');
+    if (existingDialog) {
+        existingDialog.remove();
+    }
+    
+    // Create dialog overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'annotation-dialog-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'annotation-dialog';
+    dialog.style.cssText = `
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        min-width: 400px;
+        max-width: 500px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+    
+    const titleText = annotationType === 'comment' ? 'Add Comment Annotation' :
+                     annotationType === 'highlight' ? 'Add Highlight Annotation' :
+                     'Add Block Annotation';
+    
+    dialog.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: #333;">${titleText}</h3>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Annotation Type:</label>
+            <select id="annotation-type-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <option value="note">📝 Note</option>
+                <option value="thought">💭 Thought</option>
+                <option value="question">❓ Question</option>
+                <option value="warning">⚠️ Warning</option>
+                <option value="link">🔗 Link</option>
+            </select>
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Content:</label>
+            <textarea id="annotation-content" placeholder="Enter your annotation content..." style="width: 100%; height: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+        </div>
+        ${annotationType === 'block' ? `
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Author (optional):</label>
+            <input type="text" id="annotation-author" placeholder="instructor" value="instructor" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        ` : ''}
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+            <button id="annotation-cancel" style="padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
+            <button id="annotation-ok" style="padding: 8px 16px; border: none; background: #2196F3; color: white; border-radius: 4px; cursor: pointer;">Add Annotation</button>
+        </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // Focus the content textarea
+    const contentTextarea = dialog.querySelector('#annotation-content');
+    setTimeout(() => contentTextarea.focus(), 100);
+    
+    // Handle button clicks
+    const cancelBtn = dialog.querySelector('#annotation-cancel');
+    const okBtn = dialog.querySelector('#annotation-ok');
+    
+    function closeDialog(result = null) {
+        overlay.remove();
+        callback(result);
+    }
+    
+    cancelBtn.addEventListener('click', () => closeDialog());
+    
+    okBtn.addEventListener('click', () => {
+        const type = dialog.querySelector('#annotation-type-select').value;
+        const content = dialog.querySelector('#annotation-content').value.trim();
+        const authorInput = dialog.querySelector('#annotation-author');
+        const author = authorInput ? authorInput.value.trim() || 'instructor' : 'instructor';
+        
+        if (!content) {
+            showNotification('Please enter annotation content.', 'warning');
+            return;
+        }
+        
+        closeDialog({
+            type,
+            content,
+            author
+        });
+    });
+    
+    // Handle overlay click to close
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            closeDialog();
+        }
+    });
+    
+    // Handle ESC key
+    const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+            closeDialog();
+            document.removeEventListener('keydown', handleKeyDown);
+        }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+}
+
+function showNotification(message, type = 'info') {
+    // Remove any existing notification
+    const existingNotification = document.querySelector('.annotation-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    const notification = document.createElement('div');
+    notification.className = 'annotation-notification';
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'warning' ? '#ff9800' : '#4caf50'};
+        color: white;
+        padding: 12px 16px;
+        border-radius: 4px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        z-index: 10001;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        max-width: 300px;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
 }
 
 // Update speaker notes display
