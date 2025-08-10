@@ -147,25 +147,101 @@ function processSpeakerNotes(content) {
 }
 
 // --- Process Obsidian-style Internal Links ---
-function processInternalLinks(content) {
-    // Regular expression to match [[link]] and [[link|display text]] patterns
+async function processInternalLinks(content) {
+    const previewMode = getLinkPreviewMode();
+    
+    // If disabled, remove internal links entirely or render as plain text
+    if (previewMode === 'disabled') {
+        const internalLinkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+        return content.replace(internalLinkRegex, (match, link, displayText) => {
+            const display = displayText ? displayText.trim() : link.trim();
+            return display; // Just show the text without link functionality
+        });
+    }
+    
+    // For hover and inline modes, we need to process each link
     const internalLinkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
     
+    // If inline mode, we need to load content for each link
+    if (previewMode === 'inline') {
+        const linkPromises = [];
+        const linkData = [];
+        let match;
+        
+        // Collect all links first
+        while ((match = internalLinkRegex.exec(content)) !== null) {
+            const cleanLink = match[1].trim();
+            const display = match[2] ? match[2].trim() : cleanLink;
+            
+            let filePath = cleanLink;
+            if (!filePath.endsWith('.md') && !filePath.endsWith('.bib') && !filePath.endsWith('.pdf') && !filePath.endsWith('.html') && !filePath.endsWith('.htm') && !filePath.includes('.')) {
+                filePath += '.md';
+            }
+            
+            linkData.push({ match: match[0], cleanLink, display, filePath });
+            linkPromises.push(loadLinkContent(filePath));
+        }
+        
+        // Load all link contents
+        const linkContents = await Promise.all(linkPromises);
+        
+        // Replace links with inline content
+        let processedContent = content;
+        for (let i = linkData.length - 1; i >= 0; i--) { // Reverse order to maintain positions
+            const { match, cleanLink, display, filePath } = linkData[i];
+            const linkContent = linkContents[i];
+            
+            const inlineHTML = createInlineLinkPreview(display, cleanLink, filePath, linkContent);
+            processedContent = processedContent.replace(match, inlineHTML);
+        }
+        
+        return processedContent;
+    }
+    
+    // Default hover mode
     return content.replace(internalLinkRegex, (match, link, displayText) => {
-        // Clean up the link (remove any leading/trailing whitespace)
         const cleanLink = link.trim();
         const display = displayText ? displayText.trim() : cleanLink;
         
-        // Convert to file path (assume .md extension if not present)
         let filePath = cleanLink;
         if (!filePath.endsWith('.md') && !filePath.endsWith('.bib') && !filePath.endsWith('.pdf') && !filePath.endsWith('.html') && !filePath.endsWith('.htm') && !filePath.includes('.')) {
             filePath += '.md';
         }
         
-        // Create a markdown link that will be processed by marked.js
-        // Use a data attribute to mark it as an internal link
         return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
     });
+}
+
+async function loadLinkContent(filePath) {
+    try {
+        const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+        const fullPath = `${workingDir}/${filePath}`;
+        
+        const result = await window.electronAPI.invoke('open-file-path', fullPath);
+        
+        if (result.success) {
+            return extractPreviewContent(result.content);
+        }
+    } catch (error) {
+        console.error(`[InlinePreview] Error loading content for ${filePath}:`, error);
+    }
+    
+    return 'Content not available';
+}
+
+function createInlineLinkPreview(display, cleanLink, filePath, content) {
+    return `
+        <div class="inline-link-preview">
+            <div class="inline-link-header">
+                <a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">
+                    📄 ${display}
+                </a>
+            </div>
+            <div class="inline-link-content">
+                <p>${content}</p>
+            </div>
+        </div>
+    `;
 }
 
 // --- Process Annotations ---
@@ -403,7 +479,7 @@ async function openInternalLink(filePath, originalLink) {
             }
             
             // Load the file content into both editor and preview
-            openFileInEditor(result.filePath, result.content);
+            await openFileInEditor(result.filePath, result.content);
         } else {
             console.warn(`[renderer.js] Could not open internal link: ${result.error}`);
             
@@ -413,6 +489,170 @@ async function openInternalLink(filePath, originalLink) {
     } catch (error) {
         console.error(`[renderer.js] Error opening internal link:`, error);
     }
+}
+
+// =====================================
+// INTERNAL LINK PREVIEW SYSTEM
+// =====================================
+
+let linkPreviewTimeout = null;
+let currentPreviewTooltip = null;
+
+function setupLinkPreviewHandlers() {
+    document.addEventListener('mouseover', handleLinkHover);
+    document.addEventListener('mouseout', handleLinkMouseOut);
+    document.addEventListener('mousemove', handleLinkMouseMove);
+}
+
+function handleLinkHover(event) {
+    if (event.target.classList.contains('internal-link')) {
+        // Check if link previews are enabled in settings
+        if (!isLinkPreviewEnabled()) return;
+        
+        const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
+        const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
+        
+        // Clear any existing timeout
+        if (linkPreviewTimeout) {
+            clearTimeout(linkPreviewTimeout);
+        }
+        
+        // Set a delay before showing the preview
+        linkPreviewTimeout = setTimeout(() => {
+            showLinkPreview(filePath, originalLink, event.pageX, event.pageY);
+        }, 800); // 800ms delay
+    }
+}
+
+function handleLinkMouseOut(event) {
+    if (event.target.classList.contains('internal-link')) {
+        // Clear timeout if leaving link before preview shows
+        if (linkPreviewTimeout) {
+            clearTimeout(linkPreviewTimeout);
+            linkPreviewTimeout = null;
+        }
+        
+        // Hide preview after a short delay
+        setTimeout(() => {
+            hideLinkPreview();
+        }, 200);
+    }
+}
+
+function handleLinkMouseMove(event) {
+    // Update tooltip position if it's showing
+    if (currentPreviewTooltip) {
+        updateTooltipPosition(currentPreviewTooltip, event.pageX, event.pageY);
+    }
+}
+
+async function showLinkPreview(filePath, originalLink, x, y) {
+    try {
+        // Try to load the linked file content
+        const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+        const fullPath = `${workingDir}/${filePath}`;
+        
+        console.log(`[LinkPreview] Loading preview for: ${fullPath}`);
+        
+        const result = await window.electronAPI.invoke('open-file-path', fullPath);
+        
+        if (result.success) {
+            const previewContent = extractPreviewContent(result.content);
+            createLinkPreviewTooltip(originalLink, filePath, previewContent, x, y);
+        }
+    } catch (error) {
+        console.error('[LinkPreview] Error loading file for preview:', error);
+    }
+}
+
+function extractPreviewContent(content) {
+    // Remove frontmatter if present
+    content = content.replace(/^---[\s\S]*?---\n/, '');
+    
+    // Split into lines and get first non-empty lines
+    const lines = content.split('\n');
+    const previewLines = [];
+    let charCount = 0;
+    const maxChars = 300; // Limit preview length
+    
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine && !trimmedLine.startsWith('#')) { // Skip headers
+            previewLines.push(trimmedLine);
+            charCount += trimmedLine.length;
+            
+            if (charCount > maxChars) break;
+            if (previewLines.length >= 3) break; // Max 3 paragraphs
+        }
+    }
+    
+    return previewLines.join(' ');
+}
+
+function createLinkPreviewTooltip(originalLink, filePath, content, x, y) {
+    // Remove any existing tooltip
+    hideLinkPreview();
+    
+    const tooltip = document.createElement('div');
+    tooltip.className = 'link-preview-tooltip';
+    tooltip.innerHTML = `
+        <div class="link-preview-header">
+            <span>📄</span>
+            <span>${originalLink}</span>
+        </div>
+        <div class="link-preview-content">
+            <p>${content || 'No preview available.'}</p>
+        </div>
+        <div class="link-preview-meta">
+            Hover to preview • Click to open
+        </div>
+    `;
+    
+    document.body.appendChild(tooltip);
+    currentPreviewTooltip = tooltip;
+    
+    // Position tooltip
+    updateTooltipPosition(tooltip, x, y);
+}
+
+function updateTooltipPosition(tooltip, x, y) {
+    const rect = tooltip.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    let left = x + 15; // Offset from cursor
+    let top = y - rect.height - 10; // Above cursor
+    
+    // Adjust if tooltip would go off screen
+    if (left + rect.width > viewportWidth - 20) {
+        left = x - rect.width - 15; // Show on left side
+    }
+    
+    if (top < 20) {
+        top = y + 20; // Show below cursor instead
+    }
+    
+    tooltip.style.left = `${Math.max(10, left)}px`;
+    tooltip.style.top = `${Math.max(10, top)}px`;
+}
+
+function hideLinkPreview() {
+    if (currentPreviewTooltip) {
+        currentPreviewTooltip.remove();
+        currentPreviewTooltip = null;
+    }
+}
+
+function isLinkPreviewEnabled() {
+    // Check settings for hover mode specifically
+    const settings = window.currentSettings || {};
+    const mode = settings.linkPreview?.mode || 'hover';
+    return mode === 'hover';
+}
+
+function getLinkPreviewMode() {
+    const settings = window.currentSettings || {};
+    return settings.linkPreview?.mode || 'hover';
 }
 
 // --- Automatically Create New File for Internal Link ---
@@ -431,7 +671,7 @@ async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
                 // Try to open the existing file
                 const result = await window.electronAPI.invoke('open-file-path', fullPath);
                 if (result.success) {
-                    openFileInEditor(result.filePath, result.content);
+                    await openFileInEditor(result.filePath, result.content);
                     return;
                 }
             }
@@ -455,7 +695,7 @@ async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
             renderFileTree();
             
             // Automatically open the new file
-            openFileInEditor(result.filePath, newFileContent);
+            await openFileInEditor(result.filePath, newFileContent);
             
             showNotification(`Created "${fullPath.split('/').pop()}" from internal link`, 'success');
         } else {
@@ -582,7 +822,7 @@ function generateTemplateSections(linkName) {
 }
 
 // --- Update Function Definition ---
-function updatePreviewAndStructure(markdownContent) {
+async function updatePreviewAndStructure(markdownContent) {
     console.log('[renderer.js] Updating preview and structure...'); // Add logging
     console.log('[renderer.js] Current file path:', window.currentFilePath);
     console.log('[renderer.js] Markdown content length:', markdownContent?.length || 0);
@@ -610,7 +850,7 @@ function updatePreviewAndStructure(markdownContent) {
     if (currentFilePath) {
         // Handle Kanban check asynchronously
         window.electronAPI.invoke('get-settings')
-            .then(settings => {
+            .then(async settings => {
                 console.log('[renderer.js] Got settings for Kanban check:', settings?.kanban ? 'Kanban settings found' : 'No Kanban settings');
                 console.log('[renderer.js] Full Kanban settings:', JSON.stringify(settings?.kanban, null, 2));
                 if (shouldRenderAsKanban(currentFilePath, settings)) {
@@ -662,22 +902,22 @@ function updatePreviewAndStructure(markdownContent) {
                 
                 // Not a Kanban file - render as regular markdown
                 document.title = '📝 ' + (currentFilePath.split('/').pop() || 'Markdown');
-                renderRegularMarkdown(markdownContent);
+                await renderRegularMarkdown(markdownContent);
             })
-            .catch(error => {
+            .catch(async error => {
                 console.error('[renderer.js] Error checking Kanban rendering:', error);
                 // Fall back to regular markdown rendering
-                renderRegularMarkdown(markdownContent);
+                await renderRegularMarkdown(markdownContent);
             });
         
         return; // Exit to avoid double rendering
     }
     
     // If no currentFilePath, render regular markdown
-    renderRegularMarkdown(markdownContent);
+    await renderRegularMarkdown(markdownContent);
 }
 
-function renderRegularMarkdown(markdownContent) {
+async function renderRegularMarkdown(markdownContent) {
     console.log('[renderer.js] renderRegularMarkdown called with content length:', markdownContent.length);
     // Restore normal layout (in case we're switching from Kanban view)
     const editorPane = document.getElementById('editor-pane');
@@ -809,8 +1049,8 @@ function renderRegularMarkdown(markdownContent) {
             // Process speaker notes after annotations
             processedContent = processSpeakerNotes(processedContent);
             
-            // Process Obsidian-style [[]] internal links last
-            processedContent = processInternalLinks(processedContent);
+            // Process Obsidian-style [[]] internal links last (now async)
+            processedContent = await processInternalLinks(processedContent);
             
             // Use the custom renderer with marked.parse
             const htmlContent = window.marked.parse(processedContent, { renderer: renderer, gfm: true, breaks: true });
@@ -1805,10 +2045,10 @@ function registerCitationAutocomplete() {
 }
 
 // --- Initialize Application ---
-function initializeApp() {
+async function initializeApp() {
     console.log('[renderer.js] Initializing application...');
     console.log('[renderer.js] Initializing Monaco editor...');
-    require(['vs/editor/editor.main'], function() {
+    require(['vs/editor/editor.main'], async function() {
         console.log('[renderer.js] Monaco module loaded.');
         
         // Register BibTeX language support
@@ -1872,10 +2112,10 @@ function initializeApp() {
                 console.log('[renderer.js] Folding features and AI actions initialized');
             }, 100);
             
-            updatePreviewAndStructure(editor.getValue());
-            editor.onDidChangeModelContent(() => {
+            await updatePreviewAndStructure(editor.getValue());
+            editor.onDidChangeModelContent(async () => {
                 const currentContent = editor.getValue();
-                updatePreviewAndStructure(currentContent);
+                await updatePreviewAndStructure(currentContent);
                 scheduleAutoSave(); // Schedule auto-save when content changes
             });
             
@@ -2088,7 +2328,7 @@ function initializeApp() {
         } catch (error) {
             console.error('[renderer.js] Failed to create Monaco editor instance:', error);
             editorContainer.innerText = 'Failed to load code editor.';
-            createFallbackEditor(); 
+            await createFallbackEditor(); 
         }
     }); 
 
@@ -2160,11 +2400,11 @@ async function loadAppSettings() {
                 if (typeof monaco !== 'undefined' && monaco.editor) {
                     // Monaco is ready, load the file
                     window.electronAPI.invoke('open-file-path', appSettings.currentFile)
-                        .then(result => {
+                        .then(async result => {
                             console.log('[renderer.js] File loading result:', result);
                             if (result.success && result.content) {
                                 console.log(`[renderer.js] Successfully loaded file content, length: ${result.content.length}`);
-                                openFileInEditor(result.filePath, result.content);
+                                await openFileInEditor(result.filePath, result.content);
                                 console.log('[renderer.js] openFileInEditor called - file should now be in editor');
                             } else {
                                 console.warn('[renderer.js] Could not reopen last file:', result.error);
@@ -2210,10 +2450,10 @@ async function loadAppSettings() {
 
 // Handle file opened event (e.g., from File > Open or File Tree click)
 if (window.electronAPI) {
-    window.electronAPI.on('file-opened', (data) => {
+    window.electronAPI.on('file-opened', async (data) => {
         console.log('[Renderer] Received file-opened event:', data);
         if (data && typeof data.content === 'string' && typeof data.filePath === 'string') {
-            openFileInEditor(data.filePath, data.content);
+            await openFileInEditor(data.filePath, data.content);
             // Save current file to settings
             window.electronAPI.invoke('set-current-file', data.filePath);
         }
@@ -2241,7 +2481,7 @@ async function refreshCurrentFile() {
             const editor = document.querySelector('.editor textarea');
             const cursorPos = editor ? editor.selectionStart : 0;
             
-            openFileInEditor(result.filePath, result.content);
+            await openFileInEditor(result.filePath, result.content);
             
             // Restore cursor position
             if (editor && cursorPos) {
@@ -2263,7 +2503,7 @@ async function refreshCurrentFile() {
     }
 }
 
-function openFileInEditor(filePath, content) {
+async function openFileInEditor(filePath, content) {
     console.log('[Renderer] Opening file in editor:', filePath);
     
     // Detect file type
@@ -2297,12 +2537,12 @@ function openFileInEditor(filePath, content) {
     
     // Handle HTML files
     if (isHTML) {
-        handleHTMLFile(filePath, content);
+        await handleHTMLFile(filePath, content);
         return;
     }
     
     // Handle editable files (Markdown, BibTeX)
-    handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
+    await handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
 }
 
 // Handle PDF file opening
@@ -2323,12 +2563,12 @@ function handlePDFFile(filePath) {
             }
             return null;
         })
-        .then(markdownResult => {
+        .then(async markdownResult => {
             if (markdownResult && markdownResult.success) {
                 console.log('[Renderer] Loading associated markdown file in editor');
                 // Set a counter for multiple suppression calls
                 window.suppressPreviewUpdateCount = 2; // For both Monaco event and handleEditableFile call
-                handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
+                await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
             } else {
                 // No associated markdown, clear editor without updating preview
                 clearEditor(true);
@@ -2345,7 +2585,7 @@ function handlePDFFile(filePath) {
 }
 
 // Handle HTML file opening
-function handleHTMLFile(filePath, content) {
+async function handleHTMLFile(filePath, content) {
     console.log('[Renderer] Handling HTML file:', filePath);
     
     // Check for associated Markdown file
@@ -2362,34 +2602,34 @@ function handleHTMLFile(filePath, content) {
             }
             return null;
         })
-        .then(markdownResult => {
+        .then(async markdownResult => {
             if (markdownResult && markdownResult.success) {
                 console.log('[Renderer] Loading associated markdown file in editor');
                 // Set suppression counter for both Monaco event and handleEditableFile call
                 window.suppressPreviewUpdateCount = 2;
-                handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
+                await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
             } else {
                 // No associated markdown, load the HTML content in the editor
                 console.log('[Renderer] No associated markdown found, loading HTML content in editor');
                 // Suppress preview updates so HTML file content shows in preview, not markdown rendering
                 window.suppressPreviewUpdateCount = 2;
-                handleEditableFile(filePath, content, { isHTML: true });
+                await handleEditableFile(filePath, content, { isHTML: true });
             }
             
             // Display HTML in preview panel (should not be overridden by markdown rendering)
             displayHTMLInPreview(content, filePath);
         })
-        .catch(error => {
+        .catch(async error => {
             console.error('[Renderer] Error checking for associated markdown:', error);
             // Fallback to loading HTML content in editor
             window.suppressPreviewUpdateCount = 2;
-            handleEditableFile(filePath, content, { isHTML: true });
+            await handleEditableFile(filePath, content, { isHTML: true });
             displayHTMLInPreview(content, filePath);
         });
 }
 
 // Handle editable files (Markdown, BibTeX, HTML)
-function handleEditableFile(filePath, content, fileTypes) {
+async function handleEditableFile(filePath, content, fileTypes) {
     console.log('[Renderer] Handling editable file:', filePath, fileTypes);
     
     // Set up internal link click handler if not already done
@@ -2397,6 +2637,13 @@ function handleEditableFile(filePath, content, fileTypes) {
         document.addEventListener('click', handleInternalLinkClick);
         window.internalLinkHandlerSetup = true;
         console.log('[Renderer] Internal link click handler set up');
+    }
+    
+    // Set up link preview handlers if not already done
+    if (!window.linkPreviewHandlerSetup) {
+        setupLinkPreviewHandlers();
+        window.linkPreviewHandlerSetup = true;
+        console.log('[Renderer] Link preview handlers set up');
     }
     
     // Set editor content and language (Monaco or fallback)
@@ -2435,7 +2682,7 @@ function handleEditableFile(filePath, content, fileTypes) {
     
     // Update preview and structure (unless suppressed)
     if (!window.suppressNextPreviewUpdate && !window.suppressPreviewUpdateCount) {
-        updatePreviewAndStructure(content);
+        await updatePreviewAndStructure(content);
     } else {
         console.log('[Renderer] Skipping preview update in handleEditableFile due to suppression');
         // Don't clear the flags here - let updatePreviewAndStructure handle the counters
@@ -2549,7 +2796,7 @@ function updateFallbackCursorPosition() {
 }
 
 // Fallback editor in case Monaco fails to load
-function createFallbackEditor() {
+async function createFallbackEditor() {
     console.log('[renderer.js] Creating fallback textarea editor...');
     const textarea = document.createElement('textarea');
     textarea.value = '# Welcome!\n\nStart typing your Markdown here.';
@@ -2561,9 +2808,9 @@ function createFallbackEditor() {
     textarea.style.fontFamily = 'monospace';
     editorContainer.innerHTML = '';
     editorContainer.appendChild(textarea);
-    updatePreviewAndStructure(textarea.value);
-    textarea.addEventListener('input', () => {
-        updatePreviewAndStructure(textarea.value);
+    await updatePreviewAndStructure(textarea.value);
+    textarea.addEventListener('input', async () => {
+        await updatePreviewAndStructure(textarea.value);
     });
     
     // Update cursor position for fallback editor
@@ -2575,7 +2822,7 @@ function createFallbackEditor() {
 }
 
 // --- Global Keyboard Shortcuts ---
-document.addEventListener('keydown', (e) => {
+document.addEventListener('keydown', async (e) => {
     // Only handle shortcuts when not in input fields (except find/replace inputs)
     const isInInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
     const isInFindReplace = e.target === findInput || e.target === replaceInput;
@@ -2608,21 +2855,21 @@ document.addEventListener('keydown', (e) => {
     // Ctrl+B or Cmd+B: Bold
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
-        formatText('**', '**', 'bold text');
+        await formatText('**', '**', 'bold text');
         return;
     }
     
     // Ctrl+I or Cmd+I: Italic
     if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
         e.preventDefault();
-        formatText('*', '*', 'italic text');
+        await formatText('*', '*', 'italic text');
         return;
     }
     
     // Ctrl+` or Cmd+`: Inline code
     if ((e.ctrlKey || e.metaKey) && e.key === '`') {
         e.preventDefault();
-        formatText('`', '`', 'code');
+        await formatText('`', '`', 'code');
         return;
     }
     
@@ -2669,7 +2916,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         console.log('[renderer.js] Marked instance configured.');
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
-        initializeApp(); // Initialize now that Marked is ready and DOM is loaded
+        await initializeApp(); // Initialize now that Marked is ready and DOM is loaded
         setupNavigationControls(); // Setup navigation buttons and keyboard shortcuts
         
         // Initialize file tree view on startup
@@ -3478,10 +3725,10 @@ fileTreeView.addEventListener('click', (event) => {
         // Send request to main process to open this file
         // Use invoke since main process uses ipcMain.handle
         window.electronAPI.invoke('open-file-path', filePath)
-          .then(result => {
+          .then(async result => {
             if (result.success) {
                 console.log('[Renderer] File opened successfully:', result.filePath);
-                openFileInEditor(result.filePath, result.content);
+                await openFileInEditor(result.filePath, result.content);
             } else {
                 console.error('[Renderer] Main process reported error opening file:', result.error);
                 // Optionally show an error to the user via UI element
@@ -3799,7 +4046,7 @@ async function openFileFromHistory(historyItem) {
     try {
         const result = await window.electronAPI.invoke('open-file-path', historyItem.filePath);
         if (result.success) {
-            openFileInEditor(result.filePath, result.content);
+            await openFileInEditor(result.filePath, result.content);
             updateNavigationButtons();
             updateCurrentFileName(historyItem.fileName);
         } else {
@@ -4055,10 +4302,10 @@ setupContextMenuListener();
 
 // Handle file opened event (e.g., from File > Open or File Tree click)
 if (window.electronAPI) {
-    window.electronAPI.on('file-opened', (data) => {
+    window.electronAPI.on('file-opened', async (data) => {
         console.log('[Renderer] Received file-opened event:', data);
         if (data && typeof data.content === 'string' && typeof data.filePath === 'string') {
-            openFileInEditor(data.filePath, data.content);
+            await openFileInEditor(data.filePath, data.content);
             // Save current file to settings
             window.electronAPI.invoke('set-current-file', data.filePath);
         }
@@ -5227,39 +5474,39 @@ const toggleSpeakerNotesInPreviewBtn = document.getElementById('toggle-speaker-n
 function initializeMarkdownFormatting() {
     console.log('[renderer.js] Initializing markdown formatting...');
     
-    if (formatBoldBtn) formatBoldBtn.addEventListener('click', () => formatText('**', '**', 'bold text'));
-    if (formatItalicBtn) formatItalicBtn.addEventListener('click', () => formatText('*', '*', 'italic text'));
-    if (formatCodeBtn) formatCodeBtn.addEventListener('click', () => formatText('`', '`', 'code'));
+    if (formatBoldBtn) formatBoldBtn.addEventListener('click', async () => await formatText('**', '**', 'bold text'));
+    if (formatItalicBtn) formatItalicBtn.addEventListener('click', async () => await formatText('*', '*', 'italic text'));
+    if (formatCodeBtn) formatCodeBtn.addEventListener('click', async () => await formatText('`', '`', 'code'));
     
-    if (formatH1Btn) formatH1Btn.addEventListener('click', () => formatHeading(1));
-    if (formatH2Btn) formatH2Btn.addEventListener('click', () => formatHeading(2));
-    if (formatH3Btn) formatH3Btn.addEventListener('click', () => formatHeading(3));
+    if (formatH1Btn) formatH1Btn.addEventListener('click', async () => await formatHeading(1));
+    if (formatH2Btn) formatH2Btn.addEventListener('click', async () => await formatHeading(2));
+    if (formatH3Btn) formatH3Btn.addEventListener('click', async () => await formatHeading(3));
     
-    if (formatListBtn) formatListBtn.addEventListener('click', () => formatList('-'));
-    if (formatNumberedListBtn) formatNumberedListBtn.addEventListener('click', () => formatList('1.'));
-    if (formatQuoteBtn) formatQuoteBtn.addEventListener('click', () => formatBlockquote());
+    if (formatListBtn) formatListBtn.addEventListener('click', async () => await formatList('-'));
+    if (formatNumberedListBtn) formatNumberedListBtn.addEventListener('click', async () => await formatList('1.'));
+    if (formatQuoteBtn) formatQuoteBtn.addEventListener('click', async () => await formatBlockquote());
     
     if (formatLinkBtn) formatLinkBtn.addEventListener('click', () => insertLink());
     if (formatImageBtn) formatImageBtn.addEventListener('click', () => insertImage());
     if (formatTableBtn) formatTableBtn.addEventListener('click', () => insertTable());
-    if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', () => addSlideMarkersToParagraphs());
-    if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', () => removeAllSlideMarkers());
-    if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', () => insertSpeakerNotesTemplate());
+    if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', async () => await addSlideMarkersToParagraphs());
+    if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', async () => await removeAllSlideMarkers());
+    if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', async () => await insertSpeakerNotesTemplate());
     
     // Annotation button event handlers
     const insertCommentAnnotationBtn = document.getElementById('insert-comment-annotation-btn');
     const insertHighlightAnnotationBtn = document.getElementById('insert-highlight-annotation-btn');
     const insertBlockAnnotationBtn = document.getElementById('insert-block-annotation-btn');
     
-    if (insertCommentAnnotationBtn) insertCommentAnnotationBtn.addEventListener('click', () => insertCommentAnnotation());
-    if (insertHighlightAnnotationBtn) insertHighlightAnnotationBtn.addEventListener('click', () => insertHighlightAnnotation());
-    if (insertBlockAnnotationBtn) insertBlockAnnotationBtn.addEventListener('click', () => insertBlockAnnotation());
+    if (insertCommentAnnotationBtn) insertCommentAnnotationBtn.addEventListener('click', async () => await insertCommentAnnotation());
+    if (insertHighlightAnnotationBtn) insertHighlightAnnotationBtn.addEventListener('click', async () => await insertHighlightAnnotation());
+    if (insertBlockAnnotationBtn) insertBlockAnnotationBtn.addEventListener('click', async () => await insertBlockAnnotation());
     
     console.log('[renderer.js] Markdown formatting initialized');
 }
 
 // Format text with wrap characters (bold, italic, code)
-function formatText(prefix, suffix, placeholder) {
+async function formatText(prefix, suffix, placeholder) {
     if (!editor) return;
     
     const selection = editor.getSelection();
@@ -5313,11 +5560,11 @@ function formatText(prefix, suffix, placeholder) {
     }
     
     editor.focus();
-    updatePreviewAndStructure(editor.getValue());
+    await updatePreviewAndStructure(editor.getValue());
 }
 
 // Format headings
-function formatHeading(level) {
+async function formatHeading(level) {
     if (!editor) return;
     
     const position = editor.getPosition();
@@ -5348,11 +5595,11 @@ function formatHeading(level) {
     });
     
     editor.focus();
-    updatePreviewAndStructure(editor.getValue());
+    await updatePreviewAndStructure(editor.getValue());
 }
 
 // Format lists
-function formatList(marker) {
+async function formatList(marker) {
     if (!editor) return;
     
     const selection = editor.getSelection();
@@ -5401,11 +5648,11 @@ function formatList(marker) {
     }
     
     editor.focus();
-    updatePreviewAndStructure(editor.getValue());
+    await updatePreviewAndStructure(editor.getValue());
 }
 
 // Format blockquote
-function formatBlockquote() {
+async function formatBlockquote() {
     if (!editor) return;
     
     const selection = editor.getSelection();
@@ -5453,11 +5700,11 @@ function formatBlockquote() {
     }
     
     editor.focus();
-    updatePreviewAndStructure(editor.getValue());
+    await updatePreviewAndStructure(editor.getValue());
 }
 
 // Insert link
-function insertLink() {
+async function insertLink() {
     if (!editor) return;
     
     const selection = editor.getSelection();
@@ -5476,11 +5723,11 @@ function insertLink() {
     }]);
     
     editor.focus();
-    updatePreviewAndStructure(editor.getValue());
+    await updatePreviewAndStructure(editor.getValue());
 }
 
 // Insert image
-function insertImage() {
+async function insertImage() {
     if (!editor) return;
     
     const url = prompt('Enter the image URL:');
@@ -5496,11 +5743,11 @@ function insertImage() {
     }]);
     
     editor.focus();
-    updatePreviewAndStructure(editor.getValue());
+    await updatePreviewAndStructure(editor.getValue());
 }
 
 // Insert table
-function insertTable() {
+async function insertTable() {
     if (!editor) return;
     
     const rows = parseInt(prompt('Number of rows:') || '3');
@@ -5531,11 +5778,11 @@ function insertTable() {
     }]);
     
     editor.focus();
-    updatePreviewAndStructure(editor.getValue());
+    await updatePreviewAndStructure(editor.getValue());
 }
 
 // Add slide markers to paragraphs that don't already have them
-function addSlideMarkersToParagraphs() {
+async function addSlideMarkersToParagraphs() {
     if (!editor) {
         console.warn('[renderer.js] Cannot add slide markers - no editor available');
         return;
@@ -5593,7 +5840,7 @@ function addSlideMarkersToParagraphs() {
     const newContent = newLines.join('\n');
     if (newContent !== content) {
         editor.setValue(newContent);
-        updatePreviewAndStructure(newContent);
+        await updatePreviewAndStructure(newContent);
         console.log('[renderer.js] Slide markers added successfully');
     } else {
         console.log('[renderer.js] No slide markers needed to be added');
@@ -5601,7 +5848,7 @@ function addSlideMarkersToParagraphs() {
 }
 
 // Remove all slide markers from the document with confirmation
-function removeAllSlideMarkers() {
+async function removeAllSlideMarkers() {
     if (!editor) {
         console.warn('[renderer.js] Cannot remove slide markers - no editor available');
         return;
@@ -5643,14 +5890,14 @@ function removeAllSlideMarkers() {
     
     const newContent = newLines.join('\n');
     editor.setValue(newContent);
-    updatePreviewAndStructure(newContent);
+    await updatePreviewAndStructure(newContent);
     console.log(`[renderer.js] Successfully removed ${slideMarkerCount} slide markers`);
 }
 
 // --- Speaker Notes Functionality ---
 
 // Insert speaker notes template
-function insertSpeakerNotesTemplate() {
+async function insertSpeakerNotesTemplate() {
     if (!editor) {
         console.warn('[renderer.js] Cannot insert speaker notes template - no editor available');
         return;
@@ -5678,7 +5925,7 @@ function insertSpeakerNotesTemplate() {
 
 // --- Annotation Insertion Functions ---
 
-function insertCommentAnnotation() {
+async function insertCommentAnnotation() {
     if (!editor) {
         console.warn('[renderer.js] Cannot insert comment annotation - no editor available');
         return;
@@ -5703,7 +5950,7 @@ function insertCommentAnnotation() {
     });
 }
 
-function insertHighlightAnnotation() {
+async function insertHighlightAnnotation() {
     if (!editor) {
         console.warn('[renderer.js] Cannot insert highlight annotation - no editor available');
         return;
@@ -5733,7 +5980,7 @@ function insertHighlightAnnotation() {
     });
 }
 
-function insertBlockAnnotation() {
+async function insertBlockAnnotation() {
     if (!editor) {
         console.warn('[renderer.js] Cannot insert block annotation - no editor available');
         return;
@@ -6257,7 +6504,7 @@ function getNextListNumber(currentLine, indent) {
 }
 
 // Handle Tab and Shift+Tab for list indentation
-function handleListIndentation(isIndent) {
+async function handleListIndentation(isIndent) {
     if (!editor) return false;
     
     const position = editor.getPosition();
@@ -6311,7 +6558,7 @@ function handleListIndentation(isIndent) {
             column: Math.min(newCursorColumn, newLine.length + 1)
         });
         
-        updatePreviewAndStructure(editor.getValue());
+        await updatePreviewAndStructure(editor.getValue());
         return true;
     }
     
@@ -6319,7 +6566,7 @@ function handleListIndentation(isIndent) {
 }
 
 // Auto-renumber all numbered lists in the document
-function renumberAllLists() {
+async function renumberAllLists() {
     if (!editor) return;
     
     const model = editor.getModel();
@@ -6371,7 +6618,7 @@ function renumberAllLists() {
     
     if (edits.length > 0) {
         editor.executeEdits('renumber-lists', edits);
-        updatePreviewAndStructure(editor.getValue());
+        await updatePreviewAndStructure(editor.getValue());
         console.log(`[renderer.js] Renumbered ${edits.length} list items`);
     }
 }
@@ -6395,8 +6642,8 @@ function addRenumberButton() {
         renumberBtn.style.cssText = 'padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;';
         renumberBtn.innerHTML = '🔢 Renumber';
         
-        renumberBtn.addEventListener('click', () => {
-            renumberAllLists();
+        renumberBtn.addEventListener('click', async () => {
+            await renumberAllLists();
             showNotification('Lists renumbered successfully', 'success');
         });
         
@@ -7861,9 +8108,9 @@ function initializeCommandPalette() {
     registerCommand('format.heading3', 'Format: Heading 3', () => insertHeading(3), 'Cmd+3');
     
     // Annotations
-    registerCommand('annotation.comment', 'Annotation: Insert Comment', () => insertCommentAnnotation());
-    registerCommand('annotation.highlight', 'Annotation: Insert Highlight', () => insertHighlightAnnotation());
-    registerCommand('annotation.block', 'Annotation: Insert Block', () => insertBlockAnnotation());
+    registerCommand('annotation.comment', 'Annotation: Insert Comment', async () => await insertCommentAnnotation());
+    registerCommand('annotation.highlight', 'Annotation: Insert Highlight', async () => await insertHighlightAnnotation());
+    registerCommand('annotation.block', 'Annotation: Insert Block', async () => await insertBlockAnnotation());
     
     // Navigation
     registerCommand('nav.back', 'Navigate: Back', () => navigateBack());
@@ -7890,6 +8137,7 @@ function initializeCommandPalette() {
     // Settings
     registerCommand('settings.open', 'Settings: Open Preferences', () => openSettings(), 'Cmd+,');
     registerCommand('settings.theme.toggle', 'Settings: Toggle Theme', () => toggleTheme());
+    registerCommand('settings.linkPreview.toggle', 'Settings: Toggle Link Previews', async () => await toggleLinkPreview());
     
     // Speaker Notes
     registerCommand('speaker.toggle', 'Speaker Notes: Toggle View', () => toggleSpeakerNotesView());
@@ -7946,7 +8194,7 @@ function showCommandPalette() {
     
     // Handle keyboard navigation
     let selectedIndex = 0;
-    input.addEventListener('keydown', (e) => {
+    input.addEventListener('keydown', async (e) => {
         const items = results.querySelectorAll('.command-item');
         
         switch (e.key) {
@@ -7971,7 +8219,7 @@ function showCommandPalette() {
                 e.preventDefault();
                 const selectedItem = items[selectedIndex];
                 if (selectedItem) {
-                    executeCommand(selectedItem.dataset.commandId);
+                    await executeCommand(selectedItem.dataset.commandId);
                 }
                 hideCommandPalette();
                 break;
@@ -8000,8 +8248,8 @@ function updateCommandResults(query, resultsContainer) {
     
     // Add click handlers
     resultsContainer.querySelectorAll('.command-item').forEach(item => {
-        item.addEventListener('click', () => {
-            executeCommand(item.dataset.commandId);
+        item.addEventListener('click', async () => {
+            await executeCommand(item.dataset.commandId);
             hideCommandPalette();
         });
     });
@@ -8030,12 +8278,12 @@ function updateSelection(items, selectedIndex) {
     }
 }
 
-function executeCommand(commandId) {
+async function executeCommand(commandId) {
     const command = commandRegistry.get(commandId);
     if (command) {
         console.log(`[CommandPalette] Executing command: ${command.label}`);
         try {
-            command.action();
+            await command.action();
         } catch (error) {
             console.error(`[CommandPalette] Error executing command ${commandId}:`, error);
             showNotification(`Error executing command: ${command.label}`, 'error');
@@ -8114,6 +8362,54 @@ function addSpeakerNote() {
             text: noteText
         }]);
         editor.setPosition({ lineNumber: position.lineNumber + 4, column: 1 });
+    }
+}
+
+async function toggleLinkPreview() {
+    const currentSettings = window.currentSettings || {};
+    const linkPreviewSettings = currentSettings.linkPreview || {};
+    const currentMode = linkPreviewSettings.mode || 'hover'; // default to hover
+    
+    // Cycle through three states: disabled → hover → inline → disabled
+    let newMode;
+    let statusMessage;
+    
+    switch (currentMode) {
+        case 'disabled':
+            newMode = 'hover';
+            statusMessage = 'Link previews: hover tooltips enabled';
+            break;
+        case 'hover':
+            newMode = 'inline';
+            statusMessage = 'Link previews: inline content enabled';
+            break;
+        case 'inline':
+        default:
+            newMode = 'disabled';
+            statusMessage = 'Link previews: disabled';
+            break;
+    }
+    
+    // Update settings
+    if (!currentSettings.linkPreview) {
+        currentSettings.linkPreview = {};
+    }
+    currentSettings.linkPreview.mode = newMode;
+    // Keep backwards compatibility
+    currentSettings.linkPreview.enabled = newMode !== 'disabled';
+    window.currentSettings = currentSettings;
+    
+    // Save to main process
+    if (window.electronAPI) {
+        window.electronAPI.invoke('set-settings', { linkPreview: { mode: newMode, enabled: newMode !== 'disabled' } });
+    }
+    
+    showNotification(statusMessage, 'success');
+    console.log(`[LinkPreview] ${statusMessage}`);
+    
+    // Force preview refresh to apply new mode
+    if (editor && typeof editor.getValue === 'function') {
+        await updatePreviewAndStructure(editor.getValue());
     }
 }
 

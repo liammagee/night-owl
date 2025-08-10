@@ -26,6 +26,6 @@
 22. Reference autocomplete - DONE
 23. Toggle panes - DONE
 24. Fix Icon - DONE
-25. Cmd+P / Cmd+Shift+P - IN PROGRESS
+25. Cmd+P / Cmd+Shift+P - DONE
 
  

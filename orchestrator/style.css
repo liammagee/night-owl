@@ -1081,6 +1081,215 @@ body.dark-theme .annotation-highlight:hover {
 }
 
 /* =====================================
+   INLINE LINK PREVIEW STYLES
+   ===================================== */
+
+.inline-link-preview {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin: 12px 0;
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.inline-link-preview:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+
+.inline-link-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.inline-link-header::before {
+    content: "🔗";
+    font-size: 12px;
+}
+
+.inline-link-content {
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #374151;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 0 0 8px 8px;
+}
+
+.inline-link-content p {
+    margin: 0 0 8px 0;
+}
+
+.inline-link-content p:last-child {
+    margin-bottom: 0;
+}
+
+.inline-link-content h1,
+.inline-link-content h2,
+.inline-link-content h3,
+.inline-link-content h4,
+.inline-link-content h5,
+.inline-link-content h6 {
+    margin: 0 0 8px 0;
+    color: #1f2937;
+}
+
+.inline-link-content h1 { font-size: 18px; }
+.inline-link-content h2 { font-size: 16px; }
+.inline-link-content h3 { font-size: 15px; }
+.inline-link-content h4 { font-size: 14px; }
+.inline-link-content h5 { font-size: 13px; }
+.inline-link-content h6 { font-size: 13px; }
+
+/* Dark mode support for inline link previews */
+body.dark-theme .inline-link-preview {
+    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    border-color: #4a5568;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .inline-link-preview:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .inline-link-header {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    color: #e2e8f0;
+    border-bottom-color: rgba(226, 232, 240, 0.1);
+}
+
+body.dark-theme .inline-link-content {
+    color: #cbd5e0;
+    background: rgba(45, 55, 72, 0.7);
+}
+
+body.dark-theme .inline-link-content h1,
+body.dark-theme .inline-link-content h2,
+body.dark-theme .inline-link-content h3,
+body.dark-theme .inline-link-content h4,
+body.dark-theme .inline-link-content h5,
+body.dark-theme .inline-link-content h6 {
+    color: #f7fafc;
+}
+
+/* =====================================
+   INTERNAL LINK PREVIEW STYLES
+   ===================================== */
+
+.internal-link {
+    position: relative;
+    text-decoration: underline;
+    color: #007bff;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.internal-link:hover {
+    color: #0056b3;
+}
+
+.link-preview-tooltip {
+    position: fixed;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.1),
+        0 3px 10px rgba(0, 0, 0, 0.05);
+    max-width: 400px;
+    min-width: 300px;
+    z-index: 10000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+    animation: linkPreviewFadeIn 0.2s ease-out;
+    pointer-events: none; /* Don't interfere with mouse events */
+}
+
+.link-preview-header {
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.link-preview-content {
+    padding: 16px;
+    color: #2d3748;
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.link-preview-content p {
+    margin: 0 0 12px 0;
+}
+
+.link-preview-content p:last-child {
+    margin-bottom: 0;
+}
+
+.link-preview-meta {
+    padding: 8px 16px;
+    font-size: 11px;
+    color: #718096;
+    border-top: 1px solid #e2e8f0;
+    background: #f7fafc;
+    border-radius: 0 0 8px 8px;
+    text-align: center;
+}
+
+/* Animation */
+@keyframes linkPreviewFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Dark mode support */
+body.dark-theme .link-preview-tooltip {
+    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    border-color: #4a5568;
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.3),
+        0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .link-preview-header {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+}
+
+body.dark-theme .link-preview-content {
+    color: #e2e8f0;
+}
+
+body.dark-theme .link-preview-meta {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #a0aec0;
+}
+
+/* =====================================
    COMMAND PALETTE STYLES
    ===================================== */
 
