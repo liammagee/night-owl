@@ -1,6 +1,23 @@
+// Add drag and drop event listeners to file tree  
+// Use the fileTreeView already declared in renderer.js
 
-// Add drag and drop event listeners to file tree
-fileTreeView.addEventListener('dragstart', (event) => {
+// Global variable to track dragged items
+let draggedItem = null;
+
+// Initialize drag and drop when fileTreeView is ready
+function initializeDragAndDrop() {
+    // Wait for window.fileTreeView and required functions to be initialized
+    const checkDependencies = setInterval(() => {
+        if (window.fileTreeView && window.renderFileTree && window.showNotification) {
+            clearInterval(checkDependencies);
+            setupDragAndDropListeners();
+        }
+    }, 100);
+}
+
+// Set up all drag and drop event listeners
+function setupDragAndDropListeners() {
+    window.fileTreeView.addEventListener('dragstart', (event) => {
     const target = event.target;
     console.log('[Renderer] Dragstart event on:', target, 'Classes:', target.classList.toString(), 'Draggable:', target.draggable);
     
@@ -25,7 +42,7 @@ fileTreeView.addEventListener('dragstart', (event) => {
     }
 }, true);
 
-fileTreeView.addEventListener('dragend', (event) => {
+window.fileTreeView.addEventListener('dragend', (event) => {
     console.log('[Renderer] Drag ended');
     // Don't clear draggedItem here immediately, let drop handle it
     // Just reset visual feedback on the dragged element
@@ -40,7 +57,7 @@ fileTreeView.addEventListener('dragend', (event) => {
             draggedItem = null;
         }
         // Clear any remaining visual feedback
-        const allFolders = fileTreeView.querySelectorAll('.folder');
+        const allFolders = window.fileTreeView.querySelectorAll('.folder');
         allFolders.forEach(folder => {
             folder.style.backgroundColor = '';
             folder.style.border = '';
@@ -48,9 +65,13 @@ fileTreeView.addEventListener('dragend', (event) => {
     }, 100);
 }, true);
 
-fileTreeView.addEventListener('dragover', (event) => {
-    const target = event.target;
-    if (target.classList.contains('folder') && target.dataset.path && draggedItem) {
+window.fileTreeView.addEventListener('dragover', (event) => {
+    let target = event.target;
+    // If target is not a folder, try to find the folder parent
+    if (!target.classList.contains('folder')) {
+        target = target.closest('.folder');
+    }
+    if (target && target.classList.contains('folder') && target.dataset.path && draggedItem) {
         event.preventDefault(); // Allow drop
         event.dataTransfer.dropEffect = 'move';
         
@@ -62,33 +83,45 @@ fileTreeView.addEventListener('dragover', (event) => {
     }
 }, true);
 
-fileTreeView.addEventListener('dragleave', (event) => {
-    const target = event.target;
-    if (target.classList.contains('folder')) {
+window.fileTreeView.addEventListener('dragleave', (event) => {
+    let target = event.target;
+    // If target is not a folder, try to find the folder parent
+    if (!target.classList.contains('folder')) {
+        target = target.closest('.folder');
+    }
+    if (target && target.classList.contains('folder')) {
         // Remove visual feedback
         target.style.backgroundColor = '';
         target.style.border = '';
     }
 }, true);
 
-fileTreeView.addEventListener('drop', async (event) => {
+window.fileTreeView.addEventListener('drop', async (event) => {
     console.log('[Renderer] Drop event');
     event.preventDefault();
     event.stopPropagation();
     
-    const target = event.target;
+    let target = event.target;
     console.log('[Renderer] Drop target:', target, 'Classes:', target.classList.toString());
     console.log('[Renderer] Dragged item:', draggedItem);
     
+    // If target is not a folder, try to find the folder parent
+    if (!target.classList.contains('folder')) {
+        target = target.closest('.folder');
+    }
+    
     // Validate we have all required data
-    if (!target.classList.contains('folder') || !target.dataset.path) {
+    if (!target || !target.classList.contains('folder') || !target.dataset.path) {
         console.log('[Renderer] Drop not processed - invalid target');
+        console.log('[Renderer] Target has folder class:', target ? target.classList.contains('folder') : 'no target');
+        console.log('[Renderer] Target dataset.path:', target ? target.dataset.path : 'no target');
+        console.log('[Renderer] Target element:', target);
         return;
     }
     
     if (!draggedItem || !draggedItem.path || !draggedItem.type) {
         console.log('[Renderer] Drop not processed - no valid dragged item');
-        showNotification('Drag and drop failed - no valid item being dragged', 'error');
+        window.showNotification('Drag and drop failed - no valid item being dragged', 'error');
         return;
     }
     
@@ -102,7 +135,7 @@ fileTreeView.addEventListener('drop', async (event) => {
     
     // Don't allow dropping item into itself or its children
     if (draggedItem.path === targetFolderPath || targetFolderPath.startsWith(draggedItem.path + '/')) {
-        showNotification('Cannot move item into itself or its subdirectory', 'error');
+        window.showNotification('Cannot move item into itself or its subdirectory', 'error');
         return;
     }
     
@@ -123,19 +156,21 @@ fileTreeView.addEventListener('drop', async (event) => {
         
         if (result.success) {
             console.log('[Renderer] Drag and drop move completed successfully');
-            renderFileTree();
-            showNotification(`${itemToMove.type === 'file' ? 'File' : 'Folder'} moved successfully`, 'success');
+            window.renderFileTree();
+            window.showNotification(`${itemToMove.type === 'file' ? 'File' : 'Folder'} moved successfully`, 'success');
         } else {
             console.error('[Renderer] Error in drag and drop move:', result.error);
-            showNotification(`Error: ${result.error}`, 'error');
+            window.showNotification(`Error: ${result.error}`, 'error');
         }
     } catch (error) {
         console.error('[Renderer] Error in drag and drop move:', error);
-        showNotification('Error moving item', 'error');
+        window.showNotification('Error moving item', 'error');
     }
     
     // Clear the dragged item
     draggedItem = null;
 }, true);
+}
 
-
+// Initialize drag and drop functionality
+initializeDragAndDrop();

@@ -19,7 +19,11 @@ const searchRegex = document.getElementById('search-regex');
 const searchWholeWord = document.getElementById('search-whole-word');
 const searchFilePattern = document.getElementById('search-file-pattern');
 const searchResults = document.getElementById('search-results');
-const searchStatus = document.getElementById('search-status');
+const searchResultsCount = document.getElementById('search-results-count');
+const clearSearchResultsBtn = document.getElementById('clear-search-results');
+
+// Get search execute button
+const globalSearchExecuteBtn = document.getElementById('global-search-execute');
 
 // Get replace elements
 const globalReplaceInput = document.getElementById('global-replace-input');
@@ -36,6 +40,10 @@ function initializeGlobalSearch() {
     
     if (globalSearchBtn) {
         globalSearchBtn.addEventListener('click', performGlobalSearch);
+    }
+    
+    if (globalSearchExecuteBtn) {
+        globalSearchExecuteBtn.addEventListener('click', performGlobalSearch);
     }
     
     if (globalSearchInput) {
@@ -66,6 +74,14 @@ function initializeGlobalSearch() {
                 e.preventDefault();
                 performGlobalReplace(false); // Ctrl+Enter to execute
             }
+        });
+    }
+    
+    // Clear search results button
+    if (clearSearchResultsBtn) {
+        clearSearchResultsBtn.addEventListener('click', () => {
+            clearSearchResults();
+            showSearchStatus('No search performed');
         });
     }
 }
@@ -121,8 +137,8 @@ function clearSearchResults() {
 }
 
 function showSearchStatus(message) {
-    if (searchStatus) {
-        searchStatus.textContent = message;
+    if (searchResultsCount) {
+        searchResultsCount.textContent = message;
     }
 }
 

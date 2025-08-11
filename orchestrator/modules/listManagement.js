@@ -3,13 +3,13 @@
 
 // Initialize smart list behavior
 function initializeSmartLists() {
-    if (!editor) {
-        console.log('[renderer.js] Cannot initialize smart lists - no editor');
+    if (!window.editor) {
+        console.log('[renderer.js] Cannot initialize smart lists - no window.editor');
         return;
     }
     
     // Use onKeyDown for better control over Enter key
-    editor.onKeyDown((e) => {
+    window.editor.onKeyDown((e) => {
         if (e.keyCode === monaco.KeyCode.Enter) {
             if (handleSimpleListEnter()) {
                 e.preventDefault();
@@ -23,13 +23,13 @@ function initializeSmartLists() {
 
 // Simple list enter handler
 function handleSimpleListEnter() {
-    if (!editor) {
+    if (!window.editor) {
         return false;
     }
     
     try {
-        const position = editor.getPosition();
-        const lineContent = editor.getModel().getLineContent(position.lineNumber);
+        const position = window.editor.getPosition();
+        const lineContent = window.editor.getModel().getLineContent(position.lineNumber);
         
         // Check if current line is a numbered list item
         const numberedMatch = lineContent.match(/^(\s*)(\d+)\.\s+(.*)$/);
@@ -38,7 +38,7 @@ function handleSimpleListEnter() {
             
             // If empty list item, exit list
             if (content.trim() === '') {
-                editor.executeEdits('exit-list', [{
+                window.editor.executeEdits('exit-list', [{
                     range: new monaco.Range(position.lineNumber, 1, position.lineNumber, lineContent.length + 1),
                     text: indent
                 }]);
@@ -50,13 +50,13 @@ function handleSimpleListEnter() {
             const newText = '\n' + indent + nextNum + '. ';
             
             // Insert at current cursor position
-            editor.executeEdits('continue-list', [{
+            window.editor.executeEdits('continue-list', [{
                 range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
                 text: newText
             }]);
             
             // Move cursor to end of new line
-            editor.setPosition({
+            window.editor.setPosition({
                 lineNumber: position.lineNumber + 1,
                 column: indent.length + nextNum.toString().length + 3
             });
@@ -71,7 +71,7 @@ function handleSimpleListEnter() {
             
             // If empty list item, exit list  
             if (content.trim() === '') {
-                editor.executeEdits('exit-list', [{
+                window.editor.executeEdits('exit-list', [{
                     range: new monaco.Range(position.lineNumber, 1, position.lineNumber, lineContent.length + 1),
                     text: indent
                 }]);
@@ -82,13 +82,13 @@ function handleSimpleListEnter() {
             const newText = '\n' + indent + bullet + ' ';
             
             // Insert at current cursor position
-            editor.executeEdits('continue-list', [{
+            window.editor.executeEdits('continue-list', [{
                 range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
                 text: newText
             }]);
             
             // Move cursor to end of new line
-            editor.setPosition({
+            window.editor.setPosition({
                 lineNumber: position.lineNumber + 1,
                 column: indent.length + bullet.length + 2
             });
@@ -106,7 +106,7 @@ function handleSimpleListEnter() {
 
 // Get the next number for a numbered list
 function getNextListNumber(currentLine, indent) {
-    const model = editor.getModel();
+    const model = window.editor.getModel();
     let lastNumber = 0;
     
     // Look backwards from current line to find the last number
@@ -144,10 +144,10 @@ function getNextListNumber(currentLine, indent) {
 
 // Handle Tab and Shift+Tab for list indentation
 async function handleListIndentation(isIndent) {
-    if (!editor) return false;
+    if (!window.editor) return false;
     
-    const position = editor.getPosition();
-    const lineContent = editor.getModel().getLineContent(position.lineNumber);
+    const position = window.editor.getPosition();
+    const lineContent = window.editor.getModel().getLineContent(position.lineNumber);
     
     // Check if we're on a list line
     const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
@@ -183,7 +183,7 @@ async function handleListIndentation(isIndent) {
             position.lineNumber, lineContent.length + 1
         );
         
-        editor.executeEdits('indent-list', [{
+        window.editor.executeEdits('indent-list', [{
             range: range,
             text: newLine
         }]);
@@ -192,12 +192,12 @@ async function handleListIndentation(isIndent) {
         const newCursorColumn = newIndent.length + newMarker.length + 2 + 
                               Math.max(0, position.column - (indent.length + marker.length + 2));
         
-        editor.setPosition({
+        window.editor.setPosition({
             lineNumber: position.lineNumber,
             column: Math.min(newCursorColumn, newLine.length + 1)
         });
         
-        await updatePreviewAndStructure(editor.getValue());
+        await updatePreviewAndStructure(window.editor.getValue());
         return true;
     }
     
@@ -206,9 +206,9 @@ async function handleListIndentation(isIndent) {
 
 // Auto-renumber all numbered lists in the document
 async function renumberAllLists() {
-    if (!editor) return;
+    if (!window.editor) return;
     
-    const model = editor.getModel();
+    const model = window.editor.getModel();
     const totalLines = model.getLineCount();
     const edits = [];
     
@@ -256,15 +256,15 @@ async function renumberAllLists() {
     }
     
     if (edits.length > 0) {
-        editor.executeEdits('renumber-lists', edits);
-        await updatePreviewAndStructure(editor.getValue());
+        window.editor.executeEdits('renumber-lists', edits);
+        await updatePreviewAndStructure(window.editor.getValue());
         console.log(`[renderer.js] Renumbered ${edits.length} list items`);
     }
 }
 
 // Add renumber button to toolbar
 function addRenumberButton() {
-    const toolbar = document.getElementById('editor-toolbar');
+    const toolbar = document.getElementById('window.editor-toolbar');
     if (!toolbar) return;
     
     // Find the "Format" separator and add the renumber button after it
@@ -293,11 +293,11 @@ function addRenumberButton() {
     }
 }
 
-// Initialize smart lists after Monaco editor is ready
+// Initialize smart lists after Monaco window.editor is ready
 function initializeSmartListsWhenReady() {
-    // Wait for editor to be initialized
+    // Wait for window.editor to be initialized
     const checkEditor = setInterval(() => {
-        if (editor && editor.getModel) {
+        if (window.editor && window.editor.getModel) {
             clearInterval(checkEditor);
             initializeSmartLists();
             addRenumberButton();

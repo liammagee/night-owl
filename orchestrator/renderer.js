@@ -32,6 +32,7 @@ const structurePaneTitle = document.getElementById('structure-pane-title');
 const showStructureBtn = document.getElementById('show-structure-btn');
 const showFilesBtn = document.getElementById('show-files-btn');
 const fileTreeView = document.getElementById('file-tree-view');
+window.fileTreeView = fileTreeView;
 const newFolderBtn = document.getElementById('new-folder-btn');
 const changeDirectoryBtn = document.getElementById('change-directory-btn');
 const chatMessages = document.getElementById('chat-messages');
@@ -61,6 +62,8 @@ const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
 const loadEditorToChatBtn = document.getElementById('load-editor-to-chat-btn'); // Get the new button
 const copyAIResponseBtn = document.getElementById('copy-ai-response-btn'); // New button
+
+// Speaker notes pane elements
 
 // Keep require.config as needed - only if require is available
 if (typeof require !== 'undefined') {
@@ -1789,6 +1792,32 @@ async function loadAppSettings() {
     } catch (err) {
         console.error('[renderer.js] Failed to load settings:', err);
     }
+    
+    // Initialize modules after Monaco editor is ready
+    console.log('[renderer.js] Initializing modules...');
+    
+    // Initialize formatting module
+    if (window.initializeMarkdownFormatting) {
+        setTimeout(() => {
+            window.initializeMarkdownFormatting();
+        }, 100);
+    }
+    
+    // Initialize search module
+    if (window.initializeGlobalSearch) {
+        setTimeout(() => {
+            window.initializeGlobalSearch();
+        }, 100);
+    }
+    
+    // Initialize speaker notes module
+    if (window.initializeSpeakerNotes) {
+        setTimeout(() => {
+            window.initializeSpeakerNotes();
+        }, 100);
+    }
+    
+    console.log('[renderer.js] Module initialization queued.');
 }
 
 // Handle file opened event (e.g., from File > Open or File Tree click)
@@ -2461,13 +2490,17 @@ function showRightPane(paneType) {
     // Hide all content panes
     if (previewPane) previewPane.style.display = 'none';
     if (chatPane) chatPane.style.display = 'none';
+    const searchPane = document.getElementById('search-pane');
     if (searchPane) searchPane.style.display = 'none';
+    const speakerNotesPane = document.getElementById('speaker-notes-pane');
     if (speakerNotesPane) speakerNotesPane.style.display = 'none';
     
     // Remove active state from all toggle buttons
     if (showPreviewBtn) showPreviewBtn.classList.remove('active');
     if (showChatBtn) showChatBtn.classList.remove('active');
+    const showSearchBtn = document.getElementById('show-search-btn');
     if (showSearchBtn) showSearchBtn.classList.remove('active');
+    const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
     if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.remove('active');
     
     // Show the requested pane and activate its button
@@ -2481,11 +2514,15 @@ function showRightPane(paneType) {
             if (showChatBtn) showChatBtn.classList.add('active');
             break;
         case 'search':
+            const searchPane = document.getElementById('search-pane');
             if (searchPane) searchPane.style.display = '';
+            const showSearchBtn = document.getElementById('show-search-btn');
             if (showSearchBtn) showSearchBtn.classList.add('active');
             break;
         case 'speaker-notes':
+            const speakerNotesPane = document.getElementById('speaker-notes-pane');
             if (speakerNotesPane) speakerNotesPane.style.display = '';
+            const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
             if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.add('active');
             // Update speaker notes content when pane is shown
             updateSpeakerNotesDisplay();
@@ -2511,7 +2548,8 @@ function switchStructureView(view) {
         showStructureBtn.classList.add('active');
         showFilesBtn.classList.remove('active');
         structureList.style.display = ''; // Show structure list
-        fileTreeView.style.display = 'none'; // Hide file tree
+        const fileTreeView = document.getElementById('file-tree-view');
+        if (fileTreeView) fileTreeView.style.display = 'none'; // Hide file tree
         newFolderBtn.style.display = 'none'; // Hide New Folder button
         changeDirectoryBtn.style.display = 'none'; // Hide Change Directory button
         // Optionally, re-run structure update if needed
@@ -2521,7 +2559,8 @@ function switchStructureView(view) {
         showStructureBtn.classList.remove('active');
         showFilesBtn.classList.add('active');
         structureList.style.display = 'none'; // Hide structure list
-        fileTreeView.style.display = ''; // Show file tree
+        const fileTreeView = document.getElementById('file-tree-view');
+        if (fileTreeView) fileTreeView.style.display = ''; // Show file tree
         newFolderBtn.style.display = ''; // Show New Folder button
         changeDirectoryBtn.style.display = ''; // Show Change Directory button
         renderFileTree(); // Populate the file tree view
@@ -2534,6 +2573,8 @@ async function renderFileTree() {
         console.warn('[renderFileTree] ElectronAPI not available');
         return;
     }
+    
+    const fileTreeView = document.getElementById('file-tree-view');
     
     try {
         console.log('[renderFileTree] Requesting file tree...');
@@ -2578,9 +2619,14 @@ function renderFileTreeNode(node, container, depth) {
         <span class="file-name">${fileName}</span>
     `;
     
-    // Add click handler for files
-    if (!isFolder && node.path) {
-        nodeElement.classList.add('file-clickable');
+    // Add appropriate classes and properties
+    if (isFolder) {
+        nodeElement.classList.add('folder');
+        nodeElement.dataset.path = node.path;
+    } else {
+        nodeElement.classList.add('file', 'file-clickable');
+        nodeElement.dataset.path = node.path;
+        nodeElement.draggable = true;
         nodeElement.addEventListener('click', async () => {
             try {
                 console.log(`[renderFileTree] Opening file: ${node.path}`);
@@ -2594,6 +2640,11 @@ function renderFileTreeNode(node, container, depth) {
         });
     }
     
+    // Make folders draggable too for moving
+    if (isFolder) {
+        nodeElement.draggable = true;
+    }
+    
     container.appendChild(nodeElement);
     
     // Render children if it's a folder
@@ -2605,6 +2656,7 @@ function renderFileTreeNode(node, container, depth) {
 }
 
 function highlightCurrentFileInTree(filePath) {
+    const fileTreeView = document.getElementById('file-tree-view');
     if (!fileTreeView || !filePath) {
         return;
     }
@@ -2749,144 +2801,7 @@ async function addFileToRecents(filePath) {
     }
 }
 
-// Add drag and drop event listeners to file tree
-fileTreeView.addEventListener('dragstart', (event) => {
-    const target = event.target;
-    console.log('[Renderer] Dragstart event on:', target, 'Classes:', target.classList.toString(), 'Draggable:', target.draggable);
-    
-    if ((target.classList.contains('file') || target.classList.contains('folder')) && target.dataset.path) {
-        draggedItem = {
-            element: target,
-            path: target.dataset.path,
-            type: target.classList.contains('file') ? 'file' : 'folder',
-            name: target.textContent.substring(2) // Remove emoji
-        };
-        
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', draggedItem.path);
-        
-        // Visual feedback
-        target.style.opacity = '0.5';
-        target.style.border = '2px dashed #007bff';
-        
-        console.log('[Renderer] Drag started:', draggedItem);
-    } else {
-        console.log('[Renderer] Drag not started - invalid target');
-    }
-}, true);
-
-fileTreeView.addEventListener('dragend', (event) => {
-    console.log('[Renderer] Drag ended');
-    // Don't clear draggedItem here immediately, let drop handle it
-    // Just reset visual feedback on the dragged element
-    if (draggedItem && draggedItem.element) {
-        draggedItem.element.style.opacity = '';
-        draggedItem.element.style.border = '';
-    }
-    
-    // Clear draggedItem after a short delay to allow drop event to process
-    setTimeout(() => {
-        if (draggedItem) {
-            draggedItem = null;
-        }
-        // Clear any remaining visual feedback
-        const allFolders = fileTreeView.querySelectorAll('.folder');
-        allFolders.forEach(folder => {
-            folder.style.backgroundColor = '';
-            folder.style.border = '';
-        });
-    }, 100);
-}, true);
-
-fileTreeView.addEventListener('dragover', (event) => {
-    const target = event.target;
-    if (target.classList.contains('folder') && target.dataset.path && draggedItem) {
-        event.preventDefault(); // Allow drop
-        event.dataTransfer.dropEffect = 'move';
-        
-        // Visual feedback for drop target
-        target.style.backgroundColor = 'var(--hover-color, #e3f2fd)';
-        target.style.border = '2px solid #007bff';
-        
-        console.log('[Renderer] Dragover on folder:', target.dataset.path);
-    }
-}, true);
-
-fileTreeView.addEventListener('dragleave', (event) => {
-    const target = event.target;
-    if (target.classList.contains('folder')) {
-        // Remove visual feedback
-        target.style.backgroundColor = '';
-        target.style.border = '';
-    }
-}, true);
-
-fileTreeView.addEventListener('drop', async (event) => {
-    console.log('[Renderer] Drop event');
-    event.preventDefault();
-    event.stopPropagation();
-    
-    const target = event.target;
-    console.log('[Renderer] Drop target:', target, 'Classes:', target.classList.toString());
-    console.log('[Renderer] Dragged item:', draggedItem);
-    
-    // Validate we have all required data
-    if (!target.classList.contains('folder') || !target.dataset.path) {
-        console.log('[Renderer] Drop not processed - invalid target');
-        return;
-    }
-    
-    if (!draggedItem || !draggedItem.path || !draggedItem.type) {
-        console.log('[Renderer] Drop not processed - no valid dragged item');
-        showNotification('Drag and drop failed - no valid item being dragged', 'error');
-        return;
-    }
-    
-    const targetFolderPath = target.dataset.path;
-    
-    // Remove visual feedback
-    target.style.backgroundColor = '';
-    target.style.border = '';
-    
-    console.log('[Renderer] Attempting to move:', draggedItem.path, 'to:', targetFolderPath);
-    
-    // Don't allow dropping item into itself or its children
-    if (draggedItem.path === targetFolderPath || targetFolderPath.startsWith(draggedItem.path + '/')) {
-        showNotification('Cannot move item into itself or its subdirectory', 'error');
-        return;
-    }
-    
-    // Store reference to dragged item before it gets cleared
-    const itemToMove = {
-        path: draggedItem.path,
-        type: draggedItem.type,
-        name: draggedItem.name
-    };
-    
-    try {
-        const result = await window.electronAPI.invoke('move-item', {
-            sourcePath: itemToMove.path,
-            targetPath: targetFolderPath,
-            operation: 'cut', // Drag and drop is always move
-            type: itemToMove.type
-        });
-        
-        if (result.success) {
-            console.log('[Renderer] Drag and drop move completed successfully');
-            renderFileTree();
-            showNotification(`${itemToMove.type === 'file' ? 'File' : 'Folder'} moved successfully`, 'success');
-        } else {
-            console.error('[Renderer] Error in drag and drop move:', result.error);
-            showNotification(`Error: ${result.error}`, 'error');
-        }
-    } catch (error) {
-        console.error('[Renderer] Error in drag and drop move:', error);
-        showNotification('Error moving item', 'error');
-    }
-    
-    // Clear the dragged item
-    draggedItem = null;
-}, true);
+// Drag and drop event listeners are now handled in modules/dragdrop.js
 
 // --- Theme Handling ---
 function applyTheme(isDarkMode) {
@@ -3692,3 +3607,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // --- Command Palette ---
 // Command palette functionality moved to modules/commandPalette.js
 // Export command functions are handled by the export.js module
+
+// --- Global exports for modules ---
+window.renderFileTree = renderFileTree;
+window.showNotification = showNotification;
