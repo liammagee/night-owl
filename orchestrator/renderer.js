@@ -2966,6 +2966,10 @@ if (window.electronAPI) {
 if (window.electronAPI) {
     window.electronAPI.on('new-file-created', () => {
         console.log('[Renderer] Received new-file-created signal.');
+        
+        // Clear current file path so save will trigger save-as dialog
+        window.currentFilePath = null;
+        
         // Clear editor
         if (editor) {
             editor.setValue('');
@@ -2980,11 +2984,19 @@ if (window.electronAPI) {
         if (structureList) {
             structureList.innerHTML = '';
         }
+        
+        // Update file name display to show "Untitled"
+        const currentFileNameEl = document.getElementById('current-file-name');
+        if (currentFileNameEl) {
+            currentFileNameEl.textContent = 'Untitled';
+        }
+        
         // Ensure structure view is active (optional, good UX)
         if (currentStructureView !== 'structure') {
             switchStructureView('structure');
         }
-        console.log('[Renderer] Editor, preview, and structure cleared for new file.');
+        
+        console.log('[Renderer] Editor, preview, structure cleared and currentFilePath reset for new file.');
     });
 }
 
@@ -3071,8 +3083,23 @@ if (window.electronAPI) {
     window.electronAPI.on('trigger-save-as', async () => {
         console.log('[Renderer] Received trigger-save-as.');
         const content = getCurrentEditorContent();
+        
+        // Get default directory
+        let defaultDirectory = window.appSettings?.workingDirectory;
+        if (!defaultDirectory) {
+            try {
+                const settings = await window.electronAPI.invoke('get-settings');
+                defaultDirectory = settings?.workingDirectory;
+            } catch (error) {
+                console.warn('[renderer.js] trigger-save-as - Failed to load settings:', error);
+            }
+        }
+        
         try {
-            const result = await window.electronAPI.invoke('perform-save-as', content);
+            const result = await window.electronAPI.invoke('perform-save-as', {
+                content: content,
+                defaultDirectory: defaultDirectory
+            });
              if (result.success) {
                 console.log(`[Renderer] File saved successfully (Save As) to: ${result.filePath}`);
                 // Note: Removed renderFileTree() call to prevent unwanted file switching  
@@ -3892,3 +3919,11 @@ window.updateAvailableFiles = updateAvailableFiles;
 window.saveFile = saveFile;
 window.saveAsFile = saveAsFile;
 window.applyEditorSettings = applyEditorSettings;
+
+// New file function - trigger the menu action
+function newFile() {
+    if (window.electronAPI) {
+        window.electronAPI.invoke('trigger-new-file');
+    }
+}
+window.newFile = newFile;

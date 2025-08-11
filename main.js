@@ -1422,15 +1422,14 @@ async function performSaveAs(options) {
      const defaultDirectory = typeof options === 'object' ? options.defaultDirectory : null;
      
      try {
-         // Determine default path
+         // Determine default path - use directory only for better dialog behavior
          let defaultPath;
          if (defaultDirectory) {
-             defaultPath = path.join(defaultDirectory, 'untitled.md');
+             defaultPath = defaultDirectory;
          } else if (currentFilePath && currentFilePath.trim() !== '') {
-             const currentDir = path.dirname(currentFilePath);
-             defaultPath = path.join(currentDir, 'untitled.md');
+             defaultPath = path.dirname(currentFilePath);
          } else {
-             defaultPath = path.join(app.getPath('documents'), 'untitled.md');
+             defaultPath = app.getPath('documents');
          }
          
          const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
@@ -2263,12 +2262,29 @@ Keep it concise and focused on the most important points.`;
         return await saveFile(currentFilePath, content);
     } else {
         console.log('[main.js] No valid current path, triggering Save As dialog.');
-        return await performSaveAs(content);
+        // Get the working directory from settings for the fallback save-as
+        const workingDirectory = appSettings?.workingDirectory;
+        return await performSaveAs({
+            content: content,
+            defaultDirectory: workingDirectory
+        });
     }
   });
 
   ipcMain.handle('perform-save-as', async (event, options) => {
     return await performSaveAs(options);
+  });
+
+  // Trigger new file creation (for programmatic access)
+  ipcMain.handle('trigger-new-file', async (event) => {
+    console.log('[main.js] Programmatic new file triggered.');
+    currentFilePath = null;
+    if (mainWindow) {
+      mainWindow.setTitle('Hegel Pedagogy AI - Untitled');
+      mainWindow.webContents.send('new-file-created');
+      console.log('[main.js] Sent new-file-created signal to renderer.');
+    }
+    return { success: true };
   });
 
   // Check if a file exists

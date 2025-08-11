@@ -30,6 +30,10 @@
 26. Kanban - add new task inline
 27. Kanban - stop moving presentation around
 28. Extract content to new file
-29. Autocomplete internal links
+29. Autocomplete internal links - DONE
 30. Refactor - IN PROGRESS
-31. Test and fix global search
+31. Test and figlobal search - DONE
+32. Finew file bug - save to current directory - DONE
+33. Themes
+34. Formatting menu
+

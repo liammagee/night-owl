@@ -31,3 +31,4 @@ The improvements made include:
 5. **Try Themes**: Switch between light/dark themes to test appearance
 
 The PDF preview should now utilize the full available space in the preview panel, making documents much more readable and practical to work with.
+

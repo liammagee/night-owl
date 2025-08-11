@@ -379,7 +379,21 @@ async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
             // Fall back to manual creation with dialog
             const shouldCreateManually = confirm(`Failed to automatically create "${filePath}". Would you like to choose a location manually?`);
             if (shouldCreateManually) {
-                const manualResult = await window.electronAPI.invoke('perform-save-as', newFileContent);
+                // Get default directory
+                let defaultDirectory = window.appSettings?.workingDirectory;
+                if (!defaultDirectory) {
+                    try {
+                        const settings = await window.electronAPI.invoke('get-settings');
+                        defaultDirectory = settings?.workingDirectory;
+                    } catch (error) {
+                        console.warn('[Internal Links] Failed to load settings for save-as:', error);
+                    }
+                }
+                
+                const manualResult = await window.electronAPI.invoke('perform-save-as', {
+                    content: newFileContent,
+                    defaultDirectory: defaultDirectory
+                });
                 if (manualResult.success) {
                     console.log(`[renderer.js] Manual file creation succeeded: ${manualResult.filePath}`);
                     window.renderFileTree();

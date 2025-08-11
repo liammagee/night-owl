@@ -221,7 +221,21 @@ async function saveChatHistory() {
         ).join('\n\n');
         
         if (window.electronAPI) {
-            const result = await window.electronAPI.invoke('perform-save-as', chatHistoryText);
+            // Get default directory
+            let defaultDirectory = window.appSettings?.workingDirectory;
+            if (!defaultDirectory) {
+                try {
+                    const settings = await window.electronAPI.invoke('get-settings');
+                    defaultDirectory = settings?.workingDirectory;
+                } catch (error) {
+                    console.warn('[AI Chat] Failed to load settings for save-as:', error);
+                }
+            }
+            
+            const result = await window.electronAPI.invoke('perform-save-as', {
+                content: chatHistoryText,
+                defaultDirectory: defaultDirectory
+            });
             if (result.success) {
                 console.log('[AI Chat] Chat history saved:', result.filePath);
                 if (window.showNotification) {

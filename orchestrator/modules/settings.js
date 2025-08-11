@@ -119,6 +119,122 @@ function createSettingsDialog() {
         background: var(--editor-bg, white);
     `;
     
+    // Add CSS styles for settings layout
+    const settingsStyles = document.createElement('style');
+    settingsStyles.textContent = `
+        .settings-section {
+            margin-bottom: 32px;
+        }
+        
+        .settings-section h3 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--editor-fg, #333);
+            border-bottom: 1px solid var(--border-color, #e0e0e0);
+            padding-bottom: 8px;
+        }
+        
+        .settings-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .settings-group label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-radius: 4px;
+        }
+        
+        .settings-group label:hover {
+            background-color: var(--hover-bg, #f8f9fa);
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        
+        .settings-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+        }
+        
+        .settings-group input[type="text"],
+        .settings-group input[type="number"] {
+            padding: 6px 8px;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 120px;
+        }
+        
+        .settings-group select {
+            padding: 6px 8px;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 120px;
+            background: var(--editor-bg, white);
+        }
+        
+        .settings-group span {
+            font-size: 14px;
+            color: var(--editor-fg, #333);
+            flex: 1;
+        }
+        
+        .settings-group p {
+            margin: 0 0 8px 0;
+            color: var(--editor-fg, #666);
+            font-size: 14px;
+        }
+        
+        .settings-group button {
+            padding: 8px 16px;
+            margin: 4px 8px 4px 0;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 4px;
+            background: var(--editor-bg, white);
+            color: var(--editor-fg, #333);
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .settings-group button:hover {
+            background-color: var(--hover-bg, #f0f0f0);
+        }
+        
+        /* Dark mode adjustments */
+        body.dark-mode .settings-group label:hover {
+            background-color: var(--hover-bg, #2a2a2a);
+        }
+        
+        body.dark-mode .settings-group input[type="text"],
+        body.dark-mode .settings-group input[type="number"],
+        body.dark-mode .settings-group select {
+            background: var(--editor-bg, #1e1e1e);
+            color: var(--editor-fg, #d4d4d4);
+            border-color: var(--border-color, #444);
+        }
+        
+        body.dark-mode .settings-group button {
+            background: var(--editor-bg, #2d2d30);
+            color: var(--editor-fg, #d4d4d4);
+            border-color: var(--border-color, #444);
+        }
+        
+        body.dark-mode .settings-group button:hover {
+            background-color: var(--hover-bg, #3a3a3a);
+        }
+    `;
+    document.head.appendChild(settingsStyles);
+    
     body.appendChild(sidebar);
     body.appendChild(content);
     
@@ -652,6 +768,14 @@ async function saveSettingsDialog() {
         
         // Update settings via IPC
         await window.electronAPI.invoke('set-settings', updatedSettings);
+        
+        // Update global settings object
+        window.appSettings = updatedSettings;
+        
+        // Apply editor settings immediately
+        if (window.applyEditorSettings) {
+            window.applyEditorSettings(updatedSettings);
+        }
         
         // Close dialog
         closeSettingsDialog();

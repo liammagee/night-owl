@@ -1,6 +1,14 @@
 {
   "theme": "light",
   "layout": {},
-  "workingDirectory": "/Users/lmagee/Documents",
-  "currentFile": ""
+  "workingDirectory": "/Users/lmagee/Dev/hegel-pedagogy-ai/lectures",
+  "currentFile": "",
+  "editor": {
+    "showLineNumbers": true,
+    "showMinimap": true,
+    "wordWrap": "on",
+    "fontSize": 14,
+    "fontFamily": "Monaco, 'Courier New', monospace",
+    "enableCitationAutocomplete": true
+  }
 }
