@@ -31,6 +31,5 @@
 27. Kanban - stop moving presentation around
 28. Extract content to new file
 29. Autocomplete internal links
-30. Refactor
-
- 
+30. Refactor - IN PROGRESS
+31. Test and fix global search

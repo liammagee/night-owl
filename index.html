@@ -1296,6 +1296,25 @@
     }
     </script>
     <script src="./node_modules/monaco-editor/min/vs/loader.js" defer></script>
+    
+    <!-- Load modules first -->
+    <script src="orchestrator/modules/internalLinks.js" defer></script>
+    <script src="orchestrator/modules/annotations.js" defer></script>
+    <script src="orchestrator/modules/formatting.js" defer></script>
+    <script src="orchestrator/modules/aiChat.js" defer></script>
+    <script src="orchestrator/modules/export.js" defer></script>
+    <script src="orchestrator/modules/search.js" defer></script>
+    <script src="orchestrator/modules/findReplace.js" defer></script>
+    <script src="orchestrator/modules/navigation.js" defer></script>
+    <script src="orchestrator/modules/commandPalette.js" defer></script>
+    <script src="orchestrator/modules/kanban.js" defer></script>
+    <script src="orchestrator/modules/settings.js" defer></script>
+    <script src="orchestrator/modules/listManagement.js" defer></script>
+    <script src="orchestrator/modules/speakerNotes.js" defer></script>
+    <script src="orchestrator/modules/autosave.js" defer></script>
+    <script src="orchestrator/modules/dragdrop.js" defer></script>
+    
+    <!-- Main renderer script -->
     <script src="orchestrator/renderer.js" defer></script>
     
     <script type="text/babel">
