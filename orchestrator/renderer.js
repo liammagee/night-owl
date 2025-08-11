@@ -1564,26 +1564,34 @@ async function initializeApp() {
             // Initialize auto-save after editor is ready
             initializeAutoSave();
             
-            // Load settings and conditionally enable citation autocomplete
+            // Load settings and apply editor options
             window.electronAPI.invoke('get-settings').then(settings => {
                 window.appSettings = settings;
                 
-                // Update editor options based on settings
+                // Apply all editor settings using the centralized function
+                applyEditorSettings(settings);
+                
+                // Citation autocomplete setting (separate from general editor settings)
+                const citationOptions = {};
                 if (settings?.editor?.enableCitationAutocomplete !== false) {
-                    editor.updateOptions({
-                        autoClosingBrackets: 'never' // Disable auto-closing brackets for citation autocomplete
-                    });
+                    citationOptions.autoClosingBrackets = 'never'; // Disable auto-closing brackets for citation autocomplete
                     
                     // Load BibTeX files and register citation autocomplete
                     loadBibTeXFiles().then(() => {
                         registerCitationAutocomplete();
                     });
-                    
-                    // Update available files and register file link autocomplete
-                    updateAvailableFiles().then(() => {
-                        registerFileLinkAutocomplete();
-                    });
+                } else {
+                    citationOptions.autoClosingBrackets = 'beforeWhitespace';
                 }
+                
+                // Apply citation-specific options
+                editor.updateOptions(citationOptions);
+                
+                // Update available files and register file link autocomplete
+                updateAvailableFiles().then(() => {
+                    registerFileLinkAutocomplete();
+                });
+                
             }).catch(error => {
                 console.error('[renderer.js] Error loading settings:', error);
                 // Fallback: enable citation autocomplete by default
@@ -3717,7 +3725,170 @@ document.addEventListener('DOMContentLoaded', function() {
 // Command palette functionality moved to modules/commandPalette.js
 // Export command functions are handled by the export.js module
 
+// --- Apply Editor Settings Function ---
+function applyEditorSettings(settings) {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot apply editor settings - editor not available');
+        return;
+    }
+    
+    const editorOptions = {};
+    
+    if (settings?.editor) {
+        if (settings.editor.showLineNumbers !== undefined) {
+            editorOptions.lineNumbers = settings.editor.showLineNumbers ? 'on' : 'off';
+        }
+        if (settings.editor.showMinimap !== undefined) {
+            editorOptions.minimap = { enabled: settings.editor.showMinimap };
+        }
+        if (settings.editor.wordWrap !== undefined) {
+            editorOptions.wordWrap = settings.editor.wordWrap;
+        }
+        if (settings.editor.fontSize !== undefined) {
+            editorOptions.fontSize = settings.editor.fontSize;
+        }
+        if (settings.editor.fontFamily !== undefined) {
+            editorOptions.fontFamily = settings.editor.fontFamily;
+        }
+    }
+    
+    // Apply editor options
+    editor.updateOptions(editorOptions);
+    console.log('[renderer.js] Applied editor settings:', editorOptions);
+}
+
+// --- Manual Save Function ---
+async function saveFile() {
+    if (!editor) {
+        showNotification('No editor available', 'error');
+        return;
+    }
+    
+    try {
+        const content = editor.getValue();
+        
+        if (window.currentFilePath) {
+            // Save existing file
+            const result = await window.electronAPI.invoke('perform-save', content);
+            
+            if (result.success) {
+                lastSavedContent = content;
+                hasUnsavedChanges = false;
+                updateUnsavedIndicator(false);
+                showNotification('File saved successfully', 'success');
+                console.log('[renderer.js] Manual save completed successfully');
+            } else {
+                showNotification(`Save failed: ${result.error}`, 'error');
+                console.error('[renderer.js] Manual save failed:', result.error);
+            }
+        } else {
+            // Save new file - show save dialog
+            // Try to get default directory, with fallbacks
+            let defaultDirectory = window.appSettings?.workingDirectory;
+            if (!defaultDirectory) {
+                // Try to load settings if not available
+                try {
+                    const settings = await window.electronAPI.invoke('get-settings');
+                    defaultDirectory = settings?.workingDirectory;
+                } catch (error) {
+                    console.warn('[renderer.js] saveFile - Failed to load settings:', error);
+                }
+            }
+            
+            const result = await window.electronAPI.invoke('perform-save-as', {
+                content: content,
+                defaultDirectory: defaultDirectory
+            });
+            
+            if (result.success && result.filePath) {
+                window.currentFilePath = result.filePath;
+                lastSavedContent = content;
+                hasUnsavedChanges = false;
+                updateUnsavedIndicator(false);
+                showNotification('File saved successfully', 'success');
+                console.log('[renderer.js] Manual save-as completed successfully');
+                
+                // Update current file in electron
+                window.electronAPI.invoke('set-current-file', result.filePath);
+                
+                // Update file tree and highlight the new file
+                renderFileTree();
+                highlightCurrentFileInTree(result.filePath);
+                
+                // Update current file name display
+                const fileName = result.filePath.split('/').pop();
+                const currentFileNameEl = document.getElementById('current-file-name');
+                if (currentFileNameEl) {
+                    currentFileNameEl.textContent = fileName;
+                }
+            } else {
+                showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
+                console.error('[renderer.js] Manual save-as failed:', result.error);
+            }
+        }
+    } catch (error) {
+        console.error('[renderer.js] Manual save error:', error);
+        showNotification('Save error: ' + error.message, 'error');
+    }
+}
+
+// Force save-as dialog (always shows save dialog regardless of current file)
+async function saveAsFile() {
+    if (!editor) {
+        showNotification('No editor available', 'error');
+        return;
+    }
+    
+    try {
+        const content = editor.getValue();
+        
+        // Force save-as by always showing save dialog
+        // Try to get default directory, with fallbacks
+        let defaultDirectory = window.appSettings?.workingDirectory;
+        if (!defaultDirectory) {
+            // Try to load settings if not available
+            try {
+                const settings = await window.electronAPI.invoke('get-settings');
+                defaultDirectory = settings?.workingDirectory;
+            } catch (error) {
+                console.warn('[renderer.js] saveAsFile - Failed to load settings:', error);
+            }
+        }
+        
+        
+        const result = await window.electronAPI.invoke('perform-save-as', {
+            content: content,
+            defaultDirectory: defaultDirectory
+        });
+        
+        if (result.success && result.filePath) {
+            window.currentFilePath = result.filePath;
+            lastSavedContent = content;
+            hasUnsavedChanges = false;
+            updateUnsavedIndicator(false);
+            showNotification('File saved successfully', 'success');
+            console.log('[renderer.js] Manual save-as completed successfully');
+            
+            // Update the file name display
+            const fileName = result.filePath.split('/').pop();
+            const currentFileNameEl = document.getElementById('current-file-name');
+            if (currentFileNameEl) {
+                currentFileNameEl.textContent = fileName;
+            }
+        } else {
+            showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
+            console.error('[renderer.js] Manual save-as failed:', result.error);
+        }
+    } catch (error) {
+        console.error('[renderer.js] Manual save-as error:', error);
+        showNotification('Save-as error: ' + error.message, 'error');
+    }
+}
+
 // --- Global exports for modules ---
 window.renderFileTree = renderFileTree;
 window.showNotification = showNotification;
 window.updateAvailableFiles = updateAvailableFiles;
+window.saveFile = saveFile;
+window.saveAsFile = saveAsFile;
+window.applyEditorSettings = applyEditorSettings;

@@ -621,11 +621,12 @@ function updateSettings(category, newSettings) {
 loadSettings();
 
 // Initialize currentFilePath from saved settings
-if (appSettings.currentFile && typeof appSettings.currentFile === 'string') {
+if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && appSettings.currentFile.trim() !== '') {
     currentFilePath = appSettings.currentFile;
     console.log('[main.js] Initialized currentFilePath from settings:', currentFilePath);
 } else {
-    console.log('[main.js] No current file in settings, currentFilePath remains null');
+    currentFilePath = null;
+    console.log('[main.js] No current file in settings, currentFilePath set to null');
 }
 
 // Set additional app metadata
@@ -1410,15 +1411,31 @@ async function saveFile(filePath, content) {
     }
 }
 
-async function performSaveAs(content) {
+async function performSaveAs(options) {
      if (!mainWindow) {
           console.error('[main.js] Cannot show Save As dialog, mainWindow is not available.');
           return { success: false, error: 'Main window not found.' };
      }
+     
+     // Handle both old format (just content string) and new format (object with content and defaultDirectory)
+     const content = typeof options === 'string' ? options : options.content;
+     const defaultDirectory = typeof options === 'object' ? options.defaultDirectory : null;
+     
      try {
+         // Determine default path
+         let defaultPath;
+         if (defaultDirectory) {
+             defaultPath = path.join(defaultDirectory, 'untitled.md');
+         } else if (currentFilePath && currentFilePath.trim() !== '') {
+             const currentDir = path.dirname(currentFilePath);
+             defaultPath = path.join(currentDir, 'untitled.md');
+         } else {
+             defaultPath = path.join(app.getPath('documents'), 'untitled.md');
+         }
+         
          const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
             title: 'Save Markdown File As',
-            defaultPath: currentFilePath || path.join(app.getPath('documents'), 'untitled.md'),
+            defaultPath: defaultPath,
             filters: [
                 { name: 'Markdown Files', extensions: ['md', 'markdown'] },
                 { name: 'BibTeX Files', extensions: ['bib'] },
@@ -2250,9 +2267,8 @@ Keep it concise and focused on the most important points.`;
     }
   });
 
-  ipcMain.handle('perform-save-as', async (event, content) => {
-    console.log('[main.js] Received perform-save-as.');
-     return await performSaveAs(content);
+  ipcMain.handle('perform-save-as', async (event, options) => {
+    return await performSaveAs(options);
   });
 
   // Check if a file exists
