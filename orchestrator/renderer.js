@@ -1387,6 +1387,102 @@ function registerCitationAutocomplete() {
     console.log('[renderer.js] Citation autocomplete provider registered successfully.');
 }
 
+// Global variable to store available files for autocomplete
+let availableFiles = [];
+
+// Function to update the available files list
+async function updateAvailableFiles() {
+    if (!window.electronAPI) {
+        return;
+    }
+    
+    try {
+        const fileTree = await window.electronAPI.invoke('request-file-tree');
+        availableFiles = [];
+        
+        // Recursively extract all files from the tree
+        function extractFiles(node, path = '') {
+            if (node.type === 'file' && (node.name.endsWith('.md') || node.name.endsWith('.markdown'))) {
+                const fullPath = path ? `${path}/${node.name}` : node.name;
+                const fileName = node.name.replace(/\.(md|markdown)$/, ''); // Remove extension for display
+                availableFiles.push({
+                    name: fileName,
+                    path: fullPath,
+                    fullPath: node.path
+                });
+            }
+            
+            if (node.children) {
+                const newPath = path ? `${path}/${node.name}` : node.name;
+                for (const child of node.children) {
+                    extractFiles(child, newPath);
+                }
+            }
+        }
+        
+        if (fileTree && fileTree.children) {
+            for (const child of fileTree.children) {
+                extractFiles(child);
+            }
+        }
+        
+        console.log('[renderer.js] Updated available files for autocomplete:', availableFiles.length, 'files');
+    } catch (error) {
+        console.error('[renderer.js] Error updating available files:', error);
+    }
+}
+
+// Register file link autocomplete provider for Markdown
+function registerFileLinkAutocomplete() {
+    console.log('[renderer.js] Registering file link autocomplete provider...');
+    
+    monaco.languages.registerCompletionItemProvider('markdown', {
+        triggerCharacters: ['['],
+        provideCompletionItems: function(model, position) {
+            // Get current line text
+            const currentLine = model.getLineContent(position.lineNumber);
+            const textBeforePointer = currentLine.substring(0, position.column - 1);
+            
+            // Look for file link pattern: [[...] where we're after the second [
+            const fileLinkMatch = textBeforePointer.match(/\[\[([^\]]*)?$/);
+            
+            if (!fileLinkMatch) {
+                return { suggestions: [] };
+            }
+            
+            const searchTerm = fileLinkMatch[1] || '';
+            
+            // Filter files based on search term
+            const suggestions = availableFiles
+                .filter(file => {
+                    if (!searchTerm) return true;
+                    const searchLower = searchTerm.toLowerCase();
+                    return file.name.toLowerCase().includes(searchLower) ||
+                           file.path.toLowerCase().includes(searchLower);
+                })
+                .map(file => {
+                    return {
+                        label: file.name,
+                        kind: monaco.languages.CompletionItemKind.File,
+                        insertText: file.name,
+                        detail: file.path,
+                        documentation: `Link to: ${file.path}`,
+                        range: {
+                            startLineNumber: position.lineNumber,
+                            endLineNumber: position.lineNumber,
+                            startColumn: position.column - searchTerm.length,
+                            endColumn: position.column
+                        }
+                    };
+                });
+            
+            return { suggestions: suggestions };
+        }
+    });
+    
+    console.log('[renderer.js] File link autocomplete provider registered successfully.');
+}
+
 // --- Initialize Application ---
 async function initializeApp() {
     console.log('[renderer.js] Initializing application...');
@@ -1482,6 +1578,11 @@ async function initializeApp() {
                     loadBibTeXFiles().then(() => {
                         registerCitationAutocomplete();
                     });
+                    
+                    // Update available files and register file link autocomplete
+                    updateAvailableFiles().then(() => {
+                        registerFileLinkAutocomplete();
+                    });
                 }
             }).catch(error => {
                 console.error('[renderer.js] Error loading settings:', error);
@@ -1491,6 +1592,11 @@ async function initializeApp() {
                 });
                 loadBibTeXFiles().then(() => {
                     registerCitationAutocomplete();
+                });
+                
+                // Update available files and register file link autocomplete
+                updateAvailableFiles().then(() => {
+                    registerFileLinkAutocomplete();
                 });
             });
             
@@ -2597,6 +2703,9 @@ async function renderFileTree() {
         }
         
         console.log('[renderFileTree] File tree rendered successfully');
+        
+        // Update available files for autocomplete
+        updateAvailableFiles();
     } catch (error) {
         console.error('[renderFileTree] Error loading file tree:', error);
         if (fileTreeView) {
@@ -3611,3 +3720,4 @@ document.addEventListener('DOMContentLoaded', function() {
 // --- Global exports for modules ---
 window.renderFileTree = renderFileTree;
 window.showNotification = showNotification;
+window.updateAvailableFiles = updateAvailableFiles;
