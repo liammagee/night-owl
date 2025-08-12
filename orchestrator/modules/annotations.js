@@ -1,4 +1,3 @@
-console.log('ANNOTATIONS MODULE TEST - File is being loaded');
 // === Annotations Module ===
 // Handles three types of annotations:
 // 1. HTML comment annotations: <!-- @note: This is an annotation -->

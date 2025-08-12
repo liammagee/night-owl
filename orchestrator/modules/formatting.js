@@ -520,52 +520,6 @@ async function insertSpeakerNotesTemplate() {
     }
 }
 
-// --- Initialization ---
-function initializeMarkdownFormatting() {
-    
-    // Get references to formatting buttons
-    const formatBoldBtn = document.getElementById('format-bold-btn');
-    const formatItalicBtn = document.getElementById('format-italic-btn');
-    const formatCodeBtn = document.getElementById('format-code-btn');
-    const formatH1Btn = document.getElementById('format-h1-btn');
-    const formatH2Btn = document.getElementById('format-h2-btn');
-    const formatH3Btn = document.getElementById('format-h3-btn');
-    const formatListBtn = document.getElementById('format-list-btn');
-    const formatNumberedListBtn = document.getElementById('format-numbered-list-btn');
-    const formatQuoteBtn = document.getElementById('format-quote-btn');
-    const formatLinkBtn = document.getElementById('format-link-btn');
-    const formatImageBtn = document.getElementById('format-image-btn');
-    const formatTableBtn = document.getElementById('format-table-btn');
-    const autoSlideMarkersBtn = document.getElementById('auto-slide-markers-btn');
-    const removeSlideMarkersBtn = document.getElementById('remove-slide-markers-btn');
-    const insertSpeakerNotesBtn = document.getElementById('insert-speaker-notes-btn');
-    
-    // Text formatting
-    if (formatBoldBtn) formatBoldBtn.addEventListener('click', async () => await formatText('**', '**', 'bold text'));
-    if (formatItalicBtn) formatItalicBtn.addEventListener('click', async () => await formatText('*', '*', 'italic text'));
-    if (formatCodeBtn) formatCodeBtn.addEventListener('click', async () => await formatText('`', '`', 'code'));
-    
-    // Headings
-    if (formatH1Btn) formatH1Btn.addEventListener('click', async () => await formatHeading(1));
-    if (formatH2Btn) formatH2Btn.addEventListener('click', async () => await formatHeading(2));
-    if (formatH3Btn) formatH3Btn.addEventListener('click', async () => await formatHeading(3));
-    
-    // Lists and blockquotes
-    if (formatListBtn) formatListBtn.addEventListener('click', async () => await formatList('-'));
-    if (formatNumberedListBtn) formatNumberedListBtn.addEventListener('click', async () => await formatList('1.'));
-    if (formatQuoteBtn) formatQuoteBtn.addEventListener('click', async () => await formatBlockquote());
-    
-    // Links, images, tables
-    if (formatLinkBtn) formatLinkBtn.addEventListener('click', async () => await insertLink());
-    if (formatImageBtn) formatImageBtn.addEventListener('click', async () => await insertImage());
-    if (formatTableBtn) formatTableBtn.addEventListener('click', async () => await insertTable());
-    
-    // Slide markers and speaker notes
-    if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', async () => await addSlideMarkersToParagraphs());
-    if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', async () => await removeAllSlideMarkers());
-    if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', async () => await insertSpeakerNotesTemplate());
-    
-}
 
 // --- Utility Functions ---
 function applyMarkdownFormatting(wrapper) {

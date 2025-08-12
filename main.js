@@ -1489,15 +1489,9 @@ async function performSaveAs(options) {
         }
 
         console.log(`[main.js] User chose path for Save As: ${filePath}`);
-        console.log(`[main.js] ===== H1 HEADING DEBUG START =====`);
-        console.log(`[main.js] Original content: "${content}"`);
-        
         // Add H1 heading with filename if needed
         const fileName = path.basename(filePath, path.extname(filePath)); // Remove extension
-        console.log('[main.js] Extracted filename (no ext):', fileName);
         const contentWithHeading = addH1HeadingIfNeeded(content, fileName);
-        console.log(`[main.js] Content after H1 processing: "${contentWithHeading}"`);
-        console.log(`[main.js] ===== H1 HEADING DEBUG END =====`);
         
         const result = await saveFile(filePath, contentWithHeading);
         
@@ -2653,7 +2647,6 @@ Keep it concise and focused on the most important points.`;
       // Create temporary markdown file
       const tempDir = os.tmpdir();
       const tempMdFile = path.join(tempDir, 'temp_html_pandoc_export.md');
-      console.log('\n=== HTML PANDOC EXPORT DEBUG ===');
       console.log('[main.js] Working directory:', currentWorkingDirectory);
       console.log('[main.js] Temp directory:', tempDir);
       console.log('[main.js] Temp markdown file:', tempMdFile);
@@ -2923,7 +2916,6 @@ Keep it concise and focused on the most important points.`;
       // Create temporary markdown file
       const tempDir = os.tmpdir();
       const tempMdFile = path.join(tempDir, 'temp_powerpoint_export.md');
-      console.log('\n=== POWERPOINT EXPORT DEBUG ===');
       console.log('[main.js] Working directory:', currentWorkingDirectory);
       console.log('[main.js] Temp directory:', tempDir);
       console.log('[main.js] Temp markdown file:', tempMdFile);
@@ -2932,7 +2924,6 @@ Keep it concise and focused on the most important points.`;
       await fs.writeFile(tempMdFile, processedContent, 'utf8');
       console.log('[main.js] Temp file written, size:', processedContent.length, 'characters');
       console.log('[main.js] Processed content preview:', processedContent.substring(0, 300), '...');
-      console.log('=== END EXPORT DEBUG ===\n');
       
       try {
         const pandocArgs = [
@@ -3048,7 +3039,6 @@ Keep it concise and focused on the most important points.`;
       // Create temporary markdown file
       const tempDir = os.tmpdir();
       const tempMdFile = path.join(tempDir, 'temp_pdf_pandoc_export.md');
-      console.log('\n=== PDF PANDOC EXPORT DEBUG ===');
       console.log('[main.js] Working directory:', currentWorkingDirectory);
       console.log('[main.js] Temp directory:', tempDir);
       console.log('[main.js] Temp markdown file:', tempMdFile);
@@ -3060,7 +3050,6 @@ Keep it concise and focused on the most important points.`;
       console.log(content.substring(0, 500));
       console.log('[main.js] Content preview (last 500 chars):');
       console.log(content.substring(Math.max(0, content.length - 500)));
-      console.log('=== END PDF PANDOC EXPORT DEBUG ===\n');
       
       try {
         const pandocArgs = [
@@ -3248,14 +3237,6 @@ Keep it concise and focused on the most important points.`;
     return new Promise((resolve, reject) => {
       const { spawn } = require('child_process');
       
-      console.log('\n=== PANDOC COMMAND DEBUG ===');
-      console.log('[main.js] Full pandoc command:');
-      console.log('pandoc', args.join(' '));
-      console.log('\n[main.js] Args breakdown:');
-      args.forEach((arg, index) => {
-        console.log(`  [${index}]: ${arg}`);
-      });
-      console.log('=== END PANDOC COMMAND DEBUG ===\n');
       
       const pandoc = spawn('pandoc', args);
       let output = '';

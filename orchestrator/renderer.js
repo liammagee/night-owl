@@ -1678,7 +1678,6 @@ async function initializeApp() {
             // Check if elements were found before proceeding
             if (!resizer || !editorPane || !rightPane) {
                 console.error('Resizer or pane elements not found after Monaco init!');
-                console.log('[renderer.js] Debug - resizer:', resizer, 'editorPane:', editorPane, 'rightPane:', rightPane);
             } else {
                 // Attach the initial mousedown listener to the resizer only if elements exist
                 resizer.addEventListener('mousedown', handleMouseDown);
@@ -1696,7 +1695,6 @@ async function initializeApp() {
 
             if (!resizerLeft || !leftSidebar) { // Check all required panes
                 console.error('Left resizer or left sidebar not found after Monaco init!');
-                console.log('[renderer.js] Debug - resizerLeft:', resizerLeft, 'leftSidebar:', leftSidebar);
             } else {
                 resizerLeft.addEventListener('mousedown', handleMouseDownLeft);
                 console.log('[renderer.js] Horizontal (sidebar) resizer event listener attached to:', resizerLeft);
@@ -1832,19 +1830,6 @@ async function initializeApp() {
     }); 
 
     // --- Theme Initialization (Can stay here) ---
-    // initializeTheme(); // removed, using settings-based theme only
-
-    // Listen for theme updates from main process
-    // window.electronAPI.on('theme-updated', (osIsDarkMode) => {
-    //     // Skip OS updates if user has custom theme selected
-    //     if (typeof appSettings.theme === 'string' && appSettings.theme !== 'auto') {
-    //         console.log('[renderer.js] Skipping OS theme update due to custom theme setting:', appSettings.theme);
-    //         return;
-    //     }
-    //     console.log('[renderer.js] Received OS theme update:', osIsDarkMode ? 'dark' : 'light');
-    //     applyTheme(osIsDarkMode);
-    // });
-    // console.log('[renderer.js] OS theme update listener initialized.');
 }
 
 async function loadAppSettings() {
@@ -3217,18 +3202,6 @@ if (window.electronAPI) {
 }
 
 // Listen for theme updates from main process
-// if (window.electronAPI) {
-//     window.electronAPI.on('theme-updated', (osIsDarkMode) => {
-//         // Skip OS updates if user has custom theme selected
-//         if (typeof appSettings.theme === 'string' && appSettings.theme !== 'auto') {
-//             console.log('[renderer.js] Skipping OS theme update due to custom theme setting:', appSettings.theme);
-//             return;
-//         }
-//         console.log('[renderer.js] Received OS theme update:', osIsDarkMode ? 'dark' : 'light');
-//         applyTheme(osIsDarkMode);
-//     });
-//     console.log('[renderer.js] OS theme update listener initialized.');
-// }
 
 // Listen for 'set-theme' event via electronAPI, calling applyTheme(theme === 'dark')
 if (window.electronAPI && window.electronAPI.on) {
@@ -4442,117 +4415,7 @@ function setupEditorContextMenu() {
     console.log('[setupEditorContextMenu] Added extract-to-file context menu action');
 }
 
-// --- Debug Functions for Testing ---
-window.testMonacoEdit = function() {
-    console.log('[DEBUG] Testing Monaco editor edit operations...');
-    if (!editor) {
-        console.error('[DEBUG] No editor available');
-        return;
-    }
-    
-    const model = editor.getModel();
-    if (!model) {
-        console.error('[DEBUG] No model available');
-        return;
-    }
-    
-    // Test 1: Simple text replacement at current cursor
-    const currentPosition = editor.getPosition();
-    const testRange = new monaco.Range(currentPosition.lineNumber, currentPosition.column, currentPosition.lineNumber, currentPosition.column);
-    const testEdit = {
-        range: testRange,
-        text: '[TEST-INSERT]'
-    };
-    
-    console.log('[DEBUG] Inserting test text at cursor position...');
-    const result = model.pushEditOperations([], [testEdit], () => null);
-    console.log('[DEBUG] Test edit result:', result);
-    
-    setTimeout(() => {
-        const content = editor.getValue();
-        if (content.includes('[TEST-INSERT]')) {
-            console.log('[DEBUG] ✅ Basic Monaco edit operations work!');
-        } else {
-            console.log('[DEBUG] ❌ Basic Monaco edit operations failed!');
-        }
-    }, 100);
-}
 
-// Enhanced debug function for text extraction
-window.debugExtractTextToNewFile = async function() {
-    console.log('\n=== DEBUG EXTRACT TEXT TO NEW FILE ===');
-    
-    if (!editor) {
-        console.error('[DEBUG] No editor available');
-        return;
-    }
-    
-    // Check selection
-    const selection = editor.getSelection();
-    console.log('[DEBUG] Current selection:', selection);
-    
-    if (!selection || selection.isEmpty()) {
-        console.log('[DEBUG] No selection - creating test selection');
-        // Create a test selection on the first line
-        const line1 = editor.getModel().getLineContent(1);
-        if (line1) {
-            const testSelection = new monaco.Selection(1, 1, 1, Math.min(10, line1.length + 1));
-            editor.setSelection(testSelection);
-            console.log('[DEBUG] Created test selection:', testSelection);
-        }
-    }
-    
-    const finalSelection = editor.getSelection();
-    if (!finalSelection || finalSelection.isEmpty()) {
-        console.log('[DEBUG] Still no selection available');
-        return;
-    }
-    
-    const selectedText = editor.getModel().getValueInRange(finalSelection);
-    console.log('[DEBUG] Selected text:', JSON.stringify(selectedText));
-    
-    // Store selection like in the real function
-    const storedSelection = {
-        startLineNumber: finalSelection.startLineNumber,
-        startColumn: finalSelection.startColumn,
-        endLineNumber: finalSelection.endLineNumber,
-        endColumn: finalSelection.endColumn
-    };
-    console.log('[DEBUG] Stored selection:', storedSelection);
-    
-    // Test replacement WITHOUT showing dialog first
-    const testLink = `[[test-file-debug]]`;
-    console.log('[DEBUG] Attempting to replace with:', testLink);
-    
-    const rangeToReplace = new monaco.Range(
-        storedSelection.startLineNumber,
-        storedSelection.startColumn,
-        storedSelection.endLineNumber,
-        storedSelection.endColumn
-    );
-    console.log('[DEBUG] Range to replace:', rangeToReplace);
-    
-    const edit = {
-        range: rangeToReplace,
-        text: testLink
-    };
-    
-    console.log('[DEBUG] Edit operation:', edit);
-    const success = editor.getModel().pushEditOperations([], [edit], () => null);
-    console.log('[DEBUG] Edit operation success:', success);
-    
-    // Check result immediately
-    setTimeout(() => {
-        const updatedContent = editor.getValue();
-        console.log('[DEBUG] Updated content contains test link:', updatedContent.includes(testLink));
-        if (updatedContent.includes(testLink)) {
-            console.log('[DEBUG] ✅ Text replacement works without dialog!');
-        } else {
-            console.log('[DEBUG] ❌ Text replacement failed even without dialog!');
-            console.log('[DEBUG] Full content:', JSON.stringify(updatedContent));
-        }
-    }, 100);
-}
 
 // --- Global exports for modules ---
 window.renderFileTree = renderFileTree;
