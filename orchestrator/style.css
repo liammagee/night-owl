@@ -720,12 +720,14 @@ body.dark-mode #preview-content {
     background: var(--bg-secondary, #f8f9fa);
     border-radius: 8px;
     padding: 16px;
-    min-width: 300px; /* Slightly wider for better readability */
-    max-width: 400px; /* Allow columns to be a bit wider */
-    flex: 0 0 auto; /* Don't shrink columns */
+    width: 320px; /* Fixed width for stability */
+    min-width: 320px; /* Fixed minimum to prevent shrinking */
+    max-width: none; /* Allow expansion only if task names require it */
+    flex: 0 0 320px; /* Fixed flex basis for stability */
     display: flex;
     flex-direction: column;
     border: 2px solid var(--border-color, #e1e4e8);
+    transition: none; /* Disable transitions that might cause jank */
 }
 
 .kanban-column-header {
@@ -775,6 +777,10 @@ body.dark-mode #preview-content {
 .kanban-task-text {
     margin-top: 4px;
     line-height: 1.4;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    min-width: 0; /* Allow text to shrink */
 }
 
 /* =====================================

@@ -194,23 +194,30 @@ async function updatePreviewAndStructure(markdownContent) {
                     // Add visual indicator to title
                     document.title = '📋 Kanban: ' + (currentFilePath.split('/').pop() || 'TODO');
                     
-                    // Parse and render Kanban board
+                    // Parse Kanban data
                     const parsedKanban = parseKanbanFromMarkdown(markdownContent, settings);
-                    const kanbanHtml = renderKanbanBoard(parsedKanban, currentFilePath);
                     
-                    previewContent.innerHTML = kanbanHtml;
+                    // Use intelligent update instead of full re-render
+                    const wasUpdated = updateKanbanBoard(previewContent, parsedKanban, currentFilePath);
                     
-                    // Force horizontal scrolling after Kanban renders
-                    setTimeout(() => {
-                        forceKanbanHorizontalScroll();
-                    }, 100);
-                    
-                    // Setup drag and drop if enabled
+                    // Always ensure drag-and-drop is set up, regardless of updates
                     if (settings.kanban?.enableDragDrop) {
                         const kanbanBoard = previewContent.querySelector('.kanban-board');
                         if (kanbanBoard) {
-                            setupKanbanDragAndDrop(kanbanBoard, currentFilePath);
+                            setupKanbanDragAndDrop(previewContent, currentFilePath);
                         }
+                    }
+                    
+                    // Only run other setup operations if the board was actually updated
+                    if (wasUpdated) {
+                        console.log('[renderer.js] Kanban board was updated, running additional setup operations');
+                        
+                        // Force horizontal scrolling after Kanban renders
+                        setTimeout(() => {
+                            forceKanbanHorizontalScroll();
+                        }, 100);
+                    } else {
+                        console.log('[renderer.js] Kanban board unchanged, skipping render-dependent operations');
                     }
                     
                     // Update status bar with Kanban stats

@@ -37,5 +37,7 @@
 33. Themes
 34. Formatting menu
 35. Remove logs
-36. Fifile contet menu - DONE
+36. Fix file content menu - DONE
+37. Fix 'fix' word
+
 

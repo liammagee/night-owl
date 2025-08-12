@@ -38,6 +38,9 @@ function removeKanbanColumn(index) {
 
 // === Kanban Board Functions ===
 
+// Store reference to current kanban state to enable intelligent updates
+let currentKanbanState = null;
+
 function shouldRenderAsKanban(filePath, settings) {
     console.log('[Kanban] shouldRenderAsKanban called with:', { filePath, settings: settings?.kanban });
     
@@ -90,7 +93,8 @@ function parseKanbanFromMarkdown(content, settings) {
             // Check for done markers
             const hasDoneMarker = doneMarkers.some(marker => {
                 if (taskText.toUpperCase().includes(marker.toUpperCase())) {
-                    cleanText = taskText.replace(new RegExp(marker, 'gi'), '').trim();
+                    const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    cleanText = taskText.replace(new RegExp(escapedMarker, 'gi'), '').trim();
                     // Remove common separators left behind
                     cleanText = cleanText.replace(/^[-\s]*|[-\s]*$/g, '').trim();
                     return true;
@@ -104,7 +108,8 @@ function parseKanbanFromMarkdown(content, settings) {
                 // Check for in-progress markers
                 const hasInProgressMarker = inProgressMarkers.some(marker => {
                     if (taskText.toUpperCase().includes(marker.toUpperCase())) {
-                        cleanText = taskText.replace(new RegExp(marker, 'gi'), '').trim();
+                        const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        cleanText = taskText.replace(new RegExp(escapedMarker, 'gi'), '').trim();
                         cleanText = cleanText.replace(/^[-\s]*|[-\s]*$/g, '').trim();
                         return true;
                     }
@@ -174,24 +179,176 @@ function renderKanbanBoard(parsedKanban, filePath) {
     return boardHtml;
 }
 
-function setupKanbanDragAndDrop(container, filePath) {
-    const tasks = container.querySelectorAll('.kanban-task');
-    const columns = container.querySelectorAll('.kanban-tasks');
+// Intelligent update function that preserves layout and only updates what changed
+function updateKanbanBoard(container, parsedKanban, filePath) {
+    const { columns, tasks, tasksByColumn } = parsedKanban;
     
-    // Setup drag events for tasks
-    tasks.forEach(task => {
+    // Store current state for comparison
+    const newState = JSON.stringify({ tasks: tasks.map(t => ({ id: t.id, text: t.text, status: t.status })) });
+    
+    // If nothing changed, don't update
+    if (currentKanbanState === newState) {
+        console.log('[Kanban] No changes detected, skipping update');
+        return false;
+    }
+    
+    console.log('[Kanban] Changes detected, performing intelligent update');
+    currentKanbanState = newState;
+    
+    // Get existing board or create new one
+    let kanbanBoard = container.querySelector('.kanban-board');
+    
+    if (!kanbanBoard) {
+        // First render - use full render
+        console.log('[Kanban] First render, creating full board');
+        const kanbanHtml = renderKanbanBoard(parsedKanban, filePath);
+        container.innerHTML = kanbanHtml;
+        return true;
+    }
+    
+    // Update existing board intelligently
+    columns.forEach(column => {
+        const columnTasks = tasksByColumn[column.id] || [];
+        const columnElement = kanbanBoard.querySelector(`[data-column-id="${column.id}"]`);
+        
+        if (!columnElement) {
+            console.warn(`[Kanban] Column ${column.id} not found, forcing full render`);
+            const kanbanHtml = renderKanbanBoard(parsedKanban, filePath);
+            container.innerHTML = kanbanHtml;
+            return true;
+        }
+        
+        const tasksContainer = columnElement.querySelector('.kanban-tasks');
+        const headerElement = columnElement.querySelector('.kanban-column-header');
+        
+        // Update header count
+        const columnName = column.name;
+        headerElement.textContent = `${columnName} (${columnTasks.length})`;
+        
+        // Get existing tasks
+        const existingTasks = Array.from(tasksContainer.querySelectorAll('.kanban-task'));
+        const existingTaskIds = existingTasks.map(t => t.dataset.taskId);
+        const newTaskIds = columnTasks.map(t => t.id);
+        
+        // Remove tasks that no longer exist in this column
+        existingTasks.forEach(taskEl => {
+            if (!newTaskIds.includes(taskEl.dataset.taskId)) {
+                taskEl.remove();
+            }
+        });
+        
+        // Add or update tasks
+        columnTasks.forEach((task, index) => {
+            let taskElement = tasksContainer.querySelector(`[data-task-id="${task.id}"]`);
+            
+            if (!taskElement) {
+                // Create new task element
+                taskElement = document.createElement('div');
+                taskElement.className = 'kanban-task';
+                taskElement.setAttribute('data-task-id', task.id);
+                taskElement.setAttribute('data-line-number', task.lineNumber);
+                taskElement.setAttribute('data-original-status', task.status);
+                taskElement.setAttribute('draggable', 'true');
+                
+                taskElement.innerHTML = `
+                    <div class="kanban-task-number">${task.number}</div>
+                    <div class="kanban-task-text">${task.text}</div>
+                `;
+                
+                // Add drag event listeners for new tasks
+                taskElement.addEventListener('dragstart', (e) => {
+                    console.log('[Kanban] Drag started for new task:', task.id);
+                    e.dataTransfer.setData('text/plain', task.id);
+                    taskElement.classList.add('dragging');
+                });
+                
+                taskElement.addEventListener('dragend', (e) => {
+                    console.log('[Kanban] Drag ended for new task:', task.id);
+                    taskElement.classList.remove('dragging');
+                });
+                
+                // Insert at correct position
+                if (index < tasksContainer.children.length) {
+                    tasksContainer.insertBefore(taskElement, tasksContainer.children[index]);
+                } else {
+                    tasksContainer.appendChild(taskElement);
+                }
+            } else {
+                // Update existing task content if changed
+                const numberEl = taskElement.querySelector('.kanban-task-number');
+                const textEl = taskElement.querySelector('.kanban-task-text');
+                
+                if (numberEl.textContent !== task.number) {
+                    numberEl.textContent = task.number;
+                }
+                if (textEl.textContent !== task.text) {
+                    textEl.textContent = task.text;
+                }
+                
+                // Update attributes
+                taskElement.setAttribute('data-line-number', task.lineNumber);
+                taskElement.setAttribute('data-original-status', task.status);
+                
+                // Ensure correct position
+                const currentIndex = Array.from(tasksContainer.children).indexOf(taskElement);
+                if (currentIndex !== index) {
+                    if (index < tasksContainer.children.length) {
+                        tasksContainer.insertBefore(taskElement, tasksContainer.children[index]);
+                    } else {
+                        tasksContainer.appendChild(taskElement);
+                    }
+                }
+            }
+        });
+    });
+    
+    return true;
+}
+
+function setupKanbanDragAndDrop(container, filePath) {
+    console.log('[Kanban] Setting up drag-and-drop for:', filePath);
+    
+    const kanbanBoard = container.querySelector('.kanban-board');
+    if (!kanbanBoard) {
+        console.log('[Kanban] No kanban board found for drag-and-drop setup');
+        return;
+    }
+    
+    // Clear any existing drag setup and always set it up fresh
+    // This ensures drag-and-drop works even if there were issues before
+    kanbanBoard.removeAttribute('data-drag-setup');
+    console.log('[Kanban] Setting up drag-and-drop handlers...');
+    
+    // Setup drag events for each task individually (more reliable than delegation)
+    const tasks = kanbanBoard.querySelectorAll('.kanban-task');
+    console.log(`[Kanban] Setting up drag handlers for ${tasks.length} tasks`);
+    
+    tasks.forEach((task, index) => {
+        console.log(`[Kanban] Setting up drag for task ${index}:`, task.dataset.taskId);
+        
+        // Ensure draggable attribute is set
+        task.setAttribute('draggable', 'true');
+        
         task.addEventListener('dragstart', (e) => {
+            console.log('[Kanban] Drag started for task:', task.dataset.taskId);
             e.dataTransfer.setData('text/plain', task.dataset.taskId);
             task.classList.add('dragging');
         });
         
-        task.addEventListener('dragend', () => {
+        task.addEventListener('dragend', (e) => {
+            console.log('[Kanban] Drag ended for task:', task.dataset.taskId);
             task.classList.remove('dragging');
         });
     });
     
+    // Setup drop events for columns  
+    const columns = container.querySelectorAll('.kanban-tasks');
+    console.log(`[Kanban] Setting up drop handlers for ${columns.length} columns`);
+    
     // Setup drop events for columns
-    columns.forEach(column => {
+    columns.forEach((column, index) => {
+        console.log(`[Kanban] Setting up drop handler for column ${index}: ${column.dataset.column}`);
+        
         column.addEventListener('dragover', (e) => {
             e.preventDefault();
             column.parentElement.classList.add('drag-over');
@@ -205,6 +362,7 @@ function setupKanbanDragAndDrop(container, filePath) {
         
         column.addEventListener('drop', async (e) => {
             e.preventDefault();
+            console.log('[Kanban] Drop event triggered on column:', column.dataset.column);
             column.parentElement.classList.remove('drag-over');
             
             const taskId = e.dataTransfer.getData('text/plain');
@@ -268,6 +426,8 @@ function setupKanbanDragAndDrop(container, filePath) {
             }
         });
     });
+    
+    console.log(`[Kanban] Drag-and-drop setup completed! Set up ${columns.length} drop zones for file: ${filePath}`);
 }
 
 function updateKanbanColumnHeaders(container) {
@@ -310,9 +470,13 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
             // Remove existing status markers
             let newLine = originalLine;
             [...doneMarkers, ...inProgressMarkers].forEach(marker => {
-                newLine = newLine.replace(new RegExp(`\\s*-\\s*${marker}\\s*`, 'gi'), '');
-                newLine = newLine.replace(new RegExp(`\\s*${marker}\\s*-\\s*`, 'gi'), '');
-                newLine = newLine.replace(new RegExp(`\\s*${marker}\\s*`, 'gi'), '');
+                // Escape special regex characters in the marker
+                const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                
+                // Remove marker with various patterns (with dashes, spaces, etc.)
+                newLine = newLine.replace(new RegExp(`\\s*-\\s*${escapedMarker}\\s*`, 'gi'), '');
+                newLine = newLine.replace(new RegExp(`\\s*${escapedMarker}\\s*-\\s*`, 'gi'), '');
+                newLine = newLine.replace(new RegExp(`\\s*${escapedMarker}\\s*`, 'gi'), '');
             });
             
             // Add new status marker
@@ -336,3 +500,6 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
         throw error;
     }
 }
+
+// Make functions available globally
+window.updateKanbanBoard = updateKanbanBoard;
