@@ -16,7 +16,7 @@
 12. Autosave - DONE
 13. "Suck up" linked content into preview (non-recursive) - IN PROGRESS
 14. Concept tagging
-15. Math integration
+15. Math integration - DONE
 16. Global find & replace - DONE
 17. TODOs as Kanban - DONE
 18. Export as Powerpoint - DONE
@@ -34,9 +34,9 @@
 30. Refactor - IN PROGRESS
 31. Test and fix global search - DONE
 32. Fix new file bug - save to current directory - DONE
-33. Themes
+33. Themes - DONE
 34. Formatting menu
 35. Remove logs - DONE
 36. Fix file content menu - DONE
 37. Fix 'fix' word - DONE
-38. Check settings configuration
+38. Check settings configuration - DONE

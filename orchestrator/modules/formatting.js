@@ -16,6 +16,8 @@ function initializeMarkdownFormatting() {
     const formatLinkBtn = document.getElementById('format-link-btn');
     const formatImageBtn = document.getElementById('format-image-btn');
     const formatTableBtn = document.getElementById('format-table-btn');
+    const formatInlineMathBtn = document.getElementById('format-inline-math-btn');
+    const formatDisplayMathBtn = document.getElementById('format-display-math-btn');
     const autoSlideMarkersBtn = document.getElementById('auto-slide-markers-btn');
     const removeSlideMarkersBtn = document.getElementById('remove-slide-markers-btn');
     const insertSpeakerNotesBtn = document.getElementById('insert-speaker-notes-btn');
@@ -35,6 +37,8 @@ function initializeMarkdownFormatting() {
     if (formatLinkBtn) formatLinkBtn.addEventListener('click', async () => await insertLink());
     if (formatImageBtn) formatImageBtn.addEventListener('click', () => insertImage());
     if (formatTableBtn) formatTableBtn.addEventListener('click', () => insertTable());
+    if (formatInlineMathBtn) formatInlineMathBtn.addEventListener('click', async () => await formatText('$', '$', 'math'));
+    if (formatDisplayMathBtn) formatDisplayMathBtn.addEventListener('click', async () => await formatDisplayMath());
     if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', async () => await addSlideMarkersToParagraphs());
     if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', async () => await removeAllSlideMarkers());
     if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', async () => await insertSpeakerNotesTemplate());
@@ -347,6 +351,37 @@ async function insertTable() {
     }]);
     
     window.editor.focus();
+    if (window.updatePreviewAndStructure) {
+        await window.updatePreviewAndStructure(window.editor.getValue());
+    }
+}
+
+// --- Math Formatting ---
+async function formatDisplayMath() {
+    if (!window.editor) return;
+    
+    const selection = window.editor.getSelection();
+    const selectedText = window.editor.getModel().getValueInRange(selection);
+    
+    let mathContent = selectedText || 'E = mc^2';
+    const displayMath = `$$\n${mathContent}\n$$`;
+    
+    window.editor.executeEdits('format-display-math', [{
+        range: selection,
+        text: displayMath
+    }]);
+    
+    // Position cursor after the math block if no text was selected
+    if (!selectedText) {
+        const position = window.editor.getPosition();
+        const newPosition = {
+            lineNumber: position.lineNumber - 1,
+            column: mathContent.length + 1
+        };
+        window.editor.setPosition(newPosition);
+        window.editor.focus();
+    }
+    
     if (window.updatePreviewAndStructure) {
         await window.updatePreviewAndStructure(window.editor.getValue());
     }

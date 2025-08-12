@@ -2779,6 +2779,7 @@ Keep it concise and focused on the most important points.`;
             '--toc',
             '--toc-depth=3',
             '--number-sections',
+            '--mathjax',
             '-o', result.filePath
           ];
           
@@ -2939,6 +2940,7 @@ Keep it concise and focused on the most important points.`;
           '-f', 'markdown',
           '-t', 'pptx',
           '--slide-level=2', // H2 headers create new slides
+          '--mathjax', // Math rendering support
           '-o', result.filePath
         ];
         
@@ -3103,7 +3105,7 @@ Keep it concise and focused on the most important points.`;
         // Add enhanced features
         pandocArgs.push('--highlight-style=pygments'); // Code syntax highlighting
         pandocArgs.push('--pdf-engine=xelatex'); // Better Unicode support
-        // Note: Math rendering works differently for PDF output
+        pandocArgs.push('--mathjax'); // Math rendering support
         
         // Add custom pandoc options if provided
         if (exportOptions?.pandocArgs) {

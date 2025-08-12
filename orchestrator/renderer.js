@@ -152,6 +152,31 @@ function processSpeakerNotes(content) {
 // --- Process Annotations ---
 // Annotations processing is handled by the annotations.js module
 
+// --- Math Rendering Functions ---
+async function renderMathInContent(container) {
+    if (!container) return;
+    
+    // Check if MathJax is available
+    if (typeof window.MathJax === 'undefined') {
+        return; // MathJax not loaded yet
+    }
+    
+    try {
+        // Tell MathJax to process the new content
+        await window.MathJax.typesetPromise([container]);
+    } catch (error) {
+        console.error('Error rendering math:', error);
+    }
+}
+
+// Helper function to render math in presentation slides
+async function renderMathInPresentation() {
+    const presentationContent = document.getElementById('presentation-content');
+    if (presentationContent) {
+        await renderMathInContent(presentationContent);
+    }
+}
+
 // --- Internal Links Functionality ---
 // All internal links functionality has been moved to modules/internalLinks.js
 // --- Update Function Definition ---
@@ -396,6 +421,9 @@ async function renderRegularMarkdown(markdownContent) {
             // Use the custom renderer with marked.parse
             const htmlContent = window.marked.parse(processedContent, { renderer: renderer, gfm: true, breaks: true });
             previewContent.innerHTML = htmlContent;
+            
+            // Render math equations with MathJax
+            await renderMathInContent(previewContent);
             
             // Update speaker notes display if visible
             updateSpeakerNotesDisplay();

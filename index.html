@@ -401,6 +401,29 @@
     
     <!-- Scripts -->
     <script id="marked-script" src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    
+    <!-- MathJax Configuration -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true,
+                tags: 'ams'
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'a'],
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1045,6 +1068,13 @@
                             &gt;
                         </button>
                         <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
+                        <button id="format-inline-math-btn" class="toolbar-btn" title="Inline Math ($...$)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: serif;">
+                            $x$
+                        </button>
+                        <button id="format-display-math-btn" class="toolbar-btn" title="Display Math ($$...$$)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: serif;">
+                            $$
+                        </button>
+                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
                         <button id="format-link-btn" class="toolbar-btn" title="Insert Link (Ctrl+K)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
                             🔗
                         </button>
@@ -1616,6 +1646,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               return `<img src="${imagePath}" alt="${altText}" />`;
             });
             
+            // Process math expressions before other markdown to preserve them
+            // Note: We preserve LaTeX math syntax for MathJax to process later
+            // This ensures math expressions don't get processed as other markdown
+            
             // Process Obsidian-style [[]] internal links first
             html = html.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
               const cleanLink = link.trim();
@@ -1836,6 +1870,22 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               setSlides(updatedSlides);
             }
           }, [layoutType]);
+
+          // Render math in slides whenever slides change
+          useEffect(() => {
+            if (slides.length > 0 && window.MathJax && window.MathJax.typesetPromise) {
+              // Small delay to ensure slides are rendered in DOM
+              const timer = setTimeout(() => {
+                const presentationContainer = document.getElementById('presentation-content');
+                if (presentationContainer) {
+                  window.MathJax.typesetPromise([presentationContainer])
+                    .catch((err) => console.error('Error rendering math in presentation:', err));
+                }
+              }, 100);
+              
+              return () => clearTimeout(timer);
+            }
+          }, [slides]);
 
           // File upload handler
           const handleFileUpload = (event) => {
