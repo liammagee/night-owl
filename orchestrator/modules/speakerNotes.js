@@ -10,7 +10,6 @@ const toggleSpeakerNotesInPreviewBtn = document.getElementById('toggle-speaker-n
 // Insert speaker notes template
 async function insertSpeakerNotesTemplate() {
     if (!editor) {
-        console.warn('[renderer.js] Cannot insert speaker notes template - no editor available');
         return;
     }
     
@@ -31,7 +30,6 @@ async function insertSpeakerNotesTemplate() {
     editor.focus();
     
     updatePreviewAndStructure(editor.getValue());
-    console.log('[renderer.js] Inserted speaker notes template');
 }
 
 
@@ -65,7 +63,6 @@ function updateSpeakerNotesDisplay() {
     });
     
     speakerNotesContent.innerHTML = notesHtml;
-    console.log(`[renderer.js] Updated speaker notes display with ${currentSpeakerNotes.length} notes`);
 }
 
 // Toggle speaker notes visibility in preview
@@ -98,7 +95,6 @@ function toggleSpeakerNotesInPreview() {
         toggleSpeakerNotesInPreviewBtn.textContent = speakerNotesVisible ? 'Hide in Preview' : 'Show in Preview';
     }
     
-    console.log(`[renderer.js] Speaker notes in preview: ${speakerNotesVisible ? 'visible' : 'hidden'}`);
 }
 
 // Initialize speaker notes functionality
@@ -113,7 +109,6 @@ function initializeSpeakerNotes() {
         toggleSpeakerNotesInPreviewBtn.addEventListener('click', toggleSpeakerNotesInPreview);
     }
     
-    console.log('[renderer.js] Speaker notes functionality initialized');
 }
 
 // --- Export for Global Access ---

@@ -1,4 +1,3 @@
-console.log('INTERNAL LINKS MODULE TEST - File is being loaded');
 // === Internal Links Module ===
 // Handles Obsidian-style [[]] internal links with three preview modes:
 // - disabled: plain text
@@ -82,7 +81,6 @@ async function loadLinkContent(filePath) {
             return extractPreviewContent(result.content);
         }
     } catch (error) {
-        console.error(`[InlinePreview] Error loading content for ${filePath}:`, error);
     }
     
     return 'Content not available';
@@ -110,7 +108,6 @@ function handleInternalLinkClick(event) {
         const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
         const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
         
-        console.log(`[renderer.js] Internal link clicked: ${originalLink} -> ${filePath}`);
         
         // Try to open the linked file
         openInternalLink(filePath, originalLink);
@@ -124,19 +121,16 @@ async function openInternalLink(filePath, originalLink) {
         const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
         const fullPath = `${workingDir}/${filePath}`;
         
-        console.log(`[renderer.js] Attempting to open internal link: ${fullPath}`);
         
         // Try to open the file
         const result = await window.electronAPI.invoke('open-file-path', fullPath);
         
         if (result.success) {
-            console.log(`[renderer.js] Successfully opened internal link: ${filePath}`);
             
             // If we're currently in presentation mode, switch to editor mode first
             if (window.switchToMode && typeof window.switchToMode === 'function') {
                 const presentationContent = document.getElementById('presentation-content');
                 if (presentationContent && presentationContent.classList.contains('active')) {
-                    console.log(`[renderer.js] Switching from presentation to editor mode to open internal link`);
                     window.switchToMode('editor');
                 }
             }
@@ -144,19 +138,16 @@ async function openInternalLink(filePath, originalLink) {
             // Load the file content into both editor and preview
             await window.openFileInEditor(result.filePath, result.content);
         } else {
-            console.warn(`[renderer.js] Could not open internal link: ${result.error}`);
             
             // Try to automatically create the file based on current content
             await autoCreateInternalLinkFile(fullPath, originalLink, filePath);
         }
     } catch (error) {
-        console.error(`[renderer.js] Error opening internal link:`, error);
     }
 }
 
 // --- Link Preview Functions ---
 function setupLinkPreviewHandlers() {
-    console.log('[LinkPreview] Setting up link preview handlers...');
     // Event delegation for dynamically created internal links
     document.addEventListener('mouseenter', handleLinkHover, true);
     document.addEventListener('mouseleave', handleLinkMouseOut, true);
@@ -193,7 +184,6 @@ async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
         const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
         const fullPath = `${workingDir}/${filePath}`;
         
-        console.log(`[LinkPreview] Loading preview for: ${fullPath}`);
         
         const result = await window.electronAPI.invoke('open-file-path', fullPath);
         
@@ -203,7 +193,6 @@ async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
             document.body.appendChild(tooltip);
         }
     } catch (error) {
-        console.error(`[LinkPreview] Error loading preview for ${filePath}:`, error);
     }
 }
 
@@ -311,7 +300,6 @@ async function toggleLinkPreview() {
         const updatedSettings = { ...window.appSettings };
         updatedSettings.linkPreview.mode = newMode;
         await window.electronAPI.invoke('set-settings', updatedSettings);
-        console.log(`[Settings] Link preview mode changed to: ${newMode}`);
         
         // Show notification
         const modes = {
@@ -326,20 +314,17 @@ async function toggleLinkPreview() {
             await window.updatePreviewAndStructure(window.editor.getValue());
         }
     } catch (error) {
-        console.error('[Settings] Failed to update link preview mode:', error);
     }
 }
 
 // --- Auto-create Link File Functions ---
 async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
     try {
-        console.log(`[renderer.js] Auto-creating file for internal link: ${fullPath}`);
         
         // Check if file already exists to detect conflicts
         const fileExists = await window.electronAPI.invoke('check-file-exists', fullPath);
         
         if (fileExists) {
-            console.log(`[renderer.js] File already exists: ${fullPath}`);
             // Show conflict dialog and let user decide
             const shouldOverwrite = confirm(`File "${filePath}" already exists. Would you like to open it instead?`);
             if (shouldOverwrite) {
@@ -363,7 +348,6 @@ async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
         });
         
         if (result.success) {
-            console.log(`[renderer.js] Successfully created file for internal link: ${fullPath}`);
             
             // Refresh file tree to show the new file
             if (window.renderFileTree) window.renderFileTree();
@@ -374,7 +358,6 @@ async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
             // Show success notification
             window.showNotification(`Created new file: ${filePath}`, 'success');
         } else {
-            console.error(`[renderer.js] Failed to auto-create file for internal link:`, result.error);
             
             // Fall back to manual creation with dialog
             const shouldCreateManually = confirm(`Failed to automatically create "${filePath}". Would you like to choose a location manually?`);
@@ -386,7 +369,6 @@ async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
                         const settings = await window.electronAPI.invoke('get-settings');
                         defaultDirectory = settings?.workingDirectory;
                     } catch (error) {
-                        console.warn('[Internal Links] Failed to load settings for save-as:', error);
                     }
                 }
                 
@@ -395,13 +377,11 @@ async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
                     defaultDirectory: defaultDirectory
                 });
                 if (manualResult.success) {
-                    console.log(`[renderer.js] Manual file creation succeeded: ${manualResult.filePath}`);
                     window.renderFileTree();
                 }
             }
         }
     } catch (error) {
-        console.error(`[renderer.js] Error in autoCreateInternalLinkFile:`, error);
     }
 }
 
@@ -438,7 +418,6 @@ ${templateSections}
         
         return content;
     } catch (error) {
-        console.error('[generateContentForInternalLink] Error:', error);
         // Fallback to simple template
         return `# ${originalLink}
 
@@ -480,7 +459,6 @@ function extractLinkContext(content, linkText) {
             return `${marker}${line}`;
         }).join('\n');
     } catch (error) {
-        console.error('[extractLinkContext] Error:', error);
         return 'Context extraction failed';
     }
 }

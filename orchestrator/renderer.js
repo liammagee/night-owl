@@ -1,5 +1,3 @@
-console.log('RENDERER.JS TEST - Main script is loading');
-console.log('[renderer.js] Script executing...');
 
 // --- Electron IPC (for theme) ---
 // Access IPC functions exposed by preload.js via window.electronAPI
@@ -145,7 +143,6 @@ function processSpeakerNotes(content) {
     
     // Store extracted notes globally
     currentSpeakerNotes = extractedNotes;
-    console.log(`[renderer.js] Extracted ${extractedNotes.length} speaker note blocks`);
     
     return processedContent;
 }
@@ -237,7 +234,6 @@ async function updatePreviewAndStructure(markdownContent) {
                     if (editorPane && previewPane) {
                         editorPane.style.flex = '0 0 300px'; // Minimize editor to 300px
                         previewPane.style.flex = '1'; // Preview takes remaining space
-                        console.log('[renderer.js] Adjusted layout for Kanban view');
                     }
                     
                     return; // Exit early for Kanban rendering
@@ -261,7 +257,6 @@ async function updatePreviewAndStructure(markdownContent) {
 }
 
 async function renderRegularMarkdown(markdownContent) {
-    console.log('[renderer.js] renderRegularMarkdown called with content length:', markdownContent.length);
     // Restore normal layout (in case we're switching from Kanban view)
     const editorPane = document.getElementById('editor-pane');
     const previewPane = document.getElementById('preview-pane');
@@ -314,7 +309,6 @@ async function renderRegularMarkdown(markdownContent) {
             leftSidebar.style.flex = '0 0 18%';
             editorPane.style.flex = '0 0 41%';
             previewPane.style.flex = '0 0 41%';
-            console.log('[renderer.js] Reset to default layout percentages');
             
             // Also save the corrected layout
             if (window.electronAPI) {
@@ -365,9 +359,7 @@ async function renderRegularMarkdown(markdownContent) {
                 // Add the ID to the heading tag
                 // This is a bit fragile; assumes the heading tag is the first tag
                  html = html.replace(/^(<h[1-6])/, `$1 id="${id}"`);
-                 console.log(`[Marked Renderer] Added ID: ${id} to H${level}`); // Log added IDs
             } else {
-                 console.warn(`[Marked Renderer] Could not generate valid ID for heading: ${raw || text}`);
             }
             return html;
         };
@@ -379,7 +371,6 @@ async function renderRegularMarkdown(markdownContent) {
                 // Use current file directory if available, otherwise fallback to working directory
                 const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
                 const fullPath = `file://${baseDir}/${href}`;
-                console.log(`[Marked Renderer] Converting relative image path: ${href} -> ${fullPath}`);
                 return originalImage(fullPath, title, text);
             }
             return originalImage(href, title, text);
@@ -409,7 +400,6 @@ async function renderRegularMarkdown(markdownContent) {
             // Update speaker notes display if visible
             updateSpeakerNotesDisplay();
             
-            console.log('[renderer.js] Preview updated with heading IDs, internal links, and speaker notes.');
         } else {
             console.warn('[renderer.js] Marked instance not available yet');
             previewContent.innerHTML = '<p>Markdown preview loading...</p>';
@@ -514,12 +504,10 @@ function updateStructurePane(markdownContent) {
 
             // 1. Scroll Editor Pane
             if (editor && typeof editor.revealLineInCenter === 'function') {
-                console.log(`[Structure Click] Scrolling editor to line: ${lineNumber}`);
                 editor.revealLineInCenter(lineNumber);
                 editor.setPosition({ lineNumber: lineNumber, column: 1 });
                 editor.focus(); // Focus editor after scrolling
             } else {
-                console.warn(`[Structure Click] Editor not available or invalid lineNumber (${listItem.dataset.startLine}) for scrolling.`);
             }
 
             // 2. Scroll Preview Pane
@@ -529,7 +517,6 @@ function updateStructurePane(markdownContent) {
                 const previewContentDiv = document.getElementById('preview-content');
 
                 if (previewElement && previewContentDiv) {
-                    console.log(`[Structure Click] Scrolling preview to element: #${previewId}`);
                     // --- Removed diagnostic logs ---
                     
                     // Wrap scroll in requestAnimationFrame to handle timing issues
@@ -541,10 +528,8 @@ function updateStructurePane(markdownContent) {
                     });
                     
                 } else {
-                    console.warn(`[Structure Click] Preview element '#${previewId}' or container '#preview-content' not found.`);
                 }
             } else {
-                 console.warn('[Structure Click] Heading text not found in dataset.');
             }
         };
         structureList.appendChild(li);
@@ -600,7 +585,6 @@ function toggleCollapse(listItem, level) {
 
  // --- Drag and Drop Handlers (Placeholders) ---
 function handleDragStart(event, heading) {
-    console.log('Drag Start:', heading.title, `Lines ${heading.startLine}-${heading.endLine}`);
     event.dataTransfer.setData('text/plain', JSON.stringify(heading)); // Pass heading data
     event.dataTransfer.effectAllowed = 'move';
 }
@@ -620,12 +604,9 @@ function handleDrop(event, targetHeading) {
 
         // Prevent dropping onto itself
         if (draggedHeading.startLine === targetHeading.startLine) {
-            console.log("Cannot drop heading onto itself.");
             return;
         }
 
-        console.log(`Dragged: ${draggedHeading.title} (Lines ${draggedHeading.startLine}-${draggedHeading.endLine})`);
-        console.log(`Dropped onto: ${targetHeading.title} (Lines ${targetHeading.startLine}-${targetHeading.endLine})`);
 
         if (!editor) {
             console.error("Editor instance not available for drop operation.");
@@ -1033,7 +1014,6 @@ function addAISummarizationAction() {
                 return;
             }
             
-            console.log(`[renderer.js] Starting AI summarization for selected text: "${selectedText.substring(0, 100)}..."`);
             
             try {
                 // Show loading indicator
@@ -1049,7 +1029,6 @@ function addAISummarizationAction() {
                 }
                 
                 if (result.success) {
-                    console.log(`[renderer.js] AI summarization successful from ${result.provider}`);
                     
                     // Replace selected text with the wrapped notes
                     ed.executeEdits('ai-summarization', [{
@@ -1134,7 +1113,6 @@ function addAISummarizationAction() {
         }
     });
     
-    console.log('[renderer.js] AI summarization and notes extraction context menu actions added');
 }
 
 // --- Navigation Controls Setup ---
@@ -1497,6 +1475,25 @@ async function initializeApp() {
     require(['vs/editor/editor.main'], async function() {
         console.log('[renderer.js] Monaco module loaded.');
         
+        // Configure Monaco Environment for Electron
+        self.MonacoEnvironment = {
+            getWorkerUrl: function (moduleId, label) {
+                if (label === 'json') {
+                    return './node_modules/monaco-editor/min/vs/language/json/jsonWorker.js';
+                }
+                if (label === 'css' || label === 'scss' || label === 'less') {
+                    return './node_modules/monaco-editor/min/vs/language/css/cssWorker.js';
+                }
+                if (label === 'html' || label === 'handlebars' || label === 'razor') {
+                    return './node_modules/monaco-editor/min/vs/language/html/htmlWorker.js';
+                }
+                if (label === 'typescript' || label === 'javascript') {
+                    return './node_modules/monaco-editor/min/vs/language/typescript/tsWorker.js';
+                }
+                return './node_modules/monaco-editor/min/vs/base/worker/workerMain.js';
+            }
+        };
+        
         // Register BibTeX language support
         registerBibTeXLanguage();
         
@@ -1561,7 +1558,6 @@ async function initializeApp() {
                 addFoldingKeyboardShortcuts();
                 addFoldingToolbarControls();
                 addAISummarizationAction();
-                console.log('[renderer.js] Folding features and AI actions initialized');
             }, 100);
             
             await updatePreviewAndStructure(editor.getValue());
@@ -1827,7 +1823,6 @@ async function loadAppSettings() {
         appSettings = await window.electronAPI.invoke('get-settings');
         window.appSettings = appSettings; // Make settings globally available
         window.currentFilePath = appSettings.currentFile || null; // Set current file path globally
-        console.log('[renderer.js] Loaded settings:', appSettings);
         let themeAppliedFromSettings = false;
 
         // 1. Apply theme based on explicit settings ('light' or 'dark')
@@ -1845,7 +1840,6 @@ async function loadAppSettings() {
 
         // 2. If no specific theme set (or set to 'auto'), check initial OS theme
         if (!themeAppliedFromSettings) {
-            console.log('[renderer.js] No explicit theme in settings or theme is auto, checking initial OS theme...');
             try {
                 // Assuming 'get-initial-theme' returns boolean 'isDarkMode'
                 const osIsDarkMode = await window.electronAPI.invoke('get-initial-theme');
@@ -1863,7 +1857,6 @@ async function loadAppSettings() {
 
         // --- Restore last opened file if present ---
         if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && appSettings.currentFile.length > 0) {
-            console.log('[renderer.js] Attempting to reopen last file:', appSettings.currentFile);
             
             // Wait a bit for Monaco editor to be ready before loading file
             const loadFileWhenReady = () => {
@@ -1900,7 +1893,6 @@ async function loadAppSettings() {
                 console.log('[renderer.js] OS theme updated event received.');
                 // Skip OS updates if user has an explicit 'light' or 'dark' theme selected
                 if (typeof appSettings.theme === 'string' && (appSettings.theme === 'light' || appSettings.theme === 'dark')) {
-                    console.log('[renderer.js] Skipping OS theme update due to explicit user setting:', appSettings.theme);
                     return;
                 }
                 // Apply theme based on OS update if setting is 'auto' or not set
@@ -2186,7 +2178,6 @@ async function handleEditableFile(filePath, content, fileTypes) {
     
     // Sync content to presentation view (if available)
     if (window.syncContentToPresentation) {
-        console.log('[Renderer] Syncing file content to presentation view');
         window.syncContentToPresentation(content);
     }
     
@@ -2416,7 +2407,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupNavigationControls(); // Setup navigation buttons and keyboard shortcuts
         
         // Initialize file tree view on startup
-        console.log('[renderer.js] Initializing file tree view on startup');
         switchStructureView('file'); // Switch to file view
         renderFileTree(); // Load the file tree
     } else {
@@ -2432,7 +2422,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // --- Apply Layout Settings Function ---
 function applyLayoutSettings(layout) {
-    console.log('[renderer.js] Applying layout settings:', layout);
     
     // Check if we're in editor mode before applying layout
     const editorContent = document.getElementById('editor-content');
@@ -2471,13 +2460,13 @@ function applyLayoutSettings(layout) {
                              parseFloat(effectiveLayout.editorWidth) + 
                              parseFloat(effectiveLayout.rightWidth);
 
-        if (totalPercent < 98 || totalPercent > 102) {
-            console.warn(`[renderer.js] Layout percentages (${totalPercent}%) do not add up near 100%. Using defaults.`);
+        if (totalPercent < 95 || totalPercent > 105) {
+            // Only warn for major discrepancies (5% threshold instead of 2%)
             leftSidebar.style.flex = `0 0 ${defaultLayout.structureWidth}`;
             editorPane.style.flex = `0 0 ${defaultLayout.editorWidth}`;
             rightPane.style.flex = `0 0 ${defaultLayout.rightWidth}`;
         } else {
-            console.log('[renderer.js] Applying valid layout:', effectiveLayout);
+            // Apply layout without excessive logging for minor variations
             leftSidebar.style.flex = `0 0 ${effectiveLayout.structureWidth}`;
             editorPane.style.flex = `0 0 ${effectiveLayout.editorWidth}`;
             rightPane.style.flex = `0 0 ${effectiveLayout.rightWidth}`;
@@ -2701,9 +2690,7 @@ async function renderFileTree() {
     const fileTreeView = document.getElementById('file-tree-view');
     
     try {
-        console.log('[renderFileTree] Requesting file tree...');
         const fileTree = await window.electronAPI.invoke('request-file-tree');
-        console.log('[renderFileTree] Received file tree:', fileTree);
         
         if (!fileTreeView) {
             console.warn('[renderFileTree] fileTreeView element not found');
@@ -2720,7 +2707,6 @@ async function renderFileTree() {
             fileTreeView.innerHTML = '<div class="no-files">No files found</div>';
         }
         
-        console.log('[renderFileTree] File tree rendered successfully');
         
         // Update available files for autocomplete
         updateAvailableFiles();
@@ -3469,22 +3455,18 @@ if (window.electronAPI) {
 
     // Handle settings dialog triggers from main process
     window.electronAPI.on('open-settings-dialog', () => {
-        console.log('[Renderer] Received open-settings-dialog');
         openSettingsDialog();
     });
 
     window.electronAPI.on('open-ai-settings-dialog', () => {
-        console.log('[Renderer] Received open-ai-settings-dialog');
         openSettingsDialog('ai');
     });
 
     window.electronAPI.on('open-editor-settings-dialog', () => {
-        console.log('[Renderer] Received open-editor-settings-dialog');
         openSettingsDialog('editor');
     });
 
     window.electronAPI.on('open-export-settings-dialog', () => {
-        console.log('[Renderer] Received open-export-settings-dialog');
         openSettingsDialog('export');
     });
 }
@@ -3510,13 +3492,38 @@ function saveCurrentLayout() {
         return;
     }
 
+    // Calculate percentages with proper rounding and validation
+    const structurePercent = Math.round((leftSidebar.offsetWidth / containerWidth) * 100 * 100) / 100; // 2 decimal places
+    const editorPercent = Math.round((editorPane.offsetWidth / containerWidth) * 100 * 100) / 100;
+    const rightPercent = Math.round((rightPane.offsetWidth / containerWidth) * 100 * 100) / 100;
+    
+    // Ensure percentages are reasonable (each between 5% and 80%)
+    const clampPercent = (percent) => Math.max(5, Math.min(80, percent));
+    
+    let finalStructure = clampPercent(structurePercent);
+    let finalEditor = clampPercent(editorPercent);
+    let finalRight = clampPercent(rightPercent);
+    
+    // Normalize to exactly 100% if needed
+    const total = finalStructure + finalEditor + finalRight;
+    if (Math.abs(total - 100) > 0.1) {
+        const ratio = 100 / total;
+        finalStructure = Math.round(finalStructure * ratio * 100) / 100;
+        finalEditor = Math.round(finalEditor * ratio * 100) / 100;
+        finalRight = Math.round(finalRight * ratio * 100) / 100;
+        
+        // Final adjustment to ensure exactly 100%
+        const newTotal = finalStructure + finalEditor + finalRight;
+        const diff = 100 - newTotal;
+        finalEditor += diff; // Add any remainder to the editor pane
+    }
+    
     const layoutData = {
-        structureWidth: `${(leftSidebar.offsetWidth / containerWidth) * 100}%`,
-        editorWidth: `${(editorPane.offsetWidth / containerWidth) * 100}%`,
-        rightWidth: `${(rightPane.offsetWidth / containerWidth) * 100}%`
+        structureWidth: `${finalStructure}%`,
+        editorWidth: `${finalEditor}%`,
+        rightWidth: `${finalRight}%`
     };
 
-    console.log('[renderer.js] Sending layout settings to main:', layoutData);
     window.electronAPI.send('save-layout', layoutData);
 }
 
@@ -3565,7 +3572,6 @@ function showNotification(message, type = 'info') {
 // Initialize auto-save functionality
 function initializeAutoSave() {
     if (!window.appSettings || !window.appSettings.ui || !window.appSettings.ui.autoSave) {
-        console.log('[renderer.js] Auto-save disabled in settings');
         return;
     }
     
@@ -3905,7 +3911,6 @@ function applyEditorSettings(settings) {
     
     // Apply editor options
     editor.updateOptions(editorOptions);
-    console.log('[renderer.js] Applied editor settings:', editorOptions);
 }
 
 // --- Manual Save Function ---

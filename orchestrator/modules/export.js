@@ -31,7 +31,6 @@ function generateHTMLFromMarkdown(markdownContent) {
 
     // Check if marked is available (it should be loaded from CDN)
     if (typeof marked === 'undefined') {
-        console.warn('[Export] Marked library not available, using plain text');
         return `<html>
 <head>
     <title>Export</title>
@@ -137,7 +136,6 @@ function exportToPDF() {
         return;
     }
     
-    console.log('[Export] Triggering PDF export...');
     if (window.electronAPI) {
         window.electronAPI.invoke('trigger-export', 'pdf');
     }
@@ -151,7 +149,6 @@ function exportToPDFWithReferences() {
         return;
     }
     
-    console.log('[Export] Triggering PDF export with references...');
     if (window.electronAPI) {
         window.electronAPI.invoke('trigger-export', 'pdf-pandoc');
     }
@@ -165,7 +162,6 @@ function exportToHTML() {
         return;
     }
     
-    console.log('[Export] Triggering HTML export...');
     if (window.electronAPI) {
         window.electronAPI.invoke('trigger-export', 'html');
     }
@@ -179,7 +175,6 @@ function exportToHTMLWithReferences() {
         return;
     }
     
-    console.log('[Export] Triggering HTML export with references...');
     if (window.electronAPI) {
         window.electronAPI.invoke('trigger-export', 'html-pandoc');
     }
@@ -193,7 +188,6 @@ function exportToPowerPoint() {
         return;
     }
     
-    console.log('[Export] Triggering PowerPoint export...');
     if (window.electronAPI) {
         window.electronAPI.invoke('trigger-export', 'pptx');
     }
@@ -201,16 +195,13 @@ function exportToPowerPoint() {
 
 // --- Export Event Handlers ---
 function initializeExportHandlers() {
-    console.log('[Export] Initializing export handlers...');
     
     if (!window.electronAPI) {
-        console.warn('[Export] ElectronAPI not available, skipping export handler initialization');
         return;
     }
 
     // HTML export handler
     window.electronAPI.on('trigger-export-html', async () => {
-        console.log('[Export] Received trigger-export-html.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -233,7 +224,6 @@ function initializeExportHandlers() {
             
             const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent, exportOptions);
             if (result.success) {
-                console.log(`[Export] HTML exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = 'HTML exported successfully';
@@ -247,13 +237,11 @@ function initializeExportHandlers() {
                     window.showNotification(message, 'success');
                 }
             } else if (!result.cancelled) {
-                console.error(`[Export] HTML export failed: ${result.error}`);
                 if (window.showNotification) {
                     window.showNotification(result.error || 'HTML export failed', 'error');
                 }
             }
         } catch (error) {
-            console.error('[Export] Error during HTML export:', error);
             if (window.showNotification) {
                 window.showNotification('Error during HTML export', 'error');
             }
@@ -262,7 +250,6 @@ function initializeExportHandlers() {
 
     // HTML export with references handler
     window.electronAPI.on('trigger-export-html-pandoc', async () => {
-        console.log('[Export] Received trigger-export-html-pandoc.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -284,7 +271,6 @@ function initializeExportHandlers() {
             
             const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, htmlContent, exportOptions);
             if (result.success) {
-                console.log(`[Export] HTML with references exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = 'HTML with references exported successfully';
@@ -297,13 +283,11 @@ function initializeExportHandlers() {
                     window.showNotification(message, 'success');
                 }
             } else if (!result.cancelled) {
-                console.error(`[Export] HTML with references export failed: ${result.error}`);
                 if (window.showNotification) {
                     window.showNotification(result.error || 'HTML with references export failed', 'error');
                 }
             }
         } catch (error) {
-            console.error('[Export] Error during HTML with references export:', error);
             if (window.showNotification) {
                 window.showNotification('Error during HTML with references export', 'error');
             }
@@ -312,7 +296,6 @@ function initializeExportHandlers() {
 
     // PDF export handler
     window.electronAPI.on('trigger-export-pdf', async () => {
-        console.log('[Export] Received trigger-export-pdf.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -336,7 +319,6 @@ function initializeExportHandlers() {
             
             const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent, exportOptions);
             if (result.success) {
-                console.log(`[Export] PDF exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = 'PDF exported successfully';
@@ -352,13 +334,11 @@ function initializeExportHandlers() {
                     window.showNotification(message, 'success');
                 }
             } else if (!result.cancelled) {
-                console.error(`[Export] PDF export failed: ${result.error}`);
                 if (window.showNotification) {
                     window.showNotification(result.error || 'PDF export failed', 'error');
                 }
             }
         } catch (error) {
-            console.error('[Export] Error during PDF export:', error);
             if (window.showNotification) {
                 window.showNotification('Error during PDF export', 'error');
             }
@@ -367,7 +347,6 @@ function initializeExportHandlers() {
 
     // PowerPoint export handler
     window.electronAPI.on('trigger-export-pptx', async () => {
-        console.log('[Export] Received trigger-export-pptx.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -386,7 +365,6 @@ function initializeExportHandlers() {
             
             const result = await window.electronAPI.invoke('perform-export-pptx', content, exportOptions);
             if (result.success) {
-                console.log(`[Export] PowerPoint exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = `PowerPoint exported successfully (${result.slidesCreated} slide${result.slidesCreated === 1 ? '' : 's'})`;
@@ -397,13 +375,11 @@ function initializeExportHandlers() {
                     window.showNotification(message, 'success');
                 }
             } else if (!result.cancelled) {
-                console.error(`[Export] PowerPoint export failed: ${result.error}`);
                 if (window.showNotification) {
                     window.showNotification(result.error || 'PowerPoint export failed', 'error');
                 }
             }
         } catch (error) {
-            console.error('[Export] Error during PowerPoint export:', error);
             if (window.showNotification) {
                 window.showNotification('Error during PowerPoint export', 'error');
             }
@@ -412,7 +388,6 @@ function initializeExportHandlers() {
 
     // PDF with references export handler
     window.electronAPI.on('trigger-export-pdf-pandoc', async () => {
-        console.log('[Export] Received trigger-export-pdf-pandoc.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -432,7 +407,6 @@ function initializeExportHandlers() {
             
             const result = await window.electronAPI.invoke('perform-export-pdf-pandoc', content, exportOptions);
             if (result.success) {
-                console.log(`[Export] PDF with references exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = 'PDF with references exported successfully';
@@ -445,20 +419,17 @@ function initializeExportHandlers() {
                     window.showNotification(message, 'success');
                 }
             } else if (!result.cancelled) {
-                console.error(`[Export] PDF with references export failed: ${result.error}`);
                 if (window.showNotification) {
                     window.showNotification(result.error || 'PDF export with references failed', 'error');
                 }
             }
         } catch (error) {
-            console.error('[Export] Error during PDF with references export:', error);
             if (window.showNotification) {
                 window.showNotification('Error during PDF export with references', 'error');
             }
         }
     });
 
-    console.log('[Export] Export handlers initialized.');
 }
 
 // --- Export Menu Integration ---
@@ -500,7 +471,6 @@ async function exportAllFormats() {
     const validation = validateExportPrerequisites();
     if (!validation.valid) {
         const errorMsg = `Cannot export: ${validation.issues.join(', ')}`;
-        console.error('[Export]', errorMsg);
         if (window.showNotification) {
             window.showNotification(errorMsg, 'error');
         }
@@ -516,13 +486,11 @@ async function exportAllFormats() {
     
     for (const format of formats) {
         try {
-            console.log(`[Export] Exporting to ${format.toUpperCase()}...`);
             if (window.electronAPI) {
                 const result = await window.electronAPI.invoke('trigger-export', format);
                 results.push({ format, success: result.success });
             }
         } catch (error) {
-            console.error(`[Export] Failed to export ${format}:`, error);
             results.push({ format, success: false, error: error.message });
         }
     }

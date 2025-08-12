@@ -1376,7 +1376,7 @@
         );
 
         const MarkdownPreziApp = () => {
-          console.log('[React Component] MarkdownPreziApp rendering');
+          // React component rendering
           const [slides, setSlides] = useState([]);
           const [currentSlide, setCurrentSlide] = useState(0);
           const [zoom, setZoom] = useState(1);
@@ -1389,8 +1389,7 @@
           const [focusedSlide, setFocusedSlide] = useState(null);
           const [speakerNotesVisible, setSpeakerNotesVisible] = useState(true);
           
-          console.log('[React Component] Current slides count:', slides.length);
-          console.log('[React Component] Current slide index:', currentSlide);
+          // Current slides and slide index state
           const canvasRef = useRef(null);
           const fileInputRef = useRef(null);
 
@@ -1661,7 +1660,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
           // Extract speaker notes from slide content
           const extractSpeakerNotes = (slideContent) => {
-            console.log('[React Presentation] Extracting speaker notes from:', slideContent);
+            // Extracting speaker notes
             
             // More flexible regex pattern for speaker notes
             const notesRegex = /```notes\s*\n([\s\S]*?)\n```/g;
@@ -1670,7 +1669,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             
             while ((match = notesRegex.exec(slideContent)) !== null) {
               const noteContent = match[1].trim();
-              console.log('[React Presentation] Found speaker note:', noteContent);
+              // Found speaker note
               notes.push(noteContent);
             }
             
@@ -1682,7 +1681,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               speakerNotes: notes.join('\n\n') 
             };
             
-            console.log('[React Presentation] Speaker notes extraction result:', result);
+            // Speaker notes extraction complete
             return result;
           };
 
@@ -1704,21 +1703,19 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
           // Initialize - wait for content from editor or use sample as fallback
           useEffect(() => {
-            console.log('[React Presentation] Initializing presentation component');
+            // Initializing presentation component
             
             // Brief delay to allow content synchronization from editor
             const initTimeout = setTimeout(() => {
               // Check if there's pending content from Generate Summary or fresh editor content
               if (window.pendingPresentationContent) {
-                console.log('[React Presentation] Found pending content, using it instead of sample');
+                // Found pending content, using it
                 const pendingSlides = parseMarkdown(window.pendingPresentationContent);
-                console.log('[React Presentation] Parsed pending slides:', pendingSlides);
                 setSlides(pendingSlides);
                 window.pendingPresentationContent = null; // Clear it after use
               } else {
-                console.log('[React Presentation] No pending content, using sample content');
+                // No pending content, using sample content
                 const initialSlides = parseMarkdown(sampleMarkdown);
-                console.log('[React Presentation] Parsed sample slides:', initialSlides);
                 setSlides(initialSlides);
               }
             }, 100); // Small delay to allow content synchronization
@@ -1729,33 +1726,28 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           // Listen for content updates from the lecture summary generator
           useEffect(() => {
             const handleContentUpdate = (event) => {
-              console.log('[React Presentation] Received content update event');
-              console.log('[React Presentation] Event detail:', event.detail);
+              // Received content update event
               const newContent = event.detail?.content;
-              console.log('[React Presentation] New content length:', newContent?.length);
               
               if (newContent && newContent.trim()) {
-                console.log('[React Presentation] Parsing new content into slides...');
-                console.log('[React Presentation] Raw content preview:', newContent.substring(0, 200));
+                // Parsing new content into slides
                 const newSlides = parseMarkdown(newContent);
-                console.log('[React Presentation] Generated slides count:', newSlides.length);
-                console.log('[React Presentation] First slide preview:', newSlides[0]);
                 
                 setSlides(newSlides);
                 setCurrentSlide(0);
                 setZoom(1);
                 setPan({ x: 0, y: 0 });
                 setFocusedSlide(null);
-                console.log('[React Presentation] Successfully updated slides with new content');
+                // Successfully updated slides
               } else {
                 console.warn('[React Presentation] No valid content received');
               }
             };
 
-            console.log('[React Presentation] Setting up content update listener');
+            // Setting up content update listener
             window.addEventListener('updatePresentationContent', handleContentUpdate);
             return () => {
-              console.log('[React Presentation] Removing content update listener');
+              // Removing content update listener
               window.removeEventListener('updatePresentationContent', handleContentUpdate);
             };
           }, []);
@@ -2010,12 +2002,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               const notesPanel = document.getElementById('speaker-notes-panel');
               const notesContent = document.getElementById('current-slide-notes');
               
-              console.log('[React Presentation] Updating speaker notes, currentSlide:', currentSlide, 'slides:', slides.length);
+              // Updating speaker notes
               
               if (notesPanel && notesContent && slides.length > 0 && slides[currentSlide]) {
                 const currentSlideData = slides[currentSlide];
-                console.log('[React Presentation] Current slide data:', currentSlideData);
-                console.log('[React Presentation] Speaker notes for slide:', currentSlideData.speakerNotes);
+                // Getting slide speaker notes
                 
                 if (currentSlideData.speakerNotes && currentSlideData.speakerNotes.trim()) {
                   // Show panel when there are notes
@@ -2029,11 +2020,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                     .map(line => `<p style="margin-bottom: 8px;">${line}</p>`)
                     .join('');
                   
-                  console.log('[React Presentation] Formatted notes:', formattedNotes);
+                  // Formatted speaker notes
                   notesContent.innerHTML = formattedNotes || '<em>No speaker notes for this slide.</em>';
                 } else {
                   // No notes for this slide, but keep panel visible
-                  console.log('[React Presentation] No speaker notes found for this slide');
+                  // No speaker notes found
                   notesPanel.style.display = speakerNotesVisible ? 'block' : 'none';
                   notesContent.innerHTML = '<em>No speaker notes for this slide.</em>';
                 }

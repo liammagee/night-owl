@@ -1,4 +1,3 @@
-console.log('[preload.js] Script executing...');
 
 // preload.js
 
@@ -7,7 +6,6 @@ console.log('[preload.js] Script executing...');
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-console.log('[preload.js] electronAPI exposed via contextBridge (attempted).');
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -29,7 +27,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
-  console.log('[preload.js] DOM fully loaded and parsed');
 }); 
 
-console.log('[preload.js] Attempting to replace text for version info...');

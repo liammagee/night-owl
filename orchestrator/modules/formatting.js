@@ -1,9 +1,7 @@
 // --- Markdown Formatting Functions ---
-console.log('[Formatting Module] Loading formatting.js module...');
 
 // Initialize markdown formatting
 function initializeMarkdownFormatting() {
-    console.log('[Formatting Module] Initializing markdown formatting...');
     
     // Get references to formatting buttons (inside initialization to ensure DOM is ready)
     const formatBoldBtn = document.getElementById('format-bold-btn');
@@ -50,7 +48,6 @@ function initializeMarkdownFormatting() {
     if (insertHighlightAnnotationBtn) insertHighlightAnnotationBtn.addEventListener('click', async () => await window.insertHighlightAnnotation());
     if (insertBlockAnnotationBtn) insertBlockAnnotationBtn.addEventListener('click', async () => await window.insertBlockAnnotation());
     
-    console.log('[Formatting Module] Markdown formatting initialized successfully');
 }
 
 
@@ -67,10 +64,8 @@ function initializeMarkdownFormatting() {
 
 // --- Text Formatting ---
 async function formatText(prefix, suffix, placeholder) {
-    console.log('got here')
     if (!window.editor) return;
     
-    console.log('got here 2')
     const selection = window.editor.getSelection();
     const selectedText = window.editor.getModel().getValueInRange(selection);
     
@@ -360,7 +355,6 @@ async function insertTable() {
 // --- Slide Markers ---
 async function addSlideMarkersToParagraphs() {
     if (!window.editor) {
-        console.warn('[Formatting] Cannot add slide markers - no editor available');
         return;
     }
     
@@ -369,7 +363,6 @@ async function addSlideMarkersToParagraphs() {
     const newLines = [];
     let i = 0;
     
-    console.log('[Formatting] Adding slide markers to paragraphs...');
     
     while (i < lines.length) {
         const line = lines[i];
@@ -406,7 +399,6 @@ async function addSlideMarkersToParagraphs() {
                 }
                 // Add slide marker
                 newLines.push('---');
-                console.log(`[Formatting] Added slide marker after line ${i + 1}: "${trimmed}"`);
             }
         }
         
@@ -419,15 +411,12 @@ async function addSlideMarkersToParagraphs() {
         if (window.updatePreviewAndStructure) {
             await window.updatePreviewAndStructure(newContent);
         }
-        console.log('[Formatting] Slide markers added successfully');
     } else {
-        console.log('[Formatting] No slide markers needed to be added');
     }
 }
 
 async function removeAllSlideMarkers() {
     if (!window.editor) {
-        console.warn('[Formatting] Cannot remove slide markers - no editor available');
         return;
     }
     
@@ -443,11 +432,9 @@ async function removeAllSlideMarkers() {
     const confirmed = confirm(`Are you sure you want to remove all ${slideMarkerCount} slide markers from the document?\n\nThis action cannot be undone.`);
     
     if (!confirmed) {
-        console.log('[Formatting] User cancelled slide marker removal');
         return;
     }
     
-    console.log('[Formatting] Removing all slide markers...');
     
     const lines = content.split('\n');
     const newLines = [];
@@ -458,7 +445,6 @@ async function removeAllSlideMarkers() {
         
         // Skip lines that are just slide markers
         if (trimmed === '---') {
-            console.log(`[Formatting] Removed slide marker at line ${i + 1}`);
             continue;
         }
         
@@ -470,13 +456,11 @@ async function removeAllSlideMarkers() {
     if (window.updatePreviewAndStructure) {
         await window.updatePreviewAndStructure(newContent);
     }
-    console.log(`[Formatting] Successfully removed ${slideMarkerCount} slide markers`);
 }
 
 // --- Speaker Notes ---
 async function insertSpeakerNotesTemplate() {
     if (!window.editor) {
-        console.warn('[Formatting] Cannot insert speaker notes template - no editor available');
         return;
     }
     
@@ -499,12 +483,10 @@ async function insertSpeakerNotesTemplate() {
     if (window.updatePreviewAndStructure) {
         window.updatePreviewAndStructure(window.editor.getValue());
     }
-    console.log('[Formatting] Inserted speaker notes template');
 }
 
 // --- Initialization ---
 function initializeMarkdownFormatting() {
-    console.log('[Formatting] Initializing markdown formatting...');
     
     // Get references to formatting buttons
     const formatBoldBtn = document.getElementById('format-bold-btn');
@@ -548,7 +530,6 @@ function initializeMarkdownFormatting() {
     if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', async () => await removeAllSlideMarkers());
     if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', async () => await insertSpeakerNotesTemplate());
     
-    console.log('[Formatting] Markdown formatting initialized');
 }
 
 // --- Utility Functions ---

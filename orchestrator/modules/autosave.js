@@ -3,12 +3,10 @@
 // Initialize auto-save functionality
 function initializeAutoSave() {
     if (!window.appSettings || !window.appSettings.ui || !window.appSettings.ui.autoSave) {
-        console.log('[renderer.js] Auto-save disabled in settings');
         return;
     }
     
     const interval = window.appSettings.ui.autoSaveInterval || 2000; // Default 2 seconds
-    console.log(`[renderer.js] Auto-save initialized with ${interval}ms interval`);
     
     // Set initial saved content
     if (editor) {
@@ -53,7 +51,6 @@ async function performAutoSave() {
     
     try {
         const content = editor.getValue();
-        console.log('[renderer.js] Performing auto-save...');
         
         // Only save if we have a current file path
         if (window.currentFilePath && window.electronAPI) {
@@ -63,7 +60,6 @@ async function performAutoSave() {
                 lastSavedContent = content;
                 hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
-                console.log('[renderer.js] Auto-save completed successfully');
                 showNotification('Auto-saved', 'success', 1000); // Brief notification
                 
                 // Update current file path if this was a save-as operation
@@ -74,13 +70,10 @@ async function performAutoSave() {
                     }
                 }
             } else {
-                console.warn('[renderer.js] Auto-save failed:', result.error);
             }
         } else {
-            console.log('[renderer.js] Auto-save skipped - no file path or API unavailable');
         }
     } catch (error) {
-        console.error('[renderer.js] Auto-save error:', error);
     }
 }
 
