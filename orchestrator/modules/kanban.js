@@ -162,13 +162,22 @@ function renderKanbanBoard(parsedKanban, filePath) {
                      data-line-number="${task.lineNumber}"
                      data-original-status="${task.status}"
                      draggable="true">
-                    <div class="kanban-task-number">${task.number}</div>
-                    <div class="kanban-task-text">${task.text}</div>
+                    <div class="kanban-task-content">
+                        <div class="kanban-task-number">${task.number}</div>
+                        <div class="kanban-task-text" data-editable="true">${task.text}</div>
+                    </div>
+                    <div class="kanban-task-actions">
+                        <button class="task-edit-btn" title="Edit task">✎</button>
+                        <button class="task-delete-btn" title="Delete task">×</button>
+                    </div>
                 </div>
             `;
         });
         
         boardHtml += `
+                    <div class="kanban-add-task">
+                        <button class="add-task-btn" data-column="${column.id}">+ Add Task</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -251,8 +260,14 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
                 taskElement.setAttribute('draggable', 'true');
                 
                 taskElement.innerHTML = `
-                    <div class="kanban-task-number">${task.number}</div>
-                    <div class="kanban-task-text">${task.text}</div>
+                    <div class="kanban-task-content">
+                        <div class="kanban-task-number">${task.number}</div>
+                        <div class="kanban-task-text" data-editable="true">${task.text}</div>
+                    </div>
+                    <div class="kanban-task-actions">
+                        <button class="task-edit-btn" title="Edit task">✎</button>
+                        <button class="task-delete-btn" title="Delete task">×</button>
+                    </div>
                 `;
                 
                 // Add drag event listeners for new tasks
@@ -266,6 +281,26 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
                     console.log('[Kanban] Drag ended for new task:', task.id);
                     taskElement.classList.remove('dragging');
                 });
+                
+                // Set up task action event listeners for new tasks
+                const editBtn = taskElement.querySelector('.task-edit-btn');
+                const deleteBtn = taskElement.querySelector('.task-delete-btn');
+                
+                if (editBtn && !editBtn.hasAttribute('data-listeners-attached')) {
+                    editBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        handleTaskEdit(taskElement, filePath);
+                    });
+                    editBtn.setAttribute('data-listeners-attached', 'true');
+                }
+                
+                if (deleteBtn && !deleteBtn.hasAttribute('data-listeners-attached')) {
+                    deleteBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        handleTaskDelete(taskElement, filePath);
+                    });
+                    deleteBtn.setAttribute('data-listeners-attached', 'true');
+                }
                 
                 // Insert at correct position
                 if (index < tasksContainer.children.length) {
@@ -300,6 +335,26 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
                 }
             }
         });
+        
+        // Ensure add task button exists
+        let addTaskContainer = columnElement.querySelector('.kanban-add-task');
+        if (!addTaskContainer) {
+            addTaskContainer = document.createElement('div');
+            addTaskContainer.className = 'kanban-add-task';
+            addTaskContainer.innerHTML = `<button class="add-task-btn" data-column="${column.id}">+ Add Task</button>`;
+            columnElement.appendChild(addTaskContainer);
+            
+            // Set up event handler for new add button
+            const addBtn = addTaskContainer.querySelector('.add-task-btn');
+            if (addBtn && !addBtn.hasAttribute('data-listeners-attached')) {
+                addBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const columnId = addBtn.dataset.column;
+                    handleAddTask(columnId, filePath, container);
+                });
+                addBtn.setAttribute('data-listeners-attached', 'true');
+            }
+        }
     });
     
     return true;
@@ -501,5 +556,357 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
     }
 }
 
+// === Kanban Task Action Functions ===
+
+function setupKanbanTaskActions(container, filePath) {
+    console.log('[Kanban] Setting up task action handlers for:', filePath);
+    
+    const kanbanBoard = container.querySelector('.kanban-board');
+    if (!kanbanBoard) {
+        console.log('[Kanban] No kanban board found for task actions setup');
+        return;
+    }
+    
+    // Clear any existing event listeners by cloning and replacing elements
+    // This prevents duplicate event listeners
+    const existingButtons = kanbanBoard.querySelectorAll('.task-edit-btn, .task-delete-btn, .add-task-btn');
+    existingButtons.forEach(btn => {
+        if (btn.hasAttribute('data-listeners-attached')) {
+            return; // Skip if already has listeners
+        }
+    });
+    
+    // Edit task buttons
+    const editButtons = kanbanBoard.querySelectorAll('.task-edit-btn:not([data-listeners-attached])');
+    editButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleTaskEdit(btn.closest('.kanban-task'), filePath);
+        });
+        btn.setAttribute('data-listeners-attached', 'true');
+    });
+    
+    // Delete task buttons  
+    const deleteButtons = kanbanBoard.querySelectorAll('.task-delete-btn:not([data-listeners-attached])');
+    deleteButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleTaskDelete(btn.closest('.kanban-task'), filePath);
+        });
+        btn.setAttribute('data-listeners-attached', 'true');
+    });
+    
+    // Add task buttons
+    const addButtons = kanbanBoard.querySelectorAll('.add-task-btn:not([data-listeners-attached])');
+    addButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const columnId = btn.dataset.column;
+            handleAddTask(columnId, filePath, container);
+        });
+        btn.setAttribute('data-listeners-attached', 'true');
+    });
+}
+
+async function handleTaskEdit(taskElement, filePath) {
+    const textElement = taskElement.querySelector('.kanban-task-text');
+    const originalText = textElement.textContent.trim();
+    
+    // Create input field
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = originalText;
+    input.className = 'kanban-task-edit-input';
+    input.style.cssText = 'width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 3px;';
+    
+    // Replace text with input
+    textElement.style.display = 'none';
+    textElement.parentNode.insertBefore(input, textElement.nextSibling);
+    input.focus();
+    input.select();
+    
+    const saveEdit = async () => {
+        const newText = input.value.trim();
+        if (newText && newText !== originalText) {
+            try {
+                await updateTaskTextInFile(filePath, taskElement, newText);
+                textElement.textContent = newText;
+                showNotification('Task updated successfully', 'success');
+                
+                // Refresh editor if this file is open
+                if (window.currentFilePath === filePath) {
+                    await refreshCurrentFile();
+                    if (window.editor) {
+                        window.lastSavedContent = window.editor.getValue();
+                        window.hasUnsavedChanges = false;
+                        updateUnsavedIndicator(false);
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating task text:', error);
+                showNotification('Error updating task', 'error');
+            }
+        }
+        
+        // Cleanup
+        textElement.style.display = '';
+        input.remove();
+    };
+    
+    const cancelEdit = () => {
+        textElement.style.display = '';
+        input.remove();
+    };
+    
+    // Save on Enter, cancel on Escape
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveEdit();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelEdit();
+        }
+    });
+    
+    // Save on blur
+    input.addEventListener('blur', saveEdit);
+}
+
+async function handleTaskDelete(taskElement, filePath) {
+    const taskText = taskElement.querySelector('.kanban-task-text').textContent.trim();
+    
+    if (!confirm(`Delete task: "${taskText}"?`)) {
+        return;
+    }
+    
+    try {
+        // Get container reference before removing the element
+        const container = taskElement.closest('.kanban-board').parentElement;
+        
+        await deleteTaskFromFile(filePath, taskElement);
+        taskElement.remove();
+        
+        // Update column header counts
+        updateKanbanColumnHeaders(container);
+        
+        showNotification('Task deleted successfully', 'success');
+        
+        // Refresh editor if this file is open
+        if (window.currentFilePath === filePath) {
+            await refreshCurrentFile();
+            if (window.editor) {
+                window.lastSavedContent = window.editor.getValue();
+                window.hasUnsavedChanges = false;
+                updateUnsavedIndicator(false);
+            }
+        }
+    } catch (error) {
+        console.error('Error deleting task:', error);
+        showNotification('Error deleting task', 'error');
+    }
+}
+
+async function handleAddTask(columnId, filePath, container) {
+    console.log('[Kanban] handleAddTask called with:', { columnId, filePath, container });
+    
+    if (!container) {
+        console.error('[Kanban] Container is null in handleAddTask');
+        return;
+    }
+    
+    // Create input for new task
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Enter new task...';
+    input.className = 'kanban-new-task-input';
+    input.style.cssText = 'width: 100%; padding: 8px; margin: 4px 0; border: 1px solid #ccc; border-radius: 3px;';
+    
+    const column = container.querySelector(`[data-column="${columnId}"]`);
+    if (!column) {
+        console.error(`[Kanban] Could not find column with id: ${columnId}`);
+        return;
+    }
+    
+    const addTaskButton = column.querySelector('.kanban-add-task');
+    if (!addTaskButton) {
+        console.error(`[Kanban] Could not find add task button in column: ${columnId}`);
+        return;
+    }
+    
+    // Insert input before the add button
+    column.insertBefore(input, addTaskButton);
+    input.focus();
+    
+    const saveNewTask = async () => {
+        const taskText = input.value.trim();
+        if (taskText) {
+            try {
+                await addTaskToFile(filePath, taskText, columnId);
+                showNotification('Task added successfully', 'success');
+                
+                // Refresh editor if this file is open
+                if (window.currentFilePath === filePath) {
+                    await refreshCurrentFile();
+                    if (window.editor) {
+                        window.lastSavedContent = window.editor.getValue();
+                        window.hasUnsavedChanges = false;
+                        updateUnsavedIndicator(false);
+                    }
+                }
+                
+                // Trigger a preview update to show the new task
+                if (window.updatePreviewAndStructure) {
+                    window.updatePreviewAndStructure();
+                }
+            } catch (error) {
+                console.error('Error adding task:', error);
+                showNotification('Error adding task', 'error');
+            }
+        }
+        
+        input.remove();
+    };
+    
+    const cancelNewTask = () => {
+        input.remove();
+    };
+    
+    // Save on Enter, cancel on Escape
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveNewTask();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelNewTask();
+        }
+    });
+    
+    // Cancel on blur
+    input.addEventListener('blur', cancelNewTask);
+}
+
+async function updateTaskTextInFile(filePath, taskElement, newText) {
+    console.log(`[Kanban] Updating task text in file: ${filePath}`);
+    
+    try {
+        const content = await window.electronAPI.invoke('read-file', filePath);
+        const lines = content.split('\n');
+        const lineNumber = parseInt(taskElement.dataset.lineNumber);
+        
+        if (lineNumber >= 0 && lineNumber < lines.length) {
+            const originalLine = lines[lineNumber];
+            
+            // Extract the list marker (1. or - or * etc.)
+            const listMatch = originalLine.match(/^(\s*(?:\d+\.\s*|\*\s*|\-\s*|\+\s*))/);
+            if (listMatch) {
+                const prefix = listMatch[1];
+                
+                // Get current settings to preserve status markers
+                const settings = await window.electronAPI.invoke('get-settings');
+                const kanbanSettings = settings.kanban || {};
+                const doneMarkers = kanbanSettings.doneMarkers || ['DONE'];
+                const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS'];
+                
+                // Find existing status marker in original line
+                let statusMarker = '';
+                const currentStatus = taskElement.dataset.originalStatus;
+                if (currentStatus === 'done') {
+                    // Check if line has a done marker
+                    for (const marker of doneMarkers) {
+                        if (originalLine.toUpperCase().includes(marker.toUpperCase())) {
+                            statusMarker = ` - ${marker}`;
+                            break;
+                        }
+                    }
+                } else if (currentStatus === 'inprogress') {
+                    // Check if line has an in-progress marker
+                    for (const marker of inProgressMarkers) {
+                        if (originalLine.toUpperCase().includes(marker.toUpperCase())) {
+                            statusMarker = ` - ${marker}`;
+                            break;
+                        }
+                    }
+                }
+                
+                // Reconstruct the line with new text but preserved status
+                lines[lineNumber] = prefix + newText + statusMarker;
+                
+                await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+                console.log(`[Kanban] Updated task text on line ${lineNumber}`);
+            }
+        }
+    } catch (error) {
+        console.error('[Kanban] Error updating task text:', error);
+        throw error;
+    }
+}
+
+async function deleteTaskFromFile(filePath, taskElement) {
+    console.log(`[Kanban] Deleting task from file: ${filePath}`);
+    
+    try {
+        const content = await window.electronAPI.invoke('read-file', filePath);
+        const lines = content.split('\n');
+        const lineNumber = parseInt(taskElement.dataset.lineNumber);
+        
+        if (lineNumber >= 0 && lineNumber < lines.length) {
+            // Remove the line
+            lines.splice(lineNumber, 1);
+            
+            await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+            console.log(`[Kanban] Deleted task on line ${lineNumber}`);
+        }
+    } catch (error) {
+        console.error('[Kanban] Error deleting task:', error);
+        throw error;
+    }
+}
+
+async function addTaskToFile(filePath, taskText, columnId) {
+    console.log(`[Kanban] Adding task to file: ${filePath}, column: ${columnId}`);
+    
+    try {
+        const content = await window.electronAPI.invoke('read-file', filePath);
+        const lines = content.split('\n');
+        
+        // Get settings to determine status markers
+        const settings = await window.electronAPI.invoke('get-settings');
+        const kanbanSettings = settings.kanban || {};
+        const doneMarkers = kanbanSettings.doneMarkers || ['DONE'];
+        const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS'];
+        
+        // Find the highest numbered item to continue the sequence
+        let maxNumber = 0;
+        lines.forEach(line => {
+            const match = line.match(/^\s*(\d+)\./);
+            if (match) {
+                maxNumber = Math.max(maxNumber, parseInt(match[1]));
+            }
+        });
+        
+        const nextNumber = maxNumber + 1;
+        let newLine = `${nextNumber}. ${taskText}`;
+        
+        // Add status marker based on column
+        if (columnId === 'done') {
+            newLine += ` - ${doneMarkers[0]}`;
+        } else if (columnId === 'inprogress') {
+            newLine += ` - ${inProgressMarkers[0]}`;
+        }
+        
+        // Add the new task at the end of the file
+        lines.push(newLine);
+        
+        await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+        console.log(`[Kanban] Added new task: ${newLine}`);
+    } catch (error) {
+        console.error('[Kanban] Error adding task:', error);
+        throw error;
+    }
+}
+
 // Make functions available globally
 window.updateKanbanBoard = updateKanbanBoard;
+window.setupKanbanTaskActions = setupKanbanTaskActions;

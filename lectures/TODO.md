@@ -27,17 +27,15 @@
 23. Toggle panes - DONE
 24. Fix Icon - DONE
 25. Cmd+P / Cmd+Shift+P - DONE
-26. Kanban - add new task inline
-27. Kanban - stop moving presentation around
-28. Etract content to new file - IN PROGRESS
+26. Kanban - add new task inline - DONE
+27. Kanban - stop moving presentation around - DONE
+28. Etract content to new file - DONE
 29. Autocomplete internal links - DONE
 30. Refactor - IN PROGRESS
 31. Test and fix global search - DONE
 32. Fix new file bug - save to current directory - DONE
 33. Themes
 34. Formatting menu
-35. Remove logs
+35. Remove logs, really
 36. Fix file content menu - DONE
-37. Fix 'fix' word
-
-
+37. Fix 'fix' word - DONE

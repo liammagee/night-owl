@@ -208,6 +208,12 @@ async function updatePreviewAndStructure(markdownContent) {
                         }
                     }
                     
+                    // Set up task action buttons (edit, delete, add)
+                    const kanbanBoard = previewContent.querySelector('.kanban-board');
+                    if (kanbanBoard) {
+                        setupKanbanTaskActions(previewContent, currentFilePath);
+                    }
+                    
                     // Only run other setup operations if the board was actually updated
                     if (wasUpdated) {
                         console.log('[renderer.js] Kanban board was updated, running additional setup operations');
