@@ -1015,6 +1015,37 @@ function addFoldingToolbarControls() {
     console.log('[renderer.js] Folding toolbar controls added');
 }
 
+// Export folding functions globally
+function foldAll() {
+    if (window.editor && window.editor.getAction) {
+        window.editor.getAction('editor.foldAll').run();
+    }
+}
+
+function unfoldAll() {
+    if (window.editor && window.editor.getAction) {
+        window.editor.getAction('editor.unfoldAll').run();
+    }
+}
+
+function foldCurrent() {
+    if (window.editor && window.editor.getAction) {
+        window.editor.getAction('editor.fold').run();
+    }
+}
+
+function unfoldCurrent() {
+    if (window.editor && window.editor.getAction) {
+        window.editor.getAction('editor.unfold').run();
+    }
+}
+
+// Export functions globally
+window.foldAll = foldAll;
+window.unfoldAll = unfoldAll;
+window.foldCurrent = foldCurrent;
+window.unfoldCurrent = unfoldCurrent;
+
 // --- AI Summarization Action ---
 function addAISummarizationAction() {
     if (!editor) {

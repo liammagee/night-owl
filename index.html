@@ -2853,6 +2853,16 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               console.log('[IPC] Switching to network mode');
               switchToMode('network');
             });
+
+            window.electronAPI.onFormatText((data) => {
+              console.log('[IPC] Format text received:', data);
+              console.log('[IPC] Format type:', data?.type);
+              if (data && data.type) {
+                handleFormatText(data.type);
+              } else {
+                console.error('[IPC] Format text: Invalid data received:', data);
+              }
+            });
           }
 
           // Set up title bar controls (only in Electron)
@@ -2912,6 +2922,133 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         // Expose mode switching globally
         window.switchToMode = switchToMode;
         window.updateSpeakerNotes = updateSpeakerNotes;
+
+        // Handle formatting from menu
+        function handleFormatText(type) {
+          // Ensure we're in editor mode
+          if (currentMode !== 'editor') {
+            switchToMode('editor');
+            // Small delay to ensure mode switch completes
+            setTimeout(() => applyFormatting(type), 100);
+          } else {
+            applyFormatting(type);
+          }
+        }
+
+        function applyFormatting(type) {
+          // Check if formatText function is available
+          if (!window.formatText) {
+            console.error('[Format] formatText function not available');
+            return;
+          }
+
+          switch(type) {
+            case 'bold':
+              window.formatText('**', '**', 'bold text');
+              break;
+              
+            case 'italic':
+              window.formatText('*', '*', 'italic text');
+              break;
+              
+            case 'code':
+              window.formatText('`', '`', 'code');
+              break;
+              
+            case 'heading1':
+              insertAtLineStart('# ', 'Heading 1');
+              break;
+              
+            case 'heading2':
+              insertAtLineStart('## ', 'Heading 2');
+              break;
+              
+            case 'heading3':
+              insertAtLineStart('### ', 'Heading 3');
+              break;
+              
+            case 'bulletlist':
+              insertAtLineStart('- ', 'List item');
+              break;
+              
+            case 'numberedlist':
+              insertAtLineStart('1. ', 'List item');
+              break;
+              
+            case 'blockquote':
+              insertAtLineStart('> ', 'Quote text');
+              break;
+              
+            case 'link':
+              window.formatText('[', '](url)', 'link text');
+              break;
+              
+            case 'image':
+              window.formatText('![', '](image-url)', 'alt text');
+              break;
+              
+            case 'strikethrough':
+              window.formatText('~~', '~~', 'strikethrough text');
+              break;
+              
+            case 'fold-current':
+              if (window.foldCurrent) {
+                window.foldCurrent();
+              }
+              break;
+              
+            case 'unfold-current':
+              if (window.unfoldCurrent) {
+                window.unfoldCurrent();
+              }
+              break;
+              
+            case 'fold-all':
+              if (window.foldAll) {
+                window.foldAll();
+              }
+              break;
+              
+            case 'unfold-all':
+              if (window.unfoldAll) {
+                window.unfoldAll();
+              }
+              break;
+              
+            default:
+              console.warn('[Format] Unknown format type:', type);
+          }
+        }
+
+        function insertAtLineStart(prefix, placeholder) {
+          if (!window.editor) return;
+          
+          const selection = window.editor.getSelection();
+          const position = selection.getStartPosition();
+          const line = window.editor.getModel().getLineContent(position.lineNumber);
+          
+          // Check if line already starts with the prefix
+          if (line.trimStart().startsWith(prefix.trim())) {
+            // Remove the prefix
+            const newLine = line.replace(new RegExp('^(\\s*)' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '$1');
+            const range = new monaco.Range(position.lineNumber, 1, position.lineNumber, line.length + 1);
+            window.editor.executeEdits('format-text', [{
+              range: range,
+              text: newLine
+            }]);
+          } else {
+            // Add the prefix
+            const leadingWhitespace = line.match(/^(\s*)/)[1];
+            const newLine = leadingWhitespace + prefix + (line.trim() || placeholder);
+            const range = new monaco.Range(position.lineNumber, 1, position.lineNumber, line.length + 1);
+            window.editor.executeEdits('format-text', [{
+              range: range,
+              text: newLine
+            }]);
+          }
+        }
+
+        window.handleFormatText = handleFormatText;
 
         // === Network Visualization ===
         let networkGraph = null;

@@ -906,6 +906,177 @@ function createMainMenu() {
         ]
       },
       {
+        label: 'Format',
+        submenu: [
+          {
+            label: 'Bold',
+            accelerator: 'CmdOrCtrl+B',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Bold');
+                mainWindow.webContents.send('format-text', { type: 'bold' });
+              }
+            }
+          },
+          {
+            label: 'Italic',
+            accelerator: 'CmdOrCtrl+I',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Italic');
+                mainWindow.webContents.send('format-text', { type: 'italic' });
+              }
+            }
+          },
+          {
+            label: 'Code',
+            accelerator: 'CmdOrCtrl+`',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Code');
+                mainWindow.webContents.send('format-text', { type: 'code' });
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Heading 1',
+            accelerator: 'CmdOrCtrl+Alt+1',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Heading 1');
+                mainWindow.webContents.send('format-text', { type: 'heading1' });
+              }
+            }
+          },
+          {
+            label: 'Heading 2',
+            accelerator: 'CmdOrCtrl+Alt+2',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Heading 2');
+                mainWindow.webContents.send('format-text', { type: 'heading2' });
+              }
+            }
+          },
+          {
+            label: 'Heading 3',
+            accelerator: 'CmdOrCtrl+Alt+3',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Heading 3');
+                mainWindow.webContents.send('format-text', { type: 'heading3' });
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Bullet List',
+            accelerator: 'CmdOrCtrl+Shift+8',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Bullet List');
+                mainWindow.webContents.send('format-text', { type: 'bulletlist' });
+              }
+            }
+          },
+          {
+            label: 'Numbered List',
+            accelerator: 'CmdOrCtrl+Shift+7',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Numbered List');
+                mainWindow.webContents.send('format-text', { type: 'numberedlist' });
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Insert Link',
+            accelerator: 'CmdOrCtrl+K',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Insert Link');
+                mainWindow.webContents.send('format-text', { type: 'link' });
+              }
+            }
+          },
+          {
+            label: 'Insert Image',
+            accelerator: 'CmdOrCtrl+Shift+I',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Insert Image');
+                mainWindow.webContents.send('format-text', { type: 'image' });
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Blockquote',
+            accelerator: 'CmdOrCtrl+Shift+.',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Blockquote');
+                mainWindow.webContents.send('format-text', { type: 'blockquote' });
+              }
+            }
+          },
+          {
+            label: 'Strikethrough',
+            accelerator: 'CmdOrCtrl+Shift+X',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Strikethrough');
+                mainWindow.webContents.send('format-text', { type: 'strikethrough' });
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Fold Current Section',
+            accelerator: 'CmdOrCtrl+Shift+[',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Fold Current');
+                mainWindow.webContents.send('format-text', { type: 'fold-current' });
+              }
+            }
+          },
+          {
+            label: 'Expand Current Section',
+            accelerator: 'CmdOrCtrl+Shift+]',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Expand Current');
+                mainWindow.webContents.send('format-text', { type: 'unfold-current' });
+              }
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Fold All Sections',
+            accelerator: 'CmdOrCtrl+K CmdOrCtrl+0',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Fold All');
+                mainWindow.webContents.send('format-text', { type: 'fold-all' });
+              }
+            }
+          },
+          {
+            label: 'Expand All Sections',
+            accelerator: 'CmdOrCtrl+K CmdOrCtrl+J',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Format: Expand All');
+                mainWindow.webContents.send('format-text', { type: 'unfold-all' });
+              }
+            }
+          }
+        ]
+      },
+      {
          label: 'View',
          submenu: [
             { role: 'reload' },

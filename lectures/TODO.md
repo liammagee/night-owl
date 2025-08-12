@@ -35,7 +35,7 @@
 31. Test and fix global search - DONE
 32. Fix new file bug - save to current directory - DONE
 33. Themes - DONE
-34. Formatting menu
+34. Formatting menu - DONE
 35. Remove logs - DONE
 36. Fix file content menu - DONE
 37. Fix 'fix' word - DONE

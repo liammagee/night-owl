@@ -32,3 +32,4 @@ The improvements made include:
 
 The PDF preview should now utilize the full available space in the preview panel, making documents much more readable and practical to work with.
 
+
