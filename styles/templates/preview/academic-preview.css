@@ -1,0 +1,222 @@
+/* Academic Preview Style */
+/* Professional styling for the preview pane */
+
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #34495e;
+    --accent-color: #3498db;
+    --text-color: #2c3e50;
+    --bg-color: #ffffff;
+    --border-color: #ecf0f1;
+    --code-bg: #f8f9fa;
+    --quote-bg: #f4f6f7;
+}
+
+.preview-content {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    line-height: 1.7;
+    color: var(--text-color);
+    background: var(--bg-color);
+    padding: 2rem;
+    max-width: none;
+}
+
+/* Typography */
+.preview-content h1 {
+    color: var(--primary-color);
+    font-size: 2.2em;
+    font-weight: 700;
+    margin: 1.5em 0 1em 0;
+    border-bottom: 3px solid var(--accent-color);
+    padding-bottom: 0.5em;
+    line-height: 1.2;
+}
+
+.preview-content h2 {
+    color: var(--primary-color);
+    font-size: 1.8em;
+    font-weight: 600;
+    margin: 1.5em 0 0.8em 0;
+    border-left: 4px solid var(--accent-color);
+    padding-left: 1rem;
+    line-height: 1.3;
+}
+
+.preview-content h3 {
+    color: var(--secondary-color);
+    font-size: 1.4em;
+    font-weight: 500;
+    margin: 1.3em 0 0.7em 0;
+    line-height: 1.3;
+}
+
+.preview-content h4 {
+    color: var(--secondary-color);
+    font-size: 1.2em;
+    font-weight: 500;
+    margin: 1.1em 0 0.6em 0;
+}
+
+.preview-content p {
+    margin-bottom: 1.2em;
+    text-align: justify;
+    font-size: 1.05em;
+}
+
+/* Lists */
+.preview-content ul, .preview-content ol {
+    margin: 1em 0;
+    padding-left: 2.5em;
+}
+
+.preview-content li {
+    margin-bottom: 0.6em;
+    line-height: 1.6;
+}
+
+.preview-content ul li::marker {
+    color: var(--accent-color);
+}
+
+.preview-content ol li::marker {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+/* Blockquotes */
+.preview-content blockquote {
+    border-left: 4px solid var(--accent-color);
+    margin: 1.5em 0;
+    padding: 1rem 1.5rem;
+    background: var(--quote-bg);
+    font-style: italic;
+    color: var(--secondary-color);
+    border-radius: 0 8px 8px 0;
+}
+
+.preview-content blockquote p {
+    margin-bottom: 0.8em;
+}
+
+.preview-content blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* Code */
+.preview-content code {
+    background: var(--code-bg);
+    padding: 0.2em 0.5em;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #d73a49;
+    border: 1px solid #e1e4e8;
+}
+
+.preview-content pre {
+    background: var(--code-bg);
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+    padding: 1.2rem;
+    overflow-x: auto;
+    margin: 1.5em 0;
+    line-height: 1.4;
+}
+
+.preview-content pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #24292e;
+}
+
+/* Tables */
+.preview-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.5em 0;
+    font-size: 0.95em;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.preview-content th, .preview-content td {
+    border: 1px solid var(--border-color);
+    padding: 0.8rem;
+    text-align: left;
+}
+
+.preview-content th {
+    background: var(--primary-color);
+    color: white;
+    font-weight: 600;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.preview-content tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+/* Links */
+.preview-content a {
+    color: var(--accent-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s ease;
+}
+
+.preview-content a:hover {
+    border-bottom-color: var(--accent-color);
+}
+
+/* Emphasis */
+.preview-content strong {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.preview-content em {
+    font-style: italic;
+    color: var(--secondary-color);
+}
+
+/* Images */
+.preview-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin: 1em 0;
+}
+
+/* Horizontal rules */
+.preview-content hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(to right, var(--accent-color), transparent);
+    margin: 2em 0;
+}
+
+/* Math */
+.preview-content .math {
+    font-family: 'Times New Roman', serif;
+    color: var(--primary-color);
+}
+
+/* Footnotes */
+.preview-content .footnote {
+    font-size: 0.85em;
+    color: var(--secondary-color);
+    border-top: 1px solid var(--border-color);
+    margin-top: 2em;
+    padding-top: 1em;
+}
+
+/* Citations */
+.preview-content .citation {
+    color: var(--accent-color);
+    font-weight: 500;
+}

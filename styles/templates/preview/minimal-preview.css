@@ -1,0 +1,214 @@
+/* Minimal Preview Style */
+/* Clean, minimal styling for the preview pane */
+
+:root {
+    --primary-color: #333333;
+    --secondary-color: #666666;
+    --accent-color: #007acc;
+    --text-color: #333333;
+    --bg-color: #ffffff;
+    --border-color: #e0e0e0;
+    --code-bg: #f6f8fa;
+    --quote-bg: #f0f8ff;
+}
+
+.preview-content {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background: var(--bg-color);
+    padding: 2rem;
+    max-width: none;
+}
+
+/* Typography */
+.preview-content h1 {
+    color: var(--primary-color);
+    font-size: 2.5em;
+    font-weight: 300;
+    margin: 1.5em 0 1em 0;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.preview-content h2 {
+    color: var(--primary-color);
+    font-size: 2em;
+    font-weight: 300;
+    margin: 1.5em 0 0.8em 0;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+}
+
+.preview-content h3 {
+    color: var(--secondary-color);
+    font-size: 1.5em;
+    font-weight: 400;
+    margin: 1.3em 0 0.7em 0;
+    line-height: 1.3;
+}
+
+.preview-content h4 {
+    color: var(--secondary-color);
+    font-size: 1.2em;
+    font-weight: 400;
+    margin: 1.1em 0 0.6em 0;
+}
+
+.preview-content p {
+    margin-bottom: 1.5em;
+    font-size: 1.05em;
+    font-weight: 300;
+    line-height: 1.7;
+}
+
+/* Lists */
+.preview-content ul, .preview-content ol {
+    margin: 1.2em 0;
+    padding-left: 2em;
+}
+
+.preview-content li {
+    margin-bottom: 0.8em;
+    line-height: 1.6;
+    font-weight: 300;
+}
+
+.preview-content ul li::marker {
+    color: var(--accent-color);
+}
+
+.preview-content ol li::marker {
+    color: var(--accent-color);
+}
+
+/* Blockquotes */
+.preview-content blockquote {
+    margin: 2em 0;
+    padding: 0 2em;
+    font-size: 1.2em;
+    font-weight: 300;
+    font-style: italic;
+    color: var(--secondary-color);
+    position: relative;
+}
+
+.preview-content blockquote::before {
+    content: '"';
+    position: absolute;
+    left: -0.2em;
+    top: -0.5em;
+    font-size: 4em;
+    color: var(--accent-color);
+    opacity: 0.3;
+    font-weight: 100;
+}
+
+.preview-content blockquote p {
+    margin-bottom: 0.8em;
+}
+
+.preview-content blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* Code */
+.preview-content code {
+    background: var(--code-bg);
+    padding: 0.2em 0.5em;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-size: 0.85em;
+    color: #e36209;
+}
+
+.preview-content pre {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 1.5em;
+    overflow-x: auto;
+    margin: 1.5em 0;
+    line-height: 1.4;
+}
+
+.preview-content pre code {
+    background: none;
+    padding: 0;
+    color: #24292e;
+}
+
+/* Tables */
+.preview-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 2em 0;
+    font-size: 0.95em;
+    font-weight: 300;
+}
+
+.preview-content th, .preview-content td {
+    padding: 1em;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.preview-content th {
+    font-weight: 400;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--accent-color);
+}
+
+/* Links */
+.preview-content a {
+    color: var(--accent-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.preview-content a:hover {
+    border-bottom-color: var(--accent-color);
+}
+
+/* Emphasis */
+.preview-content strong {
+    font-weight: 500;
+    color: var(--primary-color);
+}
+
+.preview-content em {
+    font-style: italic;
+    color: var(--secondary-color);
+}
+
+/* Images */
+.preview-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    margin: 1.5em 0;
+}
+
+/* Horizontal rules */
+.preview-content hr {
+    border: none;
+    height: 1px;
+    background: var(--border-color);
+    margin: 3em 0;
+}
+
+/* Math */
+.preview-content .math {
+    font-size: 1.1em;
+    color: var(--primary-color);
+}
+
+/* Clean spacing */
+.preview-content > *:first-child {
+    margin-top: 0;
+}
+
+.preview-content > *:last-child {
+    margin-bottom: 0;
+}

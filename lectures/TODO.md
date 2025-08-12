@@ -43,4 +43,5 @@
 39. Graph of files, with links based on internal links - DONE
 40. AI Chat like Claude Code - DONE
 41. Simulations
-42. Add HELP file
+42. Add HELP file - DONE
+43. Whole / part navigation

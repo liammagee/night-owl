@@ -1,0 +1,179 @@
+/* Academic Presentation Template */
+/* Professional styling for academic presentations */
+
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --text-color: #2c3e50;
+    --bg-color: #ffffff;
+    --border-color: #bdc3c7;
+    --highlight-color: #f39c12;
+}
+
+/* Slide container */
+.slide {
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Georgia', 'Times New Roman', serif;
+    line-height: 1.6;
+    padding: 60px;
+    border: 2px solid var(--border-color);
+}
+
+/* Typography */
+.slide h1 {
+    color: var(--primary-color);
+    font-size: 2.5em;
+    font-weight: 700;
+    border-bottom: 3px solid var(--secondary-color);
+    padding-bottom: 0.5em;
+    margin-bottom: 1em;
+}
+
+.slide h2 {
+    color: var(--primary-color);
+    font-size: 2em;
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    border-left: 5px solid var(--secondary-color);
+    padding-left: 15px;
+}
+
+.slide h3 {
+    color: var(--secondary-color);
+    font-size: 1.5em;
+    font-weight: 500;
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
+}
+
+.slide p {
+    font-size: 1.2em;
+    margin-bottom: 1em;
+    text-align: justify;
+}
+
+/* Lists */
+.slide ul, .slide ol {
+    font-size: 1.1em;
+    margin: 1em 0;
+    padding-left: 2em;
+}
+
+.slide li {
+    margin-bottom: 0.5em;
+    line-height: 1.5;
+}
+
+/* Blockquotes */
+.slide blockquote {
+    border-left: 5px solid var(--accent-color);
+    margin: 1.5em 0;
+    padding: 1em 1.5em;
+    background: #f8f9fa;
+    font-style: italic;
+    font-size: 1.1em;
+    color: #555;
+}
+
+.slide blockquote::before {
+    content: '"';
+    font-size: 2em;
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+/* Code blocks */
+.slide code {
+    background: #f4f4f4;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.9em;
+}
+
+.slide pre {
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 1em;
+    overflow-x: auto;
+    font-size: 0.9em;
+}
+
+/* Tables */
+.slide table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    font-size: 1em;
+}
+
+.slide th, .slide td {
+    border: 1px solid var(--border-color);
+    padding: 0.8em;
+    text-align: left;
+}
+
+.slide th {
+    background: var(--primary-color);
+    color: white;
+    font-weight: 600;
+}
+
+.slide tr:nth-child(even) {
+    background: #f9f9f9;
+}
+
+/* Emphasis */
+.slide strong {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+.slide em {
+    color: var(--secondary-color);
+    font-style: italic;
+}
+
+/* Links */
+.slide a {
+    color: var(--secondary-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.slide a:hover {
+    border-bottom-color: var(--secondary-color);
+}
+
+/* Footer/Page numbers */
+.slide::after {
+    content: '';
+    position: absolute;
+    bottom: 20px;
+    right: 30px;
+    width: 50px;
+    height: 3px;
+    background: var(--secondary-color);
+}
+
+/* Math equations */
+.slide .math {
+    font-size: 1.1em;
+    color: var(--primary-color);
+}
+
+/* Speaker notes styling */
+.speaker-notes {
+    background: #f8f9fa;
+    border-left: 4px solid var(--highlight-color);
+    padding: 1em;
+    margin: 1em 0;
+    font-size: 0.9em;
+    color: #666;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}

@@ -1145,6 +1145,17 @@ function createMainMenu() {
                 }
             },
             { type: 'separator' },
+            {
+                label: 'Style Settings...',
+                accelerator: 'CmdOrCtrl+Shift+T',
+                click: () => {
+                    if (mainWindow) {
+                        console.log('[main.js] Opening Style Settings via menu');
+                        mainWindow.webContents.send('open-style-settings');
+                    }
+                }
+            },
+            { type: 'separator' },
             { role: 'resetZoom' },
             { role: 'zoomIn' },
             { role: 'zoomOut' },
@@ -3828,6 +3839,48 @@ Keep it concise and focused on the most important points.`;
 
   ipcMain.handle('get-recent-files', () => {
     return appSettings.recentFiles || [];
+  });
+
+  // Style management handlers
+  ipcMain.handle('load-style-file', async (event, filePath) => {
+    try {
+      const fullPath = path.join(__dirname, filePath);
+      const content = await fs.readFile(fullPath, 'utf8');
+      return content;
+    } catch (error) {
+      console.error('[main.js] Error loading style file:', error);
+      return '';
+    }
+  });
+
+  ipcMain.handle('save-user-styles', async (event, styles) => {
+    try {
+      appSettings.userStyles = styles;
+      await saveAppSettings();
+      return true;
+    } catch (error) {
+      console.error('[main.js] Error saving user styles:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('load-user-styles', () => {
+    return appSettings.userStyles || {};
+  });
+
+  ipcMain.handle('save-style-preferences', async (event, preferences) => {
+    try {
+      appSettings.stylePreferences = preferences;
+      await saveAppSettings();
+      return true;
+    } catch (error) {
+      console.error('[main.js] Error saving style preferences:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('load-style-preferences', () => {
+    return appSettings.stylePreferences || {};
   });
 
   // Working directory handler

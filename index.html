@@ -1396,6 +1396,10 @@
     <script src="orchestrator/modules/autosave.js" defer></script>
     <script src="orchestrator/modules/dragdrop.js" defer></script>
     
+    <!-- Style management modules -->
+    <script src="styles/style-manager.js" defer></script>
+    <script src="styles/style-settings-ui.js" defer></script>
+    
     <!-- Main renderer script -->
     <script src="orchestrator/renderer.js" defer></script>
     
@@ -2822,6 +2826,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               switchToMode('network');
             });
 
+            // Style settings handler
+            window.electronAPI.on('open-style-settings', () => {
+              console.log('[IPC] Opening style settings');
+              if (window.styleSettingsUI) {
+                window.styleSettingsUI.showStyleSettings();
+              }
+            });
+
             window.electronAPI.onFormatText((data) => {
               console.log('[IPC] Format text received:', data);
               console.log('[IPC] Format type:', data?.type);
@@ -3404,6 +3416,30 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           
           // Hook into autosave events if available
           document.addEventListener('file-saved', updateNetworkOnFileChange);
+        }
+
+        // Initialize style manager
+        function initializeStyleSystem() {
+          console.log('[StyleSystem] Initializing style management system...');
+          
+          // Wait for style manager to be loaded
+          if (window.styleManager) {
+            window.styleManager.initialize().then(() => {
+              console.log('[StyleSystem] Style manager initialized successfully');
+            }).catch(error => {
+              console.error('[StyleSystem] Error initializing style manager:', error);
+            });
+          } else {
+            // Retry after a short delay
+            setTimeout(initializeStyleSystem, 100);
+          }
+        }
+
+        // Initialize style system when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initializeStyleSystem);
+        } else {
+          initializeStyleSystem();
         }
         
         // Initialize network controls when DOM is ready

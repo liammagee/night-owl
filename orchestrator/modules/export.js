@@ -24,25 +24,31 @@ function escapeHtml(text) {
 }
 
 // --- HTML Generation ---
-function generateHTMLFromMarkdown(markdownContent) {
+async function generateHTMLFromMarkdown(markdownContent, customStylesheet = null) {
     if (!markdownContent) {
         return '<html><head><title>Export</title></head><body><p>No content to export</p></body></html>';
     }
 
+    // Get custom stylesheet if not provided
+    if (!customStylesheet && window.styleManager) {
+        customStylesheet = await window.styleManager.getExportStylesheet();
+    }
+
     // Check if marked is available (it should be loaded from CDN)
     if (typeof marked === 'undefined') {
+        const fallbackCSS = customStylesheet || `
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                max-width: 800px; 
+                margin: 0 auto; 
+                padding: 20px; 
+                line-height: 1.6; 
+            }
+        `;
         return `<html>
 <head>
     <title>Export</title>
-    <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px; 
-            margin: 0 auto; 
-            padding: 20px; 
-            line-height: 1.6; 
-        }
-    </style>
+    <style>${fallbackCSS}</style>
 </head>
 <body>
     <pre>${escapeHtml(markdownContent)}</pre>
@@ -53,13 +59,8 @@ function generateHTMLFromMarkdown(markdownContent) {
     // Convert markdown to HTML using marked
     const htmlBody = marked.parse(markdownContent);
     
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exported Document</title>
-    <style>
+    // Use custom stylesheet or default
+    const finalCSS = customStylesheet || `
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             max-width: 800px; 
@@ -119,6 +120,16 @@ function generateHTMLFromMarkdown(markdownContent) {
         @media print {
             body { margin: 0; padding: 20px; }
         }
+    `;
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exported Document</title>
+    <style>
+        ${finalCSS}
     </style>
     
     <!-- MathJax Configuration -->
@@ -231,8 +242,9 @@ function initializeExportHandlers() {
                 window.showNotification('Preparing HTML export...', 'info');
             }
             
-            // Generate HTML from markdown
-            const htmlContent = generateHTMLFromMarkdown(content);
+            // Generate HTML from markdown with custom stylesheet
+            const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+            const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
             
             // Export options for enhanced pandoc support
             const exportOptions = {
@@ -279,8 +291,9 @@ function initializeExportHandlers() {
                 window.showNotification('Preparing HTML export with references...', 'info');
             }
             
-            // Generate HTML from markdown
-            const htmlContent = generateHTMLFromMarkdown(content);
+            // Generate HTML from markdown with custom stylesheet
+            const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+            const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
             
             // Export options for pandoc with bibliography support
             const exportOptions = {
@@ -325,8 +338,9 @@ function initializeExportHandlers() {
                 window.showNotification('Preparing PDF export...', 'info');
             }
             
-            // Generate HTML from markdown
-            const htmlContent = generateHTMLFromMarkdown(content);
+            // Generate HTML from markdown with custom stylesheet
+            const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+            const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
             
             // Export options for enhanced pandoc support
             const exportOptions = {
