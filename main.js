@@ -2387,6 +2387,145 @@ Keep it concise and focused on the most important points.`;
     }
   });
 
+  // Extract text to new file feature
+  ipcMain.handle('extract-text-to-file', async (event, { filePath, content, fileName }) => {
+    console.log(`[main.js] Extracting text to new file: ${filePath}`);
+    try {
+      // Check if file already exists
+      try {
+        await fs.access(filePath);
+        return {
+          success: false,
+          error: `File "${fileName}.md" already exists. Please choose a different name.`
+        };
+      } catch (err) {
+        // File doesn't exist, which is good
+      }
+      
+      // Ensure directory exists
+      const dirPath = path.dirname(filePath);
+      await fs.mkdir(dirPath, { recursive: true });
+      
+      // Add H1 heading if needed using the same logic as save operations
+      const finalContent = addH1HeadingIfNeeded(content, fileName);
+      
+      // Write the file
+      await fs.writeFile(filePath, finalContent, 'utf8');
+      
+      console.log(`[main.js] Text extracted to new file successfully: ${filePath}`);
+      
+      return { 
+        success: true, 
+        filePath: filePath,
+        message: `Extracted text to new file: ${fileName}.md`
+      };
+    } catch (error) {
+      console.error(`[main.js] Error extracting text to file: ${error.message}`);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
+
+  // Combined extract text and replace feature - handles both operations atomically
+  ipcMain.handle('extract-text-with-replacement', async (event, { 
+    originalFilePath, textToReplace, replacementText, 
+    newFilePath, newFileContent, fileName 
+  }) => {
+    console.log(`[main.js] Extract text with replacement - original: ${originalFilePath}, new: ${newFilePath}`);
+    
+    try {
+      // Step 1: Check if new file already exists
+      try {
+        await fs.access(newFilePath);
+        return {
+          success: false,
+          error: `File "${fileName}.md" already exists. Please choose a different name.`
+        };
+      } catch (err) {
+        // File doesn't exist, which is good - we can create it
+      }
+
+      // Step 2: Read the original file
+      if (!originalFilePath || !await fs.access(originalFilePath).then(() => true).catch(() => false)) {
+        return {
+          success: false,
+          error: 'Original file not found or not accessible'
+        };
+      }
+
+      let originalContent;
+      try {
+        originalContent = await fs.readFile(originalFilePath, 'utf8');
+        console.log(`[main.js] Read original file content (${originalContent.length} chars)`);
+      } catch (error) {
+        return {
+          success: false,
+          error: `Failed to read original file: ${error.message}`
+        };
+      }
+
+      // Step 3: Replace the text in original content
+      const updatedOriginalContent = originalContent.replace(textToReplace, replacementText);
+      console.log(`[main.js] Text replacement - original length: ${originalContent.length}, new length: ${updatedOriginalContent.length}`);
+      console.log(`[main.js] Replacement successful: ${updatedOriginalContent.includes(replacementText)}`);
+
+      // Step 4: Write the updated original file
+      try {
+        await fs.writeFile(originalFilePath, updatedOriginalContent, 'utf8');
+        console.log(`[main.js] ✅ Successfully updated original file with internal link`);
+      } catch (error) {
+        return {
+          success: false,
+          error: `Failed to update original file: ${error.message}`
+        };
+      }
+
+      // Step 5: Create the new file
+      try {
+        const dirPath = path.dirname(newFilePath);
+        await fs.mkdir(dirPath, { recursive: true });
+        
+        // Add H1 heading if needed
+        const finalNewContent = addH1HeadingIfNeeded(newFileContent, fileName);
+        
+        await fs.writeFile(newFilePath, finalNewContent, 'utf8');
+        console.log(`[main.js] ✅ Successfully created new file: ${newFilePath}`);
+      } catch (error) {
+        // If new file creation fails, try to restore original file
+        try {
+          await fs.writeFile(originalFilePath, originalContent, 'utf8');
+          console.log(`[main.js] Restored original file after new file creation failed`);
+        } catch (restoreError) {
+          console.error(`[main.js] Failed to restore original file:`, restoreError);
+        }
+        
+        return {
+          success: false,
+          error: `Failed to create new file: ${error.message}`
+        };
+      }
+
+      // Step 6: Success - return updated content for editor reload
+      return {
+        success: true,
+        filePath: newFilePath,
+        fileName: fileName,
+        updatedOriginalContent: updatedOriginalContent,
+        message: `Extracted text to new file: ${fileName}.md and inserted internal link`
+      };
+
+    } catch (error) {
+      console.error(`[main.js] Error in extract-text-with-replacement:`, error);
+      return {
+        success: false,
+        error: `Extraction failed: ${error.message}`
+      };
+    }
+  });
+
+
   // Handle HTML export with pandoc and bibliography support
   ipcMain.handle('perform-export-html', async (event, content, htmlContent, exportOptions) => {
     console.log('[main.js] Received perform-export-html with options:', exportOptions);
@@ -3355,26 +3494,55 @@ Keep it concise and focused on the most important points.`;
   });
 
   ipcMain.handle('delete-file', async (event, filePath) => {
+    console.log(`[main.js] Deleting file/folder: ${filePath}`);
     try {
       if (!filePath || typeof filePath !== 'string') {
         throw new Error('Invalid file path');
       }
       
-      // Use fs.unlink to delete the file
-      await fs.unlink(filePath);
-      console.log(`[main.js] File deleted successfully: ${filePath}`);
-      
-      // If the deleted file was the current file, clear it
-      if (currentFilePath === filePath) {
-        currentFilePath = null;
-        if (mainWindow) {
-          mainWindow.setTitle('Hegel Pedagogy AI - Untitled');
-        }
+      // Check if path exists
+      try {
+        await fs.access(filePath);
+      } catch (err) {
+        return {
+          success: false,
+          error: 'File or folder does not exist'
+        };
       }
       
-      return { success: true };
+      // Get file stats to determine if it's a file or directory
+      const stats = await fs.stat(filePath);
+      
+      if (stats.isDirectory()) {
+        // Delete directory (recursive)
+        await fs.rmdir(filePath, { recursive: true });
+        console.log(`[main.js] Directory deleted successfully: ${filePath}`);
+        return {
+          success: true,
+          message: `Directory deleted: ${path.basename(filePath)}`,
+          type: 'folder'
+        };
+      } else {
+        // Delete file
+        await fs.unlink(filePath);
+        console.log(`[main.js] File deleted successfully: ${filePath}`);
+        
+        // If we just deleted the currently open file, clear currentFilePath
+        if (currentFilePath === filePath) {
+          currentFilePath = null;
+          if (mainWindow) {
+            mainWindow.setTitle('Hegel Pedagogy AI');
+          }
+        }
+        
+        return {
+          success: true,
+          message: `File deleted: ${path.basename(filePath)}`,
+          type: 'file'
+        };
+      }
     } catch (error) {
-      console.error('[main.js] Error deleting file:', error);
+      console.error('[main.js] Error deleting file/folder:', error);
       return { success: false, error: error.message };
     }
   });

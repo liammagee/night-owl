@@ -29,11 +29,13 @@
 25. Cmd+P / Cmd+Shift+P - DONE
 26. Kanban - add new task inline
 27. Kanban - stop moving presentation around
-28. Extract content to new file
+28. Etract content to new file - IN PROGRESS
 29. Autocomplete internal links - DONE
 30. Refactor - IN PROGRESS
-31. Test and figlobal search - DONE
-32. Finew file bug - save to current directory - DONE
+31. Test and fix global search - DONE
+32. Fix new file bug - save to current directory - DONE
 33. Themes
 34. Formatting menu
+35. Remove logs
+36. Fifile contet menu - DONE
 

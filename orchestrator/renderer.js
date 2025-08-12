@@ -1545,6 +1545,9 @@ async function initializeApp() {
             window.editor = editor;
             console.log('[renderer.js] Monaco editor instance created and assigned to window.editor.');
             
+            // Setup editor context menu for text extraction
+            setupEditorContextMenu();
+            
             // Register custom Markdown folding provider and add shortcuts
             setTimeout(() => {
                 registerMarkdownFoldingProvider();
@@ -2755,11 +2758,25 @@ function renderFileTreeNode(node, container, depth) {
                 console.error('[renderFileTree] Error opening file:', error);
             }
         });
+        
+        // Add context menu for files
+        nodeElement.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            console.log(`[renderFileTree] Context menu requested for file: ${node.path}`);
+            showFileContextMenu(event, node.path, false);
+        });
     }
     
-    // Make folders draggable too for moving
+    // Make folders draggable too for moving and add context menu
     if (isFolder) {
         nodeElement.draggable = true;
+        
+        // Add context menu for folders
+        nodeElement.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            console.log(`[renderFileTree] Context menu requested for folder: ${node.path}`);
+            showFileContextMenu(event, node.path, true);
+        });
     }
     
     container.appendChild(nodeElement);
@@ -2769,6 +2786,171 @@ function renderFileTreeNode(node, container, depth) {
         for (const child of node.children) {
             renderFileTreeNode(child, container, depth + 1);
         }
+    }
+}
+
+function showFileContextMenu(event, filePath, isFolder) {
+    // Remove any existing context menu
+    const existingMenu = document.querySelector('.file-context-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+    
+    // Create context menu
+    const menu = document.createElement('div');
+    menu.className = 'file-context-menu';
+    menu.style.cssText = `
+        position: fixed;
+        left: ${event.pageX}px;
+        top: ${event.pageY}px;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        min-width: 150px;
+    `;
+    
+    // Create menu items based on whether it's a file or folder
+    const menuItems = [];
+    
+    if (isFolder) {
+        menuItems.push(
+            { label: 'New File in Folder', action: 'new-file' },
+            { label: 'New Folder', action: 'new-subfolder' },
+            { label: 'Rename Folder', action: 'rename' },
+            { label: 'Delete Folder', action: 'delete' }
+        );
+    } else {
+        menuItems.push(
+            { label: 'Open', action: 'open' },
+            { label: 'Rename File', action: 'rename' },
+            { label: 'Delete File', action: 'delete' },
+            { label: 'Copy Path', action: 'copy-path' }
+        );
+    }
+    
+    menuItems.forEach((item, index) => {
+        const menuItem = document.createElement('div');
+        menuItem.style.cssText = `
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: ${index < menuItems.length - 1 ? '1px solid #f0f0f0' : 'none'};
+        `;
+        menuItem.textContent = item.label;
+        menuItem.addEventListener('click', () => {
+            handleFileContextMenuAction(item.action, filePath, isFolder);
+            menu.remove();
+        });
+        menuItem.addEventListener('mouseenter', () => {
+            menuItem.style.background = '#f0f0f0';
+        });
+        menuItem.addEventListener('mouseleave', () => {
+            menuItem.style.background = 'white';
+        });
+        menu.appendChild(menuItem);
+    });
+    
+    document.body.appendChild(menu);
+    
+    // Remove menu when clicking elsewhere
+    const removeMenu = (e) => {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', removeMenu);
+        }
+    };
+    setTimeout(() => {
+        document.addEventListener('click', removeMenu);
+    }, 10);
+}
+
+async function handleFileContextMenuAction(action, filePath, isFolder) {
+    console.log(`[handleFileContextMenuAction] Action: ${action}, Path: ${filePath}, IsFolder: ${isFolder}`);
+    
+    switch (action) {
+        case 'open':
+            if (!isFolder) {
+                try {
+                    const result = await window.electronAPI.invoke('open-file-path', filePath);
+                    if (result.success && window.openFileInEditor) {
+                        await window.openFileInEditor(result.filePath, result.content);
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error opening file:', error);
+                    showNotification('Error opening file', 'error');
+                }
+            }
+            break;
+            
+        case 'rename':
+            const newName = await showCustomPrompt(
+                `Rename ${isFolder ? 'Folder' : 'File'}`, 
+                `Enter new name for ${isFolder ? 'folder' : 'file'}:`,
+                filePath.split('/').pop()
+            );
+            if (newName && newName !== filePath.split('/').pop()) {
+                console.log(`[handleFileContextMenuAction] Renaming ${filePath} to ${newName}`);
+                showNotification('Rename functionality not yet implemented', 'warning');
+            }
+            break;
+            
+        case 'delete':
+            const confirmDelete = confirm(`Are you sure you want to delete this ${isFolder ? 'folder' : 'file'}?\n\n${filePath}\n\nThis action cannot be undone.`);
+            if (confirmDelete) {
+                console.log(`[handleFileContextMenuAction] Deleting ${filePath}`);
+                try {
+                    const result = await window.electronAPI.invoke('delete-file', filePath);
+                    if (result.success) {
+                        showNotification(result.message, 'success');
+                        
+                        // If we deleted the currently open file, clear the editor
+                        if (!isFolder && window.currentFilePath === filePath) {
+                            if (window.editor) {
+                                window.editor.setValue('');
+                            }
+                            window.currentFilePath = null;
+                            const currentFileNameEl = document.getElementById('current-file-name');
+                            if (currentFileNameEl) {
+                                currentFileNameEl.textContent = 'No file selected';
+                            }
+                        }
+                        
+                        // Refresh file tree to show the file is gone
+                        if (window.renderFileTree) {
+                            window.renderFileTree();
+                        }
+                    } else {
+                        showNotification(`Failed to delete: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error deleting file:', error);
+                    showNotification('Error deleting file', 'error');
+                }
+            }
+            break;
+            
+        case 'copy-path':
+            if (!isFolder) {
+                try {
+                    await navigator.clipboard.writeText(filePath);
+                    showNotification('Path copied to clipboard', 'success');
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error copying path:', error);
+                    showNotification('Error copying path', 'error');
+                }
+            }
+            break;
+            
+        case 'new-file':
+        case 'new-subfolder':
+            showNotification('This functionality will be implemented soon', 'info');
+            break;
+            
+        default:
+            console.warn(`[handleFileContextMenuAction] Unknown action: ${action}`);
     }
 }
 
@@ -3961,6 +4143,384 @@ async function saveAsFile() {
     }
 }
 
+// --- Text Extraction Feature ---
+
+function showCustomPrompt(title, message, defaultValue = '') {
+    return new Promise((resolve) => {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+        
+        // Create content
+        dialog.innerHTML = `
+            <h3 style="margin: 0 0 15px 0; color: #333;">${title}</h3>
+            <p style="margin: 0 0 15px 0; color: #666;">${message}</p>
+            <input type="text" id="prompt-input" style="
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                margin-bottom: 15px;
+                box-sizing: border-box;
+            " placeholder="Enter filename..." value="${defaultValue}">
+            <div style="text-align: right;">
+                <button id="prompt-cancel" style="
+                    background: #f5f5f5;
+                    border: 1px solid #ddd;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    margin-right: 10px;
+                    cursor: pointer;
+                ">Cancel</button>
+                <button id="prompt-ok" style="
+                    background: #007acc;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                ">OK</button>
+            </div>
+        `;
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        // Focus input and select default text if present
+        const input = dialog.querySelector('#prompt-input');
+        input.focus();
+        if (defaultValue) {
+            input.select();
+        }
+        
+        // Handle events
+        const handleOK = () => {
+            const value = input.value.trim();
+            document.body.removeChild(overlay);
+            resolve(value);
+        };
+        
+        const handleCancel = () => {
+            document.body.removeChild(overlay);
+            resolve(null);
+        };
+        
+        dialog.querySelector('#prompt-ok').onclick = handleOK;
+        dialog.querySelector('#prompt-cancel').onclick = handleCancel;
+        
+        // Handle Enter key
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                handleOK();
+            } else if (e.key === 'Escape') {
+                handleCancel();
+            }
+        };
+        
+        // Handle overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                handleCancel();
+            }
+        };
+    });
+}
+
+function generateDefaultFileName(text) {
+    // Get first few words from the selected text
+    const words = text
+        .trim()
+        .replace(/[^\w\s]/g, '') // Remove punctuation
+        .split(/\s+/) // Split on whitespace
+        .filter(word => word.length > 0) // Remove empty strings
+        .slice(0, 3); // Take first 3 words
+    
+    if (words.length === 0) {
+        return 'extracted-text';
+    }
+    
+    // Join with hyphens and convert to lowercase
+    return words.join('-').toLowerCase();
+}
+
+async function extractTextToNewFile() {
+    console.log('\n=== EXTRACT TEXT TO NEW FILE - SIMPLIFIED APPROACH ===');
+    
+    if (!editor) {
+        console.error('[extractTextToNewFile] No editor available');
+        showNotification('No editor available', 'error');
+        return;
+    }
+    
+    // Get selected text 
+    const selection = editor.getSelection();
+    if (!selection || selection.isEmpty()) {
+        showNotification('Please select text to extract', 'warning');
+        return;
+    }
+    
+    const selectedText = editor.getModel().getValueInRange(selection);
+    if (!selectedText.trim()) {
+        showNotification('Selected text is empty', 'warning');
+        return;
+    }
+    
+    console.log('[extractTextToNewFile] Selected text to extract:', JSON.stringify(selectedText));
+    
+    // Generate smart default filename from selected text
+    const defaultFileName = generateDefaultFileName(selectedText);
+    
+    // Prompt for new file name
+    const fileName = await showCustomPrompt(
+        'Extract to New File', 
+        'Enter name for new file (without .md extension):', 
+        defaultFileName
+    );
+    if (!fileName) {
+        return;
+    }
+    
+    // Clean the filename
+    const cleanFileName = fileName.trim().replace(/[^a-zA-Z0-9\s-_]/g, '').replace(/\s+/g, '-');
+    if (!cleanFileName) {
+        showNotification('Invalid file name', 'error');
+        return;
+    }
+    
+    try {
+        // Get working directory
+        let workingDirectory = window.appSettings?.workingDirectory;
+        if (!workingDirectory) {
+            try {
+                const settings = await window.electronAPI.invoke('get-settings');
+                workingDirectory = settings?.workingDirectory;
+            } catch (error) {
+                console.warn('[extractTextToNewFile] Failed to load settings:', error);
+            }
+        }
+        
+        // NEW APPROACH: Let the backend handle BOTH file creation AND text replacement
+        const internalLink = `[[${cleanFileName}]]`;
+        const newFilePath = `${workingDirectory}/${cleanFileName}.md`;
+        const newFileContent = addH1HeadingIfNeeded(selectedText, cleanFileName);
+        
+        console.log('[extractTextToNewFile] Sending to backend - currentFile:', window.currentFilePath);
+        console.log('[extractTextToNewFile] Text to replace:', JSON.stringify(selectedText));
+        console.log('[extractTextToNewFile] Replacement link:', internalLink);
+        
+        const result = await window.electronAPI.invoke('extract-text-with-replacement', {
+            // Original file info
+            originalFilePath: window.currentFilePath,
+            textToReplace: selectedText,
+            replacementText: internalLink,
+            
+            // New file info  
+            newFilePath: newFilePath,
+            newFileContent: newFileContent,
+            fileName: cleanFileName
+        });
+        
+        if (result.success) {
+            console.log(`[extractTextToNewFile] ✅ Backend successfully handled extraction and replacement!`);
+            
+            // Reload the modified original file content into the editor
+            if (result.updatedOriginalContent) {
+                console.log('[extractTextToNewFile] Reloading updated content into editor...');
+                editor.setValue(result.updatedOriginalContent);
+                lastSavedContent = result.updatedOriginalContent;
+                hasUnsavedChanges = false;
+                updateUnsavedIndicator(false);
+                
+                // Update preview
+                if (window.updatePreviewAndStructure) {
+                    window.updatePreviewAndStructure(result.updatedOriginalContent);
+                }
+            }
+            
+            showNotification(`Extracted text to new file: ${cleanFileName}.md`, 'success');
+            
+            // Refresh file tree to show new file
+            if (window.renderFileTree) {
+                window.renderFileTree();
+            }
+            
+            // Optionally open the new file
+            const shouldOpen = confirm(`Text extracted to ${cleanFileName}.md. Would you like to open the new file?`);
+            if (shouldOpen) {
+                const openResult = await window.electronAPI.invoke('open-file-path', newFilePath);
+                if (openResult.success) {
+                    await window.openFileInEditor(openResult.filePath, openResult.content);
+                }
+            }
+        } else {
+            console.error('[extractTextToNewFile] ❌ Backend extraction failed:', result.error);
+            showNotification(`Failed to extract text: ${result.error}`, 'error');
+        }
+        
+    } catch (error) {
+        console.error('[extractTextToNewFile] Error:', error);
+        showNotification(`Error extracting text: ${error.message}`, 'error');
+    }
+    
+    console.log('=== EXTRACT TEXT TO NEW FILE - END ===\n');
+}
+
+function setupEditorContextMenu() {
+    if (!editor) return;
+    
+    // Add context menu for text extraction
+    editor.addAction({
+        id: 'extract-to-file',
+        label: 'Extract to New File',
+        contextMenuGroupId: 'modification',
+        contextMenuOrder: 1,
+        precondition: 'editorHasSelection',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyE
+        ],
+        run: function(ed) {
+            extractTextToNewFile();
+        }
+    });
+    
+    console.log('[setupEditorContextMenu] Added extract-to-file context menu action');
+}
+
+// --- Debug Functions for Testing ---
+window.testMonacoEdit = function() {
+    console.log('[DEBUG] Testing Monaco editor edit operations...');
+    if (!editor) {
+        console.error('[DEBUG] No editor available');
+        return;
+    }
+    
+    const model = editor.getModel();
+    if (!model) {
+        console.error('[DEBUG] No model available');
+        return;
+    }
+    
+    // Test 1: Simple text replacement at current cursor
+    const currentPosition = editor.getPosition();
+    const testRange = new monaco.Range(currentPosition.lineNumber, currentPosition.column, currentPosition.lineNumber, currentPosition.column);
+    const testEdit = {
+        range: testRange,
+        text: '[TEST-INSERT]'
+    };
+    
+    console.log('[DEBUG] Inserting test text at cursor position...');
+    const result = model.pushEditOperations([], [testEdit], () => null);
+    console.log('[DEBUG] Test edit result:', result);
+    
+    setTimeout(() => {
+        const content = editor.getValue();
+        if (content.includes('[TEST-INSERT]')) {
+            console.log('[DEBUG] ✅ Basic Monaco edit operations work!');
+        } else {
+            console.log('[DEBUG] ❌ Basic Monaco edit operations failed!');
+        }
+    }, 100);
+}
+
+// Enhanced debug function for text extraction
+window.debugExtractTextToNewFile = async function() {
+    console.log('\n=== DEBUG EXTRACT TEXT TO NEW FILE ===');
+    
+    if (!editor) {
+        console.error('[DEBUG] No editor available');
+        return;
+    }
+    
+    // Check selection
+    const selection = editor.getSelection();
+    console.log('[DEBUG] Current selection:', selection);
+    
+    if (!selection || selection.isEmpty()) {
+        console.log('[DEBUG] No selection - creating test selection');
+        // Create a test selection on the first line
+        const line1 = editor.getModel().getLineContent(1);
+        if (line1) {
+            const testSelection = new monaco.Selection(1, 1, 1, Math.min(10, line1.length + 1));
+            editor.setSelection(testSelection);
+            console.log('[DEBUG] Created test selection:', testSelection);
+        }
+    }
+    
+    const finalSelection = editor.getSelection();
+    if (!finalSelection || finalSelection.isEmpty()) {
+        console.log('[DEBUG] Still no selection available');
+        return;
+    }
+    
+    const selectedText = editor.getModel().getValueInRange(finalSelection);
+    console.log('[DEBUG] Selected text:', JSON.stringify(selectedText));
+    
+    // Store selection like in the real function
+    const storedSelection = {
+        startLineNumber: finalSelection.startLineNumber,
+        startColumn: finalSelection.startColumn,
+        endLineNumber: finalSelection.endLineNumber,
+        endColumn: finalSelection.endColumn
+    };
+    console.log('[DEBUG] Stored selection:', storedSelection);
+    
+    // Test replacement WITHOUT showing dialog first
+    const testLink = `[[test-file-debug]]`;
+    console.log('[DEBUG] Attempting to replace with:', testLink);
+    
+    const rangeToReplace = new monaco.Range(
+        storedSelection.startLineNumber,
+        storedSelection.startColumn,
+        storedSelection.endLineNumber,
+        storedSelection.endColumn
+    );
+    console.log('[DEBUG] Range to replace:', rangeToReplace);
+    
+    const edit = {
+        range: rangeToReplace,
+        text: testLink
+    };
+    
+    console.log('[DEBUG] Edit operation:', edit);
+    const success = editor.getModel().pushEditOperations([], [edit], () => null);
+    console.log('[DEBUG] Edit operation success:', success);
+    
+    // Check result immediately
+    setTimeout(() => {
+        const updatedContent = editor.getValue();
+        console.log('[DEBUG] Updated content contains test link:', updatedContent.includes(testLink));
+        if (updatedContent.includes(testLink)) {
+            console.log('[DEBUG] ✅ Text replacement works without dialog!');
+        } else {
+            console.log('[DEBUG] ❌ Text replacement failed even without dialog!');
+            console.log('[DEBUG] Full content:', JSON.stringify(updatedContent));
+        }
+    }, 100);
+}
+
 // --- Global exports for modules ---
 window.renderFileTree = renderFileTree;
 window.showNotification = showNotification;
@@ -3968,6 +4528,7 @@ window.updateAvailableFiles = updateAvailableFiles;
 window.saveFile = saveFile;
 window.saveAsFile = saveAsFile;
 window.applyEditorSettings = applyEditorSettings;
+window.extractTextToNewFile = extractTextToNewFile;
 
 // New file function - trigger the menu action
 function newFile() {
