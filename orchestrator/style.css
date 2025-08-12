@@ -328,23 +328,84 @@ body.dark-mode #chat-input {
     border-color: #444 !important;
 }
 
+/* Terminal-style chat messages */
+.terminal-message {
+    margin-bottom: 4px;
+    padding: 2px 0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text-color);
+    word-wrap: break-word;
+}
+
+.terminal-prompt {
+    font-weight: normal;
+    user-select: none;
+}
+
+.terminal-user {
+    color: #4CAF50; /* Green for user */
+    font-weight: bold;
+}
+
+.terminal-assistant {
+    color: #2196F3; /* Blue for assistant */
+    font-weight: bold;
+}
+
+.terminal-separator {
+    color: var(--text-muted);
+}
+
+.terminal-path {
+    color: #FF9800; /* Orange for path */
+}
+
+.terminal-dollar {
+    color: var(--text-muted);
+    font-weight: bold;
+}
+
+.terminal-content {
+    color: var(--text-color);
+}
+
+.terminal-content code {
+    background-color: var(--bg-secondary);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: inherit;
+}
+
+.terminal-content strong {
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.terminal-content em {
+    font-style: italic;
+    color: var(--text-muted);
+}
+
+/* Legacy chat styles for compatibility */
 .chat-message {
     margin-bottom: 8px;
     padding: 6px 10px;
     border-radius: 5px;
-    max-width: 85%; /* Prevent messages from spanning full width */
-    word-wrap: break-word; /* Wrap long words */
+    max-width: 85%;
+    word-wrap: break-word;
 }
 
 .chat-message-user {
-    background-color: #e1f5fe; /* Light blue for user messages */
-    margin-left: auto; /* Align user messages to the right */
+    background-color: #e1f5fe;
+    margin-left: auto;
     text-align: left;
 }
 
 .chat-message-ai {
-    background-color: #f0f0f0; /* Light grey for AI messages */
-    margin-right: auto; /* Align AI messages to the left */
+    background-color: #f0f0f0;
+    margin-right: auto;
     text-align: left;
 }
 
@@ -1673,4 +1734,136 @@ body.dark-theme .command-shortcut {
 
 body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     background: #4b5563;
+}
+
+/* Content Pane Styling */
+.content-pane {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Terminal Chat Styling */
+.terminal-chat {
+    background-color: #1a1a1a;
+    color: #d4d4d4;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    padding: 16px;
+}
+
+.terminal-header {
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+    margin-bottom: 12px;
+}
+
+.terminal-title {
+    font-weight: bold;
+    color: #4CAF50;
+    display: block;
+}
+
+.terminal-subtitle {
+    font-size: 11px;
+    color: #888;
+    display: block;
+    margin-top: 2px;
+}
+
+.terminal-output {
+    background-color: #0c0c0c;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #333;
+}
+
+.terminal-input-area {
+    background-color: #1a1a1a;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+}
+
+.terminal-prompt-line {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.terminal-input {
+    background-color: transparent !important;
+    border: none !important;
+    color: #d4d4d4 !important;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+    font-size: 13px !important;
+    outline: none !important;
+    padding: 4px 8px !important;
+}
+
+.terminal-input::placeholder {
+    color: #666 !important;
+}
+
+.btn-small {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    min-width: auto !important;
+}
+
+/* Dark mode overrides for terminal */
+body.dark-mode .terminal-chat {
+    background-color: #0d1117;
+    color: #c9d1d9;
+}
+
+body.dark-mode .terminal-output {
+    background-color: #010409;
+    border-color: #21262d;
+}
+
+body.dark-mode .terminal-input-area {
+    background-color: #0d1117;
+    border-color: #21262d;
+}
+
+body.dark-mode .terminal-header {
+    border-color: #21262d;
+}
+
+/* Light mode terminal */
+body.light-mode .terminal-chat {
+    background-color: #f6f8fa;
+    color: #24292f;
+}
+
+body.light-mode .terminal-output {
+    background-color: #ffffff;
+    border-color: #d0d7de;
+}
+
+body.light-mode .terminal-input-area {
+    background-color: #f6f8fa;
+    border-color: #d0d7de;
+}
+
+body.light-mode .terminal-input {
+    color: #24292f !important;
+}
+
+body.light-mode .terminal-user {
+    color: #1a7f37;
+}
+
+body.light-mode .terminal-assistant {
+    color: #0969da;
+}
+
+body.light-mode .terminal-path {
+    color: #bf8700;
 }

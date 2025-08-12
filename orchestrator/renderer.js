@@ -1526,29 +1526,45 @@ async function initializeApp() {
         registerBibTeXLanguage();
         
         try {
+            // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
+            let initialContent = '';
+            if (window.restoredFileContent) {
+                initialContent = window.restoredFileContent.content;
+                console.log('[renderer.js] Using restored file content for Monaco initialization');
+            } else if (!window.hasFileToRestore || window.useDefaultContentFallback) {
+                initialContent = '# My Markdown Document\n\n' +
+                    'This is the introduction to the document.\n\n' +
+                    '## Section One\n' +
+                    'This is content under section one.\n' +
+                    'More content here.\n\n' +
+                    '### Subsection A\n' +
+                    'Content for subsection A.\n' +
+                    'Additional details.\n\n' +
+                    '### Subsection B\n' +
+                    'Content for subsection B.\n' +
+                    'More information here.\n\n' +
+                    '## Section Two\n' +
+                    'This is content under section two.\n\n' +
+                    '```javascript\n' +
+                    'console.log("Hello, world!");\n' +
+                    'function test() {\n' +
+                    '    return "Code folding test";\n' +
+                    '}\n' +
+                    '```\n\n' +
+                    '## Section Three\n' +
+                    'Final section content.\n' +
+                    'The end.';
+                if (window.useDefaultContentFallback) {
+                    console.log('[renderer.js] Using default content for Monaco initialization (file restoration failed)');
+                } else {
+                    console.log('[renderer.js] Using default content for Monaco initialization (fresh start)');
+                }
+            } else {
+                console.log('[renderer.js] Using empty content for Monaco initialization (file restoration pending)');
+            }
+            
             editor = monaco.editor.create(editorContainer, {
-                value: '# My Markdown Document\n\n' +
-                       'This is the introduction to the document.\n\n' +
-                       '## Section One\n' +
-                       'This is content under section one.\n' +
-                       'More content here.\n\n' +
-                       '### Subsection A\n' +
-                       'Content for subsection A.\n' +
-                       'Additional details.\n\n' +
-                       '### Subsection B\n' +
-                       'Content for subsection B.\n' +
-                       'More information here.\n\n' +
-                       '## Section Two\n' +
-                       'This is content under section two.\n\n' +
-                       '```javascript\n' +
-                       'console.log("Hello, world!");\n' +
-                       'function test() {\n' +
-                       '    return "Code folding test";\n' +
-                       '}\n' +
-                       '```\n\n' +
-                       '## Section Three\n' +
-                       'Final section content.\n' +
-                       'The end.',
+                value: initialContent,
                 language: 'markdown',
                 theme: 'vs', // Will be updated based on settings after creation
                 automaticLayout: true,
@@ -1665,6 +1681,14 @@ async function initializeApp() {
             // Explicitly set Monaco theme immediately after creation
             if (monaco.editor && editor) {
                 editor.updateOptions({ theme: isDark ? 'vs-dark' : 'vs' });
+            }
+
+            // Trigger file restoration if we have restored content but didn't use it during initialization
+            if (window.restoredFileContent && !initialContent) {
+                console.log('[renderer.js] Triggering delayed file restoration after Monaco initialization');
+                await openFileInEditor(window.restoredFileContent.path, window.restoredFileContent.content);
+                // Clear the restored content flag
+                window.restoredFileContent = null;
             }
 
             // --- Resizing Logic (MOVED HERE) --- 
@@ -1842,6 +1866,39 @@ async function loadAppSettings() {
         window.appSettings = appSettings; // Make settings globally available
         window.currentFilePath = appSettings.currentFile || null; // Set current file path globally
         let themeAppliedFromSettings = false;
+        
+        // Store flag for file restoration to coordinate with Monaco initialization
+        window.hasFileToRestore = !!window.currentFilePath;
+        
+        // Load the last opened file if it exists
+        if (window.currentFilePath) {
+            console.log('[renderer.js] Restoring last opened file:', window.currentFilePath);
+            try {
+                const result = await window.electronAPI.invoke('open-file-path', window.currentFilePath);
+                if (result.success) {
+                    console.log('[renderer.js] Successfully restored last opened file');
+                    // Store the content to be loaded into editor after Monaco is initialized
+                    window.restoredFileContent = {
+                        path: window.currentFilePath,
+                        content: result.content
+                    };
+                } else {
+                    console.warn('[renderer.js] Could not reopen last file:', result.error);
+                    // File restoration failed - mark for default content fallback
+                    window.currentFilePath = null;
+                    window.hasFileToRestore = false;
+                    window.useDefaultContentFallback = true;
+                    await window.electronAPI.invoke('set-current-file', null);
+                }
+            } catch (error) {
+                console.error('[renderer.js] Error restoring last opened file:', error);
+                // File restoration failed - mark for default content fallback
+                window.currentFilePath = null;
+                window.hasFileToRestore = false;
+                window.useDefaultContentFallback = true;
+                await window.electronAPI.invoke('set-current-file', null);
+            }
+        }
 
         // 1. Apply theme based on explicit settings ('light' or 'dark')
         if (typeof appSettings.theme === 'string') {
@@ -1873,37 +1930,7 @@ async function loadAppSettings() {
         // Apply layout settings
         applyLayoutSettings(appSettings.layout);
 
-        // --- Restore last opened file if present ---
-        if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && appSettings.currentFile.length > 0) {
-            
-            // Wait a bit for Monaco editor to be ready before loading file
-            const loadFileWhenReady = () => {
-                if (typeof monaco !== 'undefined' && monaco.editor) {
-                    // Monaco is ready, load the file
-                    window.electronAPI.invoke('open-file-path', appSettings.currentFile)
-                        .then(async result => {
-                            console.log('[renderer.js] File loading result:', result);
-                            if (result.success && result.content) {
-                                console.log(`[renderer.js] Successfully loaded file content, length: ${result.content.length}`);
-                                await openFileInEditor(result.filePath, result.content);
-                                console.log('[renderer.js] openFileInEditor called - file should now be in editor');
-                            } else {
-                                console.warn('[renderer.js] Could not reopen last file:', result.error);
-                            }
-                        })
-                        .catch(err => {
-                            console.error('[renderer.js] Error reopening last file:', err);
-                        });
-                } else {
-                    // Monaco not ready yet, wait a bit more
-                    console.log('[renderer.js] Monaco not ready yet, waiting...');
-                    setTimeout(loadFileWhenReady, 100);
-                }
-            };
-            
-            // Start checking for Monaco readiness
-            loadFileWhenReady();
-        }
+        // File restoration is now handled in the updated logic above
 
         // 3. NOW set up the listener for future OS changes, only once
         if (!window.electronAPI._themeListenerAttached) { // Use a flag to prevent duplicates
@@ -2304,7 +2331,24 @@ function updateFallbackCursorPosition() {
 async function createFallbackEditor() {
     console.log('[renderer.js] Creating fallback textarea editor...');
     const textarea = document.createElement('textarea');
-    textarea.value = '# Welcome!\n\nStart typing your Markdown here.';
+    
+    // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
+    if (window.restoredFileContent) {
+        textarea.value = window.restoredFileContent.content;
+        console.log('[renderer.js] Using restored file content for fallback editor');
+        // Clear the restored content flag
+        window.restoredFileContent = null;
+    } else if (!window.hasFileToRestore || window.useDefaultContentFallback) {
+        textarea.value = '# Welcome!\n\nStart typing your Markdown here.';
+        if (window.useDefaultContentFallback) {
+            console.log('[renderer.js] Using default content for fallback editor (file restoration failed)');
+        } else {
+            console.log('[renderer.js] Using default content for fallback editor (fresh start)');
+        }
+    } else {
+        textarea.value = '';
+        console.log('[renderer.js] Using empty content for fallback editor (file restoration pending)');
+    }
     textarea.style.width = '100%';
     textarea.style.height = '100%';
     textarea.style.padding = '8px';
@@ -2435,6 +2479,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         // initializeApp(); // Or maybe prevent init entirely?
         // Or create fallback:
         // createFallbackEditor(); // (Already called above, perhaps move that call here?)
+    }
+    
+    // Initialize AI Chat functionality
+    if (window.initializeChatFunctionality) {
+        console.log('[renderer.js] Initializing AI Chat functionality...');
+        window.initializeChatFunctionality();
+    } else {
+        console.warn('[renderer.js] AI Chat initialization function not found');
     }
 });
 

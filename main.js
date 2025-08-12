@@ -1962,6 +1962,7 @@ app.whenReady().then(() => {
             throw new Error('No file path specified');
         }
         const content = await fs.readFile(filePath, 'utf8');
+        currentFilePath = filePath; // Update global current file path
         appSettings.currentFile = filePath;
         saveSettings();
         if (mainWindow) {
@@ -2125,6 +2126,145 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
         }
         
         return { error: errorMessage };
+    }
+  });
+
+  // Enhanced AI Chat with File Context
+  ipcMain.handle('send-chat-message-with-context', async (event, data) => {
+    const { message, fileContext, currentFile } = data;
+    
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+      console.error('[main.js] AI Service not available. Cannot send chat message.');
+      return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
+    }
+
+    try {
+      console.log(`[main.js] Received chat message with context: "${message.substring(0, 100)}..."`);
+      
+      // Build enhanced prompt with file context
+      let enhancedPrompt = `You are an AI assistant similar to Claude Code, helping with a Hegel Pedagogy AI project. `;
+      
+      if (currentFile) {
+        enhancedPrompt += `Currently working on file: ${currentFile}\n\n`;
+      }
+      
+      if (fileContext && fileContext.files && fileContext.files.length > 0) {
+        enhancedPrompt += `Available files in the working directory:\n`;
+        fileContext.files.forEach(file => {
+          enhancedPrompt += `\n**${file.name}** (${file.size} chars):\n${file.content.substring(0, 500)}${file.content.length > 500 ? '...' : ''}\n`;
+        });
+        enhancedPrompt += `\n---\n\n`;
+      }
+      
+      if (fileContext && fileContext.workingDirectory) {
+        enhancedPrompt += `Working directory: ${fileContext.workingDirectory}\n\n`;
+      }
+      
+      enhancedPrompt += `User request: ${message}`;
+
+      const response = await aiService.sendMessage(enhancedPrompt);
+      console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      
+      return {
+        response: response.response,
+        provider: response.provider,
+        model: response.model,
+        usage: response.usage
+      };
+    } catch (error) {
+      console.error('[main.js] Error calling AI API:', error);
+      let errorMessage = 'An error occurred while contacting the AI service.';
+      
+      if (error.message) {
+        if (error.message.includes('401')) {
+          errorMessage = 'Invalid API key. Please check your API key configuration.';
+        } else if (error.message.includes('429')) {
+          errorMessage = 'Rate limit exceeded. Please try again later.';
+        } else if (error.message.includes('402')) {
+          errorMessage = 'Quota exceeded. Please check your billing.';
+        } else {
+          errorMessage = `API Error: ${error.message}`;
+        }
+      }
+      
+      return { error: errorMessage };
+    }
+  });
+
+  // File System Context Handler
+  ipcMain.handle('get-file-context', async (event) => {
+    try {
+      const files = [];
+      const workingDir = currentWorkingDirectory;
+      
+      // Read all .md, .txt, and other text files
+      const dirEntries = await fs.readdir(workingDir, { withFileTypes: true });
+      const textExtensions = ['.md', '.txt', '.json', '.js', '.css', '.html', '.py', '.ts', '.tsx', '.jsx'];
+      
+      for (const entry of dirEntries) {
+        if (entry.isFile()) {
+          const ext = path.extname(entry.name).toLowerCase();
+          if (textExtensions.includes(ext)) {
+            try {
+              const filePath = path.join(workingDir, entry.name);
+              const stats = await fs.stat(filePath);
+              // Only read files under 50KB to prevent memory issues
+              if (stats.size < 50000) {
+                const content = await fs.readFile(filePath, 'utf8');
+                files.push({
+                  name: entry.name,
+                  content: content,
+                  size: stats.size,
+                  extension: ext
+                });
+              }
+            } catch (error) {
+              console.warn(`[main.js] Could not read file ${entry.name}:`, error.message);
+            }
+          }
+        }
+      }
+      
+      return {
+        workingDirectory: workingDir,
+        files: files,
+        totalFiles: files.length
+      };
+    } catch (error) {
+      console.error('[main.js] Error getting file context:', error);
+      return { error: error.message };
+    }
+  });
+
+  // Directory Listing Handler
+  ipcMain.handle('list-directory-files', async (event) => {
+    try {
+      const dirEntries = await fs.readdir(currentWorkingDirectory, { withFileTypes: true });
+      return dirEntries.map(entry => ({
+        name: entry.name,
+        isDirectory: entry.isDirectory(),
+        isFile: entry.isFile()
+      }));
+    } catch (error) {
+      console.error('[main.js] Error listing directory:', error);
+      return [];
+    }
+  });
+
+  // Working Directory Handler
+  ipcMain.handle('get-working-directory', async (event) => {
+    return currentWorkingDirectory;
+  });
+
+  // File Content Reader Handler
+  ipcMain.handle('read-file-content', async (event, filename) => {
+    try {
+      const filePath = path.join(currentWorkingDirectory, filename);
+      const content = await fs.readFile(filePath, 'utf8');
+      return content;
+    } catch (error) {
+      console.error(`[main.js] Error reading file ${filename}:`, error);
+      throw new Error(`Could not read file: ${error.message}`);
     }
   });
 
