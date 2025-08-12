@@ -1411,6 +1411,45 @@ async function saveFile(filePath, content) {
     }
 }
 
+// Add H1 heading with filename if needed
+function addH1HeadingIfNeeded(content, fileName) {
+    console.log('[main.js] addH1HeadingIfNeeded called with:', { content: content.substring(0, 50), fileName });
+    
+    // Clean the filename for use as a heading
+    const cleanFileName = fileName
+        .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
+        .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize each word
+    
+    console.log('[main.js] Clean filename:', cleanFileName);
+    
+    // Check if content is empty or very short (just whitespace)
+    const trimmedContent = content.trim();
+    console.log('[main.js] Trimmed content length:', trimmedContent.length);
+    
+    if (trimmedContent.length === 0) {
+        // Empty file - add H1 heading
+        const result = `# ${cleanFileName}\n\n`;
+        console.log('[main.js] Empty file - adding H1:', result);
+        return result;
+    }
+    
+    // Check if content already starts with an H1 heading
+    const lines = content.split('\n');
+    const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
+    console.log('[main.js] First non-empty line:', firstNonEmptyLine);
+    
+    if (firstNonEmptyLine && firstNonEmptyLine.trim().startsWith('# ')) {
+        // Already has H1 heading - don't add another
+        console.log('[main.js] Already has H1 - no change');
+        return content;
+    }
+    
+    // Add H1 heading at the beginning
+    const result = `# ${cleanFileName}\n\n${content}`;
+    console.log('[main.js] Adding H1 to beginning:', result.substring(0, 100));
+    return result;
+}
+
 async function performSaveAs(options) {
      if (!mainWindow) {
           console.error('[main.js] Cannot show Save As dialog, mainWindow is not available.');
@@ -1418,7 +1457,7 @@ async function performSaveAs(options) {
      }
      
      // Handle both old format (just content string) and new format (object with content and defaultDirectory)
-     const content = typeof options === 'string' ? options : options.content;
+     let content = typeof options === 'string' ? options : options.content;
      const defaultDirectory = typeof options === 'object' ? options.defaultDirectory : null;
      
      try {
@@ -1450,7 +1489,25 @@ async function performSaveAs(options) {
         }
 
         console.log(`[main.js] User chose path for Save As: ${filePath}`);
-        return await saveFile(filePath, content);
+        console.log(`[main.js] ===== H1 HEADING DEBUG START =====`);
+        console.log(`[main.js] Original content: "${content}"`);
+        
+        // Add H1 heading with filename if needed
+        const fileName = path.basename(filePath, path.extname(filePath)); // Remove extension
+        console.log('[main.js] Extracted filename (no ext):', fileName);
+        const contentWithHeading = addH1HeadingIfNeeded(content, fileName);
+        console.log(`[main.js] Content after H1 processing: "${contentWithHeading}"`);
+        console.log(`[main.js] ===== H1 HEADING DEBUG END =====`);
+        
+        const result = await saveFile(filePath, contentWithHeading);
+        
+        // Include the updated content in the result so frontend can update the editor
+        if (result.success) {
+            result.updatedContent = contentWithHeading;
+            result.contentChanged = contentWithHeading !== content;
+        }
+        
+        return result;
 
     } catch (err) {
         console.error('[main.js] Error during Save As dialog or save operation:', err);

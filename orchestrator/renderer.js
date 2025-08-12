@@ -3052,29 +3052,8 @@ function getCurrentEditorContent() {
 if (window.electronAPI) {
     window.electronAPI.on('trigger-save', async () => {
         console.log('[Renderer] Received trigger-save.');
-        const content = getCurrentEditorContent();
-        
-        try {
-            const result = await window.electronAPI.invoke('perform-save', content);
-            if (result.success) {
-                console.log(`[Renderer] File saved successfully to: ${result.filePath}`);
-                // Note: Removed renderFileTree() call to prevent unwanted file switching
-                showNotification('File saved successfully', 'success');
-                markContentAsSaved(); // Mark content as saved for auto-save
-            } else {
-                // Check if it failed due to an error or just cancellation/non-error
-                if (result.error) {
-                     console.error(`[Renderer] Save failed: ${result.error}`);
-                     showNotification(`Save failed: ${result.error}`, 'error');
-                } else {
-                     console.log('[Renderer] Save operation did not complete (e.g., was cancelled).');
-                     // Optional: Add different UI feedback for cancellation
-                }
-            }
-        } catch (error) {
-            console.error('[Renderer] Error invoking perform-save:', error);
-            showNotification('Error saving file', 'error');
-        }
+        // Use the existing saveFile function which handles all the logic
+        await saveFile();
     });
 }
 
@@ -3082,44 +3061,8 @@ if (window.electronAPI) {
 if (window.electronAPI) {
     window.electronAPI.on('trigger-save-as', async () => {
         console.log('[Renderer] Received trigger-save-as.');
-        const content = getCurrentEditorContent();
-        
-        // Get default directory
-        let defaultDirectory = window.appSettings?.workingDirectory;
-        if (!defaultDirectory) {
-            try {
-                const settings = await window.electronAPI.invoke('get-settings');
-                defaultDirectory = settings?.workingDirectory;
-            } catch (error) {
-                console.warn('[renderer.js] trigger-save-as - Failed to load settings:', error);
-            }
-        }
-        
-        try {
-            const result = await window.electronAPI.invoke('perform-save-as', {
-                content: content,
-                defaultDirectory: defaultDirectory
-            });
-             if (result.success) {
-                console.log(`[Renderer] File saved successfully (Save As) to: ${result.filePath}`);
-                // Note: Removed renderFileTree() call to prevent unwanted file switching  
-                showNotification('File saved successfully', 'success');
-                markContentAsSaved(); // Mark content as saved for auto-save
-             } else {
-                 // Check if it failed due to an error or just cancellation/non-error
-                 if (result.error) {
-                      console.error(`[Renderer] Save As failed: ${result.error}`);
-                      showNotification(`Save As failed: ${result.error}`, 'error');
-                 } else {
-                      console.log('[Renderer] Save As operation did not complete (e.g., was cancelled).');
-                      // Optional: Add different UI feedback for cancellation
-                 }
-             }
-        } catch (error) {
-            console.error('[Renderer] Error invoking perform-save-as:', error);
-            showNotification('Error saving file', 'error');
-            // Optional: Show error to user
-        }
+        // Use the existing saveAsFile function which handles all the logic
+        await saveAsFile();
     });
 }
 
@@ -3799,11 +3742,30 @@ async function saveFile() {
             const result = await window.electronAPI.invoke('perform-save', content);
             
             if (result.success) {
-                lastSavedContent = content;
+                // Check if content was modified during save (e.g., H1 heading added)
+                if (result.contentChanged && result.updatedContent && editor) {
+                    console.log('[renderer.js] Content was modified during save, updating editor');
+                    editor.setValue(result.updatedContent);
+                    lastSavedContent = result.updatedContent;
+                } else {
+                    lastSavedContent = content;
+                }
+                
                 hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
                 console.log('[renderer.js] Manual save completed successfully');
+                
+                // Update file tree and current file info if this was a new file save
+                if (result.filePath && !window.currentFilePath) {
+                    window.currentFilePath = result.filePath;
+                    const fileName = result.filePath.split('/').pop();
+                    const currentFileNameEl = document.getElementById('current-file-name');
+                    if (currentFileNameEl) {
+                        currentFileNameEl.textContent = fileName;
+                    }
+                    renderFileTree();
+                }
             } else {
                 showNotification(`Save failed: ${result.error}`, 'error');
                 console.error('[renderer.js] Manual save failed:', result.error);
@@ -3829,7 +3791,31 @@ async function saveFile() {
             
             if (result.success && result.filePath) {
                 window.currentFilePath = result.filePath;
-                lastSavedContent = content;
+                
+                // Add H1 heading with filename if the file is empty or doesn't start with one
+                const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
+                console.log('[saveFile] About to call addH1HeadingIfNeeded with fileName:', fileName);
+                const updatedContent = addH1HeadingIfNeeded(content, fileName);
+                console.log('[saveFile] Content changed?', updatedContent !== content);
+                
+                // Update editor with new content if heading was added
+                if (updatedContent !== content && editor) {
+                    editor.setValue(updatedContent);
+                    lastSavedContent = updatedContent;
+                    
+                    // Save the updated content with the heading
+                    try {
+                        const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
+                        if (!saveResult.success) {
+                            console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
+                        }
+                    } catch (error) {
+                        console.warn('[renderer.js] Error saving file with H1 heading:', error);
+                    }
+                } else {
+                    lastSavedContent = content;
+                }
+                
                 hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
@@ -3843,10 +3829,10 @@ async function saveFile() {
                 highlightCurrentFileInTree(result.filePath);
                 
                 // Update current file name display
-                const fileName = result.filePath.split('/').pop();
+                const displayFileName = result.filePath.split('/').pop();
                 const currentFileNameEl = document.getElementById('current-file-name');
                 if (currentFileNameEl) {
-                    currentFileNameEl.textContent = fileName;
+                    currentFileNameEl.textContent = displayFileName;
                 }
             } else {
                 showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
@@ -3857,6 +3843,45 @@ async function saveFile() {
         console.error('[renderer.js] Manual save error:', error);
         showNotification('Save error: ' + error.message, 'error');
     }
+}
+
+// Add H1 heading with filename if needed
+function addH1HeadingIfNeeded(content, fileName) {
+    console.log('[addH1HeadingIfNeeded] Called with:', { content: content.substring(0, 50), fileName });
+    
+    // Clean the filename for use as a heading
+    const cleanFileName = fileName
+        .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
+        .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize each word
+    
+    console.log('[addH1HeadingIfNeeded] Clean filename:', cleanFileName);
+    
+    // Check if content is empty or very short (just whitespace)
+    const trimmedContent = content.trim();
+    console.log('[addH1HeadingIfNeeded] Trimmed content length:', trimmedContent.length);
+    
+    if (trimmedContent.length === 0) {
+        // Empty file - add H1 heading
+        const result = `# ${cleanFileName}\n\n`;
+        console.log('[addH1HeadingIfNeeded] Empty file - adding H1:', result);
+        return result;
+    }
+    
+    // Check if content already starts with an H1 heading
+    const lines = content.split('\n');
+    const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
+    console.log('[addH1HeadingIfNeeded] First non-empty line:', firstNonEmptyLine);
+    
+    if (firstNonEmptyLine && firstNonEmptyLine.trim().startsWith('# ')) {
+        // Already has H1 heading - don't add another
+        console.log('[addH1HeadingIfNeeded] Already has H1 - no change');
+        return content;
+    }
+    
+    // Add H1 heading at the beginning
+    const result = `# ${cleanFileName}\n\n${content}`;
+    console.log('[addH1HeadingIfNeeded] Adding H1 to beginning:', result.substring(0, 100));
+    return result;
 }
 
 // Force save-as dialog (always shows save dialog regardless of current file)
@@ -3890,17 +3915,41 @@ async function saveAsFile() {
         
         if (result.success && result.filePath) {
             window.currentFilePath = result.filePath;
-            lastSavedContent = content;
+            
+            // Add H1 heading with filename if the file is empty or doesn't start with one
+            const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
+            console.log('[saveAsFile] About to call addH1HeadingIfNeeded with fileName:', fileName);
+            const updatedContent = addH1HeadingIfNeeded(content, fileName);
+            console.log('[saveAsFile] Content changed?', updatedContent !== content);
+            
+            // Update editor with new content if heading was added
+            if (updatedContent !== content && editor) {
+                editor.setValue(updatedContent);
+                lastSavedContent = updatedContent;
+                
+                // Save the updated content with the heading
+                try {
+                    const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
+                    if (!saveResult.success) {
+                        console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
+                    }
+                } catch (error) {
+                    console.warn('[renderer.js] Error saving file with H1 heading:', error);
+                }
+            } else {
+                lastSavedContent = content;
+            }
+            
             hasUnsavedChanges = false;
             updateUnsavedIndicator(false);
             showNotification('File saved successfully', 'success');
             console.log('[renderer.js] Manual save-as completed successfully');
             
             // Update the file name display
-            const fileName = result.filePath.split('/').pop();
+            const displayFileName = result.filePath.split('/').pop();
             const currentFileNameEl = document.getElementById('current-file-name');
             if (currentFileNameEl) {
-                currentFileNameEl.textContent = fileName;
+                currentFileNameEl.textContent = displayFileName;
             }
         } else {
             showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
