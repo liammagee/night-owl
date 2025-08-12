@@ -42,25 +42,17 @@ function removeKanbanColumn(index) {
 let currentKanbanState = null;
 
 function shouldRenderAsKanban(filePath, settings) {
-    console.log('[Kanban] shouldRenderAsKanban called with:', { filePath, settings: settings?.kanban });
-    
     if (!settings?.kanban?.todoFilePatterns) {
-        console.log('[Kanban] No todoFilePatterns found in settings');
         return false;
     }
     
     const fileName = filePath.split('/').pop() || '';
-    console.log('[Kanban] Extracted fileName:', fileName);
-    console.log('[Kanban] Available patterns:', settings.kanban.todoFilePatterns);
     
     const shouldRender = settings.kanban.todoFilePatterns.some(pattern => {
         const regex = new RegExp(pattern.replace('*', '.*').replace(/\./g, '\\.'), 'i');
-        const matches = regex.test(fileName);
-        console.log('[Kanban] Testing pattern:', pattern, 'against fileName:', fileName, 'matches:', matches);
-        return matches;
+        return regex.test(fileName);
     });
     
-    console.log('[Kanban] Final shouldRender result:', shouldRender);
     return shouldRender;
 }
 
@@ -197,11 +189,9 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
     
     // If nothing changed, don't update
     if (currentKanbanState === newState) {
-        console.log('[Kanban] No changes detected, skipping update');
         return false;
     }
     
-    console.log('[Kanban] Changes detected, performing intelligent update');
     currentKanbanState = newState;
     
     // Get existing board or create new one
@@ -209,7 +199,6 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
     
     if (!kanbanBoard) {
         // First render - use full render
-        console.log('[Kanban] First render, creating full board');
         const kanbanHtml = renderKanbanBoard(parsedKanban, filePath);
         container.innerHTML = kanbanHtml;
         return true;
@@ -221,7 +210,6 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
         const columnElement = kanbanBoard.querySelector(`[data-column-id="${column.id}"]`);
         
         if (!columnElement) {
-            console.warn(`[Kanban] Column ${column.id} not found, forcing full render`);
             const kanbanHtml = renderKanbanBoard(parsedKanban, filePath);
             container.innerHTML = kanbanHtml;
             return true;
@@ -272,13 +260,11 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
                 
                 // Add drag event listeners for new tasks
                 taskElement.addEventListener('dragstart', (e) => {
-                    console.log('[Kanban] Drag started for new task:', task.id);
                     e.dataTransfer.setData('text/plain', task.id);
                     taskElement.classList.add('dragging');
                 });
                 
                 taskElement.addEventListener('dragend', (e) => {
-                    console.log('[Kanban] Drag ended for new task:', task.id);
                     taskElement.classList.remove('dragging');
                 });
                 
@@ -361,49 +347,36 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
 }
 
 function setupKanbanDragAndDrop(container, filePath) {
-    console.log('[Kanban] Setting up drag-and-drop for:', filePath);
-    
     const kanbanBoard = container.querySelector('.kanban-board');
     if (!kanbanBoard) {
-        console.log('[Kanban] No kanban board found for drag-and-drop setup');
         return;
     }
     
     // Clear any existing drag setup and always set it up fresh
-    // This ensures drag-and-drop works even if there were issues before
     kanbanBoard.removeAttribute('data-drag-setup');
-    console.log('[Kanban] Setting up drag-and-drop handlers...');
     
-    // Setup drag events for each task individually (more reliable than delegation)
+    // Setup drag events for each task individually
     const tasks = kanbanBoard.querySelectorAll('.kanban-task');
-    console.log(`[Kanban] Setting up drag handlers for ${tasks.length} tasks`);
     
     tasks.forEach((task, index) => {
-        console.log(`[Kanban] Setting up drag for task ${index}:`, task.dataset.taskId);
-        
         // Ensure draggable attribute is set
         task.setAttribute('draggable', 'true');
         
         task.addEventListener('dragstart', (e) => {
-            console.log('[Kanban] Drag started for task:', task.dataset.taskId);
             e.dataTransfer.setData('text/plain', task.dataset.taskId);
             task.classList.add('dragging');
         });
         
         task.addEventListener('dragend', (e) => {
-            console.log('[Kanban] Drag ended for task:', task.dataset.taskId);
             task.classList.remove('dragging');
         });
     });
     
     // Setup drop events for columns  
     const columns = container.querySelectorAll('.kanban-tasks');
-    console.log(`[Kanban] Setting up drop handlers for ${columns.length} columns`);
     
     // Setup drop events for columns
     columns.forEach((column, index) => {
-        console.log(`[Kanban] Setting up drop handler for column ${index}: ${column.dataset.column}`);
-        
         column.addEventListener('dragover', (e) => {
             e.preventDefault();
             column.parentElement.classList.add('drag-over');
@@ -417,7 +390,6 @@ function setupKanbanDragAndDrop(container, filePath) {
         
         column.addEventListener('drop', async (e) => {
             e.preventDefault();
-            console.log('[Kanban] Drop event triggered on column:', column.dataset.column);
             column.parentElement.classList.remove('drag-over');
             
             const taskId = e.dataTransfer.getData('text/plain');
@@ -441,7 +413,6 @@ function setupKanbanDragAndDrop(container, filePath) {
                     if (wasAutoSaveEnabled && autoSaveTimer) {
                         clearTimeout(autoSaveTimer);
                         autoSaveTimer = null;
-                        console.log('[Kanban] Temporarily disabled auto-save during Kanban update');
                     }
                     
                     await updateKanbanTaskInFile(filePath, task, newColumnId);
@@ -449,7 +420,6 @@ function setupKanbanDragAndDrop(container, filePath) {
                     
                     // Refresh the editor content if this file is currently open
                     if (currentFilePath === filePath) {
-                        console.log('[Kanban] Refreshing editor content after task update');
                         await refreshCurrentFile();
                         
                         // Update the lastSavedContent to prevent auto-save conflicts
@@ -458,13 +428,6 @@ function setupKanbanDragAndDrop(container, filePath) {
                             hasUnsavedChanges = false;
                             updateUnsavedIndicator(false);
                         }
-                    }
-                    
-                    // Re-enable auto-save after a short delay
-                    if (wasAutoSaveEnabled) {
-                        setTimeout(() => {
-                            console.log('[Kanban] Re-enabled auto-save after Kanban update');
-                        }, 500);
                     }
                 } catch (error) {
                     console.error('Error updating task:', error);
@@ -481,8 +444,6 @@ function setupKanbanDragAndDrop(container, filePath) {
             }
         });
     });
-    
-    console.log(`[Kanban] Drag-and-drop setup completed! Set up ${columns.length} drop zones for file: ${filePath}`);
 }
 
 function updateKanbanColumnHeaders(container) {
@@ -496,21 +457,13 @@ function updateKanbanColumnHeaders(container) {
 }
 
 async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
-    console.log(`[Kanban] === Starting updateKanbanTaskInFile ===`);
-    console.log(`[Kanban] FilePath: ${filePath}`);
-    console.log(`[Kanban] NewStatus: ${newStatus}`);
-    console.log(`[Kanban] TaskElement dataset:`, taskElement.dataset);
     
     try {
         // Get current file content
-        console.log(`[Kanban] Reading current file content...`);
         const content = await window.electronAPI.invoke('read-file', filePath);
-        console.log(`[Kanban] File content length: ${content.length}`);
-        console.log(`[Kanban] File content preview:`, content.substring(0, 300));
         
         const lines = content.split('\n');
         const lineNumber = parseInt(taskElement.dataset.lineNumber);
-        console.log(`[Kanban] Target line number: ${lineNumber}`);
         
         if (lineNumber >= 0 && lineNumber < lines.length) {
             const originalLine = lines[lineNumber];
@@ -545,10 +498,7 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
             lines[lineNumber] = newLine;
             
             // Save the file
-            console.log(`[Kanban] About to write file with updated content:`, lines[lineNumber]);
             await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
-            
-            console.log(`[Kanban] Updated task on line ${lineNumber} to status: ${newStatus}`);
         }
     } catch (error) {
         console.error('[Kanban] Error updating file:', error);
@@ -559,11 +509,8 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
 // === Kanban Task Action Functions ===
 
 function setupKanbanTaskActions(container, filePath) {
-    console.log('[Kanban] Setting up task action handlers for:', filePath);
-    
     const kanbanBoard = container.querySelector('.kanban-board');
     if (!kanbanBoard) {
-        console.log('[Kanban] No kanban board found for task actions setup');
         return;
     }
     
@@ -708,8 +655,6 @@ async function handleTaskDelete(taskElement, filePath) {
 }
 
 async function handleAddTask(columnId, filePath, container) {
-    console.log('[Kanban] handleAddTask called with:', { columnId, filePath, container });
-    
     if (!container) {
         console.error('[Kanban] Container is null in handleAddTask');
         return;
@@ -788,7 +733,6 @@ async function handleAddTask(columnId, filePath, container) {
 }
 
 async function updateTaskTextInFile(filePath, taskElement, newText) {
-    console.log(`[Kanban] Updating task text in file: ${filePath}`);
     
     try {
         const content = await window.electronAPI.invoke('read-file', filePath);
@@ -834,7 +778,6 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
                 lines[lineNumber] = prefix + newText + statusMarker;
                 
                 await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
-                console.log(`[Kanban] Updated task text on line ${lineNumber}`);
             }
         }
     } catch (error) {
@@ -844,7 +787,6 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
 }
 
 async function deleteTaskFromFile(filePath, taskElement) {
-    console.log(`[Kanban] Deleting task from file: ${filePath}`);
     
     try {
         const content = await window.electronAPI.invoke('read-file', filePath);
@@ -856,7 +798,6 @@ async function deleteTaskFromFile(filePath, taskElement) {
             lines.splice(lineNumber, 1);
             
             await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
-            console.log(`[Kanban] Deleted task on line ${lineNumber}`);
         }
     } catch (error) {
         console.error('[Kanban] Error deleting task:', error);
@@ -865,7 +806,6 @@ async function deleteTaskFromFile(filePath, taskElement) {
 }
 
 async function addTaskToFile(filePath, taskText, columnId) {
-    console.log(`[Kanban] Adding task to file: ${filePath}, column: ${columnId}`);
     
     try {
         const content = await window.electronAPI.invoke('read-file', filePath);
@@ -900,7 +840,6 @@ async function addTaskToFile(filePath, taskText, columnId) {
         lines.push(newLine);
         
         await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
-        console.log(`[Kanban] Added new task: ${newLine}`);
     } catch (error) {
         console.error('[Kanban] Error adding task:', error);
         throw error;

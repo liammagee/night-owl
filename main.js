@@ -442,7 +442,7 @@ function saveSettings() {
         fsSync.writeFileSync(tempFile, settingsJson);
         fsSync.renameSync(tempFile, SETTINGS_FILE);
         
-        console.log('[main.js] Saved settings');
+        // Settings saved successfully
     } catch (err) {
         console.error('[main.js] Failed to save settings:', err);
         
@@ -1935,13 +1935,9 @@ app.whenReady().then(() => {
     if (appSettings.workingDirectory && appSettings.workingDirectory.length > 0) {
       currentWorkingDirectory = appSettings.workingDirectory;
     }
-    console.log(`[main.js] Received request-file-tree for dir: ${currentWorkingDirectory}`);
     try {
         const files = await getFiles(currentWorkingDirectory);
-        console.log(`[main.js] Found ${files.length} files in directory`);
-        console.log(`[main.js] First few files:`, files.slice(0, 3));
         const tree = buildFileTree(currentWorkingDirectory, files);
-        console.log(`[main.js] Built file tree with ${tree.children ? tree.children.length : 0} root items`);
         return tree;
     } catch (error) {
         console.error(`[main.js] Error getting file tree for ${currentWorkingDirectory}:`, error);
@@ -1959,7 +1955,7 @@ app.whenReady().then(() => {
         currentFilePath = filePath;  // Update the current file path for save operations
         appSettings.currentFile = filePath;
         saveSettings();
-        console.log('[main.js] Updated currentFile in settings and currentFilePath:', filePath);
+        // Updated current file path
         return { success: true };
     } else {
         return { success: false, error: 'Invalid file path' };
@@ -1991,7 +1987,6 @@ ipcMain.handle('read-file', async (event, filePath) => {
           throw new Error('No file path specified');
       }
       const content = await fs.readFile(filePath, 'utf8');
-      console.log(`[main.js] Read file for Kanban: ${filePath}`);
       return content;
   } catch (err) {
       console.error(`[main.js] Failed to read file at ${filePath}:`, err);
@@ -2008,7 +2003,6 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
           throw new Error('Content must be a string');
       }
       await fs.writeFile(filePath, content, 'utf8');
-      console.log(`[main.js] Wrote file for Kanban: ${filePath}`);
       return { success: true };
   } catch (err) {
       console.error(`[main.js] Failed to write file at ${filePath}:`, err);

@@ -159,17 +159,14 @@ function processSpeakerNotes(content) {
 // All internal links functionality has been moved to modules/internalLinks.js
 // --- Update Function Definition ---
 async function updatePreviewAndStructure(markdownContent) {
-    console.log('[renderer.js] Updating preview and structure...'); // Add logging
-    console.log('[renderer.js] Current file path:', window.currentFilePath);
-    console.log('[renderer.js] Markdown content length:', markdownContent?.length || 0);
+    // Updating preview and structure
     
     // Check if we should suppress this preview update (for PDF/non-markdown files)
     if (window.suppressNextPreviewUpdate || window.suppressPreviewUpdateCount > 0) {
-        console.log('[renderer.js] Suppressing preview update as requested');
+        // Suppressing preview update as requested
         window.suppressNextPreviewUpdate = false;
         if (window.suppressPreviewUpdateCount > 0) {
             window.suppressPreviewUpdateCount--;
-            console.log('[renderer.js] Remaining suppression count:', window.suppressPreviewUpdateCount);
         }
         return;
     }
@@ -181,16 +178,13 @@ async function updatePreviewAndStructure(markdownContent) {
     
     // Check if this should be rendered as a Kanban board (async)
     const currentFilePath = window.currentFilePath;
-    console.log('[renderer.js] About to check Kanban rendering for:', currentFilePath);
+    // Check for Kanban rendering
     
     if (currentFilePath) {
         // Handle Kanban check asynchronously
         window.electronAPI.invoke('get-settings')
             .then(async settings => {
-                console.log('[renderer.js] Got settings for Kanban check:', settings?.kanban ? 'Kanban settings found' : 'No Kanban settings');
-                console.log('[renderer.js] Full Kanban settings:', JSON.stringify(settings?.kanban, null, 2));
                 if (shouldRenderAsKanban(currentFilePath, settings)) {
-                    console.log('[renderer.js] Rendering as Kanban board...');
                     // Add visual indicator to title
                     document.title = '📋 Kanban: ' + (currentFilePath.split('/').pop() || 'TODO');
                     
@@ -216,7 +210,7 @@ async function updatePreviewAndStructure(markdownContent) {
                     
                     // Only run other setup operations if the board was actually updated
                     if (wasUpdated) {
-                        console.log('[renderer.js] Kanban board was updated, running additional setup operations');
+                        // Running additional setup operations
                         
                         // Force horizontal scrolling after Kanban renders
                         setTimeout(() => {
@@ -825,11 +819,11 @@ function registerMarkdownFoldingProvider() {
     try {
         monaco.languages.registerFoldingRangeProvider('markdown', {
             provideFoldingRanges: function(model, context, token) {
-                console.log('[renderer.js] Folding provider called');
+                // Folding provider called
                 const foldingRanges = [];
                 const lines = model.getLinesContent(); // Use getLinesContent() instead
                 
-                console.log('[renderer.js] Processing', lines.length, 'lines for folding');
+                // Processing lines for folding
                 
                 // Simple header-based folding first
                 for (let i = 0; i < lines.length; i++) {
@@ -861,7 +855,7 @@ function registerMarkdownFoldingProvider() {
                                 end: endLine,
                                 kind: monaco.languages.FoldingRangeKind.Region
                             });
-                            console.log('[renderer.js] Added header folding range:', startLine, '->', endLine);
+                            // Added header folding range
                         }
                     }
                     
@@ -885,7 +879,7 @@ function registerMarkdownFoldingProvider() {
                     }
                 }
                 
-                console.log('[renderer.js] Generated', foldingRanges.length, 'folding ranges');
+                // Generated folding ranges
                 return foldingRanges;
             }
         });
@@ -3682,7 +3676,7 @@ function markContentAsSaved() {
 
 // Initialize formatting directly
 setTimeout(() => {
-    console.log('[Renderer] Initializing formatting directly...');
+    // Initializing formatting buttons
     
     const formatBoldBtn = document.getElementById('format-bold-btn');
     const formatItalicBtn = document.getElementById('format-italic-btn');
@@ -3690,18 +3684,18 @@ setTimeout(() => {
     
     if (formatBoldBtn && window.formatText) {
         formatBoldBtn.addEventListener('click', async () => await window.formatText('**', '**', 'bold text'));
-        console.log('[Renderer] Bold button initialized');
+        // Bold button initialized
     }
     if (formatItalicBtn && window.formatText) {
         formatItalicBtn.addEventListener('click', async () => await window.formatText('*', '*', 'italic text'));
-        console.log('[Renderer] Italic button initialized');
+        // Italic button initialized
     }
     if (formatCodeBtn && window.formatText) {
         formatCodeBtn.addEventListener('click', async () => await window.formatText('`', '`', 'code'));
-        console.log('[Renderer] Code button initialized');
+        // Code button initialized
     }
     
-    console.log('[Renderer] Direct formatting initialization complete');
+    // Formatting initialization complete
 }, 2000);
 
 // === Pane Toggle Functionality ===
@@ -3797,7 +3791,7 @@ function forceKanbanHorizontalScroll() {
         return;
     }
     
-    console.log('[Kanban] Setting up horizontal scroll...');
+    // Setting up horizontal scroll
     
     // CORRECT APPROACH: Constrain the parent containers that are too wide
     // The issue is the main content area is enormous, making preview-content expand
@@ -3806,9 +3800,7 @@ function forceKanbanHorizontalScroll() {
     const previewPane = document.getElementById('preview-pane');
     const editorContent = document.getElementById('editor-content');
     
-    console.log('[Kanban] Preview content width:', previewContent.offsetWidth + 'px');
-    console.log('[Kanban] Preview pane width:', previewPane ? previewPane.offsetWidth : 'not found');
-    console.log('[Kanban] Editor content width:', editorContent ? editorContent.offsetWidth : 'not found');
+    // Measuring container widths
     
     // Constrain the preview pane to a reasonable width for Kanban viewing
     const maxKanbanContainerWidth = 1200; // Reasonable max width for Kanban
@@ -3817,7 +3809,7 @@ function forceKanbanHorizontalScroll() {
         previewPane.style.setProperty('max-width', maxKanbanContainerWidth + 'px', 'important');
         previewPane.style.setProperty('overflow-x', 'auto', 'important');
         previewPane.style.setProperty('overflow-y', 'auto', 'important');
-        console.log('[Kanban] Constrained preview pane to max', maxKanbanContainerWidth + 'px');
+        // Constrained preview pane width
     }
     
     // Set overflow properties on preview content
@@ -3830,9 +3822,7 @@ function forceKanbanHorizontalScroll() {
     const calculatedWidth = columns.length * (minColumnWidth + 16) + 32; // columns * (width + gap) + padding
     const requiredWidth = Math.max(calculatedWidth, maxKanbanContainerWidth + 200); // Ensure overflow
     
-    console.log('[Kanban] Found', columns.length, 'columns');
-    console.log('[Kanban] Calculated Kanban width:', calculatedWidth + 'px');
-    console.log('[Kanban] Required width for overflow:', requiredWidth + 'px');
+    // Calculated Kanban dimensions
     
     // Apply natural sizing to Kanban board
     kanbanBoard.style.setProperty('min-width', requiredWidth + 'px', 'important');
@@ -3849,14 +3839,10 @@ function forceKanbanHorizontalScroll() {
     // Force reflow
     previewContent.offsetHeight;
     
-    console.log('[Kanban] After setup:');
-    console.log('[Kanban] - Preview pane client width:', previewPane ? previewPane.clientWidth : 'N/A');
-    console.log('[Kanban] - Preview content client width:', previewContent.clientWidth);
-    console.log('[Kanban] - Preview content scroll width:', previewContent.scrollWidth);
-    console.log('[Kanban] - Horizontal scroll available:', previewContent.scrollWidth > previewContent.clientWidth);
+    // Setup complete - checking scroll availability
     
     if (previewContent.scrollWidth > previewContent.clientWidth) {
-        console.log('[Kanban] SUCCESS! Horizontal scrolling should now be available');
+        // Horizontal scrolling is now available
         // Test the scroll
         setTimeout(() => {
             previewContent.scrollLeft = 100;

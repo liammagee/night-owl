@@ -36,6 +36,8 @@
 32. Fix new file bug - save to current directory - DONE
 33. Themes
 34. Formatting menu
-35. Remove logs, really
+35. Remove logs
 36. Fix file content menu - DONE
 37. Fix 'fix' word - DONE
+
+38. Add more settings
