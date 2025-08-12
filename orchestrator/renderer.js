@@ -1522,7 +1522,7 @@ async function initializeApp() {
                        'Final section content.\n' +
                        'The end.',
                 language: 'markdown',
-                theme: 'vs-dark',
+                theme: 'vs', // Will be updated based on settings after creation
                 automaticLayout: true,
                 wordWrap: 'on',
                 // Conditionally disable auto-closing brackets based on citation autocomplete setting
@@ -1633,6 +1633,11 @@ async function initializeApp() {
                 isDark = document.body.classList.contains('dark-mode');
             }
             applyTheme(isDark);
+            
+            // Explicitly set Monaco theme immediately after creation
+            if (monaco.editor && editor) {
+                editor.updateOptions({ theme: isDark ? 'vs-dark' : 'vs' });
+            }
 
             // --- Resizing Logic (MOVED HERE) --- 
             console.log('[renderer.js] Setting up resizer logic...');
@@ -3097,26 +3102,22 @@ async function addFileToRecents(filePath) {
 
 // --- Theme Handling ---
 function applyTheme(isDarkMode) {
-    console.log('[renderer.js] Applying theme:', isDarkMode ? 'dark' : 'light');
     const body = document.body;
+    // Store current theme globally for reference by other parts of code
+    window.currentTheme = isDarkMode ? 'dark' : 'light';
+    
     // Only toggle theme classes on body! CSS expects this.
     if (isDarkMode) {
         body.classList.remove('light-mode');
         body.classList.add('dark-mode');
         if (window.monaco && monaco.editor) {
             monaco.editor.setTheme('vs-dark');
-            console.log('[renderer.js] Set Monaco theme to vs-dark');
-        } else {
-            console.log('[renderer.js] Monaco editor not available to set theme.');
         }
     } else {
         body.classList.remove('dark-mode');
         body.classList.add('light-mode');
         if (window.monaco && monaco.editor) {
             monaco.editor.setTheme('vs');
-            console.log('[renderer.js] Set Monaco theme to vs');
-        } else {
-            console.log('[renderer.js] Monaco editor not available to set theme.');
         }
     }
 }

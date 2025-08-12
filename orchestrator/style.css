@@ -1,3 +1,26 @@
+/* ===== CSS VARIABLES ===== */
+:root {
+    /* Light theme variables */
+    --editor-bg: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --border-color: #e1e4e8;
+    --text-color: #333333;
+    --text-muted: #666666;
+    --accent-color: #007bff;
+    --highlight-bg: #e3f2fd;
+}
+
+body.dark-mode {
+    /* Dark theme variables */
+    --editor-bg: #1e1e1e;
+    --bg-secondary: #2d2d30;
+    --border-color: #454545;
+    --text-color: #d4d4d4;
+    --text-muted: #9d9d9d;
+    --accent-color: #569cd6;
+    --highlight-bg: #264f78;
+}
+
 body, html {
     margin: 0;
     padding: 0;
@@ -867,6 +890,75 @@ body.dark-mode #preview-content {
     overflow-wrap: break-word;
     hyphens: auto;
     min-width: 0; /* Allow text to shrink */
+    color: var(--text-color, #333);
+}
+
+/* ===== DARK MODE KANBAN STYLES ===== */
+body.dark-mode .kanban-board {
+    background: var(--editor-bg);
+}
+
+body.dark-mode .kanban-column {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .kanban-column-header {
+    color: var(--text-color);
+    border-bottom-color: var(--border-color);
+}
+
+body.dark-mode .kanban-task {
+    background: var(--editor-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+body.dark-mode .kanban-task-text {
+    color: var(--text-color);
+}
+
+body.dark-mode .kanban-task-number {
+    color: var(--text-muted);
+}
+
+body.dark-mode .add-task-btn {
+    color: var(--text-muted);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .add-task-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background: rgba(86, 156, 214, 0.1);
+}
+
+body.dark-mode .task-edit-btn {
+    color: var(--accent-color);
+}
+
+body.dark-mode .task-edit-btn:hover {
+    background: rgba(86, 156, 214, 0.15);
+}
+
+body.dark-mode .task-delete-btn {
+    color: #f48771;
+}
+
+body.dark-mode .task-delete-btn:hover {
+    background: rgba(244, 135, 113, 0.15);
+}
+
+body.dark-mode .kanban-task-edit-input,
+body.dark-mode .kanban-new-task-input {
+    background: var(--editor-bg);
+    color: var(--text-color);
+    border-color: var(--accent-color);
+}
+
+body.dark-mode .kanban-column.drag-over {
+    background: var(--highlight-bg);
+    border-color: var(--accent-color);
 }
 
 /* =====================================
