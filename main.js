@@ -1945,13 +1945,23 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('set-current-file', (event, filePath) => {
+    console.log('[main.js] set-current-file called with:', filePath);
     if (typeof filePath === 'string') {
         currentFilePath = filePath;  // Update the current file path for save operations
         appSettings.currentFile = filePath;
+        console.log('[main.js] Updated appSettings.currentFile to:', appSettings.currentFile);
         saveSettings();
-        // Updated current file path
+        console.log('[main.js] Settings saved successfully');
+        return { success: true };
+    } else if (filePath === null) {
+        currentFilePath = null;
+        appSettings.currentFile = '';
+        console.log('[main.js] Cleared currentFile (set to empty string)');
+        saveSettings();
+        console.log('[main.js] Settings saved successfully');
         return { success: true };
     } else {
+        console.error('[main.js] Invalid file path type:', typeof filePath, filePath);
         return { success: false, error: 'Invalid file path' };
     }
 });
@@ -2014,7 +2024,12 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
         console.error('[main.js] Invalid user message received.');
         return { error: 'Invalid message format.' };
     }
-    console.log(`[main.js] Received chat message: "${userMessage.substring(0, 100)}..."`);
+    console.log(`[main.js] 🤖 Received chat message: "${userMessage.substring(0, 100)}..."`);
+    console.log('[main.js] 📝 Message preview being sent to AI service:');
+    console.log('[main.js] Message length:', userMessage.length, 'characters');
+    console.log('[main.js] ---------- MESSAGE PREVIEW START ----------');
+    console.log(userMessage.substring(0, 200) + (userMessage.length > 200 ? '...' : ''));
+    console.log('[main.js] ----------- MESSAGE PREVIEW END -----------');
     
     try {
       const response = await aiService.sendMessage(userMessage);
@@ -2058,6 +2073,14 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     };
   });
 
+  ipcMain.handle('get-default-ai-provider', async (event) => {
+    if (!aiService) {
+      return null;
+    }
+    
+    return aiService.getDefaultProvider();
+  });
+
   ipcMain.handle('get-provider-models', async (event, provider) => {
     if (!aiService) {
       return { models: [] };
@@ -2096,8 +2119,13 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
         return { error: 'Invalid message format.' };
     }
     
-    console.log(`[main.js] Received chat message with options: "${userMessage.substring(0, 100)}..."`);
+    console.log(`[main.js] 🤖 Received chat message with options: "${userMessage.substring(0, 100)}..."`);
+    console.log('[main.js] 📝 Message preview being sent to AI service:');
+    console.log('[main.js] Message length:', userMessage.length, 'characters');
     console.log('[main.js] Chat options:', options);
+    console.log('[main.js] ---------- MESSAGE PREVIEW START ----------');
+    console.log(userMessage.substring(0, 200) + (userMessage.length > 200 ? '...' : ''));
+    console.log('[main.js] ----------- MESSAGE PREVIEW END -----------');
     
     try {
       const response = await aiService.sendMessage(userMessage, options);
@@ -2139,7 +2167,7 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     }
 
     try {
-      console.log(`[main.js] Received chat message with context: "${message.substring(0, 100)}..."`);
+      console.log(`[main.js] 🤖 Received chat message with context: "${message.substring(0, 100)}..."`);
       
       // Build enhanced prompt with file context
       let enhancedPrompt = `You are an AI assistant similar to Claude Code, helping with a Hegel Pedagogy AI project. `;
@@ -2150,9 +2178,14 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
       
       if (fileContext && fileContext.files && fileContext.files.length > 0) {
         enhancedPrompt += `Available files in the working directory:\n`;
-        fileContext.files.forEach(file => {
-          enhancedPrompt += `\n**${file.name}** (${file.size} chars):\n${file.content.substring(0, 500)}${file.content.length > 500 ? '...' : ''}\n`;
+        // Limit to first 5 files to keep context manageable
+        const filesToInclude = fileContext.files.slice(0, 5);
+        filesToInclude.forEach(file => {
+          enhancedPrompt += `\n**${file.name}** (${file.fullSize || file.size} chars):\n${file.content}\n`;
         });
+        if (fileContext.files.length > 5) {
+          enhancedPrompt += `\n... and ${fileContext.files.length - 5} more files\n`;
+        }
         enhancedPrompt += `\n---\n\n`;
       }
       
@@ -2161,6 +2194,12 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
       }
       
       enhancedPrompt += `User request: ${message}`;
+
+      console.log('[main.js] 📝 Enhanced message preview being sent to AI service:');
+      console.log('[main.js] Message length:', enhancedPrompt.length, 'characters');
+      console.log('[main.js] ---------- ENHANCED MESSAGE PREVIEW START ----------');
+      console.log(enhancedPrompt.substring(0, 200) + (enhancedPrompt.length > 200 ? '...' : ''));
+      console.log('[main.js] ----------- ENHANCED MESSAGE PREVIEW END -----------');
 
       const response = await aiService.sendMessage(enhancedPrompt);
       console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
@@ -2208,13 +2247,19 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
             try {
               const filePath = path.join(workingDir, entry.name);
               const stats = await fs.stat(filePath);
-              // Only read files under 50KB to prevent memory issues
-              if (stats.size < 50000) {
+              // Only read files under 10KB to prevent memory issues and limit context
+              if (stats.size < 10000) {
                 const content = await fs.readFile(filePath, 'utf8');
+                // Limit content to first 300 characters for context
+                const contextContent = content.length > 300 ? 
+                  content.substring(0, 300) + '\n[... truncated ...]' : 
+                  content;
+                  
                 files.push({
                   name: entry.name,
-                  content: content,
-                  size: stats.size,
+                  content: contextContent,
+                  fullSize: stats.size,
+                  size: contextContent.length,
                   extension: ext
                 });
               }

@@ -40,6 +40,9 @@ function addChatMessage(message, sender, isCommand = false) {
 
     // Scroll to the bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Return the message element for further manipulation
+    return messageDiv;
 }
 
 // Format AI output for terminal display
@@ -49,6 +52,35 @@ function formatTerminalOutput(message) {
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+
+// Animated typing indicator
+let typingAnimationInterval = null;
+
+// Chat settings
+let includeOtherFiles = false; // Default: only include current file
+
+function startTypingAnimation(element) {
+    let dots = 0;
+    element.textContent = '';
+    element.classList.add('typing-indicator');
+    
+    // Clear any existing animation
+    if (typingAnimationInterval) {
+        clearInterval(typingAnimationInterval);
+    }
+    
+    typingAnimationInterval = setInterval(() => {
+        dots = (dots % 3) + 1;
+        element.textContent = '.'.repeat(dots);
+    }, 500); // Change dots every 500ms
+}
+
+function stopTypingAnimation() {
+    if (typingAnimationInterval) {
+        clearInterval(typingAnimationInterval);
+        typingAnimationInterval = null;
+    }
 }
 
 // --- Send Chat Message ---
@@ -66,7 +98,12 @@ async function sendChatMessage() {
     chatInput.value = ''; // Clear the input field
     chatInput.disabled = true; // Disable input while waiting for AI
     if (chatSendBtn) chatSendBtn.disabled = true;
-    addChatMessage('...', 'AI'); // Show typing indicator
+    // Show animated typing indicator
+    const typingMessage = addChatMessage('', 'AI'); // Empty message to start with
+    const typingContent = typingMessage.querySelector('.terminal-content');
+    if (typingContent) {
+        startTypingAnimation(typingContent);
+    }
 
     // Get current editor content
     let editorContent = '';
@@ -78,10 +115,14 @@ async function sendChatMessage() {
         editorContent = window.fallbackEditor.value;
     }
     
-    // Build enhanced message with editor context
+    // Build enhanced message with full current file context
     let enhancedMessage = userMessage;
     if (editorContent && editorContent.trim()) {
-        enhancedMessage = `I'm currently working on file: ${currentFileName}\n\n`;
+        const fileName = currentFileName.split('/').pop() || currentFileName.split('\\').pop();
+        const wordCount = editorContent.trim().split(/\s+/).filter(word => word.length > 0).length;
+        const lineCount = editorContent.split('\n').length;
+        
+        enhancedMessage = `I'm currently working on file: ${fileName} (${lineCount} lines, ${wordCount} words)\n\n`;
         enhancedMessage += `Current file content:\n\`\`\`\n${editorContent}\n\`\`\`\n\n`;
         enhancedMessage += `User question: ${userMessage}`;
     }
@@ -91,7 +132,7 @@ async function sendChatMessage() {
         
         // Try to use enhanced handler with file context
         try {
-            const fileContext = await getFileSystemContext();
+            const fileContext = includeOtherFiles ? await getFileSystemContext() : null;
             result = await window.electronAPI.invoke('send-chat-message-with-context', {
                 message: enhancedMessage,
                 fileContext: fileContext,
@@ -103,10 +144,14 @@ async function sendChatMessage() {
             result = await window.electronAPI.invoke('send-chat-message', enhancedMessage);
         }
         
-        // Remove typing indicator
+        // Stop typing animation and remove typing indicator
+        stopTypingAnimation();
         const typingIndicator = chatMessages.lastChild;
-        if (typingIndicator && typingIndicator.querySelector('.terminal-content')?.textContent === '...') {
-            chatMessages.removeChild(typingIndicator);
+        if (typingIndicator && typingIndicator.classList.contains('terminal-message')) {
+            const content = typingIndicator.querySelector('.terminal-content')?.textContent;
+            if (content && content.match(/^\.{1,3}$/)) { // Match 1-3 dots
+                chatMessages.removeChild(typingIndicator);
+            }
         }
 
         if (result.error) {
@@ -119,10 +164,14 @@ async function sendChatMessage() {
         }
     } catch (error) {
         console.error('[AI Chat] Failed to send/receive chat message via IPC:', error);
-        // Remove typing indicator in case of error
+        // Stop typing animation and remove typing indicator in case of error
+        stopTypingAnimation();
         const typingIndicator = chatMessages.lastChild;
-        if (typingIndicator && typingIndicator.querySelector('.terminal-content')?.textContent === '...') {
-            chatMessages.removeChild(typingIndicator);
+        if (typingIndicator && typingIndicator.classList.contains('terminal-message')) {
+            const content = typingIndicator.querySelector('.terminal-content')?.textContent;
+            if (content && content.match(/^\.{1,3}$/)) { // Match 1-3 dots
+                chatMessages.removeChild(typingIndicator);
+            }
         }
         addChatMessage('Error communicating with the AI service.', 'AI');
     } finally {
@@ -189,33 +238,66 @@ function copyAIResponseToEditor() {
     
     if (!chatMessages) return;
     
-    // Find the last AI message
-    const aiMessages = Array.from(chatMessages.querySelectorAll('.chat-message-ai .chat-content'));
-    if (aiMessages.length === 0) {
+    // Find the last AI message using the terminal message format
+    const aiMessages = Array.from(chatMessages.querySelectorAll('.terminal-message .terminal-content'));
+    let lastAIMessage = null;
+    
+    // Find the last AI message (skip user messages and typing indicators)
+    for (let i = aiMessages.length - 1; i >= 0; i--) {
+        const message = aiMessages[i];
+        const messageDiv = message.closest('.terminal-message');
+        
+        // Check if this is an AI message (has assistant prompt)
+        if (messageDiv && messageDiv.querySelector('.terminal-assistant')) {
+            const content = message.textContent || message.innerText;
+            // Skip typing indicators (just dots)
+            if (content && !content.match(/^\.{1,3}$/)) {
+                lastAIMessage = content;
+                break;
+            }
+        }
+    }
+    
+    if (!lastAIMessage) {
         alert('No AI response to copy.');
         return;
     }
     
-    const lastAIContent = aiMessages[aiMessages.length - 1].innerText || aiMessages[aiMessages.length - 1].textContent;
-    if (!lastAIContent) {
-        alert('No AI response to copy.');
-        return;
-    }
-    
-    // Add to bottom of editor
+    // Insert at cursor position in Monaco Editor
     if (editor && typeof editor.getValue === 'function' && typeof editor.setValue === 'function') {
-        // Monaco Editor
-        const current = editor.getValue();
-        editor.setValue(current + (current.endsWith('\n') ? '' : '\n') + lastAIContent + '\n');
+        // Monaco Editor - insert at cursor position
+        const selection = editor.getSelection();
+        const range = selection || editor.getPosition();
+        
+        if (range) {
+            editor.executeEdits('copy-ai-response', [{
+                range: range,
+                text: lastAIMessage,
+                forceMoveMarkers: true
+            }]);
+        } else {
+            // Fallback: append at end if no cursor position
+            const current = editor.getValue();
+            editor.setValue(current + (current.endsWith('\n') ? '' : '\n') + lastAIMessage + '\n');
+        }
         
         // Update preview if available
         if (window.updatePreviewAndStructure) {
             window.updatePreviewAndStructure(editor.getValue());
         }
     } else if (fallbackEditor) {
-        // Fallback textarea
-        const current = fallbackEditor.value;
-        fallbackEditor.value = current + (current.endsWith('\n') ? '' : '\n') + lastAIContent + '\n';
+        // Fallback textarea - insert at cursor position
+        const startPos = fallbackEditor.selectionStart;
+        const endPos = fallbackEditor.selectionEnd;
+        const textBefore = fallbackEditor.value.substring(0, startPos);
+        const textAfter = fallbackEditor.value.substring(endPos);
+        
+        fallbackEditor.value = textBefore + lastAIMessage + textAfter;
+        
+        // Set cursor position after inserted text
+        const newCursorPos = startPos + lastAIMessage.length;
+        fallbackEditor.selectionStart = newCursorPos;
+        fallbackEditor.selectionEnd = newCursorPos;
         
         // Update preview if available
         if (window.updatePreviewAndStructure) {
@@ -226,9 +308,9 @@ function copyAIResponseToEditor() {
         return;
     }
     
-    console.log('[AI Chat] Copied AI response to editor.');
+    console.log('[AI Chat] Copied AI response to cursor position in editor.');
     if (window.showNotification) {
-        window.showNotification('AI response copied to editor.', 'success');
+        window.showNotification('AI response inserted at cursor position.', 'success');
     }
 }
 
@@ -428,6 +510,7 @@ async function processChatCommand(message) {
 /restart - Start a new chat session
 /save - Save chat history to file
 /settings - Show current AI configuration
+/context - Toggle including other files in AI context (currently: ${includeOtherFiles ? 'ON' : 'OFF'})
 /help - Show this help message  
 /load - Load editor content to chat input
 /ls - List files in current directory
@@ -457,6 +540,11 @@ async function processChatCommand(message) {
             
         case '/files':
             await showAllFiles();
+            return true;
+            
+        case '/context':
+            includeOtherFiles = !includeOtherFiles;
+            addChatMessage(`Other files context is now ${includeOtherFiles ? '**ON**' : '**OFF**'}.\n\n${includeOtherFiles ? 'AI will see previews of other files in the directory.' : 'AI will only see the current file you\'re working on.'}`, 'AI');
             return true;
             
         case '/load':
@@ -540,7 +628,9 @@ function showChatContext() {
         contextMessage += 'No file currently open.';
     }
     
-    contextMessage += '\n\nEditor content will be automatically included with your messages.\nType /help for available commands or ask me anything about your code.';
+    contextMessage += '\n\nEditor content will be automatically included with your messages.';
+    contextMessage += `\nOther files context: ${includeOtherFiles ? 'ON' : 'OFF'} (use /context to toggle)`;
+    contextMessage += '\nType /help for available commands or ask me anything about your code.';
     
     // Add as system message
     addChatMessage(contextMessage, 'AI');
@@ -606,10 +696,13 @@ async function showAllFiles() {
 async function showAISettings() {
     try {
         // Get available providers
-        const providers = await window.electronAPI.invoke('get-available-ai-providers');
+        const providersResponse = await window.electronAPI.invoke('get-available-ai-providers');
         const defaultProvider = await window.electronAPI.invoke('get-default-ai-provider');
         
         let settingsMessage = '🤖 **Current AI Configuration**\n\n';
+        
+        // Handle response correctly - it's an object with providers array
+        const providers = providersResponse?.providers || [];
         
         if (providers && providers.length > 0) {
             settingsMessage += `**Available Providers:** ${providers.join(', ')}\n`;
@@ -643,6 +736,9 @@ async function showAISettings() {
             settingsMessage += '(Detailed settings not available)\n';
         }
         
+        settingsMessage += '\n**Chat Settings:**\n';
+        settingsMessage += `• Other Files Context: ${includeOtherFiles ? '✅ ON' : '❌ OFF'} (use /context to toggle)\n`;
+        
         settingsMessage += '\n💡 To change settings, use the menu: Preferences → AI Configuration';
         
         addChatMessage(settingsMessage, 'AI');
@@ -659,3 +755,4 @@ window.loadEditorToChat = loadEditorToChat;
 window.copyAIResponseToEditor = copyAIResponseToEditor;
 window.restartChat = restartChat;
 window.initializeChatFunctionality = initializeChatFunctionality;
+window.addChatMessage = addChatMessage;

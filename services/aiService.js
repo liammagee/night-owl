@@ -18,10 +18,20 @@ class AIService {
   constructor() {
     this.providers = new Map();
     this.defaultProvider = null;
+    
+    // Log AI settings from environment
+    console.log('[AIService] AI Settings from environment:');
+    console.log(`  Temperature: ${process.env.AI_TEMPERATURE || '0.7 (default)'}`);
+    console.log(`  Max Tokens: ${process.env.AI_MAX_TOKENS || '2000 (default)'}`);
+    console.log(`  Default Provider: ${process.env.DEFAULT_AI_PROVIDER || 'auto-detect'}`);
+    
     this.initializeProviders();
   }
 
   initializeProviders() {
+    // Check for preferred default provider from environment
+    const preferredProvider = process.env.DEFAULT_AI_PROVIDER;
+    
     // OpenAI Provider
     if (process.env.OPENAI_API_KEY) {
       try {
@@ -31,8 +41,8 @@ class AIService {
         this.providers.set('openai', new OpenAIProvider(openai));
         console.log('[AIService] OpenAI provider initialized');
         
-        // Set as default if no default is set
-        if (!this.defaultProvider) {
+        // Set as default if it matches preference or no default is set
+        if (preferredProvider === 'openai' || (!this.defaultProvider && !preferredProvider)) {
           this.defaultProvider = 'openai';
         }
       } catch (error) {
@@ -46,7 +56,7 @@ class AIService {
         this.providers.set('anthropic', new AnthropicProvider(process.env.ANTHROPIC_API_KEY));
         console.log('[AIService] Anthropic provider initialized');
         
-        if (!this.defaultProvider) {
+        if (preferredProvider === 'anthropic' || (!this.defaultProvider && !preferredProvider)) {
           this.defaultProvider = 'anthropic';
         }
       } catch (error) {
@@ -60,7 +70,7 @@ class AIService {
         this.providers.set('groq', new GroqProvider(process.env.GROQ_API_KEY));
         console.log('[AIService] Groq provider initialized');
         
-        if (!this.defaultProvider) {
+        if (preferredProvider === 'groq' || (!this.defaultProvider && !preferredProvider)) {
           this.defaultProvider = 'groq';
         }
       } catch (error) {
@@ -74,7 +84,7 @@ class AIService {
         this.providers.set('openrouter', new OpenRouterProvider(process.env.OPENROUTER_API_KEY));
         console.log('[AIService] OpenRouter provider initialized');
         
-        if (!this.defaultProvider) {
+        if (preferredProvider === 'openrouter' || (!this.defaultProvider && !preferredProvider)) {
           this.defaultProvider = 'openrouter';
         }
       } catch (error) {
@@ -97,11 +107,18 @@ class AIService {
       provider = this.defaultProvider,
       model,
       systemMessage = 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.',
-      temperature = 0.7,
-      maxTokens = 2000
+      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
     } = options;
 
-    console.log(`[AIService] sendMessage called with provider: ${provider}, model: ${model}`);
+    console.log(`[AIService] 🚀 sendMessage called with provider: ${provider}, model: ${model}`);
+    console.log('[AIService] 📝 Message being sent to AI provider:');
+    console.log('[AIService] Message length:', message.length, 'characters');
+    console.log('[AIService] System message:', systemMessage);
+    console.log('[AIService] Temperature:', temperature, '| Max tokens:', maxTokens);
+    console.log('[AIService] ---------- AI PROVIDER MESSAGE PREVIEW ----------');
+    console.log(message.substring(0, 200) + (message.length > 200 ? '...' : ''));
+    console.log('[AIService] ----------- AI PROVIDER MESSAGE END -----------');
     console.log(`[AIService] Available providers:`, Array.from(this.providers.keys()));
 
     if (!this.providers.has(provider)) {
@@ -184,11 +201,12 @@ class OpenAIProvider extends BaseProvider {
     const {
       model = process.env.OPENAI_MODEL || 'gpt-5-mini',
       systemMessage,
-      temperature = 0.7,
-      maxTokens = 2000
+      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
     } = options;
 
     console.log(`[OpenAIProvider] Sending message with model: ${model}`);
+    console.log(`[OpenAIProvider] Message preview: ${message.substring(0, 150) + (message.length > 150 ? '...' : '')}`);
     console.log(`[OpenAIProvider] Message length: ${message.length}`);
 
     try {
@@ -245,8 +263,8 @@ class AnthropicProvider extends BaseProvider {
     const {
       model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
       systemMessage,
-      temperature = 0.7,
-      maxTokens = 2000
+      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
     } = options;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -304,8 +322,8 @@ class GroqProvider extends BaseProvider {
     const {
       model = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
       systemMessage,
-      temperature = 0.7,
-      maxTokens = 2000
+      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
     } = options;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -359,8 +377,8 @@ class OpenRouterProvider extends BaseProvider {
     const {
       model = process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
       systemMessage,
-      temperature = 0.7,
-      maxTokens = 2000
+      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
     } = options;
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {

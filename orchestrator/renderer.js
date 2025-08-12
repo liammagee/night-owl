@@ -1528,9 +1528,14 @@ async function initializeApp() {
         try {
             // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
             let initialContent = '';
+            
+            console.log('[renderer.js] Monaco content decision - restoredFileContent exists:', !!window.restoredFileContent);
+            console.log('[renderer.js] Monaco content decision - hasFileToRestore:', window.hasFileToRestore);
+            console.log('[renderer.js] Monaco content decision - useDefaultContentFallback:', window.useDefaultContentFallback);
+            
             if (window.restoredFileContent) {
                 initialContent = window.restoredFileContent.content;
-                console.log('[renderer.js] Using restored file content for Monaco initialization');
+                console.log('[renderer.js] ✅ Using restored file content for Monaco initialization');
             } else if (!window.hasFileToRestore || window.useDefaultContentFallback) {
                 initialContent = '# My Markdown Document\n\n' +
                     'This is the introduction to the document.\n\n' +
@@ -1555,13 +1560,41 @@ async function initializeApp() {
                     'Final section content.\n' +
                     'The end.';
                 if (window.useDefaultContentFallback) {
-                    console.log('[renderer.js] Using default content for Monaco initialization (file restoration failed)');
+                    console.log('[renderer.js] ✅ Using default content for Monaco initialization (file restoration failed)');
                 } else {
-                    console.log('[renderer.js] Using default content for Monaco initialization (fresh start)');
+                    console.log('[renderer.js] ✅ Using default content for Monaco initialization (fresh start)');
                 }
             } else {
-                console.log('[renderer.js] Using empty content for Monaco initialization (file restoration pending)');
+                // Fallback: if we reach here and still have no content, use default
+                if (!initialContent) {
+                    console.warn('[renderer.js] No initial content determined, using default content as fallback');
+                    initialContent = '# My Markdown Document\n\n' +
+                        'This is the introduction to the document.\n\n' +
+                        '## Section One\n' +
+                        'This is content under section one.\n' +
+                        'More content here.\n\n' +
+                        '### Subsection A\n' +
+                        'Content for subsection A.\n' +
+                        'Additional details.\n\n' +
+                        '### Subsection B\n' +
+                        'Content for subsection B.\n' +
+                        'More information here.\n\n' +
+                        '## Section Two\n' +
+                        'This is content under section two.\n\n' +
+                        '```javascript\n' +
+                        'console.log("Hello, world!");\n' +
+                        'function test() {\n' +
+                        '    return "Code folding test";\n' +
+                        '}\n' +
+                        '```\n\n' +
+                        '## Section Three\n' +
+                        'Final section content.\n' +
+                        'The end.';
+                } else {
+                    console.log('[renderer.js] ❌ Using empty content for Monaco initialization (file restoration pending)');
+                }
             }
+            
             
             editor = monaco.editor.create(editorContainer, {
                 value: initialContent,
@@ -1864,7 +1897,13 @@ async function loadAppSettings() {
     try {
         appSettings = await window.electronAPI.invoke('get-settings');
         window.appSettings = appSettings; // Make settings globally available
-        window.currentFilePath = appSettings.currentFile || null; // Set current file path globally
+        console.log('[renderer.js] Loaded settings - appSettings.currentFile:', appSettings.currentFile);
+        // Handle both empty string and null for currentFile
+        const currentFileFromSettings = appSettings.currentFile;
+        console.log('[renderer.js] Raw currentFile from settings:', JSON.stringify(currentFileFromSettings), 'type:', typeof currentFileFromSettings);
+        
+        window.currentFilePath = (currentFileFromSettings && currentFileFromSettings.trim()) ? currentFileFromSettings : null;
+        console.log('[renderer.js] Set window.currentFilePath to:', window.currentFilePath);
         let themeAppliedFromSettings = false;
         
         // Store flag for file restoration to coordinate with Monaco initialization
@@ -2036,6 +2075,60 @@ async function refreshCurrentFile() {
     }
 }
 
+// Update AI Chat context when file changes
+function updateAIChatContext(filePath) {
+    // Update the chat context display
+    const contextDisplay = document.getElementById('chat-context-display');
+    if (contextDisplay) {
+        if (filePath) {
+            const fileName = filePath.split('/').pop() || filePath.split('\\').pop();
+            
+            // Get editor content stats
+            let stats = '';
+            if (window.editor && typeof window.editor.getValue === 'function') {
+                const content = window.editor.getValue();
+                if (content) {
+                    const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
+                    const lineCount = content.split('\n').length;
+                    stats = ` (${lineCount} lines, ${wordCount} words)`;
+                }
+            }
+            
+            contextDisplay.textContent = `Context: ${fileName}${stats} | Type /help`;
+        } else {
+            contextDisplay.textContent = 'No file open | Type /help for commands';
+        }
+    }
+    
+    // Check if chat pane is visible and show an initial context message only if chat is empty
+    const chatPane = document.getElementById('chat-pane');
+    const chatMessages = document.getElementById('chat-messages');
+    
+    if (chatPane && chatMessages && chatPane.style.display !== 'none') {
+        // Only add a message if the chat is empty (first time opening)
+        if (chatMessages.children.length === 0 && window.addChatMessage) {
+            const fileName = filePath ? (filePath.split('/').pop() || filePath.split('\\').pop()) : null;
+            if (fileName) {
+                // Get editor content stats
+                let stats = '';
+                if (window.editor && typeof window.editor.getValue === 'function') {
+                    const content = window.editor.getValue();
+                    if (content) {
+                        const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
+                        const lineCount = content.split('\n').length;
+                        stats = ` (${lineCount} lines, ${wordCount} words)`;
+                    }
+                }
+                window.addChatMessage(`AI Assistant ready. Currently editing: ${fileName}${stats}\n\nEditor content will be automatically included with your messages.\nType /help for available commands.`, 'AI');
+            } else {
+                window.addChatMessage(`AI Assistant ready. No file currently open.\n\nType /help for available commands.`, 'AI');
+            }
+        }
+    }
+    
+    console.log('[Renderer] AI chat context updated for file:', filePath);
+}
+
 async function openFileInEditor(filePath, content) {
     console.log('[Renderer] Opening file in editor:', filePath);
     
@@ -2065,17 +2158,22 @@ async function openFileInEditor(filePath, content) {
     // Handle PDF files
     if (isPDF) {
         handlePDFFile(filePath);
+        updateAIChatContext(filePath);
         return;
     }
     
     // Handle HTML files
     if (isHTML) {
         await handleHTMLFile(filePath, content);
+        updateAIChatContext(filePath);
         return;
     }
     
     // Handle editable files (Markdown, BibTeX)
     await handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
+    
+    // Update AI chat context when file changes
+    updateAIChatContext(filePath);
 }
 
 // Handle PDF file opening
@@ -2346,8 +2444,9 @@ async function createFallbackEditor() {
             console.log('[renderer.js] Using default content for fallback editor (fresh start)');
         }
     } else {
-        textarea.value = '';
-        console.log('[renderer.js] Using empty content for fallback editor (file restoration pending)');
+        // Fallback: if we reach here with empty content, use default
+        textarea.value = '# Welcome!\n\nStart typing your Markdown here.';
+        console.log('[renderer.js] Using default content for fallback editor (no file restoration)');
     }
     textarea.style.width = '100%';
     textarea.style.height = '100%';
@@ -3225,6 +3324,9 @@ if (window.electronAPI) {
         if (structureList) {
             structureList.innerHTML = '';
         }
+        
+        // Update AI chat context for new file
+        updateAIChatContext(null);
         
         // Update file name display to show "Untitled"
         const currentFileNameEl = document.getElementById('current-file-name');

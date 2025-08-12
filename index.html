@@ -974,9 +974,9 @@
     </div>
     
     <!-- Main Application Container -->
-    <div id="app-container" style="display: flex; height: calc(100vh - 32px); margin-top: 32px;">
+    <div id="app-container">
         <!-- Left Sidebar (Always visible) -->
-        <div id="left-sidebar" style="width: 250px; min-width: 200px; max-width: 400px; border-right: 1px solid #ddd; display: flex; flex-direction: column;">
+        <div id="left-sidebar">
             <div id="structure-pane-header">
                 <div class="toggle-buttons structure-toggle-buttons">
                     <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
@@ -1000,7 +1000,7 @@
         <div id="sidebar-resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
 
         <!-- Main Content Area (Switches between editor and presentation) -->
-        <div id="main-content" style="flex: 1; display: flex; flex-direction: column;">
+        <div id="main-content">
             <!-- Content Mode Switcher -->
             <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; padding: 0 16px;">
                 <!-- Navigation Controls -->
@@ -1034,7 +1034,7 @@
 
             <!-- Editor Content -->
             <div id="editor-content" class="content-view active">
-                <div id="editor-pane" style="flex: 2; min-width: 300px; position: relative; display: flex; flex-direction: column; overflow: hidden;">
+                <div id="editor-pane">
                     <!-- Editor Toolbar -->
                     <div id="editor-toolbar" style="height: 32px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 8px; gap: 2px; flex-shrink: 0; width: 100%; box-sizing: border-box; overflow-x: auto; white-space: nowrap;">
                         <!-- Markdown Formatting Tools -->
@@ -1168,7 +1168,7 @@
                                 <div class="terminal-buttons" style="display: flex; gap: 4px;">
                                     <button id="restart-chat-btn" class="btn btn-small" title="Start new chat session">🔄</button>
                                     <button id="load-editor-to-chat-btn" class="btn btn-small" title="Load Editor Content">📝</button>
-                                    <button id="copy-ai-response-btn" class="btn btn-small" title="Copy last AI response to editor">📋</button>
+                                    <button id="copy-ai-response-btn" class="btn btn-small" title="Insert last AI response at cursor position">📋</button>
                                 </div>
                             </div>
                         </div>

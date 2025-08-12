@@ -41,4 +41,4 @@
 37. Fix 'fix' word - DONE
 38. Check settings configuration - DONE
 39. Graph of files, with links based on internal links
-40. AI Chat like Claude Code
+40. AI Chat like Claude Code - IN PROGRESS
