@@ -206,7 +206,7 @@ class OpenAIProvider extends BaseProvider {
     } = options;
 
     console.log(`[OpenAIProvider] Sending message with model: ${model}`);
-    console.log(`[OpenAIProvider] Message preview: ${message.substring(0, 150) + (message.length > 150 ? '...' : '')}`);
+    console.log(`[OpenAIProvider] Message preview: ≈ + (message.length > 150 ? '...' : '')}`);
     console.log(`[OpenAIProvider] Message length: ${message.length}`);
 
     try {

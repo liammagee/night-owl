@@ -1192,7 +1192,6 @@
                                 <input type="text" id="chat-input" class="terminal-input" placeholder="Enter command or message..." style="flex: 1;">
                                 <div class="terminal-buttons" style="display: flex; gap: 4px;">
                                     <button id="restart-chat-btn" class="btn btn-small" title="Start new chat session">🔄</button>
-                                    <button id="load-editor-to-chat-btn" class="btn btn-small" title="Load Editor Content">📝</button>
                                     <button id="copy-ai-response-btn" class="btn btn-small" title="Insert last AI response at cursor position">📋</button>
                                 </div>
                             </div>
@@ -1474,7 +1473,6 @@
           
           // Current slides and slide index state
           const canvasRef = useRef(null);
-          const fileInputRef = useRef(null);
 
           // Sample markdown content for demo
           const sampleMarkdown = `# SAMPLE CONTENT TEST
@@ -1940,21 +1938,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             }
           }, [slides]);
 
-          // File upload handler
-          const handleFileUpload = (event) => {
-            const file = event.target.files[0];
-            if (file && (file.type === 'text/markdown' || file.name.endsWith('.md'))) {
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                const content = e.target.result;
-                const newSlides = parseMarkdown(content);
-                setSlides(newSlides);
-                setCurrentSlide(0);
-                goToSlide(0);
-              };
-              reader.readAsText(file);
-            }
-          };
 
           // Navigate to specific slide with smooth transition
           const goToSlide = useCallback((slideIndex) => {
@@ -2214,14 +2197,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               {/* Controls */}
               {!isPresenting && (
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-                  >
-                    <Upload />
-                    Load File
-                  </button>
-                  
                   <select
                     value={layoutType}
                     onChange={(e) => setLayoutType(e.target.value)}
@@ -2235,13 +2210,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                     <option value="zigzag">Zigzag</option>
                   </select>
                   
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".md,.markdown"
-                    onChange={handleFileUpload}
-                    style={{display: 'none'}}
-                  />
                 </div>
               )}
 

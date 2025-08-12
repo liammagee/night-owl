@@ -39,19 +39,24 @@ function initializeCommandPalette() {
     registerCommand('view.toggleStructure', 'View: Toggle Structure Panel', () => window.toggleStructurePane());
     registerCommand('view.toggleFiles', 'View: Toggle File Explorer', () => window.toggleFilePane());
     registerCommand('view.presentationMode', 'View: Enter Presentation Mode', () => window.enterPresentationMode(), 'F5');
+    registerCommand('view.editorMode', 'View: Editor Mode', () => window.switchToMode('editor'), 'Cmd+1');
+    registerCommand('view.presentationTab', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
+    registerCommand('view.networkMode', 'View: Network Mode', () => window.switchToMode('network'), 'Cmd+3');
     registerCommand('view.kanban', 'View: Open Kanban Board', () => window.showKanbanBoard(), 'Cmd+K');
     
     // Formatting
-    registerCommand('format.bold', 'Format: Bold', () => window.applyMarkdownFormatting('**'), 'Cmd+B');
-    registerCommand('format.italic', 'Format: Italic', () => window.applyMarkdownFormatting('*'), 'Cmd+I');
-    registerCommand('format.code', 'Format: Inline Code', () => window.applyMarkdownFormatting('`'), 'Cmd+`');
-    registerCommand('format.codeBlock', 'Format: Code Block', () => window.insertCodeBlock(), 'Cmd+Shift+`');
-    registerCommand('format.link', 'Format: Insert Link', () => window.insertLink(), 'Cmd+L');
-    registerCommand('format.image', 'Format: Insert Image', () => window.insertImage());
-    registerCommand('format.table', 'Format: Insert Table', () => window.insertTable());
-    registerCommand('format.heading1', 'Format: Heading 1', () => window.insertHeading(1), 'Cmd+1');
-    registerCommand('format.heading2', 'Format: Heading 2', () => window.insertHeading(2), 'Cmd+2');
-    registerCommand('format.heading3', 'Format: Heading 3', () => window.insertHeading(3), 'Cmd+3');
+    registerCommand('format.bold', 'Format: Bold', () => window.handleFormatText('bold'), 'Cmd+B');
+    registerCommand('format.italic', 'Format: Italic', () => window.handleFormatText('italic'), 'Cmd+I');
+    registerCommand('format.code', 'Format: Inline Code', () => window.handleFormatText('code'), 'Cmd+`');
+    registerCommand('format.strikethrough', 'Format: Strikethrough', () => window.handleFormatText('strikethrough'), 'Cmd+Shift+X');
+    registerCommand('format.heading1', 'Format: Heading 1', () => window.handleFormatText('h1'), 'Cmd+Alt+1');
+    registerCommand('format.heading2', 'Format: Heading 2', () => window.handleFormatText('h2'), 'Cmd+Alt+2');
+    registerCommand('format.heading3', 'Format: Heading 3', () => window.handleFormatText('h3'), 'Cmd+Alt+3');
+    registerCommand('format.bulletList', 'Format: Bullet List', () => window.handleFormatText('bullet-list'), 'Cmd+Shift+8');
+    registerCommand('format.numberedList', 'Format: Numbered List', () => window.handleFormatText('numbered-list'), 'Cmd+Shift+7');
+    registerCommand('format.insertLink', 'Format: Insert Link', () => window.handleFormatText('link'), 'Cmd+K');
+    registerCommand('format.insertImage', 'Format: Insert Image', () => window.handleFormatText('image'), 'Cmd+Shift+I');
+    registerCommand('format.blockquote', 'Format: Blockquote', () => window.handleFormatText('blockquote'), 'Cmd+Shift+.');
     
     // Annotations
     registerCommand('annotation.comment', 'Annotation: Insert Comment', async () => await window.insertCommentAnnotation());
@@ -62,12 +67,21 @@ function initializeCommandPalette() {
     registerCommand('nav.back', 'Navigate: Back', () => window.navigateBack());
     registerCommand('nav.forward', 'Navigate: Forward', () => window.navigateForward());
     registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => window.showGoToLineDialog(), 'Ctrl+G');
+    registerCommand('nav.fileUp', 'Navigate: Previous File', () => window.moveFileSelection(-1), '↑');
+    registerCommand('nav.fileDown', 'Navigate: Next File', () => window.moveFileSelection(1), '↓');
+    registerCommand('nav.firstFile', 'Navigate: First File', () => window.selectFirstFile(), 'Home');
+    registerCommand('nav.lastFile', 'Navigate: Last File', () => window.selectLastFile(), 'End');
+    registerCommand('nav.openSelectedFile', 'Navigate: Open Selected File', () => window.openSelectedFile(), 'Enter');
     
     // Folding
     registerCommand('fold.all', 'Fold: Fold All', () => window.foldAll());
     registerCommand('fold.unfoldAll', 'Fold: Unfold All', () => window.unfoldAll());
     registerCommand('fold.current', 'Fold: Fold Current', () => window.foldCurrent());
     registerCommand('fold.unfoldCurrent', 'Fold: Unfold Current', () => window.unfoldCurrent());
+    registerCommand('fold.expandCurrent', 'Fold: Expand Current', () => window.handleFormatText('expand-current'));
+    registerCommand('fold.contractCurrent', 'Fold: Contract Current', () => window.handleFormatText('contract-current'));
+    registerCommand('fold.expandAll', 'Fold: Expand All', () => window.handleFormatText('expand-all'));
+    registerCommand('fold.contractAll', 'Fold: Contract All', () => window.handleFormatText('contract-all'));
     
     // Export
     registerCommand('export.pdf', 'Export: PDF', () => window.exportToPDF());
@@ -77,8 +91,11 @@ function initializeCommandPalette() {
     registerCommand('export.powerpoint', 'Export: PowerPoint', () => window.exportToPowerPoint());
     
     // AI Operations
+    registerCommand('ai.chat', 'AI: Toggle Chat Panel', () => window.toggleAIChat());
+    registerCommand('ai.copyResponse', 'AI: Copy Last Response to Editor', () => window.copyAIResponseToEditor());
+    registerCommand('ai.loadEditor', 'AI: Load Editor Content to Chat', () => window.loadEditorToChat());
+    registerCommand('ai.clearChat', 'AI: Clear Chat History', () => window.clearAIChat());
     registerCommand('ai.summarize', 'AI: Summarize Document', () => window.summarizeDocument());
-    registerCommand('ai.chat', 'AI: Open Chat', () => window.openAIChat());
     
     // Settings
     registerCommand('settings.open', 'Settings: Open Preferences', () => window.openSettings(), 'Cmd+,');
