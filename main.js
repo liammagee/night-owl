@@ -1985,6 +1985,43 @@ app.whenReady().then(() => {
     }
 });
 
+// Open file by filename (used by network visualization)
+ipcMain.handle('perform-open-file', async (event, filename) => {
+  try {
+    if (!filename || typeof filename !== 'string') {
+      throw new Error('No filename specified');
+    }
+    
+    // Construct full path by joining with current working directory
+    const workingDir = appSettings.workingDirectory || process.cwd();
+    const filePath = path.join(workingDir, filename);
+    
+    console.log(`[main.js] Opening file: ${filename} at path: ${filePath}`);
+    
+    // Check if file exists
+    if (!fsSync.existsSync(filePath)) {
+      throw new Error(`File not found: ${filename}`);
+    }
+    
+    const content = await fs.readFile(filePath, 'utf8');
+    currentFilePath = filePath; // Update global current file path
+    appSettings.currentFile = filePath;
+    saveSettings();
+    
+    if (mainWindow) {
+      mainWindow.setTitle(`Hegel Pedagogy AI - ${filename}`);
+    }
+    
+    // Send the file content to the renderer
+    mainWindow.webContents.send('file-opened', { content, filePath, filename });
+    
+    return { success: true, filePath, content, filename };
+  } catch (err) {
+    console.error('[main.js] Error opening file:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 // Kanban board file operations
 ipcMain.handle('read-file', async (event, filePath) => {
   try {

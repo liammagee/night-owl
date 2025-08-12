@@ -426,6 +426,7 @@
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         /* Tailwind-inspired utility classes for presentation view */
@@ -507,6 +508,29 @@
         .w-2 { width: 0.5rem; }
         .h-2 { height: 0.5rem; }
         .min-h-400 { min-height: 25rem; }
+        
+        /* Mode button styling */
+        .mode-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .mode-btn:hover {
+            background: #f0f0f0 !important;
+        }
+        
+        .mode-btn.active {
+            background: #007acc !important;
+            color: white !important;
+        }
+        
+        /* Network visualization styles */
+        #network-canvas svg {
+            cursor: grab;
+        }
+        
+        #network-canvas svg:active {
+            cursor: grabbing;
+        }
         
         /* Custom Title Bar */
         .title-bar {
@@ -1021,6 +1045,7 @@
                 <div style="display: flex; gap: 4px; padding: 4px; background: white; border: 1px solid #ddd; border-radius: 6px;">
                     <button id="editor-mode-btn" class="mode-btn active" style="padding: 6px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Editor</button>
                     <button id="presentation-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Presentation</button>
+                    <button id="network-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Network</button>
                 </div>
                 
                 <!-- Pane Toggle Controls -->
@@ -1247,6 +1272,29 @@
                     <!-- Scrollable Content -->
                     <div id="current-slide-notes" style="font-size: 13px; line-height: 1.4; color: #bdc3c7; padding: 0 16px 16px 16px; overflow-y: auto; height: calc(100% - 60px);">
                         <em>No speaker notes for this slide.</em>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Network Visualization Content -->
+            <div id="network-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
+                <div id="network-visualization" style="width: 100%; flex: 1; min-height: 0; background: #f8f9fa;">
+                    <div id="network-canvas" style="width: 100%; height: 100%; position: relative;">
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
+                            <div style="font-size: 24px; margin-bottom: 10px;">📊</div>
+                            <div>Loading network visualization...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Network Controls Panel -->
+                    <div id="network-controls" style="position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px;">
+                        <div style="margin-bottom: 8px; font-weight: bold;">Network Controls</div>
+                        <button id="network-refresh" class="btn" style="margin-right: 5px; padding: 4px 8px; font-size: 11px;">🔄 Refresh</button>
+                        <button id="network-center" class="btn" style="margin-right: 5px; padding: 4px 8px; font-size: 11px;">🎯 Center</button>
+                        <button id="network-fit" class="btn" style="padding: 4px 8px; font-size: 11px;">📐 Fit</button>
+                        <div style="margin-top: 8px; font-size: 11px; color: #666;">
+                            <div id="network-stats">Files: 0 | Links: 0</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2616,6 +2664,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               console.warn('[Mode Switching] No content available to sync to presentation');
               showSpeakerNotesPanel('');
             }
+          } else if (modeName === 'network') {
+            document.body.classList.remove('presentation-mode');
+            hideSpeakerNotesPanel();
+            
+            // Initialize network visualization
+            console.log('[Mode Switching] Initializing network visualization');
+            if (window.initializeNetworkVisualization) {
+              window.initializeNetworkVisualization();
+            }
           } else {
             document.body.classList.remove('presentation-mode');
             hideSpeakerNotesPanel();
@@ -2702,6 +2759,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           // Set up mode button event listeners
           const editorModeBtn = document.getElementById('editor-mode-btn');
           const presentationModeBtn = document.getElementById('presentation-mode-btn');
+          const networkModeBtn = document.getElementById('network-mode-btn');
 
           if (editorModeBtn) {
             editorModeBtn.addEventListener('click', () => {
@@ -2714,6 +2772,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             presentationModeBtn.addEventListener('click', () => {
               console.log('[Mode Switching] Presentation mode button clicked');
               switchToMode('presentation');
+            });
+          }
+
+          if (networkModeBtn) {
+            networkModeBtn.addEventListener('click', () => {
+              console.log('[Mode Switching] Network mode button clicked');
+              switchToMode('network');
             });
           }
           
@@ -2842,6 +2907,400 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         // Expose mode switching globally
         window.switchToMode = switchToMode;
         window.updateSpeakerNotes = updateSpeakerNotes;
+
+        // === Network Visualization ===
+        let networkGraph = null;
+        let networkData = { nodes: [], links: [] };
+
+        // Parse markdown content to extract internal links
+        function parseInternalLinks(content, filename) {
+          const links = [];
+          // Match [[filename]] and [[filename|display text]] patterns
+          const internalLinkRegex = /\[\[([^\]|]+)(\|[^\]]+)?\]\]/g;
+          let match;
+          
+          while ((match = internalLinkRegex.exec(content)) !== null) {
+            const targetFile = match[1].trim();
+            // Ensure it ends with .md if it doesn't have an extension
+            const targetWithExt = targetFile.includes('.') ? targetFile : targetFile + '.md';
+            links.push({
+              source: filename,
+              target: targetWithExt,
+              type: 'internal'
+            });
+          }
+
+          // Also match standard markdown links to .md files
+          const mdLinkRegex = /\[([^\]]+)\]\(([^)]+\.md)\)/g;
+          while ((match = mdLinkRegex.exec(content)) !== null) {
+            const targetFile = match[2];
+            links.push({
+              source: filename,
+              target: targetFile,
+              type: 'markdown'
+            });
+          }
+
+          return links;
+        }
+
+        // Get file content for link parsing
+        async function getFileContentForParsing(filename) {
+          try {
+            if (window.electronAPI && window.electronAPI.invoke) {
+              return await window.electronAPI.invoke('read-file-content', filename);
+            }
+            return '';
+          } catch (error) {
+            console.warn('[Network] Could not read file:', filename, error);
+            return '';
+          }
+        }
+
+        // Build network data from files
+        async function buildNetworkData() {
+          console.log('[Network] Building network data...');
+          
+          try {
+            // Get list of files in the directory
+            const files = await window.electronAPI.invoke('list-directory-files');
+            const mdFiles = files.filter(f => !f.isDirectory && f.name.endsWith('.md'));
+            
+            console.log('[Network] Found markdown files:', mdFiles.length);
+            
+            // Create nodes for each file
+            const nodes = mdFiles.map(file => ({
+              id: file.name,
+              name: file.name.replace('.md', ''),
+              type: 'file',
+              size: 10
+            }));
+
+            // Parse links from each file
+            const allLinks = [];
+            for (const file of mdFiles) {
+              try {
+                const content = await getFileContentForParsing(file.name);
+                if (content) {
+                  const fileLinks = parseInternalLinks(content, file.name);
+                  allLinks.push(...fileLinks);
+                }
+              } catch (error) {
+                console.warn('[Network] Error parsing file:', file.name, error);
+              }
+            }
+
+            // Filter links to only include files that exist in our nodes
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const links = allLinks.filter(link => 
+              nodeIds.has(link.source) && nodeIds.has(link.target)
+            );
+
+            console.log('[Network] Built network:', nodes.length, 'nodes,', links.length, 'links');
+            
+            return { nodes, links };
+          } catch (error) {
+            console.error('[Network] Error building network data:', error);
+            return { nodes: [], links: [] };
+          }
+        }
+
+        // Initialize D3 network visualization
+        function createNetworkVisualization(data) {
+          const container = document.getElementById('network-canvas');
+          if (!container) {
+            console.error('[Network] Canvas container not found');
+            return;
+          }
+
+          // Clear existing visualization
+          d3.select(container).selectAll('*').remove();
+
+          const width = container.offsetWidth;
+          const height = container.offsetHeight;
+          
+          console.log('[Network] Creating visualization:', width, 'x', height);
+
+          // Create SVG
+          const svg = d3.select(container)
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .style('border', '1px solid #ddd');
+
+          // Create zoom behavior
+          const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+              g.attr('transform', event.transform);
+            });
+
+          svg.call(zoom);
+
+          // Create group for zoomable content
+          const g = svg.append('g');
+
+          // Create force simulation
+          const simulation = d3.forceSimulation(data.nodes)
+            .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(width / 2, height / 2));
+
+          // Create links
+          const link = g.append('g')
+            .attr('stroke', '#999')
+            .attr('stroke-opacity', 0.6)
+            .selectAll('line')
+            .data(data.links)
+            .join('line')
+            .attr('stroke-width', d => d.type === 'internal' ? 2 : 1)
+            .attr('stroke', d => d.type === 'internal' ? '#007acc' : '#999');
+
+          // Create nodes
+          const node = g.append('g')
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 1.5)
+            .selectAll('circle')
+            .data(data.nodes)
+            .join('circle')
+            .attr('r', d => 8 + (d.size || 0))
+            .attr('fill', '#007acc')
+            .call(d3.drag()
+              .on('start', dragstarted)
+              .on('drag', dragged)
+              .on('end', dragended));
+
+          // Add labels
+          const label = g.append('g')
+            .selectAll('text')
+            .data(data.nodes)
+            .join('text')
+            .text(d => d.name)
+            .attr('font-size', 12)
+            .attr('font-family', 'Arial, sans-serif')
+            .attr('fill', '#333')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .attr('pointer-events', 'none');
+
+          // Add tooltips and click handlers
+          node.append('title').text(d => d.id);
+          
+          node.on('click', (event, d) => {
+            console.log('[Network] Node clicked:', d.id);
+            // Open file in editor
+            if (window.electronAPI && window.electronAPI.invoke) {
+              window.electronAPI.invoke('perform-open-file', d.id)
+                .then(() => {
+                  console.log('[Network] File opened:', d.id);
+                  switchToMode('editor'); // Switch back to editor to see the file
+                })
+                .catch(err => console.error('[Network] Error opening file:', err));
+            }
+          });
+
+          // Update positions on simulation tick
+          simulation.on('tick', () => {
+            link
+              .attr('x1', d => d.source.x)
+              .attr('y1', d => d.source.y)
+              .attr('x2', d => d.target.x)
+              .attr('y2', d => d.target.y);
+
+            node
+              .attr('cx', d => d.x)
+              .attr('cy', d => d.y);
+
+            label
+              .attr('x', d => d.x)
+              .attr('y', d => d.y);
+          });
+
+          // Drag functions
+          function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+          }
+
+          function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+          }
+
+          function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+          }
+
+          // Store references for controls
+          networkGraph = {
+            svg,
+            g,
+            simulation,
+            zoom,
+            width,
+            height
+          };
+
+          // Update stats
+          updateNetworkStats(data);
+        }
+
+        // Update network statistics display
+        function updateNetworkStats(data) {
+          const statsEl = document.getElementById('network-stats');
+          if (statsEl) {
+            statsEl.textContent = `Files: ${data.nodes.length} | Links: ${data.links.length}`;
+          }
+        }
+
+        // Initialize network visualization
+        async function initializeNetworkVisualization() {
+          console.log('[Network] Initializing network visualization...');
+          
+          // Show loading state
+          const canvas = document.getElementById('network-canvas');
+          if (canvas) {
+            canvas.innerHTML = `
+              <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
+                <div style="font-size: 24px; margin-bottom: 10px;">🔄</div>
+                <div>Building network...</div>
+              </div>
+            `;
+          }
+
+          try {
+            networkData = await buildNetworkData();
+            
+            if (networkData.nodes.length === 0) {
+              // Show empty state
+              canvas.innerHTML = `
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
+                  <div style="font-size: 24px; margin-bottom: 10px;">📁</div>
+                  <div>No markdown files found</div>
+                  <div style="font-size: 12px; margin-top: 5px; color: #999;">Create some .md files with internal links to see the network</div>
+                </div>
+              `;
+              return;
+            }
+
+            createNetworkVisualization(networkData);
+            
+          } catch (error) {
+            console.error('[Network] Error initializing visualization:', error);
+            if (canvas) {
+              canvas.innerHTML = `
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
+                  <div style="font-size: 24px; margin-bottom: 10px;">⚠️</div>
+                  <div>Error loading network</div>
+                  <div style="font-size: 12px; margin-top: 5px; color: #999;">${error.message}</div>
+                </div>
+              `;
+            }
+          }
+        }
+
+        // Network control functions
+        function refreshNetwork() {
+          console.log('[Network] Refreshing network...');
+          initializeNetworkVisualization();
+        }
+
+        function centerNetwork() {
+          if (networkGraph && networkGraph.svg) {
+            console.log('[Network] Centering network...');
+            const transform = d3.zoomIdentity.translate(networkGraph.width / 2, networkGraph.height / 2).scale(1);
+            networkGraph.svg.transition().duration(750).call(networkGraph.zoom.transform, transform);
+          }
+        }
+
+        function fitNetwork() {
+          if (networkGraph && networkGraph.svg && networkData.nodes.length > 0) {
+            console.log('[Network] Fitting network to view...');
+            
+            // Calculate bounds of nodes
+            let minX = d3.min(networkData.nodes, d => d.x || 0);
+            let maxX = d3.max(networkData.nodes, d => d.x || 0);
+            let minY = d3.min(networkData.nodes, d => d.y || 0);
+            let maxY = d3.max(networkData.nodes, d => d.y || 0);
+            
+            const padding = 50;
+            const width = maxX - minX + padding * 2;
+            const height = maxY - minY + padding * 2;
+            
+            const scale = Math.min(networkGraph.width / width, networkGraph.height / height, 2);
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            
+            const transform = d3.zoomIdentity
+              .translate(networkGraph.width / 2, networkGraph.height / 2)
+              .scale(scale)
+              .translate(-centerX, -centerY);
+              
+            networkGraph.svg.transition().duration(750).call(networkGraph.zoom.transform, transform);
+          }
+        }
+
+        // Set up network controls
+        function setupNetworkControls() {
+          const refreshBtn = document.getElementById('network-refresh');
+          const centerBtn = document.getElementById('network-center');
+          const fitBtn = document.getElementById('network-fit');
+          
+          if (refreshBtn) {
+            refreshBtn.addEventListener('click', refreshNetwork);
+          }
+          if (centerBtn) {
+            centerBtn.addEventListener('click', centerNetwork);
+          }
+          if (fitBtn) {
+            fitBtn.addEventListener('click', fitNetwork);
+          }
+        }
+
+        // Expose network functions globally
+        window.initializeNetworkVisualization = initializeNetworkVisualization;
+        window.refreshNetwork = refreshNetwork;
+        
+        // Update network when file changes
+        function updateNetworkOnFileChange() {
+          // Only refresh if we're currently in network mode and network is initialized
+          if (currentMode === 'network' && networkGraph) {
+            console.log('[Network] File changed, refreshing network visualization');
+            setTimeout(refreshNetwork, 500); // Small delay to ensure file is saved
+          }
+        }
+        
+        // Hook into the editor change events for real-time updates
+        function setupNetworkFileWatchers() {
+          // Watch for file open events
+          if (window.electronAPI && window.electronAPI.onFileOpened) {
+            window.electronAPI.onFileOpened(updateNetworkOnFileChange);
+          }
+          
+          // Watch for editor content changes (debounced)
+          let debounceTimer = null;
+          function debounceNetworkUpdate() {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateNetworkOnFileChange, 2000); // 2 second delay
+          }
+          
+          // Hook into Monaco editor changes
+          if (window.editor && typeof window.editor.onDidChangeModelContent === 'function') {
+            window.editor.onDidChangeModelContent(debounceNetworkUpdate);
+          }
+          
+          // Hook into autosave events if available
+          document.addEventListener('file-saved', updateNetworkOnFileChange);
+        }
+        
+        // Initialize network controls when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+          setupNetworkControls();
+          setupNetworkFileWatchers();
+        });
     </script>
 </body>
 </html>
