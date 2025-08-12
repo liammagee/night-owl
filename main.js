@@ -963,6 +963,16 @@ function createMainMenu() {
                     }
                 }
             },
+            {
+                label: 'Network Mode',
+                accelerator: 'CmdOrCtrl+3',
+                click: () => {
+                    if (mainWindow) {
+                        console.log('[main.js] Switching to Network mode via menu');
+                        mainWindow.webContents.send('switch-to-network');
+                    }
+                }
+            },
             { type: 'separator' },
             { role: 'resetZoom' },
             { role: 'zoomIn' },

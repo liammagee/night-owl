@@ -2848,6 +2848,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               console.log('[IPC] Switching to editor mode');
               switchToMode('editor');
             });
+
+            window.electronAPI.onSwitchToNetwork(() => {
+              console.log('[IPC] Switching to network mode');
+              switchToMode('network');
+            });
           }
 
           // Set up title bar controls (only in Electron)

@@ -339,6 +339,24 @@ h2 {
     font-weight: 500;
 }
 
+/* Current file highlighting */
+#file-tree-view li.current-file,
+.file-tree-item.current-file {
+    background-color: rgba(0, 122, 204, 0.2);
+    border-left: 3px solid #007acc;
+    font-weight: 600;
+}
+
+/* Keyboard navigation selection */
+#file-tree-view li.keyboard-selected,
+.file-tree-item.keyboard-selected {
+    background-color: rgba(255, 193, 7, 0.15);
+    border-left: 3px solid #ffc107;
+    outline: 2px solid #ffc107;
+    outline-offset: -2px;
+    font-weight: 500;
+}
+
 /* --- Right Pane (Preview/Chat) --- */
 .right-pane {
     flex-grow: 1;
@@ -677,6 +695,26 @@ body.dark-mode {
 .dark-mode #file-tree-view .folder.selected {
     background-color: rgba(100, 149, 237, 0.3);
     border-left: 3px solid #6495ed;
+    font-weight: 500;
+}
+
+/* Dark mode current file highlighting */
+.dark-mode #file-tree-view .file.current-file,
+.dark-mode #file-tree-view .folder.current-file,
+.dark-mode .file-tree-item.current-file {
+    background-color: rgba(0, 122, 204, 0.25);
+    border-left: 3px solid #007acc;
+    font-weight: 600;
+}
+
+/* Dark mode keyboard navigation selection */
+.dark-mode #file-tree-view .file.keyboard-selected,
+.dark-mode #file-tree-view .folder.keyboard-selected,
+.dark-mode .file-tree-item.keyboard-selected {
+    background-color: rgba(255, 193, 7, 0.2);
+    border-left: 3px solid #ffc107;
+    outline: 2px solid #ffc107;
+    outline-offset: -2px;
     font-weight: 500;
 }
 
