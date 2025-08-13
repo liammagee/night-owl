@@ -1,23 +1,3 @@
-# lecture-8
 
-*Referenced from: [[lecture-sequence]]*
-
-## Overview
-
-*Brief summary of this lecture*
-
-## Key Points
-
-1. 
-2. 
-3. 
-
-## Discussion Questions
-
-- 
-- 
-
-## Further Reading
-
-- 
+## Beyond Binary: Technosymbiosis, CyberSociality and Other Relational Ideas
 

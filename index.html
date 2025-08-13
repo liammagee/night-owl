@@ -52,27 +52,11 @@
             background: #007acc !important;
         }
         
-        /* Force slide content to be light with dark text */
-        #presentation-content .slide-content,
-        #presentation-content .slide-content *,
-        #presentation-root div[style*="background"],
-        #presentation-root .bg-white {
-            background-color: white !important;
-            color: #1f2937 !important;
-        }
+        /* Allow presentation templates to style slides */
+        /* Removed forced white background to allow template styles */
         
         /* Override any inherited dark styling */
-        #presentation-root h1,
-        #presentation-root h2, 
-        #presentation-root h3,
-        #presentation-root h4,
-        #presentation-root h5,
-        #presentation-root h6,
-        #presentation-root p,
-        #presentation-root li,
-        #presentation-root div {
-            color: #1f2937 !important;
-        }
+        /* Removed hardcoded dark color to allow templates to control text color */
         
         /* Preview pane styling - override external CSS */
         #right-pane {
@@ -648,6 +632,57 @@
             padding-left: 0 !important;
         }
 
+        /* File tree item styling */
+        .file-tree-item {
+            display: flex;
+            align-items: center;
+            padding: 2px 4px;
+            margin: 1px 0;
+            border-radius: 3px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .file-tree-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        body.dark-mode .file-tree-item:hover {
+            background-color: #404040;
+        }
+
+        .file-tree-item.folder {
+            font-weight: 500;
+        }
+
+        .file-tree-item.file {
+            font-weight: normal;
+        }
+
+        .file-tree-item .expand-arrow {
+            font-size: 10px;
+            transition: transform 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 12px;
+            height: 12px;
+        }
+
+        .file-tree-item .file-icon {
+            margin-right: 6px;
+            font-size: 12px;
+        }
+
+        .file-tree-item .file-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         /* Status bar styling */
         #editor-status-bar {
             transition: background-color 0.2s, color 0.2s, border-color 0.2s;
@@ -1010,13 +1045,14 @@
                     <h2 id="structure-pane-title">Structure</h2>
                     <div style="display: flex; gap: 4px;">
                         <button id="change-directory-btn" class="btn" title="Change Working Directory" style="display: none; padding: 4px 8px; font-size: 11px;">📁 Directory</button>
-                        <button id="new-folder-btn" class="btn" title="Create New Folder" style="display: none; padding: 4px 8px; font-size: 11px;">+ Folder</button>
+                        <button id="new-folder-btn" class="btn" title="Create New Folder" style="padding: 4px 8px; font-size: 11px;">+ Folder</button>
                     </div>
                 </div>
             </div>
             <div style="flex: 1; overflow-y: auto;">
                 <ul id="structure-list"></ul>
                 <div id="file-tree-view" style="display: none;"></div>
+                <!-- TEMP DEBUG: Test button -->
             </div>
         </div>
 
@@ -2197,7 +2233,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           };
 
           return (
-            <div className="w-full h-screen relative overflow-hidden" style={{background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)'}}>
+            <div className="w-full h-screen relative overflow-hidden" style={{background: 'var(--presentation-bg-gradient, linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%))'}}>
               {/* Controls */}
               {!isPresenting && (
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
@@ -2362,56 +2398,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                         onDoubleClick={() => handleSlideDoubleClick(index)}
                       >
                         <div className="p-8 h-full">
-                          <style>{`
-                            .slide-content h1 { 
-                              font-size: 2.5rem; 
-                              font-weight: bold; 
-                              margin-bottom: 1rem; 
-                              color: #1f2937; 
-                              line-height: 1.2;
-                            }
-                            .slide-content h2 { 
-                              font-size: 2rem; 
-                              font-weight: 600; 
-                              margin-bottom: 0.75rem; 
-                              color: #1f2937; 
-                              line-height: 1.3;
-                            }
-                            .slide-content h3 { 
-                              font-size: 1.5rem; 
-                              font-weight: 500; 
-                              margin-bottom: 0.5rem; 
-                              color: #1f2937; 
-                              line-height: 1.4;
-                            }
-                            .slide-content p { 
-                              margin-bottom: 1rem; 
-                              color: #374151; 
-                              line-height: 1.6; 
-                            }
-                            .slide-content ul { 
-                              margin-bottom: 1rem; 
-                              padding-left: 1.5rem;
-                            }
-                            .slide-content li { 
-                              margin-bottom: 0.5rem; 
-                              color: #374151; 
-                            }
-                            .slide-content strong { 
-                              font-weight: bold; 
-                            }
-                            .slide-content em { 
-                              font-style: italic; 
-                            }
-                            .slide-content code { 
-                              background-color: #f3f4f6; 
-                              padding: 0.25rem 0.5rem; 
-                              border-radius: 0.25rem; 
-                              font-family: monospace; 
-                              font-size: 0.875rem; 
-                            }
-                          `}</style>
-                          <div 
+                            <div 
                             className="slide-content"
                             dangerouslySetInnerHTML={{ __html: slide.parsed }}
                           />
@@ -3435,18 +3422,24 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           }
         }
 
-        // Initialize style system when DOM is ready
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initializeStyleSystem);
-        } else {
+        // Initialize everything when DOM is ready
+        function initializeApp() {
+          // Initialize style system
           initializeStyleSystem();
-        }
-        
-        // Initialize network controls when DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
+          
+          // Initialize network controls
           setupNetworkControls();
           setupNetworkFileWatchers();
-        });
+          
+          
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+          initializeApp();
+        }
     </script>
 </body>
 </html>

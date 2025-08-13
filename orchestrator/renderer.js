@@ -6,13 +6,25 @@
 // Context menu items (Menu, MenuItem) are now handled in the main process
 
 // --- Global Variables ---
+try {
+    console.log('=== RENDERER.JS STARTUP DEBUG ===');
+    console.log('[Renderer] Script loading started at:', new Date().toISOString());
+    console.log('[Renderer] Document ready state:', document.readyState);
+    console.log('[Renderer] window object exists:', typeof window !== 'undefined');
+    console.log('[Renderer] require available:', typeof require !== 'undefined');
+    console.log('===================================');
+} catch (startupError) {
+    console.error('ERROR in renderer.js startup:', startupError);
+}
 let editor = null;
+let fallbackEditor = null;
 let markedInstance = null;
 
 // Auto-save variables
 let autoSaveTimer = null;
 let hasUnsavedChanges = false;
 let lastSavedContent = '';
+let suppressAutoSave = false; // Flag to temporarily disable auto-save during file operations
 
 // Speaker notes variables
 let currentSpeakerNotes = [];
@@ -412,14 +424,14 @@ async function renderRegularMarkdown(markdownContent) {
             // Process speaker notes after annotations
             processedContent = processSpeakerNotes(processedContent);
             
-            // Process Obsidian-style [[]] internal links last (now async)
-            // processInternalLinks is handled by the internalLinks.js module
-            if (typeof processInternalLinks === 'function') {
-                processedContent = await processInternalLinks(processedContent);
-            }
+            // Use the custom renderer with marked.parse first
+            let htmlContent = window.marked.parse(processedContent, { renderer: renderer, gfm: true, breaks: true });
             
-            // Use the custom renderer with marked.parse
-            const htmlContent = window.marked.parse(processedContent, { renderer: renderer, gfm: true, breaks: true });
+            // Process Obsidian-style [[]] internal links on the rendered HTML (now async)
+            // processInternalLinks is handled by the internalLinks.js module
+            if (typeof processInternalLinksHTML === 'function') {
+                htmlContent = await processInternalLinksHTML(htmlContent);
+            }
             previewContent.innerHTML = htmlContent;
             
             // Render math equations with MathJax
@@ -977,7 +989,34 @@ function addFoldingKeyboardShortcuts() {
         }
     });
     
+    // Add Save action (Ctrl/Cmd + S)
+    editor.addAction({
+        id: 'save-file',
+        label: 'Save File',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS
+        ],
+        run: async function() {
+            console.log('[Monaco] Save action triggered');
+            await saveFile();
+        }
+    });
+    
+    // Add Save As action (Ctrl/Cmd + Shift + S)
+    editor.addAction({
+        id: 'save-as-file',
+        label: 'Save As...',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS
+        ],
+        run: async function() {
+            console.log('[Monaco] Save As action triggered');
+            await saveAsFile();
+        }
+    });
+    
     console.log('[renderer.js] Folding keyboard shortcuts added');
+    console.log('[renderer.js] Save keyboard shortcuts added');
 }
 
 // --- Folding Toolbar Controls ---
@@ -1527,12 +1566,22 @@ function registerFileLinkAutocomplete() {
     console.log('[renderer.js] File link autocomplete provider registered successfully.');
 }
 
-// --- Initialize Application ---
-async function initializeApp() {
-    console.log('[renderer.js] Initializing application...');
+// --- Initialize Monaco Editor ---
+async function initializeMonacoEditor() {
+    console.log('[renderer.js] *** initializeMonacoEditor() CALLED ***');
     console.log('[renderer.js] Initializing Monaco editor...');
-    require(['vs/editor/editor.main'], async function() {
-        console.log('[renderer.js] Monaco module loaded.');
+    
+    // Check if editor already exists
+    console.log('[renderer.js] Current editor state:', !!window.editor);
+    console.log('[renderer.js] Current fallbackEditor state:', !!fallbackEditor);
+    console.log('[renderer.js] editorContainer exists:', !!document.getElementById('editor-container'));
+    console.log('[renderer.js] About to require Monaco editor module...');
+    
+    // Add error handling for require itself
+    try {
+        await new Promise((resolve, reject) => {
+            require(['vs/editor/editor.main'], async function() {
+                console.log('[renderer.js] Monaco module loaded successfully!');
         
         // Configure Monaco Environment for Electron
         self.MonacoEnvironment = {
@@ -1557,70 +1606,32 @@ async function initializeApp() {
         registerBibTeXLanguage();
         
         try {
-            // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
+            // IMPORTANT: Only use specific content if there's a file to restore
+            // Otherwise, start with empty content to avoid overwriting user files
             let initialContent = '';
             
             console.log('[renderer.js] Monaco content decision - restoredFileContent exists:', !!window.restoredFileContent);
             console.log('[renderer.js] Monaco content decision - hasFileToRestore:', window.hasFileToRestore);
             console.log('[renderer.js] Monaco content decision - useDefaultContentFallback:', window.useDefaultContentFallback);
+            console.log('[renderer.js] Monaco content decision - currentFilePath:', window.currentFilePath);
             
             if (window.restoredFileContent) {
                 initialContent = window.restoredFileContent.content;
                 console.log('[renderer.js] ✅ Using restored file content for Monaco initialization');
-            } else if (!window.hasFileToRestore || window.useDefaultContentFallback) {
-                initialContent = '# My Markdown Document\n\n' +
-                    'This is the introduction to the document.\n\n' +
-                    '## Section One\n' +
-                    'This is content under section one.\n' +
-                    'More content here.\n\n' +
-                    '### Subsection A\n' +
-                    'Content for subsection A.\n' +
-                    'Additional details.\n\n' +
-                    '### Subsection B\n' +
-                    'Content for subsection B.\n' +
-                    'More information here.\n\n' +
-                    '## Section Two\n' +
-                    'This is content under section two.\n\n' +
-                    '```javascript\n' +
-                    'console.log("Hello, world!");\n' +
-                    'function test() {\n' +
-                    '    return "Code folding test";\n' +
-                    '}\n' +
-                    '```\n\n' +
-                    '## Section Three\n' +
-                    'Final section content.\n' +
-                    'The end.';
-                if (window.useDefaultContentFallback) {
-                    console.log('[renderer.js] ✅ Using default content for Monaco initialization (file restoration failed)');
-                } else {
-                    console.log('[renderer.js] ✅ Using default content for Monaco initialization (fresh start)');
-                }
+            } else if (window.currentFilePath || window.hasFileToRestore) {
+                // If there's a current file path or file to restore, start with empty content
+                // The file will be loaded properly by openFileInEditor or restoration process
+                initialContent = '';
+                console.log('[renderer.js] ✅ Using empty content for Monaco initialization (file will be loaded separately)');
+            } else if (window.useDefaultContentFallback && !window.currentFilePath) {
+                // Only use default content if explicitly requested AND there's no current file
+                initialContent = '# New Document\n\nStart writing your content here...';
+                console.log('[renderer.js] ✅ Using minimal default content for Monaco initialization (fresh start only)');
             } else {
-                // Fallback: if we reach here and still have no content, use default
+                // Fallback: if we reach here, use empty content to avoid overwriting anything
                 if (!initialContent) {
-                    console.warn('[renderer.js] No initial content determined, using default content as fallback');
-                    initialContent = '# My Markdown Document\n\n' +
-                        'This is the introduction to the document.\n\n' +
-                        '## Section One\n' +
-                        'This is content under section one.\n' +
-                        'More content here.\n\n' +
-                        '### Subsection A\n' +
-                        'Content for subsection A.\n' +
-                        'Additional details.\n\n' +
-                        '### Subsection B\n' +
-                        'Content for subsection B.\n' +
-                        'More information here.\n\n' +
-                        '## Section Two\n' +
-                        'This is content under section two.\n\n' +
-                        '```javascript\n' +
-                        'console.log("Hello, world!");\n' +
-                        'function test() {\n' +
-                        '    return "Code folding test";\n' +
-                        '}\n' +
-                        '```\n\n' +
-                        '## Section Three\n' +
-                        'Final section content.\n' +
-                        'The end.';
+                    console.log('[renderer.js] ✅ No specific content determined, using empty content to prevent overwrites');
+                    initialContent = '';
                 } else {
                     console.log('[renderer.js] ❌ Using empty content for Monaco initialization (file restoration pending)');
                 }
@@ -1674,6 +1685,12 @@ async function initializeApp() {
                 await updatePreviewAndStructure(currentContent);
                 scheduleAutoSave(); // Schedule auto-save when content changes
             });
+            
+            // Clear fallback editor since Monaco loaded successfully
+            fallbackEditor = null;
+            
+            // Make editor globally accessible for debugging
+            window.editor = editor;
             
             // Initialize auto-save after editor is ready
             initializeAutoSave();
@@ -1912,10 +1929,24 @@ async function initializeApp() {
 
         } catch (error) {
             console.error('[renderer.js] Failed to create Monaco editor instance:', error);
+            console.error('[renderer.js] Full error details:', error.stack || error);
             editorContainer.innerText = 'Failed to load code editor.';
             await createFallbackEditor(); 
         }
-    }); 
+        
+                // Resolve the Promise when Monaco initialization is complete
+                resolve();
+            }, function(requireError) {
+                // Handle require loading errors
+                console.error('[renderer.js] Error in require callback:', requireError);
+                reject(requireError);
+            });
+        }); 
+    } catch (requireError) {
+        console.error('[renderer.js] Error loading Monaco editor module:', requireError);
+        console.log('[renderer.js] Falling back to textarea editor due to require failure');
+        await createFallbackEditor();
+    }
 
     // --- Theme Initialization (Can stay here) ---
 }
@@ -2160,8 +2191,11 @@ function updateAIChatContext(filePath) {
     console.log('[Renderer] AI chat context updated for file:', filePath);
 }
 
-async function openFileInEditor(filePath, content) {
-    console.log('[Renderer] Opening file in editor:', filePath);
+async function openFileInEditor(filePath, content, options = {}) {
+    console.log('[openFileInEditor] Opening file:', filePath);
+    if (options.isInternalLinkPreview) {
+        console.log('[openFileInEditor] Internal link preview mode');
+    }
     
     // Detect file type
     const isPDF = filePath.endsWith('.pdf');
@@ -2169,22 +2203,37 @@ async function openFileInEditor(filePath, content) {
     const isBibTeX = filePath.endsWith('.bib');
     const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
     
-    // Set current file path globally for auto-save
-    window.currentFilePath = filePath;
+    // CRITICAL FIX: Only set current file path if this is NOT an internal link preview
+    if (!options.isInternalLinkPreview) {
+        console.log('[FILEPATH TRACE] Setting currentFilePath FROM:', window.currentFilePath, 'TO:', filePath);
+        console.log('[FILEPATH TRACE] Stack:', new Error().stack);
+        window.currentFilePath = filePath;
+    } else {
+        console.log('[FILEPATH TRACE] SKIPPING currentFilePath change (internal link preview)');
+        console.log('[FILEPATH TRACE] Keeping currentFilePath as:', window.currentFilePath);
+        console.log('[FILEPATH TRACE] Attempted to change to:', filePath);
+    }
     
-    // Highlight the currently opened file in the file tree
-    highlightCurrentFileInTree(filePath);
+    // Only update UI state if this is NOT an internal link preview
+    if (!options.isInternalLinkPreview) {
+        // Highlight the currently opened file in the file tree
+        highlightCurrentFileInTree(filePath);
+        
+        // Add to navigation history and recent files (unless we're navigating history)
+        const fileName = filePath.split('/').pop();
+        addToNavigationHistory(filePath, fileName);
+        addFileToRecents(filePath);
+    } else {
+        console.log('[DEBUG] SKIPPING navigation/tree updates (internal link preview)');
+    }
     
-    // Add to navigation history and recent files (unless we're navigating history)
-    const fileName = filePath.split('/').pop();
-    addToNavigationHistory(filePath, fileName);
-    addFileToRecents(filePath);
-    
-    // Store current file directory for image path resolution
-    // Extract directory from file path
-    const lastSlash = filePath.lastIndexOf('/');
-    window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
-    console.log('[Renderer] Set current file directory:', window.currentFileDirectory);
+    // Store current file directory for image path resolution (only for real file opens)
+    if (!options.isInternalLinkPreview) {
+        // Extract directory from file path
+        const lastSlash = filePath.lastIndexOf('/');
+        window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
+        console.log('[Renderer] Set current file directory:', window.currentFileDirectory);
+    }
     
     // Handle PDF files
     if (isPDF) {
@@ -2293,10 +2342,17 @@ async function handleHTMLFile(filePath, content) {
 // Handle editable files (Markdown, BibTeX, HTML)
 async function handleEditableFile(filePath, content, fileTypes) {
     console.log('[Renderer] Handling editable file:', filePath, fileTypes);
+    console.log('[Renderer] handleEditableFile content length:', content ? content.length : 'NO CONTENT');
+    console.log('[Renderer] Editor available:', !!editor, 'setValue function:', typeof editor?.setValue);
     
     // Set up internal link click handler if not already done
     if (!window.internalLinkHandlerSetup) {
-        document.addEventListener('click', handleInternalLinkClick);
+        document.addEventListener('click', (event) => {
+            // Use window reference to ensure function is available
+            if (window.handleInternalLinkClick && typeof window.handleInternalLinkClick === 'function') {
+                window.handleInternalLinkClick(event);
+            }
+        });
         window.internalLinkHandlerSetup = true;
         console.log('[Renderer] Internal link click handler set up');
     }
@@ -2310,31 +2366,62 @@ async function handleEditableFile(filePath, content, fileTypes) {
     
     // Set editor content and language (Monaco or fallback)
     if (editor && typeof editor.setValue === 'function') {
-        editor.setValue(content);
+        console.log('[openFileInEditor] Setting content in Monaco editor');
         
-        // Configure language and theme based on file type
-        const model = editor.getModel();
-        if (model) {
+        // Temporarily suppress auto-save during programmatic content setting
+        suppressAutoSave = true;
+        
+        try {
+            // Set editor content safely
+            const currentModel = editor.getModel();
+            if (currentModel) {
+                currentModel.setValue(content);
+            } else {
+                const newModel = monaco.editor.createModel(content, 'markdown');
+                editor.setModel(newModel);
+            }
+            
+            // Force a layout update
+            editor.layout();
+            
+        } catch (error) {
+            console.error('[openFileInEditor] Error setting editor content:', error);
+            // Fallback to basic setValue
+            try {
+                editor.setValue(content);
+            } catch (fallbackError) {
+                console.error('[openFileInEditor] Fallback setValue also failed:', fallbackError);
+            }
+        }
+        
+        suppressAutoSave = false;
+        
+        // Configure language and theme based on file type  
+        const currentModel = editor.getModel();
+        if (currentModel) {
             if (fileTypes.isBibTeX) {
-                monaco.editor.setModelLanguage(model, 'bibtex');
+                monaco.editor.setModelLanguage(currentModel, 'bibtex');
                 // Apply appropriate BibTeX theme based on current theme
                 const isDarkTheme = editor._themeService?.getColorTheme()?.type === 'dark' || 
                                   window.currentTheme === 'dark';
                 editor.updateOptions({ theme: isDarkTheme ? 'bibtex-dark' : 'bibtex-light' });
                 console.log('[Renderer] Configured editor for BibTeX file with', isDarkTheme ? 'dark' : 'light', 'theme');
             } else if (fileTypes.isHTML) {
-                monaco.editor.setModelLanguage(model, 'html');
+                monaco.editor.setModelLanguage(currentModel, 'html');
                 editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'vs-dark' : 'vs' });
                 console.log('[Renderer] Configured editor for HTML file');
             } else {
                 // Default to markdown for .md files and others
-                monaco.editor.setModelLanguage(model, 'markdown');
+                monaco.editor.setModelLanguage(currentModel, 'markdown');
                 editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'vs-dark' : 'vs' });
                 console.log('[Renderer] Configured editor for Markdown file');
             }
         }
     } else if (fallbackEditor) {
+        console.log('[openFileInEditor] Using fallback editor');
         fallbackEditor.value = content;
+    } else {
+        console.error('[openFileInEditor] ERROR: No editor available (neither Monaco nor fallback)');
     }
     
     // Update last saved content for auto-save tracking
@@ -2460,6 +2547,8 @@ function updateFallbackCursorPosition() {
 async function createFallbackEditor() {
     console.log('[renderer.js] Creating fallback textarea editor...');
     const textarea = document.createElement('textarea');
+    fallbackEditor = textarea;
+    window.fallbackEditor = textarea; // Make available globally for debugging
     
     // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
     if (window.restoredFileContent) {
@@ -2520,6 +2609,22 @@ document.addEventListener('keydown', async (e) => {
         return;
     }
     
+    // Ctrl+S or Cmd+S: Save file
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        console.log('[renderer.js] Save shortcut triggered (Ctrl/Cmd+S)');
+        await saveFile();
+        return;
+    }
+    
+    // Ctrl+Shift+S or Cmd+Shift+S: Save As file
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        console.log('[renderer.js] Save As shortcut triggered (Ctrl/Cmd+Shift+S)');
+        await saveAsFile();
+        return;
+    }
+    
     // Ctrl+Shift+F or Cmd+Shift+F: Open Global Search
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
         e.preventDefault();
@@ -2577,9 +2682,12 @@ document.addEventListener('keydown', async (e) => {
     }
 });
 
-// Wait for the DOM to be fully loaded before trying to initialize
-document.addEventListener('DOMContentLoaded', async () => {
+// Initialize the application 
+async function performAppInitialization() {
+    console.log('[renderer.js] *** performAppInitialization() CALLED ***');
+    console.log('[renderer.js] Current timestamp:', new Date().toISOString());
     console.log('[renderer.js] DOM fully loaded and parsed.');
+    console.log('[renderer.js] window.marked available:', !!window.marked);
     // Load settings before initializing the rest of the app
     await loadAppSettings();
     // Since Marked script has 'defer', it should be loaded and executed before DOMContentLoaded.
@@ -2595,7 +2703,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         console.log('[renderer.js] Marked instance configured.');
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
-        await initializeApp(); // Initialize now that Marked is ready and DOM is loaded
+        
+        console.log('[renderer.js] *** ABOUT TO CALL initializeMonacoEditor() ***');
+        try {
+            await initializeMonacoEditor(); // Initialize now that Marked is ready and DOM is loaded
+            console.log('[renderer.js] *** initializeMonacoEditor() COMPLETED SUCCESSFULLY ***');
+        } catch (initError) {
+            console.error('[renderer.js] *** ERROR in initializeMonacoEditor() ***:', initError);
+            console.error('[renderer.js] *** initializeMonacoEditor() ERROR STACK ***:', initError.stack);
+        }
+        
         setupNavigationControls(); // Setup navigation buttons and keyboard shortcuts
         
         // Initialize file tree view on startup
@@ -2604,11 +2721,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         // If Marked is still not loaded here, there's a problem with the script tag or network.
         console.error('[renderer.js] CRITICAL: window.marked not found after DOMContentLoaded. Check Marked script tag in index.html and network connection.');
-        // Optionally, initialize with a fallback or show an error message.
-        // For now, we might still attempt init, but preview will fail.
-        // initializeApp(); // Or maybe prevent init entirely?
-        // Or create fallback:
-        // createFallbackEditor(); // (Already called above, perhaps move that call here?)
+        console.log('[renderer.js] Initializing Monaco editor anyway to fix editor issue...');
+        
+        // Initialize the app even without marked - the Monaco editor should still work
+        // Preview functionality will be limited but editor will be functional
+        applyLayoutSettings(appSettings.layout); // Apply saved layout settings
+        
+        console.log('[renderer.js] *** ABOUT TO CALL initializeMonacoEditor() (no marked fallback) ***');
+        try {
+            await initializeMonacoEditor(); // Initialize the Monaco editor
+            console.log('[renderer.js] *** initializeMonacoEditor() COMPLETED SUCCESSFULLY (no marked fallback) ***');
+        } catch (initError) {
+            console.error('[renderer.js] *** ERROR in initializeMonacoEditor() (no marked fallback) ***:', initError);
+            console.error('[renderer.js] *** initializeMonacoEditor() ERROR STACK (no marked fallback) ***:', initError.stack);
+        }
+        
+        setupNavigationControls(); // Setup navigation buttons and keyboard shortcuts
+        
+        // Initialize file tree view on startup
+        switchStructureView('file'); // Switch to file view
+        renderFileTree(); // Load the file tree
     }
     
     // Initialize AI Chat functionality
@@ -2618,7 +2750,74 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         console.warn('[renderer.js] AI Chat initialization function not found');
     }
-});
+}
+
+// Emergency fallback - create a basic editor immediately if nothing else works
+function createEmergencyEditor() {
+    console.log('[renderer.js] Creating emergency fallback editor...');
+    const editorContainer = document.getElementById('editor-container');
+    if (editorContainer && !window.editor && !fallbackEditor) {
+        const textarea = document.createElement('textarea');
+        textarea.style.width = '100%';
+        textarea.style.height = '100%';
+        textarea.style.border = 'none';
+        textarea.style.padding = '10px';
+        textarea.style.fontFamily = 'monospace';
+        textarea.style.fontSize = '14px';
+        textarea.value = '# Emergency Editor\n\nThe main editor failed to load. This is a basic fallback.';
+        
+        editorContainer.innerHTML = '';
+        editorContainer.appendChild(textarea);
+        
+        window.editor = {
+            getValue: () => textarea.value,
+            setValue: (value) => { textarea.value = value; },
+            getModel: () => null,
+            layout: () => {},
+            focus: () => textarea.focus(),
+            onKeyDown: () => {}, // Stub for listManagement.js
+            onDidChangeModelContent: (callback) => {
+                textarea.addEventListener('input', callback);
+                return { dispose: () => {} };
+            },
+            getPosition: () => ({ lineNumber: 1, column: 1 }),
+            setPosition: () => {},
+            revealLineInCenter: () => {},
+            updateOptions: () => {},
+            dispose: () => {}
+        };
+        
+        console.log('[renderer.js] Emergency editor created successfully');
+        return true;
+    }
+    return false;
+}
+
+// Try emergency editor after a delay if nothing else worked
+setTimeout(() => {
+    if (!window.editor && !fallbackEditor) {
+        console.log('[renderer.js] No editor detected after 3 seconds, creating emergency editor...');
+        createEmergencyEditor();
+    }
+}, 3000);
+
+// Wait for the DOM to be fully loaded before trying to initialize
+console.log('[renderer.js] *** Checking document.readyState:', document.readyState, ' ***');
+if (document.readyState === 'loading') {
+    // DOM hasn't finished loading yet
+    console.log('[renderer.js] DOM still loading, waiting for DOMContentLoaded...');
+    document.addEventListener('DOMContentLoaded', performAppInitialization);
+} else {
+    // DOM has already finished loading
+    console.log('[renderer.js] DOM already loaded, initializing immediately...');
+    try {
+        performAppInitialization();
+    } catch (error) {
+        console.error('[renderer.js] ERROR in performAppInitialization:', error);
+        // Try emergency editor if main initialization fails
+        setTimeout(createEmergencyEditor, 1000);
+    }
+}
 
 // --- Apply Layout Settings Function ---
 function applyLayoutSettings(layout) {
@@ -2881,7 +3080,11 @@ function switchStructureView(view) {
 }
 
 // --- File Tree Functions ---
+// Global state for tracking expanded folders
+window.expandedFolders = window.expandedFolders || new Set();
+
 async function renderFileTree() {
+    console.log('[renderFileTree] Starting file tree render');
     if (!window.electronAPI) {
         console.warn('[renderFileTree] ElectronAPI not available');
         return;
@@ -2902,6 +3105,10 @@ async function renderFileTree() {
         
         // Render the file tree
         if (fileTree && fileTree.children) {
+            // Auto-expand the root directory and common folders on first load
+            if (window.expandedFolders.size === 0) {
+                expandCommonFolders(fileTree);
+            }
             renderFileTreeNode(fileTree, fileTreeView, 0);
         } else {
             fileTreeView.innerHTML = '<div class="no-files">No files found</div>';
@@ -2919,15 +3126,28 @@ async function renderFileTree() {
 }
 
 function renderFileTreeNode(node, container, depth) {
+    console.log(`[renderFileTreeNode] Rendering ${node.type}: ${node.name} at depth ${depth}`);
     const nodeElement = document.createElement('div');
     nodeElement.className = 'file-tree-item';
     nodeElement.style.paddingLeft = `${depth * 16}px`;
     
     const isFolder = node.type === 'folder' || node.type === 'directory';
+    const hasChildren = isFolder && node.children && node.children.length > 0;
+    const isExpanded = window.expandedFolders.has(node.path);
+    
+    // Create expand/collapse arrow for folders with children
+    let expandArrow = '';
+    if (hasChildren) {
+        expandArrow = `<span class="expand-arrow" style="margin-right: 4px; cursor: pointer; user-select: none;">${isExpanded ? '▼' : '▶'}</span>`;
+    } else if (isFolder) {
+        expandArrow = '<span style="margin-right: 12px;"></span>'; // Spacing for empty folders
+    }
+    
     const icon = isFolder ? '📁' : '📄';
     const fileName = node.name;
     
     nodeElement.innerHTML = `
+        ${expandArrow}
         <span class="file-icon">${icon}</span>
         <span class="file-name">${fileName}</span>
     `;
@@ -2936,6 +3156,23 @@ function renderFileTreeNode(node, container, depth) {
     if (isFolder) {
         nodeElement.classList.add('folder');
         nodeElement.dataset.path = node.path;
+        nodeElement.draggable = true;
+        
+        // Add click handler for folders to toggle expand/collapse
+        nodeElement.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (hasChildren) {
+                toggleFolderExpansion(node.path);
+                renderFileTree(); // Re-render the tree to reflect changes
+            }
+        });
+        
+        // Add context menu for folders
+        nodeElement.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            console.log(`[renderFileTree] Context menu requested for folder: ${node.path}`);
+            showFileContextMenu(event, node.path, true);
+        });
     } else {
         nodeElement.classList.add('file', 'file-clickable');
         nodeElement.dataset.path = node.path;
@@ -2944,8 +3181,13 @@ function renderFileTreeNode(node, container, depth) {
             try {
                 console.log(`[renderFileTree] Opening file: ${node.path}`);
                 const result = await window.electronAPI.invoke('open-file-path', node.path);
+                console.log(`[renderFileTree] IPC result:`, result);
                 if (result.success && window.openFileInEditor) {
+                    console.log(`[renderFileTree] Calling openFileInEditor with:`, result.filePath, result.content ? result.content.substring(0, 100) + '...' : 'NO CONTENT');
                     await window.openFileInEditor(result.filePath, result.content);
+                    console.log(`[renderFileTree] openFileInEditor completed`);
+                } else {
+                    console.error(`[renderFileTree] Failed to open file:`, result.success ? 'openFileInEditor not available' : result.error);
                 }
             } catch (error) {
                 console.error('[renderFileTree] Error opening file:', error);
@@ -2960,24 +3202,50 @@ function renderFileTreeNode(node, container, depth) {
         });
     }
     
-    // Make folders draggable too for moving and add context menu
-    if (isFolder) {
-        nodeElement.draggable = true;
-        
-        // Add context menu for folders
-        nodeElement.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-            console.log(`[renderFileTree] Context menu requested for folder: ${node.path}`);
-            showFileContextMenu(event, node.path, true);
-        });
-    }
-    
     container.appendChild(nodeElement);
     
-    // Render children if it's a folder
-    if (isFolder && node.children && node.children.length > 0) {
+    // Render children only if it's a folder, has children, and is expanded
+    if (hasChildren && isExpanded) {
         for (const child of node.children) {
             renderFileTreeNode(child, container, depth + 1);
+        }
+    }
+}
+
+// Function to toggle folder expansion state
+function toggleFolderExpansion(folderPath) {
+    if (window.expandedFolders.has(folderPath)) {
+        window.expandedFolders.delete(folderPath);
+        console.log(`[toggleFolderExpansion] Collapsed folder: ${folderPath}`);
+    } else {
+        window.expandedFolders.add(folderPath);
+        console.log(`[toggleFolderExpansion] Expanded folder: ${folderPath}`);
+    }
+}
+
+// Function to automatically expand common/important folders on first load
+function expandCommonFolders(rootNode) {
+    // Always expand the root directory if it has children
+    if (rootNode.children && rootNode.children.length > 0) {
+        window.expandedFolders.add(rootNode.path);
+        
+        // Auto-expand folders with common names or small number of items
+        for (const child of rootNode.children) {
+            if (child.type === 'folder' || child.type === 'directory') {
+                const folderName = child.name.toLowerCase();
+                const childCount = child.children ? child.children.length : 0;
+                
+                // Expand if:
+                // 1. Common folder names (src, docs, components, etc.)
+                // 2. Small folders (5 or fewer items)
+                // 3. Only folder in the directory
+                if (folderName.match(/(src|docs|components|utils|lib|assets|styles|images|lectures|notes|content)/) ||
+                    childCount <= 5 ||
+                    rootNode.children.length === 1) {
+                    window.expandedFolders.add(child.path);
+                    console.log(`[expandCommonFolders] Auto-expanded: ${child.path}`);
+                }
+            }
         }
     }
 }
@@ -3219,6 +3487,9 @@ async function createNewFolder() {
     showFolderNameModal();
 }
 
+// --- Create New Folder Modal (for command palette) ---
+window.showNewFolderModal = createNewFolder;
+
 async function handleCreateFolder() {
     const folderName = folderNameInput.value;
     
@@ -3321,17 +3592,7 @@ function applyTheme(isDarkMode) {
 // Setup context menu listener
 setupContextMenuListener();
 
-// Handle file opened event (e.g., from File > Open or File Tree click)
-if (window.electronAPI) {
-    window.electronAPI.on('file-opened', async (data) => {
-        console.log('[Renderer] Received file-opened event:', data);
-        if (data && typeof data.content === 'string' && typeof data.filePath === 'string') {
-            await openFileInEditor(data.filePath, data.content);
-            // Save current file to settings
-            window.electronAPI.invoke('set-current-file', data.filePath);
-        }
-    });
-}
+// Duplicate file-opened event listener removed - already handled at line 2065
 
 // Handle new file creation signal from main process
 if (window.electronAPI) {
@@ -3376,12 +3637,16 @@ if (window.electronAPI) {
 
 // Listen for signal to refresh the file tree (e.g., after Open Folder)
 if (window.electronAPI) {
+    console.log('[Renderer] Setting up refresh-file-tree signal handler');
     window.electronAPI.on('refresh-file-tree', () => {
         console.log('[Renderer] Received refresh-file-tree signal.');
+        console.log('[Renderer] Current structure view:', currentStructureView);
         // Always switch to file view and refresh file tree
         if (currentStructureView !== 'files') {
+            console.log('[Renderer] Switching to file view');
             switchStructureView('file');
         }
+        console.log('[Renderer] Calling renderFileTree()');
         renderFileTree();
     });
 }
@@ -3773,7 +4038,7 @@ function initializeAutoSave() {
 
 // Mark that there are unsaved changes and schedule auto-save
 function scheduleAutoSave() {
-    if (!window.appSettings?.ui?.autoSave) return;
+    if (!window.appSettings?.ui?.autoSave || suppressAutoSave) return;
     
     const currentContent = editor ? editor.getValue() : '';
     
@@ -4102,8 +4367,17 @@ function applyEditorSettings(settings) {
 
 // --- Manual Save Function ---
 async function saveFile() {
+    console.log('[saveFile] Saving file:', window.currentFilePath);
+    
     if (!editor) {
+        console.error('[saveFile] No editor available');
         showNotification('No editor available', 'error');
+        return;
+    }
+    
+    if (!window.electronAPI) {
+        console.error('[saveFile] electronAPI not available');
+        showNotification('Save functionality not available', 'error');
         return;
     }
     
@@ -4117,7 +4391,7 @@ async function saveFile() {
             if (result.success) {
                 // Check if content was modified during save (e.g., H1 heading added)
                 if (result.contentChanged && result.updatedContent && editor) {
-                    console.log('[renderer.js] Content was modified during save, updating editor');
+                    console.log('[saveFile] Content was modified during save, updating editor');
                     editor.setValue(result.updatedContent);
                     lastSavedContent = result.updatedContent;
                 } else {
@@ -4127,7 +4401,6 @@ async function saveFile() {
                 hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
-                console.log('[renderer.js] Manual save completed successfully');
                 
                 // Update file tree and current file info if this was a new file save
                 if (result.filePath && !window.currentFilePath) {
@@ -4140,8 +4413,8 @@ async function saveFile() {
                     renderFileTree();
                 }
             } else {
+                console.error('[saveFile] Save failed:', result.error);
                 showNotification(`Save failed: ${result.error}`, 'error');
-                console.error('[renderer.js] Manual save failed:', result.error);
             }
         } else {
             // Save new file - show save dialog
@@ -4165,27 +4438,37 @@ async function saveFile() {
             if (result.success && result.filePath) {
                 window.currentFilePath = result.filePath;
                 
-                // Add H1 heading with filename if the file is empty or doesn't start with one
+                // Only add H1 heading for truly empty or very short content to avoid modifying existing files
                 const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
                 console.log('[saveFile] About to call addH1HeadingIfNeeded with fileName:', fileName);
-                const updatedContent = addH1HeadingIfNeeded(content, fileName);
-                console.log('[saveFile] Content changed?', updatedContent !== content);
+                const trimmedContent = content.trim();
+                const shouldAddHeading = trimmedContent.length === 0 || 
+                                       (trimmedContent.length < 50 && !trimmedContent.includes('---') && !trimmedContent.startsWith('#'));
                 
-                // Update editor with new content if heading was added
-                if (updatedContent !== content && editor) {
-                    editor.setValue(updatedContent);
-                    lastSavedContent = updatedContent;
+                if (shouldAddHeading) {
+                    const updatedContent = addH1HeadingIfNeeded(content, fileName);
+                    console.log('[saveFile] Content changed?', updatedContent !== content);
                     
-                    // Save the updated content with the heading
-                    try {
-                        const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
-                        if (!saveResult.success) {
-                            console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
+                    // Update editor with new content if heading was added
+                    if (updatedContent !== content && editor) {
+                        editor.setValue(updatedContent);
+                        lastSavedContent = updatedContent;
+                        
+                        // Save the updated content with the heading
+                        try {
+                            const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
+                            if (!saveResult.success) {
+                                console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
+                            }
+                        } catch (error) {
+                            console.warn('[renderer.js] Error saving file with H1 heading:', error);
                         }
-                    } catch (error) {
-                        console.warn('[renderer.js] Error saving file with H1 heading:', error);
+                    } else {
+                        lastSavedContent = content;
                     }
                 } else {
+                    // Skip adding heading for files with existing content or slide markers
+                    console.log('[saveFile] Skipping H1 heading addition for existing content');
                     lastSavedContent = content;
                 }
                 
@@ -4213,7 +4496,7 @@ async function saveFile() {
             }
         }
     } catch (error) {
-        console.error('[renderer.js] Manual save error:', error);
+        console.error('[saveFile] Error saving file:', error);
         showNotification('Save error: ' + error.message, 'error');
     }
 }
@@ -4251,7 +4534,30 @@ function addH1HeadingIfNeeded(content, fileName) {
         return content;
     }
     
-    // Add H1 heading at the beginning
+    // Check if content starts with slide markers (---) - presentation format
+    if (firstNonEmptyLine && firstNonEmptyLine.trim() === '---') {
+        // This is presentation content with slide markers
+        // Add H1 as the first slide content, not before the markers
+        console.log('[addH1HeadingIfNeeded] Detected slide markers - adding H1 as first slide');
+        
+        // Find the end of the first slide marker section
+        let insertIndex = 0;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim() === '---') {
+                insertIndex = i + 1;
+                break;
+            }
+        }
+        
+        // Insert the H1 heading after the first slide marker
+        const beforeMarker = lines.slice(0, insertIndex);
+        const afterMarker = lines.slice(insertIndex);
+        const result = beforeMarker.concat([`# ${cleanFileName}`, ''], afterMarker).join('\n');
+        console.log('[addH1HeadingIfNeeded] Adding H1 after first slide marker:', result.substring(0, 100));
+        return result;
+    }
+    
+    // Add H1 heading at the beginning (normal content)
     const result = `# ${cleanFileName}\n\n${content}`;
     console.log('[addH1HeadingIfNeeded] Adding H1 to beginning:', result.substring(0, 100));
     return result;
@@ -4289,27 +4595,37 @@ async function saveAsFile() {
         if (result.success && result.filePath) {
             window.currentFilePath = result.filePath;
             
-            // Add H1 heading with filename if the file is empty or doesn't start with one
+            // Only add H1 heading for truly empty or very short content to avoid modifying existing files
             const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
             console.log('[saveAsFile] About to call addH1HeadingIfNeeded with fileName:', fileName);
-            const updatedContent = addH1HeadingIfNeeded(content, fileName);
-            console.log('[saveAsFile] Content changed?', updatedContent !== content);
+            const trimmedContent = content.trim();
+            const shouldAddHeading = trimmedContent.length === 0 || 
+                                   (trimmedContent.length < 50 && !trimmedContent.includes('---') && !trimmedContent.startsWith('#'));
             
-            // Update editor with new content if heading was added
-            if (updatedContent !== content && editor) {
-                editor.setValue(updatedContent);
-                lastSavedContent = updatedContent;
+            if (shouldAddHeading) {
+                const updatedContent = addH1HeadingIfNeeded(content, fileName);
+                console.log('[saveAsFile] Content changed?', updatedContent !== content);
                 
-                // Save the updated content with the heading
-                try {
-                    const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
-                    if (!saveResult.success) {
-                        console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
+                // Update editor with new content if heading was added
+                if (updatedContent !== content && editor) {
+                    editor.setValue(updatedContent);
+                    lastSavedContent = updatedContent;
+                    
+                    // Save the updated content with the heading
+                    try {
+                        const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
+                        if (!saveResult.success) {
+                            console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
+                        }
+                    } catch (error) {
+                        console.warn('[renderer.js] Error saving file with H1 heading:', error);
                     }
-                } catch (error) {
-                    console.warn('[renderer.js] Error saving file with H1 heading:', error);
+                } else {
+                    lastSavedContent = content;
                 }
             } else {
+                // Skip adding heading for files with existing content or slide markers
+                console.log('[saveAsFile] Skipping H1 heading addition for existing content');
                 lastSavedContent = content;
             }
             
@@ -4743,6 +5059,7 @@ window.saveFile = saveFile;
 window.saveAsFile = saveAsFile;
 window.applyEditorSettings = applyEditorSettings;
 window.extractTextToNewFile = extractTextToNewFile;
+window.openFileInEditor = openFileInEditor;
 
 // New file function - trigger the menu action
 function newFile() {

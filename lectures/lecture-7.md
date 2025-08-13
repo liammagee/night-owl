@@ -1,23 +1,4 @@
-# lecture-7
 
-*Referenced from: [[lecture-sequence]]*
+## From Writing to LLMs: The Anxieties of Technological Influence on Human Learning
 
-## Overview
-
-*Brief summary of this lecture*
-
-## Key Points
-
-1. 
-2. 
-3. 
-
-## Discussion Questions
-
-- 
-- 
-
-## Further Reading
-
-- 
-
+Changing relationship between human and machine. "Assistant" is the wrong metaphor: assumes anthropomorphic "other". Why not a new appendage? Why not acknowledge AI is a powerful cyborgian supplement - like writing, and other technologies?

@@ -6,8 +6,8 @@ class StyleManager {
         this.presentationTemplates = new Map();
         this.previewStyles = new Map();
         this.exportStyles = new Map();
-        this.currentPresentationTemplate = 'academic';
-        this.currentPreviewStyle = 'academic-preview';
+        this.currentPresentationTemplate = 'minimal';
+        this.currentPreviewStyle = 'minimal-preview';
         this.currentExportStyle = 'academic-export';
         this.customStyles = new Map();
         
@@ -22,21 +22,21 @@ class StyleManager {
             name: 'Academic',
             description: 'Professional academic presentation style',
             cssFile: './styles/templates/presentations/academic.css',
-            preview: '/styles/previews/academic-presentation.jpg'
+            preview: './styles/previews/academic-presentation.png'
         });
 
         this.presentationTemplates.set('minimal', {
             name: 'Minimal',
             description: 'Clean, minimalist presentation style',
             cssFile: './styles/templates/presentations/minimal.css',
-            preview: '/styles/previews/minimal-presentation.jpg'
+            preview: './styles/previews/minimal-presentation.png'
         });
 
         this.presentationTemplates.set('dark', {
             name: 'Dark',
             description: 'Dark theme for presentations',
             cssFile: './styles/templates/presentations/dark.css',
-            preview: '/styles/previews/dark-presentation.jpg'
+            preview: './styles/previews/dark-presentation.png'
         });
 
         // Preview styles

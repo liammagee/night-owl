@@ -75,7 +75,8 @@ async function loadLinkContent(filePath) {
         const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
         const fullPath = `${workingDir}/${filePath}`;
         
-        const result = await window.electronAPI.invoke('open-file-path', fullPath);
+        // CRITICAL FIX: Use read-file-content to avoid changing currentFilePath
+        const result = await window.electronAPI.invoke('read-file-content', fullPath);
         
         if (result.success) {
             return extractPreviewContent(result.content);
@@ -87,6 +88,9 @@ async function loadLinkContent(filePath) {
 }
 
 function createInlineLinkPreview(display, cleanLink, filePath, content) {
+    // Render markdown content as HTML if marked is available
+    const renderedContent = window.marked ? window.marked.parse(content) : content.replace(/\n/g, '<br>');
+    
     return `
         <div class="inline-link-preview">
             <div class="inline-link-header">
@@ -95,7 +99,7 @@ function createInlineLinkPreview(display, cleanLink, filePath, content) {
                 </a>
             </div>
             <div class="inline-link-content">
-                <p>${content}</p>
+                ${renderedContent}
             </div>
         </div>
     `;
@@ -122,8 +126,8 @@ async function openInternalLink(filePath, originalLink) {
         const fullPath = `${workingDir}/${filePath}`;
         
         
-        // Try to open the file
-        const result = await window.electronAPI.invoke('open-file-path', fullPath);
+        // CRITICAL FIX: Use read-file-content instead of open-file-path to avoid changing currentFilePath
+        const result = await window.electronAPI.invoke('read-file-content', fullPath);
         
         if (result.success) {
             
@@ -136,11 +140,12 @@ async function openInternalLink(filePath, originalLink) {
             }
             
             // Load the file content into both editor and preview
-            await window.openFileInEditor(result.filePath, result.content);
+            // CRITICAL FIX: Pass flag to prevent changing currentFilePath
+            await window.openFileInEditor(result.filePath, result.content, { isInternalLinkPreview: true });
         } else {
-            
-            // Try to automatically create the file based on current content
-            await autoCreateInternalLinkFile(fullPath, originalLink, filePath);
+            // File not found - just show an error, don't auto-create
+            console.warn(`[openInternalLink] File not found: ${fullPath}`);
+            alert(`File not found: ${filePath}`);
         }
     } catch (error) {
     }
@@ -184,8 +189,8 @@ async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
         const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
         const fullPath = `${workingDir}/${filePath}`;
         
-        
-        const result = await window.electronAPI.invoke('open-file-path', fullPath);
+        // CRITICAL FIX: Use read-file-content for hover previews to avoid changing currentFilePath
+        const result = await window.electronAPI.invoke('read-file-content', fullPath);
         
         if (result.success && result.content) {
             const content = extractPreviewContent(result.content);
@@ -199,29 +204,102 @@ async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
 function extractPreviewContent(content) {
     if (!content) return 'No content available';
     
-    // Extract first paragraph or first 200 characters
+    // Split into lines and filter out empty lines
     const lines = content.split('\n').filter(line => line.trim());
     if (lines.length === 0) return 'Empty file';
     
-    // Find first non-header line
-    const contentLine = lines.find(line => !line.trim().startsWith('#'));
-    if (contentLine) {
-        return contentLine.trim().substring(0, 200) + (contentLine.length > 200 ? '...' : '');
+    // Collect meaningful content lines (excluding headers, links, code blocks, etc.)
+    const meaningfulLines = [];
+    let inCodeBlock = false;
+    
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        
+        // Skip empty lines
+        if (!trimmedLine) continue;
+        
+        // Track code block boundaries
+        if (trimmedLine.startsWith('```')) {
+            inCodeBlock = !inCodeBlock;
+            continue;
+        }
+        
+        // Skip content inside code blocks
+        if (inCodeBlock) continue;
+        
+        // Skip markdown headers
+        if (trimmedLine.startsWith('#')) continue;
+        
+        // Skip lines that are just internal links
+        if (trimmedLine.match(/^\[\[[^\]]+\]\]$/)) continue;
+        
+        // Skip lines that are just markdown formatting (like ---, ***, etc.)
+        if (trimmedLine.match(/^[-*=_]{3,}$/)) continue;
+        
+        // Skip lines that start with markdown list markers followed by just a link
+        if (trimmedLine.match(/^[-*+]\s*\[\[[^\]]+\]\]$/)) continue;
+        
+        // This looks like meaningful content
+        meaningfulLines.push(trimmedLine);
+        
+        // Stop once we have enough content (equivalent to about 2 sentences)
+        const combinedText = meaningfulLines.join(' ');
+        if (combinedText.length > 300 || meaningfulLines.length >= 3) {
+            break;
+        }
     }
     
-    // Fallback to first line
-    return lines[0].substring(0, 200) + (lines[0].length > 200 ? '...' : '');
+    if (meaningfulLines.length === 0) {
+        // Fallback: return first non-header line even if it might be a link
+        const fallbackLine = lines.find(line => !line.trim().startsWith('#'));
+        return fallbackLine ? fallbackLine.trim().substring(0, 200) + '...' : 'No content preview available';
+    }
+    
+    // Join the meaningful lines and clean up any remaining markdown
+    let previewText = meaningfulLines.join(' ');
+    
+    // Remove internal links from the preview text
+    previewText = previewText.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
+        return displayText ? displayText.trim() : link.trim();
+    });
+    
+    // Remove inline code markers
+    previewText = previewText.replace(/`([^`]+)`/g, '$1');
+    
+    // Remove bold/italic markers
+    previewText = previewText.replace(/\*\*([^*]+)\*\*/g, '$1');
+    previewText = previewText.replace(/\*([^*]+)\*/g, '$1');
+    
+    // Limit length and add ellipsis if needed
+    if (previewText.length > 400) {
+        // Try to cut at a sentence boundary
+        const sentences = previewText.substring(0, 400).split(/[.!?]/);
+        if (sentences.length > 1) {
+            // Use all complete sentences except the last incomplete one
+            previewText = sentences.slice(0, -1).join('.') + '.';
+        } else {
+            // Cut at word boundary
+            const words = previewText.substring(0, 400).split(' ');
+            previewText = words.slice(0, -1).join(' ') + '...';
+        }
+    }
+    
+    return previewText || 'No content preview available';
 }
 
 function createLinkPreviewTooltip(originalLink, filePath, content, x, y) {
     const tooltip = document.createElement('div');
     tooltip.className = 'link-preview-tooltip';
+    
+    // Render markdown content as HTML if marked is available
+    const renderedContent = window.marked ? window.marked.parse(content) : content.replace(/\n/g, '<br>');
+    
     tooltip.innerHTML = `
         <div class="link-preview-header">
             <strong>${originalLink}</strong>
             <div class="link-preview-path">${filePath}</div>
         </div>
-        <div class="link-preview-content">${content}</div>
+        <div class="link-preview-content">${renderedContent}</div>
     `;
     
     updateTooltipPosition(tooltip, x, y);
@@ -319,121 +397,90 @@ async function toggleLinkPreview() {
 
 // --- Auto-create Link File Functions ---
 async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
-    try {
-        
-        // Check if file already exists to detect conflicts
-        const fileExists = await window.electronAPI.invoke('check-file-exists', fullPath);
-        
-        if (fileExists) {
-            // Show conflict dialog and let user decide
-            const shouldOverwrite = confirm(`File "${filePath}" already exists. Would you like to open it instead?`);
-            if (shouldOverwrite) {
-                // Try to open the existing file
-                const result = await window.electronAPI.invoke('open-file-path', fullPath);
-                if (result.success) {
-                    await window.openFileInEditor(result.filePath, result.content);
-                    return;
-                }
-            }
-            return; // User chose not to overwrite, or opening failed
-        }
-        
-        // Generate content based on the current file and context
-        const newFileContent = await generateContentForInternalLink(originalLink, filePath);
-        
-        // Create the file automatically at the expected path
-        const result = await window.electronAPI.invoke('create-internal-link-file', {
-            filePath: fullPath,
-            content: newFileContent
-        });
-        
-        if (result.success) {
-            
-            // Refresh file tree to show the new file
-            if (window.renderFileTree) window.renderFileTree();
-            
-            // Automatically open the new file
-            await window.openFileInEditor(result.filePath, newFileContent);
-            
-            // Show success notification
-            window.showNotification(`Created new file: ${filePath}`, 'success');
-        } else {
-            
-            // Fall back to manual creation with dialog
-            const shouldCreateManually = confirm(`Failed to automatically create "${filePath}". Would you like to choose a location manually?`);
-            if (shouldCreateManually) {
-                // Get default directory
-                let defaultDirectory = window.appSettings?.workingDirectory;
-                if (!defaultDirectory) {
-                    try {
-                        const settings = await window.electronAPI.invoke('get-settings');
-                        defaultDirectory = settings?.workingDirectory;
-                    } catch (error) {
-                    }
-                }
-                
-                const manualResult = await window.electronAPI.invoke('perform-save-as', {
-                    content: newFileContent,
-                    defaultDirectory: defaultDirectory
-                });
-                if (manualResult.success) {
-                    window.renderFileTree();
-                }
-            }
-        }
-    } catch (error) {
-    }
+    // DISABLED: This function was causing file overwrites
+    console.error(`[autoCreateInternalLinkFile] AUTO-CREATION DISABLED - File not found: ${fullPath}`);
+    alert(`File not found: ${filePath}\n\nAuto-creation has been disabled to prevent file overwrites.`);
+    return;
 }
 
 async function generateContentForInternalLink(originalLink, filePath) {
-    try {
-        // Extract context around this link from the current content
-        const currentContent = window.editor ? window.editor.getValue() : '';
-        const context = extractLinkContext(currentContent, originalLink);
-        
-        // Generate template sections based on the link name
-        const templateSections = generateTemplateSections(originalLink);
-        
-        // Combine context and template
-        const content = `# ${originalLink}
+    // DISABLED: This function was causing file overwrites
+    console.error(`[generateContentForInternalLink] DISABLED - Content generation blocked for: ${originalLink}`);
+    return `# ${originalLink}\n\n(Auto-generation disabled)`;
+}
 
-> Generated from link in: ${window.currentFilePath ? window.currentFilePath.split('/').pop() : 'current document'}
-
-## Context
-
-${context}
-
-${templateSections}
-
-## Notes
-
-- Add your content here
-- This file was automatically created from an internal link
-- Edit this content to customize the document
-
----
-
-*Created: ${new Date().toISOString().split('T')[0]}*
-`;
-        
-        return content;
-    } catch (error) {
-        // Fallback to simple template
-        return `# ${originalLink}
-
-## Notes
-
-Add your content here.
-
----
-
-*Created: ${new Date().toISOString().split('T')[0]}*
-`;
+// --- Process Internal Links in HTML (after markdown rendering) ---
+async function processInternalLinksHTML(htmlContent) {
+    const previewMode = getLinkPreviewMode();
+    
+    // If disabled, remove internal links entirely
+    if (previewMode === 'disabled') {
+        // Find [[link]] patterns in HTML and replace with just the display text
+        return htmlContent.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
+            const display = displayText ? displayText.trim() : link.trim();
+            return display;
+        });
     }
+    
+    // For hover mode, replace with clickable links
+    if (previewMode === 'hover') {
+        return htmlContent.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
+            const cleanLink = link.trim();
+            const display = displayText ? displayText.trim() : cleanLink;
+            
+            let filePath = cleanLink;
+            if (!filePath.endsWith('.md') && !filePath.endsWith('.bib') && !filePath.endsWith('.pdf') && !filePath.endsWith('.html') && !filePath.endsWith('.htm') && !filePath.includes('.')) {
+                filePath += '.md';
+            }
+            
+            return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+        });
+    }
+    
+    // For inline mode, we need to load content for each link
+    if (previewMode === 'inline') {
+        const linkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+        const linkPromises = [];
+        const linkData = [];
+        let match;
+        
+        // Collect all links first
+        const tempContent = htmlContent; // Work on a copy
+        while ((match = linkRegex.exec(tempContent)) !== null) {
+            const cleanLink = match[1].trim();
+            const display = match[2] ? match[2].trim() : cleanLink;
+            
+            let filePath = cleanLink;
+            if (!filePath.endsWith('.md') && !filePath.endsWith('.bib') && !filePath.endsWith('.pdf') && !filePath.endsWith('.html') && !filePath.endsWith('.htm') && !filePath.includes('.')) {
+                filePath += '.md';
+            }
+            
+            linkData.push({ match: match[0], cleanLink, display, filePath });
+            linkPromises.push(loadLinkContent(filePath));
+        }
+        
+        // Load all link contents
+        const linkContents = await Promise.all(linkPromises);
+        
+        // Replace links with inline content
+        let processedHTML = htmlContent;
+        for (let i = linkData.length - 1; i >= 0; i--) { // Reverse order to maintain positions
+            const { match, cleanLink, display, filePath } = linkData[i];
+            const linkContent = linkContents[i];
+            
+            const inlineHTML = createInlineLinkPreview(display, cleanLink, filePath, linkContent);
+            processedHTML = processedHTML.replace(match, inlineHTML);
+        }
+        
+        return processedHTML;
+    }
+    
+    return htmlContent;
 }
 
 // --- Export for Global Access ---
 window.processInternalLinks = processInternalLinks;
+window.processInternalLinksHTML = processInternalLinksHTML;
 window.openInternalLink = openInternalLink;
 window.setupLinkPreviewHandlers = setupLinkPreviewHandlers;
 window.toggleLinkPreview = toggleLinkPreview;
@@ -522,3 +569,6 @@ Detailed information about ${linkName}.
 - Reference 1
 - Reference 2`;
 }
+
+// Export functions to global scope
+window.handleInternalLinkClick = handleInternalLinkClick;

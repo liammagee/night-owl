@@ -683,11 +683,10 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     
-    if (process.argv.includes('--dev')) {
-      mainWindow.webContents.openDevTools();
-      console.log(`[main.js] App name in ready-to-show: ${app.getName()}`);
-      console.log(`[main.js] Process title: ${process.title}`);
-    }
+    // Always open dev tools for debugging
+    mainWindow.webContents.openDevTools();
+    console.log(`[main.js] App name in ready-to-show: ${app.getName()}`);
+    console.log(`[main.js] Process title: ${process.title}`);
   });
 
   // Set up application menu
@@ -1636,7 +1635,30 @@ function addH1HeadingIfNeeded(content, fileName) {
         return content;
     }
     
-    // Add H1 heading at the beginning
+    // Check if content starts with slide markers (---) - presentation format
+    if (firstNonEmptyLine && firstNonEmptyLine.trim() === '---') {
+        // This is presentation content with slide markers
+        // Add H1 as the first slide content, not before the markers
+        console.log('[main.js] Detected slide markers - adding H1 as first slide');
+        
+        // Find the end of the first slide marker section
+        let insertIndex = 0;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim() === '---') {
+                insertIndex = i + 1;
+                break;
+            }
+        }
+        
+        // Insert the H1 heading after the first slide marker
+        const beforeMarker = lines.slice(0, insertIndex);
+        const afterMarker = lines.slice(insertIndex);
+        const result = beforeMarker.concat([`# ${cleanFileName}`, ''], afterMarker).join('\n');
+        console.log('[main.js] Adding H1 after first slide marker:', result.substring(0, 100));
+        return result;
+    }
+    
+    // Add H1 heading at the beginning (normal content)
     const result = `# ${cleanFileName}\n\n${content}`;
     console.log('[main.js] Adding H1 to beginning:', result.substring(0, 100));
     return result;
@@ -2177,6 +2199,23 @@ app.whenReady().then(() => {
     }
 });
 
+// NEW: Read file content without side effects (for previews, internal links, etc.)
+ipcMain.handle('read-file-content', async (event, filePath) => {
+    try {
+        if (!filePath || typeof filePath !== 'string') {
+            throw new Error('No file path specified');
+        }
+        const content = await fs.readFile(filePath, 'utf8');
+        console.log('[main.js] read-file-content: Reading file WITHOUT changing currentFilePath:', filePath);
+        console.log('[main.js] Current file remains:', currentFilePath);
+        // DO NOT change currentFilePath or settings - just return the content
+        return { success: true, filePath, content };
+    } catch (err) {
+        console.error('[main.js] Error reading file content:', err);
+        return { success: false, error: err.message };
+    }
+});
+
 // Open file by filename (used by network visualization)
 ipcMain.handle('perform-open-file', async (event, filename) => {
   try {
@@ -2530,17 +2569,7 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     return currentWorkingDirectory;
   });
 
-  // File Content Reader Handler
-  ipcMain.handle('read-file-content', async (event, filename) => {
-    try {
-      const filePath = path.join(currentWorkingDirectory, filename);
-      const content = await fs.readFile(filePath, 'utf8');
-      return content;
-    } catch (error) {
-      console.error(`[main.js] Error reading file ${filename}:`, error);
-      throw new Error(`Could not read file: ${error.message}`);
-    }
-  });
+  // REMOVED: Duplicate read-file-content handler (keeping the one at line 2203)
 
   // Test handler for debugging AI service
   ipcMain.handle('test-ai-service', async (event) => {
@@ -2720,13 +2749,10 @@ Keep it concise and focused on the most important points.`;
     if (currentFilePath && typeof currentFilePath === 'string' && currentFilePath.trim() !== '') {
         return await saveFile(currentFilePath, content);
     } else {
-        console.log('[main.js] No valid current path, triggering Save As dialog.');
-        // Get the working directory from settings for the fallback save-as
-        const workingDirectory = appSettings?.workingDirectory;
-        return await performSaveAs({
-            content: content,
-            defaultDirectory: workingDirectory
-        });
+        console.log('[main.js] No valid current path for auto-save, skipping save operation.');
+        // Don't trigger Save As dialog for auto-save operations - just return failure
+        // This prevents addH1HeadingIfNeeded from being called during auto-save
+        return { success: false, error: 'No current file path available for save operation' };
     }
   });
 
@@ -2760,6 +2786,13 @@ Keep it concise and focused on the most important points.`;
   ipcMain.handle('create-internal-link-file', async (event, { filePath, content, originalLink }) => {
     console.log(`[main.js] Creating internal link file: ${filePath}`);
     try {
+      // Double-check that file doesn't already exist to prevent accidental overwrites
+      const fsSync = require('fs');
+      if (fsSync.existsSync(filePath)) {
+        console.warn(`[main.js] Refusing to create file - already exists: ${filePath}`);
+        return { success: false, error: 'File already exists', filePath };
+      }
+      
       // Ensure directory exists
       const dirPath = path.dirname(filePath);
       await fs.mkdir(dirPath, { recursive: true });
@@ -3856,7 +3889,7 @@ Keep it concise and focused on the most important points.`;
   ipcMain.handle('save-user-styles', async (event, styles) => {
     try {
       appSettings.userStyles = styles;
-      await saveAppSettings();
+      saveSettings();
       return true;
     } catch (error) {
       console.error('[main.js] Error saving user styles:', error);
@@ -3871,7 +3904,7 @@ Keep it concise and focused on the most important points.`;
   ipcMain.handle('save-style-preferences', async (event, preferences) => {
     try {
       appSettings.stylePreferences = preferences;
-      await saveAppSettings();
+      saveSettings();
       return true;
     } catch (error) {
       console.error('[main.js] Error saving style preferences:', error);

@@ -3,76 +3,91 @@
 
 :root {
     --primary-color: #ffffff;
-    --secondary-color: #b3b3b3;
+    --secondary-color: #e8e8e8;
     --accent-color: #64b5f6;
-    --text-color: #e0e0e0;
-    --bg-color: #1a1a1a;
-    --border-color: #404040;
-    --highlight-color: #2d2d2d;
-    --code-bg: #0d1117;
+    --text-color: #ffffff;
+    --bg-color: #0f1419;
+    --slide-bg: #1a1d24;
+    --border-color: #525252;
+    --highlight-color: #2a2d33;
+    --code-bg: #282c34;
+    --presentation-bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f1419 100%);
 }
 
-/* Slide container */
-.slide {
-    background: var(--bg-color);
-    color: var(--text-color);
+/* Slide container and content */
+.slide, .slide-content {
+    background: var(--slide-bg) !important;
+    color: var(--text-color) !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.6;
-    padding: 60px;
     border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Ensure parent containers also get dark background */
+#presentation-content,
+#presentation-root,
+#presentation-content .bg-white,
+#presentation-root .bg-white {
+    background: var(--bg-color) !important;
 }
 
 /* Typography */
-.slide h1 {
-    color: var(--primary-color);
+.slide h1, .slide-content h1 {
+    color: #ffffff !important;
     font-size: 2.8em;
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 1.2em;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.7);
+    letter-spacing: -0.02em;
 }
 
-.slide h2 {
-    color: var(--accent-color);
+.slide h2, .slide-content h2 {
+    color: var(--accent-color) !important;
     font-size: 2.2em;
-    font-weight: 500;
+    font-weight: 600;
     margin-top: 1.5em;
     margin-bottom: 1em;
     border-bottom: 2px solid var(--accent-color);
     padding-bottom: 0.3em;
+    text-shadow: 0 2px 4px rgba(100, 181, 246, 0.3);
 }
 
-.slide h3 {
-    color: var(--secondary-color);
+.slide h3, .slide-content h3 {
+    color: var(--secondary-color) !important;
     font-size: 1.7em;
-    font-weight: 400;
+    font-weight: 500;
     margin-top: 1.3em;
     margin-bottom: 0.8em;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-.slide p {
+.slide p, .slide-content p {
+    color: var(--text-color) !important;
     font-size: 1.25em;
     margin-bottom: 1.2em;
     line-height: 1.7;
 }
 
 /* Lists */
-.slide ul, .slide ol {
+.slide ul, .slide ol, .slide-content ul, .slide-content ol {
     font-size: 1.15em;
     margin: 1.2em 0;
     padding-left: 2em;
 }
 
-.slide li {
+.slide li, .slide-content li {
+    color: var(--text-color) !important;
     margin-bottom: 0.7em;
     line-height: 1.6;
 }
 
-.slide ul li::marker {
+.slide ul li::marker, .slide-content ul li::marker {
     color: var(--accent-color);
 }
 
 /* Blockquotes */
-.slide blockquote {
+.slide blockquote, .slide-content blockquote {
     border-left: 4px solid var(--accent-color);
     margin: 1.8em 0;
     padding: 1.2em 1.8em;
@@ -83,7 +98,7 @@
     border-radius: 0 8px 8px 0;
 }
 
-.slide blockquote::before {
+.slide blockquote, .slide-content blockquote::before {
     content: '"';
     font-size: 2.5em;
     color: var(--accent-color);
@@ -92,7 +107,7 @@
 }
 
 /* Code blocks */
-.slide code {
+.slide code, .slide-content code {
     background: var(--code-bg);
     color: #58a6ff;
     padding: 0.3em 0.6em;
@@ -102,7 +117,7 @@
     border: 1px solid var(--border-color);
 }
 
-.slide pre {
+.slide pre, .slide-content pre {
     background: var(--code-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -112,7 +127,7 @@
     color: #c9d1d9;
 }
 
-.slide pre code {
+.slide pre, .slide-content pre code {
     background: none;
     border: none;
     padding: 0;
@@ -120,7 +135,7 @@
 }
 
 /* Tables */
-.slide table {
+.slide table, .slide-content table {
     border-collapse: collapse;
     width: 100%;
     margin: 1.5em 0;
@@ -130,54 +145,54 @@
     overflow: hidden;
 }
 
-.slide th, .slide td {
+.slide th, .slide-content th, .slide td, .slide-content th, .slide-content td {
     border: 1px solid var(--border-color);
     padding: 1em;
     text-align: left;
 }
 
-.slide th {
+.slide th, .slide-content th {
     background: var(--highlight-color);
     color: var(--primary-color);
     font-weight: 600;
 }
 
-.slide tr:nth-child(even) {
+.slide tr, .slide-content tr:nth-child(even) {
     background: rgba(255, 255, 255, 0.02);
 }
 
 /* Emphasis */
-.slide strong {
+.slide strong, .slide-content strong {
     color: var(--primary-color);
     font-weight: 700;
 }
 
-.slide em {
+.slide em, .slide-content em {
     color: var(--accent-color);
     font-style: italic;
 }
 
 /* Links */
-.slide a {
+.slide a, .slide-content a {
     color: var(--accent-color);
     text-decoration: none;
     border-bottom: 1px solid transparent;
     transition: all 0.3s ease;
 }
 
-.slide a:hover {
+.slide a, .slide-content a:hover {
     border-bottom-color: var(--accent-color);
     text-shadow: 0 0 8px rgba(100, 181, 246, 0.5);
 }
 
 /* Math equations */
-.slide .math {
+.slide .math, .slide-content .math {
     font-size: 1.15em;
     color: var(--primary-color);
 }
 
 /* Images */
-.slide img {
+.slide img, .slide-content img {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
@@ -198,7 +213,7 @@
 }
 
 /* Slide number indicator */
-.slide::after {
+.slide::after, .slide-content::after {
     content: '';
     position: absolute;
     bottom: 20px;
@@ -208,4 +223,25 @@
     background: linear-gradient(90deg, var(--accent-color), #42a5f5);
     border-radius: 2px;
     box-shadow: 0 2px 8px rgba(100, 181, 246, 0.3);
+}
+
+/* Force all text elements to be visible on dark background */
+.slide *, .slide-content *,
+.slide span, .slide-content span,
+.slide div, .slide-content div,
+.slide td, .slide-content td,
+.slide th, .slide-content th,
+.slide text, .slide-content text,
+.slide p, .slide-content p,
+.slide li, .slide-content li {
+    color: var(--text-color) !important;
+}
+
+/* Override any inherited dark colors */
+.slide {
+    color: var(--text-color) !important;
+}
+
+.slide-content {
+    color: var(--text-color) !important;
 }

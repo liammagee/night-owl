@@ -199,7 +199,7 @@ class OpenAIProvider extends BaseProvider {
 
   async sendMessage(message, options) {
     const {
-      model = process.env.OPENAI_MODEL || 'gpt-5-mini',
+      model = process.env.OPENAI_MODEL || 'gpt-5',
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
       maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000

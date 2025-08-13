@@ -1,4 +1,4 @@
-# Human and Machine Learning
+# Machine Learning and Human Learning
 
 ## Overview
 

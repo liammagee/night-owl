@@ -15,11 +15,17 @@ class StyleSettingsUI {
     initializeEventListeners() {
         // Listen for style changes
         window.addEventListener('presentation-template-changed', (event) => {
-            this.updateTemplatePreview(event.detail.templateId);
+            // Template preview updates automatically through re-rendering
+            if (this.modal && this.currentTab === 'presentation') {
+                this.renderCurrentTab();
+            }
         });
 
         window.addEventListener('preview-style-changed', (event) => {
-            this.updatePreviewSample(event.detail.styleId);
+            // Preview sample updates automatically through re-rendering
+            if (this.modal && this.currentTab === 'preview') {
+                this.renderCurrentTab();
+            }
         });
 
         // Listen for keyboard shortcuts
@@ -588,6 +594,14 @@ class StyleSettingsUI {
                 align-items: center;
                 justify-content: center;
                 margin-bottom: 10px;
+                overflow: hidden;
+            }
+            
+            .template-preview img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                border-radius: 4px;
             }
             
             .template-placeholder {

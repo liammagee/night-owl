@@ -1,52 +1,83 @@
 /* Academic Presentation Template */
-/* Professional styling for academic presentations */
+/* Elegant, sophisticated styling for academic presentations */
 
 :root {
     --primary-color: #2c3e50;
-    --secondary-color: #3498db;
-    --accent-color: #e74c3c;
+    --secondary-color: #34495e;
+    --accent-color: #c0392b;
     --text-color: #2c3e50;
-    --bg-color: #ffffff;
-    --border-color: #bdc3c7;
-    --highlight-color: #f39c12;
+    --bg-color: #f5f2e8;
+    --slide-bg: #f5f2e8;
+    --border-color: #d4b886;
+    --highlight-color: #e74c3c;
+    --quote-bg: #f0ede3;
+    --presentation-bg-gradient: linear-gradient(135deg, #f4f1e8 0%, #e8dcc6 50%, #d4c4a0 100%);
 }
 
 /* Slide container */
-.slide {
-    background: var(--bg-color);
-    color: var(--text-color);
-    font-family: 'Georgia', 'Times New Roman', serif;
+.slide, .slide-content {
+    background: var(--slide-bg) !important;
+    color: var(--text-color) !important;
+    font-family: 'Georgia', 'Garamond', 'Times New Roman', serif;
     line-height: 1.6;
+}
+
+.slide {
     padding: 60px;
     border: 2px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Ensure parent containers get the elegant background */
+#presentation-content,
+#presentation-root,
+#presentation-content .bg-white,
+#presentation-root .bg-white {
+    background: var(--bg-color) !important;
+}
+
+/* Add subtle texture/gradient for elegance */
+.slide::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, transparent 0%, rgba(52, 73, 94, 0.02) 100%);
+    pointer-events: none;
 }
 
 /* Typography */
-.slide h1 {
-    color: var(--primary-color);
-    font-size: 2.5em;
+.slide h1, .slide-content h1 {
+    color: var(--primary-color) !important;
+    font-size: 2.8em;
     font-weight: 700;
-    border-bottom: 3px solid var(--secondary-color);
+    border-bottom: 3px double var(--accent-color);
     padding-bottom: 0.5em;
     margin-bottom: 1em;
+    letter-spacing: -0.02em;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.slide h2 {
-    color: var(--primary-color);
+.slide h2, .slide-content h2 {
+    color: var(--primary-color) !important;
     font-size: 2em;
     font-weight: 600;
     margin-top: 1.5em;
     margin-bottom: 0.8em;
-    border-left: 5px solid var(--secondary-color);
+    border-left: 5px solid var(--accent-color);
     padding-left: 15px;
+    background: linear-gradient(to right, rgba(139, 115, 85, 0.05), transparent);
 }
 
-.slide h3 {
-    color: var(--secondary-color);
+.slide h3, .slide-content h3 {
+    color: var(--secondary-color) !important;
     font-size: 1.5em;
     font-weight: 500;
     margin-top: 1.2em;
     margin-bottom: 0.6em;
+    font-style: italic;
 }
 
 .slide p {
@@ -68,21 +99,29 @@
 }
 
 /* Blockquotes */
-.slide blockquote {
+.slide blockquote, .slide-content blockquote {
     border-left: 5px solid var(--accent-color);
     margin: 1.5em 0;
-    padding: 1em 1.5em;
-    background: #f8f9fa;
+    padding: 1.2em 1.8em;
+    background: var(--quote-bg);
     font-style: italic;
-    font-size: 1.1em;
-    color: #555;
+    font-size: 1.15em;
+    color: #4a4a4a;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    position: relative;
 }
 
-.slide blockquote::before {
+.slide blockquote::before, .slide-content blockquote::before {
     content: '"';
-    font-size: 2em;
+    font-size: 3em;
     color: var(--accent-color);
     font-weight: bold;
+    position: absolute;
+    left: 10px;
+    top: -10px;
+    font-family: Georgia, serif;
+    opacity: 0.4;
 }
 
 /* Code blocks */

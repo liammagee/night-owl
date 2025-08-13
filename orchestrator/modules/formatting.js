@@ -389,14 +389,10 @@ async function formatDisplayMath() {
 
 // --- Slide Markers ---
 async function addSlideMarkersToParagraphs() {
-    if (!window.editor) {
-        return;
-    }
-    
-    const content = window.editor.getValue();
-    const lines = content.split('\n');
-    const newLines = [];
-    let i = 0;
+    // EMERGENCY DISABLE: This function was causing automatic file overwrites
+    console.error('[addSlideMarkersToParagraphs] DISABLED - Function blocked to prevent file corruption');
+    alert('Slide marker addition has been temporarily disabled to prevent file corruption.');
+    return;
     
     
     while (i < lines.length) {
