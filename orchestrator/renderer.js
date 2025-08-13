@@ -1389,12 +1389,38 @@ function parseBibTeX(content) {
 // Load BibTeX files from the lectures directory
 async function loadBibTeXFiles() {
     try {
-        const bibFiles = ['references.bib', 'sample-bibliography.bib'];
+        // Dynamically discover .bib files in the working directory
+        const directoryFiles = await window.electronAPI.invoke('list-directory-files');
+        if (!directoryFiles || !Array.isArray(directoryFiles)) {
+            console.warn('[renderer.js] Failed to get directory listing, using empty .bib files list');
+            bibEntries = [];
+            return bibEntries;
+        }
+        
+        const bibFiles = directoryFiles
+            .filter(file => file.isFile && file.name.endsWith('.bib'))
+            .map(file => file.name);
+        
+        if (bibFiles.length === 0) {
+            console.log('[renderer.js] No .bib files found in working directory');
+            bibEntries = [];
+            return bibEntries;
+        }
+        
+        console.log(`[renderer.js] Found ${bibFiles.length} .bib file(s):`, bibFiles);
         bibEntries = [];
         
         for (const fileName of bibFiles) {
             try {
-                const content = await window.electronAPI.invoke('read-file', `lectures/${fileName}`);
+                // Try reading from current working directory first, then fall back to lectures subdirectory
+                let content;
+                try {
+                    content = await window.electronAPI.invoke('read-file', fileName);
+                } catch (error) {
+                    // Fallback to lectures subdirectory for backwards compatibility
+                    content = await window.electronAPI.invoke('read-file', `lectures/${fileName}`);
+                }
+                
                 const entries = parseBibTeX(content);
                 bibEntries.push(...entries);
                 console.log(`[renderer.js] Loaded ${entries.length} entries from ${fileName}`);
