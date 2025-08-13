@@ -84,7 +84,8 @@ process.on('SIGTERM', () => {
 // --- Global Variables ---
 let mainWindow = null;
 let currentFilePath = null;
-let currentWorkingDirectory = app.getAppPath();
+// Set working directory to project root instead of app path
+let currentWorkingDirectory = path.resolve(app.getAppPath(), '..');
 
 // --- Persistent Settings Storage ---
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
@@ -2078,13 +2079,14 @@ async function openFile() {
 app.whenReady().then(() => {
   console.log('[main.js] App is ready via whenReady()');
   
-  // Use saved working directory from settings, fallback to documents
+  // Use saved working directory from settings, fallback to project root
   if (appSettings.workingDirectory && appSettings.workingDirectory.length > 0) {
     currentWorkingDirectory = appSettings.workingDirectory;
     console.log(`[main.js] Using saved working directory: ${currentWorkingDirectory}`);
   } else {
-    currentWorkingDirectory = app.getPath('documents');
-    console.log(`[main.js] Using default working directory: ${currentWorkingDirectory}`);
+    // Default to project root (parent of app directory)
+    currentWorkingDirectory = path.resolve(app.getAppPath(), '..');
+    console.log(`[main.js] Using project root as working directory: ${currentWorkingDirectory}`);
   }
 
   // Set dock icon on macOS
@@ -2259,7 +2261,18 @@ ipcMain.handle('read-file', async (event, filePath) => {
       if (!filePath || typeof filePath !== 'string') {
           throw new Error('No file path specified');
       }
-      const content = await fs.readFile(filePath, 'utf8');
+      
+      // Handle both absolute and relative paths
+      let fullPath;
+      if (path.isAbsolute(filePath)) {
+          fullPath = filePath;
+      } else {
+          // Resolve relative paths from the current working directory
+          fullPath = path.resolve(currentWorkingDirectory, filePath);
+      }
+      
+      console.log(`[main.js] Reading file from: ${fullPath} (cwd: ${currentWorkingDirectory})`);
+      const content = await fs.readFile(fullPath, 'utf8');
       return content;
   } catch (err) {
       console.error(`[main.js] Failed to read file at ${filePath}:`, err);
@@ -2550,16 +2563,30 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
   });
 
   // Directory Listing Handler
-  ipcMain.handle('list-directory-files', async (event) => {
+  ipcMain.handle('list-directory-files', async (event, subdir) => {
     try {
-      const dirEntries = await fs.readdir(currentWorkingDirectory, { withFileTypes: true });
+      let targetDir;
+      if (subdir) {
+        // Handle both absolute and relative paths
+        if (path.isAbsolute(subdir)) {
+          targetDir = subdir;
+        } else {
+          // Resolve relative paths from the current working directory
+          targetDir = path.resolve(currentWorkingDirectory, subdir);
+        }
+      } else {
+        targetDir = currentWorkingDirectory;
+      }
+      
+      console.log(`[main.js] Listing directory: ${targetDir}`);
+      const dirEntries = await fs.readdir(targetDir, { withFileTypes: true });
       return dirEntries.map(entry => ({
         name: entry.name,
         isDirectory: entry.isDirectory(),
         isFile: entry.isFile()
       }));
     } catch (error) {
-      console.error('[main.js] Error listing directory:', error);
+      console.error(`[main.js] Error listing directory ${subdir || 'root'}:`, error.message);
       return [];
     }
   });

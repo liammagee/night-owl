@@ -14,13 +14,13 @@
 10. Custom markdown for slide & notes - DONE
 11. Fix Save = Refresh - DONE
 12. Autosave - DONE
-13. "Suck up" linked content into preview (non-recursive) - IN PROGRESS
+13. "Suck up" linked content into preview (non-recursive) - DONE
 14. Concept tagging
 15. Math integration - DONE
 16. Global find & replace - DONE
 17. TODOs as Kanban - DONE
 18. Export as Powerpoint - DONE
-19. Custom presentation templates
+19. Custom presentation templates - DONE
 20. Settings - DONE
 21. Refactor duplicate code - DONE
 22. Reference autocomplete - DONE
@@ -42,7 +42,6 @@
 38. Check settings configuration - DONE
 39. Graph of files, with links based on internal links - DONE
 40. AI Chat like Claude Code - DONE
-41. Simulations
 42. Add HELP file - DONE
-43. Whole / part navigation
-44. Testing framework
+43. Whole / part navigation, simulation
+44. Test framework - DONE

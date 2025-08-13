@@ -1389,44 +1389,85 @@ function parseBibTeX(content) {
 // Load BibTeX files from the lectures directory
 async function loadBibTeXFiles() {
     try {
-        // Dynamically discover .bib files in the working directory
-        const directoryFiles = await window.electronAPI.invoke('list-directory-files');
-        if (!directoryFiles || !Array.isArray(directoryFiles)) {
-            console.warn('[renderer.js] Failed to get directory listing, using empty .bib files list');
-            bibEntries = [];
-            return bibEntries;
-        }
+        // Look for .bib files specifically in the lectures subdirectory
+        const bibFiles = [];
         
-        const bibFiles = directoryFiles
-            .filter(file => file.isFile && file.name.endsWith('.bib'))
-            .map(file => file.name);
-        
-        if (bibFiles.length === 0) {
-            console.log('[renderer.js] No .bib files found in working directory');
-            bibEntries = [];
-            return bibEntries;
-        }
-        
-        console.log(`[renderer.js] Found ${bibFiles.length} .bib file(s):`, bibFiles);
-        bibEntries = [];
-        
-        for (const fileName of bibFiles) {
-            try {
-                // Try reading from current working directory first, then fall back to lectures subdirectory
-                let content;
+        try {
+            // First, get the current working directory to understand the context
+            const workingDir = await window.electronAPI.invoke('get-working-directory');
+            console.log('[renderer.js] Current working directory:', workingDir);
+            
+            // Try multiple possible locations for the lectures directory
+            const possiblePaths = [
+                'lectures',           // lectures in current directory (should work now)
+                '../lectures',        // lectures in parent directory (fallback)
+            ];
+            
+            for (const relativePath of possiblePaths) {
                 try {
-                    content = await window.electronAPI.invoke('read-file', fileName);
+                    console.log(`[renderer.js] Trying to list files in: ${relativePath}`);
+                    const lecturesFiles = await window.electronAPI.invoke('list-directory-files', relativePath);
+                    
+                    if (lecturesFiles && Array.isArray(lecturesFiles)) {
+                        // Filter for .bib files
+                        for (const file of lecturesFiles) {
+                            if (file.isFile && file.name.endsWith('.bib')) {
+                                // Construct the full path for reading
+                                const fullBibPath = `${relativePath}/${file.name}`;
+                                
+                                // Try to read the file directly
+                                try {
+                                    console.log(`[renderer.js] Attempting to read: ${fullBibPath}`);
+                                    const content = await window.electronAPI.invoke('read-file', fullBibPath);
+                                    
+                                    const entries = parseBibTeX(content);
+                                    console.log(`[renderer.js] Successfully parsed ${entries.length} entries from ${fullBibPath}`);
+                                    if (entries.length > 0) {
+                                        console.log('[renderer.js] Sample parsed entry:', entries[0]);
+                                        bibEntries.push(...entries);
+                                    }
+                                } catch (readError) {
+                                    console.log(`[renderer.js] Could not read ${fullBibPath}:`, readError.message);
+                                    
+                                    // Try alternative path resolution
+                                    try {
+                                        // If relative path failed, try with just the filename in lectures
+                                        const altPath = `lectures/${file.name}`;
+                                        console.log(`[renderer.js] Trying alternative path: ${altPath}`);
+                                        const content = await window.electronAPI.invoke('read-file', altPath);
+                                        
+                                        const entries = parseBibTeX(content);
+                                        console.log(`[renderer.js] Successfully parsed ${entries.length} entries from ${altPath}`);
+                                        if (entries.length > 0) {
+                                            console.log('[renderer.js] Sample parsed entry:', entries[0]);
+                                            bibEntries.push(...entries);
+                                        }
+                                    } catch (altError) {
+                                        console.log(`[renderer.js] Alternative path also failed:`, altError.message);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (bibEntries.length > 0) {
+                            console.log(`[renderer.js] Total entries loaded so far: ${bibEntries.length}`);
+                            break; // Stop after successfully loading entries
+                        }
+                    }
                 } catch (error) {
-                    // Fallback to lectures subdirectory for backwards compatibility
-                    content = await window.electronAPI.invoke('read-file', `lectures/${fileName}`);
+                    console.log(`[renderer.js] Could not access ${relativePath}:`, error.message);
                 }
-                
-                const entries = parseBibTeX(content);
-                bibEntries.push(...entries);
-                console.log(`[renderer.js] Loaded ${entries.length} entries from ${fileName}`);
-            } catch (error) {
-                console.log(`[renderer.js] Could not load ${fileName}:`, error.message);
             }
+            
+            // Log final status
+            if (bibEntries.length === 0) {
+                console.log('[renderer.js] No .bib entries loaded from any source');
+                const directoryFiles = await window.electronAPI.invoke('list-directory-files');
+                console.log('[renderer.js] Current working directory contains:', 
+                    directoryFiles?.filter(f => f.isDirectory).map(d => d.name));
+            }
+        } catch (error) {
+            console.log('[renderer.js] Error during BibTeX file loading:', error.message);
         }
         
         console.log(`[renderer.js] Total BibTeX entries loaded: ${bibEntries.length}`);
@@ -1440,22 +1481,33 @@ async function loadBibTeXFiles() {
 // Register citation autocomplete provider for Markdown
 function registerCitationAutocomplete() {
     console.log('[renderer.js] Registering citation autocomplete provider...');
+    console.log('[renderer.js] Current bibEntries count:', bibEntries.length);
+    if (bibEntries.length > 0) {
+        console.log('[renderer.js] Sample entry:', bibEntries[0]);
+    }
     
     monaco.languages.registerCompletionItemProvider('markdown', {
         triggerCharacters: ['@'],
         provideCompletionItems: function(model, position) {
+            console.log('[renderer.js] Citation autocomplete triggered');
+            
             // Get current line text
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
+            
+            console.log('[renderer.js] Text before pointer:', textBeforePointer);
+            console.log('[renderer.js] Available bibEntries:', bibEntries.length);
             
             // Look for citation pattern: [@...] where we're after the @
             const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
             
             if (!citationMatch) {
+                console.log('[renderer.js] Not in citation context');
                 return { suggestions: [] };
             }
             
             const searchTerm = citationMatch[1] || '';
+            console.log('[renderer.js] Search term:', searchTerm);
             
             // Filter entries based on search term
             const suggestions = bibEntries
