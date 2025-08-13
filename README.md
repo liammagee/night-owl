@@ -42,13 +42,88 @@ npm run dist
 
 ## Installation
 
+### Basic Setup
+
 First, install dependencies:
 
 ```bash
 npm install
 ```
 
+### Testing Setup
+
+To run tests, you'll also need to install Playwright browsers:
+
+```bash
+npx playwright install
+```
+
 Then follow the running instructions above for your preferred version.
+
+## Testing
+
+This project includes comprehensive test coverage with unit tests, integration tests, and end-to-end (E2E) tests.
+
+### Test Types
+
+- **Unit Tests**: Test individual functions and components in isolation
+- **Integration Tests**: Test IPC communication and file operations
+- **E2E Tests**: Test complete user workflows in the actual Electron app
+
+### Running Tests
+
+#### Quick Test Setup Verification
+```bash
+npm run test:basic
+```
+
+#### Unit Tests Only
+```bash
+npm run test:unit
+```
+
+#### Integration Tests Only
+```bash
+npm run test:integration
+```
+
+#### End-to-End Tests (requires Playwright installation)
+```bash
+npm run test:e2e
+```
+
+**Note**: E2E tests are currently configured as simple demonstration tests. For comprehensive Electron app testing, you would need to manually launch the app (`npm run electron-dev`) and connect Playwright to the running instance.
+
+#### All Tests
+```bash
+npm run test:all
+```
+
+#### Watch Mode (for development)
+```bash
+npm run test:watch
+```
+
+### Test Requirements
+
+- **Unit & Integration Tests**: No additional setup required (uses Jest with mocked Electron APIs)
+- **E2E Tests**: Requires Playwright browsers to be installed (`npx playwright install`)
+
+### Troubleshooting Tests
+
+If you encounter issues:
+
+1. Ensure all dependencies are installed: `npm install`
+2. For E2E tests, install Playwright browsers: `npx playwright install`
+3. Run basic tests first to verify setup: `npm run test:basic`
+4. Check the test setup guide: `tests/test-setup-guide.md`
+
+The test infrastructure covers critical functionality including:
+- Monaco editor integration
+- File save/load operations
+- Internal links processing (prevents regression of critical bug)
+- IPC communication between main and renderer processes
+- UI interactions and user workflows
 
 ## Configuration
 
