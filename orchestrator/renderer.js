@@ -432,6 +432,12 @@ async function renderRegularMarkdown(markdownContent) {
             if (typeof processInternalLinksHTML === 'function') {
                 htmlContent = await processInternalLinksHTML(htmlContent);
             }
+            
+            // Apply preview zoom if available
+            if (window.previewZoom) {
+                htmlContent = await window.previewZoom.onPreviewUpdate(window.currentFilePath, htmlContent);
+            }
+            
             previewContent.innerHTML = htmlContent;
             
             // Render math equations with MathJax

@@ -314,6 +314,7 @@ function createSettingsSidebar() {
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
         { id: 'export', label: 'Export', icon: '📤' },
         { id: 'kanban', label: 'Kanban', icon: '📋' },
+        { id: 'visualization', label: 'Visualizations', icon: '🕸️' },
         { id: 'advanced', label: 'Advanced', icon: '🔧' }
     ];
     
@@ -365,6 +366,8 @@ function showSettingsCategory(category) {
             editor: 'Editor Settings',
             ai: 'AI Configuration',
             export: 'Export Preferences',
+            kanban: 'Kanban Settings',
+            visualization: 'Visualization Filters',
             advanced: 'Advanced Settings'
         };
         title.textContent = categoryNames[category] || 'Settings';
@@ -393,6 +396,8 @@ function generateSettingsContent(category) {
             return generateExportSettings();
         case 'kanban':
             return generateKanbanSettings();
+        case 'visualization':
+            return generateVisualizationSettings();
         case 'advanced':
             return generateAdvancedSettings();
         default:
@@ -705,6 +710,70 @@ function generateKanbanSettings() {
     `;
 }
 
+function generateVisualizationSettings() {
+    const vizSettings = currentSettings.visualization || {};
+    const includePatterns = vizSettings.includePatterns || ['lectures/*.md', '*.md'];
+    const excludePatterns = vizSettings.excludePatterns || ['**/test/**', '**/tests/**', 'HELP.md', 'README.md', '**/node_modules/**'];
+    
+    return `
+        <div class="settings-section">
+            <h3>File Filtering for Network/Graph/Circle Views</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Control which files are included in visualization views (Network, Graph, Circle). 
+                Use glob patterns like <code>**/*.md</code> to include all markdown files or <code>**/test/**</code> to exclude test directories.
+            </p>
+            
+            <div class="settings-group">
+                <label>
+                    <span>Include Patterns (one per line)</span>
+                    <textarea id="viz-include-patterns" rows="4" style="width: 100%; font-family: monospace; font-size: 12px; margin-top: 5px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">${includePatterns.join('\\n')}</textarea>
+                    <small style="color: #666; font-size: 11px;">Examples: **/*.md, lectures/**/*.md, *.markdown</small>
+                </label>
+                
+                <label style="margin-top: 15px;">
+                    <span>Exclude Patterns (one per line)</span>
+                    <textarea id="viz-exclude-patterns" rows="6" style="width: 100%; font-family: monospace; font-size: 12px; margin-top: 5px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">${excludePatterns.join('\\n')}</textarea>
+                    <small style="color: #666; font-size: 11px;">Examples: **/test/**, **/tests/**, HELP.md, README.md, **/*.tmp</small>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Cache Management</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="number" id="viz-cache-expiry" value="${vizSettings.cacheExpiryHours || 24}" min="1" max="168">
+                    <span>Summary cache expiry (hours)</span>
+                </label>
+                
+                <label>
+                    <input type="number" id="viz-change-threshold" value="${Math.round((vizSettings.changeThreshold || 0.15) * 100)}" min="5" max="50" step="5">
+                    <span>Content change threshold (%) - triggers summary refresh</span>
+                </label>
+                
+                <div style="margin-top: 15px;">
+                    <button type="button" onclick="clearVisualizationCache()" style="padding: 8px 16px; background: #ff6b35; color: white; border: none; border-radius: 4px; cursor: pointer;">Clear Summary Cache</button>
+                    <small style="color: #666; font-size: 11px; margin-left: 10px;">Clears all cached AI summaries</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Preview</h3>
+            <div class="settings-group">
+                <label>
+                    <span style="font-weight: bold;">Current Filters:</span>
+                </label>
+                <div id="filter-preview" style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                    <div style="color: #28a745;"><strong>Included:</strong> ${includePatterns.join(', ')}</div>
+                    <div style="color: #dc3545; margin-top: 5px;"><strong>Excluded:</strong> ${excludePatterns.join(', ')}</div>
+                </div>
+                <button type="button" onclick="testVisualizationFilters()" style="margin-top: 10px; padding: 6px 12px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Test Filters</button>
+            </div>
+        </div>
+    `;
+}
+
 function generateAdvancedSettings() {
     return `
         <div class="settings-section">
@@ -758,6 +827,33 @@ function addSettingsEventListeners(category) {
                 valueSpan.textContent = e.target.value;
             }
         });
+    }
+    
+    // Visualization settings event listeners
+    if (category === 'visualization') {
+        // Update filter preview when patterns change
+        const includePatterns = document.getElementById('viz-include-patterns');
+        const excludePatterns = document.getElementById('viz-exclude-patterns');
+        
+        function updateFilterPreview() {
+            const preview = document.getElementById('filter-preview');
+            if (preview && includePatterns && excludePatterns) {
+                const includeList = includePatterns.value.split('\n').filter(p => p.trim()).join(', ');
+                const excludeList = excludePatterns.value.split('\n').filter(p => p.trim()).join(', ');
+                
+                preview.innerHTML = `
+                    <div style="color: #28a745;"><strong>Included:</strong> ${includeList || 'None'}</div>
+                    <div style="color: #dc3545; margin-top: 5px;"><strong>Excluded:</strong> ${excludeList || 'None'}</div>
+                `;
+            }
+        }
+        
+        if (includePatterns) {
+            includePatterns.addEventListener('input', updateFilterPreview);
+        }
+        if (excludePatterns) {
+            excludePatterns.addEventListener('input', updateFilterPreview);
+        }
     }
 }
 
@@ -942,6 +1038,31 @@ function collectSettingsFromForm() {
         });
     }
     
+    // Visualization settings
+    const vizIncludePatterns = document.getElementById('viz-include-patterns')?.value;
+    if (vizIncludePatterns !== undefined) {
+        if (!updatedSettings.visualization) updatedSettings.visualization = {};
+        updatedSettings.visualization.includePatterns = vizIncludePatterns.split('\n').filter(p => p.trim());
+    }
+    
+    const vizExcludePatterns = document.getElementById('viz-exclude-patterns')?.value;
+    if (vizExcludePatterns !== undefined) {
+        if (!updatedSettings.visualization) updatedSettings.visualization = {};
+        updatedSettings.visualization.excludePatterns = vizExcludePatterns.split('\n').filter(p => p.trim());
+    }
+    
+    const vizCacheExpiry = document.getElementById('viz-cache-expiry')?.value;
+    if (vizCacheExpiry) {
+        if (!updatedSettings.visualization) updatedSettings.visualization = {};
+        updatedSettings.visualization.cacheExpiryHours = parseInt(vizCacheExpiry);
+    }
+    
+    const vizChangeThreshold = document.getElementById('viz-change-threshold')?.value;
+    if (vizChangeThreshold) {
+        if (!updatedSettings.visualization) updatedSettings.visualization = {};
+        updatedSettings.visualization.changeThreshold = parseInt(vizChangeThreshold) / 100; // Convert percentage to decimal
+    }
+    
     return updatedSettings;
 }
 
@@ -949,6 +1070,71 @@ function closeSettingsDialog() {
     if (settingsDialog) {
         settingsDialog.style.display = 'none';
         document.body.style.overflow = 'auto';
+    }
+}
+
+// Visualization settings helper functions
+function clearVisualizationCache() {
+    if (window.sharedSummaryCache) {
+        const cacheSize = window.sharedSummaryCache.size;
+        window.sharedSummaryCache.clear();
+        
+        // Also clear preview zoom cache if it exists
+        if (window.previewZoom && window.previewZoom.summaryCache) {
+            window.previewZoom.summaryCache.clear();
+        }
+        
+        showNotification(`Cleared ${cacheSize} cached summaries`, 'success');
+        console.log('[Settings] Cleared visualization cache');
+    } else {
+        showNotification('No cache to clear', 'info');
+    }
+}
+
+async function testVisualizationFilters() {
+    try {
+        const includePatterns = document.getElementById('viz-include-patterns')?.value.split('\n').filter(p => p.trim()) || [];
+        const excludePatterns = document.getElementById('viz-exclude-patterns')?.value.split('\n').filter(p => p.trim()) || [];
+        
+        // Get all files and test filters
+        const allFiles = await window.electronAPI.invoke('get-available-files');
+        const filteredFiles = filterVisualizationFiles(allFiles, includePatterns, excludePatterns);
+        
+        // Show results
+        const resultDiv = document.createElement('div');
+        resultDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 10001;
+            max-width: 80%;
+            max-height: 80%;
+            overflow: auto;
+        `;
+        
+        resultDiv.innerHTML = `
+            <h3>Filter Test Results</h3>
+            <p><strong>Total files found:</strong> ${allFiles.length}</p>
+            <p><strong>Files after filtering:</strong> ${filteredFiles.length}</p>
+            <div style="margin: 15px 0;">
+                <strong>Filtered files:</strong>
+                <div style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px;">
+                    ${filteredFiles.map(f => `<div>${f}</div>`).join('')}
+                </div>
+            </div>
+            <button onclick="this.parentElement.remove()" style="padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+        `;
+        
+        document.body.appendChild(resultDiv);
+        
+    } catch (error) {
+        console.error('[Settings] Error testing filters:', error);
+        showNotification('Error testing filters', 'error');
     }
 }
 

@@ -80,11 +80,15 @@ class GraphView {
         console.log('[GraphView] Loading graph data');
         
         try {
-            // Get all markdown files
-            const files = await window.electronAPI.invoke('get-available-files');
+            // Get filtered files for visualization
+            const result = await window.getFilteredVisualizationFiles();
+            const files = result.files;
+            
+            console.log(`[GraphView] Using ${files.length} files (filtered from ${result.totalFiles} total)`);
+            console.log('[GraphView] Applied filters:', result.filters);
             
             if (!files || files.length === 0) {
-                console.log('[GraphView] No files available');
+                console.log('[GraphView] No files available after filtering');
                 return;
             }
 

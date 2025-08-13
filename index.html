@@ -1083,6 +1083,7 @@
                     <button id="presentation-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Presentation</button>
                     <button id="network-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Network</button>
                     <button id="graph-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Graph</button>
+                    <button id="circle-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Circle</button>
                 </div>
                 
                 <!-- Pane Toggle Controls -->
@@ -1341,6 +1342,17 @@
                     <!-- Graph will be rendered here by graph.js module -->
                 </div>
             </div>
+            
+            <!-- Circle Visualization Content -->
+            <div id="circle-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
+                <div id="circle-visualization" style="width: 100%; flex: 1; min-height: 0; background: #fafafa;">
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
+                        <div style="font-size: 24px; margin-bottom: 10px;">🔄</div>
+                        <div>Hermeneutic Circle</div>
+                        <div style="font-size: 12px; margin-top: 5px; color: #999;">Exploring iterative understanding patterns</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1439,7 +1451,10 @@
     <script src="orchestrator/modules/speakerNotes.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
     <script src="orchestrator/modules/dragdrop.js" defer></script>
+    <script src="orchestrator/modules/previewZoom.js" defer></script>
+    <script src="orchestrator/modules/fileFilters.js" defer></script>
     <script type="module" src="orchestrator/modules/graph.js" defer></script>
+    <script type="module" src="orchestrator/modules/circle.js" defer></script>
     
     <!-- Style management modules -->
     <script src="styles/style-manager.js" defer></script>
@@ -2656,6 +2671,22 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             } else {
               console.error('[Mode Switching] GraphView not available or container not found');
             }
+          } else if (modeName === 'circle') {
+            document.body.classList.remove('presentation-mode');
+            hideSpeakerNotesPanel();
+            
+            // Initialize circle visualization
+            console.log('[Mode Switching] Initializing circle visualization');
+            const circleContainer = document.getElementById('circle-visualization');
+            if (circleContainer && window.CircleView) {
+              if (!window.circleViewInstance) {
+                window.circleViewInstance = new window.CircleView();
+              }
+              window.circleViewInstance.initialize(circleContainer);
+            } else {
+              console.log('[Mode Switching] CircleView not yet available - showing placeholder');
+              // Show placeholder until you add the CircleView module
+            }
           } else {
             document.body.classList.remove('presentation-mode');
             hideSpeakerNotesPanel();
@@ -2770,6 +2801,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             graphModeBtn.addEventListener('click', () => {
               console.log('[Mode Switching] Graph mode button clicked');
               switchToMode('graph');
+            });
+          }
+
+          const circleModeBtn = document.getElementById('circle-mode-btn');
+          if (circleModeBtn) {
+            circleModeBtn.addEventListener('click', () => {
+              console.log('[Mode Switching] Circle mode button clicked');
+              switchToMode('circle');
             });
           }
           
@@ -3121,11 +3160,21 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           console.log('[Network] Building network data...');
           
           try {
-            // Get list of files in the directory
-            const files = await window.electronAPI.invoke('list-directory-files');
-            const mdFiles = files.filter(f => !f.isDirectory && f.name.endsWith('.md'));
+            // Get filtered files for visualization
+            const result = await window.getFilteredVisualizationFiles();
+            const files = result.files;
             
-            console.log('[Network] Found markdown files:', mdFiles.length);
+            console.log(`[Network] Using ${files.length} files (filtered from ${result.totalFiles} total)`);
+            console.log('[Network] Applied filters:', result.filters);
+            
+            // Convert to the format expected by the network code
+            const mdFiles = files.map(filePath => ({
+              name: filePath.split('/').pop(), // Get just the filename
+              fullPath: filePath,
+              isDirectory: false
+            }));
+            
+            console.log('[Network] Prepared markdown files:', mdFiles.length);
             
             // Create nodes for each file
             const nodes = mdFiles.map(file => ({
