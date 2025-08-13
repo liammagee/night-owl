@@ -2156,6 +2156,45 @@ app.whenReady().then(() => {
     }
   });
 
+  // Handler for getting available markdown files (for graph visualization)
+  ipcMain.handle('get-available-files', async (event) => {
+    try {
+      const files = await getFiles(currentWorkingDirectory);
+      // Filter for markdown files - files are objects with path and type properties
+      const markdownFiles = files
+        .filter(file => file.type === 'file' && (file.path.endsWith('.md') || file.path.endsWith('.markdown')))
+        .map(file => file.path); // Return just the paths
+      console.log(`[main.js] Found ${markdownFiles.length} markdown files for graph`);
+      return markdownFiles;
+    } catch (error) {
+      console.error('[main.js] Error getting available files:', error);
+      return [];
+    }
+  });
+
+  // Handler for opening files from graph visualization
+  ipcMain.handle('open-file', async (event, filePath) => {
+    try {
+      console.log(`[main.js] Opening file from graph: ${filePath}`);
+      
+      // Set current file path and update UI
+      currentFilePath = filePath;
+      
+      // Send file-opened event to renderer
+      if (mainWindow) {
+        mainWindow.webContents.send('file-opened', { 
+          filePath: filePath,
+          switchToEditor: true 
+        });
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('[main.js] Error opening file from graph:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('get-initial-theme', (event) => {
     return nativeTheme.shouldUseDarkColors;
   });
@@ -2207,13 +2246,47 @@ ipcMain.handle('read-file-content', async (event, filePath) => {
         if (!filePath || typeof filePath !== 'string') {
             throw new Error('No file path specified');
         }
-        const content = await fs.readFile(filePath, 'utf8');
-        console.log('[main.js] read-file-content: Reading file WITHOUT changing currentFilePath:', filePath);
-        console.log('[main.js] Current file remains:', currentFilePath);
+        
+        console.log(`[main.js] read-file-content called with: ${filePath}`);
+        console.log(`[main.js] Current working directory: ${currentWorkingDirectory}`);
+        
+        // Handle both absolute and relative paths
+        let fullPath;
+        if (path.isAbsolute(filePath)) {
+            fullPath = filePath;
+            console.log(`[main.js] Using absolute path: ${fullPath}`);
+        } else {
+            // Resolve relative paths from the current working directory
+            fullPath = path.resolve(currentWorkingDirectory, filePath);
+            console.log(`[main.js] Resolved relative path to: ${fullPath}`);
+        }
+        
+        // Check if file exists
+        try {
+            await fs.access(fullPath);
+        } catch {
+            console.error(`[main.js] File does not exist at: ${fullPath}`);
+            // Try without extension if it's a markdown file without extension
+            if (!filePath.endsWith('.md')) {
+                const mdPath = fullPath + '.md';
+                try {
+                    await fs.access(mdPath);
+                    fullPath = mdPath;
+                    console.log(`[main.js] Found file with .md extension: ${fullPath}`);
+                } catch {
+                    // Keep original path
+                }
+            }
+        }
+        
+        console.log(`[main.js] read-file-content: Reading file from: ${fullPath}`);
+        const content = await fs.readFile(fullPath, 'utf8');
+        console.log('[main.js] Successfully read file, current file remains:', currentFilePath);
         // DO NOT change currentFilePath or settings - just return the content
-        return { success: true, filePath, content };
+        return { success: true, filePath: fullPath, content };
     } catch (err) {
         console.error('[main.js] Error reading file content:', err);
+        console.error('[main.js] Failed path was:', filePath);
         return { success: false, error: err.message };
     }
 });
