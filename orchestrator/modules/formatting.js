@@ -272,6 +272,130 @@ async function formatBlockquote() {
     }
 }
 
+// --- Dialog Utility ---
+function createInputDialog(title, fields, callback) {
+    const dialog = document.createElement('div');
+    dialog.className = 'input-dialog-overlay';
+    dialog.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    `;
+    
+    const dialogContent = document.createElement('div');
+    dialogContent.className = 'input-dialog-content';
+    dialogContent.style.cssText = `
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        min-width: 400px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    `;
+    
+    const titleEl = document.createElement('h3');
+    titleEl.textContent = title;
+    titleEl.style.margin = '0 0 15px 0';
+    dialogContent.appendChild(titleEl);
+    
+    const form = document.createElement('form');
+    const inputs = {};
+    
+    fields.forEach(field => {
+        const fieldDiv = document.createElement('div');
+        fieldDiv.style.marginBottom = '12px';
+        
+        const label = document.createElement('label');
+        label.textContent = field.label + ':';
+        label.style.display = 'block';
+        label.style.marginBottom = '5px';
+        fieldDiv.appendChild(label);
+        
+        const input = document.createElement('input');
+        input.type = field.type || 'text';
+        input.value = field.value || '';
+        input.placeholder = field.placeholder || '';
+        input.style.cssText = `
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        `;
+        inputs[field.name] = input;
+        fieldDiv.appendChild(input);
+        
+        form.appendChild(fieldDiv);
+    });
+    
+    const buttonDiv = document.createElement('div');
+    buttonDiv.style.cssText = `
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+    `;
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = `
+        padding: 8px 16px;
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+    `;
+    
+    const okBtn = document.createElement('button');
+    okBtn.type = 'submit';
+    okBtn.textContent = 'OK';
+    okBtn.style.cssText = `
+        padding: 8px 16px;
+        background: #007acc;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    `;
+    
+    buttonDiv.appendChild(cancelBtn);
+    buttonDiv.appendChild(okBtn);
+    form.appendChild(buttonDiv);
+    
+    dialogContent.appendChild(form);
+    dialog.appendChild(dialogContent);
+    
+    // Event handlers
+    const cleanup = () => document.body.removeChild(dialog);
+    
+    cancelBtn.onclick = cleanup;
+    dialog.onclick = (e) => { if (e.target === dialog) cleanup(); };
+    
+    form.onsubmit = (e) => {
+        e.preventDefault();
+        const values = {};
+        fields.forEach(field => {
+            values[field.name] = inputs[field.name].value;
+        });
+        cleanup();
+        callback(values);
+    };
+    
+    document.body.appendChild(dialog);
+    
+    // Focus first input
+    if (fields.length > 0) {
+        inputs[fields[0].name].focus();
+    }
+}
+
 // --- Link Insertion ---
 async function insertLink() {
     if (!window.editor) return;
@@ -279,81 +403,93 @@ async function insertLink() {
     const selection = window.editor.getSelection();
     const selectedText = window.editor.getModel().getValueInRange(selection);
     
-    // Simple prompt for now - could be enhanced with a modal dialog
-    const url = prompt('Enter the URL:');
-    if (!url) return;
-    
-    const linkText = selectedText || prompt('Enter the link text:') || 'link';
-    const linkMarkdown = `[${linkText}](${url})`;
-    
-    window.editor.executeEdits('insert-link', [{
-        range: selection,
-        text: linkMarkdown
-    }]);
-    
-    window.editor.focus();
-    if (window.updatePreviewAndStructure) {
-        await window.updatePreviewAndStructure(window.editor.getValue());
-    }
+    createInputDialog('Insert Link', [
+        { name: 'url', label: 'URL', placeholder: 'https://example.com' },
+        { name: 'text', label: 'Link Text', value: selectedText, placeholder: 'Link text' }
+    ], async (values) => {
+        if (!values.url) return;
+        
+        const linkText = values.text || 'link';
+        const linkMarkdown = `[${linkText}](${values.url})`;
+        
+        window.editor.executeEdits('insert-link', [{
+            range: selection,
+            text: linkMarkdown
+        }]);
+        
+        window.editor.focus();
+        if (window.updatePreviewAndStructure) {
+            await window.updatePreviewAndStructure(window.editor.getValue());
+        }
+    });
 }
 
 // --- Image Insertion ---
 async function insertImage() {
     if (!window.editor) return;
     
-    const url = prompt('Enter the image URL:');
-    if (!url) return;
-    
-    const altText = prompt('Enter the alt text:') || 'image';
-    const imageMarkdown = `![${altText}](${url})`;
-    
-    const position = window.editor.getPosition();
-    window.editor.executeEdits('insert-image', [{
-        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-        text: imageMarkdown
-    }]);
-    
-    window.editor.focus();
-    if (window.updatePreviewAndStructure) {
-        await window.updatePreviewAndStructure(window.editor.getValue());
-    }
+    createInputDialog('Insert Image', [
+        { name: 'url', label: 'Image URL', placeholder: 'https://example.com/image.jpg' },
+        { name: 'alt', label: 'Alt Text', value: 'image', placeholder: 'Description of the image' }
+    ], async (values) => {
+        if (!values.url) return;
+        
+        const altText = values.alt || 'image';
+        const imageMarkdown = `![${altText}](${values.url})`;
+        
+        const position = window.editor.getPosition();
+        window.editor.executeEdits('insert-image', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: imageMarkdown
+        }]);
+        
+        window.editor.focus();
+        if (window.updatePreviewAndStructure) {
+            await window.updatePreviewAndStructure(window.editor.getValue());
+        }
+    });
 }
 
 // --- Table Insertion ---
 async function insertTable() {
     if (!window.editor) return;
     
-    const rows = parseInt(prompt('Number of rows:') || '3');
-    const cols = parseInt(prompt('Number of columns:') || '3');
-    
-    if (isNaN(rows) || isNaN(cols) || rows < 1 || cols < 1) return;
-    
-    let tableMarkdown = '';
-    
-    // Create header row
-    const headerCells = Array(cols).fill('Header').map((cell, i) => `${cell} ${i + 1}`);
-    tableMarkdown += '| ' + headerCells.join(' | ') + ' |\n';
-    
-    // Create separator row
-    const separators = Array(cols).fill('---');
-    tableMarkdown += '| ' + separators.join(' | ') + ' |\n';
-    
-    // Create data rows
-    for (let row = 1; row < rows; row++) {
-        const dataCells = Array(cols).fill('Data').map((cell, i) => `${cell} ${row}-${i + 1}`);
-        tableMarkdown += '| ' + dataCells.join(' | ') + ' |\n';
-    }
-    
-    const position = window.editor.getPosition();
-    window.editor.executeEdits('insert-table', [{
-        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-        text: '\n' + tableMarkdown
-    }]);
-    
-    window.editor.focus();
-    if (window.updatePreviewAndStructure) {
-        await window.updatePreviewAndStructure(window.editor.getValue());
-    }
+    createInputDialog('Insert Table', [
+        { name: 'rows', label: 'Number of Rows', type: 'number', value: '3', placeholder: '3' },
+        { name: 'cols', label: 'Number of Columns', type: 'number', value: '3', placeholder: '3' }
+    ], async (values) => {
+        const rows = parseInt(values.rows) || 3;
+        const cols = parseInt(values.cols) || 3;
+        
+        if (rows < 1 || cols < 1) return;
+        
+        let tableMarkdown = '';
+        
+        // Create header row
+        const headerCells = Array(cols).fill('Header').map((cell, i) => `${cell} ${i + 1}`);
+        tableMarkdown += '| ' + headerCells.join(' | ') + ' |\n';
+        
+        // Create separator row
+        const separators = Array(cols).fill('---');
+        tableMarkdown += '| ' + separators.join(' | ') + ' |\n';
+        
+        // Create data rows
+        for (let row = 1; row < rows; row++) {
+            const dataCells = Array(cols).fill('Data').map((cell, i) => `${cell} ${row}-${i + 1}`);
+            tableMarkdown += '| ' + dataCells.join(' | ') + ' |\n';
+        }
+        
+        const position = window.editor.getPosition();
+        window.editor.executeEdits('insert-table', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: '\n' + tableMarkdown
+        }]);
+        
+        window.editor.focus();
+        if (window.updatePreviewAndStructure) {
+            await window.updatePreviewAndStructure(window.editor.getValue());
+        }
+    });
 }
 
 // --- Math Formatting ---
