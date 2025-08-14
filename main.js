@@ -150,6 +150,7 @@ const defaultSettings = {
         enableChat: true,
         enableSummarization: true,
         enableNoteExtraction: true,
+        verboseLogging: false, // true: log full messages, false: log previews only
         chatHistory: {
             persist: true,
             maxEntries: 100,
@@ -537,6 +538,20 @@ function updateSettingsCategory(category, updates) {
     appSettings[category] = deepMerge(appSettings[category], updates);
     saveSettings();
     
+    // Apply AI provider settings if changed
+    if (category === 'ai' && aiService && updates) {
+        if (updates.preferredProvider && updates.preferredProvider !== 'auto') {
+            try {
+                if (aiService.getAvailableProviders().includes(updates.preferredProvider)) {
+                    aiService.setDefaultProvider(updates.preferredProvider);
+                    console.log(`[main.js] Applied AI provider preference: ${updates.preferredProvider}`);
+                }
+            } catch (error) {
+                console.warn('[main.js] Could not apply AI provider preference:', error);
+            }
+        }
+    }
+    
     return appSettings[category];
 }
 
@@ -616,10 +631,36 @@ function updateSettings(category, newSettings) {
         appSettings = { ...appSettings, ...newSettings };
     }
     saveSettings();
+    
+    // Apply AI provider settings if changed
+    if (category === 'ai' && aiService && newSettings) {
+        if (newSettings.preferredProvider && newSettings.preferredProvider !== 'auto') {
+            try {
+                if (aiService.getAvailableProviders().includes(newSettings.preferredProvider)) {
+                    aiService.setDefaultProvider(newSettings.preferredProvider);
+                    console.log(`[main.js] Applied AI provider preference: ${newSettings.preferredProvider}`);
+                }
+            } catch (error) {
+                console.warn('[main.js] Could not apply AI provider preference:', error);
+            }
+        }
+    }
 }
 
 // Load settings before app ready
 loadSettings();
+
+// Apply saved AI settings if they exist
+if (aiService && appSettings.ai && appSettings.ai.preferredProvider && appSettings.ai.preferredProvider !== 'auto') {
+  try {
+    if (aiService.getAvailableProviders().includes(appSettings.ai.preferredProvider)) {
+      aiService.setDefaultProvider(appSettings.ai.preferredProvider);
+      console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
+    }
+  } catch (error) {
+    console.warn('[main.js] Could not apply saved AI provider preference:', error);
+  }
+}
 
 // Initialize currentFilePath from saved settings
 if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && appSettings.currentFile.trim() !== '') {
@@ -2428,6 +2469,49 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
   }
 });
 
+  // Logging helper function
+  function logMessage(label, message, aiSettings = {}) {
+    const verboseLogging = aiSettings.verboseLogging || false;
+    
+    console.log(`[main.js] ${label}`);
+    if (verboseLogging) {
+      console.log('[main.js] ---------- FULL MESSAGE START ----------');
+      console.log(message);
+      console.log('[main.js] ----------- FULL MESSAGE END -----------');
+    } else {
+      const preview = message.length > 200 ? message.substring(0, 200) + '...' : message;
+      console.log('[main.js] ---------- MESSAGE PREVIEW START ----------');
+      console.log(preview);
+      console.log('[main.js] ----------- MESSAGE PREVIEW END -----------');
+    }
+  }
+
+  // System prompt helper function
+  async function buildSystemMessage(aiSettings = {}) {
+    const defaultMessage = 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
+    
+    if (!aiSettings.systemPromptSource || aiSettings.systemPromptSource === 'default') {
+      return defaultMessage;
+    }
+    
+    if (aiSettings.systemPromptSource === 'custom' && aiSettings.customSystemPrompt) {
+      return aiSettings.customSystemPrompt.trim();
+    }
+    
+    if (aiSettings.systemPromptSource === 'file' && aiSettings.systemPromptFile) {
+      try {
+        const promptPath = path.resolve(aiSettings.systemPromptFile);
+        const promptContent = await fs.readFile(promptPath, 'utf-8');
+        return promptContent.trim();
+      } catch (error) {
+        console.warn('[main.js] Failed to load system prompt file:', error.message);
+        return defaultMessage;
+      }
+    }
+    
+    return defaultMessage;
+  }
+
   ipcMain.handle('send-chat-message', async (event, userMessage) => {
     if (!aiService || aiService.getAvailableProviders().length === 0) {
         console.error('[main.js] AI Service not available. Cannot send chat message.');
@@ -2437,15 +2521,25 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
         console.error('[main.js] Invalid user message received.');
         return { error: 'Invalid message format.' };
     }
-    console.log(`[main.js] 🤖 Received chat message: "${userMessage.substring(0, 100)}..."`);
-    console.log('[main.js] 📝 Message preview being sent to AI service:');
-    console.log('[main.js] Message length:', userMessage.length, 'characters');
-    console.log('[main.js] ---------- MESSAGE PREVIEW START ----------');
-    console.log(userMessage.substring(0, 200) + (userMessage.length > 200 ? '...' : ''));
-    console.log('[main.js] ----------- MESSAGE PREVIEW END -----------');
+    console.log(`[main.js] 🤖 Received chat message of ${userMessage.length} characters`);
+    
+    const aiSettings = appSettings.ai || {};
+    logMessage('📝 MESSAGE being sent to AI service:', userMessage, aiSettings);
     
     try {
-      const response = await aiService.sendMessage(userMessage);
+      const systemMessage = await buildSystemMessage(aiSettings);
+      
+      // Apply user settings for provider and model
+      const options = {
+        provider: aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined,
+        model: aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined,
+        systemMessage,
+        temperature: aiSettings.temperature,
+        maxTokens: aiSettings.maxTokens,
+        settings: aiSettings
+      };
+      
+      const response = await aiService.sendMessage(userMessage, options);
       console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
       
       return {
@@ -2486,6 +2580,67 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     };
   });
 
+  ipcMain.handle('get-current-ai-config', async (event) => {
+    if (!aiService) {
+      return { success: false, error: 'AI Service not available' };
+    }
+    
+    // Get the base configuration from AI service
+    const baseConfig = aiService.getCurrentConfiguration();
+    
+    // Override with user's saved settings
+    const aiSettings = appSettings.ai || {};
+    
+    // Determine actual provider and model that will be used
+    let actualProvider = baseConfig.provider;
+    let actualModel = baseConfig.model;
+    
+    if (aiSettings.preferredProvider && aiSettings.preferredProvider !== 'auto') {
+      // User has selected a specific provider
+      if (aiService.getAvailableProviders().includes(aiSettings.preferredProvider)) {
+        actualProvider = aiSettings.preferredProvider;
+        
+        // Use the user's selected model for this provider
+        if (aiSettings.preferredModel && aiSettings.preferredModel !== 'auto') {
+          actualModel = aiSettings.preferredModel;
+        } else {
+          // Use default model for the selected provider
+          actualModel = aiService.getDefaultModelForProvider(actualProvider);
+        }
+      }
+    }
+    
+    return {
+      success: true,
+      provider: actualProvider,
+      model: actualModel,
+      availableProviders: baseConfig.availableProviders,
+      availableModels: baseConfig.availableModels,
+      userSettings: {
+        preferredProvider: aiSettings.preferredProvider || 'auto',
+        preferredModel: aiSettings.preferredModel || 'auto'
+      }
+    };
+  });
+
+  ipcMain.handle('browse-system-prompt-file', async (event) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select System Prompt File',
+      filters: [
+        { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+        { name: 'Text Files', extensions: ['txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, filePath: result.filePaths[0] };
+    }
+    
+    return { success: false, cancelled: true };
+  });
+
   ipcMain.handle('get-default-ai-provider', async (event) => {
     if (!aiService) {
       return null;
@@ -2505,6 +2660,49 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     } catch (error) {
       console.error('[main.js] Error getting provider models:', error);
       return { models: [], error: error.message };
+    }
+  });
+
+  // Conversation management handlers
+  ipcMain.handle('ai-clear-conversation', async (event) => {
+    if (!aiService) {
+      return { error: 'AI Service not available' };
+    }
+    
+    try {
+      aiService.clearConversation();
+      return { success: true, message: 'Conversation cleared' };
+    } catch (error) {
+      console.error('[main.js] Error clearing conversation:', error);
+      return { error: 'Failed to clear conversation' };
+    }
+  });
+
+  ipcMain.handle('ai-restart-conversation', async (event, systemMessage) => {
+    if (!aiService) {
+      return { error: 'AI Service not available' };
+    }
+    
+    try {
+      aiService.restartConversation(systemMessage);
+      return { success: true, message: 'Conversation restarted' };
+    } catch (error) {
+      console.error('[main.js] Error restarting conversation:', error);
+      return { error: 'Failed to restart conversation' };
+    }
+  });
+
+  ipcMain.handle('ai-get-conversation-history', async (event) => {
+    if (!aiService) {
+      return { error: 'AI Service not available' };
+    }
+    
+    try {
+      const history = aiService.getConversationHistory();
+      return { success: true, history };
+    } catch (error) {
+      console.error('[main.js] Error getting conversation history:', error);
+      return { error: 'Failed to get conversation history' };
     }
   });
 
@@ -2608,13 +2806,31 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
       
       enhancedPrompt += `User request: ${message}`;
 
-      console.log('[main.js] 📝 Enhanced message preview being sent to AI service:');
-      console.log('[main.js] Message length:', enhancedPrompt.length, 'characters');
-      console.log('[main.js] ---------- ENHANCED MESSAGE PREVIEW START ----------');
-      console.log(enhancedPrompt.substring(0, 200) + (enhancedPrompt.length > 200 ? '...' : ''));
-      console.log('[main.js] ----------- ENHANCED MESSAGE PREVIEW END -----------');
+      // Apply saved AI settings
+      const aiSettings = appSettings.ai || {};
+      
+      console.log('[main.js] Enhanced message length:', enhancedPrompt.length, 'characters');
+      logMessage('📝 ENHANCED MESSAGE being sent to AI service:', enhancedPrompt, aiSettings);
 
-      const response = await aiService.sendMessage(enhancedPrompt);
+      const systemMessage = await buildSystemMessage(aiSettings);
+      
+      const options = {
+        provider: aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined,
+        model: aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined,
+        systemMessage,
+        temperature: aiSettings.temperature,
+        maxTokens: aiSettings.maxTokens,
+        settings: aiSettings
+      };
+      
+      console.log('[main.js] 🔧 Applying saved AI settings:', {
+        provider: options.provider || 'default',
+        model: options.model || 'default',
+        temperature: options.temperature,
+        maxTokens: options.maxTokens
+      });
+      
+      const response = await aiService.sendMessage(enhancedPrompt, options);
       console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
       
       return {
@@ -2796,9 +3012,17 @@ BULLETS:
 
 Keep it concise and focused on the most important points.`;
 
+      // Apply saved AI settings
+      const aiSettings = appSettings.ai || {};
+      const systemMessage = await buildSystemMessage(aiSettings);
+      
       const response = await aiService.sendMessage(prompt, {
+        provider: aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined,
+        model: aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined,
+        systemMessage,
         temperature: 1.0, // Lower temperature for more focused summaries
-        maxTokens: 300
+        maxTokens: 300,
+        settings: aiSettings
       });
       
       console.log(`[main.js] AI summarization from ${response.provider}: Generated heading and bullets`);
@@ -3989,6 +4213,21 @@ Keep it concise and focused on the most important points.`;
       // If category is actually the settings object (backwards compatibility)
       appSettings = { ...appSettings, ...category };
       saveSettings();
+      
+      // Apply AI provider settings if changed
+      if (category.ai && aiService) {
+        const aiSettings = category.ai;
+        if (aiSettings.preferredProvider && aiSettings.preferredProvider !== 'auto') {
+          try {
+            if (aiService.getAvailableProviders().includes(aiSettings.preferredProvider)) {
+              aiService.setDefaultProvider(aiSettings.preferredProvider);
+              console.log(`[main.js] Applied new AI provider preference: ${aiSettings.preferredProvider}`);
+            }
+          } catch (error) {
+            console.warn('[main.js] Could not apply AI provider preference:', error);
+          }
+        }
+      }
     }
     return { success: true };
   });

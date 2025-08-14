@@ -526,10 +526,10 @@ function generateEditorSettings() {
 function generateAISettings() {
     return `
         <div class="settings-section">
-            <h3>AI Provider</h3>
+            <h3>AI Provider Configuration</h3>
             <div class="settings-group">
                 <label>
-                    <select id="ai-provider">
+                    <select id="ai-provider" onchange="updateModelOptions()">
                         <option value="auto" ${(currentSettings.ai?.preferredProvider || 'auto') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
                         <option value="openai" ${currentSettings.ai?.preferredProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
                         <option value="anthropic" ${currentSettings.ai?.preferredProvider === 'anthropic' ? 'selected' : ''}>Anthropic</option>
@@ -538,6 +538,47 @@ function generateAISettings() {
                     </select>
                     <span>Preferred Provider</span>
                 </label>
+                <label>
+                    <select id="ai-model">
+                        <option value="auto">Auto (Provider Default)</option>
+                        ${generateModelOptions(currentSettings.ai?.preferredProvider || 'auto', currentSettings.ai?.preferredModel)}
+                    </select>
+                    <span>Preferred Model</span>
+                </label>
+                <div id="current-config" style="margin-top: 10px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px; color: #666;">
+                    Current: Loading configuration...
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>System Prompt Configuration</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="radio" name="system-prompt-source" value="default" ${(!currentSettings.ai?.systemPromptSource || currentSettings.ai?.systemPromptSource === 'default') ? 'checked' : ''} onchange="toggleSystemPromptOptions()">
+                    <span>Use Default System Prompt</span>
+                </label>
+                <label>
+                    <input type="radio" name="system-prompt-source" value="custom" ${currentSettings.ai?.systemPromptSource === 'custom' ? 'checked' : ''} onchange="toggleSystemPromptOptions()">
+                    <span>Custom Text</span>
+                </label>
+                <label>
+                    <input type="radio" name="system-prompt-source" value="file" ${currentSettings.ai?.systemPromptSource === 'file' ? 'checked' : ''} onchange="toggleSystemPromptOptions()">
+                    <span>Markdown File</span>
+                </label>
+                
+                <div id="custom-prompt-area" style="display: ${currentSettings.ai?.systemPromptSource === 'custom' ? 'block' : 'none'}; margin-top: 10px;">
+                    <textarea id="custom-system-prompt" rows="4" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px;" placeholder="Enter your custom system prompt...">${currentSettings.ai?.customSystemPrompt || ''}</textarea>
+                </div>
+                
+                <div id="file-prompt-area" style="display: ${currentSettings.ai?.systemPromptSource === 'file' ? 'block' : 'none'}; margin-top: 10px;">
+                    <input type="text" id="system-prompt-file" value="${currentSettings.ai?.systemPromptFile || ''}" placeholder="Path to markdown file (e.g., ./prompts/system.md)" style="width: 70%; padding: 8px; margin-right: 10px;">
+                    <button type="button" onclick="browseSystemPromptFile()">Browse...</button>
+                </div>
+                
+                <div id="default-prompt-preview" style="display: ${(!currentSettings.ai?.systemPromptSource || currentSettings.ai?.systemPromptSource === 'default') ? 'block' : 'none'}; margin-top: 10px; padding: 8px; background: #f9f9f9; border-radius: 4px; font-size: 11px; color: #666;">
+                    <strong>Default:</strong> You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.
+                </div>
             </div>
         </div>
         
@@ -570,6 +611,20 @@ function generateAISettings() {
                     <input type="checkbox" id="ai-note-extraction-enabled" ${currentSettings.ai?.enableNoteExtraction ? 'checked' : ''}>
                     <span>Enable Note Extraction</span>
                 </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Debugging & Logging</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="ai-verbose-logging" ${currentSettings.ai?.verboseLogging ? 'checked' : ''}>
+                    <span>Verbose API Logging</span>
+                </label>
+                <div style="margin-top: 5px; font-size: 11px; color: #666; margin-left: 20px;">
+                    When enabled, logs full messages and responses to console.<br>
+                    When disabled, logs only previews to reduce log size.
+                </div>
             </div>
         </div>
         
@@ -873,6 +928,15 @@ async function saveSettingsDialog() {
             window.applyEditorSettings(updatedSettings);
         }
         
+        // Refresh chat header if AI settings were changed
+        if (updatedSettings.ai && window.refreshChatHeader) {
+            try {
+                await window.refreshChatHeader();
+            } catch (error) {
+                console.warn('[Settings] Could not refresh chat header:', error);
+            }
+        }
+        
         // Close dialog
         closeSettingsDialog();
         
@@ -962,6 +1026,12 @@ function collectSettingsFromForm() {
         updatedSettings.ai.preferredProvider = aiProvider;
     }
     
+    const aiModel = document.getElementById('ai-model')?.value;
+    if (aiModel) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.preferredModel = aiModel;
+    }
+    
     const aiTemperature = document.getElementById('ai-temperature')?.value;
     if (aiTemperature) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
@@ -972,6 +1042,31 @@ function collectSettingsFromForm() {
     if (aiMaxTokens) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.maxTokens = parseInt(aiMaxTokens);
+    }
+    
+    // System prompt settings
+    const systemPromptSource = document.querySelector('input[name="system-prompt-source"]:checked')?.value;
+    if (systemPromptSource) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.systemPromptSource = systemPromptSource;
+    }
+    
+    const customSystemPrompt = document.getElementById('custom-system-prompt')?.value;
+    if (customSystemPrompt !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.customSystemPrompt = customSystemPrompt;
+    }
+    
+    const systemPromptFile = document.getElementById('system-prompt-file')?.value;
+    if (systemPromptFile !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.systemPromptFile = systemPromptFile;
+    }
+    
+    const verboseLogging = document.getElementById('ai-verbose-logging')?.checked;
+    if (verboseLogging !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.verboseLogging = verboseLogging;
     }
     
     // Export settings
@@ -1177,5 +1272,102 @@ function resetSettingsFromDialog() {
     if (confirm('Are you sure you want to reset all settings to their default values? This action cannot be undone.')) {
         // This will be handled by the main process menu action
         showNotification('Use Settings → Reset All Settings from the main menu', 'info');
+    }
+}
+
+// AI Settings Helper Functions
+
+function generateModelOptions(provider, selectedModel) {
+    const models = {
+        openai: [
+            'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'
+        ],
+        anthropic: [
+            'claude-opus-4-1-20250805', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514',
+            'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022',
+            'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'
+        ],
+        groq: [
+            'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-90b-text-preview',
+            'llama-3.2-11b-text-preview', 'mixtral-8x7b-32768', 'gemma2-9b-it'
+        ],
+        openrouter: [
+            'anthropic/claude-3.5-sonnet', 'anthropic/claude-3-opus', 'openai/gpt-4', 'openai/gpt-4-turbo',
+            'meta-llama/llama-3.1-70b-instruct', 'google/gemini-pro-1.5', 'mistralai/mistral-large'
+        ]
+    };
+    
+    if (provider === 'auto' || !models[provider]) {
+        return '';
+    }
+    
+    return models[provider].map(model => 
+        `<option value="${model}" ${selectedModel === model ? 'selected' : ''}>${model}</option>`
+    ).join('');
+}
+
+async function updateModelOptions() {
+    const providerSelect = document.getElementById('ai-provider');
+    const modelSelect = document.getElementById('ai-model');
+    const currentConfigDiv = document.getElementById('current-config');
+    
+    if (!providerSelect || !modelSelect || !currentConfigDiv) return;
+    
+    const provider = providerSelect.value;
+    
+    // Update model options
+    if (provider === 'auto') {
+        modelSelect.innerHTML = '<option value="auto" selected>Auto (Provider Default)</option>';
+    } else {
+        modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>' + 
+                                generateModelOptions(provider, null);
+    }
+    
+    // Update current configuration display
+    try {
+        const currentConfig = await window.electronAPI.invoke('get-current-ai-config');
+        const configText = currentConfig.success ? 
+            `Current: ${currentConfig.provider} / ${currentConfig.model}` :
+            'Current: Configuration unavailable';
+        currentConfigDiv.textContent = configText;
+    } catch (error) {
+        currentConfigDiv.textContent = 'Current: Error loading configuration';
+    }
+}
+
+function toggleSystemPromptOptions() {
+    const source = document.querySelector('input[name="system-prompt-source"]:checked')?.value;
+    
+    const customArea = document.getElementById('custom-prompt-area');
+    const fileArea = document.getElementById('file-prompt-area');
+    const defaultPreview = document.getElementById('default-prompt-preview');
+    const customTextarea = document.getElementById('custom-system-prompt');
+    
+    if (customArea) customArea.style.display = source === 'custom' ? 'block' : 'none';
+    if (fileArea) fileArea.style.display = source === 'file' ? 'block' : 'none';
+    if (defaultPreview) defaultPreview.style.display = (!source || source === 'default') ? 'block' : 'none';
+    
+    // When switching to custom text, populate with default prompt if empty
+    if (source === 'custom' && customTextarea) {
+        const currentValue = customTextarea.value.trim();
+        if (!currentValue) {
+            const defaultPrompt = 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
+            customTextarea.value = defaultPrompt;
+        }
+    }
+}
+
+async function browseSystemPromptFile() {
+    try {
+        const result = await window.electronAPI.invoke('browse-system-prompt-file');
+        if (result.success && result.filePath) {
+            const input = document.getElementById('system-prompt-file');
+            if (input) {
+                input.value = result.filePath;
+            }
+        }
+    } catch (error) {
+        console.error('[Settings] Error browsing system prompt file:', error);
+        showNotification('Error browsing for system prompt file', 'error');
     }
 }

@@ -6,8 +6,39 @@
 // - Command-style interactions
 // - Contextual awareness of current working directory
 
+// --- Provider/Model Display Info ---
+let lastKnownProvider = null;
+let lastKnownModel = null;
+
+function updateProviderInfo(provider, model) {
+    lastKnownProvider = provider;
+    lastKnownModel = model;
+}
+
+function getProviderDisplayInfo() {
+    if (!lastKnownProvider || !lastKnownModel) {
+        return '';
+    }
+    
+    // Format provider and model names for display
+    const displayProvider = lastKnownProvider.charAt(0).toUpperCase() + lastKnownProvider.slice(1);
+    let displayModel = lastKnownModel;
+    
+    // Simplify model names for readability
+    if (displayModel.includes('claude-')) {
+        displayModel = displayModel.replace('claude-', 'Claude ').replace('-20', ' (20');
+        if (displayModel.includes('(20')) displayModel += ')';
+    } else if (displayModel.includes('gpt-')) {
+        displayModel = displayModel.replace('gpt-', 'GPT-').toUpperCase();
+    } else if (displayModel.includes('llama-')) {
+        displayModel = displayModel.replace('llama-', 'Llama ');
+    }
+    
+    return `[${displayProvider}/${displayModel}]`;
+}
+
 // --- Terminal-style Chat Message Management ---
-function addChatMessage(message, sender, isCommand = false) {
+function addChatMessage(message, sender, isCommand = false, responseInfo = null) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
     
@@ -21,7 +52,11 @@ function addChatMessage(message, sender, isCommand = false) {
     if (sender === 'User') {
         promptSpan.innerHTML = '<span class="terminal-user">user@hegel-ai</span><span class="terminal-separator">:</span><span class="terminal-path">~/</span><span class="terminal-dollar">$</span> ';
     } else {
-        promptSpan.innerHTML = '<span class="terminal-assistant">assistant</span><span class="terminal-separator">:</span> ';
+        // For AI responses, just show assistant prompt (provider info is in header)
+        if (responseInfo && responseInfo.provider && responseInfo.model) {
+            updateProviderInfo(responseInfo.provider, responseInfo.model);
+        }
+        promptSpan.innerHTML = `<span class="terminal-assistant">assistant</span><span class="terminal-separator">:</span> `;
     }
 
     const contentSpan = document.createElement('span');
@@ -158,7 +193,7 @@ async function sendChatMessage() {
             console.error('[AI Chat] Chat Error:', result.error);
             addChatMessage(`Error: ${result.error}`, 'AI');
         } else if (result.response) {
-            addChatMessage(result.response, 'AI');
+            addChatMessage(result.response, 'AI', false, { provider: result.provider, model: result.model });
         } else {
             addChatMessage('Received an empty response from the AI.', 'AI');
         }
@@ -315,12 +350,24 @@ function copyAIResponseToEditor() {
 }
 
 // --- Clear Chat Messages ---
-function clearChat() {
+async function clearChat() {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
     
-    const confirmed = confirm('Are you sure you want to clear all chat messages?');
+    const confirmed = confirm('Are you sure you want to clear all chat messages? This will also clear the AI conversation history.');
     if (confirmed) {
+        try {
+            // Clear conversation history in AI service
+            const result = await window.electronAPI.invoke('ai-clear-conversation');
+            if (result.error) {
+                console.warn('[AI Chat] Warning: Could not clear AI conversation history:', result.error);
+            } else {
+                console.log('[AI Chat] AI conversation history cleared successfully');
+            }
+        } catch (error) {
+            console.warn('[AI Chat] Warning: Could not clear AI conversation history:', error);
+        }
+        
         chatMessages.innerHTML = '';
         console.log('[AI Chat] Chat messages cleared.');
         if (window.showNotification) {
@@ -330,15 +377,27 @@ function clearChat() {
 }
 
 // --- Restart Chat Session ---
-function restartChat() {
+async function restartChat() {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
+    
+    try {
+        // Clear conversation history in AI service
+        const result = await window.electronAPI.invoke('ai-restart-conversation');
+        if (result.error) {
+            console.warn('[AI Chat] Warning: Could not clear AI conversation history:', result.error);
+        } else {
+            console.log('[AI Chat] AI conversation history cleared successfully');
+        }
+    } catch (error) {
+        console.warn('[AI Chat] Warning: Could not clear AI conversation history:', error);
+    }
     
     // Clear messages without confirmation
     chatMessages.innerHTML = '';
     
     // Show new context message
-    showChatContext();
+    await showChatContext();
     
     // Focus input
     const chatInput = document.getElementById('chat-input');
@@ -450,13 +509,13 @@ function initializeChatFunctionality() {
         // Focus the input and show context when chat pane is visible
         const chatPane = document.getElementById('chat-pane');
         if (chatPane) {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
+            const observer = new MutationObserver(async (mutations) => {
+                mutations.forEach(async (mutation) => {
                     if (mutation.attributeName === 'style') {
                         const isVisible = !chatPane.style.display || chatPane.style.display !== 'none';
                         if (isVisible) {
                             chatInput.focus();
-                            showChatContext();
+                            await showChatContext();
                         }
                     }
                 });
@@ -506,11 +565,12 @@ async function processChatCommand(message) {
             
         case '/help':
             addChatMessage(`Available commands:
-/clear - Clear all chat messages
+/clear - Clear all chat messages and conversation history
 /restart - Start a new chat session
 /save - Save chat history to file
 /settings - Show current AI configuration
 /context - Toggle including other files in AI context (currently: ${includeOtherFiles ? 'ON' : 'OFF'})
+/history - Show AI conversation history
 /help - Show this help message  
 /load - Load editor content to chat input
 /ls - List files in current directory
@@ -550,6 +610,10 @@ async function processChatCommand(message) {
         case '/load':
             loadEditorToChat();
             return true;
+
+        case '/history':
+            await showConversationHistory();
+            return true;
             
         default:
             // Check for /cat command with filename
@@ -588,19 +652,49 @@ async function sendChatMessageWithCommands() {
 }
 
 // --- Show Chat Context ---
-function showChatContext() {
+async function showChatContext() {
     const chatMessages = document.getElementById('chat-messages');
     const contextDisplay = document.getElementById('chat-context-display');
     
     // Update header context
     const currentFile = window.currentFilePath;
     if (contextDisplay) {
+        let contextText = '';
+        
+        // Add file context
         if (currentFile) {
             const fileName = currentFile.split('/').pop() || currentFile.split('\\').pop();
-            contextDisplay.textContent = `Context: ${fileName} | Type /help for commands`;
+            contextText += `Context: ${fileName}`;
         } else {
-            contextDisplay.textContent = 'No file open | Type /help for commands';
+            contextText += 'No file open';
         }
+        
+        // Add AI provider/model info
+        try {
+            const aiConfig = await window.electronAPI.invoke('get-current-ai-config');
+            if (aiConfig && aiConfig.success && aiConfig.provider && aiConfig.model) {
+                const displayProvider = aiConfig.provider.charAt(0).toUpperCase() + aiConfig.provider.slice(1);
+                let displayModel = aiConfig.model;
+                
+                // Simplify model names for header display
+                if (displayModel.includes('claude-')) {
+                    displayModel = displayModel.replace('claude-', 'Claude ').replace('-20', ' (20');
+                    if (displayModel.includes('(20')) displayModel += ')';
+                } else if (displayModel.includes('gpt-')) {
+                    displayModel = displayModel.replace('gpt-', 'GPT-').toUpperCase();
+                } else if (displayModel.includes('llama-')) {
+                    displayModel = displayModel.replace('llama-', 'Llama ');
+                }
+                
+                contextText += ` | AI: ${displayProvider}/${displayModel}`;
+            }
+        } catch (error) {
+            // Don't show error in header, just continue without AI info
+            console.warn('[AI Chat] Could not get AI config for header:', error);
+        }
+        
+        contextText += ' | Type /help for commands';
+        contextDisplay.textContent = contextText;
     }
     
     if (!chatMessages) return;
@@ -692,6 +786,45 @@ async function showAllFiles() {
     }
 }
 
+// --- Show Conversation History ---
+async function showConversationHistory() {
+    try {
+        const result = await window.electronAPI.invoke('ai-get-conversation-history');
+        if (result.error) {
+            addChatMessage(`Error getting conversation history: ${result.error}`, 'AI');
+            return;
+        }
+        
+        const history = result.history || [];
+        if (history.length === 0) {
+            addChatMessage('📜 **Conversation History**\n\nNo conversation history yet. Start chatting to build up the conversation!', 'AI');
+            return;
+        }
+        
+        let historyMessage = '📜 **Conversation History**\n\n';
+        historyMessage += `**Messages in conversation:** ${history.length}\n\n`;
+        
+        // Show recent messages (last 10)
+        const recentHistory = history.slice(-10);
+        if (recentHistory.length < history.length) {
+            historyMessage += `*(Showing last ${recentHistory.length} of ${history.length} messages)*\n\n`;
+        }
+        
+        for (const msg of recentHistory) {
+            const timestamp = new Date(msg.timestamp).toLocaleTimeString();
+            const role = msg.role === 'user' ? '👤 User' : '🤖 Assistant';
+            const preview = msg.content.length > 100 ? msg.content.substring(0, 100) + '...' : msg.content;
+            historyMessage += `**${role}** (${timestamp}):\n${preview}\n\n`;
+        }
+        
+        historyMessage += '💡 Use `/restart` to start a new conversation or `/clear` to clear history.';
+        
+        addChatMessage(historyMessage, 'AI');
+    } catch (error) {
+        addChatMessage(`Error getting conversation history: ${error.message}`, 'AI');
+    }
+}
+
 // --- Show AI Settings ---
 async function showAISettings() {
     try {
@@ -742,9 +875,17 @@ async function showAISettings() {
         settingsMessage += '\n💡 To change settings, use the menu: Preferences → AI Configuration';
         
         addChatMessage(settingsMessage, 'AI');
+        
+        // Refresh header to show current config
+        await showChatContext();
     } catch (error) {
         addChatMessage(`Error getting AI settings: ${error.message}`, 'AI');
     }
+}
+
+// --- Refresh Header Display ---
+async function refreshChatHeader() {
+    await showChatContext();
 }
 
 // --- Export for Global Access ---
@@ -756,3 +897,4 @@ window.copyAIResponseToEditor = copyAIResponseToEditor;
 window.restartChat = restartChat;
 window.initializeChatFunctionality = initializeChatFunctionality;
 window.addChatMessage = addChatMessage;
+window.refreshChatHeader = refreshChatHeader;

@@ -18,6 +18,8 @@ class AIService {
   constructor() {
     this.providers = new Map();
     this.defaultProvider = null;
+    this.conversationHistory = []; // Store conversation messages
+    this.currentSystemMessage = null; // Track current system message
     
     // Log AI settings from environment
     console.log('[AIService] AI Settings from environment:');
@@ -103,23 +105,63 @@ class AIService {
   }
 
   async sendMessage(message, options = {}) {
-    const {
-      provider = this.defaultProvider,
-      model,
-      systemMessage = 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.',
-      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
-      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
-    } = options;
+    // Extract options with defaults
+    const provider = options.provider || this.defaultProvider;
+    const model = options.model;
+    const systemMessage = options.systemMessage || 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
+    const temperature = options.temperature !== undefined ? options.temperature : (parseFloat(process.env.AI_TEMPERATURE) || 0.7);
+    const maxTokens = options.maxTokens !== undefined ? options.maxTokens : (parseInt(process.env.AI_MAX_TOKENS) || 2000);
+    const settings = options.settings;
+    const newConversation = options.newConversation || false;
+
+    // Handle conversation state
+    if (newConversation || this.currentSystemMessage !== systemMessage) {
+      this.restartConversation(systemMessage);
+    }
+
+    // Add user message to history
+    this.addToHistory('user', message);
 
     console.log(`[AIService] 🚀 sendMessage called with provider: ${provider}, model: ${model}`);
-    console.log('[AIService] 📝 Message being sent to AI provider:');
-    console.log('[AIService] Message length:', message.length, 'characters');
-    console.log('[AIService] System message:', systemMessage);
-    console.log('[AIService] Temperature:', temperature, '| Max tokens:', maxTokens);
-    console.log('[AIService] ---------- AI PROVIDER MESSAGE PREVIEW ----------');
-    console.log(message.substring(0, 200) + (message.length > 200 ? '...' : ''));
-    console.log('[AIService] ----------- AI PROVIDER MESSAGE END -----------');
-    console.log(`[AIService] Available providers:`, Array.from(this.providers.keys()));
+    console.log('[AIService] 📝 Full API Request Details:');
+    console.log('[AIService] ============================================');
+    console.log('[AIService] Provider:', provider || 'default');
+    console.log('[AIService] Model:', model || 'provider default');
+    console.log('[AIService] Temperature:', temperature);
+    console.log('[AIService] Max Tokens:', maxTokens);
+    console.log('[AIService] Message Length:', message.length, 'characters');
+    console.log('[AIService] Conversation History Length:', this.conversationHistory.length, 'messages');
+    console.log('[AIService] ============================================');
+    // Check verbose logging setting
+    const verboseLogging = settings?.verboseLogging || false;
+    
+    console.log('[AIService] 🔧 SYSTEM PROMPT:');
+    console.log('[AIService] --------------------------------------------');
+    if (verboseLogging) {
+      console.log(systemMessage);
+    } else {
+      const preview = systemMessage.length > 200 ? systemMessage.substring(0, 200) + '...' : systemMessage;
+      console.log(preview);
+    }
+    console.log('[AIService] --------------------------------------------');
+    
+    console.log(`[AIService] 💬 USER MESSAGE ${verboseLogging ? '(FULL)' : '(PREVIEW)'}:`);
+    console.log('[AIService] --------------------------------------------');
+    if (verboseLogging) {
+      console.log(message);
+    } else {
+      const preview = message.length > 500 ? message.substring(0, 500) + '...' : message;
+      console.log(preview);
+    }
+    console.log('[AIService] --------------------------------------------');
+    console.log('[AIService] 📊 Configuration Details:');
+    console.log('[AIService] Available providers:', Array.from(this.providers.keys()));
+    console.log('[AIService] Default provider (from service):', this.defaultProvider);
+    console.log('[AIService] Actual provider (after options):', provider);
+    console.log('[AIService] Model requested:', model || '(provider default)');
+    console.log('[AIService] Options passed in:', JSON.stringify(options, null, 2));
+    console.log('[AIService] Settings from main process:', settings ? JSON.stringify(settings, null, 2) : 'none');
+    console.log('[AIService] ============================================');
 
     if (!this.providers.has(provider)) {
       throw new Error(`Provider '${provider}' not available. Available providers: ${Array.from(this.providers.keys()).join(', ')}`);
@@ -133,10 +175,32 @@ class AIService {
         model,
         systemMessage,
         temperature,
-        maxTokens
+        maxTokens,
+        conversationHistory: this.conversationHistory
       });
       
-      console.log(`[AIService] Successfully got response from ${provider}`);
+      // Add assistant response to history
+      this.addToHistory('assistant', response.content);
+      
+      console.log(`[AIService] ✅ Successfully got response from ${provider}`);
+      console.log('[AIService] 📥 API Response Details:');
+      console.log('[AIService] --------------------------------------------');
+      console.log('[AIService] Provider:', provider);
+      console.log('[AIService] Model Used:', response.model);
+      console.log('[AIService] Response Length:', response.content?.length || 0, 'characters');
+      if (response.usage) {
+        console.log('[AIService] Token Usage:', JSON.stringify(response.usage, null, 2));
+      }
+      console.log(`[AIService] 💬 AI RESPONSE ${verboseLogging ? '(FULL)' : '(PREVIEW)'}:`);
+      console.log('[AIService] --------------------------------------------');
+      if (verboseLogging) {
+        console.log(response.content);
+      } else {
+        const preview = response.content?.length > 500 ? response.content.substring(0, 500) + '...' : response.content;
+        console.log(preview);
+      }
+      console.log('[AIService] --------------------------------------------');
+      
       return {
         response: response.content,
         provider,
@@ -144,6 +208,12 @@ class AIService {
         usage: response.usage
       };
     } catch (error) {
+      // Remove the user message from history if the request failed
+      if (this.conversationHistory.length > 0 && 
+          this.conversationHistory[this.conversationHistory.length - 1].role === 'user') {
+        this.conversationHistory.pop();
+      }
+      
       console.error(`[AIService] Error with ${provider}:`, error.message);
       console.error(`[AIService] Full error:`, error);
       throw error;
@@ -171,6 +241,60 @@ class AIService {
       console.log(`[AIService] Default provider set to: ${provider}`);
     } else {
       throw new Error(`Provider '${provider}' not available`);
+    }
+  }
+
+  getCurrentConfiguration() {
+    const provider = this.defaultProvider;
+    const providerInstance = this.providers.get(provider);
+    
+    return {
+      success: true,
+      provider: provider || 'none',
+      model: providerInstance ? this.getDefaultModelForProvider(provider) : 'unknown',
+      availableProviders: this.getAvailableProviders(),
+      availableModels: provider ? this.getProviderModels(provider) : []
+    };
+  }
+
+  getDefaultModelForProvider(provider) {
+    const defaults = {
+      openai: process.env.OPENAI_MODEL || 'gpt-5',
+      anthropic: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+      groq: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
+      openrouter: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet'
+    };
+    
+    return defaults[provider] || 'auto';
+  }
+
+  // Conversation management methods
+  clearConversation() {
+    this.conversationHistory = [];
+    this.currentSystemMessage = null;
+    console.log('[AIService] Conversation history cleared');
+  }
+
+  restartConversation(systemMessage = null) {
+    this.clearConversation();
+    if (systemMessage) {
+      this.currentSystemMessage = systemMessage;
+    }
+    console.log('[AIService] Conversation restarted');
+  }
+
+  getConversationHistory() {
+    return [...this.conversationHistory]; // Return a copy
+  }
+
+  addToHistory(role, content) {
+    this.conversationHistory.push({ role, content, timestamp: new Date().toISOString() });
+    
+    // Keep conversation history manageable (last 20 exchanges = 40 messages)
+    const maxMessages = 40;
+    if (this.conversationHistory.length > maxMessages) {
+      this.conversationHistory = this.conversationHistory.slice(-maxMessages);
+      console.log(`[AIService] Trimmed conversation history to last ${maxMessages} messages`);
     }
   }
 }
@@ -201,26 +325,43 @@ class OpenAIProvider extends BaseProvider {
     const {
       model = process.env.OPENAI_MODEL || 'gpt-5',
       systemMessage,
-      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
-      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
+      conversationHistory = []
     } = options;
+      // temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      // maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
 
-    console.log(`[OpenAIProvider] Sending message with model: ${model}`);
-    console.log(`[OpenAIProvider] Message preview: ≈ + (message.length > 150 ? '...' : '')}`);
-    console.log(`[OpenAIProvider] Message length: ${message.length}`);
+    // Build messages array with conversation history
+    const messages = [{ role: 'system', content: systemMessage }];
+    
+    // Add conversation history (excluding the current user message which is already in history)
+    const historyMessages = conversationHistory.slice(0, -1); // Exclude last message (current user message)
+    for (const historyMsg of historyMessages) {
+      messages.push({ role: historyMsg.role, content: historyMsg.content });
+    }
+    
+    // Add current user message
+    messages.push({ role: 'user', content: message });
+
+    console.log(`[OpenAIProvider] 📤 Sending to OpenAI API`);
+    console.log(`[OpenAIProvider] Model: ${model}`);
+    console.log(`[OpenAIProvider] Messages in conversation: ${messages.length}`);
+    console.log(`[OpenAIProvider] Full API Payload:`, JSON.stringify({
+      model,
+      messages,
+    }, null, 2));
+//       max_completion_tokens: maxTokens
 
     try {
       const completion = await this.client.chat.completions.create({
         model,
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: message }
-        ],
-        temperature,
-        max_completion_tokens: maxTokens
+        messages,
       });
+//         max_completion_tokens: maxTokens
 
-      console.log(`[OpenAIProvider] Received response with ${completion.choices?.length} choices`);
+      console.log(`[OpenAIProvider] 📥 Received response from OpenAI`);
+      console.log(`[OpenAIProvider] Choices count: ${completion.choices?.length}`);
+      console.log(`[OpenAIProvider] Response model: ${completion.model}`);
+      console.log(`[OpenAIProvider] Usage:`, completion.usage);
 
       return {
         content: completion.choices[0]?.message?.content,
@@ -264,8 +405,33 @@ class AnthropicProvider extends BaseProvider {
       model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
-      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
+      conversationHistory = []
     } = options;
+
+    // Build messages array with conversation history
+    const messages = [];
+    
+    // Add conversation history (excluding the current user message which is already in history)
+    const historyMessages = conversationHistory.slice(0, -1); // Exclude last message (current user message)
+    for (const historyMsg of historyMessages) {
+      messages.push({ role: historyMsg.role, content: historyMsg.content });
+    }
+    
+    // Add current user message
+    messages.push({ role: 'user', content: message });
+
+    const apiPayload = {
+      model,
+      max_tokens: maxTokens,
+      temperature,
+      system: systemMessage,
+      messages
+    };
+
+    console.log(`[AnthropicProvider] 📤 Sending to Anthropic API`);
+    console.log(`[AnthropicProvider] Model: ${model}`);
+    console.log(`[AnthropicProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -274,15 +440,7 @@ class AnthropicProvider extends BaseProvider {
         'x-api-key': this.apiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        system: systemMessage,
-        messages: [
-          { role: 'user', content: message }
-        ]
-      })
+      body: JSON.stringify(apiPayload)
     });
 
     if (!response.ok) {
@@ -290,6 +448,12 @@ class AnthropicProvider extends BaseProvider {
     }
 
     const data = await response.json();
+    
+    console.log(`[AnthropicProvider] 📥 Received response from Anthropic`);
+    console.log(`[AnthropicProvider] Response model: ${data.model}`);
+    console.log(`[AnthropicProvider] Usage:`, data.usage);
+    console.log(`[AnthropicProvider] Content blocks: ${data.content?.length}`);
+    
     return {
       content: data.content[0]?.text,
       model: data.model,
@@ -323,8 +487,32 @@ class GroqProvider extends BaseProvider {
       model = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
-      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
+      conversationHistory = []
     } = options;
+
+    // Build messages array with conversation history
+    const messages = [{ role: 'system', content: systemMessage }];
+    
+    // Add conversation history (excluding the current user message which is already in history)
+    const historyMessages = conversationHistory.slice(0, -1); // Exclude last message (current user message)
+    for (const historyMsg of historyMessages) {
+      messages.push({ role: historyMsg.role, content: historyMsg.content });
+    }
+    
+    // Add current user message
+    messages.push({ role: 'user', content: message });
+
+    const apiPayload = {
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens
+    };
+
+    console.log(`[GroqProvider] 📤 Sending to Groq API`);
+    console.log(`[GroqProvider] Model: ${model}`);
+    console.log(`[GroqProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -332,15 +520,7 @@ class GroqProvider extends BaseProvider {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: message }
-        ],
-        temperature,
-        max_tokens: maxTokens
-      })
+      body: JSON.stringify(apiPayload)
     });
 
     if (!response.ok) {
@@ -348,6 +528,12 @@ class GroqProvider extends BaseProvider {
     }
 
     const data = await response.json();
+    
+    console.log(`[GroqProvider] 📥 Received response from Groq`);
+    console.log(`[GroqProvider] Response model: ${data.model}`);
+    console.log(`[GroqProvider] Usage:`, data.usage);
+    console.log(`[GroqProvider] Choices count: ${data.choices?.length}`);
+    
     return {
       content: data.choices[0]?.message?.content,
       model: data.model,
@@ -378,8 +564,32 @@ class OpenRouterProvider extends BaseProvider {
       model = process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
-      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
+      conversationHistory = []
     } = options;
+
+    // Build messages array with conversation history
+    const messages = [{ role: 'system', content: systemMessage }];
+    
+    // Add conversation history (excluding the current user message which is already in history)
+    const historyMessages = conversationHistory.slice(0, -1); // Exclude last message (current user message)
+    for (const historyMsg of historyMessages) {
+      messages.push({ role: historyMsg.role, content: historyMsg.content });
+    }
+    
+    // Add current user message
+    messages.push({ role: 'user', content: message });
+
+    const apiPayload = {
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens
+    };
+
+    console.log(`[OpenRouterProvider] 📤 Sending to OpenRouter API`);
+    console.log(`[OpenRouterProvider] Model: ${model}`);
+    console.log(`[OpenRouterProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -389,15 +599,7 @@ class OpenRouterProvider extends BaseProvider {
         'HTTP-Referer': 'https://github.com/yourusername/hegel-pedagogy-ai',
         'X-Title': 'Hegel Pedagogy AI'
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: message }
-        ],
-        temperature,
-        max_tokens: maxTokens
-      })
+      body: JSON.stringify(apiPayload)
     });
 
     if (!response.ok) {
@@ -405,6 +607,12 @@ class OpenRouterProvider extends BaseProvider {
     }
 
     const data = await response.json();
+    
+    console.log(`[OpenRouterProvider] 📥 Received response from OpenRouter`);
+    console.log(`[OpenRouterProvider] Response model: ${data.model}`);
+    console.log(`[OpenRouterProvider] Usage:`, data.usage);
+    console.log(`[OpenRouterProvider] Choices count: ${data.choices?.length}`);
+    
     return {
       content: data.choices[0]?.message?.content,
       model: data.model,
