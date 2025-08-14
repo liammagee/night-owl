@@ -2208,21 +2208,24 @@ app.whenReady().then(() => {
       // This can be replaced with actual AI API calls later
       const content = data.content;
       
-      // Extract first paragraph for summary
+      // Extract first 3 paragraphs for summary
       const paragraphs = content.split('\n\n').filter(p => p.trim().length > 0);
-      let summaryParagraph = '';
+      let summaryParagraphs = [];
       
       if (paragraphs.length > 0) {
-        // Take first meaningful paragraph (skip headers/metadata)
+        // Take first 3 meaningful paragraphs (skip headers/metadata)
         for (const para of paragraphs) {
           if (!para.startsWith('#') && !para.startsWith('---') && para.length > 50) {
-            summaryParagraph = para.trim();
-            break;
+            summaryParagraphs.push(para.trim());
+            if (summaryParagraphs.length >= 3) break;
           }
         }
       }
       
-      if (!summaryParagraph) {
+      let summaryParagraph = '';
+      if (summaryParagraphs.length > 0) {
+        summaryParagraph = summaryParagraphs.join('\n\n');
+      } else {
         summaryParagraph = content.substring(0, 300).trim() + '...';
       }
       

@@ -408,15 +408,42 @@ class CircleView {
     }
 
     async generateSummaries() {
-        if (this.summariesGenerated || !this.documentContent) return;
+        if (this.summariesGenerated || !this.documentContent) {
+            console.log('[CircleView] Skipping summary generation:', {
+                summariesGenerated: this.summariesGenerated,
+                hasDocumentContent: !!this.documentContent
+            });
+            return;
+        }
         
-        console.log('[CircleView] Generating AI summaries...');
+        console.log('[CircleView] 🚀 Starting AI summary generation...', {
+            filePath: this.currentDocument,
+            aiEnabled: this.aiEnabled,
+            contentLength: this.documentContent?.length
+        });
         
         try {
+            console.log('[CircleView] 📤 Sending API request for summaries...', {
+                textContentLength: this.documentContent.length,
+                textPreview: this.documentContent.substring(0, 100) + '...'
+            });
+
+            const startTime = Date.now();
+            
             // Request AI summaries from the main process
             const summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
                 content: this.documentContent,
                 filePath: this.currentDocument
+            });
+            
+            const duration = Date.now() - startTime;
+            
+            console.log('[CircleView] 📥 Received API response:', {
+                duration: `${duration}ms`,
+                success: summaryResult?.success,
+                hasParagraph: !!summaryResult?.paragraph,
+                hasSentence: !!summaryResult?.sentence,
+                error: summaryResult?.error
             });
             
             if (summaryResult && summaryResult.success) {
@@ -427,14 +454,17 @@ class CircleView {
                 // Cache the summaries
                 this.cacheSummaries(this.currentDocument, this.documentContent, this.summaryParagraph, this.summarySentence);
                 
-                console.log('[CircleView] AI summaries generated and cached successfully');
+                console.log('[CircleView] ✅ AI summaries generated and cached successfully:', {
+                    paragraphLength: this.summaryParagraph?.length,
+                    sentenceLength: this.summarySentence?.length
+                });
             } else {
-                console.warn('[CircleView] AI summary generation failed:', summaryResult?.error);
+                console.warn('[CircleView] ⚠️ AI summary generation failed, using fallback:', summaryResult?.error);
                 // Fallback to simple text truncation
                 this.generateFallbackSummaries();
             }
         } catch (error) {
-            console.error('[CircleView] Error generating summaries:', error);
+            console.error('[CircleView] ❌ Error generating summaries:', error);
             // Fallback to simple text truncation
             this.generateFallbackSummaries();
         }
@@ -443,11 +473,16 @@ class CircleView {
     generateFallbackSummaries() {
         if (!this.documentContent) return;
         
-        // Simple fallback: extract first paragraph and first sentence
+        // Simple fallback: extract first 3 paragraphs and first sentence
         const paragraphs = this.documentContent.split('\n\n').filter(p => p.trim().length > 0);
         const sentences = this.documentContent.split(/[.!?]+/).filter(s => s.trim().length > 0);
         
-        this.summaryParagraph = paragraphs[0] || this.documentContent.substring(0, 300) + '...';
+        // Take first 3 paragraphs for intermediate summary
+        const firstThreeParagraphs = paragraphs.slice(0, 3);
+        this.summaryParagraph = firstThreeParagraphs.length > 0 
+            ? firstThreeParagraphs.join('\n\n') 
+            : this.documentContent.substring(0, 300) + '...';
+        
         this.summarySentence = sentences[0] ? sentences[0].trim() + '.' : this.documentContent.substring(0, 100) + '...';
         this.summariesGenerated = true;
         
@@ -456,7 +491,7 @@ class CircleView {
             this.cacheSummaries(this.currentDocument, this.documentContent, this.summaryParagraph, this.summarySentence);
         }
         
-        console.log('[CircleView] Generated and cached fallback summaries');
+        console.log('[CircleView] Generated and cached fallback summaries (3 paragraphs)');
     }
 
     renderPreview() {
@@ -748,7 +783,7 @@ class CircleView {
                 <div style="font-size: 10px; color: #999;">
                     ${this.summariesGenerated ? 
                         (this.aiEnabled ? '✓ AI summaries ready' : '✓ Fallback summaries ready') : 
-                        'Generating summaries...'}
+                        '<span class="loading-ellipsis">Generating summaries</span>'}
                 </div>
             `;
         } else {

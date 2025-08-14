@@ -17,8 +17,10 @@ Claude Code:
 
  - Quasi-empathy for human experience. Polite but ultimately alien
 
+  - Software as a tool for thinking 
 
 
+mental illness follows its host
 
 
 

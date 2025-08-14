@@ -12,6 +12,12 @@ class PreviewZoom {
         this.aiEnabled = true; // Will be configurable
         this.controls = null;
         this.isInitialized = false;
+        this.updatingControls = false; // Prevent recursive updates
+        this.isRegenerating = false; // Track regeneration state
+        this.scrollListener = null; // Store scroll listener for cleanup
+        this.scrollCooldown = false; // Prevent rapid scroll transitions
+        this.keyListener = null; // Store keyboard listener for cleanup
+        this.keyCooldown = false; // Prevent rapid key transitions
         
         // Summary caching system (shared between preview and circle views)
         if (!window.sharedSummaryCache) {
@@ -25,7 +31,11 @@ class PreviewZoom {
     initialize() {
         if (this.isInitialized) return;
         
-        console.log('[PreviewZoom] Initializing preview zoom functionality');
+        console.log('[PreviewZoom] 🚀 Initializing preview zoom functionality:', {
+            isEnabled: this.isEnabled,
+            currentZoomLevel: this.currentZoomLevel,
+            maxZoomLevel: this.maxZoomLevel
+        });
         this.addControls();
         this.isInitialized = true;
     }
@@ -112,7 +122,7 @@ class PreviewZoom {
     }
 
     addControls() {
-        // Create zoom controls container
+        // Create zoom controls toolbar at the top of preview pane
         const previewPane = document.getElementById('preview-pane');
         if (!previewPane) {
             console.warn('[PreviewZoom] Preview pane not found');
@@ -125,121 +135,265 @@ class PreviewZoom {
             existingControls.remove();
         }
 
-        // Create controls div
+        // Create toolbar div
         this.controls = document.createElement('div');
         this.controls.id = 'preview-zoom-controls';
         this.controls.style.cssText = `
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
+            width: 100%;
+            background: ${document.body.classList.contains('dark-mode') ? '#2d2d2d' : '#f8f9fa'};
+            border-bottom: 1px solid ${document.body.classList.contains('dark-mode') ? '#444' : '#e1e4e8'};
+            padding: 8px 12px;
             font-size: 12px;
-            min-width: 200px;
-            border: 1px solid #e1e4e8;
             display: none;
+            flex-shrink: 0;
+            z-index: 100;
         `;
 
+        // Insert toolbar at the beginning of preview pane
         this.updateControlsContent();
-        previewPane.appendChild(this.controls);
-
-        // Add event listeners
-        this.setupEventListeners();
+        previewPane.insertBefore(this.controls, previewPane.firstChild);
+        
+        // Add scroll listener for scroll-based navigation
+        this.addScrollNavigation();
+        
+        // Add keyboard listener for arrow key navigation
+        this.addKeyboardNavigation();
+    }
+    
+    addScrollNavigation() {
+        // Use a more resilient approach - wait for content to be available
+        const tryAddListener = () => {
+            const previewContent = document.getElementById('preview-content');
+            if (!previewContent) {
+                console.log('[PreviewZoom] Preview content not found, retrying...');
+                setTimeout(tryAddListener, 100);
+                return;
+            }
+            
+            console.log('[PreviewZoom] Adding scroll listener to preview content');
+            console.log('[PreviewZoom] Preview content element:', previewContent);
+            console.log('[PreviewZoom] Current scroll properties:', {
+                scrollTop: previewContent.scrollTop,
+                scrollHeight: previewContent.scrollHeight,
+                clientHeight: previewContent.clientHeight
+            });
+            
+            // Remove existing listener if any
+            if (this.scrollListener) {
+                previewContent.removeEventListener('wheel', this.scrollListener);
+            }
+            
+            this.scrollListener = (event) => {
+                console.log('[PreviewZoom] Wheel event detected:', {
+                    enabled: this.isEnabled,
+                    cooldown: this.scrollCooldown,
+                    deltaY: event.deltaY
+                });
+                
+                if (!this.isEnabled || this.scrollCooldown) return;
+                
+                const isAtTop = previewContent.scrollTop <= 1;
+                const isAtBottom = previewContent.scrollTop + previewContent.clientHeight >= previewContent.scrollHeight - 5;
+                
+                console.log('[PreviewZoom] Scroll position check:', {
+                    scrollTop: previewContent.scrollTop,
+                    clientHeight: previewContent.clientHeight,
+                    scrollHeight: previewContent.scrollHeight,
+                    isAtTop,
+                    isAtBottom,
+                    currentZoomLevel: this.currentZoomLevel
+                });
+                
+                // Scroll up at top -> go to next higher abstraction level only
+                if (event.deltaY < 0 && isAtTop && this.currentZoomLevel < this.maxZoomLevel) {
+                    const nextLevel = this.currentZoomLevel + 1;
+                    console.log(`[PreviewZoom] ⬆️ Scrolling up: ${this.currentZoomLevel} -> ${nextLevel}`);
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.scrollCooldown = true;
+                    this.setZoomLevel(nextLevel);
+                    setTimeout(() => {
+                        this.scrollCooldown = false;
+                    }, 1000);
+                }
+                // Scroll down at bottom -> go to next lower abstraction level only
+                else if (event.deltaY > 0 && isAtBottom && this.currentZoomLevel > 0) {
+                    const nextLevel = this.currentZoomLevel - 1;
+                    console.log(`[PreviewZoom] ⬇️ Scrolling down: ${this.currentZoomLevel} -> ${nextLevel}`);
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.scrollCooldown = true;
+                    this.setZoomLevel(nextLevel);
+                    setTimeout(() => {
+                        this.scrollCooldown = false;
+                    }, 1000);
+                }
+            };
+            
+            previewContent.addEventListener('wheel', this.scrollListener, { passive: false });
+            console.log('[PreviewZoom] ✅ Scroll listener attached successfully');
+        };
+        
+        tryAddListener();
+    }
+    
+    addKeyboardNavigation() {
+        // Use a similar resilient approach for keyboard events
+        const tryAddKeyListener = () => {
+            const previewContent = document.getElementById('preview-content');
+            if (!previewContent) {
+                console.log('[PreviewZoom] Preview content not found for keyboard, retrying...');
+                setTimeout(tryAddKeyListener, 100);
+                return;
+            }
+            
+            console.log('[PreviewZoom] Adding keyboard listener to preview content');
+            
+            // Remove existing listener if any
+            if (this.keyListener) {
+                previewContent.removeEventListener('keydown', this.keyListener);
+            }
+            
+            this.keyListener = (event) => {
+                // Only handle if preview content is focused or if no other input is focused
+                const activeElement = document.activeElement;
+                const isInputFocused = activeElement && (
+                    activeElement.tagName === 'INPUT' || 
+                    activeElement.tagName === 'TEXTAREA' || 
+                    activeElement.contentEditable === 'true'
+                );
+                
+                // Skip if an input is focused (to avoid interfering with normal input)
+                if (isInputFocused) return;
+                
+                console.log('[PreviewZoom] Key event detected:', {
+                    key: event.key,
+                    enabled: this.isEnabled,
+                    cooldown: this.keyCooldown,
+                    activeElement: activeElement?.tagName
+                });
+                
+                if (!this.isEnabled || this.keyCooldown) return;
+                
+                const isAtTop = previewContent.scrollTop <= 1;
+                const isAtBottom = previewContent.scrollTop + previewContent.clientHeight >= previewContent.scrollHeight - 5;
+                
+                // Arrow Up at top -> go to higher abstraction
+                if (event.key === 'ArrowUp' && isAtTop && this.currentZoomLevel < this.maxZoomLevel) {
+                    const nextLevel = this.currentZoomLevel + 1;
+                    console.log(`[PreviewZoom] ⬆️ Arrow up: ${this.currentZoomLevel} -> ${nextLevel}`);
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.keyCooldown = true;
+                    this.setZoomLevel(nextLevel);
+                    setTimeout(() => {
+                        this.keyCooldown = false;
+                    }, 800);
+                }
+                // Arrow Down at bottom -> go to lower abstraction
+                else if (event.key === 'ArrowDown' && isAtBottom && this.currentZoomLevel > 0) {
+                    const nextLevel = this.currentZoomLevel - 1;
+                    console.log(`[PreviewZoom] ⬇️ Arrow down: ${this.currentZoomLevel} -> ${nextLevel}`);
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.keyCooldown = true;
+                    this.setZoomLevel(nextLevel);
+                    setTimeout(() => {
+                        this.keyCooldown = false;
+                    }, 800);
+                }
+            };
+            
+            // Make sure preview content can receive keyboard events
+            previewContent.setAttribute('tabindex', '0');
+            previewContent.addEventListener('keydown', this.keyListener);
+            console.log('[PreviewZoom] ✅ Keyboard listener attached successfully');
+        };
+        
+        tryAddKeyListener();
     }
 
     updateControlsContent() {
-        if (!this.controls) return;
+        if (!this.controls || this.updatingControls) return;
+        
+        this.updatingControls = true;
 
+        const darkMode = document.body.classList.contains('dark-mode');
         this.controls.innerHTML = `
-            <div style="margin-bottom: 12px;">
-                <h4 style="margin: 0 0 8px 0; color: #333; font-size: 13px;">Text Abstraction</h4>
-                <label style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <input type="checkbox" id="preview-zoom-enable" ${this.isEnabled ? 'checked' : ''} 
-                           style="margin-right: 6px;">
-                    <span style="font-size: 11px;">Enable zoom-based abstraction</span>
-                </label>
-            </div>
-            
-            <div id="zoom-controls-section" style="display: ${this.isEnabled ? 'block' : 'none'};">
-                <div style="margin-bottom: 10px;">
-                    <label style="display: flex; align-items: center; margin-bottom: 6px;">
-                        <input type="checkbox" id="preview-ai-summaries" ${this.aiEnabled ? 'checked' : ''} 
-                               style="margin-right: 6px;">
-                        <span style="font-size: 11px;">AI Summaries (experimental)</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: ${darkMode ? '#d4d4d4' : '#333'};">
+                        <input type="checkbox" 
+                               id="preview-zoom-enable" 
+                               ${this.isEnabled ? 'checked' : ''} 
+                               onchange="window.previewZoom.toggleEnabled(this.checked)">
+                        <span>Text Abstraction</span>
                     </label>
+                    
+                    ${this.isEnabled ? `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="display: flex; flex-direction: column; align-items: center;">
+                                <div style="display: flex; justify-content: space-between; width: 120px; margin-bottom: 2px;">
+                                    <span style="font-size: 9px; color: ${darkMode ? '#999' : '#666'};">Detail</span>
+                                    <span style="font-size: 9px; color: ${darkMode ? '#999' : '#666'};">Summary</span>
+                                    <span style="font-size: 9px; color: ${darkMode ? '#999' : '#666'};">Essence</span>
+                                </div>
+                                <input type="range" 
+                                       id="preview-zoom-slider" 
+                                       min="0" 
+                                       max="${this.maxZoomLevel}" 
+                                       value="${this.currentZoomLevel}" 
+                                       step="1"
+                                       onchange="window.previewZoom.setZoomLevel(parseInt(this.value))"
+                                       style="width: 120px; height: 4px; background: #ddd; border-radius: 2px; outline: none; -webkit-appearance: none;">
+                            </div>
+                        </div>
+                        
+                        <div style="font-size: 10px; color: ${darkMode ? '#d4d4d4' : '#333'}; font-weight: 500;">
+                            ${this.getZoomLevelDescription()}
+                        </div>
+                    ` : ''}
                 </div>
                 
-                <div style="margin-bottom: 12px;">
-                    <div style="font-weight: bold; margin-bottom: 6px; font-size: 11px;">Zoom Level: ${this.currentZoomLevel}/${this.maxZoomLevel}</div>
-                    <div style="display: flex; gap: 5px;">
-                        <button id="preview-zoom-out" style="padding: 6px 10px; font-size: 11px; background: ${this.currentZoomLevel < this.maxZoomLevel ? '#ff6b35' : '#ccc'}; color: white; border: none; border-radius: 4px; cursor: ${this.currentZoomLevel < this.maxZoomLevel ? 'pointer' : 'not-allowed'};">−</button>
-                        <button id="preview-zoom-in" style="padding: 6px 10px; font-size: 11px; background: ${this.currentZoomLevel > 0 ? '#4CAF50' : '#ccc'}; color: white; border: none; border-radius: 4px; cursor: ${this.currentZoomLevel > 0 ? 'pointer' : 'not-allowed'};">+</button>
-                        <button id="preview-zoom-reset" style="padding: 6px 10px; font-size: 11px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">Reset</button>
+                ${this.isEnabled ? `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: ${darkMode ? '#999' : '#666'};">
+                            <input type="checkbox" 
+                                   id="preview-ai-summaries" 
+                                   ${this.aiEnabled ? 'checked' : ''} 
+                                   onchange="window.previewZoom.toggleAI(this.checked)">
+                            <span>AI</span>
+                        </label>
+                        
+                        <button 
+                            id="preview-regenerate-summaries" 
+                            onclick="window.previewZoom.regenerateSummaries()" 
+                            style="padding: 4px 8px; font-size: 10px; background: ${this.isRegenerating ? '#999' : '#6c757d'}; color: white; border: none; border-radius: 3px; cursor: ${this.isRegenerating ? 'not-allowed' : 'pointer'};"
+                            ${this.isRegenerating ? 'disabled' : ''}>${this.isRegenerating ? '<span class="loading-ellipsis">...</span>' : '↻'}</button>
+                        
+                        <div style="font-size: 9px; color: ${this.summariesGenerated ? '#28a745' : '#999'};">
+                            ${this.summariesGenerated ? '✓' : '<span class="loading-ellipsis">pending</span>'}
+                        </div>
+                        
+                        <div style="font-size: 9px; color: ${darkMode ? '#666' : '#999'};">
+                            Scroll ↑↓ to navigate
+                        </div>
                     </div>
-                </div>
-                
-                <div style="margin-bottom: 10px;">
-                    <div style="font-size: 11px; color: #666; margin-bottom: 4px;"><strong>Current Level:</strong></div>
-                    <div style="font-size: 10px; color: #333;">${this.getZoomLevelDescription()}</div>
-                </div>
-                
-                <div style="font-size: 10px; color: ${this.summariesGenerated ? '#28a745' : '#999'};">
-                    ${this.summariesGenerated ? 
-                        (this.aiEnabled ? '✓ AI summaries ready' : '✓ Fallback summaries ready') : 
-                        'Summaries pending...'}
-                </div>
+                ` : ''}
             </div>
         `;
+        
+        // Re-attach event listeners after updating HTML content
+        this.setupEventListeners();
+        
+        this.updatingControls = false;
     }
 
     setupEventListeners() {
-        // Enable/disable toggle
-        const enableToggle = document.getElementById('preview-zoom-enable');
-        if (enableToggle) {
-            enableToggle.addEventListener('change', (e) => {
-                this.isEnabled = e.target.checked;
-                this.updateControlsContent();
-                
-                if (this.isEnabled && this.originalContent) {
-                    this.generateSummaries();
-                } else if (!this.isEnabled) {
-                    this.resetToOriginal();
-                }
-            });
-        }
-
-        // AI summaries toggle
-        const aiToggle = document.getElementById('preview-ai-summaries');
-        if (aiToggle) {
-            aiToggle.addEventListener('change', (e) => {
-                this.aiEnabled = e.target.checked;
-                console.log('[PreviewZoom] AI summaries', this.aiEnabled ? 'enabled' : 'disabled');
-                
-                // Regenerate summaries if toggled on
-                if (this.aiEnabled && !this.summariesGenerated && this.originalContent) {
-                    this.generateSummaries();
-                }
-                this.updateControlsContent();
-            });
-        }
-
-        // Zoom controls
-        const zoomOutBtn = document.getElementById('preview-zoom-out');
-        const zoomInBtn = document.getElementById('preview-zoom-in');
-        const resetBtn = document.getElementById('preview-zoom-reset');
-
-        if (zoomOutBtn) {
-            zoomOutBtn.addEventListener('click', () => this.zoomOut());
-        }
-        if (zoomInBtn) {
-            zoomInBtn.addEventListener('click', () => this.zoomIn());
-        }
-        if (resetBtn) {
-            resetBtn.addEventListener('click', () => this.resetZoom());
-        }
+        console.log('[PreviewZoom] 🔧 All controls now use inline handlers - no addEventListener needed');
+        // All controls (checkboxes and buttons) now use inline onchange/onclick handlers
+        // This prevents event listener loss when HTML is regenerated
     }
 
     async onPreviewUpdate(filePath, htmlContent) {
@@ -254,45 +408,63 @@ class PreviewZoom {
             this.controls.style.display = isMarkdown ? 'block' : 'none';
         }
 
-        if (!isMarkdown || !this.isEnabled) {
-            return htmlContent; // Return unchanged
-        }
+        // Always store original content for markdown files, regardless of enabled state
+        if (isMarkdown) {
+            console.log('[PreviewZoom] 📄 Storing original content for:', filePath);
+            this.currentFilePath = filePath;
+            this.originalContent = htmlContent;
+            this.currentZoomLevel = 0;
 
-        // Store original content and file path
-        this.currentFilePath = filePath;
-        this.originalContent = htmlContent;
-        this.currentZoomLevel = 0;
+            // Extract text content for similarity comparison
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            const textContent = tempDiv.textContent || tempDiv.innerText || '';
 
-        // Extract text content for similarity comparison
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        const textContent = tempDiv.textContent || tempDiv.innerText || '';
-
-        // Check if we have valid cached summaries
-        if (this.areCachedSummariesValid(filePath, textContent)) {
-            // Load from cache
-            this.loadCachedSummaries(filePath);
-            console.log('[PreviewZoom] Loaded summaries from cache');
-        } else {
-            // Need to regenerate summaries
-            this.summariesGenerated = false;
-            this.summaryParagraph = null;
-            this.summarySentence = null;
-            
-            // Generate summaries in background
-            if (this.aiEnabled) {
-                this.generateSummaries(textContent);
+            // Check if we have valid cached summaries
+            if (this.areCachedSummariesValid(filePath, textContent)) {
+                // Load from cache
+                this.loadCachedSummaries(filePath);
+                console.log('[PreviewZoom] Loaded summaries from cache');
+            } else {
+                // Need to regenerate summaries
+                this.summariesGenerated = false;
+                this.summaryParagraph = null;
+                this.summarySentence = null;
+                
+                // Generate summaries in background if enabled
+                if (this.isEnabled && this.aiEnabled) {
+                    this.generateSummaries(textContent);
+                }
             }
+
+            this.updateControlsContent();
+            
+            // Re-add navigation listeners when content is updated
+            this.addScrollNavigation();
+            this.addKeyboardNavigation();
         }
 
-        this.updateControlsContent();
         return htmlContent; // Return original content initially
     }
 
     async generateSummaries(textContent = null) {
-        if (this.summariesGenerated || !this.originalContent || !this.currentFilePath) return;
+        if (this.summariesGenerated || !this.originalContent || !this.currentFilePath) {
+            console.log('[PreviewZoom] Skipping summary generation:', {
+                summariesGenerated: this.summariesGenerated,
+                hasOriginalContent: !!this.originalContent,
+                hasCurrentFilePath: !!this.currentFilePath
+            });
+            return;
+        }
         
-        console.log('[PreviewZoom] Generating summaries for preview...');
+        console.log('[PreviewZoom] 🚀 Starting summary generation for preview...', {
+            filePath: this.currentFilePath,
+            aiEnabled: this.aiEnabled,
+            contentLength: this.originalContent?.length
+        });
+        
+        // Update UI to show loading state
+        this.updateControlsContent();
         
         try {
             // Extract text content from HTML if not provided
@@ -302,10 +474,27 @@ class PreviewZoom {
                 textContent = tempDiv.textContent || tempDiv.innerText || '';
             }
 
+            console.log('[PreviewZoom] 📤 Sending API request for summaries...', {
+                textContentLength: textContent.length,
+                textPreview: textContent.substring(0, 100) + '...'
+            });
+
+            const startTime = Date.now();
+            
             // Request AI summaries from the main process
             const summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
                 content: textContent,
                 filePath: this.currentFilePath
+            });
+            
+            const duration = Date.now() - startTime;
+            
+            console.log('[PreviewZoom] 📥 Received API response:', {
+                duration: `${duration}ms`,
+                success: summaryResult?.success,
+                hasParagraph: !!summaryResult?.paragraph,
+                hasSentence: !!summaryResult?.sentence,
+                error: summaryResult?.error
             });
             
             if (summaryResult && summaryResult.success) {
@@ -316,14 +505,17 @@ class PreviewZoom {
                 // Cache the summaries
                 this.cacheSummaries(this.currentFilePath, textContent, this.summaryParagraph, this.summarySentence);
                 
-                console.log('[PreviewZoom] AI summaries generated and cached successfully for preview');
+                console.log('[PreviewZoom] ✅ AI summaries generated and cached successfully:', {
+                    paragraphLength: this.summaryParagraph?.length,
+                    sentenceLength: this.summarySentence?.length
+                });
             } else {
-                console.warn('[PreviewZoom] AI summary generation failed:', summaryResult?.error);
+                console.warn('[PreviewZoom] ⚠️ AI summary generation failed, using fallback:', summaryResult?.error);
                 // Fallback to simple text truncation
                 this.generateFallbackSummaries(textContent);
             }
         } catch (error) {
-            console.error('[PreviewZoom] Error generating summaries:', error);
+            console.error('[PreviewZoom] ❌ Error generating summaries:', error);
             // Fallback to simple text truncation
             if (!textContent) {
                 const tempDiv = document.createElement('div');
@@ -333,17 +525,23 @@ class PreviewZoom {
             this.generateFallbackSummaries(textContent);
         }
 
+        // Update UI with final state
         this.updateControlsContent();
     }
 
     generateFallbackSummaries(textContent) {
         if (!textContent) return;
         
-        // Simple fallback: extract first paragraph and first sentence
+        // Simple fallback: extract first 3 paragraphs and first sentence
         const paragraphs = textContent.split('\n\n').filter(p => p.trim().length > 0);
         const sentences = textContent.split(/[.!?]+/).filter(s => s.trim().length > 20);
         
-        this.summaryParagraph = paragraphs[0] || textContent.substring(0, 300) + '...';
+        // Take first 3 paragraphs for intermediate summary
+        const firstThreeParagraphs = paragraphs.slice(0, 3);
+        this.summaryParagraph = firstThreeParagraphs.length > 0 
+            ? firstThreeParagraphs.join('\n\n') 
+            : textContent.substring(0, 300) + '...';
+        
         this.summarySentence = sentences[0] ? sentences[0].trim() + '.' : textContent.substring(0, 100) + '...';
         this.summariesGenerated = true;
         
@@ -352,57 +550,115 @@ class PreviewZoom {
             this.cacheSummaries(this.currentFilePath, textContent, this.summaryParagraph, this.summarySentence);
         }
         
-        console.log('[PreviewZoom] Generated and cached fallback summaries for preview');
+        console.log('[PreviewZoom] Generated and cached fallback summaries for preview (3 paragraphs)');
     }
 
     zoomOut() {
-        if (!this.isEnabled || this.currentZoomLevel >= this.maxZoomLevel) return;
-        
-        console.log('[PreviewZoom] Zooming out to higher abstraction level');
-        this.currentZoomLevel++;
-        this.updatePreviewContent();
-        this.updateControlsContent();
+        console.log('[PreviewZoom] 🔍 Zoom out clicked (legacy method)');
+        if (this.currentZoomLevel < this.maxZoomLevel) {
+            this.setZoomLevel(this.currentZoomLevel + 1);
+        }
     }
 
     zoomIn() {
-        if (!this.isEnabled || this.currentZoomLevel <= 0) return;
-        
-        console.log('[PreviewZoom] Zooming in to more detailed level');
-        this.currentZoomLevel--;
-        this.updatePreviewContent();
-        this.updateControlsContent();
+        console.log('[PreviewZoom] 🔍 Zoom in clicked (legacy method)');
+        if (this.currentZoomLevel > 0) {
+            this.setZoomLevel(this.currentZoomLevel - 1);
+        }
     }
 
     resetZoom() {
-        if (!this.isEnabled) return;
+        console.log('[PreviewZoom] 🔄 Reset zoom clicked:', {
+            isEnabled: this.isEnabled,
+            currentZoomLevel: this.currentZoomLevel
+        });
         
-        console.log('[PreviewZoom] Resetting zoom to full text');
-        this.currentZoomLevel = 0;
-        this.updatePreviewContent();
+        if (!this.isEnabled) {
+            console.warn('[PreviewZoom] ❌ Cannot reset zoom: feature not enabled');
+            return;
+        }
+        
+        console.log('[PreviewZoom] ✅ Resetting zoom to full text');
+        this.setZoomLevel(0);
+    }
+    
+    setZoomLevel(newLevel) {
+        console.log('[PreviewZoom] 🎚️ Setting zoom level via slider:', {
+            isEnabled: this.isEnabled,
+            currentLevel: this.currentZoomLevel,
+            newLevel: newLevel
+        });
+        
+        if (!this.isEnabled) {
+            console.warn('[PreviewZoom] ❌ Cannot change zoom level: feature not enabled');
+            return;
+        }
+        
+        if (newLevel < 0 || newLevel > this.maxZoomLevel) {
+            console.warn('[PreviewZoom] ❌ Invalid zoom level:', newLevel);
+            return;
+        }
+        
+        if (newLevel === this.currentZoomLevel) {
+            console.log('[PreviewZoom] No change in zoom level');
+            return;
+        }
+        
+        console.log('[PreviewZoom] ✅ Transitioning to zoom level:', newLevel);
+        this.currentZoomLevel = newLevel;
+        this.updatePreviewContentWithTransition();
         this.updateControlsContent();
     }
 
     updatePreviewContent() {
+        console.log('[PreviewZoom] 🖼️ Updating preview content:', {
+            currentZoomLevel: this.currentZoomLevel,
+            hasPreviewContent: !!document.getElementById('preview-content'),
+            hasOriginalContent: !!this.originalContent,
+            hasSummaryParagraph: !!this.summaryParagraph,
+            hasSummarySentence: !!this.summarySentence
+        });
+        
         const previewContent = document.getElementById('preview-content');
-        if (!previewContent || !this.originalContent) return;
+        if (!previewContent) {
+            console.error('[PreviewZoom] ❌ Preview content element not found');
+            return;
+        }
+        
+        if (!this.originalContent) {
+            console.error('[PreviewZoom] ❌ No original content available');
+            return;
+        }
 
         let contentToShow = '';
+        let contentType = '';
         
         switch(this.currentZoomLevel) {
             case 0: // Full text
                 contentToShow = this.originalContent;
+                contentType = 'Full text';
                 break;
             case 1: // Paragraph summary
-                contentToShow = this.summaryParagraph ? 
-                    `<div class="zoom-summary zoom-paragraph"><h3>Summary</h3><p>${this.summaryParagraph}</p></div>` : 
-                    '<div class="zoom-summary"><p>Generating summary...</p></div>';
+                if (this.summaryParagraph) {
+                    contentToShow = `<div class="zoom-summary zoom-paragraph"><h3>Summary</h3><p>${this.summaryParagraph}</p></div>`;
+                    contentType = 'Paragraph summary';
+                } else {
+                    contentToShow = '<div class="zoom-summary"><p class="loading-ellipsis">Generating summary</p></div>';
+                    contentType = 'Generating paragraph summary';
+                }
                 break;
             case 2: // Sentence summary
-                contentToShow = this.summarySentence ? 
-                    `<div class="zoom-summary zoom-sentence"><h3>Essence</h3><p><strong>${this.summarySentence}</strong></p></div>` : 
-                    '<div class="zoom-summary"><p>Generating summary...</p></div>';
+                if (this.summarySentence) {
+                    contentToShow = `<div class="zoom-summary zoom-sentence"><h3>Essence</h3><p><strong>${this.summarySentence}</strong></p></div>`;
+                    contentType = 'Sentence summary';
+                } else {
+                    contentToShow = '<div class="zoom-summary"><p class="loading-ellipsis">Generating summary</p></div>';
+                    contentType = 'Generating sentence summary';
+                }
                 break;
         }
+        
+        console.log('[PreviewZoom] 📝 Switching to:', contentType);
 
         // Add smooth transition
         previewContent.style.transition = 'opacity 0.3s ease';
@@ -411,7 +667,150 @@ class PreviewZoom {
         setTimeout(() => {
             previewContent.innerHTML = contentToShow;
             previewContent.style.opacity = '1';
+            console.log('[PreviewZoom] ✅ Content updated successfully');
         }, 150);
+    }
+    
+    updatePreviewContentWithTransition() {
+        console.log('[PreviewZoom] 🎭 Updating preview content with ghost transition');
+        
+        const previewContent = document.getElementById('preview-content');
+        if (!previewContent) {
+            console.error('[PreviewZoom] ❌ Preview content element not found');
+            return;
+        }
+        
+        if (!this.originalContent) {
+            console.error('[PreviewZoom] ❌ No original content available');
+            return;
+        }
+
+        let contentToShow = '';
+        let contentType = '';
+        
+        switch(this.currentZoomLevel) {
+            case 0: // Full text
+                contentToShow = this.originalContent;
+                contentType = 'Full text';
+                break;
+            case 1: // Paragraph summary
+                if (this.summaryParagraph) {
+                    contentToShow = `<div class="zoom-summary zoom-paragraph"><h3>Summary</h3><p>${this.summaryParagraph}</p></div>`;
+                    contentType = '3-paragraph summary';
+                } else {
+                    contentToShow = '<div class="zoom-summary"><p class="loading-ellipsis">Generating summary</p></div>';
+                    contentType = 'Generating paragraph summary';
+                }
+                break;
+            case 2: // Sentence summary
+                if (this.summarySentence) {
+                    contentToShow = `<div class="zoom-summary zoom-sentence"><h3>Essence</h3><p><strong>${this.summarySentence}</strong></p></div>`;
+                    contentType = 'Sentence summary';
+                } else {
+                    contentToShow = '<div class="zoom-summary"><p class="loading-ellipsis">Generating summary</p></div>';
+                    contentType = 'Generating sentence summary';
+                }
+                break;
+        }
+        
+        console.log('[PreviewZoom] 🎬 Transitioning to:', contentType);
+
+        // Create a ghost overlay transition effect
+        const currentContent = previewContent.innerHTML;
+        
+        // Get current scroll position to preserve it
+        const scrollTop = previewContent.scrollTop;
+        
+        // Get computed styles to preserve exact layout
+        const computedStyles = window.getComputedStyle(previewContent);
+        
+        // Create ghost element that overlays the current content
+        const ghostDiv = document.createElement('div');
+        ghostDiv.className = 'transition-ghost';
+        ghostDiv.innerHTML = currentContent;
+        ghostDiv.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: auto;
+            min-height: 100%;
+            opacity: 1;
+            transition: opacity 1.5s ease-out, filter 1.5s ease-out;
+            z-index: 10;
+            pointer-events: none;
+            background: ${document.body.classList.contains('dark-mode') ? '#1e1e1e' : 'white'};
+            padding: ${computedStyles.padding};
+            margin: 0;
+            font-family: ${computedStyles.fontFamily};
+            font-size: ${computedStyles.fontSize};
+            line-height: ${computedStyles.lineHeight};
+            text-align: ${computedStyles.textAlign};
+            overflow: hidden;
+        `;
+        
+        // Make container relative and add ghost overlay
+        previewContent.style.position = 'relative';
+        previewContent.appendChild(ghostDiv);
+        
+        // Start transition immediately
+        requestAnimationFrame(() => {
+            // Update the underlying content (hidden by ghost)
+            previewContent.innerHTML = contentToShow;
+            previewContent.style.position = 'relative';
+            
+            // Force the underlying content to have exactly the same layout as ghost
+            // This prevents any recalculation jumps
+            const tempComputedStyles = window.getComputedStyle(previewContent);
+            previewContent.style.padding = computedStyles.padding;
+            previewContent.style.margin = computedStyles.margin;
+            previewContent.style.textAlign = computedStyles.textAlign;
+            previewContent.style.fontSize = computedStyles.fontSize;
+            previewContent.style.lineHeight = computedStyles.lineHeight;
+            previewContent.style.fontFamily = computedStyles.fontFamily;
+            
+            previewContent.appendChild(ghostDiv); // Re-add ghost after content change
+            previewContent.scrollTop = scrollTop; // Restore scroll
+            
+            // Start ghost fade after a brief moment
+            requestAnimationFrame(() => {
+                ghostDiv.style.opacity = '0';
+                ghostDiv.style.filter = 'blur(1px)';
+                ghostDiv.style.transition = 'opacity 2s ease-out, filter 2s ease-out';
+            });
+            
+            // Instead of removing the ghost, make it permanently invisible
+            // This prevents any layout recalculation in Electron
+            setTimeout(() => {
+                if (ghostDiv && ghostDiv.parentNode) {
+                    // Don't remove - just make it completely inert
+                    ghostDiv.style.opacity = '0';
+                    ghostDiv.style.visibility = 'hidden';
+                    ghostDiv.style.pointerEvents = 'none';
+                    ghostDiv.style.position = 'absolute';
+                    ghostDiv.style.zIndex = '-1';
+                    ghostDiv.setAttribute('aria-hidden', 'true');
+                    
+                    // Mark it for potential cleanup much later
+                    ghostDiv.classList.add('ghost-cleanup');
+                }
+                
+                console.log('[PreviewZoom] ✨ Ghost transition complete - ghost kept invisible');
+            }, 2500);
+            
+            // Optional cleanup of accumulated ghosts (but only when safe)
+            setTimeout(() => {
+                const oldGhosts = previewContent.querySelectorAll('.ghost-cleanup');
+                if (oldGhosts.length > 3) { // Only clean if we have many accumulated
+                    oldGhosts.forEach((ghost, index) => {
+                        if (index < oldGhosts.length - 2) { // Keep the 2 most recent
+                            ghost.remove();
+                        }
+                    });
+                }
+            }, 10000); // Much later cleanup
+        });
     }
 
     resetToOriginal() {
@@ -442,7 +841,160 @@ class PreviewZoom {
             this.controls.remove();
             this.controls = null;
         }
+        
+        // Clean up scroll listener
+        if (this.scrollListener) {
+            const previewContent = document.getElementById('preview-content');
+            if (previewContent) {
+                previewContent.removeEventListener('wheel', this.scrollListener);
+            }
+            this.scrollListener = null;
+        }
+        
+        // Clean up keyboard listener
+        if (this.keyListener) {
+            const previewContent = document.getElementById('preview-content');
+            if (previewContent) {
+                previewContent.removeEventListener('keydown', this.keyListener);
+            }
+            this.keyListener = null;
+        }
+        
         this.isInitialized = false;
+    }
+
+    // Debug function to check state
+    debugState() {
+        console.log('[PreviewZoom] 🔍 Current state:', {
+            isInitialized: this.isInitialized,
+            isEnabled: this.isEnabled,
+            currentZoomLevel: this.currentZoomLevel,
+            maxZoomLevel: this.maxZoomLevel,
+            currentFilePath: this.currentFilePath,
+            hasOriginalContent: !!this.originalContent,
+            summariesGenerated: this.summariesGenerated,
+            hasSummaryParagraph: !!this.summaryParagraph,
+            hasSummarySentence: !!this.summarySentence,
+            hasControls: !!this.controls,
+            controlsVisible: this.controls?.style.display !== 'none',
+            previewContentExists: !!document.getElementById('preview-content')
+        });
+    }
+    
+    // Toggle functions for inline handlers
+    toggleEnabled(enabled) {
+        console.log('[PreviewZoom] 🔘 Enable toggle changed via inline handler:', enabled);
+        this.isEnabled = enabled;
+        this.updateControlsContent();
+        
+        if (this.isEnabled && this.originalContent) {
+            console.log('[PreviewZoom] 🚀 Feature enabled, generating summaries...');
+            // Extract text content for summary generation
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = this.originalContent;
+            const textContent = tempDiv.textContent || tempDiv.innerText || '';
+            this.generateSummaries(textContent);
+        } else if (!this.isEnabled) {
+            console.log('[PreviewZoom] 🔄 Feature disabled, resetting to original');
+            this.resetToOriginal();
+        }
+    }
+    
+    toggleAI(enabled) {
+        console.log('[PreviewZoom] 🤖 AI toggle changed via inline handler:', enabled);
+        this.aiEnabled = enabled;
+        console.log('[PreviewZoom] AI summaries', this.aiEnabled ? 'enabled' : 'disabled');
+        
+        // Regenerate summaries if toggled on
+        if (this.aiEnabled && !this.summariesGenerated && this.originalContent) {
+            this.generateSummaries();
+        }
+        
+        this.updateControlsContent();
+    }
+    
+    // Manual test function
+    testZoom() {
+        console.log('[PreviewZoom] 🧪 Testing zoom functionality...');
+        
+        // First, ensure we're enabled
+        if (!this.isEnabled) {
+            console.log('[PreviewZoom] Enabling zoom feature for test...');
+            this.isEnabled = true;
+        }
+        
+        // Store original content if we don't have it
+        if (!this.originalContent) {
+            const previewContent = document.getElementById('preview-content');
+            if (previewContent) {
+                this.originalContent = previewContent.innerHTML;
+                console.log('[PreviewZoom] Captured original content');
+            } else {
+                console.error('[PreviewZoom] No preview content to test with');
+                return;
+            }
+        }
+        
+        // Generate test summaries if we don't have them
+        if (!this.summaryParagraph) {
+            this.summaryParagraph = "This is a test paragraph summary. It shows a condensed version of the content.";
+            this.summarySentence = "This is a test sentence summary.";
+            this.summariesGenerated = true;
+            console.log('[PreviewZoom] Generated test summaries');
+        }
+        
+        // Now try zooming
+        console.log('[PreviewZoom] Current zoom level:', this.currentZoomLevel);
+        console.log('[PreviewZoom] Attempting to zoom out...');
+        this.zoomOut();
+    }
+    
+    // Force regenerate summaries
+    async regenerateSummaries() {
+        console.log('[PreviewZoom] 🔄 Force regenerating summaries...');
+        
+        if (!this.originalContent || !this.currentFilePath) {
+            console.warn('[PreviewZoom] Cannot regenerate: missing content or file path');
+            return;
+        }
+        
+        if (this.isRegenerating) {
+            console.log('[PreviewZoom] Already regenerating, ignoring request');
+            return;
+        }
+        
+        // Set regenerating state
+        this.isRegenerating = true;
+        
+        // Clear existing summaries and cache
+        this.summariesGenerated = false;
+        this.summaryParagraph = null;
+        this.summarySentence = null;
+        
+        // Remove from cache to force fresh generation
+        if (this.summaryCache.has(this.currentFilePath)) {
+            this.summaryCache.delete(this.currentFilePath);
+            console.log('[PreviewZoom] ♻️ Cleared cached summaries for', this.currentFilePath);
+        }
+        
+        // Update UI to show regenerating state
+        this.updateControlsContent();
+        
+        // Extract text content and regenerate
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = this.originalContent;
+        const textContent = tempDiv.textContent || tempDiv.innerText || '';
+        
+        console.log('[PreviewZoom] 🚀 Starting fresh summary generation...');
+        
+        try {
+            await this.generateSummaries(textContent);
+        } finally {
+            // Clear regenerating state
+            this.isRegenerating = false;
+            this.updateControlsContent();
+            console.log('[PreviewZoom] ✅ Regeneration complete');
+        }
     }
 }
 
@@ -500,6 +1052,111 @@ style.textContent = `
 
 #preview-zoom-controls button:active {
     transform: translateY(0);
+}
+
+/* Animated loading ellipsis */
+.loading-ellipsis::after {
+    content: '';
+    animation: ellipsis 1.5s infinite;
+}
+
+@keyframes ellipsis {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+    100% { content: ''; }
+}
+
+/* Custom slider styling */
+#preview-zoom-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    background: #ddd;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+#preview-zoom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #007acc;
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    transition: all 0.2s ease;
+}
+
+#preview-zoom-slider::-webkit-slider-thumb:hover {
+    background: #0056b3;
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+
+#preview-zoom-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #007acc;
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    transition: all 0.2s ease;
+}
+
+#preview-zoom-slider::-moz-range-thumb:hover {
+    background: #0056b3;
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+
+/* Blend layer styling */
+.blend-layer {
+    width: 100%;
+    min-height: 100px;
+}
+
+.blend-upper {
+    border-radius: 4px;
+}
+
+/* Smooth transitions for blended content */
+#preview-content .blend-layer {
+    transition: opacity 0.15s ease-out;
+}
+
+/* Ensure proper stacking for blend layers */
+.preview-content-wrapper {
+    position: relative;
+}
+
+/* Ghost transition effect */
+.transition-ghost {
+    filter: blur(0px);
+    transition: opacity 1.5s ease-out, filter 1.5s ease-out !important;
+}
+
+.transition-ghost.fading {
+    filter: blur(2px);
+}
+
+.transition-new {
+    animation: fadeInScale 1s ease-in forwards;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 `;
 document.head.appendChild(style);

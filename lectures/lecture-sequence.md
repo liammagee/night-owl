@@ -67,3 +67,4 @@ Changing relationship between human and machine. "Assistant" is the wrong metaph
 
 [[lecture-8]]
 
+[@hegel1807]
