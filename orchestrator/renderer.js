@@ -3846,7 +3846,10 @@ if (window.electronAPI) {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, htmlContent, exportOptions);
+            // Ensure only serializable data is passed through IPC
+            const serializableHtmlContent = typeof htmlContent === 'string' ? htmlContent : String(htmlContent);
+            
+            const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, serializableHtmlContent, exportOptions);
             if (result.success) {
                 console.log(`[Renderer] HTML with references exported successfully to: ${result.filePath}`);
                 
