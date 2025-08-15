@@ -36,6 +36,10 @@ if (process.argv.includes('--dev')) {
 
 // --- AI Service Initialization ---
 let aiService;
+// Context tracking for intelligent context inclusion
+let lastContextHash = null;
+let lastFileTimestamps = new Map();
+
 try {
   aiService = new AIService();
   console.log('[main.js] AI Service initialized with providers:', aiService.getAvailableProviders());
@@ -2486,6 +2490,30 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     }
   }
 
+  // Helper functions for intelligent context management
+  function generateContextHash(fileContext, currentFile) {
+    const crypto = require('crypto');
+    const contextString = JSON.stringify({
+      currentFile,
+      files: fileContext?.files?.map(f => ({ name: f.name, size: f.fullSize || f.size, lastModified: f.lastModified })) || [],
+      workingDirectory: fileContext?.workingDirectory
+    });
+    return crypto.createHash('md5').update(contextString).digest('hex');
+  }
+
+  function hasContextChanged(fileContext, currentFile) {
+    const currentHash = generateContextHash(fileContext, currentFile);
+    
+    if (lastContextHash === null || lastContextHash !== currentHash) {
+      lastContextHash = currentHash;
+      console.log('[main.js] Context has changed, will include file context');
+      return true;
+    }
+    
+    console.log('[main.js] Context unchanged, skipping file context to save tokens');
+    return false;
+  }
+
   // System prompt helper function
   async function buildSystemMessage(aiSettings = {}) {
     const defaultMessage = 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
@@ -2780,31 +2808,44 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     try {
       console.log(`[main.js] 🤖 Received chat message with context: "${message.substring(0, 100)}..."`);
       
-      // Build enhanced prompt with file context
-      let enhancedPrompt = `You are an AI assistant similar to Claude Code, helping with a Hegel Pedagogy AI project. `;
+      // Check if context has changed to determine if we should include file info
+      const shouldIncludeContext = hasContextChanged(fileContext, currentFile);
       
-      if (currentFile) {
-        enhancedPrompt += `Currently working on file: ${currentFile}\n\n`;
-      }
+      let enhancedPrompt = message; // Start with just the user's message
       
-      if (fileContext && fileContext.files && fileContext.files.length > 0) {
-        enhancedPrompt += `Available files in the working directory:\n`;
-        // Limit to first 5 files to keep context manageable
-        const filesToInclude = fileContext.files.slice(0, 5);
-        filesToInclude.forEach(file => {
-          enhancedPrompt += `\n**${file.name}** (${file.fullSize || file.size} chars):\n${file.content}\n`;
-        });
-        if (fileContext.files.length > 5) {
-          enhancedPrompt += `\n... and ${fileContext.files.length - 5} more files\n`;
+      // Only add context if files/directory have changed
+      if (shouldIncludeContext) {
+        let contextInfo = '';
+        
+        if (currentFile) {
+          contextInfo += `Currently working on file: ${currentFile}\n\n`;
         }
-        enhancedPrompt += `\n---\n\n`;
+        
+        if (fileContext && fileContext.files && fileContext.files.length > 0) {
+          contextInfo += `Available files in the working directory:\n`;
+          // Limit to first 5 files to keep context manageable
+          const filesToInclude = fileContext.files.slice(0, 5);
+          filesToInclude.forEach(file => {
+            contextInfo += `\n**${file.name}** (${file.fullSize || file.size} chars):\n${file.content}\n`;
+          });
+          if (fileContext.files.length > 5) {
+            contextInfo += `\n... and ${fileContext.files.length - 5} more files\n`;
+          }
+          contextInfo += `\n---\n\n`;
+        }
+        
+        if (fileContext && fileContext.workingDirectory) {
+          contextInfo += `Working directory: ${fileContext.workingDirectory}\n\n`;
+        }
+        
+        // Prepend context info to the user message
+        if (contextInfo) {
+          enhancedPrompt = `${contextInfo}User request: ${message}`;
+          console.log('[main.js] Including file context due to changes');
+        }
+      } else {
+        console.log('[main.js] Skipping file context - no changes detected');
       }
-      
-      if (fileContext && fileContext.workingDirectory) {
-        enhancedPrompt += `Working directory: ${fileContext.workingDirectory}\n\n`;
-      }
-      
-      enhancedPrompt += `User request: ${message}`;
 
       // Apply saved AI settings
       const aiSettings = appSettings.ai || {};
