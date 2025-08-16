@@ -1,11 +1,23 @@
 # Machine Learning and Human Learning
 
+
+## Readings
+
+
+
+## Assessment
+
+Comment on any of the following questions:
+ - What does it mean to learn? How do you know when human learning happens: in the classroom, workplace or life?
+ - Machine learning is clearly inspired by human learning. In your use of AI to date, how would you describe what it has learned (memorized, regurgitated, etc)? When AI gets things wrong, how are its errors different (or similar) to human mistakes?
+ - I have introduced the concept of "synthesis" to describe the similarities and differences between machine and human learning.  What are your views?
+
+
 ## Overview
 
 ---
 
 ## Comparative Analysis of Human and Machine Learning
-
 
 
 - The course provides an overview of both human and machine learning.
@@ -77,10 +89,6 @@ This discussion will not be directed, though, toward the simple aim of how machi
 
 
 
-[[stochastic_society]]
-
-
-[[2+2=5]]
 
 
 Authors:

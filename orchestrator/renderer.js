@@ -2814,6 +2814,21 @@ async function performAppInitialization() {
         console.log('[renderer.js] Marked instance configured.');
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
         
+        // Initialize gamification system
+        console.log('[renderer.js] Checking for gamification initialization function...');
+        console.log('[renderer.js] window.initializeGamification exists:', typeof window.initializeGamification);
+        if (window.initializeGamification) {
+            try {
+                console.log('[renderer.js] Calling initializeGamification...');
+                window.initializeGamification();
+                console.log('[renderer.js] Gamification system initialized successfully');
+            } catch (error) {
+                console.error('[renderer.js] Error initializing gamification:', error);
+            }
+        } else {
+            console.warn('[renderer.js] initializeGamification function not found');
+        }
+        
         console.log('[renderer.js] *** ABOUT TO CALL initializeMonacoEditor() ***');
         try {
             await initializeMonacoEditor(); // Initialize now that Marked is ready and DOM is loaded

@@ -47,3 +47,6 @@
 44. Test framework - DONE
 45. Text summarization, scrolling in / out - IN PROGRESS
 46. Gamified TODOs
+47. Internal Link Previews - text legibility
+48. Generate references
+49. Create images / cartoons

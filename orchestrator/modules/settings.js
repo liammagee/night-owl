@@ -311,6 +311,7 @@ function createSettingsSidebar() {
         { id: 'general', label: 'General', icon: '⚙️' },
         { id: 'appearance', label: 'Appearance', icon: '🎨' },
         { id: 'editor', label: 'Editor', icon: '📝' },
+        { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
         { id: 'export', label: 'Export', icon: '📤' },
         { id: 'kanban', label: 'Kanban', icon: '📋' },
@@ -364,6 +365,7 @@ function showSettingsCategory(category) {
             general: 'General Settings',
             appearance: 'Appearance',
             editor: 'Editor Settings',
+            gamification: 'Gamification Settings',
             ai: 'AI Configuration',
             export: 'Export Preferences',
             kanban: 'Kanban Settings',
@@ -390,6 +392,8 @@ function generateSettingsContent(category) {
             return generateAppearanceSettings();
         case 'editor':
             return generateEditorSettings();
+        case 'gamification':
+            return generateGamificationSettings();
         case 'ai':
             return generateAISettings();
         case 'export':
@@ -519,6 +523,127 @@ function generateEditorSettings() {
                     <small class="setting-description">Show suggestions when typing [@. Disables bracket auto-completion.</small>
                 </label>
             </div>
+        </div>
+    `;
+}
+
+function generateGamificationSettings() {
+    const gamificationSettings = currentSettings.gamification || {};
+    
+    return `
+        <div class="settings-section">
+            <h3>Writing Gamification</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="gamification-enabled" ${gamificationSettings.enabled !== false ? 'checked' : ''}>
+                    <span>Enable Writing Gamification</span>
+                </label>
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    Turn on research-backed gamification features to boost motivation and combat procrastination during academic writing.
+                </p>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Writing Sessions</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="auto-start-sessions" ${gamificationSettings.autoStartSessions !== false ? 'checked' : ''}>
+                    <span>Auto-start writing sessions when typing</span>
+                </label>
+                <label>
+                    <input type="number" id="min-session-length" value="${gamificationSettings.minSessionLength || 5}" min="1" max="60">
+                    <span>Minimum session length (minutes)</span>
+                </label>
+                <label>
+                    <input type="number" id="activity-timeout" value="${gamificationSettings.activityTimeout || 30}" min="10" max="300">
+                    <span>Inactivity timeout (seconds)</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Focus Sessions & Pomodoro Timer</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="focus-sessions-enabled" ${gamificationSettings.focusSessionsEnabled !== false ? 'checked' : ''}>
+                    <span>Enable focus session timer</span>
+                </label>
+                <label>
+                    <select id="default-focus-duration">
+                        <option value="15" ${(gamificationSettings.defaultFocusDuration || 25) === 15 ? 'selected' : ''}>15 minutes</option>
+                        <option value="25" ${(gamificationSettings.defaultFocusDuration || 25) === 25 ? 'selected' : ''}>25 minutes (Pomodoro)</option>
+                        <option value="45" ${(gamificationSettings.defaultFocusDuration || 25) === 45 ? 'selected' : ''}>45 minutes</option>
+                        <option value="90" ${(gamificationSettings.defaultFocusDuration || 25) === 90 ? 'selected' : ''}>90 minutes</option>
+                    </select>
+                    <span>Default focus session duration</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="break-reminders" ${gamificationSettings.breakReminders !== false ? 'checked' : ''}>
+                    <span>Show break reminders after focus sessions</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Achievements & Rewards</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="achievements-enabled" ${gamificationSettings.achievementsEnabled !== false ? 'checked' : ''}>
+                    <span>Enable achievement system</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="streak-tracking" ${gamificationSettings.streakTracking !== false ? 'checked' : ''}>
+                    <span>Track daily writing streaks</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="points-system" ${gamificationSettings.pointsSystem !== false ? 'checked' : ''}>
+                    <span>Enable points and rewards system</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="achievement-notifications" ${gamificationSettings.achievementNotifications !== false ? 'checked' : ''}>
+                    <span>Show achievement notifications</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Interface & Display</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="show-progress-bar" ${gamificationSettings.showProgressBar !== false ? 'checked' : ''}>
+                    <span>Show writing progress indicators</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="compact-mode" ${gamificationSettings.compactMode ? 'checked' : ''}>
+                    <span>Use compact gamification display</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="menu-collapsed-default" ${gamificationSettings.menuCollapsedDefault ? 'checked' : ''}>
+                    <span>Start with gamification menu collapsed</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Data & Privacy</h3>
+            <div class="settings-group">
+                <label>
+                    <button type="button" onclick="clearGamificationData()" style="background: #e74c3c; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Clear All Gamification Data</button>
+                    <span style="color: #666; font-size: 12px;">This will reset all streaks, achievements, and points</span>
+                </label>
+                <label>
+                    <button type="button" onclick="exportGamificationData()" style="background: #3498db; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Export Gamification Data</button>
+                    <span style="color: #666; font-size: 12px;">Download your writing statistics and achievements</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <p style="color: #666; font-size: 12px; line-height: 1.4;">
+                <strong>Research Foundation:</strong> These gamification features are based on research from Deci & Ryan (Self-Determination Theory), 
+                Csikszentmihalyi (Flow Theory), James Clear (Atomic Habits), BJ Fogg (Tiny Habits), and Francesco Cirillo (Pomodoro Technique).
+            </p>
         </div>
     `;
 }
@@ -1019,6 +1144,91 @@ function collectSettingsFromForm() {
         updatedSettings.editor.enableCitationAutocomplete = enableCitationAutocomplete;
     }
     
+    // Gamification settings
+    const gamificationEnabled = document.getElementById('gamification-enabled')?.checked;
+    if (gamificationEnabled !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.enabled = gamificationEnabled;
+    }
+    
+    const autoStartSessions = document.getElementById('auto-start-sessions')?.checked;
+    if (autoStartSessions !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.autoStartSessions = autoStartSessions;
+    }
+    
+    const minSessionLength = document.getElementById('min-session-length')?.value;
+    if (minSessionLength) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.minSessionLength = parseInt(minSessionLength);
+    }
+    
+    const activityTimeout = document.getElementById('activity-timeout')?.value;
+    if (activityTimeout) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.activityTimeout = parseInt(activityTimeout);
+    }
+    
+    const focusSessionsEnabled = document.getElementById('focus-sessions-enabled')?.checked;
+    if (focusSessionsEnabled !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.focusSessionsEnabled = focusSessionsEnabled;
+    }
+    
+    const defaultFocusDuration = document.getElementById('default-focus-duration')?.value;
+    if (defaultFocusDuration) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.defaultFocusDuration = parseInt(defaultFocusDuration);
+    }
+    
+    const breakReminders = document.getElementById('break-reminders')?.checked;
+    if (breakReminders !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.breakReminders = breakReminders;
+    }
+    
+    const achievementsEnabled = document.getElementById('achievements-enabled')?.checked;
+    if (achievementsEnabled !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.achievementsEnabled = achievementsEnabled;
+    }
+    
+    const streakTracking = document.getElementById('streak-tracking')?.checked;
+    if (streakTracking !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.streakTracking = streakTracking;
+    }
+    
+    const pointsSystem = document.getElementById('points-system')?.checked;
+    if (pointsSystem !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.pointsSystem = pointsSystem;
+    }
+    
+    const achievementNotifications = document.getElementById('achievement-notifications')?.checked;
+    if (achievementNotifications !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.achievementNotifications = achievementNotifications;
+    }
+    
+    const showProgressBar = document.getElementById('show-progress-bar')?.checked;
+    if (showProgressBar !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.showProgressBar = showProgressBar;
+    }
+    
+    const compactMode = document.getElementById('compact-mode')?.checked;
+    if (compactMode !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.compactMode = compactMode;
+    }
+    
+    const menuCollapsedDefault = document.getElementById('menu-collapsed-default')?.checked;
+    if (menuCollapsedDefault !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.menuCollapsedDefault = menuCollapsedDefault;
+    }
+    
     // AI settings
     const aiProvider = document.getElementById('ai-provider')?.value;
     if (aiProvider) {
@@ -1369,5 +1579,78 @@ async function browseSystemPromptFile() {
     } catch (error) {
         console.error('[Settings] Error browsing system prompt file:', error);
         showNotification('Error browsing for system prompt file', 'error');
+    }
+}
+
+// Gamification Settings Helper Functions
+
+function clearGamificationData() {
+    if (confirm('Are you sure you want to clear all gamification data? This will reset all streaks, achievements, points, and session history. This action cannot be undone.')) {
+        try {
+            // Clear localStorage data
+            localStorage.removeItem('gamification_daily_stats');
+            localStorage.removeItem('gamification_streak_data');
+            localStorage.removeItem('gamification_achievements');
+            localStorage.removeItem('gamification_rewards');
+            localStorage.removeItem('gamification_focus_settings');
+            localStorage.removeItem('gamification-menu-expanded');
+            
+            showNotification('All gamification data has been cleared', 'success');
+            
+            // Reinitialize gamification if it exists
+            if (window.gamificationInstance) {
+                window.gamificationInstance.dailyStats = {};
+                window.gamificationInstance.streakData = {
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    lastWritingDay: null
+                };
+                window.gamificationInstance.achievements = {};
+                window.gamificationInstance.rewards = {
+                    totalPoints: 0,
+                    badges: {},
+                    customRewards: []
+                };
+                
+                // Update UI if visible
+                if (window.gamificationInstance.updateGamificationUI) {
+                    window.gamificationInstance.updateGamificationUI();
+                }
+            }
+            
+        } catch (error) {
+            console.error('[Settings] Error clearing gamification data:', error);
+            showNotification('Error clearing gamification data', 'error');
+        }
+    }
+}
+
+function exportGamificationData() {
+    try {
+        const gamificationData = {
+            dailyStats: JSON.parse(localStorage.getItem('gamification_daily_stats') || '{}'),
+            streakData: JSON.parse(localStorage.getItem('gamification_streak_data') || '{}'),
+            achievements: JSON.parse(localStorage.getItem('gamification_achievements') || '{}'),
+            rewards: JSON.parse(localStorage.getItem('gamification_rewards') || '{}'),
+            focusSettings: JSON.parse(localStorage.getItem('gamification_focus_settings') || '{}'),
+            exportDate: new Date().toISOString(),
+            version: '1.0'
+        };
+        
+        const dataStr = JSON.stringify(gamificationData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = `gamification-data-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showNotification('Gamification data exported successfully', 'success');
+        
+    } catch (error) {
+        console.error('[Settings] Error exporting gamification data:', error);
+        showNotification('Error exporting gamification data', 'error');
     }
 }
