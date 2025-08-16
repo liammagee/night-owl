@@ -45,4 +45,5 @@
 42. Add HELP file - DONE
 43. Whole / part navigation, simulation
 44. Test framework - DONE
-45. Text summarization, scrolling in / out
+45. Text summarization, scrolling in / out - IN PROGRESS
+46. Gamified TODOs
