@@ -10,6 +10,12 @@ const annotations = new Map();
 
 // --- Core Annotation Processing ---
 function processAnnotations(text) {
+    // Handle undefined or null text
+    if (!text || typeof text !== 'string') {
+        console.warn('[Annotations] Text is undefined or not a string:', text);
+        return text || '';
+    }
+    
     // Initialize global annotation counter if needed
     if (!window.annotationCounter) {
         window.annotationCounter = 0;

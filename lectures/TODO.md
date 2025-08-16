@@ -43,7 +43,7 @@
 39. Graph of files, with links based on internal links - DONE
 40. AI Chat like Claude Code - DONE
 42. Add HELP file - DONE
-43. Whole / part navigation, simulation
+43. Whole / part navigation, simulation - IN PROGRESS
 44. Test framework - DONE
 45. Text summarization, scrolling in / out - IN PROGRESS
 46. Gamified TODOs

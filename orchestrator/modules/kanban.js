@@ -40,6 +40,7 @@ function removeKanbanColumn(index) {
 
 // Store reference to current kanban state to enable intelligent updates
 let currentKanbanState = null;
+let currentKanbanFilePath = null;
 
 function shouldRenderAsKanban(filePath, settings) {
     if (!settings?.kanban?.todoFilePatterns) {
@@ -57,6 +58,20 @@ function shouldRenderAsKanban(filePath, settings) {
 }
 
 function parseKanbanFromMarkdown(content, settings) {
+    // Handle undefined or null content
+    if (!content || typeof content !== 'string') {
+        console.warn('[Kanban] Content is undefined or not a string:', content);
+        return {
+            columns: settings?.kanban?.columns || [
+                { id: 'todo', name: 'To Do', color: '#e3f2fd' },
+                { id: 'inprogress', name: 'In Progress', color: '#fff3e0' },
+                { id: 'done', name: 'Done', color: '#e8f5e8' }
+            ],
+            tasks: [],
+            tasksByColumn: {}
+        };
+    }
+    
     const kanbanSettings = settings?.kanban || {};
     const doneMarkers = kanbanSettings.doneMarkers || ['DONE', 'COMPLETED', '✓', '✔', '[x]', '[X]'];
     const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS', 'DOING', '⏳', '[~]'];
@@ -181,14 +196,28 @@ function renderKanbanBoard(parsedKanban, filePath) {
 }
 
 // Intelligent update function that preserves layout and only updates what changed
+// Reset kanban state when switching files
+function resetKanbanState() {
+    currentKanbanState = null;
+    currentKanbanFilePath = null;
+}
+
 function updateKanbanBoard(container, parsedKanban, filePath) {
     const { columns, tasks, tasksByColumn } = parsedKanban;
     
     // Store current state for comparison
     const newState = JSON.stringify({ tasks: tasks.map(t => ({ id: t.id, text: t.text, status: t.status })) });
     
-    // If nothing changed, don't update
-    if (currentKanbanState === newState) {
+    // If file has changed, force refresh regardless of content
+    const fileChanged = currentKanbanFilePath !== filePath;
+    if (fileChanged) {
+        console.log('[Kanban] File changed, forcing kanban refresh:', currentKanbanFilePath, '->', filePath);
+        currentKanbanFilePath = filePath;
+        currentKanbanState = null; // Force refresh
+    }
+    
+    // If nothing changed and same file, don't update
+    if (currentKanbanState === newState && !fileChanged) {
         return false;
     }
     
@@ -683,6 +712,8 @@ async function handleAddTask(columnId, filePath, container) {
     column.insertBefore(input, addTaskButton);
     input.focus();
     
+    let inputRemoved = false;
+    
     const saveNewTask = async () => {
         const taskText = input.value.trim();
         if (taskText) {
@@ -710,20 +741,34 @@ async function handleAddTask(columnId, filePath, container) {
             }
         }
         
-        input.remove();
+        // Remove input safely
+        if (!inputRemoved && input.parentNode) {
+            input.remove();
+            inputRemoved = true;
+        }
     };
     
     const cancelNewTask = () => {
-        input.remove();
+        // Remove input safely
+        if (!inputRemoved && input.parentNode) {
+            input.remove();
+            inputRemoved = true;
+        }
     };
     
     // Save on Enter, cancel on Escape
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
+            e.stopPropagation();
+            // Remove blur listener to prevent double removal
+            input.removeEventListener('blur', cancelNewTask);
             saveNewTask();
         } else if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
+            // Remove blur listener to prevent double removal
+            input.removeEventListener('blur', cancelNewTask);
             cancelNewTask();
         }
     });
@@ -849,3 +894,4 @@ async function addTaskToFile(filePath, taskText, columnId) {
 // Make functions available globally
 window.updateKanbanBoard = updateKanbanBoard;
 window.setupKanbanTaskActions = setupKanbanTaskActions;
+window.resetKanbanState = resetKanbanState;

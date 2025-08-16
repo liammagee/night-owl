@@ -212,6 +212,15 @@ async function updatePreviewAndStructure(markdownContent) {
         return; // Don't proceed if the element is missing
     }
     
+    // Ensure markdownContent is defined
+    if (!markdownContent && window.editor && typeof window.editor.getValue === 'function') {
+        markdownContent = window.editor.getValue();
+    }
+    if (!markdownContent) {
+        markdownContent = '';
+        console.warn('[renderer.js] markdownContent is undefined, using empty string');
+    }
+    
     // Check if this should be rendered as a Kanban board (async)
     const currentFilePath = window.currentFilePath;
     // Check for Kanban rendering
@@ -296,6 +305,11 @@ async function updatePreviewAndStructure(markdownContent) {
 }
 
 async function renderRegularMarkdown(markdownContent) {
+    // Reset kanban state when switching to non-kanban files
+    if (window.resetKanbanState) {
+        window.resetKanbanState();
+    }
+    
     // Restore normal layout (in case we're switching from Kanban view)
     const editorPane = document.getElementById('editor-pane');
     const previewPane = document.getElementById('preview-pane');
@@ -465,6 +479,16 @@ async function renderRegularMarkdown(markdownContent) {
 function updateStructurePane(markdownContent) {
     if (!markedInstance) {
         console.warn('[renderer.js] Marked instance not ready for structure pane.');
+        return;
+    }
+    
+    // Handle undefined or null markdownContent
+    if (!markdownContent || typeof markdownContent !== 'string') {
+        console.warn('[renderer.js] markdownContent is undefined or not a string:', markdownContent);
+        const structurePane = document.getElementById('structure-pane');
+        if (structurePane) {
+            structurePane.innerHTML = '<p>No content to display structure.</p>';
+        }
         return;
     }
 
