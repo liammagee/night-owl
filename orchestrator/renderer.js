@@ -36,8 +36,10 @@ const previewContent = document.getElementById('preview-content');
 const structureList = document.getElementById('structure-list');
 const showPreviewBtn = document.getElementById('show-preview-btn');
 const showChatBtn = document.getElementById('show-chat-btn');
+const showWholepartBtn = document.getElementById('show-wholepart-btn');
 const previewPane = document.getElementById('preview-pane');
 const chatPane = document.getElementById('chat-pane');
+const wholepartPane = document.getElementById('wholepart-pane');
 const structurePaneTitle = document.getElementById('structure-pane-title');
 const showStructureBtn = document.getElementById('show-structure-btn');
 const showFilesBtn = document.getElementById('show-files-btn');
@@ -3081,11 +3083,16 @@ showChatBtn.addEventListener('click', () => {
     showRightPane('chat');
 });
 
+showWholepartBtn.addEventListener('click', () => {
+    showRightPane('wholepart');
+});
+
 // --- Right Pane Switching Function ---
 function showRightPane(paneType) {
     // Hide all content panes
     if (previewPane) previewPane.style.display = 'none';
     if (chatPane) chatPane.style.display = 'none';
+    if (wholepartPane) wholepartPane.style.display = 'none';
     const searchPane = document.getElementById('search-pane');
     if (searchPane) searchPane.style.display = 'none';
     const speakerNotesPane = document.getElementById('speaker-notes-pane');
@@ -3094,6 +3101,7 @@ function showRightPane(paneType) {
     // Remove active state from all toggle buttons
     if (showPreviewBtn) showPreviewBtn.classList.remove('active');
     if (showChatBtn) showChatBtn.classList.remove('active');
+    if (showWholepartBtn) showWholepartBtn.classList.remove('active');
     const showSearchBtn = document.getElementById('show-search-btn');
     if (showSearchBtn) showSearchBtn.classList.remove('active');
     const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
@@ -3122,6 +3130,14 @@ function showRightPane(paneType) {
             if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.add('active');
             // Update speaker notes content when pane is shown
             updateSpeakerNotesDisplay();
+            break;
+        case 'wholepart':
+            if (wholepartPane) wholepartPane.style.display = '';
+            if (showWholepartBtn) showWholepartBtn.classList.add('active');
+            // Initialize wholepart visualization when pane is shown
+            if (window.initializeWholepartVisualization) {
+                window.initializeWholepartVisualization();
+            }
             break;
         default:
             // Default to preview if unknown pane type

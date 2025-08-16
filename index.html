@@ -1212,6 +1212,7 @@
                         <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
                         <button id="show-search-btn" class="btn pane-toggle-button">Search</button>
                         <button id="show-speaker-notes-btn" class="btn pane-toggle-button">📝 Notes</button>
+                        <button id="show-wholepart-btn" class="btn pane-toggle-button">🔗 Relations</button>
                     </div>
                     <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                         <div id="preview-pane" class="content-pane">
@@ -1287,6 +1288,42 @@
                             
                             <div class="speaker-notes-help" style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 12px; color: #666;">
                                 <strong>Tip:</strong> Use <code>```notes</code> in your Markdown to add speaker notes that won't appear on slides.
+                            </div>
+                        </div>
+
+                        <div id="wholepart-pane" class="content-pane" style="display: none; height: 100%; flex-direction: column;">
+                            <!-- Whole/Part Relations Interface -->
+                            <div class="wholepart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 12px; border-bottom: 2px solid #4ecdc4;">
+                                <h3 style="margin: 0; color: #4ecdc4; font-size: 16px;">🔗 Concept Relations</h3>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <select id="wholepart-visualization-type" style="padding: 4px 8px; font-size: 11px; border: 1px solid #ddd; border-radius: 4px;">
+                                        <option value="0">Circular Ring</option>
+                                        <option value="1">Center-Radial</option>
+                                        <option value="2">Containment</option>
+                                        <option value="3">Spiral Center</option>
+                                        <option value="4">Spiral Parts</option>
+                                        <option value="5">Dialectical</option>
+                                        <option value="6">Spiral Radial</option>
+                                        <option value="7">Fractal</option>
+                                        <option value="8">Nested</option>
+                                    </select>
+                                    <button id="wholepart-refresh" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Refresh Data">🔄</button>
+                                </div>
+                            </div>
+                            
+                            <div id="wholepart-description" style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; margin: 0 12px 12px 12px; font-size: 12px; color: #555;">
+                                <strong>Visualization:</strong> <span id="wholepart-description-text">Select a visualization to explore concept relationships.</span>
+                            </div>
+                            
+                            <div id="wholepart-visualization" style="flex: 1; overflow: hidden; margin: 0 12px; border: 1px solid #e0e0e0; border-radius: 4px; background: white;">
+                                <!-- D3 visualization will be rendered here -->
+                            </div>
+                            
+                            <div class="wholepart-controls" style="display: flex; justify-content: center; gap: 8px; padding: 8px 12px; border-top: 1px solid #e0e0e0;">
+                                <button id="wholepart-animate" class="btn" style="padding: 4px 12px; font-size: 11px;">▶️ Animate</button>
+                                <button id="wholepart-reset" class="btn" style="padding: 4px 12px; font-size: 11px;">🔄 Reset</button>
+                                <button id="wholepart-zoom-in" class="btn" style="padding: 4px 8px; font-size: 11px;">+</button>
+                                <button id="wholepart-zoom-out" class="btn" style="padding: 4px 8px; font-size: 11px;">-</button>
                             </div>
                         </div>
                     </div>
@@ -1450,6 +1487,9 @@
     <script src="orchestrator/modules/listManagement.js" defer></script>
     <script src="orchestrator/modules/speakerNotes.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
+    <!-- D3.js for whole/part visualizations -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="orchestrator/modules/wholepart.js" defer></script>
     <script src="orchestrator/modules/dragdrop.js" defer></script>
     <script src="orchestrator/modules/previewZoom.js" defer></script>
     <script src="orchestrator/modules/fileFilters.js" defer></script>
