@@ -443,6 +443,23 @@ function generateGeneralSettings() {
                 </label>
             </div>
         </div>
+        
+        <div class="settings-section">
+            <h3>Internal Links</h3>
+            <div class="settings-group">
+                <label>
+                    <select id="link-preview-mode">
+                        <option value="disabled" ${(currentSettings.linkPreview?.mode || 'hover') === 'disabled' ? 'selected' : ''}>Disabled (plain text)</option>
+                        <option value="hover" ${(currentSettings.linkPreview?.mode || 'hover') === 'hover' ? 'selected' : ''}>Hover (tooltip preview)</option>
+                        <option value="inline" ${(currentSettings.linkPreview?.mode || 'hover') === 'inline' ? 'selected' : ''}>Inline (embedded content)</option>
+                    </select>
+                    <span>Link preview mode</span>
+                </label>
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    Choose how internal links ([[filename]]) are displayed and behave in your documents.
+                </p>
+            </div>
+        </div>
     `;
 }
 
@@ -997,6 +1014,64 @@ function generateAdvancedSettings() {
 
 function addSettingsEventListeners(category) {
     // Add specific event listeners based on category
+    
+    // Link preview mode dropdown
+    const linkPreviewMode = document.getElementById('link-preview-mode');
+    if (linkPreviewMode) {
+        linkPreviewMode.addEventListener('change', async (e) => {
+            const newMode = e.target.value;
+            
+            // Update internal links settings
+            if (window.setLinkPreviewMode) {
+                window.setLinkPreviewMode(newMode);
+            }
+            
+            // Update app settings
+            if (!window.appSettings) window.appSettings = {};
+            if (!window.appSettings.linkPreview) window.appSettings.linkPreview = {};
+            window.appSettings.linkPreview.mode = newMode;
+            
+            // Save settings
+            try {
+                await window.electronAPI.invoke('set-settings', window.appSettings);
+                
+                // Update currentSettings to reflect the change
+                if (!currentSettings.linkPreview) currentSettings.linkPreview = {};
+                currentSettings.linkPreview.mode = newMode;
+                
+                // Add visual feedback - briefly highlight the changed setting
+                e.target.style.backgroundColor = '#d4edda';
+                e.target.style.borderColor = '#28a745';
+                setTimeout(() => {
+                    e.target.style.backgroundColor = '';
+                    e.target.style.borderColor = '';
+                }, 1000);
+                
+                // Show notification
+                const modes = {
+                    'disabled': 'Link previews disabled',
+                    'hover': 'Link previews on hover',
+                    'inline': 'Inline link previews'
+                };
+                window.showNotification(modes[newMode], 'success');
+                
+                // Update preview to reflect changes
+                if (window.updatePreviewAndStructure && window.editor) {
+                    await window.updatePreviewAndStructure(window.editor.getValue());
+                }
+            } catch (error) {
+                console.error('Failed to save link preview settings:', error);
+                
+                // Visual feedback for error
+                e.target.style.backgroundColor = '#f8d7da';
+                e.target.style.borderColor = '#dc3545';
+                setTimeout(() => {
+                    e.target.style.backgroundColor = '';
+                    e.target.style.borderColor = '';
+                }, 1000);
+            }
+        });
+    }
     
     // Temperature slider update
     const tempSlider = document.getElementById('ai-temperature');
