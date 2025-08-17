@@ -1,3 +1,18 @@
+<!-- TOC START -->
+## <a id="table-of-contents"></a>Table of Contents
+
+- [<a id="machine-learning-and-human-learning"></a>Machine Learning and Human Learning](#a-idmachine-learning-and-human-learningamachine-learning-and-human-learning)
+  - [<a id="readings"></a>Readings](#a-idreadingsareadings)
+  - [<a id="assessment"></a>Assessment](#a-idassessmentaassessment)
+  - [<a id="structure"></a>Structure](#a-idstructureastructure)
+  - [<a id="overview"></a>Overview](#a-idoverviewaoverview)
+  - [<a id="main-lecture"></a>Main Lecture](#a-idmain-lectureamain-lecture)
+    - [<a id="modalities-of-learning"></a>Modalities of Learning](#a-idmodalities-of-learningamodalities-of-learning)
+    - [<a id="comparative-analysis-of-human-and-machine-learning"></a>Comparative Analysis of Human and Machine Learning](#a-idcomparative-analysis-of-human-and-machine-learningacomparative-analysis-of-human-and-machine-learning)
+    - [<a id="concepts"></a>Concepts](#a-idconceptsaconcepts)
+
+<!-- TOC END -->
+
 
 
 
