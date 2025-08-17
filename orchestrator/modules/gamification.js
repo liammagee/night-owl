@@ -104,6 +104,11 @@ class WritingGamification {
         };
         this.initializeXPSystem();
         
+        // Initialize collaborative challenges after core systems
+        setTimeout(() => {
+            this.initializeChallenges();
+        }, 100);
+        
         console.log('[Gamification] Writing momentum and focus system initialized');
     }
 
@@ -174,6 +179,10 @@ class WritingGamification {
             this.checkAchievements();
             this.updateStreaks();
             this.checkGoalCompletion();
+            
+            // Update collaborative challenges progress
+            this.updateChallengeProgress();
+            
             this.showSessionSummary(this.currentSession);
             
             // Play session completion sound
@@ -3167,6 +3176,36 @@ class WritingGamification {
     saveAchievements() {
         localStorage.setItem('gamification_achievements', JSON.stringify(this.achievements));
     }
+
+    // === Collaborative Challenges Integration ===
+    
+    initializeChallenges() {
+        // Initialize collaborative challenges if not already done
+        if (typeof CollaborativeChallenges !== 'undefined' && !this.collaborativeChallenges) {
+            this.collaborativeChallenges = new CollaborativeChallenges(this);
+            
+            // Initialize UI
+            if (typeof ChallengesUI !== 'undefined' && !this.challengesUI) {
+                this.challengesUI = new ChallengesUI(this.collaborativeChallenges, this);
+                // Make available globally for event handlers
+                window.challengesUI = this.challengesUI;
+            }
+            
+            console.log('[Gamification] Collaborative challenges initialized');
+        }
+    }
+    
+    updateChallengeProgress() {
+        // Update collaborative challenges with current session data
+        if (this.collaborativeChallenges) {
+            this.collaborativeChallenges.updateFromGamificationProgress();
+        }
+        
+        if (this.challengesUI) {
+            this.challengesUI.updateProgressFromGamification();
+        }
+    }
+    
 
     // === Additional Helper Methods ===
     

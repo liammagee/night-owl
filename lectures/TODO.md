@@ -55,6 +55,8 @@
 52. Minimap - DONE
 53. In-file ToC - DONE
 54. Presentation flow
-55. Consistent style throughout
+55. Consistent style throughout - DONE
 56. Autocomplete internal links - DONE
 57. Autocomplete bibtex citations - DONE
+58. AI integration with gamification
+59. Accessible HTML export
