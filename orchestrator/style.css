@@ -2675,6 +2675,266 @@ body.dark-mode .kanban-column.drag-over {
     border-color: var(--accent-color);
 }
 
+/* ===== TODO GAMIFICATION STYLES ===== */
+
+.todo-gamification-stats {
+    background: linear-gradient(135deg, var(--surface-light) 0%, var(--surface-lighter) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stats-header {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 8px;
+    background: var(--surface-base);
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+}
+
+.stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary-600);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+    display: block;
+}
+
+.achievement-preview {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.achievement-badge {
+    background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* AI TODO Suggestions Panel */
+.ai-todo-suggestions {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--surface-base);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    width: 320px;
+    max-height: 400px;
+    overflow: hidden;
+    z-index: 1000;
+    animation: slideInRight 0.3s ease-out;
+}
+
+.suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, var(--primary-50) 0%, var(--primary-100) 100%);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.suggestion-header h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.close-suggestions {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.close-suggestions:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.suggestion-list {
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+.suggestion-item:hover {
+    background: var(--surface-hover);
+}
+
+.suggestion-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.add-suggestion {
+    background: var(--primary-500);
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.add-suggestion:hover {
+    background: var(--primary-600);
+}
+
+.suggestion-footer {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--surface-lighter);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.refresh-suggestions,
+.disable-suggestions {
+    flex: 1;
+    background: var(--surface-base);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.refresh-suggestions:hover,
+.disable-suggestions:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+/* Task Completion Effect */
+.task-completion-effect {
+    pointer-events: none !important;
+}
+
+@keyframes floatUp {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) translateY(-50px);
+    }
+}
+
+@keyframes slideInRight {
+    0% {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Enhanced Kanban Task Styles for Gamification */
+.kanban-task.urgent {
+    border-left: 4px solid var(--accent-red);
+    background: linear-gradient(135deg, #fef7f7 0%, #fef2f2 100%);
+}
+
+.kanban-task.high-value {
+    border-left: 4px solid var(--accent-gold);
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.kanban-task.streak-task {
+    border-left: 4px solid var(--accent-orange);
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+}
+
+.task-points-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--primary-500);
+    color: white;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .ai-todo-suggestions {
+        left: 10px;
+        right: 10px;
+        width: auto;
+    }
+    
+    .suggestion-footer {
+        flex-direction: column;
+    }
+}
+
 /* =====================================
    ANNOTATION SYSTEM STYLES
    ===================================== */

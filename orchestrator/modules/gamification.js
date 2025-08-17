@@ -108,6 +108,7 @@ class WritingGamification {
         setTimeout(() => {
             this.initializeChallenges();
             this.initializeAICompanion();
+            this.initializeTodoGamification();
         }, 100);
         
         console.log('[Gamification] Writing momentum and focus system initialized');
@@ -3250,6 +3251,18 @@ class WritingGamification {
             };
             
             console.log('[Gamification] AI Writing Companion initialized');
+        }
+    }
+    
+    initializeTodoGamification() {
+        // Initialize TODO Gamification system
+        if (typeof TodoGamification !== 'undefined' && !this.todoGamification) {
+            this.todoGamification = new TodoGamification(this);
+            
+            // Make available globally for debugging
+            window.todoGamification = this.todoGamification;
+            
+            console.log('[Gamification] TODO Gamification initialized');
         }
     }
 

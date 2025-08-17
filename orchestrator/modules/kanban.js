@@ -192,6 +192,13 @@ function renderKanbanBoard(parsedKanban, filePath) {
     
     boardHtml += '</div>';
     
+    // Dispatch board rendered event for gamification
+    setTimeout(() => {
+        document.dispatchEvent(new CustomEvent('kanbanBoardRendered', { 
+            detail: { columns, tasksByColumn, filePath }
+        }));
+    }, 100);
+    
     return boardHtml;
 }
 
@@ -446,6 +453,21 @@ function setupKanbanDragAndDrop(container, filePath) {
                     
                     await updateKanbanTaskInFile(filePath, task, newColumnId);
                     showNotification('Task moved successfully', 'success');
+                    
+                    // Dispatch task moved event for gamification
+                    const taskData = {
+                        text: task.querySelector('.kanban-task-text')?.textContent || '',
+                        id: taskId,
+                        from: oldColumnId,
+                        to: newColumnId,
+                        filePath
+                    };
+                    
+                    if (newColumnId === 'done') {
+                        document.dispatchEvent(new CustomEvent('kanbanTaskCompleted', { detail: taskData }));
+                    } else {
+                        document.dispatchEvent(new CustomEvent('kanbanTaskMoved', { detail: taskData }));
+                    }
                     
                     // Refresh the editor content if this file is currently open
                     if (currentFilePath === filePath) {
@@ -720,6 +742,10 @@ async function handleAddTask(columnId, filePath, container) {
             try {
                 await addTaskToFile(filePath, taskText, columnId);
                 showNotification('Task added successfully', 'success');
+                
+                // Dispatch task created event for gamification
+                const taskData = { text: taskText, status: columnId, filePath };
+                document.dispatchEvent(new CustomEvent('kanbanTaskAdded', { detail: taskData }));
                 
                 // Refresh editor if this file is open
                 if (window.currentFilePath === filePath) {
