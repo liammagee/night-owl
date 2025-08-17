@@ -3,6 +3,8 @@
 
 ## Readings
 
+None for Week 1!
+
 
 
 ## Assessment
@@ -13,46 +15,61 @@ Comment on any of the following questions:
  - I have introduced the concept of "synthesis" to describe the similarities and differences between machine and human learning.  What are your views?
 
 
+## Structure
+
+1. Outline of the Course - Circular Structure
+  - [[lecture-concepts]]
+2. Weekly Format
+  - Mix of theory (lectures) / practice / discussion
+3. Assessments  
+4. A previous version of this course ran in 2023 and 2024: [[2023-Course]]
+5. Lens: Hegelian Philosophy. Why Hegel?
+  - basic hypothesis: machine learning is rooted in 18th century empiricism (more data = more truth)
+  - What does Hegel offer? One way to think about learning as *nonlinear* (structured / dialectical / involving negation etc). This is important for later pedagogical theorists such as Dewey, Vygotsky and Piaget – Hegel's influence on these thinkers (and their general critique of mechanical learning will become clear).
+  - This will hopefully become clear! We start with the idea of synthesis between machine learning and human learning, then go down several rabbit holes, before returning, in Week 8, to a modified idea of synthesis.
+6. 8 Weeks = 8 Concepts
+7. Discussion
+
+
+
 ## Overview
+
+
+Welcome to Machine Learning and Human Learning!
+
+In this course we'll be exploring these two related – but also very distinct – ideas. This week I'll provide an overview of the course, readings, approach and assessment. I'll also be introducing the work of Hegel, an Enlightenment-era German philosopher who will supply an important lens onto many of the questions posed by machines which purport to learn. 
+
+We'll also have a general open discussion about machine learning and human learning: what unites them, and what distinguishes them. In true dialectical fashion, we will then think about what possible synthesis we might see between these two modalities of learning. Part of this discussion will involve, naturally enough, a machine that will be joining us – GPT-5 – to share its views.
+
+
+
+---
+
+
+## Modalities of Learning 
+
+This course presents what I will be calling a *critical* outline of machine learning and human learning. I will also be referring to both kinds of learning as "modalities" – species, if you like, of the general process of learning. This form may rub some of you the wrong way - you may want to insist upon machine learning not only as distinct but also as derivative, an imitation or copy, and perhaps not even a *good* copy, of human learning. We will of course be returning to such ideas in the course itself.  
+
+
+
 
 ---
 
 ## Comparative Analysis of Human and Machine Learning
 
-
-- The course provides an overview of both human and machine learning.
-- It aims to identify similarities between human and machine learning processes.
-- It emphasizes the distinguishing factors between human and machine learning.
-- This course employs a comparative and contrastive approach towards understanding learning processes.
-
-```notes
-This course presents an outline of human and machine learning. As the title suggests, this involves a process of comparison and contrast: what is common to both human and machine learning, and what distinguishes them. 
-```
-
-
+As the title also suggests, any critical inquiry involves a process of both comparison and contrast: a consideration of what is common to both both modalities, and what distinguishes them. This process is something that, for this course, I want to approach in a philosophical way. What I mean by this is that, alongside texts from areas of child psychology, linguistics and computer science, I want us to investigate the idea of "learning" through a fundamentally *philosophical* type of inquiry. This I think leads us to think about less about learning as a set of features that pertain to humans, machines or both, and more about learning as itself a process that ranges across a set of common distinctions: between human and machine, but also between individual and society, between child and adult, and so on. It will also help us, I hope, to think about learning as something cooperative, involving both social and technical, or what are sometimes thought as sociotechnical systems, or in the vocabulary of Mary Kalantzis and Bill Cope, as cyber-social systems. I've coined the term "symbiotic pedagogy" to describe this kind of cooperation. Finally, we might conclude by developing some normative claims: about what constitutes legitimate as opposed to illegitimate forms of machine learning and machine learning.
 
 
 ---
 
 
-## philosophy
 
 ---
 
-## Philosophical Inquiry into Learning and Symbiotic Pedagogy
+The presentation of the course will be unusual. I've asked that we allocate up to 2 hours per week for seminars. 
+ I plan to develop and deliver the lecture material as a series of short "pod" style lectures
 
-- Treat learning as a philosophical question alongside child psychology, linguistics, and computer science.
-- Reframe learning from a set of features to a process that traverses key distinctions (human/machine, individual/society, child/adult).
-- Emphasize cooperative, sociotechnical dynamics captured by the term “symbiotic pedagogy.”
-- Develop normative criteria to distinguish legitimate from illegitimate forms of human and machine learning.
-
-```notes
-This process is something that, for this course, I want to approach in a philosophical way. What I mean by this is that, alongside texts from areas of child psychology, linguistics and computer science, I want us to investigate the idea of "learning" through a fundamentally *philosophical* type of inquiry. This I think leads us to think about less about learning as a set of features that pertain to humans, machines or both, and more about learning as itself a process that ranges across a set of common distinctions: between human and machine, but also between individual and society, between child and adult, and so on. It will also help us, I hope, to think about learning as something cooperative, involving both social and technical, or what are sometimes thought as sociotechnical systems. I've coined the term "symbiotic pedagogy" to describe this kind of cooperation. Finally, we might conclude by developing some normative claims: about what constitutes legitimate as opposed to illegitimate forms of human and machine learning.
-```
-
----
-
-The presentation of the course will be unusual. I plan to develop and deliver the lecture material offline, and then use the weekly hour allocated to us to discuss both that material and associated readings. This will in some ways add more labor and time to the course, but also allow us to plumb more deeply into a complex topic that ranges across disciplinary fields.
+ offline, and then use the weekly hour allocated to us to discuss both that material and associated readings. This will in some ways add more labor and time to the course, but also allow us to plumb more deeply into a complex topic that ranges across disciplinary fields.
 
 ---
 
