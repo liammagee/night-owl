@@ -54,3 +54,5 @@
 51. Nested lists - DONE
 52. Minimap - DONE
 53. In-file ToC
+54. Presentation flow
+55. Consistent style throughout

@@ -21,6 +21,8 @@ function initializeMarkdownFormatting() {
     const autoSlideMarkersBtn = document.getElementById('auto-slide-markers-btn');
     const removeSlideMarkersBtn = document.getElementById('remove-slide-markers-btn');
     const insertSpeakerNotesBtn = document.getElementById('insert-speaker-notes-btn');
+    const insertTocBtn = document.getElementById('insert-toc-btn');
+    const removeTocBtn = document.getElementById('remove-toc-btn');
     
     if (formatBoldBtn) formatBoldBtn.addEventListener('click', async () => await formatText('**', '**', 'bold text'));
     if (formatItalicBtn) formatItalicBtn.addEventListener('click', async () => await formatText('*', '*', 'italic text'));
@@ -42,6 +44,8 @@ function initializeMarkdownFormatting() {
     if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', async () => await addSlideMarkersToParagraphs());
     if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', async () => await removeAllSlideMarkers());
     if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', async () => await insertSpeakerNotesTemplate());
+    if (insertTocBtn) insertTocBtn.addEventListener('click', async () => await insertTableOfContents());
+    if (removeTocBtn) removeTocBtn.addEventListener('click', async () => await removeTableOfContents());
     
     // Annotation button event handlers
     const insertCommentAnnotationBtn = document.getElementById('insert-comment-annotation-btn');
@@ -52,6 +56,10 @@ function initializeMarkdownFormatting() {
     if (insertHighlightAnnotationBtn) insertHighlightAnnotationBtn.addEventListener('click', async () => await window.insertHighlightAnnotation());
     if (insertBlockAnnotationBtn) insertBlockAnnotationBtn.addEventListener('click', async () => await window.insertBlockAnnotation());
     
+    // Add ToC buttons dynamically (in case they're not in HTML)
+    setTimeout(() => {
+        addToCButtons();
+    }, 100);
 }
 
 
@@ -652,6 +660,236 @@ async function insertSpeakerNotesTemplate() {
     }
 }
 
+// --- Table of Contents ---
+async function insertTableOfContents() {
+    if (!window.editor) return;
+    
+    const content = window.editor.getValue();
+    const lines = content.split('\n');
+    
+    // Check if ToC already exists
+    const tocStartRegex = /^<!-- TOC START -->/;
+    const existingTocLine = lines.findIndex(line => tocStartRegex.test(line.trim()));
+    
+    if (existingTocLine !== -1) {
+        alert('Table of Contents already exists. Remove it first if you want to regenerate.');
+        return;
+    }
+    
+    // Extract headings and prepare edits
+    const headings = [];
+    const edits = [];
+    let tocInsertOffset = 0; // Track line offset for ToC insertion
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+        
+        if (headingMatch) {
+            const level = headingMatch[1].length;
+            const text = headingMatch[2].trim();
+            const anchor = generateAnchor(text);
+            
+            // Check if heading already has an anchor
+            const hasAnchor = text.includes('<a id=') || text.includes('<a name=');
+            
+            if (!hasAnchor) {
+                // Add anchor to heading
+                const newHeading = `${headingMatch[1]} <a id="${anchor}"></a>${text}`;
+                edits.push({
+                    range: new monaco.Range(i + 1, 1, i + 1, line.length + 1),
+                    text: newHeading
+                });
+            }
+            
+            headings.push({
+                level,
+                text,
+                anchor,
+                lineNumber: i + 1
+            });
+        }
+    }
+    
+    if (headings.length === 0) {
+        alert('No headings found in the document.');
+        return;
+    }
+    
+    // Generate ToC content
+    let tocContent = '<!-- TOC START -->\n## <a id="table-of-contents"></a>Table of Contents\n\n';
+    
+    for (const heading of headings) {
+        const indent = '  '.repeat(Math.max(0, heading.level - 1)); // Indent based on heading level
+        const link = `[${heading.text}](#${heading.anchor})`;
+        tocContent += `${indent}- ${link}\n`;
+    }
+    
+    tocContent += '\n<!-- TOC END -->\n\n';
+    
+    // Apply all edits in a single operation
+    // First add anchors to headings, then insert ToC
+    if (edits.length > 0) {
+        window.editor.executeEdits('add-heading-anchors', edits);
+    }
+    
+    // Insert ToC at the beginning of the document
+    window.editor.executeEdits('insert-toc', [{
+        range: new monaco.Range(1, 1, 1, 1),
+        text: tocContent
+    }]);
+    
+    // Position cursor after ToC
+    const tocLines = tocContent.split('\n').length;
+    window.editor.setPosition({
+        lineNumber: tocLines,
+        column: 1
+    });
+    
+    window.editor.focus();
+    
+    if (window.updatePreviewAndStructure) {
+        await window.updatePreviewAndStructure(window.editor.getValue());
+    }
+    
+    alert(`Table of Contents inserted with ${headings.length} headings and anchors.`);
+}
+
+async function removeTableOfContents() {
+    if (!window.editor) return;
+    
+    const content = window.editor.getValue();
+    const lines = content.split('\n');
+    
+    // Find ToC boundaries
+    const tocStartRegex = /^<!-- TOC START -->/;
+    const tocEndRegex = /^<!-- TOC END -->/;
+    
+    let startLine = -1;
+    let endLine = -1;
+    
+    for (let i = 0; i < lines.length; i++) {
+        if (startLine === -1 && tocStartRegex.test(lines[i].trim())) {
+            startLine = i;
+        } else if (startLine !== -1 && tocEndRegex.test(lines[i].trim())) {
+            endLine = i;
+            break;
+        }
+    }
+    
+    if (startLine === -1 || endLine === -1) {
+        alert('No Table of Contents found to remove.');
+        return;
+    }
+    
+    // Ask user if they want to remove anchor tags from headings as well
+    const removeAnchors = confirm('Remove anchor tags from headings as well?\n\nClick OK to remove both ToC and anchors, or Cancel to remove only the ToC.');
+    
+    const edits = [];
+    
+    // Remove ToC section (including the extra newline after TOC END)
+    const removeEndLine = endLine + 1 < lines.length && lines[endLine + 1].trim() === '' ? endLine + 2 : endLine + 1;
+    
+    edits.push({
+        range: new monaco.Range(startLine + 1, 1, removeEndLine, 1),
+        text: ''
+    });
+    
+    // Optionally remove anchor tags from headings
+    if (removeAnchors) {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+            
+            if (headingMatch) {
+                const text = headingMatch[2];
+                // Remove anchor tags: <a id="..."></a> or <a name="..."></a>
+                const cleanText = text.replace(/<a\s+(id|name)="[^"]*"><\/a>/g, '').trim();
+                
+                if (cleanText !== text) {
+                    const newHeading = `${headingMatch[1]} ${cleanText}`;
+                    // Adjust line number if it's after the ToC removal
+                    const adjustedLineNum = i >= startLine ? i + 1 - (removeEndLine - startLine) : i + 1;
+                    
+                    edits.push({
+                        range: new monaco.Range(adjustedLineNum, 1, adjustedLineNum, line.length + 1),
+                        text: newHeading
+                    });
+                }
+            }
+        }
+    }
+    
+    // Apply all edits
+    window.editor.executeEdits('remove-toc-and-anchors', edits);
+    
+    // Position cursor at the beginning
+    window.editor.setPosition({
+        lineNumber: startLine + 1,
+        column: 1
+    });
+    
+    window.editor.focus();
+    
+    if (window.updatePreviewAndStructure) {
+        await window.updatePreviewAndStructure(window.editor.getValue());
+    }
+    
+    const message = removeAnchors ? 
+        'Table of Contents and heading anchors removed successfully.' : 
+        'Table of Contents removed successfully. Heading anchors preserved.';
+    alert(message);
+}
+
+// Generate URL-friendly anchor from heading text
+function generateAnchor(headingText) {
+    return headingText
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Remove special characters except hyphens
+        .replace(/\s+/g, '-')     // Replace spaces with hyphens
+        .replace(/-+/g, '-')      // Collapse multiple hyphens
+        .replace(/^-|-$/g, '');   // Remove leading/trailing hyphens
+}
+
+// Add ToC buttons to toolbar dynamically
+function addToCButtons() {
+    const toolbar = document.getElementById('editor-toolbar');
+    if (!toolbar) return;
+    
+    // Find the speaker notes button to insert after it
+    const speakerNotesBtn = document.getElementById('insert-speaker-notes-btn');
+    if (!speakerNotesBtn) return;
+    
+    // Check if ToC buttons already exist
+    if (document.getElementById('insert-toc-btn')) return;
+    
+    // Create Insert ToC button
+    const insertTocBtn = document.createElement('button');
+    insertTocBtn.id = 'insert-toc-btn';
+    insertTocBtn.className = 'toolbar-btn';
+    insertTocBtn.title = 'Insert Table of Contents';
+    insertTocBtn.style.cssText = 'padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;';
+    insertTocBtn.innerHTML = '📑+';
+    
+    insertTocBtn.addEventListener('click', async () => await insertTableOfContents());
+    
+    // Create Remove ToC button
+    const removeTocBtn = document.createElement('button');
+    removeTocBtn.id = 'remove-toc-btn';
+    removeTocBtn.className = 'toolbar-btn';
+    removeTocBtn.title = 'Remove Table of Contents';
+    removeTocBtn.style.cssText = 'padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;';
+    removeTocBtn.innerHTML = '📑✖️';
+    
+    removeTocBtn.addEventListener('click', async () => await removeTableOfContents());
+    
+    // Insert buttons after speaker notes button
+    speakerNotesBtn.parentNode.insertBefore(insertTocBtn, speakerNotesBtn.nextSibling);
+    speakerNotesBtn.parentNode.insertBefore(removeTocBtn, insertTocBtn.nextSibling);
+    
+    console.log('[formatting.js] Added ToC buttons to toolbar');
+}
+
 
 // --- Utility Functions ---
 function applyMarkdownFormatting(wrapper) {
@@ -694,6 +932,9 @@ window.insertCodeBlock = insertCodeBlock;
 window.addSlideMarkersToParagraphs = addSlideMarkersToParagraphs;
 window.removeAllSlideMarkers = removeAllSlideMarkers;
 window.insertSpeakerNotesTemplate = insertSpeakerNotesTemplate;
+window.insertTableOfContents = insertTableOfContents;
+window.removeTableOfContents = removeTableOfContents;
+window.addToCButtons = addToCButtons;
 window.initializeMarkdownFormatting = initializeMarkdownFormatting;
 
 // --- Initialization is called from renderer.js with a delay ---
