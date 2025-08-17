@@ -23,6 +23,7 @@ function initializeMarkdownFormatting() {
     const insertSpeakerNotesBtn = document.getElementById('insert-speaker-notes-btn');
     const insertTocBtn = document.getElementById('insert-toc-btn');
     const removeTocBtn = document.getElementById('remove-toc-btn');
+    const commandPaletteBtn = document.getElementById('command-palette-btn');
     
     if (formatBoldBtn) formatBoldBtn.addEventListener('click', async () => await formatText('**', '**', 'bold text'));
     if (formatItalicBtn) formatItalicBtn.addEventListener('click', async () => await formatText('*', '*', 'italic text'));
@@ -46,6 +47,9 @@ function initializeMarkdownFormatting() {
     if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', async () => await insertSpeakerNotesTemplate());
     if (insertTocBtn) insertTocBtn.addEventListener('click', async () => await insertTableOfContents());
     if (removeTocBtn) removeTocBtn.addEventListener('click', async () => await removeTableOfContents());
+    if (commandPaletteBtn) commandPaletteBtn.addEventListener('click', () => {
+        if (window.showCommandPalette) window.showCommandPalette();
+    });
     
     // Annotation button event handlers
     const insertCommentAnnotationBtn = document.getElementById('insert-comment-annotation-btn');

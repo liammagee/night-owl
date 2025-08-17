@@ -1245,6 +1245,31 @@ function addAISummarizationAction() {
     
 }
 
+// --- Command Palette Action ---
+function addCommandPaletteAction() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot add command palette action: editor not available');
+        return;
+    }
+    
+    // Add command palette action that overrides default Monaco keybinding
+    editor.addAction({
+        id: 'show-command-palette',
+        label: 'Show Command Palette',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP
+        ],
+        
+        run: function(ed) {
+            if (window.showCommandPalette) {
+                window.showCommandPalette();
+            }
+        }
+    });
+    
+    console.log('[renderer.js] Command palette action added to Monaco editor');
+}
+
 // --- Navigation Controls Setup ---
 function setupNavigationControls() {
     const backBtn = document.getElementById('nav-back-btn');
@@ -1561,7 +1586,7 @@ function registerCitationAutocomplete() {
                     return {
                         label: entry.key,
                         kind: monaco.languages.CompletionItemKind.Reference,
-                        insertText: entry.key,
+                        insertText: entry.key + ']',
                         detail: `@${entry.type}`,
                         documentation: description,
                         range: {
@@ -1790,6 +1815,7 @@ async function initializeMonacoEditor() {
                 addFoldingKeyboardShortcuts();
                 addFoldingToolbarControls();
                 addAISummarizationAction();
+                addCommandPaletteAction();
             }, 100);
             
             await updatePreviewAndStructure(editor.getValue());
@@ -2182,6 +2208,13 @@ async function loadAppSettings() {
     if (window.initializeGlobalSearch) {
         setTimeout(() => {
             window.initializeGlobalSearch();
+        }, 100);
+    }
+    
+    // Initialize command palette module
+    if (window.initializeCommandPalette) {
+        setTimeout(() => {
+            window.initializeCommandPalette();
         }, 100);
     }
     
@@ -2704,6 +2737,7 @@ async function createFallbackEditor() {
 
 // --- Global Keyboard Shortcuts ---
 document.addEventListener('keydown', async (e) => {
+    
     // Only handle shortcuts when not in input fields (except find/replace inputs)
     const isInInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
     const isInFindReplace = e.target === findInput || e.target === replaceInput;
@@ -3800,6 +3834,13 @@ if (window.electronAPI && window.electronAPI.on) {
     window.electronAPI.on('set-theme', (theme) => {
         console.log('[renderer.js] Received set-theme event:', theme);
         applyTheme(theme === 'dark');
+    });
+    
+    window.electronAPI.on('show-command-palette', () => {
+        console.log('[renderer.js] Received show-command-palette event');
+        if (window.showCommandPalette) {
+            window.showCommandPalette();
+        }
     });
 }
 

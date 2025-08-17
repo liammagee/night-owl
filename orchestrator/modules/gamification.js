@@ -597,6 +597,11 @@ class WritingGamification {
         
         // Track general typing activity
         document.addEventListener('keydown', (e) => {
+            // Ignore keyboard shortcuts with modifiers to avoid interfering with commands
+            if (e.ctrlKey || e.metaKey || e.altKey) {
+                return;
+            }
+            
             if (this.isWritingKey(e)) {
                 this.onWritingActivity();
             }

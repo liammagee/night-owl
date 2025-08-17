@@ -6,4 +6,8 @@ https://shibboleth.research.illinois.edu/V2/EDS/Default.aspx?d=dXJsPWh0dHBzOi8va
 
 ## Staff Self-Service
 
+https://apps.uillinois.edu/selfservice
+
 https://banner.apps.uillinois.edu/FacultySelfService/ssb/facultyCommonDashboard?mepCode=1UIUC
+
+

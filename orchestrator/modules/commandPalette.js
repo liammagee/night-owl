@@ -43,6 +43,15 @@ function initializeCommandPalette() {
     registerCommand('view.presentationTab', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
     registerCommand('view.networkMode', 'View: Network Mode', () => window.switchToMode('network'), 'Cmd+3');
     registerCommand('view.kanban', 'View: Open Kanban Board', () => window.showKanbanBoard(), 'Cmd+K');
+    registerCommand('view.minimap.toggle', 'View: Toggle Minimap', () => {
+        if (window.editor && window.editor.updateOptions) {
+            const currentOptions = window.editor.getRawOptions();
+            const minimapEnabled = currentOptions.minimap && currentOptions.minimap.enabled;
+            window.editor.updateOptions({
+                minimap: { enabled: !minimapEnabled }
+            });
+        }
+    });
     
     // Formatting
     registerCommand('format.bold', 'Format: Bold', () => window.handleFormatText('bold'), 'Cmd+B');
@@ -57,6 +66,11 @@ function initializeCommandPalette() {
     registerCommand('format.insertLink', 'Format: Insert Link', () => window.handleFormatText('link'), 'Cmd+K');
     registerCommand('format.insertImage', 'Format: Insert Image', () => window.handleFormatText('image'), 'Cmd+Shift+I');
     registerCommand('format.blockquote', 'Format: Blockquote', () => window.handleFormatText('blockquote'), 'Cmd+Shift+.');
+    registerCommand('format.inlineMath', 'Format: Inline Math ($...$)', async () => await window.formatText('$', '$', 'math'));
+    registerCommand('format.displayMath', 'Format: Display Math ($$...$$)', async () => await window.formatDisplayMath());
+    registerCommand('format.table', 'Format: Insert Table', () => window.insertTable());
+    registerCommand('format.slideMarkers', 'Format: Add Slide Markers', async () => await window.addSlideMarkersToParagraphs());
+    registerCommand('format.removeSlideMarkers', 'Format: Remove Slide Markers', async () => await window.removeAllSlideMarkers());
     
     // Annotations
     registerCommand('annotation.comment', 'Annotation: Insert Comment', async () => await window.insertCommentAnnotation());
@@ -97,6 +111,40 @@ function initializeCommandPalette() {
     registerCommand('ai.clearChat', 'AI: Clear Chat History', () => window.clearAIChat());
     registerCommand('ai.summarize', 'AI: Summarize Document', () => window.summarizeDocument());
     
+    // Table of Contents
+    registerCommand('toc.insert', 'Table of Contents: Insert ToC', async () => await window.insertTableOfContents());
+    registerCommand('toc.remove', 'Table of Contents: Remove ToC', async () => await window.removeTableOfContents());
+    
+    // Gamification
+    registerCommand('gamification.toggle', 'Gamification: Toggle Panel', () => {
+        const gamificationPanel = document.getElementById('gamification-menu');
+        if (gamificationPanel) {
+            if (window.gamificationSystem && window.gamificationSystem.toggleMenu) {
+                window.gamificationSystem.toggleMenu();
+            }
+        }
+    });
+    registerCommand('gamification.startWriting', 'Gamification: Start Writing Session', () => {
+        if (window.gamificationSystem && window.gamificationSystem.startWritingSession) {
+            window.gamificationSystem.startWritingSession();
+        }
+    });
+    registerCommand('gamification.endWriting', 'Gamification: End Writing Session', () => {
+        if (window.gamificationSystem && window.gamificationSystem.endWritingSession) {
+            window.gamificationSystem.endWritingSession();
+        }
+    });
+    registerCommand('gamification.showStats', 'Gamification: Show Statistics', () => {
+        if (window.gamificationSystem && window.gamificationSystem.showStatsModal) {
+            window.gamificationSystem.showStatsModal();
+        }
+    });
+    registerCommand('gamification.customizeGoals', 'Gamification: Customize Goals', () => {
+        if (window.gamificationSystem && window.gamificationSystem.showGoalsModal) {
+            window.gamificationSystem.showGoalsModal();
+        }
+    });
+    
     // Settings
     registerCommand('settings.open', 'Settings: Open Preferences', () => window.openSettings(), 'Cmd+,');
     registerCommand('settings.theme.toggle', 'Settings: Toggle Theme', () => window.toggleTheme());
@@ -109,12 +157,14 @@ function initializeCommandPalette() {
     console.log(`[CommandPalette] Registered ${commandRegistry.size} commands`);
     
     // Set up keyboard shortcut to show command palette
+    // Use capture phase to ensure this runs before other handlers
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
             e.preventDefault();
+            e.stopPropagation();
             showCommandPalette();
         }
-    });
+    }, true); // Use capture phase
 }
 
 // --- Command Palette UI ---

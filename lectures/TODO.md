@@ -56,3 +56,5 @@
 53. In-file ToC
 54. Presentation flow
 55. Consistent style throughout
+56. Autocomplete internal links
+57. Autocomplete bibtex citations

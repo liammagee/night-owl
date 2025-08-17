@@ -1191,6 +1191,16 @@ function createMainMenu() {
             },
             { type: 'separator' },
             {
+                label: 'Command Palette...',
+                accelerator: 'CmdOrCtrl+Shift+P',
+                click: () => {
+                    if (mainWindow) {
+                        console.log('[main.js] Opening Command Palette via menu');
+                        mainWindow.webContents.send('show-command-palette');
+                    }
+                }
+            },
+            {
                 label: 'Style Settings...',
                 accelerator: 'CmdOrCtrl+Shift+T',
                 click: () => {

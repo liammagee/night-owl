@@ -1465,6 +1465,18 @@ body.dark-theme .annotation-highlight:hover {
     margin-bottom: 0;
 }
 
+/* Fix link visibility in inline preview content */
+.inline-link-content a {
+    color: #2b6cb0 !important; /* Darker blue for better contrast */
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.inline-link-content a:hover {
+    color: #1a365d !important; /* Even darker on hover */
+    background-color: rgba(43, 108, 176, 0.1);
+}
+
 .inline-link-content h1,
 .inline-link-content h2,
 .inline-link-content h3,
@@ -1502,6 +1514,17 @@ body.dark-theme .inline-link-header {
 body.dark-theme .inline-link-content {
     color: #cbd5e0;
     background: rgba(45, 55, 72, 0.7);
+}
+
+/* Dark mode link visibility fixes for inline preview content */
+body.dark-theme .inline-link-content a {
+    color: #63b3ed !important; /* Light blue for dark backgrounds */
+    font-weight: 500;
+}
+
+body.dark-theme .inline-link-content a:hover {
+    color: #90cdf4 !important; /* Lighter blue on hover */
+    background-color: rgba(99, 179, 237, 0.1);
 }
 
 body.dark-theme .inline-link-content h1,
@@ -1658,6 +1681,16 @@ body.dark-theme .link-preview-meta {
     background: #2d3748;
     border-color: #4a5568;
     color: #a0aec0;
+}
+
+/* Dark mode internal link styles */
+body.dark-theme .internal-link {
+    color: #63b3ed; /* Light blue for dark backgrounds */
+}
+
+body.dark-theme .internal-link:hover {
+    color: #90cdf4; /* Lighter blue on hover */
+    background-color: rgba(99, 179, 237, 0.1); /* Subtle background highlight */
 }
 
 /* =====================================
