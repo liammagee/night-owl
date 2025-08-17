@@ -691,15 +691,19 @@ async function insertTableOfContents() {
         
         if (headingMatch) {
             const level = headingMatch[1].length;
-            const text = headingMatch[2].trim();
-            const anchor = generateAnchor(text);
+            let text = headingMatch[2].trim();
+            
+            // If heading already has anchor tags, extract the clean text
+            const anchorRegex = /<a\s+id="[^"]*"><\/a>/g;
+            const cleanText = text.replace(anchorRegex, '').trim();
+            const anchor = generateAnchor(cleanText);
             
             // Check if heading already has an anchor
             const hasAnchor = text.includes('<a id=') || text.includes('<a name=');
             
             if (!hasAnchor) {
                 // Add anchor to heading
-                const newHeading = `${headingMatch[1]} <a id="${anchor}"></a>${text}`;
+                const newHeading = `${headingMatch[1]} <a id="${anchor}"></a>${cleanText}`;
                 edits.push({
                     range: new monaco.Range(i + 1, 1, i + 1, line.length + 1),
                     text: newHeading
@@ -708,7 +712,7 @@ async function insertTableOfContents() {
             
             headings.push({
                 level,
-                text,
+                text: cleanText, // Use clean text for ToC links
                 anchor,
                 lineNumber: i + 1
             });
@@ -802,6 +806,11 @@ async function removeTableOfContents() {
     // Optionally remove anchor tags from headings
     if (removeAnchors) {
         for (let i = 0; i < lines.length; i++) {
+            // Skip lines that are part of the ToC we're removing
+            if (i >= startLine && i <= endLine) {
+                continue;
+            }
+            
             const line = lines[i];
             const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
             
@@ -812,11 +821,9 @@ async function removeTableOfContents() {
                 
                 if (cleanText !== text) {
                     const newHeading = `${headingMatch[1]} ${cleanText}`;
-                    // Adjust line number if it's after the ToC removal
-                    const adjustedLineNum = i >= startLine ? i + 1 - (removeEndLine - startLine) : i + 1;
                     
                     edits.push({
-                        range: new monaco.Range(adjustedLineNum, 1, adjustedLineNum, line.length + 1),
+                        range: new monaco.Range(i + 1, 1, i + 1, line.length + 1),
                         text: newHeading
                     });
                 }
