@@ -107,6 +107,7 @@ class WritingGamification {
         // Initialize collaborative challenges after core systems
         setTimeout(() => {
             this.initializeChallenges();
+            this.initializeAICompanion();
         }, 100);
         
         console.log('[Gamification] Writing momentum and focus system initialized');
@@ -3206,6 +3207,25 @@ class WritingGamification {
         }
     }
     
+    initializeAICompanion() {
+        // Initialize AI Writing Companion if available
+        if (typeof AIWritingCompanion !== 'undefined' && !this.aiCompanion) {
+            this.aiCompanion = new AIWritingCompanion(this);
+            
+            // Initialize AI Flow Detection
+            if (typeof AIFlowDetection !== 'undefined' && !this.aiFlowDetection) {
+                this.aiFlowDetection = new AIFlowDetection(this.aiCompanion, this);
+            }
+            
+            // Make available globally for debugging
+            window.aiCompanion = this.aiCompanion;
+            if (this.aiFlowDetection) {
+                window.aiFlowDetection = this.aiFlowDetection;
+            }
+            
+            console.log('[Gamification] AI Writing Companion initialized');
+        }
+    }
 
     // === Additional Helper Methods ===
     

@@ -1679,6 +1679,427 @@ body.dark-mode #chat-input {
     }
 }
 
+/* ===== AI WRITING COMPANION ===== */
+
+/* AI Companion Feedback Display */
+.ai-companion-feedback {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-variant) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    backdrop-filter: blur(8px);
+    font-family: var(--font-family-sans);
+    overflow: hidden;
+    border-left: 4px solid var(--primary);
+}
+
+.ai-companion-feedback.feedback-encouragement {
+    border-left-color: var(--success);
+    background: linear-gradient(135deg, var(--success-subtle) 0%, var(--surface) 100%);
+}
+
+.ai-companion-feedback.feedback-insight {
+    border-left-color: var(--primary);
+    background: linear-gradient(135deg, var(--primary-subtle) 0%, var(--surface) 100%);
+}
+
+.ai-companion-feedback.feedback-suggestion {
+    border-left-color: var(--warning);
+    background: linear-gradient(135deg, var(--warning-subtle) 0%, var(--surface) 100%);
+}
+
+.ai-companion-feedback.feedback-celebration {
+    border-left-color: var(--accent);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, var(--surface) 100%);
+    border-left-color: #a855f7;
+}
+
+/* Gentle timing - subtle appearance */
+.ai-companion-feedback.timing-gentle {
+    animation: gentleSlideIn 0.6s ease-out;
+}
+
+/* Thoughtful timing - more deliberate */
+.ai-companion-feedback.timing-thoughtful {
+    animation: thoughtfulFadeIn 0.8s ease-out;
+}
+
+/* Celebrating timing - more energetic */
+.ai-companion-feedback.timing-celebrating {
+    animation: celebrateSlideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ai-companion-avatar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-variant);
+}
+
+.avatar-icon {
+    font-size: var(--text-lg);
+    width: 32px;
+    height: 32px;
+    background: var(--primary-subtle);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.avatar-persona {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--text);
+    flex: 1;
+}
+
+.ai-companion-message {
+    padding: var(--space-4);
+}
+
+.message-text {
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    color: var(--text);
+    margin-bottom: var(--space-3);
+}
+
+.message-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+}
+
+.feedback-action {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: all var(--transition-fast) ease;
+    border: 1px solid transparent;
+}
+
+.feedback-action.helpful {
+    background: var(--success-subtle);
+    color: var(--success);
+    border-color: var(--success);
+}
+
+.feedback-action.helpful:hover {
+    background: var(--success);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.feedback-action.dismiss {
+    background: var(--surface-variant);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+.feedback-action.dismiss:hover {
+    background: var(--text-muted);
+    color: var(--surface);
+    transform: translateY(-1px);
+}
+
+/* AI Flow State Indicator */
+.ai-flow-indicator {
+    position: fixed;
+    top: var(--space-20);
+    right: var(--space-6);
+    z-index: 999;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: var(--space-2) var(--space-3);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    transition: all var(--transition-fast) ease;
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+.ai-flow-indicator.visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.ai-flow-indicator.flow-deep {
+    background: linear-gradient(135deg, var(--success-subtle) 0%, var(--surface) 100%);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.ai-flow-indicator.flow-light {
+    background: linear-gradient(135deg, var(--primary-subtle) 0%, var(--surface) 100%);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.ai-flow-indicator.flow-struggling {
+    background: linear-gradient(135deg, var(--warning-subtle) 0%, var(--surface) 100%);
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.flow-indicator-icon {
+    font-size: var(--text-sm);
+}
+
+.flow-indicator-text {
+    font-weight: var(--font-medium);
+}
+
+/* AI Adaptive Challenge Notification */
+.ai-adaptive-challenge {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-6);
+    max-width: 300px;
+    background: linear-gradient(135deg, var(--accent-subtle) 0%, var(--surface) 100%);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-lg);
+    z-index: 1001;
+    transform: translateY(100%);
+    opacity: 0;
+    transition: all var(--transition-normal) ease;
+}
+
+.ai-adaptive-challenge.visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.challenge-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.challenge-icon {
+    font-size: var(--text-lg);
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+    color: white;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.challenge-title {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--text);
+    margin: 0;
+}
+
+.challenge-description {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: var(--space-3);
+}
+
+.challenge-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+}
+
+.challenge-action {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: all var(--transition-fast) ease;
+    border: 1px solid transparent;
+}
+
+.challenge-action.accept {
+    background: var(--accent);
+    color: white;
+}
+
+.challenge-action.accept:hover {
+    background: var(--accent-600);
+    transform: translateY(-1px);
+}
+
+.challenge-action.dismiss {
+    background: var(--surface-variant);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+.challenge-action.dismiss:hover {
+    background: var(--text-muted);
+    color: var(--surface);
+}
+
+/* AI Writing Insights Panel */
+.ai-insights-panel {
+    position: fixed;
+    left: var(--space-6);
+    top: 50%;
+    transform: translateY(-50%) translateX(-100%);
+    width: 280px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    z-index: 998;
+    transition: transform var(--transition-normal) ease;
+    opacity: 0.95;
+}
+
+.ai-insights-panel.visible {
+    transform: translateY(-50%) translateX(0);
+}
+
+.insights-header {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-variant);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.insights-title {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.insights-content {
+    padding: var(--space-4);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.insight-item {
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    background: var(--surface-variant);
+    color: var(--text-muted);
+}
+
+.insight-item.positive {
+    background: var(--success-subtle);
+    color: var(--success);
+}
+
+.insight-item.creative {
+    background: var(--accent-subtle);
+    color: var(--accent);
+}
+
+.insight-item.analytical {
+    background: var(--primary-subtle);
+    color: var(--primary);
+}
+
+/* Animations */
+@keyframes gentleSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes thoughtfulFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    50% {
+        opacity: 0.7;
+        transform: translateY(-2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes celebrateSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.8);
+    }
+    70% {
+        transform: translateY(-5px) scale(1.02);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    }
+}
+
+.ai-companion-feedback.pulse {
+    animation: pulseGlow 2s infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .ai-companion-feedback {
+        max-width: calc(100vw - var(--space-8));
+        left: var(--space-4) !important;
+        right: var(--space-4) !important;
+        width: auto !important;
+    }
+    
+    .ai-insights-panel {
+        width: 240px;
+        left: var(--space-4);
+    }
+    
+    .ai-adaptive-challenge {
+        bottom: var(--space-4);
+        right: var(--space-4);
+        max-width: calc(100vw - var(--space-8));
+    }
+}
+
+/* Dark mode adjustments automatically handled through design tokens */
+
 /* ===== MODERN TOOLBAR DESIGN ===== */
 #editor-toolbar {
     height: auto;

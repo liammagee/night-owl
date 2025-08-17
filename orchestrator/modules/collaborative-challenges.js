@@ -92,7 +92,7 @@ class CollaborativeChallenges {
             this.startPeriodicUpdates();
             
             // Update leaderboards
-            this.updateLeaderboards();
+            this.updateGlobalLeaderboards();
             
             this.initialized = true;
             console.log('[Collaborative Challenges] Initialized successfully');
@@ -403,7 +403,7 @@ class CollaborativeChallenges {
         challenge.leaderboard = leaderboard;
         
         // Update global leaderboards
-        this.updateGlobalLeaderboards(challenge);
+        this.updateGlobalLeaderboards();
     }
     
     updateGlobalLeaderboards() {
@@ -711,7 +711,7 @@ class CollaborativeChallenges {
     startPeriodicUpdates() {
         // Update leaderboards every 5 minutes
         setInterval(() => {
-            this.updateLeaderboards();
+            this.updateGlobalLeaderboards();
         }, 5 * 60 * 1000);
         
         // Check for expired challenges every hour

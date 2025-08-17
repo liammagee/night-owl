@@ -60,3 +60,4 @@
 57. Autocomplete bibtex citations - DONE
 58. AI integration with gamification
 59. Accessible HTML export
+60. AI review
