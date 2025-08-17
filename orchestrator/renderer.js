@@ -1781,6 +1781,9 @@ async function initializeMonacoEditor() {
             // Setup editor context menu for text extraction
             setupEditorContextMenu();
             
+            // Setup scroll-based minimap visibility
+            setupSmartMinimap(editor);
+            
             // Register custom Markdown folding provider and add shortcuts
             setTimeout(() => {
                 registerMarkdownFoldingProvider();
@@ -5056,6 +5059,83 @@ function setupEditorContextMenu() {
     });
     
     console.log('[setupEditorContextMenu] Added extract-to-file context menu action');
+}
+
+function setupSmartMinimap(editor) {
+    if (!editor) return;
+    
+    // Keep minimap enabled but start hidden to prevent layout shifts
+    editor.updateOptions({
+        minimap: {
+            enabled: true,
+            showSlider: 'always'
+        }
+    });
+    
+    let scrollTimeout;
+    let isMinimapVisible = false;
+    let isScrolling = false;
+    
+    // Add CSS for minimap opacity without layout changes
+    const style = document.createElement('style');
+    style.textContent = `
+        .monaco-editor .minimap {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .monaco-editor .minimap.smart-minimap-visible {
+            opacity: 0.5;
+            pointer-events: auto;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Initially hide the minimap
+    setTimeout(() => {
+        const minimapElement = document.querySelector('.monaco-editor .minimap');
+        if (minimapElement) {
+            minimapElement.classList.remove('smart-minimap-visible');
+        }
+    }, 100);
+    
+    // Show minimap on scroll
+    function showMinimap() {
+        if (!isMinimapVisible) {
+            const minimapElement = document.querySelector('.monaco-editor .minimap');
+            if (minimapElement) {
+                minimapElement.classList.add('smart-minimap-visible');
+                isMinimapVisible = true;
+            }
+        }
+    }
+    
+    // Hide minimap after scroll stops
+    function hideMinimap() {
+        if (isMinimapVisible) {
+            const minimapElement = document.querySelector('.monaco-editor .minimap');
+            if (minimapElement) {
+                minimapElement.classList.remove('smart-minimap-visible');
+                isMinimapVisible = false;
+            }
+        }
+    }
+    
+    // Listen for scroll events with proper debouncing
+    editor.onDidScrollChange(() => {
+        // Show minimap immediately on any scroll
+        showMinimap();
+        
+        // Clear existing timeout
+        clearTimeout(scrollTimeout);
+        
+        // Hide minimap after 1.5 seconds of no scrolling
+        scrollTimeout = setTimeout(() => {
+            hideMinimap();
+        }, 1500);
+    });
+    
+    console.log('[setupSmartMinimap] Smart minimap configured - shows on scroll with 50% opacity, no layout shifts');
 }
 
 

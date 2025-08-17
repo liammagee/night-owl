@@ -50,5 +50,7 @@
 47. Internal Link Previews - text legibility
 48. Generate references
 49. Create images / cartoons
-50. Fix lists
+50. Fix lists - DONE
 51. Nested lists
+52. Minimap
+53. In-file ToC
