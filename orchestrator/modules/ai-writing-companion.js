@@ -89,6 +89,12 @@ class AIWritingCompanion {
         try {
             console.log('[AI Companion] Initializing intelligent writing companion...');
             
+            // Log initialization
+            this.logUsage('companion_initialized', {
+                userPreferences: this.analysisEngine.preferences,
+                enabledFeatures: Object.keys(this.feedbackSystem.feedbackTypes)
+            });
+            
             // Initialize analysis systems
             this.startRealTimeAnalysis();
             this.initializeContextualDetection();
@@ -270,6 +276,15 @@ class AIWritingCompanion {
         const feedback = this.generatePersonalizedFeedback(analysis, persona, context);
         
         if (feedback) {
+            // Log feedback generation
+            this.logUsage('feedback_generated', {
+                type: feedback.type,
+                persona: feedback.persona,
+                flowState: analysis.flow?.state,
+                confidence: feedback.confidence,
+                sessionDuration: context.sessionDuration
+            });
+            
             this.showContextualFeedback(feedback);
             this.recordFeedbackInteraction(feedback, analysis);
         }
@@ -567,6 +582,83 @@ class AIWritingCompanion {
         const mean = numbers.reduce((a, b) => a + b, 0) / numbers.length;
         const squaredDiffs = numbers.map(num => Math.pow(num - mean, 2));
         return squaredDiffs.reduce((a, b) => a + b, 0) / numbers.length;
+    }
+    
+    // === Usage Logging ===
+    
+    logUsage(action, data = {}) {
+        const settings = window.appSettings?.ai || {};
+        if (!settings.verboseLogging && !settings.enableWritingCompanion) return;
+        
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            action,
+            data,
+            sessionId: this.getSessionId()
+        };
+        
+        // Log to console for now
+        console.log('[AI Companion Usage]', logEntry);
+        
+        // Store usage statistics
+        this.updateUsageStats(action);
+        
+        // Could be extended to send to analytics service
+        this.saveUsageLog(logEntry);
+    }
+    
+    getSessionId() {
+        if (!this.sessionId) {
+            this.sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        return this.sessionId;
+    }
+    
+    updateUsageStats(action) {
+        const stats = this.loadUsageStats();
+        
+        if (!stats[action]) {
+            stats[action] = { count: 0, firstUsed: Date.now(), lastUsed: Date.now() };
+        }
+        
+        stats[action].count++;
+        stats[action].lastUsed = Date.now();
+        
+        localStorage.setItem('ai_companion_usage_stats', JSON.stringify(stats));
+    }
+    
+    loadUsageStats() {
+        const stored = localStorage.getItem('ai_companion_usage_stats');
+        return stored ? JSON.parse(stored) : {};
+    }
+    
+    saveUsageLog(logEntry) {
+        const logs = this.loadUsageLogs();
+        logs.push(logEntry);
+        
+        // Keep only last 100 entries to prevent storage bloat
+        if (logs.length > 100) {
+            logs.splice(0, logs.length - 100);
+        }
+        
+        localStorage.setItem('ai_companion_usage_logs', JSON.stringify(logs));
+    }
+    
+    loadUsageLogs() {
+        const stored = localStorage.getItem('ai_companion_usage_logs');
+        return stored ? JSON.parse(stored) : [];
+    }
+    
+    getUsageReport() {
+        const stats = this.loadUsageStats();
+        const logs = this.loadUsageLogs();
+        
+        return {
+            totalActions: Object.values(stats).reduce((sum, stat) => sum + stat.count, 0),
+            actionBreakdown: stats,
+            recentLogs: logs.slice(-10), // Last 10 entries
+            sessionId: this.sessionId
+        };
     }
     
     // === Data Persistence ===

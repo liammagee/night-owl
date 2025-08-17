@@ -3208,6 +3208,15 @@ class WritingGamification {
     }
     
     initializeAICompanion() {
+        // Check if AI Writing Companion is enabled in settings
+        const settings = window.appSettings || {};
+        const aiEnabled = settings.ai?.enableWritingCompanion !== false; // Default to enabled
+        
+        if (!aiEnabled) {
+            console.log('[Gamification] AI Writing Companion disabled in settings');
+            return;
+        }
+        
         // Initialize AI Writing Companion if available
         if (typeof AIWritingCompanion !== 'undefined' && !this.aiCompanion) {
             this.aiCompanion = new AIWritingCompanion(this);
@@ -3222,6 +3231,23 @@ class WritingGamification {
             if (this.aiFlowDetection) {
                 window.aiFlowDetection = this.aiFlowDetection;
             }
+            
+            // Add global usage report function
+            window.getAIUsageReport = () => {
+                if (this.aiCompanion) {
+                    const report = this.aiCompanion.getUsageReport();
+                    console.log('=== AI Writing Companion Usage Report ===');
+                    console.log('Total Actions:', report.totalActions);
+                    console.log('Action Breakdown:', report.actionBreakdown);
+                    console.log('Recent Activity:', report.recentLogs);
+                    console.log('Session ID:', report.sessionId);
+                    console.log('==========================================');
+                    return report;
+                } else {
+                    console.log('AI Writing Companion not initialized');
+                    return null;
+                }
+            };
             
             console.log('[Gamification] AI Writing Companion initialized');
         }

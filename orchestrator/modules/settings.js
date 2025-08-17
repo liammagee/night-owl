@@ -570,6 +570,13 @@ function generateAISettings() {
                     <input type="checkbox" id="ai-note-extraction-enabled" ${currentSettings.ai?.enableNoteExtraction ? 'checked' : ''}>
                     <span>Enable Note Extraction</span>
                 </label>
+                <label>
+                    <input type="checkbox" id="ai-writing-companion-enabled" ${currentSettings.ai?.enableWritingCompanion !== false ? 'checked' : ''}>
+                    <span>Enable AI Writing Companion</span>
+                </label>
+                <div style="margin-left: 20px; font-size: 11px; color: #666; margin-top: 2px;">
+                    Real-time flow detection, contextual feedback, and intelligent writing insights
+                </div>
             </div>
         </div>
         
@@ -1169,6 +1176,31 @@ function collectSettingsFromForm() {
     if (verboseLogging !== undefined) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.verboseLogging = verboseLogging;
+    }
+    
+    // AI feature settings
+    const aiChatEnabled = document.getElementById('ai-chat-enabled')?.checked;
+    if (aiChatEnabled !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.enableChat = aiChatEnabled;
+    }
+    
+    const aiSummarizationEnabled = document.getElementById('ai-summarization-enabled')?.checked;
+    if (aiSummarizationEnabled !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.enableSummarization = aiSummarizationEnabled;
+    }
+    
+    const aiNoteExtractionEnabled = document.getElementById('ai-note-extraction-enabled')?.checked;
+    if (aiNoteExtractionEnabled !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.enableNoteExtraction = aiNoteExtractionEnabled;
+    }
+    
+    const aiWritingCompanionEnabled = document.getElementById('ai-writing-companion-enabled')?.checked;
+    if (aiWritingCompanionEnabled !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.enableWritingCompanion = aiWritingCompanionEnabled;
     }
     
     // Export settings

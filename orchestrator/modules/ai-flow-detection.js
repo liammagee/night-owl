@@ -785,12 +785,22 @@ class AIFlowDetection {
     }
     
     updateFlowState(flowScore) {
+        const flowState = this.determineFlowState(flowScore);
+        
         // Update the flow state based on the score
         this.flowEngine.flowHistory.push({
             score: flowScore,
             timestamp: Date.now(),
-            state: this.determineFlowState(flowScore)
+            state: flowState
         });
+        
+        // Log significant flow state changes
+        const prevState = this.flowEngine.flowHistory.length > 1 ? 
+            this.flowEngine.flowHistory[this.flowEngine.flowHistory.length - 2].state : null;
+        
+        if (prevState && prevState !== flowState) {
+            this.logFlowStateChange(prevState, flowState, flowScore);
+        }
         
         // Keep only recent history
         const cutoff = Date.now() - 3600000; // 1 hour
@@ -799,6 +809,21 @@ class AIFlowDetection {
         
         // Update UI
         this.updateFlowIndicator();
+    }
+    
+    logFlowStateChange(fromState, toState, flowScore) {
+        if (this.aiCompanion && this.aiCompanion.logUsage) {
+            this.aiCompanion.logUsage('flow_state_changed', {
+                from: fromState,
+                to: toState,
+                score: flowScore,
+                sessionDuration: this.getSessionDuration(),
+                typingPattern: {
+                    rhythm: this.flowEngine.typingPattern.rhythm,
+                    consistency: this.flowEngine.typingPattern.consistency
+                }
+            });
+        }
     }
     
     getPreviousFlowState() {

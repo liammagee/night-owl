@@ -58,6 +58,6 @@
 55. Consistent style throughout - DONE
 56. Autocomplete internal links - DONE
 57. Autocomplete bibtex citations - DONE
-58. AI integration with gamification
+58. AI integration with gamification - IN PROGRESS
 59. Accessible HTML export
 60. AI review
