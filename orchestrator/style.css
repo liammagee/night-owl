@@ -1520,13 +1520,15 @@ body.dark-theme .inline-link-content h6 {
 .internal-link {
     position: relative;
     text-decoration: underline;
-    color: #007bff;
+    color: #2b6cb0; /* Darker blue for better contrast */
     cursor: pointer;
     transition: color 0.2s ease;
+    font-weight: 500; /* Slightly bolder for better visibility */
 }
 
 .internal-link:hover {
-    color: #0056b3;
+    color: #1a365d; /* Even darker on hover */
+    background-color: rgba(43, 108, 176, 0.1); /* Subtle background highlight */
 }
 
 .link-preview-tooltip {
@@ -1576,6 +1578,26 @@ body.dark-theme .inline-link-content h6 {
     margin-bottom: 0;
 }
 
+/* Fix link visibility in preview content */
+.link-preview-content a {
+    color: #2b6cb0 !important; /* Darker blue for better contrast */
+    text-decoration: underline;
+}
+
+.link-preview-content a:hover {
+    color: #1a365d !important; /* Even darker on hover */
+}
+
+/* Ensure text in header is always visible */
+.link-preview-header a {
+    color: white !important;
+    text-decoration: underline;
+}
+
+.link-preview-header a:hover {
+    color: #f0f0f0 !important;
+}
+
 .link-preview-meta {
     padding: 8px 16px;
     font-size: 11px;
@@ -1613,6 +1635,23 @@ body.dark-theme .link-preview-header {
 
 body.dark-theme .link-preview-content {
     color: #e2e8f0;
+}
+
+/* Dark mode link visibility fixes */
+body.dark-theme .link-preview-content a {
+    color: #63b3ed !important; /* Light blue for dark mode */
+}
+
+body.dark-theme .link-preview-content a:hover {
+    color: #90cdf4 !important; /* Lighter blue on hover */
+}
+
+body.dark-theme .link-preview-header a {
+    color: white !important;
+}
+
+body.dark-theme .link-preview-header a:hover {
+    color: #f0f0f0 !important;
 }
 
 body.dark-theme .link-preview-meta {

@@ -1657,7 +1657,7 @@ function registerFileLinkAutocomplete() {
                     return {
                         label: file.name,
                         kind: monaco.languages.CompletionItemKind.File,
-                        insertText: file.name,
+                        insertText: file.name + ']]',
                         detail: file.path,
                         documentation: `Link to: ${file.path}`,
                         range: {

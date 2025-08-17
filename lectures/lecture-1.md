@@ -10,6 +10,7 @@
 None for Week 1!
 
 
+
 ## <a id="assessment"></a>Assessment
 
 Comment on any of the following questions:
@@ -46,11 +47,11 @@ We'll also have a general open discussion about machine learning and human learn
 
 
 
---
+---
 
 ## <a id="main-lecture"></a>Main Lecture
 
---
+---
 
 
 ### <a id="modalities-of-learning"></a>Modalities of Learning
