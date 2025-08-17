@@ -47,13 +47,13 @@
 44. Test framework - DONE
 45. Text summarization, scrolling in / out - IN PROGRESS
 46. Gamified TODOs
-47. Internal Link Previews - text legibility
+47. Internal Link Previews - text legibility - DONE
 48. Generate references
 49. Create images / cartoons
 50. Fix lists - DONE
 51. Nested lists - DONE
 52. Minimap - DONE
-53. In-file ToC
+53. In-file ToC - DONE
 54. Presentation flow
 55. Consistent style throughout
 56. Autocomplete internal links - DONE

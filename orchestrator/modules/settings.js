@@ -18,7 +18,7 @@ async function openSettingsDialog(category = 'general') {
         showSettingsCategory(category);
         
         // Show the dialog
-        settingsDialog.style.display = 'block';
+        settingsDialog.classList.add('active');
         document.body.style.overflow = 'hidden'; // Prevent background scrolling
         
     } catch (error) {
@@ -31,60 +31,24 @@ function createSettingsDialog() {
     // Create dialog overlay
     settingsDialog = document.createElement('div');
     settingsDialog.id = 'settings-dialog';
-    settingsDialog.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        display: none;
-        z-index: 10000;
-        overflow: auto;
-    `;
+    settingsDialog.className = 'modal-overlay';
     
     // Create dialog content
     const dialogContent = document.createElement('div');
-    dialogContent.style.cssText = `
-        background: var(--editor-bg, white);
-        margin: 50px auto;
-        padding: 0;
-        border-radius: 8px;
-        width: 80%;
-        max-width: 900px;
-        max-height: 80vh;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        display: flex;
-        flex-direction: column;
-        color: var(--editor-fg, black);
-    `;
+    dialogContent.className = 'modal-dialog';
     
     // Create dialog header
     const header = document.createElement('div');
-    header.style.cssText = `
-        padding: 20px 24px 16px 24px;
-        border-bottom: 1px solid var(--border-color, #ddd);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    `;
+    header.className = 'modal-header';
     
     const title = document.createElement('h2');
     title.id = 'settings-title';
     title.textContent = 'Settings';
-    title.style.cssText = 'margin: 0; font-size: 24px; font-weight: 500;';
+    title.className = 'modal-title';
     
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
-    closeBtn.style.cssText = `
-        background: none;
-        border: none;
-        font-size: 24px;
-        cursor: pointer;
-        padding: 4px 8px;
-        border-radius: 4px;
-        color: var(--editor-fg, black);
-    `;
+    closeBtn.className = 'modal-close';
     closeBtn.onclick = closeSettingsDialog;
     
     header.appendChild(title);
@@ -92,173 +56,30 @@ function createSettingsDialog() {
     
     // Create dialog body
     const body = document.createElement('div');
-    body.style.cssText = `
-        display: flex;
-        flex: 1;
-        overflow: hidden;
-    `;
+    body.className = 'modal-body';
     
     // Create sidebar
     const sidebar = document.createElement('div');
     sidebar.id = 'settings-sidebar';
-    sidebar.style.cssText = `
-        width: 200px;
-        background: var(--sidebar-bg, #f5f5f5);
-        border-right: 1px solid var(--border-color, #ddd);
-        overflow-y: auto;
-        flex-shrink: 0;
-    `;
+    sidebar.className = 'modal-sidebar';
     
     // Create content area
     const content = document.createElement('div');
     content.id = 'settings-content';
-    content.style.cssText = `
-        flex: 1;
-        padding: 24px;
-        overflow-y: auto;
-        background: var(--editor-bg, white);
-    `;
+    content.className = 'modal-content';
     
-    // Add CSS styles for settings layout
-    const settingsStyles = document.createElement('style');
-    settingsStyles.textContent = `
-        .settings-section {
-            margin-bottom: 32px;
-        }
-        
-        .settings-section h3 {
-            margin: 0 0 16px 0;
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--editor-fg, #333);
-            border-bottom: 1px solid var(--border-color, #e0e0e0);
-            padding-bottom: 8px;
-        }
-        
-        .settings-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        
-        .settings-group label {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 8px 0;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            border-radius: 4px;
-        }
-        
-        .settings-group label:hover {
-            background-color: var(--hover-bg, #f8f9fa);
-            padding-left: 8px;
-            padding-right: 8px;
-        }
-        
-        .settings-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            margin: 0;
-            cursor: pointer;
-        }
-        
-        .settings-group input[type="text"],
-        .settings-group input[type="number"] {
-            padding: 6px 8px;
-            border: 1px solid var(--border-color, #ccc);
-            border-radius: 4px;
-            font-size: 14px;
-            min-width: 120px;
-        }
-        
-        .settings-group select {
-            padding: 6px 8px;
-            border: 1px solid var(--border-color, #ccc);
-            border-radius: 4px;
-            font-size: 14px;
-            min-width: 120px;
-            background: var(--editor-bg, white);
-        }
-        
-        .settings-group span {
-            font-size: 14px;
-            color: var(--editor-fg, #333);
-            flex: 1;
-        }
-        
-        .settings-group p {
-            margin: 0 0 8px 0;
-            color: var(--editor-fg, #666);
-            font-size: 14px;
-        }
-        
-        .settings-group button {
-            padding: 8px 16px;
-            margin: 4px 8px 4px 0;
-            border: 1px solid var(--border-color, #ccc);
-            border-radius: 4px;
-            background: var(--editor-bg, white);
-            color: var(--editor-fg, #333);
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s;
-        }
-        
-        .settings-group button:hover {
-            background-color: var(--hover-bg, #f0f0f0);
-        }
-        
-        /* Dark mode adjustments */
-        body.dark-mode .settings-group label:hover {
-            background-color: var(--hover-bg, #2a2a2a);
-        }
-        
-        body.dark-mode .settings-group input[type="text"],
-        body.dark-mode .settings-group input[type="number"],
-        body.dark-mode .settings-group select {
-            background: var(--editor-bg, #1e1e1e);
-            color: var(--editor-fg, #d4d4d4);
-            border-color: var(--border-color, #444);
-        }
-        
-        body.dark-mode .settings-group button {
-            background: var(--editor-bg, #2d2d30);
-            color: var(--editor-fg, #d4d4d4);
-            border-color: var(--border-color, #444);
-        }
-        
-        body.dark-mode .settings-group button:hover {
-            background-color: var(--hover-bg, #3a3a3a);
-        }
-    `;
-    document.head.appendChild(settingsStyles);
+    // Settings styles are now in main CSS file
     
     body.appendChild(sidebar);
     body.appendChild(content);
     
     // Create footer
     const footer = document.createElement('div');
-    footer.style.cssText = `
-        padding: 16px 24px;
-        border-top: 1px solid var(--border-color, #ddd);
-        display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-        background: var(--editor-bg, white);
-    `;
+    footer.className = 'modal-footer';
     
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.cssText = `
-        padding: 8px 16px;
-        border: 1px solid var(--border-color, #ddd);
-        background: var(--editor-bg, white);
-        color: var(--editor-fg, black);
-        border-radius: 4px;
-        cursor: pointer;
-    `;
+    cancelBtn.className = 'btn btn-secondary';
     cancelBtn.onclick = closeSettingsDialog;
     
     const saveBtn = document.createElement('button');
@@ -297,7 +118,7 @@ function createSettingsDialog() {
     
     // Close dialog with Escape key
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && settingsDialog.style.display === 'block') {
+        if (e.key === 'Escape' && settingsDialog.classList.contains('active')) {
             closeSettingsDialog();
         }
     });
@@ -319,33 +140,29 @@ function createSettingsSidebar() {
         { id: 'advanced', label: 'Advanced', icon: '🔧' }
     ];
     
+    // Create navigation list
+    const nav = document.createElement('ul');
+    nav.className = 'settings-nav';
     sidebar.innerHTML = '';
     
     categories.forEach(category => {
-        const item = document.createElement('div');
+        const item = document.createElement('li');
         item.className = 'settings-nav-item';
         item.dataset.category = category.id;
-        item.style.cssText = `
-            padding: 12px 16px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: background-color 0.2s;
-            border-bottom: 1px solid var(--border-color, #e0e0e0);
-        `;
         
         item.innerHTML = `
-            <span style="font-size: 16px;">${category.icon}</span>
-            <span>${category.label}</span>
+            <span class="nav-icon">${category.icon}</span>
+            <span class="nav-label">${category.label}</span>
         `;
         
         item.addEventListener('click', () => {
             showSettingsCategory(category.id);
         });
         
-        sidebar.appendChild(item);
+        nav.appendChild(item);
     });
+    
+    sidebar.appendChild(nav);
 }
 
 function showSettingsCategory(category) {
@@ -1448,7 +1265,7 @@ function collectSettingsFromForm() {
 
 function closeSettingsDialog() {
     if (settingsDialog) {
-        settingsDialog.style.display = 'none';
+        settingsDialog.classList.remove('active');
         document.body.style.overflow = 'auto';
     }
 }

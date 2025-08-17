@@ -4171,37 +4171,42 @@ function saveCurrentLayout() {
 
 function showNotification(message, type = 'info') {
     // Remove any existing notification
-    const existingNotification = document.querySelector('.annotation-notification');
+    const existingNotification = document.querySelector('.notification');
     if (existingNotification) {
-        existingNotification.remove();
+        existingNotification.classList.add('hide');
+        setTimeout(() => {
+            if (existingNotification.parentNode) {
+                existingNotification.remove();
+            }
+        }, 250); // Wait for hide animation
     }
     
+    // Create new notification
     const notification = document.createElement('div');
-    notification.className = 'annotation-notification';
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'warning' ? '#ff9800' : '#4caf50'};
-        color: white;
-        padding: 12px 16px;
-        border-radius: 4px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 14px;
-        z-index: 10001;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        max-width: 300px;
-    `;
+    notification.className = `notification notification-${type}`;
     notification.textContent = message;
     
     document.body.appendChild(notification);
     
-    // Auto-remove after 3 seconds
+    // Trigger show animation
+    requestAnimationFrame(() => {
+        notification.classList.add('show');
+    });
+    
+    // Auto-remove after 4 seconds with hide animation
     setTimeout(() => {
         if (notification.parentNode) {
-            notification.remove();
+            notification.classList.remove('show');
+            notification.classList.add('hide');
+            
+            // Remove from DOM after animation
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 250);
         }
-    }, 3000);
+    }, 4000);
 }
 
 

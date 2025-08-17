@@ -1099,106 +1099,106 @@
             <div id="editor-content" class="content-view active">
                 <div id="editor-pane">
                     <!-- Editor Toolbar -->
-                    <div id="editor-toolbar" style="height: 32px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 8px; gap: 2px; flex-shrink: 0; width: 100%; box-sizing: border-box; overflow-x: auto; white-space: nowrap;">
+                    <div id="editor-toolbar">
                         <!-- Markdown Formatting Tools -->
-                        <button id="format-bold-btn" class="toolbar-btn" title="Bold (Ctrl+B)" style="padding: 3px 6px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px; font-weight: bold;">
-                            <strong>B</strong>
+                        <button id="format-bold-btn" class="toolbar-btn toolbar-btn-bold" title="Bold (Ctrl+B)">
+                            B
                         </button>
-                        <button id="format-italic-btn" class="toolbar-btn" title="Italic (Ctrl+I)" style="padding: 3px 6px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px; font-style: italic;">
-                            <em>I</em>
+                        <button id="format-italic-btn" class="toolbar-btn toolbar-btn-italic" title="Italic (Ctrl+I)">
+                            I
                         </button>
-                        <button id="format-code-btn" class="toolbar-btn" title="Inline Code (Ctrl+`)" style="padding: 3px 6px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: monospace;">
+                        <button id="format-code-btn" class="toolbar-btn toolbar-btn-code" title="Inline Code (Ctrl+`)">
                             &lt;&gt;
                         </button>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
-                        <button id="format-h1-btn" class="toolbar-btn" title="Heading 1" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                        <div class="toolbar-separator"></div>
+                        <button id="format-h1-btn" class="toolbar-btn toolbar-btn-bold" title="Heading 1">
                             H1
                         </button>
-                        <button id="format-h2-btn" class="toolbar-btn" title="Heading 2" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                        <button id="format-h2-btn" class="toolbar-btn toolbar-btn-bold" title="Heading 2">
                             H2
                         </button>
-                        <button id="format-h3-btn" class="toolbar-btn" title="Heading 3" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                        <button id="format-h3-btn" class="toolbar-btn toolbar-btn-bold" title="Heading 3">
                             H3
                         </button>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
-                        <button id="format-list-btn" class="toolbar-btn" title="Bulleted List" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <div class="toolbar-separator"></div>
+                        <button id="format-list-btn" class="toolbar-btn" title="Bulleted List">
                             •
                         </button>
-                        <button id="format-numbered-list-btn" class="toolbar-btn" title="Numbered List" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <button id="format-numbered-list-btn" class="toolbar-btn" title="Numbered List">
                             1.
                         </button>
-                        <button id="format-quote-btn" class="toolbar-btn" title="Blockquote" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <button id="format-quote-btn" class="toolbar-btn" title="Blockquote">
                             &gt;
                         </button>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
-                        <button id="format-inline-math-btn" class="toolbar-btn" title="Inline Math ($...$)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: serif;">
+                        <div class="toolbar-separator"></div>
+                        <button id="format-inline-math-btn" class="toolbar-btn toolbar-btn-code" title="Inline Math ($...$)">
                             $x$
                         </button>
-                        <button id="format-display-math-btn" class="toolbar-btn" title="Display Math ($$...$$)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px; font-family: serif;">
+                        <button id="format-display-math-btn" class="toolbar-btn toolbar-btn-code" title="Display Math ($$...$$)">
                             $$
                         </button>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
-                        <button id="format-link-btn" class="toolbar-btn" title="Insert Link (Ctrl+K)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <div class="toolbar-separator"></div>
+                        <button id="format-link-btn" class="toolbar-btn" title="Insert Link (Ctrl+K)">
                             🔗
                         </button>
-                        <button id="format-image-btn" class="toolbar-btn" title="Insert Image" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <button id="format-image-btn" class="toolbar-btn" title="Insert Image">
                             🖼️
                         </button>
-                        <button id="format-table-btn" class="toolbar-btn" title="Insert Table" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <button id="format-table-btn" class="toolbar-btn" title="Insert Table">
                             📊
                         </button>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
-                        <button id="auto-slide-markers-btn" class="toolbar-btn" title="Add Slide Markers to Paragraphs" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <div class="toolbar-separator"></div>
+                        <button id="auto-slide-markers-btn" class="toolbar-btn" title="Add Slide Markers to Paragraphs">
                             📄→
                         </button>
-                        <button id="remove-slide-markers-btn" class="toolbar-btn" title="Remove All Slide Markers" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <button id="remove-slide-markers-btn" class="toolbar-btn" title="Remove All Slide Markers">
                             📄✖️
                         </button>
-                        <button id="insert-speaker-notes-btn" class="toolbar-btn" title="Insert Speaker Notes Template" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <button id="insert-speaker-notes-btn" class="toolbar-btn" title="Insert Speaker Notes Template">
                             📝
                         </button>
-                        <button id="insert-toc-btn" class="toolbar-btn" title="Insert Table of Contents" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <button id="insert-toc-btn" class="toolbar-btn" title="Insert Table of Contents">
                             📑+
                         </button>
-                        <button id="remove-toc-btn" class="toolbar-btn" title="Remove Table of Contents" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <button id="remove-toc-btn" class="toolbar-btn" title="Remove Table of Contents">
                             📑✖️
                         </button>
                         
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
+                        <div class="toolbar-separator"></div>
                         
-                        <button id="command-palette-btn" class="toolbar-btn" title="Command Palette (Cmd+Shift+P)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <button id="command-palette-btn" class="toolbar-btn" title="Command Palette (Cmd+Shift+P)">
                             🎯
                         </button>
                         
                         <!-- Annotation Controls -->
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
-                        <button id="insert-comment-annotation-btn" class="toolbar-btn" title="Insert Comment Annotation" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <div class="toolbar-separator"></div>
+                        <button id="insert-comment-annotation-btn" class="toolbar-btn" title="Insert Comment Annotation">
                             💬
                         </button>
-                        <button id="insert-highlight-annotation-btn" class="toolbar-btn" title="Insert Highlight Annotation" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <button id="insert-highlight-annotation-btn" class="toolbar-btn" title="Insert Highlight Annotation">
                             🟡
                         </button>
-                        <button id="insert-block-annotation-btn" class="toolbar-btn" title="Insert Block Annotation" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        <button id="insert-block-annotation-btn" class="toolbar-btn" title="Insert Block Annotation">
                             📋
                         </button>
                         
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
+                        <div class="toolbar-separator"></div>
                         <span style="font-size: 11px; color: #666;">Format</span>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 4px;"></div>
-                        <button id="fold-all-btn" class="toolbar-btn" title="Fold All Sections (Ctrl+K, Ctrl+0)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <div class="toolbar-separator"></div>
+                        <button id="fold-all-btn" class="toolbar-btn" title="Fold All Sections (Ctrl+K, Ctrl+0)">
                             📁
                         </button>
-                        <button id="unfold-all-btn" class="toolbar-btn" title="Unfold All Sections (Ctrl+K, Ctrl+J)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <button id="unfold-all-btn" class="toolbar-btn" title="Unfold All Sections (Ctrl+K, Ctrl+J)">
                             📂
                         </button>
-                        <button id="fold-current-btn" class="toolbar-btn" title="Fold Current Section (Ctrl+Shift+[)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <button id="fold-current-btn" class="toolbar-btn" title="Fold Current Section (Ctrl+Shift+[)">
                             ⬇️
                         </button>
-                        <button id="unfold-current-btn" class="toolbar-btn" title="Unfold Current Section (Ctrl+Shift+])" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <button id="unfold-current-btn" class="toolbar-btn" title="Unfold Current Section (Ctrl+Shift+])">
                             ⬆️
                         </button>
-                        <div style="width: 1px; height: 16px; background: #ccc; margin: 0 2px;"></div>
-                        <button id="global-search-btn" class="toolbar-btn" title="Global Search (Ctrl+Shift+F)" style="padding: 3px 5px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        <div class="toolbar-separator"></div>
+                        <button id="global-search-btn" class="toolbar-btn" title="Global Search (Ctrl+Shift+F)">
                             🔍
                         </button>
                     </div>
