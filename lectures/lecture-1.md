@@ -7,13 +7,12 @@
 None for Week 1!
 
 
-
 ## Assessment
 
 Comment on any of the following questions:
  - What does it mean to learn? How do you know when human learning happens: in the classroom, workplace or life?
  - Machine learning is clearly inspired by human learning. In your use of AI to date, how would you describe what it has learned (memorized, regurgitated, etc)? When AI gets things wrong, how are its errors different (or similar) to human mistakes?
- - I have introduced the concept of "synthesis" to describe the similarities and differences between machine and human learning.  What are your views?
+ - I have introduced the concept of "synthesis" to describe the similarities and differences between machine and human learning.  What are your views? Do the similarities outweigh the differences, or vice versa?
 
 
 ## Structure
@@ -44,10 +43,14 @@ We'll also have a general open discussion about machine learning and human learn
 
 
 
----
+--
+
+## Main Lecture
+
+--
 
 
-## Modalities of Learning 
+### Modalities of Learning 
 
 This course presents what I will be calling a *critical* outline of machine learning and human learning. I will also be referring to both kinds of learning as "modalities" – species, if you like, of the general process of learning. This form may rub some of you the wrong way - you may want to insist upon machine learning not only as distinct but also as derivative, an imitation or copy, and perhaps not even a *good* copy, of human learning. We will of course be returning to such ideas in the course itself.  
 
@@ -56,12 +59,10 @@ This course presents what I will be calling a *critical* outline of machine lear
 
 ---
 
-## Comparative Analysis of Human and Machine Learning
+### Comparative Analysis of Human and Machine Learning
 
 As the title also suggests, any critical inquiry involves a process of both comparison and contrast: a consideration of what is common to both both modalities, and what distinguishes them. This process is something that, for this course, I want to approach in a philosophical way. What I mean by this is that, alongside texts from areas of child psychology, linguistics and computer science, I want us to investigate the idea of "learning" through a fundamentally *philosophical* type of inquiry. This I think leads us to think about less about learning as a set of features that pertain to humans, machines or both, and more about learning as itself a process that ranges across a set of common distinctions: between human and machine, but also between individual and society, between child and adult, and so on. It will also help us, I hope, to think about learning as something cooperative, involving both social and technical, or what are sometimes thought as sociotechnical systems, or in the vocabulary of Mary Kalantzis and Bill Cope, as cyber-social systems. I've coined the term "symbiotic pedagogy" to describe this kind of cooperation. Finally, we might conclude by developing some normative claims: about what constitutes legitimate as opposed to illegitimate forms of machine learning and machine learning.
 
-
----
 
 
 

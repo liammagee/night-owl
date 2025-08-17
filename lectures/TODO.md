@@ -51,6 +51,6 @@
 48. Generate references
 49. Create images / cartoons
 50. Fix lists - DONE
-51. Nested lists
-52. Minimap
+51. Nested lists - DONE
+52. Minimap - DONE
 53. In-file ToC

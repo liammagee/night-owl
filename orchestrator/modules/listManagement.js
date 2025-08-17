@@ -26,6 +26,12 @@ function initializeSmartLists() {
                 e.preventDefault();
                 e.stopPropagation();
             }
+        } else if (e.keyCode === monaco.KeyCode.Tab) {
+            // Handle Tab for list indentation
+            if (handleListIndentation(!e.shiftKey)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
         }
     });
     
@@ -345,25 +351,28 @@ async function handleListIndentation(isIndent) {
     
     if (listMatch) {
         const [, indent, marker, content] = listMatch;
+        const oldIndent = indent;
         
         let newIndent;
         if (isIndent) {
-            // Add 2 spaces for indentation
-            newIndent = indent + '  ';
+            // Add 2 or 4 spaces for indentation (detect existing pattern)
+            const indentSize = detectIndentSize(position.lineNumber);
+            newIndent = indent + ' '.repeat(indentSize);
         } else {
-            // Remove 2 spaces for outdentation (minimum 0)
-            newIndent = indent.length >= 2 ? indent.substring(2) : '';
+            // Remove appropriate number of spaces for outdentation
+            const indentSize = detectIndentSize(position.lineNumber);
+            newIndent = indent.length >= indentSize ? indent.substring(indentSize) : '';
         }
         
-        // For numbered lists, restart numbering at new indent level
+        // For numbered lists, calculate appropriate number at new indent level
         let newMarker = marker;
         if (marker.match(/\d+\./)) {
             if (isIndent) {
-                newMarker = '1.'; // Start new nested numbered list
+                // Starting a new nested list - find next number at this indentation
+                newMarker = getNextListNumber(position.lineNumber, newIndent) + '.';
             } else {
-                // When outdenting, get appropriate number for the parent level
-                const parentNumber = getNextListNumber(position.lineNumber, newIndent);
-                newMarker = parentNumber + '.';
+                // Moving to parent level - find next number at parent indentation
+                newMarker = getNextListNumber(position.lineNumber, newIndent) + '.';
             }
         }
         
@@ -374,6 +383,9 @@ async function handleListIndentation(isIndent) {
             position.lineNumber, lineContent.length + 1
         );
         
+        // Set flag to prevent recursive renumbering during this edit
+        if (window.setListRenumbering) window.setListRenumbering(true);
+        
         window.editor.executeEdits('indent-list', [{
             range: range,
             text: newLine
@@ -381,18 +393,157 @@ async function handleListIndentation(isIndent) {
         
         // Maintain cursor position relative to content
         const newCursorColumn = newIndent.length + newMarker.length + 2 + 
-                              Math.max(0, position.column - (indent.length + marker.length + 2));
+                              Math.max(0, position.column - (oldIndent.length + marker.length + 2));
         
         window.editor.setPosition({
             lineNumber: position.lineNumber,
             column: Math.min(newCursorColumn, newLine.length + 1)
         });
         
+        // After changing indentation, renumber affected lists
+        setTimeout(async () => {
+            await renumberAfterIndentationChange(position.lineNumber, oldIndent, newIndent);
+            if (window.setListRenumbering) window.setListRenumbering(false);
+        }, 50);
+        
         await updatePreviewAndStructure(window.editor.getValue());
         return true;
     }
     
     return false; // Not in a list, use default behavior
+}
+
+// Detect indent size (2 or 4 spaces) by examining nearby list items
+function detectIndentSize(currentLine) {
+    if (!window.editor) return 2; // Default to 2 spaces
+    
+    const model = window.editor.getModel();
+    const totalLines = model.getLineCount();
+    
+    // Look for existing indentation patterns within 20 lines
+    const searchRange = 20;
+    const startLine = Math.max(1, currentLine - searchRange);
+    const endLine = Math.min(totalLines, currentLine + searchRange);
+    
+    const indentSizes = new Set();
+    
+    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+        const lineContent = model.getLineContent(lineNum);
+        const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+        
+        if (listMatch) {
+            const indent = listMatch[1];
+            if (indent.length > 0) {
+                // Check if it's a multiple of 2 or 4
+                if (indent.length % 4 === 0) {
+                    indentSizes.add(4);
+                } else if (indent.length % 2 === 0) {
+                    indentSizes.add(2);
+                }
+            }
+        }
+    }
+    
+    // Prefer 4-space if found, otherwise default to 2-space
+    return indentSizes.has(4) ? 4 : 2;
+}
+
+// Handle renumbering after indentation change
+async function renumberAfterIndentationChange(changedLine, oldIndent, newIndent) {
+    if (!window.editor) return;
+    
+    const model = window.editor.getModel();
+    
+    // If indentation increased (item moved to nested level)
+    if (newIndent.length > oldIndent.length) {
+        // Renumber the new nested list starting from this item
+        await renumberSubsequentItems(changedLine, newIndent, 1);
+        
+        // Renumber the original list that this item left
+        if (changedLine < model.getLineCount()) {
+            // Find the next item at the old indentation level
+            for (let lineNum = changedLine + 1; lineNum <= model.getLineCount(); lineNum++) {
+                const lineContent = model.getLineContent(lineNum);
+                const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+                
+                if (listMatch) {
+                    const [, indent, marker] = listMatch;
+                    
+                    if (indent.length < oldIndent.length) {
+                        // Reached parent level, stop
+                        break;
+                    } else if (indent.length === oldIndent.length && marker.match(/\d+\./)) {
+                        // Found next item at original level, renumber from here
+                        const startNumber = findCorrectStartNumber(lineNum, oldIndent);
+                        await renumberSubsequentItems(lineNum, oldIndent, startNumber);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // If indentation decreased (item moved to parent level)
+    else if (newIndent.length < oldIndent.length) {
+        // Renumber the list at the new level starting from this item
+        const startNumber = findCorrectStartNumber(changedLine, newIndent);
+        await renumberSubsequentItems(changedLine, newIndent, startNumber);
+        
+        // Renumber any remaining items at the old nested level
+        for (let lineNum = changedLine + 1; lineNum <= model.getLineCount(); lineNum++) {
+            const lineContent = model.getLineContent(lineNum);
+            const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+            
+            if (listMatch) {
+                const [, indent, marker] = listMatch;
+                
+                if (indent.length < oldIndent.length) {
+                    // Reached parent level, stop
+                    break;
+                } else if (indent.length === oldIndent.length && marker.match(/\d+\./)) {
+                    // Found items at old level, renumber from 1
+                    await renumberSubsequentItems(lineNum, oldIndent, 1);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Find the correct starting number for a list item at a specific indentation
+function findCorrectStartNumber(lineNum, targetIndent) {
+    if (!window.editor) return 1;
+    
+    const model = window.editor.getModel();
+    
+    // Look backwards to find the previous item at the same indentation level
+    for (let checkLine = lineNum - 1; checkLine >= 1; checkLine--) {
+        const lineContent = model.getLineContent(checkLine);
+        const listMatch = lineContent.match(/^(\s*)([-*+]|\d+\.)\s*(.*)/);
+        
+        if (listMatch) {
+            const [, indent, marker] = listMatch;
+            
+            if (indent.length < targetIndent.length) {
+                // Reached parent level, start new list at 1
+                break;
+            } else if (indent.length === targetIndent.length) {
+                // Found item at same level
+                if (marker.match(/\d+\./)) {
+                    // Return next number
+                    return parseInt(marker) + 1;
+                } else {
+                    // Bullet list breaks numbering, start at 1
+                    break;
+                }
+            }
+            // Continue if indent.length > targetIndent.length (nested level)
+        } else if (lineContent.trim() !== '') {
+            // Non-list content breaks the list context
+            break;
+        }
+    }
+    
+    return 1; // Default to starting a new list
 }
 
 // Renumber only subsequent items in a list starting from a specific line and number
