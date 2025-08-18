@@ -1054,6 +1054,59 @@ function addFoldingKeyboardShortcuts() {
     console.log('[renderer.js] Save keyboard shortcuts added');
 }
 
+// --- Formatting Keyboard Shortcuts ---
+function addFormattingKeyboardShortcuts() {
+    // Bold formatting (Ctrl/Cmd + B)
+    editor.addAction({
+        id: 'format-bold',
+        label: 'Format: Bold',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB
+        ],
+        run: async function() {
+            await formatText('**', '**', 'bold text');
+        }
+    });
+    
+    // Italic formatting (Ctrl/Cmd + I) - Override Monaco's autocomplete
+    editor.addAction({
+        id: 'format-italic',
+        label: 'Format: Italic',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI
+        ],
+        run: async function() {
+            await formatText('*', '*', 'italic text');
+        }
+    });
+    
+    // Inline code formatting (Ctrl/Cmd + `)
+    editor.addAction({
+        id: 'format-code',
+        label: 'Format: Inline Code', 
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.US_BACKTICK
+        ],
+        run: async function() {
+            await formatText('`', '`', 'code');
+        }
+    });
+    
+    // Link insertion (Ctrl/Cmd + K)
+    editor.addAction({
+        id: 'insert-link',
+        label: 'Insert Link',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK
+        ],
+        run: function() {
+            insertLink();
+        }
+    });
+    
+    console.log('[renderer.js] Formatting keyboard shortcuts added');
+}
+
 // --- Folding Toolbar Controls ---
 function addFoldingToolbarControls() {
     // Get toolbar buttons
@@ -1816,6 +1869,7 @@ async function initializeMonacoEditor() {
             setTimeout(() => {
                 registerMarkdownFoldingProvider();
                 addFoldingKeyboardShortcuts();
+                addFormattingKeyboardShortcuts();
                 addFoldingToolbarControls();
                 addAISummarizationAction();
                 addCommandPaletteAction();
@@ -2801,33 +2855,33 @@ document.addEventListener('keydown', async (e) => {
     }
     
     // Markdown formatting shortcuts
-    // Ctrl+B or Cmd+B: Bold
-    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-        e.preventDefault();
-        await formatText('**', '**', 'bold text');
-        return;
-    }
+    // Ctrl+B or Cmd+B: Bold - Now handled by Monaco editor action
+    // if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+    //     e.preventDefault();
+    //     await formatText('**', '**', 'bold text');
+    //     return;
+    // }
     
-    // Ctrl+I or Cmd+I: Italic
-    if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
-        e.preventDefault();
-        await formatText('*', '*', 'italic text');
-        return;
-    }
+    // Ctrl+I or Cmd+I: Italic - Now handled by Monaco editor action
+    // if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+    //     e.preventDefault();
+    //     await formatText('*', '*', 'italic text');
+    //     return;
+    // }
     
-    // Ctrl+` or Cmd+`: Inline code
-    if ((e.ctrlKey || e.metaKey) && e.key === '`') {
-        e.preventDefault();
-        await formatText('`', '`', 'code');
-        return;
-    }
+    // Ctrl+` or Cmd+`: Inline code - Now handled by Monaco editor action  
+    // if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+    //     e.preventDefault();
+    //     await formatText('`', '`', 'code');
+    //     return;
+    // }
     
-    // Ctrl+K or Cmd+K: Insert link
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        insertLink();
-        return;
-    }
+    // Ctrl+K or Cmd+K: Insert link - Now handled by Monaco editor action
+    // if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    //     e.preventDefault();
+    //     insertLink();
+    //     return;
+    // }
     
     // F3: Find Next (when find dialog is open or when not in input)
     if (e.key === 'F3' && (!isInInput || isInFindReplace)) {

@@ -50,13 +50,13 @@ function addChatMessage(message, sender, isCommand = false, responseInfo = null)
     promptSpan.classList.add('terminal-prompt');
     
     if (sender === 'User') {
-        promptSpan.innerHTML = '<span class="terminal-user">user@hegel-ai</span><span class="terminal-separator">:</span><span class="terminal-path">~/</span><span class="terminal-dollar">$</span> ';
+        promptSpan.innerHTML = '<span class="terminal-user">you</span><span class="terminal-separator">:</span> ';
     } else {
         // For AI responses, just show assistant prompt (provider info is in header)
         if (responseInfo && responseInfo.provider && responseInfo.model) {
             updateProviderInfo(responseInfo.provider, responseInfo.model);
         }
-        promptSpan.innerHTML = `<span class="terminal-assistant">assistant</span><span class="terminal-separator">:</span> `;
+        promptSpan.innerHTML = `<span class="terminal-assistant">maya</span><span class="terminal-separator">:</span> `;
     }
 
     const contentSpan = document.createElement('span');

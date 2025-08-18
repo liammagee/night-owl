@@ -1100,7 +1100,10 @@ class AIFlowDetection {
             
             if (response && response.response) {
                 console.log('[Flow Detection] Received AI insight:', response.response.substring(0, 100) + '...');
-                return response.response.trim();
+                const insight = response.response.trim();
+                
+                // Ensure the insight includes context reference
+                return this.formatInsightWithContext(insight, context);
             }
         } catch (error) {
             console.error('[Flow Detection] AI insight request failed:', error);
@@ -1127,6 +1130,8 @@ Provide a brief, helpful writing suggestion or insight (1-2 sentences max). Focu
 - Philosophical connections (if relevant)
 - Structural suggestions
 
+IMPORTANT: Start your response with "Re: '[brief excerpt]'" to show what text you're responding to, then give your suggestion.
+
 Be encouraging and specific to what I'm actually writing about.`;
     }
     
@@ -1134,13 +1139,64 @@ Be encouraging and specific to what I'm actually writing about.`;
         return `You are Maya, an AI writing companion specializing in academic and philosophical writing. You provide brief, contextual writing insights based on the user's current text and flow state.
 
 Your insights should be:
-- Brief (1-2 sentences max)
+- Brief (1-2 sentences max after the "Re:" context)
 - Specific to the actual content being written
 - Encouraging and constructive
 - Focused on immediate next steps or improvements
 - Philosophically informed when relevant
 
+REQUIRED FORMAT: Always start with "Re: '[brief excerpt from their text]'" to show what you're responding to, then provide your suggestion.
+
+Example: "Re: 'The dialectical process reveals...' Consider exploring how this movement connects to your earlier point about consciousness."
+
 Avoid generic advice. Be specific to what the user is actually working on.`;
+    }
+    
+    formatInsightWithContext(insight, context) {
+        // Check if the insight already starts with "Re:"
+        if (insight.toLowerCase().startsWith('re:')) {
+            return insight;
+        }
+        
+        // Extract a brief excerpt from the last sentence for context
+        const lastSentence = context.lastSentence || context.recentText.slice(-50);
+        const excerpt = this.extractBriefExcerpt(lastSentence);
+        
+        // Format the insight with context
+        return `Re: "${excerpt}" ${insight}`;
+    }
+    
+    extractBriefExcerpt(text) {
+        if (!text) return '...';
+        
+        // Clean the text and get a meaningful excerpt
+        const cleaned = text.trim().replace(/\s+/g, ' ');
+        
+        // Take the last few words or up to 30 characters
+        const words = cleaned.split(' ');
+        let excerpt = '';
+        
+        // Build excerpt from the end, working backwards
+        for (let i = words.length - 1; i >= 0; i--) {
+            const candidate = words.slice(i).join(' ');
+            if (candidate.length <= 30) {
+                excerpt = candidate;
+            } else {
+                break;
+            }
+        }
+        
+        // Fallback to character limit if word-based approach doesn't work
+        if (!excerpt || excerpt.length < 10) {
+            excerpt = cleaned.slice(-30);
+        }
+        
+        // Clean up and add ellipsis if needed
+        if (excerpt.length < cleaned.length) {
+            excerpt = '...' + excerpt;
+        }
+        
+        return excerpt;
     }
     
     toggleInsightsPanel() {
@@ -1531,12 +1587,15 @@ if (typeof window !== 'undefined') {
         insight: async () => {
             if (window.aiFlowDetection) {
                 try {
+                    // Temporarily bypass rate limiting for testing
+                    window.aiFlowDetection.lastAIInsightTime = 0;
+                    
                     const insight = await window.aiFlowDetection.generateAIContextualInsight();
                     if (insight) {
                         console.log(`[Flow Debug] AI Insight: ${insight.message}`);
                         return insight;
                     } else {
-                        console.log('[Flow Debug] No AI insight generated (rate limited or insufficient context)');
+                        console.log('[Flow Debug] No AI insight generated (insufficient context)');
                         return null;
                     }
                 } catch (error) {

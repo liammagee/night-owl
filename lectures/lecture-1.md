@@ -156,8 +156,11 @@ The course is structured over eight weeks, and each week introduces and discusse
 5. Consciousness (Self/Other/Un/Non)
 The early parts of Phenomenology of Spirit is dominated by the ideas of Consciousness and Self-consciousness. We'll explore how these relate to Experience, Attention and Recognition (and whether indeed they "synthesize" these earlier ideas). We'll explore also later ideas of the Unconscious (Freud) and Nonconscious Cognition (Katherine Hayles). This leads us naturally to an obvious question: can machines be conscious? If not, can they be unconscious? 
 6. Alignment
+Alignment is a "vogue" term in machine learning, and describes the process of aligning machines to human values and interests. One technical process for doing this is RLHF – reinforcement learning from human feedback.  This relates closely to ideas of "norms". As opposed to rules or laws, norms describe often implied values that condition our practices, including our speaking practices. So "alignment" also can describe human learning – aligning ourselves with others. And increasingly today, we can also think of humans aligning themselves with machine values, especially in pedagogical settings.  
 7. Critique 
+"Critique" then brings us to what happens when alignment, one way or another, fails: when technology, in other words, fails to meet the wider social standards we set for it. Critique is another keyword also in the Hegelian nomenclature - it comes famously from Kant, for whom "Critique" is the method for understanding how "pure" (rational, scientific), "practical" (applied, moral) and "judgemental" (aesthetic) reasoning can happen. Here we will look at how Critical AI has been responding to AI - and look in turn at how AI works itself as a tool for, as well as of, critique.  
 8. Synthesis: Technosymbiosis
+
 
 
 
