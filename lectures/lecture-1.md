@@ -38,18 +38,19 @@ Comment on any of the following questions:
 
 ## <a id="structure"></a>Structure
 
-1. Outline of the Course - Circular Structure
-  - [[lecture-concepts]]
+1. Introduction to the Course
 2. Weekly Format
   - Mix of theory (lectures) / practice / discussion
 3. Assessments  
 4. A previous version of this course ran in 2023 and 2024: [[2023-Course]]
-5. Lens: Hegelian Philosophy. Why Hegel?
+5. Circular Structure
+  - [[lecture-concepts]]
+6. Lens: Hegelian Philosophy. Why Hegel?
   - basic hypothesis: machine learning is rooted in 18th century empiricism (more data = more truth)
   - What does Hegel offer? One way to think about learning as *nonlinear* (structured / dialectical / involving negation etc). This is important for later pedagogical theorists such as Dewey, Vygotsky and Piaget – Hegel's influence on these thinkers (and their general critique of mechanical learning will become clear).
   - This will hopefully become clear! We start with the idea of synthesis between machine learning and human learning, then go down several rabbit holes, before returning, in Week 8, to a modified idea of synthesis.
-6. 8 Weeks = 8 Concepts
-7. Discussion
+7. 8 Weeks = 8 Concepts
+8. Discussion
 
 
 
@@ -72,12 +73,25 @@ We'll also have a general open discussion about machine learning and human learn
 
 ### Synthesis
 
-We have entered a period in which our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 
+We have entered an era in which our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 
 
 But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.
 
 We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Harraway); of cyber-social systems (Kalantzis Cope); and of compound terms like 'technosymbiosis' (Katherine Hayles) or a term I'll be using, in the context of learning, 'symbiotic pedagogy'.
 
+Through the course we will be studying this relationship in a number of ways. Later I'll talk through the organization of the course materials. 
+
+---
+
+## Weekly Format
+
+First, some 
+
+  - Mix of theory (lectures) / practice / discussion
+3. Assessments  
+4. A previous version of this course ran in 2023 and 2024: [[2023-Course]]
+5. Circular Structure
+  - [[lecture-concepts]]
 
 
 --- 

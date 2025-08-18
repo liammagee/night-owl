@@ -1602,6 +1602,7 @@
           
           // Current slides and slide index state
           const canvasRef = useRef(null);
+          const containerRef = useRef(null);
 
           // Sample markdown content for demo
           const sampleMarkdown = `# SAMPLE CONTENT TEST
@@ -2167,19 +2168,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           // Wheel zoom effect
           useEffect(() => {
             const handleWheel = (e) => {
-              if (isPresenting) return;
               e.preventDefault();
               const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
               const newZoom = Math.max(0.1, Math.min(3, zoom * zoomFactor));
               setZoom(newZoom);
             };
 
-            const canvas = canvasRef.current;
-            if (canvas) {
-              canvas.addEventListener('wheel', handleWheel, { passive: false });
-              return () => canvas.removeEventListener('wheel', handleWheel);
+            const container = containerRef.current;
+            if (container) {
+              container.addEventListener('wheel', handleWheel, { passive: false });
+              return () => container.removeEventListener('wheel', handleWheel);
             }
-          }, [zoom, isPresenting]);
+          }, [zoom]);
 
           // Keyboard navigation
           useEffect(() => {
@@ -2301,14 +2301,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
           // Mouse handlers for panning
           const handleMouseDown = (e) => {
-            if (isPresenting) return;
+            // Allow panning from anywhere in the canvas, even during presentation
             setIsDragging(true);
             setDragStart({ x: e.clientX, y: e.clientY });
             setPanStart(pan);
           };
 
           const handleMouseMove = (e) => {
-            if (!isDragging || isPresenting) return;
+            if (!isDragging) return;
             const deltaX = e.clientX - dragStart.x;
             const deltaY = e.clientY - dragStart.y;
             setPan({
@@ -2322,7 +2322,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           };
 
           return (
-            <div className="w-full h-screen relative overflow-hidden" style={{background: 'var(--presentation-bg-gradient, linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%))'}}>
+            <div 
+              ref={containerRef}
+              className="w-full h-screen relative overflow-hidden cursor-grab active:cursor-grabbing" 
+              style={{background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)'}}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            >
               {/* Controls */}
               {!isPresenting && (
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
@@ -2447,11 +2455,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               {/* Canvas */}
               <div
                 ref={canvasRef}
-                className="w-full h-full cursor-grab active:cursor-grabbing"
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
+                className="w-full h-full"
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                   transformOrigin: 'center center',
