@@ -10,7 +10,11 @@ class AIFlowDetection {
         // Flow indicator auto-hide timeout
         this.flowIndicatorTimeout = null;
         this.lastIndicatorHidden = 0; // Timestamp of when indicator was last hidden
-        this.indicatorCooldown = 10000; // 10 seconds cooldown before showing again
+        this.indicatorCooldown = 5000; // 5 seconds cooldown before showing again
+        
+        // Debouncing for flow updates
+        this.updateDebounceTimeout = null;
+        this.updateDebounceDelay = 800; // Wait 800ms before updating indicator
         
         // Flow Detection Engine
         this.flowEngine = {
@@ -170,7 +174,7 @@ class AIFlowDetection {
     
     calculateTypingRhythm() {
         const intervals = this.flowEngine.typingPattern.intervals.map(entry => entry.interval);
-        if (intervals.length < 10) return;
+        if (intervals.length < 20) return; // Require more data before analyzing
         
         // Calculate rhythm consistency
         const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
@@ -429,6 +433,20 @@ class AIFlowDetection {
         this.updateFlowIndicator();
     }
     
+    // Debounced update method
+    scheduleFlowIndicatorUpdate() {
+        // Clear any existing debounce timeout
+        if (this.updateDebounceTimeout) {
+            clearTimeout(this.updateDebounceTimeout);
+        }
+        
+        // Schedule the update after debounce delay
+        this.updateDebounceTimeout = setTimeout(() => {
+            this.updateFlowIndicator();
+            this.updateDebounceTimeout = null;
+        }, this.updateDebounceDelay);
+    }
+
     updateFlowIndicator() {
         const indicator = document.getElementById('ai-flow-indicator');
         if (!indicator) return;
@@ -468,25 +486,25 @@ class AIFlowDetection {
                 className = 'flow-deep';
                 icon = '🌊';
                 text = 'Deep Flow';
-                autoHideDelay = 8000; // Hide after 8 seconds
+                autoHideDelay = 3000; // Hide after 3 seconds
                 break;
             case 'light_flow':
                 className = 'flow-light';
                 icon = '✨';
                 text = 'In Flow';
-                autoHideDelay = 6000; // Hide after 6 seconds
+                autoHideDelay = 2500; // Hide after 2.5 seconds
                 break;
             case 'focused':
                 className = 'flow-light';
                 icon = '🎯';
                 text = 'Focused';
-                autoHideDelay = 5000; // Hide after 5 seconds
+                autoHideDelay = 2000; // Hide after 2 seconds
                 break;
             case 'struggling':
                 className = 'flow-struggling';
                 icon = '🔄';
                 text = 'Processing';
-                autoHideDelay = 4000; // Hide after 4 seconds
+                autoHideDelay = 1500; // Hide after 1.5 seconds
                 break;
             default:
                 // Hide indicator when not in a notable state
@@ -855,8 +873,8 @@ class AIFlowDetection {
         this.flowEngine.flowHistory = this.flowEngine.flowHistory
             .filter(entry => entry.timestamp > cutoff);
         
-        // Update UI
-        this.updateFlowIndicator();
+        // Update UI (debounced)
+        this.scheduleFlowIndicatorUpdate();
     }
     
     logFlowStateChange(fromState, toState, flowScore) {
@@ -994,7 +1012,7 @@ class AIFlowDetection {
         
         // Don't trigger indicator updates too frequently or during cooldown (v2)
         if (flowState !== 'blocked' && now - this.lastIndicatorHidden >= this.indicatorCooldown) {
-            this.updateFlowIndicator();
+            this.scheduleFlowIndicatorUpdate();
         }
     }
     
@@ -1004,8 +1022,8 @@ class AIFlowDetection {
         const cognitiveLoad = this.flowEngine.cognitiveLoad.currentLoad || 0.4;
         
         // Only return a "struggling" score if there's real evidence of typing issues
-        const recentIntervals = this.flowEngine.typingPattern.intervals.slice(-10);
-        if (recentIntervals.length < 5) {
+        const recentIntervals = this.flowEngine.typingPattern.intervals.slice(-20);
+        if (recentIntervals.length < 15) {
             // Not enough data to determine flow state - don't trigger indicator
             return 0.6; // Neutral state that won't trigger indicator
         }

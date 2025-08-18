@@ -494,6 +494,7 @@ function generateAISettings() {
                         <option value="anthropic" ${currentSettings.ai?.preferredProvider === 'anthropic' ? 'selected' : ''}>Anthropic</option>
                         <option value="groq" ${currentSettings.ai?.preferredProvider === 'groq' ? 'selected' : ''}>Groq</option>
                         <option value="openrouter" ${currentSettings.ai?.preferredProvider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
+                        <option value="local" ${currentSettings.ai?.preferredProvider === 'local' ? 'selected' : ''}>Local AI</option>
                     </select>
                     <span>Preferred Provider</span>
                 </label>
@@ -506,6 +507,17 @@ function generateAISettings() {
                 </label>
                 <div id="current-config" style="margin-top: 10px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px; color: #666;">
                     Current: Loading configuration...
+                </div>
+            </div>
+            
+            <!-- Local AI Configuration -->
+            <div class="settings-group" id="local-ai-config" style="margin-top: 15px; display: ${currentSettings.ai?.preferredProvider === 'local' ? 'block' : 'none'};">
+                <label>
+                    <input type="text" id="local-ai-url" value="${currentSettings.ai?.localAIUrl || 'http://10.0.0.71:1234/'}" placeholder="http://10.0.0.71:1234/" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <span>Local AI Server URL</span>
+                </label>
+                <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                    URL for your local AI server (OpenAI-compatible API). Include the trailing slash.
                 </div>
             </div>
         </div>
@@ -1141,6 +1153,12 @@ function collectSettingsFromForm() {
         updatedSettings.ai.preferredModel = aiModel;
     }
     
+    const localAIUrl = document.getElementById('local-ai-url')?.value;
+    if (localAIUrl !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.localAIUrl = localAIUrl;
+    }
+    
     const aiTemperature = document.getElementById('ai-temperature')?.value;
     if (aiTemperature) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
@@ -1428,6 +1446,9 @@ function generateModelOptions(provider, selectedModel) {
         openrouter: [
             'anthropic/claude-3.5-sonnet', 'anthropic/claude-3-opus', 'openai/gpt-4', 'openai/gpt-4-turbo',
             'meta-llama/llama-3.1-70b-instruct', 'google/gemini-pro-1.5', 'mistralai/mistral-large'
+        ],
+        local: [
+            'local-model', 'llama', 'codellama', 'mistral', 'neural-chat', 'vicuna', 'alpaca'
         ]
     };
     
@@ -1448,6 +1469,12 @@ async function updateModelOptions() {
     if (!providerSelect || !modelSelect || !currentConfigDiv) return;
     
     const provider = providerSelect.value;
+    
+    // Show/hide Local AI configuration
+    const localAIConfig = document.getElementById('local-ai-config');
+    if (localAIConfig) {
+        localAIConfig.style.display = provider === 'local' ? 'block' : 'none';
+    }
     
     // Update model options
     if (provider === 'auto') {

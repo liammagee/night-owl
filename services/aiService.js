@@ -94,6 +94,21 @@ class AIService {
       }
     }
 
+    // Local AI Provider (OpenAI-compatible)
+    try {
+      // Default URL if not configured - will be updated from settings later
+      const localAIUrl = process.env.LOCAL_AI_URL || 'http://10.0.0.71:1234/';
+      this.providers.set('local', new LocalAIProvider(localAIUrl));
+      console.log('[AIService] Local AI provider initialized');
+      console.log(`[AIService] Local AI URL: ${localAIUrl}`);
+      
+      if (preferredProvider === 'local' || (!this.defaultProvider && !preferredProvider)) {
+        this.defaultProvider = 'local';
+      }
+    } catch (error) {
+      console.error('[AIService] Error initializing Local AI provider:', error);
+    }
+
     // Set default provider based on environment variable
     const envDefaultProvider = process.env.DEFAULT_AI_PROVIDER;
     if (envDefaultProvider && this.providers.has(envDefaultProvider)) {
@@ -244,6 +259,24 @@ class AIService {
     }
   }
 
+  // Update Local AI URL configuration
+  updateLocalAIUrl(newUrl) {
+    try {
+      if (this.providers.has('local')) {
+        // Re-initialize the Local AI provider with new URL
+        this.providers.set('local', new LocalAIProvider(newUrl));
+        console.log(`[AIService] Local AI URL updated to: ${newUrl}`);
+        return true;
+      } else {
+        console.warn('[AIService] Local AI provider not found, cannot update URL');
+        return false;
+      }
+    } catch (error) {
+      console.error('[AIService] Error updating Local AI URL:', error);
+      return false;
+    }
+  }
+
   getCurrentConfiguration() {
     const provider = this.defaultProvider;
     const providerInstance = this.providers.get(provider);
@@ -262,7 +295,8 @@ class AIService {
       openai: process.env.OPENAI_MODEL || 'gpt-5',
       anthropic: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
       groq: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
-      openrouter: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet'
+      openrouter: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
+      local: process.env.LOCAL_AI_MODEL || 'local-model'
     };
     
     return defaults[provider] || 'auto';
@@ -629,6 +663,104 @@ class OpenRouterProvider extends BaseProvider {
       'meta-llama/llama-3.1-70b-instruct',
       'google/gemini-pro-1.5',
       'mistralai/mistral-large'
+    ];
+  }
+}
+
+// Local AI Provider Implementation (OpenAI-compatible)
+class LocalAIProvider extends BaseProvider {
+  constructor(baseUrl) {
+    super(); // No API key needed for local
+    this.baseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
+    this.apiUrl = this.baseUrl + 'v1/chat/completions';
+  }
+
+  async sendMessage(message, options) {
+    const {
+      model = process.env.LOCAL_AI_MODEL || 'local-model',
+      systemMessage,
+      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
+      conversationHistory = []
+    } = options;
+
+    // Build messages array similar to OpenAI format
+    const messages = [];
+    
+    if (systemMessage) {
+      messages.push({ role: 'system', content: systemMessage });
+    }
+    
+    // Add conversation history
+    for (const historyMsg of conversationHistory) {
+      messages.push({ role: historyMsg.role, content: historyMsg.content });
+    }
+    
+    // Add current user message if not already in history
+    if (!conversationHistory.length || conversationHistory[conversationHistory.length - 1].content !== message) {
+      messages.push({ role: 'user', content: message });
+    }
+
+    const apiPayload = {
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      stream: false
+    };
+
+    console.log(`[LocalAIProvider] 📤 Sending to Local AI`);
+    console.log(`[LocalAIProvider] URL: ${this.apiUrl}`);
+    console.log(`[LocalAIProvider] Model: ${model}`);
+    console.log(`[LocalAIProvider] Messages in conversation: ${messages.length}`);
+    console.log(`[LocalAIProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiPayload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Local AI API request failed: ${response.status} ${response.statusText}\n${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      console.log(`[LocalAIProvider] 📥 Received response from Local AI`);
+      console.log(`[LocalAIProvider] Response model: ${data.model}`);
+      console.log(`[LocalAIProvider] Usage:`, data.usage);
+      console.log(`[LocalAIProvider] Choices count: ${data.choices?.length}`);
+      
+      return {
+        content: data.choices[0]?.message?.content,
+        model: data.model || model,
+        usage: data.usage
+      };
+    } catch (error) {
+      console.error(`[LocalAIProvider] API call failed:`, error.message);
+      if (error.response) {
+        console.error(`[LocalAIProvider] API response status:`, error.response.status);
+        console.error(`[LocalAIProvider] API response data:`, error.response.data);
+      }
+      throw new Error(`Local AI request failed: ${error.message}`);
+    }
+  }
+
+  getAvailableModels() {
+    // These are generic model names - the actual models depend on what's loaded in the local AI server
+    return [
+      'local-model',
+      'llama',
+      'codellama',
+      'mistral',
+      'neural-chat',
+      'vicuna',
+      'alpaca'
     ];
   }
 }

@@ -17,7 +17,7 @@ Defines tasks relating to this software itself.
 11. Fix Save = Refresh - DONE
 12. Autosave - DONE
 13. "Suck up" linked content into preview (non-recursive) - DONE
-14. Concept tagging - IN PROGRESS
+14. Concept tagging - DONE
 15. Math integration - DONE
 16. Global find & replace - DONE
 17. TODOs as Kanban - DONE
@@ -62,5 +62,5 @@ Defines tasks relating to this software itself.
 57. Autocomplete bibtex citations - DONE
 58. AI integration with gamification - IN PROGRESS
 59. Accessible HTML export
-61. Add local AI
-62. Remote server
+61. Add local AI - DONE
+62. Remote server - DONE

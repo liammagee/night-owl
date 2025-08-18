@@ -638,6 +638,16 @@ function updateSettings(category, newSettings) {
     
     // Apply AI provider settings if changed
     if (category === 'ai' && aiService && newSettings) {
+        // Update Local AI URL if changed
+        if (newSettings.localAIUrl && typeof aiService.updateLocalAIUrl === 'function') {
+            try {
+                aiService.updateLocalAIUrl(newSettings.localAIUrl);
+                console.log(`[main.js] Updated Local AI URL: ${newSettings.localAIUrl}`);
+            } catch (error) {
+                console.warn('[main.js] Could not update Local AI URL:', error);
+            }
+        }
+        
         if (newSettings.preferredProvider && newSettings.preferredProvider !== 'auto') {
             try {
                 if (aiService.getAvailableProviders().includes(newSettings.preferredProvider)) {

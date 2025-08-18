@@ -148,6 +148,7 @@ The course is structured over eight weeks, and each week introduces and discusse
 
 1. Synthesis: Machine Learning and Human Learning
 
+This is the introduction and overview we are doing today. 
 
 3. Experience
 4. Attention
