@@ -56,7 +56,7 @@ Defines tasks relating to this software itself.
 51. Nested lists - DONE
 52. Minimap - DONE
 53. In-file ToC - DONE
-54. Presentation flow
+54. Presentation flow - DONE
 55. Consistent style throughout - DONE
 56. Autocomplete internal links - DONE
 57. Autocomplete bibtex citations - DONE

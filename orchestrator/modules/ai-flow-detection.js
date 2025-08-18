@@ -436,6 +436,12 @@ class AIFlowDetection {
         const flowScore = this.flowEngine.currentFlowScore;
         const flowState = this.determineFlowState(flowScore);
         
+        // Clear any existing timeout first
+        if (this.flowIndicatorTimeout) {
+            clearTimeout(this.flowIndicatorTimeout);
+            this.flowIndicatorTimeout = null;
+        }
+        
         // Check if we're in cooldown period (don't show indicator if recently hidden)
         const now = Date.now();
         if (now - this.lastIndicatorHidden < this.indicatorCooldown) {
@@ -1009,6 +1015,35 @@ class AIFlowDetection {
         
         // Bias toward not showing indicator unless there's clear flow state
         return baseScore > 0.7 ? baseScore : 0.6;
+    }
+    
+    // Method to force hide the indicator (useful for debugging)
+    forceHideIndicator() {
+        const indicator = document.getElementById('ai-flow-indicator');
+        if (indicator) {
+            indicator.classList.remove('visible');
+            this.lastIndicatorHidden = Date.now();
+            
+            // Clear any pending timeouts
+            if (this.flowIndicatorTimeout) {
+                clearTimeout(this.flowIndicatorTimeout);
+                this.flowIndicatorTimeout = null;
+            }
+        }
+    }
+    
+    // Method to completely remove the indicator
+    removeIndicator() {
+        const indicator = document.getElementById('ai-flow-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+        
+        // Clear any pending timeouts
+        if (this.flowIndicatorTimeout) {
+            clearTimeout(this.flowIndicatorTimeout);
+            this.flowIndicatorTimeout = null;
+        }
     }
 }
 

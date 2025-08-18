@@ -3029,6 +3029,35 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         // Expose mode switching globally
         window.switchToMode = switchToMode;
         window.updateSpeakerNotes = updateSpeakerNotes;
+        
+        // Global function to fix stuck processing indicators
+        window.fixStuckProcessingIndicator = function() {
+            console.log('[Debug] Attempting to fix stuck processing indicator...');
+            
+            // Method 1: Try to hide via flow detection instance
+            if (window.aiFlowDetection && typeof window.aiFlowDetection.forceHideIndicator === 'function') {
+                window.aiFlowDetection.forceHideIndicator();
+                console.log('[Debug] Used aiFlowDetection.forceHideIndicator()');
+            }
+            
+            // Method 2: Direct DOM manipulation to hide any visible flow indicators
+            const flowIndicator = document.getElementById('ai-flow-indicator');
+            if (flowIndicator) {
+                flowIndicator.classList.remove('visible');
+                flowIndicator.style.display = 'none';
+                console.log('[Debug] Direct DOM hide of flow indicator');
+            }
+            
+            // Method 3: Look for any other processing/loading indicators
+            const loadingElements = document.querySelectorAll('.loading, .processing, .spinner, [class*="load"], [class*="process"]');
+            loadingElements.forEach(el => {
+                el.style.display = 'none';
+                el.classList.add('hidden');
+                console.log('[Debug] Hid loading element:', el.className);
+            });
+            
+            console.log('[Debug] Processing indicator fix complete. Try typing to see if indicator reappears.');
+        };
 
         // Handle formatting from menu
         function handleFormatText(type) {
