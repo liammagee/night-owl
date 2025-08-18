@@ -146,17 +146,18 @@ The third reason relates less to Hegel's direct views about learning, and more t
 
 The course is structured over eight weeks, and each week introduces and discusses a new concept. 
 
-1. Synthesis: Machine Learning and Human Learning
-
-This is the introduction and overview we are doing today. 
-
-3. Experience
-4. Attention
-5. Recognition
-6. Consciousness (Self/Other/Un/Non)
-7. Alignment
-8. Critique 
-9. Synthesis: Technosymbiosis
+1. **Synthesis** This is the introduction and overview we are doing today. 
+2. Experience
+ - Next week we'll be looking at the concept of Experience. This is a crucial idea in Hegel's **Phenomenology of Spirit**, and constitutes the single largest implicit criticism of non-human learning. We will examine how Hegel unpacks this idea, and contrast it with other ideas of experience (e.g. Locke) that might be closer to what we see of machinic "experience". We will also discuss the relationship of experience to learning, consciousness, perception and memory. 
+3. Attention
+  - Following that, we will focus on the idea of attention. This is an idea that spans neuroscience, psychology, computer science, philosophy and media studies. We'll examine a key text in the development of machine learning, "Attention is All you Need". But we will also think about how attention is important for human learning. And we will look at recent critical studies of attention and what has become known as the Attention Economy.
+4. Recognition  
+ - Another key Hegelian idea, this week we will examine how *recognition* connects individual  learning to our relation to others - to, in other words, a social process. We'll discuss here Vygotsky's theory of human learning, and also examine ways machines could be considered as "recognizing" us.   
+5. Consciousness (Self/Other/Un/Non)
+The early parts of Phenomenology of Spirit is dominated by the ideas of Consciousness and Self-consciousness. We'll explore how these relate to Experience, Attention and Recognition (and whether indeed they "synthesize" these earlier ideas). We'll explore also later ideas of the Unconscious (Freud) and Nonconscious Cognition (Katherine Hayles). This leads us naturally to an obvious question: can machines be conscious? If not, can they be unconscious? 
+6. Alignment
+7. Critique 
+8. Synthesis: Technosymbiosis
 
 
 
@@ -164,6 +165,10 @@ This is the introduction and overview we are doing today.
 
 ## A word on software....
 
+
+--- 
+
+## Introductions
 
 
 ---

@@ -10,11 +10,24 @@ class AIFlowDetection {
         // Flow indicator auto-hide timeout
         this.flowIndicatorTimeout = null;
         this.lastIndicatorHidden = 0; // Timestamp of when indicator was last hidden
-        this.indicatorCooldown = 5000; // 5 seconds cooldown before showing again
+        this.indicatorCooldown = 15000; // 15 seconds cooldown before showing again
+        this.lastShownState = null; // Track the last state shown to prevent repetition
+        this.lastStateChangeTime = 0; // When the flow state last changed
         
         // Debouncing for flow updates
         this.updateDebounceTimeout = null;
         this.updateDebounceDelay = 800; // Wait 800ms before updating indicator
+        
+        // Text collection for AI insights
+        this.textCollection = {
+            recentText: '', // Last 200 characters typed
+            lastSentence: '', // Current/last sentence being worked on
+            textBuffer: [], // Buffer of recent text changes
+            maxBufferSize: 50, // Keep last 50 text changes
+            currentFile: '', // Current file being edited
+            fileContent: '', // Current file content
+            lastContentUpdate: 0 // When we last got file content
+        };
         
         // Flow Detection Engine
         this.flowEngine = {
@@ -119,7 +132,7 @@ class AIFlowDetection {
         let currentBurst = [];
         let burstStartTime = 0;
         
-        // Monitor keystroke patterns
+        // Monitor keystroke patterns and collect text
         document.addEventListener('keydown', (event) => {
             if (!this.isWritingEvent(event)) return;
             
@@ -146,6 +159,9 @@ class AIFlowDetection {
             
             lastKeystroke = now;
             
+            // Collect text for AI analysis
+            this.collectTextData(event);
+            
             // Update flow state in real-time
             this.updateRealTimeFlowState();
         });
@@ -153,6 +169,7 @@ class AIFlowDetection {
         // Monitor content changes for deeper analysis
         let contentCheckTimer = setInterval(() => {
             this.analyzeContentFlow();
+            this.updateFileContext(); // Update current file context
         }, 10000); // Every 10 seconds during active writing
     }
     
@@ -317,7 +334,7 @@ class AIFlowDetection {
     
     // === Real-time Insights Generation ===
     
-    generateRealtimeInsights() {
+    async generateRealtimeInsights() {
         const insights = [];
         
         // Flow state insights
@@ -335,6 +352,10 @@ class AIFlowDetection {
         // Timing and wellness insights
         const wellnessInsight = this.generateWellnessInsight();
         if (wellnessInsight) insights.push(wellnessInsight);
+        
+        // AI-powered contextual insights (every 60 seconds max)
+        const aiInsight = await this.generateAIContextualInsight();
+        if (aiInsight) insights.push(aiInsight);
         
         // Update insights panel
         this.updateInsightsPanel(insights);
@@ -415,16 +436,26 @@ class AIFlowDetection {
         indicator.innerHTML = `
             <span class="flow-indicator-icon">🌊</span>
             <span class="flow-indicator-text">Flow State</span>
+            <span class="flow-indicator-close" title="Click to dismiss (or click anywhere on indicator)">×</span>
         `;
         
         // Make indicator clickable to dismiss
-        indicator.addEventListener('click', () => {
+        indicator.addEventListener('click', (e) => {
+            console.log('[Flow Detection] Indicator clicked - dismissing manually');
             indicator.classList.remove('visible');
             if (this.flowIndicatorTimeout) {
                 clearTimeout(this.flowIndicatorTimeout);
                 this.flowIndicatorTimeout = null;
+                console.log('[Flow Detection] Cleared auto-hide timeout due to manual dismiss');
             }
             this.lastIndicatorHidden = Date.now();
+            console.log('[Flow Detection] Indicator hidden manually, cooldown started');
+            e.stopPropagation();
+        });
+        
+        // Add hover logging for debugging
+        indicator.addEventListener('mouseenter', () => {
+            console.log('[Flow Detection] Indicator hovered - state:', indicator.className);
         });
         
         document.body.appendChild(indicator);
@@ -437,11 +468,15 @@ class AIFlowDetection {
     scheduleFlowIndicatorUpdate() {
         // Clear any existing debounce timeout
         if (this.updateDebounceTimeout) {
+            console.log('[Flow Detection] Clearing existing debounce timeout');
             clearTimeout(this.updateDebounceTimeout);
         }
         
+        console.log(`[Flow Detection] Scheduling indicator update with ${this.updateDebounceDelay}ms debounce`);
+        
         // Schedule the update after debounce delay
         this.updateDebounceTimeout = setTimeout(() => {
+            console.log('[Flow Detection] Debounce timeout expired - updating indicator now');
             this.updateFlowIndicator();
             this.updateDebounceTimeout = null;
         }, this.updateDebounceDelay);
@@ -449,31 +484,48 @@ class AIFlowDetection {
 
     updateFlowIndicator() {
         const indicator = document.getElementById('ai-flow-indicator');
-        if (!indicator) return;
+        if (!indicator) {
+            console.log('[Flow Detection] No indicator element found');
+            return;
+        }
         
         const flowScore = this.flowEngine.currentFlowScore;
         const flowState = this.determineFlowState(flowScore);
         
+        console.log(`[Flow Detection] updateFlowIndicator called - Score: ${flowScore.toFixed(3)}, State: ${flowState}`);
+        
         // Clear any existing timeout first
         if (this.flowIndicatorTimeout) {
+            console.log('[Flow Detection] Clearing existing auto-hide timeout');
             clearTimeout(this.flowIndicatorTimeout);
             this.flowIndicatorTimeout = null;
         }
         
         // Check if we're in cooldown period (don't show indicator if recently hidden)
         const now = Date.now();
-        if (now - this.lastIndicatorHidden < this.indicatorCooldown) {
-            console.log(`[Flow Detection] Indicator in cooldown for ${Math.round((this.indicatorCooldown - (now - this.lastIndicatorHidden)) / 1000)}s more`);
+        const timeSinceHidden = now - this.lastIndicatorHidden;
+        if (timeSinceHidden < this.indicatorCooldown) {
+            const cooldownRemaining = Math.round((this.indicatorCooldown - timeSinceHidden) / 1000);
+            console.log(`[Flow Detection] Indicator in cooldown for ${cooldownRemaining}s more (last hidden: ${new Date(this.lastIndicatorHidden).toLocaleTimeString()})`);
             return; // Still in cooldown, don't show indicator
         }
         
-        // Clear any existing auto-hide timeout
-        if (this.flowIndicatorTimeout) {
-            clearTimeout(this.flowIndicatorTimeout);
-            this.flowIndicatorTimeout = null;
+        // Check if this is the same state we just showed (prevent repetitive showing)
+        const timeSinceStateChange = now - this.lastStateChangeTime;
+        if (this.lastShownState === flowState && timeSinceStateChange < 30000) { // 30 seconds
+            console.log(`[Flow Detection] Same state '${flowState}' recently shown ${Math.round(timeSinceStateChange/1000)}s ago - not showing again`);
+            return;
+        }
+        
+        // Update state tracking if the state has changed
+        if (this.lastShownState !== flowState) {
+            this.lastShownState = flowState;
+            this.lastStateChangeTime = now;
+            console.log(`[Flow Detection] Flow state changed to '${flowState}'`);
         }
         
         // Remove existing flow classes
+        const wasVisible = indicator.classList.contains('visible');
         indicator.classList.remove('flow-deep', 'flow-light', 'flow-struggling', 'visible');
         
         let className = '';
@@ -486,41 +538,51 @@ class AIFlowDetection {
                 className = 'flow-deep';
                 icon = '🌊';
                 text = 'Deep Flow';
-                autoHideDelay = 3000; // Hide after 3 seconds
+                autoHideDelay = 3000;
                 break;
             case 'light_flow':
                 className = 'flow-light';
                 icon = '✨';
                 text = 'In Flow';
-                autoHideDelay = 2500; // Hide after 2.5 seconds
+                autoHideDelay = 2500;
                 break;
             case 'focused':
                 className = 'flow-light';
                 icon = '🎯';
                 text = 'Focused';
-                autoHideDelay = 2000; // Hide after 2 seconds
+                autoHideDelay = 2000;
                 break;
             case 'struggling':
                 className = 'flow-struggling';
                 icon = '🔄';
                 text = 'Processing';
-                autoHideDelay = 1500; // Hide after 1.5 seconds
+                autoHideDelay = 1500;
                 break;
             default:
-                // Hide indicator when not in a notable state
+                console.log('[Flow Detection] Flow state is neutral/blocked - not showing indicator');
                 return;
         }
+        
+        console.log(`[Flow Detection] Showing indicator: ${text} (${className}) for ${autoHideDelay}ms`);
         
         indicator.classList.add(className, 'visible');
         indicator.querySelector('.flow-indicator-icon').textContent = icon;
         indicator.querySelector('.flow-indicator-text').textContent = text;
         
-        // Set auto-hide timeout
+        // Log visibility change
+        if (!wasVisible) {
+            console.log(`[Flow Detection] Indicator became visible at ${new Date().toLocaleTimeString()}`);
+        }
+        
+        // Set auto-hide timeout with logging
         if (autoHideDelay) {
+            console.log(`[Flow Detection] Setting auto-hide timeout for ${autoHideDelay}ms`);
             this.flowIndicatorTimeout = setTimeout(() => {
+                console.log(`[Flow Detection] Auto-hiding indicator after ${autoHideDelay}ms timeout`);
                 indicator.classList.remove('visible');
                 this.flowIndicatorTimeout = null;
-                this.lastIndicatorHidden = Date.now(); // Record when indicator was hidden
+                this.lastIndicatorHidden = Date.now();
+                console.log(`[Flow Detection] Indicator auto-hidden at ${new Date().toLocaleTimeString()}, ${this.indicatorCooldown/1000}s cooldown started`);
             }, autoHideDelay);
         }
     }
@@ -687,6 +749,141 @@ class AIFlowDetection {
         };
     }
     
+    // === Text Collection for AI Insights ===
+    
+    collectTextData(event) {
+        // Get current editor content
+        const currentContent = this.getCurrentEditorContent();
+        if (!currentContent) return;
+        
+        // Update recent text buffer
+        const change = {
+            timestamp: Date.now(),
+            key: event.key,
+            content: currentContent.slice(-200) // Last 200 characters
+        };
+        
+        this.textCollection.textBuffer.push(change);
+        
+        // Keep buffer size manageable
+        if (this.textCollection.textBuffer.length > this.textCollection.maxBufferSize) {
+            this.textCollection.textBuffer = this.textCollection.textBuffer.slice(-this.textCollection.maxBufferSize);
+        }
+        
+        // Update recent text and last sentence
+        this.textCollection.recentText = currentContent.slice(-200);
+        this.textCollection.lastSentence = this.extractLastSentence(currentContent);
+    }
+    
+    getCurrentEditorContent() {
+        // Try to get content from Monaco editor first
+        if (window.editor && window.editor.getValue) {
+            return window.editor.getValue();
+        }
+        
+        // Fallback to active textarea or contenteditable
+        const activeElement = document.activeElement;
+        if (activeElement) {
+            if (activeElement.tagName === 'TEXTAREA') {
+                return activeElement.value;
+            } else if (activeElement.contentEditable === 'true') {
+                return activeElement.textContent || activeElement.innerText;
+            }
+        }
+        
+        return null;
+    }
+    
+    extractLastSentence(content) {
+        if (!content) return '';
+        
+        // Find the last sentence (ending with ., !, ?, or current incomplete sentence)
+        const sentences = content.split(/[.!?]+/);
+        const lastSentence = sentences[sentences.length - 1];
+        
+        // If the last part is very short, include the previous sentence too
+        if (lastSentence.trim().length < 20 && sentences.length > 1) {
+            const prevSentence = sentences[sentences.length - 2];
+            return (prevSentence + '. ' + lastSentence).slice(-150); // Max 150 chars
+        }
+        
+        return lastSentence.slice(-150); // Max 150 chars
+    }
+    
+    updateFileContext() {
+        const now = Date.now();
+        
+        // Only update file context every 30 seconds to avoid too frequent calls
+        if (now - this.textCollection.lastContentUpdate < 30000) {
+            return;
+        }
+        
+        // Get current file path and content
+        const currentFile = this.getCurrentFilePath();
+        const fullContent = this.getCurrentEditorContent();
+        
+        if (currentFile && fullContent) {
+            this.textCollection.currentFile = currentFile;
+            this.textCollection.fileContent = fullContent;
+            this.textCollection.lastContentUpdate = now;
+            
+            console.log(`[Flow Detection] Updated file context: ${currentFile} (${fullContent.length} chars)`);
+        }
+    }
+    
+    getCurrentFilePath() {
+        // Try to get current file path from global variables
+        if (window.currentFile) {
+            return window.currentFile;
+        }
+        
+        // Try to get from document title or other indicators
+        const titleElement = document.querySelector('.title-bar, title');
+        if (titleElement && titleElement.textContent) {
+            const title = titleElement.textContent;
+            // Look for file extensions in the title
+            const fileMatch = title.match(/([^/\\]+\.[a-zA-Z]{2,4})/);
+            if (fileMatch) {
+                return fileMatch[1];
+            }
+        }
+        
+        return 'untitled.md'; // Default fallback
+    }
+    
+    getContextForAI() {
+        return {
+            recentText: this.textCollection.recentText,
+            lastSentence: this.textCollection.lastSentence,
+            currentFile: this.textCollection.currentFile,
+            fileType: this.getFileType(this.textCollection.currentFile),
+            contentLength: this.textCollection.fileContent.length,
+            flowScore: this.flowEngine.currentFlowScore,
+            flowState: this.determineFlowState(this.flowEngine.currentFlowScore),
+            sessionDuration: this.getSessionDuration(),
+            typingPattern: {
+                rhythm: this.flowEngine.typingPattern.rhythm,
+                consistency: this.flowEngine.typingPattern.consistency,
+                recentBursts: this.flowEngine.typingPattern.bursts.slice(-3)
+            }
+        };
+    }
+    
+    getFileType(filename) {
+        if (!filename) return 'text';
+        const ext = filename.toLowerCase().split('.').pop();
+        const typeMap = {
+            'md': 'markdown',
+            'txt': 'text',
+            'js': 'javascript',
+            'py': 'python',
+            'html': 'html',
+            'css': 'css',
+            'json': 'json'
+        };
+        return typeMap[ext] || 'text';
+    }
+    
     // === Missing Methods ===
     
     initializeFlowPrediction() {
@@ -842,6 +1039,110 @@ class AIFlowDetection {
         return null;
     }
     
+    // === AI-Powered Contextual Insights ===
+    
+    async generateAIContextualInsight() {
+        // Rate limiting - only generate AI insights every 60 seconds
+        const now = Date.now();
+        if (!this.lastAIInsightTime) this.lastAIInsightTime = 0;
+        
+        if (now - this.lastAIInsightTime < 60000) {
+            return null; // Too soon for another AI insight
+        }
+        
+        // Check if we have enough context for a meaningful insight
+        const context = this.getContextForAI();
+        if (!context.recentText || context.recentText.trim().length < 20) {
+            return null; // Not enough recent content
+        }
+        
+        try {
+            const insight = await this.requestAIInsight(context);
+            if (insight) {
+                this.lastAIInsightTime = now;
+                return {
+                    type: 'ai_contextual',
+                    category: 'creative',
+                    icon: '🤖',
+                    message: insight,
+                    confidence: 0.8,
+                    actionable: true
+                };
+            }
+        } catch (error) {
+            console.error('[Flow Detection] Error generating AI insight:', error);
+        }
+        
+        return null;
+    }
+    
+    async requestAIInsight(context) {
+        // Check if AI service is available
+        if (!window.electronAPI || !window.electronAPI.invoke) {
+            console.log('[Flow Detection] AI service not available');
+            return null;
+        }
+        
+        const prompt = this.buildContextualPrompt(context);
+        
+        try {
+            console.log('[Flow Detection] Requesting AI contextual insight...');
+            
+            const response = await window.electronAPI.invoke('ai-chat', {
+                message: prompt,
+                options: {
+                    systemMessage: this.getInsightSystemPrompt(),
+                    temperature: 0.7,
+                    maxTokens: 150,
+                    newConversation: true // Each insight is independent
+                }
+            });
+            
+            if (response && response.response) {
+                console.log('[Flow Detection] Received AI insight:', response.response.substring(0, 100) + '...');
+                return response.response.trim();
+            }
+        } catch (error) {
+            console.error('[Flow Detection] AI insight request failed:', error);
+        }
+        
+        return null;
+    }
+    
+    buildContextualPrompt(context) {
+        const fileType = context.fileType;
+        const flowState = context.flowState;
+        const recentText = context.recentText;
+        const lastSentence = context.lastSentence;
+        
+        return `I'm writing a ${fileType} file and my current flow state is "${flowState}". 
+        
+My last sentence or paragraph is: "${lastSentence}"
+
+Recent text context: "${recentText.slice(-100)}"
+
+Provide a brief, helpful writing suggestion or insight (1-2 sentences max). Focus on:
+- Content direction or next steps
+- Writing flow improvements 
+- Philosophical connections (if relevant)
+- Structural suggestions
+
+Be encouraging and specific to what I'm actually writing about.`;
+    }
+    
+    getInsightSystemPrompt() {
+        return `You are Maya, an AI writing companion specializing in academic and philosophical writing. You provide brief, contextual writing insights based on the user's current text and flow state.
+
+Your insights should be:
+- Brief (1-2 sentences max)
+- Specific to the actual content being written
+- Encouraging and constructive
+- Focused on immediate next steps or improvements
+- Philosophically informed when relevant
+
+Avoid generic advice. Be specific to what the user is actually working on.`;
+    }
+    
     toggleInsightsPanel() {
         const panel = document.getElementById('ai-insights-panel');
         if (!panel) return;
@@ -994,9 +1295,9 @@ class AIFlowDetection {
     }
     
     startInsightsEngine() {
-        setInterval(() => {
+        setInterval(async () => {
             if (this.gamification?.currentSession) {
-                this.generateRealtimeInsights();
+                await this.generateRealtimeInsights();
             }
         }, this.insightsEngine.displayState.updateFrequency);
     }
@@ -1004,15 +1305,48 @@ class AIFlowDetection {
     updateRealTimeFlowState() {
         // Lightweight flow state update based on recent typing patterns
         const recentScore = this.calculateQuickFlowScore();
+        const previousScore = this.flowEngine.currentFlowScore;
         this.flowEngine.currentFlowScore = recentScore;
+        
+        // Log significant changes in flow score
+        const scoreDiff = Math.abs(recentScore - previousScore);
+        if (scoreDiff > 0.1) {
+            console.log(`[Flow Detection] Flow score changed: ${previousScore.toFixed(3)} → ${recentScore.toFixed(3)} (diff: ${scoreDiff.toFixed(3)})`);
+        }
         
         // Only update indicator if score indicates a notable state AND we're not in cooldown
         const flowState = this.determineFlowState(recentScore);
         const now = Date.now();
+        const timeSinceHidden = now - this.lastIndicatorHidden;
+        const timeSinceStateChange = now - this.lastStateChangeTime;
         
-        // Don't trigger indicator updates too frequently or during cooldown (v2)
-        if (flowState !== 'blocked' && now - this.lastIndicatorHidden >= this.indicatorCooldown) {
+        // Only log real-time updates if there's a significant change or it's been a while
+        if (scoreDiff > 0.1 || timeSinceHidden > this.indicatorCooldown) {
+            console.log(`[Flow Detection] Real-time update - Score: ${recentScore.toFixed(3)}, State: ${flowState}, Time since hidden: ${Math.round(timeSinceHidden/1000)}s, Time since state change: ${Math.round(timeSinceStateChange/1000)}s`);
+        }
+        
+        // Don't trigger indicator updates if:
+        // 1. Still in cooldown
+        // 2. Same state recently shown
+        // 3. Flow state is neutral/blocked
+        const shouldUpdate = flowState !== 'blocked' && 
+                           timeSinceHidden >= this.indicatorCooldown && 
+                           (this.lastShownState !== flowState || timeSinceStateChange >= 30000);
+        
+        if (shouldUpdate) {
+            console.log('[Flow Detection] Conditions met - scheduling indicator update');
             this.scheduleFlowIndicatorUpdate();
+        } else {
+            // Only log reasons if there was a score change
+            if (scoreDiff > 0.1) {
+                if (flowState === 'blocked') {
+                    console.log('[Flow Detection] Flow state is blocked - not updating indicator');
+                } else if (timeSinceHidden < this.indicatorCooldown) {
+                    console.log(`[Flow Detection] Still in cooldown (${Math.round((this.indicatorCooldown - timeSinceHidden)/1000)}s remaining) - not updating indicator`);
+                } else if (this.lastShownState === flowState) {
+                    console.log(`[Flow Detection] Same state '${flowState}' recently shown - not updating indicator`);
+                }
+            }
         }
     }
     
@@ -1021,22 +1355,41 @@ class AIFlowDetection {
         const consistency = this.flowEngine.typingPattern.consistency || 0.6;
         const cognitiveLoad = this.flowEngine.cognitiveLoad.currentLoad || 0.4;
         
-        // Only return a "struggling" score if there's real evidence of typing issues
+        // Check if we have enough data for a meaningful score
         const recentIntervals = this.flowEngine.typingPattern.intervals.slice(-20);
-        if (recentIntervals.length < 15) {
+        const dataPoints = recentIntervals.length;
+        
+        console.log(`[Flow Detection] calculateQuickFlowScore - Data points: ${dataPoints}, Rhythm: ${rhythm.toFixed(3)}, Consistency: ${consistency.toFixed(3)}, Cognitive load: ${cognitiveLoad.toFixed(3)}`);
+        
+        if (dataPoints < 20) {
             // Not enough data to determine flow state - don't trigger indicator
+            console.log('[Flow Detection] Insufficient data for flow calculation (need 20+ keystrokes)');
             return 0.6; // Neutral state that won't trigger indicator
         }
         
-        // Quick flow estimation
-        const baseScore = (rhythm * 0.4 + consistency * 0.4 + (1 - cognitiveLoad) * 0.2);
+        // Quick flow estimation with bias toward neutral scores
+        const baseScore = (rhythm * 0.3 + consistency * 0.3 + (1 - cognitiveLoad) * 0.2 + 0.2); // Added 0.2 baseline
         
-        // Bias toward not showing indicator unless there's clear flow state
-        return baseScore > 0.7 ? baseScore : 0.6;
+        console.log(`[Flow Detection] Base score calculated: ${baseScore.toFixed(3)}`);
+        
+        // More conservative thresholds - only show indicator for clearly notable states
+        let finalScore;
+        if (baseScore > 0.8) {
+            finalScore = baseScore; // Clear high flow state
+        } else if (baseScore < 0.3) {
+            finalScore = baseScore; // Clear struggling state  
+        } else {
+            finalScore = 0.6; // Neutral state - don't show indicator
+        }
+        
+        console.log(`[Flow Detection] Final flow score: ${finalScore.toFixed(3)} ${finalScore !== baseScore ? '(adjusted to neutral to reduce noise)' : ''}`);
+        
+        return finalScore;
     }
     
     // Method to force hide the indicator (useful for debugging)
     forceHideIndicator() {
+        console.log('[Flow Detection] Force hiding indicator');
         const indicator = document.getElementById('ai-flow-indicator');
         if (indicator) {
             indicator.classList.remove('visible');
@@ -1046,26 +1399,188 @@ class AIFlowDetection {
             if (this.flowIndicatorTimeout) {
                 clearTimeout(this.flowIndicatorTimeout);
                 this.flowIndicatorTimeout = null;
+                console.log('[Flow Detection] Cleared auto-hide timeout during force hide');
             }
+            console.log(`[Flow Detection] Indicator force hidden at ${new Date().toLocaleTimeString()}`);
+        } else {
+            console.log('[Flow Detection] No indicator to force hide');
         }
     }
     
     // Method to completely remove the indicator
     removeIndicator() {
+        console.log('[Flow Detection] Removing indicator completely');
         const indicator = document.getElementById('ai-flow-indicator');
         if (indicator) {
             indicator.remove();
+            console.log('[Flow Detection] Indicator element removed from DOM');
+        } else {
+            console.log('[Flow Detection] No indicator element to remove');
         }
         
         // Clear any pending timeouts
         if (this.flowIndicatorTimeout) {
             clearTimeout(this.flowIndicatorTimeout);
             this.flowIndicatorTimeout = null;
+            console.log('[Flow Detection] Cleared auto-hide timeout during removal');
         }
+        
+        if (this.updateDebounceTimeout) {
+            clearTimeout(this.updateDebounceTimeout);
+            this.updateDebounceTimeout = null;
+            console.log('[Flow Detection] Cleared debounce timeout during removal');
+        }
+    }
+    
+    // Debug method to get current state information
+    getDebugInfo() {
+        const now = Date.now();
+        const timeSinceHidden = now - this.lastIndicatorHidden;
+        const indicator = document.getElementById('ai-flow-indicator');
+        
+        return {
+            flowScore: this.flowEngine.currentFlowScore,
+            flowState: this.determineFlowState(this.flowEngine.currentFlowScore),
+            indicatorVisible: indicator ? indicator.classList.contains('visible') : false,
+            indicatorExists: !!indicator,
+            timeSinceHidden: Math.round(timeSinceHidden / 1000),
+            cooldownRemaining: Math.max(0, Math.round((this.indicatorCooldown - timeSinceHidden) / 1000)),
+            hasAutoHideTimeout: !!this.flowIndicatorTimeout,
+            hasDebounceTimeout: !!this.updateDebounceTimeout,
+            typingDataPoints: this.flowEngine.typingPattern.intervals.length,
+            lastHiddenTime: new Date(this.lastIndicatorHidden).toLocaleTimeString(),
+            cooldownDuration: this.indicatorCooldown / 1000,
+            lastShownState: this.lastShownState,
+            timeSinceStateChange: Math.round((now - this.lastStateChangeTime) / 1000),
+            textCollectionActive: !!this.textCollection,
+            recentTextLength: this.textCollection.recentText?.length || 0,
+            lastSentenceLength: this.textCollection.lastSentence?.length || 0,
+            currentFile: this.textCollection.currentFile
+        };
+    }
+    
+    // Debug method to log current state
+    logDebugInfo() {
+        const info = this.getDebugInfo();
+        console.group('[Flow Detection] Debug Info');
+        console.table(info);
+        console.groupEnd();
+        return info;
     }
 }
 
 // Export for use in other modules
 if (typeof window !== 'undefined') {
     window.AIFlowDetection = AIFlowDetection;
+    
+    // Global debugging helpers (accessible from browser console)
+    window.flowDebug = {
+        // Get current flow detection debug info
+        info: () => {
+            if (window.aiFlowDetection) {
+                return window.aiFlowDetection.logDebugInfo();
+            } else {
+                console.log('[Flow Debug] AI Flow Detection not initialized');
+                return null;
+            }
+        },
+        
+        // Force hide the indicator
+        hide: () => {
+            if (window.aiFlowDetection) {
+                window.aiFlowDetection.forceHideIndicator();
+                console.log('[Flow Debug] Indicator force hidden');
+            } else {
+                console.log('[Flow Debug] AI Flow Detection not initialized');
+            }
+        },
+        
+        // Remove the indicator completely
+        remove: () => {
+            if (window.aiFlowDetection) {
+                window.aiFlowDetection.removeIndicator();
+                console.log('[Flow Debug] Indicator removed');
+            } else {
+                console.log('[Flow Debug] AI Flow Detection not initialized');
+            }
+        },
+        
+        // Show the indicator (bypass cooldown for testing)
+        show: (state = 'focused') => {
+            if (window.aiFlowDetection) {
+                // Temporarily bypass cooldown and state tracking
+                window.aiFlowDetection.lastIndicatorHidden = 0;
+                window.aiFlowDetection.lastShownState = null;
+                window.aiFlowDetection.lastStateChangeTime = 0;
+                // Set a test flow state
+                const testScores = {
+                    'deep_flow': 0.9,
+                    'light_flow': 0.75,
+                    'focused': 0.6,
+                    'struggling': 0.4
+                };
+                window.aiFlowDetection.flowEngine.currentFlowScore = testScores[state] || 0.6;
+                window.aiFlowDetection.updateFlowIndicator();
+                console.log(`[Flow Debug] Showing indicator in '${state}' state`);
+            } else {
+                console.log('[Flow Debug] AI Flow Detection not initialized');
+            }
+        },
+        
+        // Generate an AI insight on demand
+        insight: async () => {
+            if (window.aiFlowDetection) {
+                try {
+                    const insight = await window.aiFlowDetection.generateAIContextualInsight();
+                    if (insight) {
+                        console.log(`[Flow Debug] AI Insight: ${insight.message}`);
+                        return insight;
+                    } else {
+                        console.log('[Flow Debug] No AI insight generated (rate limited or insufficient context)');
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('[Flow Debug] Error generating AI insight:', error);
+                    return null;
+                }
+            } else {
+                console.log('[Flow Debug] AI Flow Detection not initialized');
+                return null;
+            }
+        },
+        
+        // Show current text collection state
+        text: () => {
+            if (window.aiFlowDetection && window.aiFlowDetection.textCollection) {
+                const tc = window.aiFlowDetection.textCollection;
+                console.group('[Flow Debug] Text Collection State');
+                console.log('Recent text:', tc.recentText);
+                console.log('Last sentence:', tc.lastSentence);
+                console.log('Current file:', tc.currentFile);
+                console.log('Content length:', tc.fileContent?.length || 0);
+                console.log('Buffer size:', tc.textBuffer?.length || 0);
+                console.groupEnd();
+                return tc;
+            } else {
+                console.log('[Flow Debug] Text collection not available');
+                return null;
+            }
+        },
+        
+        // List available commands
+        help: () => {
+            console.log(`
+[Flow Debug] Available commands:
+• flowDebug.info() - Show current flow detection state
+• flowDebug.hide() - Force hide the indicator
+• flowDebug.remove() - Remove indicator completely  
+• flowDebug.show('state') - Show indicator in test state (deep_flow, light_flow, focused, struggling)
+• flowDebug.insight() - Generate AI insight on demand
+• flowDebug.text() - Show current text collection state
+• flowDebug.help() - Show this help
+            `);
+        }
+    };
+    
+    console.log('[Flow Detection] Debug helpers available: flowDebug.help() for commands');
 }

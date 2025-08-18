@@ -8,3 +8,5 @@ Defines tasks relating to preparation of a course of lectures for a graduate sub
 2. Accessible HTML "package" 
 3. Create learning objectives and outcomes
 4. Draft of Lecture 1
+5. Concepts
+6. About software
