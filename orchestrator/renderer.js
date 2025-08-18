@@ -3182,14 +3182,39 @@ showWholepartBtn.addEventListener('click', () => {
 
 // --- Right Pane Switching Function ---
 function showRightPane(paneType) {
-    // Hide all content panes
-    if (previewPane) previewPane.style.display = 'none';
-    if (chatPane) chatPane.style.display = 'none';
-    if (wholepartPane) wholepartPane.style.display = 'none';
+    console.log('[DEBUG] showRightPane called with:', paneType);
+    
+    // Check toggle buttons visibility before switching
+    const toggleButtons = document.querySelector('#right-pane .toggle-buttons');
+    if (toggleButtons) {
+        console.log('[DEBUG] Right pane toggle buttons before switch - display:', window.getComputedStyle(toggleButtons).display);
+        console.log('[DEBUG] Right pane toggle buttons before switch - visibility:', window.getComputedStyle(toggleButtons).visibility);
+        console.log('[DEBUG] Right pane toggle buttons before switch - parent:', toggleButtons.parentElement);
+    }
+    
+    // Hide all content panes and add hidden class
+    if (previewPane) {
+        previewPane.style.display = 'none';
+        previewPane.classList.add('pane-hidden');
+    }
+    if (chatPane) {
+        chatPane.style.display = 'none';
+        chatPane.classList.add('pane-hidden');
+    }
+    if (wholepartPane) {
+        wholepartPane.style.display = 'none';
+        wholepartPane.classList.add('pane-hidden');
+    }
     const searchPane = document.getElementById('search-pane');
-    if (searchPane) searchPane.style.display = 'none';
+    if (searchPane) {
+        searchPane.style.display = 'none';
+        searchPane.classList.add('pane-hidden');
+    }
     const speakerNotesPane = document.getElementById('speaker-notes-pane');
-    if (speakerNotesPane) speakerNotesPane.style.display = 'none';
+    if (speakerNotesPane) {
+        speakerNotesPane.style.display = 'none';
+        speakerNotesPane.classList.add('pane-hidden');
+    }
     
     // Remove active state from all toggle buttons
     if (showPreviewBtn) showPreviewBtn.classList.remove('active');
@@ -3203,29 +3228,44 @@ function showRightPane(paneType) {
     // Show the requested pane and activate its button
     switch (paneType) {
         case 'preview':
-            if (previewPane) previewPane.style.display = '';
+            if (previewPane) {
+                previewPane.style.display = '';
+                previewPane.classList.remove('pane-hidden');
+            }
             if (showPreviewBtn) showPreviewBtn.classList.add('active');
             break;
         case 'chat':
-            if (chatPane) chatPane.style.display = '';
+            if (chatPane) {
+                chatPane.style.display = '';
+                chatPane.classList.remove('pane-hidden');
+            }
             if (showChatBtn) showChatBtn.classList.add('active');
             break;
         case 'search':
             const searchPane = document.getElementById('search-pane');
-            if (searchPane) searchPane.style.display = '';
+            if (searchPane) {
+                searchPane.style.display = '';
+                searchPane.classList.remove('pane-hidden');
+            }
             const showSearchBtn = document.getElementById('show-search-btn');
             if (showSearchBtn) showSearchBtn.classList.add('active');
             break;
         case 'speaker-notes':
             const speakerNotesPane = document.getElementById('speaker-notes-pane');
-            if (speakerNotesPane) speakerNotesPane.style.display = '';
+            if (speakerNotesPane) {
+                speakerNotesPane.style.display = '';
+                speakerNotesPane.classList.remove('pane-hidden');
+            }
             const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
             if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.add('active');
             // Update speaker notes content when pane is shown
             updateSpeakerNotesDisplay();
             break;
         case 'wholepart':
-            if (wholepartPane) wholepartPane.style.display = '';
+            if (wholepartPane) {
+                wholepartPane.style.display = '';
+                wholepartPane.classList.remove('pane-hidden');
+            }
             if (showWholepartBtn) showWholepartBtn.classList.add('active');
             // Initialize wholepart visualization when pane is shown
             if (window.initializeWholepartVisualization) {
@@ -3234,9 +3274,82 @@ function showRightPane(paneType) {
             break;
         default:
             // Default to preview if unknown pane type
-            if (previewPane) previewPane.style.display = '';
+            if (previewPane) {
+                previewPane.style.display = '';
+                previewPane.classList.remove('pane-hidden');
+            }
             if (showPreviewBtn) showPreviewBtn.classList.add('active');
             break;
+    }
+    
+    // Check toggle buttons visibility after switching
+    if (toggleButtons) {
+        console.log('[DEBUG] Right pane toggle buttons after switch - display:', window.getComputedStyle(toggleButtons).display);
+        console.log('[DEBUG] Right pane toggle buttons after switch - visibility:', window.getComputedStyle(toggleButtons).visibility);
+        console.log('[DEBUG] Right pane toggle buttons after switch - parent:', toggleButtons.parentElement);
+        console.log('[DEBUG] Right pane toggle buttons after switch - style:', toggleButtons.style.cssText);
+        
+        // Check the actual position and size
+        const rect = toggleButtons.getBoundingClientRect();
+        console.log('[DEBUG] Toggle buttons position/size:', {
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+            bottom: rect.bottom,
+            right: rect.right
+        });
+        
+        // Check viewport dimensions
+        console.log('[DEBUG] Viewport dimensions:', {
+            width: window.innerWidth,
+            height: window.innerHeight
+        });
+        
+        // Check if it's actually visible in viewport
+        const isInViewport = rect.top >= 0 && rect.left >= 0 && 
+                           rect.bottom <= window.innerHeight && 
+                           rect.right <= window.innerWidth;
+        console.log('[DEBUG] Toggle buttons in viewport:', isInViewport);
+        
+        // Check the right pane itself
+        const rightPane = document.getElementById('right-pane');
+        if (rightPane) {
+            const rightPaneRect = rightPane.getBoundingClientRect();
+            console.log('[DEBUG] Right pane position/size:', {
+                top: rightPaneRect.top,
+                left: rightPaneRect.left,
+                width: rightPaneRect.width,
+                height: rightPaneRect.height
+            });
+        }
+        
+        // Check z-index and positioning
+        const computedStyle = window.getComputedStyle(toggleButtons);
+        console.log('[DEBUG] Toggle buttons computed style:', {
+            position: computedStyle.position,
+            zIndex: computedStyle.zIndex,
+            transform: computedStyle.transform,
+            opacity: computedStyle.opacity,
+            overflow: computedStyle.overflow
+        });
+        
+        // Check if anything is covering the buttons
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const elementAtCenter = document.elementFromPoint(centerX, centerY);
+        console.log('[DEBUG] Element at toggle buttons center:', elementAtCenter);
+        
+        // Check the buttons themselves
+        const buttons = toggleButtons.querySelectorAll('button');
+        console.log('[DEBUG] Number of buttons found:', buttons.length);
+        buttons.forEach((btn, index) => {
+            const btnRect = btn.getBoundingClientRect();
+            console.log(`[DEBUG] Button ${index} (${btn.textContent}):`, {
+                visible: btnRect.width > 0 && btnRect.height > 0,
+                position: { top: btnRect.top, left: btnRect.left, width: btnRect.width, height: btnRect.height }
+            });
+        });
     }
 }
 

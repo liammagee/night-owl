@@ -43,13 +43,13 @@
         }
         
         .mode-btn.active {
-            background: #007acc !important;
+            background: #16a34a !important;
             color: white !important;
         }
         
         /* Resizer styles */
         .resizer:hover {
-            background: #007acc !important;
+            background: #16a34a !important;
         }
         
         /* Allow presentation templates to style slides */
@@ -64,8 +64,7 @@
             min-width: 0 !important;
             display: flex !important;
             flex-direction: column !important;
-            height: calc(100vh - 32px - 40px) !important; /* Account for title bar and mode switcher */
-            max-height: calc(100vh - 32px - 40px) !important;
+            background-color: #fefdfb !important;
         }
         
         /* Container for content panes - allow flex child to scroll */
@@ -76,6 +75,7 @@
             min-height: 0 !important;
             overflow: hidden !important;
             height: 100% !important;
+            background-color: #fefdfb !important;
         }
         
         #preview-pane {
@@ -87,6 +87,7 @@
             overflow-x: hidden !important;
             flex: 1 !important;
             min-height: 0 !important;
+            background-color: #fefdfb !important;
         }
         
         #preview-content {
@@ -98,6 +99,7 @@
             box-sizing: border-box !important;
             line-height: 1.6 !important;
             height: auto !important;
+            background-color: #fefdfb !important;
         }
         
         /* Content pane styling */
@@ -108,6 +110,7 @@
             flex: 1 !important;
             min-height: 0 !important;
             position: relative !important;
+            background-color: #fefdfb !important;
         }
         
         /* Preview pane image constraints */
@@ -274,7 +277,7 @@
             border: 1px solid #e9ecef;
             border-radius: 4px;
             margin-bottom: 8px;
-            background: white;
+            background: #fefdfb;
             overflow: hidden;
         }
 
@@ -421,13 +424,14 @@
         .bg-gray-800 { background-color: #2d2d2d; }
         .bg-gray-700 { background-color: #404040; }
         .bg-gray-600 { background-color: #525252; }
-        .bg-blue-600 { background-color: #2563eb; }
-        .bg-blue-700 { background-color: #1d4ed8; }
+        .bg-blue-600 { background-color: #16a34a; }
+        .bg-blue-700 { background-color: #15803d; }
         .bg-green-600 { background-color: #16a34a; }
         .bg-green-700 { background-color: #15803d; }
         .bg-red-600 { background-color: #dc2626; }
         .bg-red-700 { background-color: #b91c1c; }
-        .bg-blue-500 { background-color: #3b82f6; }
+        .bg-blue-500 { background-color: #22c55e; }
+        .bg-cream { background-color: #fefdfb; }
         .text-white { color: white; }
         .text-gray-900 { color: #1a1a1a; }
         .text-gray-600 { color: #525252; }
@@ -473,7 +477,7 @@
         .duration-300 { transition-duration: 300ms; }
         .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
         .shadow-purple-500\/50 { box-shadow: 0 25px 50px -12px rgba(168, 85, 247, 0.5); }
-        .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+        .hover\:bg-blue-700:hover { background-color: #15803d; }
         .hover\:bg-gray-600:hover { background-color: #525252; }
         .hover\:bg-green-700:hover { background-color: #15803d; }
         .hover\:bg-red-700:hover { background-color: #b91c1c; }
@@ -484,10 +488,10 @@
         .active\:cursor-grabbing:active { cursor: grabbing; }
         .border { border-width: 1px; }
         .border-gray-600 { border-color: #525252; }
-        .focus\:border-blue-500:focus { border-color: #3b82f6; }
+        .focus\:border-blue-500:focus { border-color: #22c55e; }
         .outline-none { outline: 2px solid transparent; outline-offset: 2px; }
-        .ring-4 { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5); }
-        .ring-blue-500 { --tw-ring-color: #3b82f6; }
+        .ring-4 { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.5); }
+        .ring-blue-500 { --tw-ring-color: #22c55e; }
         .ring-purple-500 { --tw-ring-color: #a855f7; }
         .w-2 { width: 0.5rem; }
         .h-2 { height: 0.5rem; }
@@ -503,7 +507,7 @@
         }
         
         .mode-btn.active {
-            background: #007acc !important;
+            background: #16a34a !important;
             color: white !important;
         }
         
@@ -583,7 +587,7 @@
         
         /* Fix mode button highlighting */
         .mode-btn.active {
-            background: #007acc !important;
+            background: #16a34a !important;
             color: white !important;
         }
         
@@ -731,7 +735,7 @@
             top: 80px;
             right: 20px;
             z-index: 1000;
-            background: white;
+            background: #fefdfb;
             border: 1px solid #ddd;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -815,7 +819,7 @@
 
         .find-replace-input:focus {
             outline: none;
-            border-color: #007acc;
+            border-color: #16a34a;
         }
 
         .find-replace-options {
@@ -867,9 +871,9 @@
         }
 
         .find-replace-primary {
-            background: #007acc;
+            background: #16a34a;
             color: white;
-            border-color: #007acc;
+            border-color: #16a34a;
         }
 
         .find-replace-primary:hover:not(:disabled) {
@@ -914,7 +918,7 @@
         }
 
         .folder-name-dialog {
-            background: white;
+            background: #fefdfb;
             border-radius: 8px;
             padding: 24px;
             min-width: 300px;
@@ -970,7 +974,7 @@
 
         .folder-name-input:focus {
             outline: none;
-            border-color: #007acc;
+            border-color: #16a34a;
         }
 
         .folder-name-actions {
@@ -1004,9 +1008,9 @@
         }
 
         .folder-name-btn.primary {
-            background: #007acc;
+            background: #16a34a;
             color: white;
-            border-color: #007acc;
+            border-color: #16a34a;
         }
 
         .folder-name-btn.primary:hover {
@@ -1065,10 +1069,10 @@
             <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; padding: 0 16px;">
                 <!-- Navigation Controls -->
                 <div id="navigation-controls" style="display: flex; align-items: center; gap: 4px;">
-                    <button id="nav-back-btn" class="nav-btn" title="Go Back (Alt+Left)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                    <button id="nav-back-btn" class="nav-btn" title="Go Back (Alt+Left)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: #fefdfb; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
                         ← Back
                     </button>
-                    <button id="nav-forward-btn" class="nav-btn" title="Go Forward (Alt+Right)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                    <button id="nav-forward-btn" class="nav-btn" title="Go Forward (Alt+Right)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: #fefdfb; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
                         Forward →
                     </button>
                     <div style="width: 1px; height: 20px; background: #ccc; margin: 0 8px;"></div>
@@ -1078,8 +1082,8 @@
                 </div>
                 
                 <!-- Mode Switcher -->
-                <div style="display: flex; gap: 4px; padding: 4px; background: white; border: 1px solid #ddd; border-radius: 6px;">
-                    <button id="editor-mode-btn" class="mode-btn active" style="padding: 6px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Editor</button>
+                <div style="display: flex; gap: 4px; padding: 4px; background: #fefdfb; border: 1px solid #ddd; border-radius: 6px;">
+                    <button id="editor-mode-btn" class="mode-btn active" style="padding: 6px 16px; border: none; background: #16a34a; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Editor</button>
                     <button id="presentation-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Presentation</button>
                     <button id="network-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Network</button>
                     <button id="graph-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Graph</button>
@@ -1089,9 +1093,9 @@
                 <!-- Pane Toggle Controls -->
                 <div style="display: flex; gap: 4px; align-items: center;">
                     <span style="font-size: 11px; color: #666; margin-right: 4px;">Panes:</span>
-                    <button id="toggle-sidebar-btn" class="btn" title="Toggle Files/Structure Pane" style="padding: 4px 8px; font-size: 11px; background: #007acc; color: white; border-radius: 3px;">📁</button>
-                    <button id="toggle-editor-btn" class="btn" title="Toggle Editor Pane" style="padding: 4px 8px; font-size: 11px; background: #007acc; color: white; border-radius: 3px;">📝</button>
-                    <button id="toggle-preview-btn" class="btn" title="Toggle Preview Pane" style="padding: 4px 8px; font-size: 11px; background: #007acc; color: white; border-radius: 3px;">👁</button>
+                    <button id="toggle-sidebar-btn" class="btn" title="Toggle Files/Structure Pane" style="padding: 4px 8px; font-size: 11px; background: #16a34a; color: white; border-radius: 3px;">📁</button>
+                    <button id="toggle-editor-btn" class="btn" title="Toggle Editor Pane" style="padding: 4px 8px; font-size: 11px; background: #16a34a; color: white; border-radius: 3px;">📝</button>
+                    <button id="toggle-preview-btn" class="btn" title="Toggle Preview Pane" style="padding: 4px 8px; font-size: 11px; background: #16a34a; color: white; border-radius: 3px;">👁</button>
                 </div>
             </div>
 
@@ -1333,7 +1337,7 @@
                                 <strong>Visualization:</strong> <span id="wholepart-description-text">Select a visualization to explore concept relationships.</span>
                             </div>
                             
-                            <div id="wholepart-visualization" style="flex: 1; overflow: hidden; margin: 0 12px; border: 1px solid #e0e0e0; border-radius: 4px; background: white;">
+                            <div id="wholepart-visualization" style="flex: 1; overflow: hidden; margin: 0 12px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fefdfb;">
                                 <!-- D3 visualization will be rendered here -->
                             </div>
                             
@@ -1380,7 +1384,7 @@
                     </div>
                     
                     <!-- Network Controls Panel -->
-                    <div id="network-controls" style="position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px;">
+                    <div id="network-controls" style="position: absolute; top: 10px; right: 10px; background: #fefdfb; padding: 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px;">
                         <div style="margin-bottom: 8px; font-weight: bold;">Network Controls</div>
                         <button id="network-refresh" class="btn" style="margin-right: 5px; padding: 4px 8px; font-size: 11px;">🔄 Refresh</button>
                         <button id="network-center" class="btn" style="margin-right: 5px; padding: 4px 8px; font-size: 11px;">🎯 Center</button>
@@ -2325,7 +2329,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             <div 
               ref={containerRef}
               className="w-full h-screen relative overflow-hidden cursor-grab active:cursor-grabbing" 
-              style={{background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)'}}
+              style={{background: 'linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%)'}}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -2337,7 +2341,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                   <select
                     value={layoutType}
                     onChange={(e) => setLayoutType(e.target.value)}
-                    className="px-3 py-2 bg-white text-gray-900 rounded-lg border border-gray-300 focus:border-blue-500 outline-none shadow-lg"
+                    className="px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-green-500 outline-none shadow-lg"
+                    style={{backgroundColor: '#fefdfb'}}
                   >
                     <option value="spiral">Spiral</option>
                     <option value="linear">Linear</option>
@@ -2355,19 +2360,19 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 <div className="absolute top-4 right-4 z-10 flex gap-2">
                   <button
                     onClick={handleZoomIn}
-                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     <ZoomIn />
                   </button>
                   <button
                     onClick={handleZoomOut}
-                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     <ZoomOut />
                   </button>
                   <button
                     onClick={resetView}
-                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     <Home />
                   </button>
@@ -2386,12 +2391,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 <button
                   onClick={() => goToSlide(currentSlide - 1)}
                   disabled={currentSlide === 0}
-                  className="p-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
+                  className="p-3 bg-cream hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
                 >
                   <ChevronLeft />
                 </button>
                 
-                <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-lg border text-gray-900">
+                <div className="flex items-center gap-2 px-4 py-2 bg-cream rounded-lg shadow-lg border text-gray-900">
                   <span className="text-sm">
                     {currentSlide + 1} / {slides.length}
                   </span>
@@ -2402,7 +2407,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                           key={index}
                           onClick={() => goToSlide(index)}
                           className={`w-2 h-2 rounded-full transition-colors ${
-                            index === currentSlide ? 'bg-blue-500' : 'bg-gray-400'
+                            index === currentSlide ? 'bg-green-500' : 'bg-gray-400'
                           }`}
                         />
                       ))}
@@ -2413,7 +2418,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 <button
                   onClick={() => goToSlide(currentSlide + 1)}
                   disabled={currentSlide === slides.length - 1}
-                  className="p-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
+                  className="p-3 bg-cream hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
                 >
                   <ChevronRight />
                 </button>
@@ -2424,28 +2429,28 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 <div className="absolute top-4 right-4 z-10 flex gap-2">
                   <button
                     onClick={handleZoomIn}
-                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                     title="Zoom In"
                   >
                     <ZoomIn />
                   </button>
                   <button
                     onClick={handleZoomOut}
-                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                     title="Zoom Out"
                   >
                     <ZoomOut />
                   </button>
                   <button
                     onClick={resetView}
-                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                     title="Reset Zoom"
                   >
                     <Home />
                   </button>
                   <button
                     onClick={() => setIsPresenting(false)}
-                    className="px-4 py-2 bg-white hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+                    className="px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
                   >
                     Exit Presentation
                   </button>
@@ -2471,11 +2476,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                     return (
                       <div
                         key={slide.id}
-                        className={`absolute bg-white text-gray-900 rounded-xl shadow-2xl transition-all duration-300 cursor-pointer ${
+                        className={`absolute bg-cream text-gray-900 rounded-xl shadow-2xl transition-all duration-300 cursor-pointer ${
                           isFocused 
                             ? 'ring-4 ring-purple-500 shadow-purple-500/50' 
                             : isCurrent 
-                              ? 'ring-4 ring-blue-500' 
+                              ? 'ring-4 ring-green-500' 
                               : 'hover:shadow-3xl hover:scale-105'
                         }`}
                         style={{
@@ -3030,6 +3035,31 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         window.switchToMode = switchToMode;
         window.updateSpeakerNotes = updateSpeakerNotes;
         
+        // Global function to force show toggle buttons (debugging)
+        window.forceShowToggleButtons = function() {
+            console.log('[DEBUG] Forcing right pane toggle buttons to show...');
+            const toggleButtons = document.querySelector('#right-pane .toggle-buttons');
+            if (toggleButtons) {
+                toggleButtons.style.display = 'flex';
+                toggleButtons.style.visibility = 'visible';
+                toggleButtons.style.opacity = '1';
+                toggleButtons.style.position = 'relative';
+                toggleButtons.style.zIndex = '1000';
+                toggleButtons.style.minHeight = '50px';
+                console.log('[DEBUG] Right pane toggle buttons forced visible');
+                
+                // Also check if parent has issues
+                const parent = toggleButtons.parentElement;
+                if (parent) {
+                    console.log('[DEBUG] Parent element:', parent);
+                    console.log('[DEBUG] Parent display:', window.getComputedStyle(parent).display);
+                    console.log('[DEBUG] Parent visibility:', window.getComputedStyle(parent).visibility);
+                }
+            } else {
+                console.log('[DEBUG] Right pane toggle buttons element not found');
+            }
+        };
+        
         // Global function to fix stuck processing indicators
         window.fixStuckProcessingIndicator = function() {
             console.log('[Debug] Attempting to fix stuck processing indicator...');
@@ -3376,7 +3406,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             .data(data.links)
             .join('line')
             .attr('stroke-width', d => d.type === 'internal' ? 2 : 1)
-            .attr('stroke', d => d.type === 'internal' ? '#007acc' : '#999');
+            .attr('stroke', d => d.type === 'internal' ? '#16a34a' : '#999');
 
           // Create nodes
           const node = g.append('g')
@@ -3386,7 +3416,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             .data(data.nodes)
             .join('circle')
             .attr('r', d => 8 + (d.size || 0))
-            .attr('fill', '#007acc')
+            .attr('fill', '#16a34a')
             .call(d3.drag()
               .on('start', dragstarted)
               .on('drag', dragged)
