@@ -58,17 +58,29 @@ Comment on any of the following questions:
 
 Welcome to Machine Learning and Human Learning!
 
-In this course we'll be exploring these two related – but also very distinct – ideas. This week I'll provide an overview of the course, readings, approach and assessment. I'll also be introducing the work of Hegel, an Enlightenment-era German philosopher who will supply an important lens onto many of the questions posed by machines which purport to learn. 
+In this course we'll be exploring these two related – but also very distinct – ideas. This week I'll provide an overview of the course, readings, approach and assessment. I'll also be introducing the work of Hegel, an Enlightenment-era German philosopher who will supply an important lens onto many of the questions posed by this new era of machine learning. 
 
-We'll also have a general open discussion about machine learning and human learning: what unites them, and what distinguishes them. In true dialectical fashion, we will then think about what possible synthesis we might see between these two modalities of learning. Part of this discussion will involve, naturally enough, a machine that will be joining us – GPT-5 – to share its views.
+We'll also have a general open discussion about machine learning and human learning: what unites them, and what distinguishes them. In true dialectical fashion -- a term we will get used to as read Hegel –– we will then think about what possible synthesis we might see between these two ways of learning. Part of this discussion will involve, naturally enough, a machine that will be joining us – GPT-5 – to share its views.
 
 
+
+---
+
+## <a id="main-lecture"></a>Welcome to Machine Learning and Human Learning!
 
 ---
 
-## <a id="main-lecture"></a>Main Lecture
+### Synthesis
 
----
+We have entered a period in which our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 
+
+But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.
+
+We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Harraway); of cyber-social systems (Kalantzis Cope); and of compound terms like 'technosymbiosis' (Katherine Hayles) or a term I'll be using, in the context of learning, 'symbiotic pedagogy'.
+
+
+
+--- 
 
 
 ### <a id="modalities-of-learning"></a>Modalities of Learning

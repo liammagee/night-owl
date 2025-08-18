@@ -1827,11 +1827,18 @@ body.dark-mode #chat-input {
     transition: all var(--transition-fast) ease;
     opacity: 0;
     transform: translateX(100%);
+    cursor: pointer;
+    user-select: none;
 }
 
 .ai-flow-indicator.visible {
     opacity: 1;
     transform: translateX(0);
+}
+
+.ai-flow-indicator:hover {
+    transform: translateX(0) scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .ai-flow-indicator.flow-deep {
@@ -1850,6 +1857,35 @@ body.dark-mode #chat-input {
     background: linear-gradient(135deg, var(--warning-subtle) 0%, var(--surface) 100%);
     border-color: var(--warning);
     color: var(--warning);
+}
+
+/* Animate the processing indicator */
+.ai-flow-indicator.flow-struggling .flow-indicator-icon {
+    animation: processing-spin 2s linear infinite;
+}
+
+.ai-flow-indicator.flow-struggling {
+    animation: processing-pulse 3s ease-in-out infinite;
+}
+
+@keyframes processing-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes processing-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
 }
 
 .flow-indicator-icon {

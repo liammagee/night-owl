@@ -7,6 +7,11 @@ class AIFlowDetection {
         this.gamification = gamification;
         this.initialized = false;
         
+        // Flow indicator auto-hide timeout
+        this.flowIndicatorTimeout = null;
+        this.lastIndicatorHidden = 0; // Timestamp of when indicator was last hidden
+        this.indicatorCooldown = 10000; // 10 seconds cooldown before showing again
+        
         // Flow Detection Engine
         this.flowEngine = {
             isActive: false,
@@ -408,6 +413,16 @@ class AIFlowDetection {
             <span class="flow-indicator-text">Flow State</span>
         `;
         
+        // Make indicator clickable to dismiss
+        indicator.addEventListener('click', () => {
+            indicator.classList.remove('visible');
+            if (this.flowIndicatorTimeout) {
+                clearTimeout(this.flowIndicatorTimeout);
+                this.flowIndicatorTimeout = null;
+            }
+            this.lastIndicatorHidden = Date.now();
+        });
+        
         document.body.appendChild(indicator);
         
         // Update indicator based on flow state
@@ -421,33 +436,51 @@ class AIFlowDetection {
         const flowScore = this.flowEngine.currentFlowScore;
         const flowState = this.determineFlowState(flowScore);
         
+        // Check if we're in cooldown period (don't show indicator if recently hidden)
+        const now = Date.now();
+        if (now - this.lastIndicatorHidden < this.indicatorCooldown) {
+            console.log(`[Flow Detection] Indicator in cooldown for ${Math.round((this.indicatorCooldown - (now - this.lastIndicatorHidden)) / 1000)}s more`);
+            return; // Still in cooldown, don't show indicator
+        }
+        
+        // Clear any existing auto-hide timeout
+        if (this.flowIndicatorTimeout) {
+            clearTimeout(this.flowIndicatorTimeout);
+            this.flowIndicatorTimeout = null;
+        }
+        
         // Remove existing flow classes
         indicator.classList.remove('flow-deep', 'flow-light', 'flow-struggling', 'visible');
         
         let className = '';
         let icon = '🌊';
         let text = 'Flow State';
+        let autoHideDelay = null;
         
         switch (flowState) {
             case 'deep_flow':
                 className = 'flow-deep';
                 icon = '🌊';
                 text = 'Deep Flow';
+                autoHideDelay = 8000; // Hide after 8 seconds
                 break;
             case 'light_flow':
                 className = 'flow-light';
                 icon = '✨';
                 text = 'In Flow';
+                autoHideDelay = 6000; // Hide after 6 seconds
                 break;
             case 'focused':
                 className = 'flow-light';
                 icon = '🎯';
                 text = 'Focused';
+                autoHideDelay = 5000; // Hide after 5 seconds
                 break;
             case 'struggling':
                 className = 'flow-struggling';
                 icon = '🔄';
                 text = 'Processing';
+                autoHideDelay = 4000; // Hide after 4 seconds
                 break;
             default:
                 // Hide indicator when not in a notable state
@@ -457,6 +490,15 @@ class AIFlowDetection {
         indicator.classList.add(className, 'visible');
         indicator.querySelector('.flow-indicator-icon').textContent = icon;
         indicator.querySelector('.flow-indicator-text').textContent = text;
+        
+        // Set auto-hide timeout
+        if (autoHideDelay) {
+            this.flowIndicatorTimeout = setTimeout(() => {
+                indicator.classList.remove('visible');
+                this.flowIndicatorTimeout = null;
+                this.lastIndicatorHidden = Date.now(); // Record when indicator was hidden
+            }, autoHideDelay);
+        }
     }
     
     createInsightsPanel() {
@@ -905,17 +947,17 @@ class AIFlowDetection {
     
     calculateSentenceRhythm() {
         // This would analyze sentence structure rhythms
-        return Math.random() * 0.4 + 0.3; // Placeholder
+        return 0.6; // Neutral value - no random "struggling" scores
     }
     
     calculateVocabularyFlow() {
         // This would analyze vocabulary complexity and flow
-        return Math.random() * 0.4 + 0.4; // Placeholder
+        return 0.6; // Neutral value - no random "struggling" scores
     }
     
     calculateConceptualCoherence() {
         // This would analyze how well ideas connect
-        return Math.random() * 0.3 + 0.5; // Placeholder
+        return 0.6; // Neutral value - no random "struggling" scores
     }
     
     getTimeContextFeatures() {
@@ -939,16 +981,34 @@ class AIFlowDetection {
         // Lightweight flow state update based on recent typing patterns
         const recentScore = this.calculateQuickFlowScore();
         this.flowEngine.currentFlowScore = recentScore;
-        this.updateFlowIndicator();
+        
+        // Only update indicator if score indicates a notable state AND we're not in cooldown
+        const flowState = this.determineFlowState(recentScore);
+        const now = Date.now();
+        
+        // Don't trigger indicator updates too frequently or during cooldown (v2)
+        if (flowState !== 'blocked' && now - this.lastIndicatorHidden >= this.indicatorCooldown) {
+            this.updateFlowIndicator();
+        }
     }
     
     calculateQuickFlowScore() {
-        const rhythm = this.flowEngine.typingPattern.rhythm || 0.5;
-        const consistency = this.flowEngine.typingPattern.consistency || 0.5;
-        const cognitiveLoad = this.flowEngine.cognitiveLoad.currentLoad || 0.5;
+        const rhythm = this.flowEngine.typingPattern.rhythm || 0.6;
+        const consistency = this.flowEngine.typingPattern.consistency || 0.6;
+        const cognitiveLoad = this.flowEngine.cognitiveLoad.currentLoad || 0.4;
+        
+        // Only return a "struggling" score if there's real evidence of typing issues
+        const recentIntervals = this.flowEngine.typingPattern.intervals.slice(-10);
+        if (recentIntervals.length < 5) {
+            // Not enough data to determine flow state - don't trigger indicator
+            return 0.6; // Neutral state that won't trigger indicator
+        }
         
         // Quick flow estimation
-        return (rhythm * 0.4 + consistency * 0.4 + (1 - cognitiveLoad) * 0.2);
+        const baseScore = (rhythm * 0.4 + consistency * 0.4 + (1 - cognitiveLoad) * 0.2);
+        
+        // Bias toward not showing indicator unless there's clear flow state
+        return baseScore > 0.7 ? baseScore : 0.6;
     }
 }
 
