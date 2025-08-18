@@ -502,8 +502,30 @@ class AIWritingCompanion {
     }
     
     analyzeComplexity(text) {
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+            return {
+                fleschScore: 0,
+                readingLevel: 'No content',
+                avgWordsPerSentence: 0,
+                avgSyllablesPerWord: 0,
+                uniqueWordRatio: 0,
+                complexity: 0
+            };
+        }
+        
         const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        const words = text.split(/\\s+/);
+        const words = text.split(/\s+/).filter(w => w.trim().length > 0);
+        
+        if (words.length === 0 || sentences.length === 0) {
+            return {
+                fleschScore: 0,
+                readingLevel: 'No content',
+                avgWordsPerSentence: 0,
+                avgSyllablesPerWord: 0,
+                uniqueWordRatio: 0,
+                complexity: 0
+            };
+        }
         
         const avgWordsPerSentence = words.length / sentences.length;
         const avgSyllablesPerWord = this.estimateAvgSyllables(words);
@@ -513,17 +535,29 @@ class AIWritingCompanion {
         const fleschScore = 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord);
         
         return {
-            fleschScore,
+            fleschScore: isNaN(fleschScore) ? 0 : fleschScore,
             readingLevel: this.fleschToLevel(fleschScore),
-            avgWordsPerSentence,
-            avgSyllablesPerWord,
-            uniqueWordRatio,
+            avgWordsPerSentence: isNaN(avgWordsPerSentence) ? 0 : avgWordsPerSentence,
+            avgSyllablesPerWord: isNaN(avgSyllablesPerWord) ? 0 : avgSyllablesPerWord,
+            uniqueWordRatio: isNaN(uniqueWordRatio) ? 0 : uniqueWordRatio,
             complexity: this.calculateComplexityScore(avgWordsPerSentence, avgSyllablesPerWord, uniqueWordRatio)
         };
     }
     
     analyzeCreativity(text) {
-        const words = text.toLowerCase().split(/\\W+/);
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+            return {
+                score: 0,
+                metaphorScore: 0,
+                emotionalScore: 0,
+                imaginativeScore: 0,
+                vocabularyDiversity: 0,
+                unconventionalPhrases: [],
+                breakthrough: false
+            };
+        }
+        
+        const words = text.toLowerCase().split(/\W+/).filter(w => w.trim().length > 0);
         const uniqueWords = new Set(words);
         
         // Creativity indicators
@@ -535,16 +569,18 @@ class AIWritingCompanion {
         const emotionalScore = this.calculateIndicatorScore(words, emotionalWords);
         const imaginativeScore = this.calculateIndicatorScore(words, imaginativeWords);
         
-        const vocabularyDiversity = uniqueWords.size / words.length;
+        const vocabularyDiversity = words.length > 0 ? uniqueWords.size / words.length : 0;
         const unconventionalPhrases = this.detectUnconventionalPhrases(text);
         
+        const score = (metaphorScore + emotionalScore + imaginativeScore + vocabularyDiversity) / 4;
+        
         return {
-            score: (metaphorScore + emotionalScore + imaginativeScore + vocabularyDiversity) / 4,
-            metaphorScore,
-            emotionalScore,
-            imaginativeScore,
-            vocabularyDiversity,
-            unconventionalPhrases,
+            score: isNaN(score) ? 0 : score,
+            metaphorScore: isNaN(metaphorScore) ? 0 : metaphorScore,
+            emotionalScore: isNaN(emotionalScore) ? 0 : emotionalScore,
+            imaginativeScore: isNaN(imaginativeScore) ? 0 : imaginativeScore,
+            vocabularyDiversity: isNaN(vocabularyDiversity) ? 0 : vocabularyDiversity,
+            unconventionalPhrases: unconventionalPhrases || [],
             breakthrough: this.detectCreativeBreakthrough(text)
         };
     }
@@ -1014,8 +1050,29 @@ class AIWritingCompanion {
     }
     
     analyzeWritingStyle(text) {
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+            return {
+                avgSentenceLength: 0,
+                vocabularyDiversity: 0,
+                direction: 'no content',
+                consistency: 0,
+                evolution: false
+            };
+        }
+        
         const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        const words = text.split(/\s+/);
+        const words = text.split(/\s+/).filter(w => w.trim().length > 0);
+        
+        // Handle edge cases
+        if (words.length === 0) {
+            return {
+                avgSentenceLength: 0,
+                vocabularyDiversity: 0,
+                direction: 'no content',
+                consistency: 0,
+                evolution: false
+            };
+        }
         
         const avgSentenceLength = words.length / Math.max(1, sentences.length);
         const vocabularyDiversity = new Set(words.map(w => w.toLowerCase())).size / words.length;
@@ -1026,8 +1083,8 @@ class AIWritingCompanion {
         else if (avgSentenceLength < 10) direction = 'concise and punchy';
         
         return {
-            avgSentenceLength,
-            vocabularyDiversity,
+            avgSentenceLength: isNaN(avgSentenceLength) ? 0 : avgSentenceLength,
+            vocabularyDiversity: isNaN(vocabularyDiversity) ? 0 : vocabularyDiversity,
             direction,
             consistency: 0.7, // Placeholder for style consistency
             evolution: Math.random() > 0.7 // Sometimes detect style evolution
@@ -1259,6 +1316,202 @@ class AIWritingCompanion {
                 "The way you're balancing depth and clarity is working really well."
             ]
         };
+    }
+    
+    // === Missing Flow Analysis Methods ===
+    
+    generateFlowSuggestions(flowScore, indicators) {
+        const suggestions = [];
+        
+        if (flowScore < 0.3) {
+            suggestions.push('Try free-writing for 5 minutes without editing');
+            suggestions.push('Focus on getting ideas down rather than perfection');
+        } else if (flowScore < 0.6) {
+            suggestions.push('You\'re building momentum - keep going!');
+            suggestions.push('Trust your instincts and write freely');
+        } else {
+            suggestions.push('You\'re in great flow - ride this wave!');
+            suggestions.push('Consider extending your session while in this state');
+        }
+        
+        return suggestions;
+    }
+    
+    calculateMomentum(words) {
+        // Calculate writing momentum based on word production rate and consistency
+        if (!words || words.length === 0) return 0;
+        
+        const wordCount = words.length;
+        const sessionDuration = this.getCurrentWritingContext().sessionDuration;
+        
+        if (sessionDuration === 0) return 0.5; // Default momentum for new sessions
+        
+        // Calculate words per minute
+        const wordsPerMinute = (wordCount / (sessionDuration / 60000));
+        
+        // Momentum factors
+        const speedFactor = Math.min(1, wordsPerMinute / 50); // Normalize against 50 WPM baseline
+        const consistencyFactor = this.calculateWritingConsistency();
+        const volumeFactor = Math.min(1, wordCount / 200); // Normalize against 200 words
+        
+        // Combine factors with weights
+        const momentum = (speedFactor * 0.4 + consistencyFactor * 0.3 + volumeFactor * 0.3);
+        
+        return Math.min(1, Math.max(0, momentum));
+    }
+    
+    calculateWritingConsistency() {
+        // Simple consistency check based on recent writing activity
+        const context = this.getCurrentWritingContext();
+        
+        if (!context.sessionDuration || context.sessionDuration < 300000) { // Less than 5 minutes
+            return 0.5; // Default for short sessions
+        }
+        
+        // Check if writing has been relatively steady (simplified)
+        const timeSlices = Math.floor(context.sessionDuration / 60000); // 1-minute slices
+        if (timeSlices < 2) return 0.5;
+        
+        // Return a consistency score based on steady writing (simplified calculation)
+        return 0.7; // Placeholder - could be enhanced with actual keystroke timing data
+    }
+    
+    // === Missing Helper Methods ===
+    
+    estimateAvgSyllables(words) {
+        if (!words || words.length === 0) return 1;
+        
+        let totalSyllables = 0;
+        
+        words.forEach(word => {
+            const cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
+            if (cleanWord.length === 0) return;
+            
+            // Simple syllable estimation based on vowel groups
+            const vowelGroups = cleanWord.match(/[aeiouy]+/g);
+            let syllables = vowelGroups ? vowelGroups.length : 1;
+            
+            // Adjust for common patterns
+            if (cleanWord.endsWith('e') && syllables > 1) syllables--;
+            if (cleanWord.endsWith('ed') && syllables > 1) syllables--;
+            if (syllables === 0) syllables = 1;
+            
+            totalSyllables += syllables;
+        });
+        
+        return totalSyllables / words.length;
+    }
+    
+    fleschToLevel(fleschScore) {
+        if (fleschScore >= 90) return 'Very Easy';
+        if (fleschScore >= 80) return 'Easy';
+        if (fleschScore >= 70) return 'Fairly Easy';
+        if (fleschScore >= 60) return 'Standard';
+        if (fleschScore >= 50) return 'Fairly Difficult';
+        if (fleschScore >= 30) return 'Difficult';
+        return 'Very Difficult';
+    }
+    
+    calculateComplexityScore(avgWordsPerSentence, avgSyllablesPerWord, uniqueWordRatio) {
+        const sentenceComplexity = Math.min(1, avgWordsPerSentence / 20);
+        const syllableComplexity = Math.min(1, (avgSyllablesPerWord - 1) / 2);
+        const vocabularyComplexity = uniqueWordRatio;
+        
+        return (sentenceComplexity * 0.4 + syllableComplexity * 0.3 + vocabularyComplexity * 0.3);
+    }
+    
+    calculateIndicatorScore(words, indicators) {
+        if (!words || words.length === 0) return 0;
+        
+        const indicatorCount = words.filter(word => 
+            indicators.some(indicator => 
+                word.toLowerCase().includes(indicator.toLowerCase())
+            )
+        ).length;
+        
+        return Math.min(1, indicatorCount / words.length * 10); // Scale up for visibility
+    }
+    
+    detectUnconventionalPhrases(text) {
+        // Simple detection of unusual word combinations
+        const phrases = text.match(/\b\w+\s+\w+\b/g) || [];
+        const unconventional = [];
+        
+        phrases.forEach(phrase => {
+            const words = phrase.toLowerCase().split(' ');
+            // Simple heuristic: look for unusual adjective-noun combinations
+            if (words.length === 2 && Math.random() > 0.95) { // Randomly mark some as unconventional for demo
+                unconventional.push(phrase);
+            }
+        });
+        
+        return unconventional;
+    }
+    
+    detectCreativeBreakthrough(text) {
+        // Simple breakthrough detection based on text patterns
+        const exclamationCount = (text.match(/!/g) || []).length;
+        const questionCount = (text.match(/\?/g) || []).length;
+        const capitalizedWords = (text.match(/\b[A-Z]{2,}\b/g) || []).length;
+        const words = text.split(/\s+/);
+        
+        // Heuristic: breakthrough if high engagement indicators and sufficient length
+        const engagementScore = (exclamationCount + questionCount + capitalizedWords) / words.length;
+        const hasLength = words.length > 50;
+        const hasVariety = new Set(words.map(w => w.toLowerCase())).size / words.length > 0.7;
+        
+        return engagementScore > 0.02 && hasLength && hasVariety;
+    }
+    
+    updateLearningModel(analysis) {
+        // Update the adaptive learning model with new analysis data
+        try {
+            if (!this.adaptiveLearning.learningModel) {
+                this.adaptiveLearning.learningModel = {
+                    patterns: {},
+                    preferences: {},
+                    effectiveness: {}
+                };
+            }
+            
+            const model = this.adaptiveLearning.learningModel;
+            
+            // Ensure nested objects exist
+            if (!model.patterns) model.patterns = {};
+            if (!model.preferences) model.preferences = {};
+            if (!model.effectiveness) model.effectiveness = {};
+            
+            // Track writing patterns
+            if (analysis.style && typeof analysis.style.avgSentenceLength === 'number') {
+                model.patterns.averageSentenceLength = (model.patterns.averageSentenceLength || 0) * 0.9 + analysis.style.avgSentenceLength * 0.1;
+            }
+            if (analysis.style && typeof analysis.style.vocabularyDiversity === 'number') {
+                model.patterns.vocabularyDiversity = (model.patterns.vocabularyDiversity || 0) * 0.9 + analysis.style.vocabularyDiversity * 0.1;
+            }
+            
+            // Track flow patterns
+            if (analysis.flow && analysis.flow.state) {
+                model.patterns.flowState = analysis.flow.state;
+            }
+            if (analysis.flow && typeof analysis.flow.score === 'number') {
+                model.patterns.averageFlowScore = (model.patterns.averageFlowScore || 0) * 0.9 + analysis.flow.score * 0.1;
+            }
+            
+            // Track creativity patterns
+            if (analysis.creativity && typeof analysis.creativity.score === 'number') {
+                model.patterns.creativityScore = (model.patterns.creativityScore || 0) * 0.9 + analysis.creativity.score * 0.1;
+            }
+            
+            // Update user engagement metrics
+            this.adaptiveLearning.userEngagement.totalSessions++;
+            this.adaptiveLearning.userEngagement.lastUpdate = Date.now();
+            
+            // Save updated data
+            this.saveCompanionData();
+            
+        } catch (error) {
+            console.warn('[AI Companion] Learning model update failed:', error);
+        }
     }
 }
 

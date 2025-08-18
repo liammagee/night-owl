@@ -110,6 +110,17 @@ function initializeCommandPalette() {
     registerCommand('ai.loadEditor', 'AI: Load Editor Content to Chat', () => window.loadEditorToChat());
     registerCommand('ai.clearChat', 'AI: Clear Chat History', () => window.clearAIChat());
     registerCommand('ai.summarize', 'AI: Summarize Document', () => window.summarizeDocument());
+    registerCommand('ai.todoSuggestions', 'AI: Get TODO Suggestions', () => {
+        const gamification = window.gamificationInstance;
+        if (gamification && gamification.todoGamification) {
+            gamification.todoGamification.generateAISuggestionsNow();
+        } else {
+            console.warn('[Command Palette] TODO gamification not available');
+            if (window.showNotification) {
+                window.showNotification('TODO gamification not initialized. Please open a TODO file first.', 'warning');
+            }
+        }
+    });
     
     // Table of Contents
     registerCommand('toc.insert', 'Table of Contents: Insert ToC', async () => await window.insertTableOfContents());

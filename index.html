@@ -1097,9 +1097,8 @@
 
             <!-- Editor Content -->
             <div id="editor-content" class="content-view active">
-                <div id="editor-pane">
-                    <!-- Editor Toolbar -->
-                    <div id="editor-toolbar">
+                <!-- Editor Toolbar (spans both editor and preview panes) -->
+                <div id="editor-toolbar">
                         <!-- Markdown Formatting Tools -->
                         <button id="format-bold-btn" class="toolbar-btn toolbar-btn-bold" title="Bold (Ctrl+B)">
                             B
@@ -1201,24 +1200,30 @@
                         <button id="global-search-btn" class="toolbar-btn" title="Global Search (Ctrl+Shift+F)">
                             🔍
                         </button>
-                    </div>
-                    <div id="editor-container" style="width: 100%; flex: 1;"></div>
-                    <textarea id="fallback-editor" style="display: none; width: 100%; flex: 1; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
-                    <!-- Status Bar -->
-                    <div id="editor-status-bar" style="height: 24px; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; color: #666; flex-shrink: 0;">
-                        <div id="status-left" style="display: flex; align-items: center; gap: 12px;">
-                            <span id="word-count">Words: 0</span>
-                            <span id="char-count">Characters: 0</span>
-                            <span id="line-count">Lines: 1</span>
-                        </div>
-                        <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
-                            <span id="cursor-position">Ln 1, Col 1</span>
-                            <span id="file-status">Markdown (.md)</span>
-                        </div>
-                    </div>
+                        <button id="ai-todo-suggestions-btn" class="toolbar-btn" title="Get AI TODO Suggestions">
+                            🤖
+                        </button>
                 </div>
-                <div id="resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
-                <div id="right-pane">
+                <!-- Container for editor and preview panes -->
+                <div id="panes-container" style="display: flex; flex: 1; overflow: hidden;">
+                    <div id="editor-pane">
+                        <div id="editor-container" style="width: 100%; flex: 1;"></div>
+                        <textarea id="fallback-editor" style="display: none; width: 100%; flex: 1; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
+                        <!-- Status Bar -->
+                        <div id="editor-status-bar" style="height: 24px; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; color: #666; flex-shrink: 0;">
+                            <div id="status-left" style="display: flex; align-items: center; gap: 12px;">
+                                <span id="word-count">Words: 0</span>
+                                <span id="char-count">Characters: 0</span>
+                                <span id="line-count">Lines: 1</span>
+                            </div>
+                            <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
+                                <span id="cursor-position">Ln 1, Col 1</span>
+                                <span id="file-status">Markdown (.md)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
+                    <div id="right-pane">
                     <div class="toggle-buttons" style="padding: 8px; border-bottom: 1px solid #ddd; flex-shrink: 0;">
                         <button id="show-preview-btn" class="btn pane-toggle-button active">Preview</button>
                         <button id="show-chat-btn" class="btn pane-toggle-button">AI Chat</button>
@@ -1341,6 +1346,7 @@
                         </div>
                     </div>
                 </div>
+                </div> <!-- End panes-container -->
             </div>
 
             <!-- Presentation Content -->

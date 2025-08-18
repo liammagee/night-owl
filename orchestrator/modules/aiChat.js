@@ -191,7 +191,24 @@ async function sendChatMessage() {
 
         if (result.error) {
             console.error('[AI Chat] Chat Error:', result.error);
-            addChatMessage(`Error: ${result.error}`, 'AI');
+            
+            // Provide user-friendly error messages based on error type
+            let userMessage = `Error: ${result.error}`;
+            
+            if (result.error.includes('API key') || result.error.includes('401') || result.error.includes('403')) {
+                userMessage = '🔑 AI service authentication failed. Please check your API keys in Settings → AI Configuration.';
+            } else if (result.error.includes('network') || result.error.includes('fetch') || result.error.includes('ENOTFOUND') || 
+                      result.error.includes('ECONNREFUSED') || result.error.includes('timeout')) {
+                userMessage = '🌐 Network error: Unable to connect to AI service. Please check your internet connection or try again later.';
+            } else if (result.error.includes('rate limit') || result.error.includes('429')) {
+                userMessage = '⏱️ Rate limit exceeded. Please wait a moment before sending another message.';
+            } else if (result.error.includes('quota') || result.error.includes('billing')) {
+                userMessage = '💳 API quota exceeded or billing issue. Please check your AI service account.';
+            } else if (result.error.includes('Provider') && result.error.includes('not available')) {
+                userMessage = '⚙️ AI provider not configured. Please set up your AI service in Settings → AI Configuration.';
+            }
+            
+            addChatMessage(userMessage, 'AI');
         } else if (result.response) {
             addChatMessage(result.response, 'AI', false, { provider: result.provider, model: result.model });
         } else {
@@ -208,7 +225,20 @@ async function sendChatMessage() {
                 chatMessages.removeChild(typingIndicator);
             }
         }
-        addChatMessage('Error communicating with the AI service.', 'AI');
+        
+        // Provide user-friendly error message based on error type
+        let userMessage = 'Error communicating with the AI service.';
+        
+        if (error.message && (error.message.includes('network') || error.message.includes('offline') || 
+            error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED'))) {
+            userMessage = '🌐 Network error: Please check your internet connection and try again.';
+        } else if (error.message && error.message.includes('timeout')) {
+            userMessage = '⏱️ Request timed out. The AI service may be busy. Please try again.';
+        } else if (error.message && error.message.includes('invoke')) {
+            userMessage = '⚙️ Communication error with AI service. Please restart the application if this persists.';
+        }
+        
+        addChatMessage(userMessage, 'AI');
     } finally {
         chatInput.disabled = false; // Re-enable input
         if (chatSendBtn) chatSendBtn.disabled = false;
@@ -842,6 +872,12 @@ async function showAISettings() {
             settingsMessage += `**Default Provider:** ${defaultProvider || 'Not set'}\n\n`;
         } else {
             settingsMessage += '❌ **No AI providers configured**\n\n';
+            settingsMessage += '📝 **Offline Mode Features:**\n';
+            settingsMessage += '• TODO Suggestions: ✅ Smart contextual suggestions\n';
+            settingsMessage += '• Writing Analysis: ✅ Local text analysis\n';
+            settingsMessage += '• Gamification: ✅ Full points and achievements\n';
+            settingsMessage += '• File Management: ✅ All file operations\n\n';
+            settingsMessage += '💡 Many features work without AI! Configure providers in Settings for enhanced capabilities.\n\n';
         }
         
         // Try to get more detailed settings

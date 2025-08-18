@@ -1,6 +1,8 @@
+# TODO Context
 
+Defines tasks relating to this software itself.
 
-# TODOS
+## Tasks
 
 1. Export to PDF / HTML - DONE
 2. Markdown formatting (bold / italic etc) - DONE
@@ -46,7 +48,7 @@
 43. Whole / part navigation, simulation - IN PROGRESS
 44. Test framework - DONE
 45. Text summarization, scrolling in / out - IN PROGRESS
-46. Gamified TODOs
+46. Gamified TODOs - IN PROGRESS
 47. Internal Link Previews - text legibility - DONE
 48. Generate references
 49. Create images / cartoons
@@ -60,4 +62,4 @@
 57. Autocomplete bibtex citations - DONE
 58. AI integration with gamification - IN PROGRESS
 59. Accessible HTML export
-60. AI review
+61. Add local AI

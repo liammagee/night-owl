@@ -42,7 +42,7 @@ class TodoGamification {
         this.aiSuggestions = {
             enabled: true,
             lastGenerated: 0,
-            cooldown: 3600000, // 1 hour
+            cooldown: 300000, // 5 minutes for better testing
             maxSuggestions: 5,
             contextKeywords: []
         };
@@ -146,12 +146,15 @@ class TodoGamification {
     }
     
     handleTaskMoved(taskData) {
-        const { from, to, task } = taskData;
+        const { from, to, text, id, filePath } = taskData;
+        
+        // Create task object for compatibility with other methods
+        const task = { text, id, filePath };
         
         if (to === 'done') {
             this.handleTaskCompleted(task);
         } else if (from === 'todo' && to === 'inprogress') {
-            this.awardPoints(2, `Started working on: ${task.text}`);
+            this.awardPoints(2, `Started working on: ${text}`);
             this.logTaskAction('started', task);
         }
     }
@@ -325,6 +328,27 @@ class TodoGamification {
         console.log(`[TODO Gamification] Reminder: ${type}`, tasks);
     }
     
+    setupTaskReminders(boardData) {
+        // Set up task-specific reminders based on board data
+        if (!boardData || !boardData.tasksByColumn) return;
+        
+        const allTasks = [];
+        Object.values(boardData.tasksByColumn).forEach(columnTasks => {
+            allTasks.push(...columnTasks);
+        });
+        
+        // Store current tasks for reminder checking
+        this.currentTasks = allTasks.map(task => ({
+            id: task.id,
+            text: task.text,
+            status: task.status,
+            filePath: boardData.filePath,
+            lastSeen: Date.now()
+        }));
+        
+        console.log(`[TODO Gamification] Set up reminders for ${allTasks.length} tasks`);
+    }
+    
     // === AI Suggestions System ===
     
     setupAISuggestions() {
@@ -333,38 +357,69 @@ class TodoGamification {
     }
     
     async checkAndGenerateAISuggestions(boardData) {
-        if (!this.aiSuggestions.enabled) return;
+        console.log('[TODO Gamification] Checking AI suggestions...', {
+            enabled: this.aiSuggestions.enabled,
+            cooldownRemaining: this.aiSuggestions.cooldown - (Date.now() - this.aiSuggestions.lastGenerated),
+            boardData
+        });
+        
+        if (!this.aiSuggestions.enabled) {
+            console.log('[TODO Gamification] AI suggestions disabled');
+            return;
+        }
         
         const now = Date.now();
-        if (now - this.aiSuggestions.lastGenerated < this.aiSuggestions.cooldown) return;
+        const timeSinceLastGenerated = now - this.aiSuggestions.lastGenerated;
+        if (timeSinceLastGenerated < this.aiSuggestions.cooldown) {
+            console.log('[TODO Gamification] Still in cooldown period:', {
+                timeSinceLastGenerated,
+                cooldown: this.aiSuggestions.cooldown
+            });
+            return;
+        }
         
         // Clear existing timer
         if (this.suggestionTimer) {
             clearTimeout(this.suggestionTimer);
         }
         
-        // Wait a bit to see if user is still actively editing
+        // Reduce wait time for testing - Wait a bit to see if user is still actively editing
         this.suggestionTimer = setTimeout(() => {
+            console.log('[TODO Gamification] Generating AI suggestions after timeout...');
             this.generateAISuggestions(boardData);
-        }, 30000); // 30 seconds of inactivity
+        }, 5000); // Reduced to 5 seconds for better user experience
     }
     
     async generateAISuggestions(boardData) {
         try {
+            console.log('[TODO Gamification] Starting AI suggestion generation...');
+            
             const context = await this.extractTodoContext();
             const currentTasks = this.extractTasksFromBoard(document.querySelector('.kanban-board'));
             
-            if (!context && currentTasks.length === 0) return;
+            console.log('[TODO Gamification] Extracted data:', {
+                context,
+                contextSource: context ? 'extracted' : 'none found',
+                filePath: window.currentFilePath,
+                currentTasksCount: currentTasks.length,
+                currentTasks: currentTasks.map(t => t.text)
+            });
             
+            // Always generate suggestions, even if no context or tasks
             const suggestions = await this.callAIForSuggestions(context, currentTasks);
+            
+            console.log('[TODO Gamification] Generated suggestions:', suggestions);
             
             if (suggestions && suggestions.length > 0) {
                 this.displayAISuggestions(suggestions);
                 this.aiSuggestions.lastGenerated = Date.now();
+                console.log('[TODO Gamification] AI suggestions displayed successfully');
+            } else {
+                console.log('[TODO Gamification] No suggestions to display');
             }
             
         } catch (error) {
-            console.warn('[TODO Gamification] AI suggestions failed:', error);
+            console.error('[TODO Gamification] AI suggestions failed:', error);
         }
     }
     
@@ -393,20 +448,101 @@ class TodoGamification {
             }
         }
         
+        // If no explicit context found, try to infer from filename and content
+        if (!contextBlock.trim()) {
+            contextBlock = this.inferContextFromContent(content, window.currentFilePath);
+        }
+        
         return contextBlock.trim() || null;
+    }
+    
+    inferContextFromContent(content, filePath) {
+        let inferredContext = '';
+        
+        // Analyze filename for context clues
+        if (filePath) {
+            const fileName = filePath.split('/').pop().toLowerCase();
+            
+            if (fileName.includes('lecture')) {
+                inferredContext += 'Educational content and lecture preparation. ';
+            }
+            if (fileName.includes('research')) {
+                inferredContext += 'Research and academic work. ';
+            }
+            if (fileName.includes('project')) {
+                inferredContext += 'Project management and development. ';
+            }
+            if (fileName.includes('dev') || fileName.includes('code')) {
+                inferredContext += 'Software development and programming. ';
+            }
+        }
+        
+        // Analyze content for domain-specific keywords
+        const contentLower = content.toLowerCase();
+        const keywordAnalysis = {
+            education: ['lecture', 'teaching', 'student', 'course', 'curriculum', 'pedagogy', 'learning'],
+            development: ['code', 'programming', 'development', 'software', 'application', 'feature', 'bug', 'testing'],
+            research: ['research', 'analysis', 'study', 'investigation', 'methodology', 'data', 'results'],
+            philosophy: ['philosophy', 'hegel', 'dialectic', 'phenomenology', 'concept', 'thesis', 'antithesis'],
+            presentation: ['presentation', 'slide', 'powerpoint', 'export', 'template', 'format'],
+            ai: ['ai', 'artificial intelligence', 'machine learning', 'automation', 'intelligent']
+        };
+        
+        // Count keyword occurrences
+        const domainScores = {};
+        Object.entries(keywordAnalysis).forEach(([domain, keywords]) => {
+            domainScores[domain] = keywords.reduce((score, keyword) => {
+                const regex = new RegExp(keyword, 'gi');
+                const matches = contentLower.match(regex);
+                return score + (matches ? matches.length : 0);
+            }, 0);
+        });
+        
+        // Find dominant domains
+        const topDomains = Object.entries(domainScores)
+            .filter(([domain, score]) => score > 0)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 2);
+        
+        // Generate context description
+        topDomains.forEach(([domain, score]) => {
+            switch (domain) {
+                case 'education':
+                    inferredContext += 'Educational content, teaching materials, and pedagogy. ';
+                    break;
+                case 'development':
+                    inferredContext += 'Software development, programming, and technical implementation. ';
+                    break;
+                case 'research':
+                    inferredContext += 'Academic research, analysis, and scholarly work. ';
+                    break;
+                case 'philosophy':
+                    inferredContext += 'Philosophical analysis, Hegelian concepts, and theoretical work. ';
+                    break;
+                case 'presentation':
+                    inferredContext += 'Presentation creation, slide development, and content formatting. ';
+                    break;
+                case 'ai':
+                    inferredContext += 'Artificial intelligence, automation, and intelligent systems. ';
+                    break;
+            }
+        });
+        
+        return inferredContext.trim();
     }
     
     async callAIForSuggestions(context, currentTasks) {
         // Check if AI chat is available
         if (!window.sendChatMessage) {
-            console.log('[TODO Gamification] AI chat not available for suggestions');
-            return [];
+            console.log('[TODO Gamification] AI chat not available, generating offline suggestions');
+            return this.generateOfflineSuggestions(context, currentTasks);
         }
         
-        const taskList = currentTasks.map(t => `${t.status}: ${t.text}`).join('\\n');
-        
-        const prompt = `Based on this TODO context: "${context || 'General task management'}"
-        
+        try {
+            const taskList = currentTasks.map(t => `${t.status}: ${t.text}`).join('\\n');
+            
+            const prompt = `Based on this TODO context: "${context || 'General task management'}"
+            
 Current tasks:
 ${taskList || 'No current tasks'}
 
@@ -417,23 +553,210 @@ etc.
 
 Keep suggestions practical and relevant to the context. Don't repeat existing tasks.`;
 
-        try {
             // Send request to AI (this would need to be integrated with the existing AI system)
             console.log('[TODO Gamification] Requesting AI suggestions...');
             
-            // For now, return sample suggestions
-            return [
-                'Review and prioritize current tasks',
-                'Set deadlines for pending items',
-                'Break down complex tasks into subtasks',
-                'Schedule time blocks for focused work',
-                'Identify dependencies between tasks'
-            ];
+            // TODO: Integrate with actual AI service
+            // For now, return contextual offline suggestions
+            return this.generateOfflineSuggestions(context, currentTasks);
             
         } catch (error) {
-            console.error('[TODO Gamification] AI suggestion request failed:', error);
-            return [];
+            console.error('[TODO Gamification] AI suggestion request failed, falling back to offline suggestions:', error);
+            return this.generateOfflineSuggestions(context, currentTasks);
         }
+    }
+    
+    generateOfflineSuggestions(context, currentTasks) {
+        console.log('[TODO Gamification] Generating offline contextual suggestions...');
+        
+        const suggestions = [];
+        const existingTaskTexts = currentTasks.map(t => t.text.toLowerCase());
+        
+        // Base suggestions that work for any project
+        const baseSuggestions = [
+            'Review and prioritize current tasks',
+            'Set deadlines for pending items',
+            'Break down complex tasks into subtasks',
+            'Schedule time blocks for focused work',
+            'Identify dependencies between tasks',
+            'Create backup plan for critical tasks',
+            'Document progress and lessons learned',
+            'Prepare materials needed for next tasks',
+            'Review completed tasks for improvements',
+            'Plan communication with stakeholders'
+        ];
+        
+        // Context-specific suggestions
+        const contextSuggestions = this.generateContextualSuggestions(context, currentTasks);
+        
+        // Task-pattern based suggestions
+        const patternSuggestions = this.generatePatternBasedSuggestions(currentTasks);
+        
+        // Combine all suggestions and filter out duplicates
+        const allSuggestions = [...contextSuggestions, ...patternSuggestions, ...baseSuggestions];
+        
+        // Filter out suggestions that are too similar to existing tasks
+        const filteredSuggestions = allSuggestions.filter(suggestion => {
+            const suggestionWords = suggestion.toLowerCase().split(' ');
+            return !existingTaskTexts.some(taskText => {
+                const taskWords = taskText.split(' ');
+                const overlap = suggestionWords.filter(word => taskWords.includes(word));
+                return overlap.length > 2; // Avoid if more than 2 words overlap
+            });
+        });
+        
+        // Return up to maxSuggestions unique suggestions
+        const uniqueSuggestions = [...new Set(filteredSuggestions)];
+        return uniqueSuggestions.slice(0, this.aiSuggestions.maxSuggestions);
+    }
+    
+    generateContextualSuggestions(context, currentTasks) {
+        const suggestions = [];
+        
+        if (!context) return suggestions;
+        
+        const contextLower = context.toLowerCase();
+        
+        // AI/Technology context
+        if (contextLower.includes('ai') || contextLower.includes('artificial intelligence') || 
+            contextLower.includes('machine learning') || contextLower.includes('technology')) {
+            suggestions.push(
+                'Research latest AI developments and trends',
+                'Test AI tools for current workflow',
+                'Document AI implementation best practices',
+                'Review AI ethics and guidelines'
+            );
+        }
+        
+        // Educational/Pedagogy context
+        if (contextLower.includes('education') || contextLower.includes('pedagogy') || 
+            contextLower.includes('teaching') || contextLower.includes('learning') ||
+            contextLower.includes('lecture') || contextLower.includes('course')) {
+            suggestions.push(
+                'Create learning objectives and outcomes',
+                'Design assessment criteria',
+                'Gather student feedback and iterate',
+                'Research pedagogical best practices',
+                'Prepare interactive lecture activities',
+                'Design course materials and handouts',
+                'Create practice exercises for students',
+                'Plan lecture timing and pacing'
+            );
+        }
+        
+        // Development/Software context
+        if (contextLower.includes('development') || contextLower.includes('programming') || 
+            contextLower.includes('software') || contextLower.includes('code') ||
+            contextLower.includes('feature') || contextLower.includes('application')) {
+            suggestions.push(
+                'Write comprehensive unit tests',
+                'Document API and code architecture',
+                'Optimize performance bottlenecks',
+                'Implement error handling and logging',
+                'Create user documentation',
+                'Set up continuous integration',
+                'Plan code review process',
+                'Design database schema updates'
+            );
+        }
+        
+        // Presentation/Export context
+        if (contextLower.includes('presentation') || contextLower.includes('slide') || 
+            contextLower.includes('export') || contextLower.includes('template') ||
+            contextLower.includes('powerpoint') || contextLower.includes('format')) {
+            suggestions.push(
+                'Design consistent slide templates',
+                'Create engaging visual elements',
+                'Plan presentation flow and transitions',
+                'Prepare speaker notes and cues',
+                'Test export functionality across formats',
+                'Optimize presentation for different audiences',
+                'Create backup presentation formats',
+                'Design interactive presentation elements'
+            );
+        }
+        
+        // Philosophy context (especially Hegel)
+        if (contextLower.includes('philosophy') || contextLower.includes('hegel') || 
+            contextLower.includes('dialectic') || contextLower.includes('phenomenology')) {
+            suggestions.push(
+                'Analyze dialectical relationships in concepts',
+                'Create conceptual maps and connections',
+                'Review primary philosophical sources',
+                'Develop philosophical arguments and critiques'
+            );
+        }
+        
+        // Research context
+        if (contextLower.includes('research') || contextLower.includes('study') || 
+            contextLower.includes('analysis') || contextLower.includes('investigation')) {
+            suggestions.push(
+                'Conduct literature review',
+                'Define research methodology',
+                'Collect and organize data sources',
+                'Plan research validation steps'
+            );
+        }
+        
+        // Writing context
+        if (contextLower.includes('writing') || contextLower.includes('documentation') || 
+            contextLower.includes('paper') || contextLower.includes('article')) {
+            suggestions.push(
+                'Create detailed outline',
+                'Draft introduction and conclusion',
+                'Review and edit for clarity',
+                'Cite sources and references'
+            );
+        }
+        
+        return suggestions;
+    }
+    
+    generatePatternBasedSuggestions(currentTasks) {
+        const suggestions = [];
+        
+        if (currentTasks.length === 0) {
+            return [
+                'Define project goals and objectives',
+                'Create initial project timeline',
+                'List required resources and materials',
+                'Identify key stakeholders and contacts'
+            ];
+        }
+        
+        // Analyze task patterns
+        const todoTasks = currentTasks.filter(t => t.status === 'todo');
+        const inProgressTasks = currentTasks.filter(t => t.status === 'inprogress');
+        const doneTasks = currentTasks.filter(t => t.status === 'done');
+        
+        // If too many in-progress tasks
+        if (inProgressTasks.length > 3) {
+            suggestions.push('Focus on completing current in-progress tasks');
+            suggestions.push('Review task priorities to avoid multitasking');
+        }
+        
+        // If few TODO tasks but many done
+        if (todoTasks.length < 2 && doneTasks.length > 3) {
+            suggestions.push('Plan next phase of work');
+            suggestions.push('Add follow-up tasks based on completed work');
+        }
+        
+        // Look for common task patterns
+        const taskTexts = currentTasks.map(t => t.text.toLowerCase());
+        
+        if (taskTexts.some(text => text.includes('test') || text.includes('review'))) {
+            suggestions.push('Create comprehensive testing checklist');
+        }
+        
+        if (taskTexts.some(text => text.includes('document') || text.includes('write'))) {
+            suggestions.push('Plan documentation structure and format');
+        }
+        
+        if (taskTexts.some(text => text.includes('design') || text.includes('create'))) {
+            suggestions.push('Gather feedback on design decisions');
+        }
+        
+        return suggestions;
     }
     
     displayAISuggestions(suggestions) {
@@ -478,38 +801,137 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             this.generateAISuggestions();
         };
         
+        panel.querySelector('.disable-suggestions').onclick = () => {
+            // Open AI settings dialog
+            if (window.openSettingsDialog) {
+                panel.remove();
+                window.openSettingsDialog('ai');
+            } else {
+                console.warn('[TODO Gamification] Settings dialog not available');
+                // Fallback: toggle AI suggestions
+                this.toggleAISuggestions(!this.aiSuggestions.enabled);
+                if (window.showNotification) {
+                    window.showNotification(
+                        `AI suggestions ${this.aiSuggestions.enabled ? 'enabled' : 'disabled'}`, 
+                        'info'
+                    );
+                }
+            }
+        };
+        
         panel.querySelectorAll('.add-suggestion').forEach(btn => {
-            btn.onclick = () => this.addSuggestedTask(btn.dataset.suggestion);
+            btn.onclick = async () => {
+                btn.disabled = true;
+                btn.textContent = '⏳';
+                btn.style.opacity = '0.6';
+                
+                try {
+                    await this.addSuggestedTask(btn.dataset.suggestion);
+                } catch (error) {
+                    // Reset button on error
+                    btn.disabled = false;
+                    btn.textContent = '+ Add';
+                    btn.style.opacity = '1';
+                }
+            };
         });
         
         return panel;
     }
     
-    addSuggestedTask(suggestion) {
-        // Add task to the TODO column
-        const kanbanBoard = document.querySelector('.kanban-board');
-        if (!kanbanBoard) return;
-        
-        const todoColumn = kanbanBoard.querySelector('[data-column="todo"]');
-        if (!todoColumn) return;
-        
-        // Find the add task button and simulate click
-        const addTaskBtn = todoColumn.querySelector('.add-task-btn');
-        if (addTaskBtn) {
-            addTaskBtn.click();
+    async addSuggestedTask(suggestion) {
+        try {
+            // Get current file path from kanban board
+            const kanbanBoard = document.querySelector('.kanban-board');
+            if (!kanbanBoard) {
+                throw new Error('Kanban board not found');
+            }
             
-            // Wait a moment then fill in the suggestion
-            setTimeout(() => {
-                const newTaskInput = todoColumn.querySelector('.kanban-task-edit input');
-                if (newTaskInput) {
-                    newTaskInput.value = suggestion;
-                    newTaskInput.dispatchEvent(new Event('blur'));
+            const filePath = kanbanBoard.dataset.filePath;
+            if (!filePath) {
+                throw new Error('No file path found for current kanban board');
+            }
+            
+            // Directly add task to file using kanban's addTaskToFile function
+            if (typeof window.addTaskToFile === 'function') {
+                await window.addTaskToFile(filePath, suggestion, 'todo');
+            } else {
+                // Fallback: call the function directly
+                await addTaskToFile(filePath, suggestion, 'todo');
+            }
+            
+            // Show success notification
+            if (window.showNotification) {
+                window.showNotification(`AI suggestion added: ${suggestion}`, 'success');
+            }
+            
+            // Dispatch task created event for gamification
+            const taskData = { text: suggestion, status: 'todo', filePath };
+            document.dispatchEvent(new CustomEvent('kanbanTaskAdded', { detail: taskData }));
+            
+            // Award points for using AI suggestion
+            this.awardPoints(3, `Added AI suggested task: ${suggestion}`);
+            
+            // Refresh the editor and kanban board to show the new task (following kanban.js pattern)
+            console.log('[TODO Gamification] Refreshing UI...', {
+                currentFilePath: window.currentFilePath,
+                targetFilePath: filePath,
+                filePathsMatch: window.currentFilePath === filePath,
+                refreshCurrentFileExists: !!window.refreshCurrentFile
+            });
+            
+            if (window.currentFilePath === filePath) {
+                if (window.refreshCurrentFile) {
+                    console.log('[TODO Gamification] Calling refreshCurrentFile...');
+                    await window.refreshCurrentFile();
+                    if (window.editor) {
+                        window.lastSavedContent = window.editor.getValue();
+                        window.hasUnsavedChanges = false;
+                        if (window.updateUnsavedIndicator) {
+                            window.updateUnsavedIndicator(false);
+                        }
+                    }
+                    console.log('[TODO Gamification] refreshCurrentFile completed');
                 }
-            }, 100);
+            } else {
+                console.log('[TODO Gamification] File paths do not match, skipping refresh');
+            }
+            
+            // Force kanban board to refresh by resetting state
+            console.log('[TODO Gamification] Forcing kanban board refresh...', {
+                resetKanbanStateExists: !!window.resetKanbanState,
+                updatePreviewAndStructureExists: !!window.updatePreviewAndStructure
+            });
+            
+            if (window.resetKanbanState) {
+                console.log('[TODO Gamification] Resetting kanban state...');
+                window.resetKanbanState();
+            }
+            
+            // Trigger a preview update to show the new task
+            if (window.updatePreviewAndStructure) {
+                setTimeout(() => {
+                    console.log('[TODO Gamification] Calling updatePreviewAndStructure...');
+                    window.updatePreviewAndStructure();
+                    console.log('[TODO Gamification] updatePreviewAndStructure called');
+                }, 100);
+            } else {
+                console.log('[TODO Gamification] updatePreviewAndStructure not available');
+            }
+            
+            // Close the suggestion panel after successful addition
+            const suggestionPanel = document.querySelector('.ai-todo-suggestions');
+            if (suggestionPanel) {
+                suggestionPanel.remove();
+            }
+            
+        } catch (error) {
+            console.error('[TODO Gamification] Error adding suggested task:', error);
+            
+            if (window.showNotification) {
+                window.showNotification(`Failed to add suggestion: ${error.message}`, 'error');
+            }
         }
-        
-        // Award points for using AI suggestion
-        this.awardPoints(3, `Added AI suggested task: ${suggestion}`);
     }
     
     // === UI Components ===
@@ -551,7 +973,26 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             <div class="achievement-preview">
                 ${this.getRecentAchievements().map(a => `<span class="achievement-badge">${a.icon} ${a.name}</span>`).join('')}
             </div>
+            <div class="gamification-actions">
+                <button class="ai-suggestions-btn" title="Generate AI task suggestions">🤖 Get AI Suggestions</button>
+            </div>
         `;
+        
+        // Add event listener for AI suggestions button
+        const aiBtn = panel.querySelector('.ai-suggestions-btn');
+        if (aiBtn) {
+            aiBtn.onclick = () => {
+                console.log('[TODO Gamification] Manual AI suggestions trigger');
+                aiBtn.disabled = true;
+                aiBtn.textContent = '⏳ Generating...';
+                
+                // Force generation bypassing cooldown
+                this.generateAISuggestionsNow().finally(() => {
+                    aiBtn.disabled = false;
+                    aiBtn.textContent = '🤖 Get AI Suggestions';
+                });
+            };
+        }
         
         return panel;
     }
@@ -714,6 +1155,47 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
         };
         
         localStorage.setItem('todo_gamification_stats', JSON.stringify(statsToSave));
+    }
+    
+    // === Manual AI Suggestions Trigger ===
+    
+    async generateAISuggestionsNow() {
+        // Force generation without cooldown check
+        try {
+            console.log('[TODO Gamification] Force generating AI suggestions...');
+            
+            const context = await this.extractTodoContext();
+            const currentTasks = this.extractTasksFromBoard(document.querySelector('.kanban-board'));
+            
+            console.log('[TODO Gamification] Extracted data:', {
+                context,
+                contextSource: context ? 'extracted' : 'none found',
+                filePath: window.currentFilePath,
+                currentTasksCount: currentTasks.length,
+                currentTasks: currentTasks.map(t => t.text)
+            });
+            
+            const suggestions = await this.callAIForSuggestions(context, currentTasks);
+            
+            console.log('[TODO Gamification] Generated suggestions:', suggestions);
+            
+            if (suggestions && suggestions.length > 0) {
+                this.displayAISuggestions(suggestions);
+                this.aiSuggestions.lastGenerated = Date.now();
+                console.log('[TODO Gamification] AI suggestions displayed successfully');
+            } else {
+                console.log('[TODO Gamification] No suggestions to display');
+                if (window.showNotification) {
+                    window.showNotification('No AI suggestions available at this time', 'info');
+                }
+            }
+            
+        } catch (error) {
+            console.error('[TODO Gamification] AI suggestions failed:', error);
+            if (window.showNotification) {
+                window.showNotification('Failed to generate AI suggestions', 'error');
+            }
+        }
     }
     
     // === Public API ===

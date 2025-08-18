@@ -921,3 +921,4 @@ async function addTaskToFile(filePath, taskText, columnId) {
 window.updateKanbanBoard = updateKanbanBoard;
 window.setupKanbanTaskActions = setupKanbanTaskActions;
 window.resetKanbanState = resetKanbanState;
+window.addTaskToFile = addTaskToFile;
