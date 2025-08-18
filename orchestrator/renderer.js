@@ -44,6 +44,9 @@ const structurePaneTitle = document.getElementById('structure-pane-title');
 const showStructureBtn = document.getElementById('show-structure-btn');
 const showFilesBtn = document.getElementById('show-files-btn');
 const fileTreeView = document.getElementById('file-tree-view');
+const tagSearchSection = document.getElementById('tag-search-section');
+const tagSearchInput = document.getElementById('tag-search-input');
+const tagFilterChips = document.getElementById('tag-filter-chips');
 window.fileTreeView = fileTreeView;
 const newFolderBtn = document.getElementById('new-folder-btn');
 const changeDirectoryBtn = document.getElementById('change-directory-btn');
@@ -2488,6 +2491,24 @@ async function handleEditableFile(filePath, content, fileTypes) {
     console.log('[Renderer] handleEditableFile content length:', content ? content.length : 'NO CONTENT');
     console.log('[Renderer] Editor available:', !!editor, 'setValue function:', typeof editor?.setValue);
     
+    // Process tags for markdown files
+    if (fileTypes.isMarkdown && content && window.tagManager) {
+        try {
+            const fileData = window.tagManager.processFile(filePath, content);
+            console.log('[TagManager] Processed file:', filePath, 'Tags:', fileData.tags, 'Metadata:', fileData.metadata);
+            
+            // Store file data for later use
+            window.currentFileData = fileData;
+            
+            // Trigger file tree update to show new tags (if UI is ready)
+            if (window.updateFileTreeWithTags) {
+                window.updateFileTreeWithTags();
+            }
+        } catch (error) {
+            console.error('[TagManager] Error processing file tags:', error);
+        }
+    }
+    
     // Set up internal link click handler if not already done
     if (!window.internalLinkHandlerSetup) {
         document.addEventListener('click', (event) => {
@@ -2895,8 +2916,7 @@ async function performAppInitialization() {
         setupNavigationControls(); // Setup navigation buttons and keyboard shortcuts
         
         // Initialize file tree view on startup
-        switchStructureView('file'); // Switch to file view
-        renderFileTree(); // Load the file tree
+        switchStructureView('file'); // Switch to file view (this will also render the tree)
     } else {
         // If Marked is still not loaded here, there's a problem with the script tag or network.
         console.error('[renderer.js] CRITICAL: window.marked not found after DOMContentLoaded. Check Marked script tag in index.html and network connection.');
@@ -2918,8 +2938,7 @@ async function performAppInitialization() {
         setupNavigationControls(); // Setup navigation buttons and keyboard shortcuts
         
         // Initialize file tree view on startup
-        switchStructureView('file'); // Switch to file view
-        renderFileTree(); // Load the file tree
+        switchStructureView('file'); // Switch to file view (this will also render the tree)
     }
     
     // Initialize AI Chat functionality
@@ -3368,6 +3387,7 @@ function switchStructureView(view) {
         structureList.style.display = ''; // Show structure list
         const fileTreeView = document.getElementById('file-tree-view');
         if (fileTreeView) fileTreeView.style.display = 'none'; // Hide file tree
+        if (tagSearchSection) tagSearchSection.style.display = 'none'; // Hide tag search
         newFolderBtn.style.display = 'none'; // Hide New Folder button
         changeDirectoryBtn.style.display = 'none'; // Hide Change Directory button
         // Optionally, re-run structure update if needed
@@ -3379,9 +3399,18 @@ function switchStructureView(view) {
         structureList.style.display = 'none'; // Hide structure list
         const fileTreeView = document.getElementById('file-tree-view');
         if (fileTreeView) fileTreeView.style.display = ''; // Show file tree
+        if (tagSearchSection) tagSearchSection.style.display = ''; // Show tag search
         newFolderBtn.style.display = ''; // Show New Folder button
         changeDirectoryBtn.style.display = ''; // Show Change Directory button
-        renderFileTree(); // Populate the file tree view
+        
+        // Initialize tag filtering system
+        initializeTagFiltering();
+        
+        // Only render file tree if it hasn't been rendered yet
+        if (!fileTreeRendered) {
+            renderFileTree(); // Populate the file tree view
+            fileTreeRendered = true;
+        }
     }
 }
 
@@ -3409,12 +3438,19 @@ async function renderFileTree() {
         // Clear existing content
         fileTreeView.innerHTML = '';
         
+        // Mark tree as rendered
+        fileTreeRendered = true;
+        
         // Render the file tree
         if (fileTree && fileTree.children) {
             // Auto-expand the root directory and common folders on first load
             if (window.expandedFolders.size === 0) {
                 expandCommonFolders(fileTree);
             }
+            
+            // Pre-process tags for visible markdown files
+            await preProcessMarkdownTags(fileTree);
+            
             renderFileTreeNode(fileTree, fileTreeView, 0);
         } else {
             fileTreeView.innerHTML = '<div class="no-files">No files found</div>';
@@ -3452,10 +3488,26 @@ function renderFileTreeNode(node, container, depth) {
     const icon = isFolder ? '📁' : '📄';
     const fileName = node.name;
     
+    // Get tags for markdown files
+    let tagsDisplay = '';
+    if (!isFolder && node.name.endsWith('.md') && window.tagManager) {
+        const fileTags = window.tagManager.getFileTags(node.path);
+        if (fileTags && fileTags.length > 0) {
+            const tagElements = fileTags.slice(0, 3).map(tag => 
+                `<span class="file-tag">${tag}</span>`
+            ).join('');
+            const moreCount = fileTags.length > 3 ? ` +${fileTags.length - 3}` : '';
+            tagsDisplay = `<div class="file-tags">${tagElements}${moreCount}</div>`;
+        }
+    }
+    
     nodeElement.innerHTML = `
-        ${expandArrow}
-        <span class="file-icon">${icon}</span>
-        <span class="file-name">${fileName}</span>
+        <div class="file-tree-main">
+            ${expandArrow}
+            <span class="file-icon">${icon}</span>
+            <span class="file-name">${fileName}</span>
+        </div>
+        ${tagsDisplay}
     `;
     
     // Add appropriate classes and properties
@@ -3469,6 +3521,8 @@ function renderFileTreeNode(node, container, depth) {
             event.preventDefault();
             if (hasChildren) {
                 toggleFolderExpansion(node.path);
+                // Reset the flag to allow re-render
+                fileTreeRendered = false;
                 renderFileTree(); // Re-render the tree to reflect changes
             }
         });
@@ -3526,6 +3580,548 @@ function toggleFolderExpansion(folderPath) {
     } else {
         window.expandedFolders.add(folderPath);
         console.log(`[toggleFolderExpansion] Expanded folder: ${folderPath}`);
+    }
+}
+
+// Tag filtering variables
+let activeTagFilters = new Set();
+let tagFilteringInitialized = false;
+
+// File tree rendering state
+let fileTreeRendered = false;
+
+// Initialize tag filtering system
+function initializeTagFiltering() {
+    if (tagFilteringInitialized) return;
+    tagFilteringInitialized = true;
+    
+    if (!tagSearchInput || !tagFilterChips) return;
+    
+    // Set up search input with autocomplete
+    tagSearchInput.addEventListener('input', handleTagSearchInput);
+    tagSearchInput.addEventListener('keydown', handleTagSearchKeydown);
+    
+    console.log('[TagFiltering] Tag filtering system initialized');
+}
+
+// Handle tag search input
+function handleTagSearchInput(event) {
+    const query = event.target.value.trim();
+    
+    if (query.length === 0) {
+        // Clear any autocomplete suggestions
+        clearTagSuggestions();
+        return;
+    }
+    
+    if (query.length >= 2 && window.tagManager) {
+        // Show tag suggestions
+        showTagSuggestions(query);
+    }
+}
+
+// Handle keyboard events in tag search
+function handleTagSearchKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const query = event.target.value.trim();
+        if (query) {
+            addTagFilter(query);
+            event.target.value = '';
+            clearTagSuggestions();
+        }
+    } else if (event.key === 'Escape') {
+        event.target.value = '';
+        clearTagSuggestions();
+        event.target.blur();
+    }
+}
+
+// Show tag suggestions
+function showTagSuggestions(query) {
+    if (!window.tagManager) return;
+    
+    const suggestions = window.tagManager.searchTags(query);
+    
+    // Remove any existing suggestions
+    clearTagSuggestions();
+    
+    if (suggestions.length === 0) return;
+    
+    // Create suggestion dropdown
+    const dropdown = document.createElement('div');
+    dropdown.id = 'tag-suggestions';
+    dropdown.style.cssText = `
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--neutral-0);
+        border: 1px solid var(--neutral-300);
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        z-index: 1000;
+        max-height: 150px;
+        overflow-y: auto;
+    `;
+    
+    suggestions.slice(0, 8).forEach(({ tag, count }) => {
+        const item = document.createElement('div');
+        item.style.cssText = `
+            padding: 6px 8px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--neutral-100);
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+        item.innerHTML = `
+            <span>${tag}</span>
+            <span style="opacity: 0.6; font-size: 10px;">${count} file${count !== 1 ? 's' : ''}</span>
+        `;
+        
+        item.addEventListener('click', () => {
+            addTagFilter(tag);
+            tagSearchInput.value = '';
+            clearTagSuggestions();
+        });
+        
+        item.addEventListener('mouseenter', () => {
+            item.style.backgroundColor = 'var(--primary-100)';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            item.style.backgroundColor = '';
+        });
+        
+        dropdown.appendChild(item);
+    });
+    
+    // Position dropdown relative to search input
+    tagSearchInput.style.position = 'relative';
+    tagSearchInput.parentNode.style.position = 'relative';
+    tagSearchInput.parentNode.appendChild(dropdown);
+}
+
+// Clear tag suggestions
+function clearTagSuggestions() {
+    const existing = document.getElementById('tag-suggestions');
+    if (existing) {
+        existing.remove();
+    }
+}
+
+// Add a tag filter
+function addTagFilter(tag) {
+    if (activeTagFilters.has(tag)) return;
+    
+    activeTagFilters.add(tag);
+    updateTagFilterChips();
+    applyTagFilters();
+}
+
+// Remove a tag filter
+function removeTagFilter(tag) {
+    activeTagFilters.delete(tag);
+    updateTagFilterChips();
+    applyTagFilters();
+}
+
+// Update the visual tag filter chips
+function updateTagFilterChips() {
+    if (!tagFilterChips) return;
+    
+    tagFilterChips.innerHTML = '';
+    
+    activeTagFilters.forEach(tag => {
+        const chip = document.createElement('div');
+        chip.className = 'tag-chip active';
+        chip.innerHTML = `
+            <span>${tag}</span>
+            <span class="tag-chip-remove" data-tag="${tag}">×</span>
+        `;
+        
+        // Add remove handler
+        chip.querySelector('.tag-chip-remove').addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeTagFilter(tag);
+        });
+        
+        tagFilterChips.appendChild(chip);
+    });
+}
+
+// Apply tag filters to file tree
+function applyTagFilters() {
+    if (!fileTreeView || !window.tagManager) return;
+    
+    const fileItems = fileTreeView.querySelectorAll('.file-tree-item');
+    
+    fileItems.forEach(item => {
+        const filePath = item.dataset.path;
+        const isFolder = item.classList.contains('folder');
+        
+        if (isFolder) {
+            // Always show folders
+            item.style.display = '';
+            return;
+        }
+        
+        if (!filePath || !filePath.endsWith('.md')) {
+            // Show non-markdown files if no filters are active
+            item.style.display = activeTagFilters.size === 0 ? '' : 'none';
+            return;
+        }
+        
+        if (activeTagFilters.size === 0) {
+            // No filters, show all files
+            item.style.display = '';
+            return;
+        }
+        
+        // Check if file matches any of the active tag filters
+        const fileTags = window.tagManager.getFileTags(filePath);
+        const matches = Array.from(activeTagFilters).some(filterTag => 
+            fileTags.includes(filterTag)
+        );
+        
+        item.style.display = matches ? '' : 'none';
+    });
+}
+
+// Show tag edit dialog for a markdown file
+async function showTagEditDialog(filePath) {
+    if (!window.tagManager || !window.electronAPI) {
+        showNotification('Tag manager not available', 'error');
+        return;
+    }
+    
+    // Get current tags for the file
+    const currentTags = window.tagManager.getFileTags(filePath);
+    const metadata = window.tagManager.getFileMetadata(filePath);
+    
+    // Get all available tags from the system
+    const allTags = window.tagManager.getAllTags();
+    const availableTags = allTags
+        .map(t => t.tag)
+        .filter(tag => !currentTags.includes(tag))
+        .slice(0, 20); // Limit to 20 most popular tags
+    
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        z-index: 10001;
+        padding: 20px;
+        min-width: 400px;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
+    `;
+    
+    // Create available tags HTML
+    let availableTagsHtml = '';
+    if (availableTags.length > 0) {
+        availableTagsHtml = `
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500;">Available Tags (click to add):</label>
+            <div id="available-tags" style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #f8f9fa; border-radius: 4px; max-height: 120px; overflow-y: auto;">
+                ${availableTags.map(tag => `
+                    <span class="available-tag" data-tag="${tag}" style="
+                        background: #e9ecef;
+                        color: #495057;
+                        padding: 4px 10px;
+                        border-radius: 12px;
+                        font-size: 12px;
+                        cursor: pointer;
+                        border: 1px solid #dee2e6;
+                        transition: all 0.2s;
+                    ">${tag}</span>
+                `).join('')}
+            </div>
+        </div>
+        `;
+    }
+    
+    dialog.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; font-size: 16px;">Edit Tags</h3>
+        <div style="margin-bottom: 8px; font-size: 12px; color: #666;">
+            File: ${filePath.split('/').pop()}
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 13px;">Current Tags:</label>
+            <div id="current-tags-display" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 32px; padding: 8px; background: #f0f7ff; border-radius: 4px;">
+                ${currentTags.length > 0 ? currentTags.map(tag => `
+                    <span class="current-tag" data-tag="${tag}" style="
+                        background: #16a34a;
+                        color: white;
+                        padding: 4px 10px;
+                        border-radius: 12px;
+                        font-size: 12px;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                    ">
+                        ${tag}
+                        <span class="remove-tag" data-tag="${tag}" style="cursor: pointer; font-weight: bold;">×</span>
+                    </span>
+                `).join('') : '<span style="color: #999; font-size: 12px;">No tags yet. Click available tags below or type new ones.</span>'}
+            </div>
+            <input type="text" id="tag-edit-input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" 
+                   placeholder="Type new tags separated by commas and press Enter">
+        </div>
+        ${availableTagsHtml}
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 13px;">Title:</label>
+            <input type="text" id="title-edit-input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" 
+                   value="${metadata.title || ''}" placeholder="Document title">
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 4px; font-size: 13px;">Category:</label>
+            <input type="text" id="category-edit-input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" 
+                   value="${metadata.category || ''}" placeholder="Document category">
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+            <button id="tag-edit-cancel" style="padding: 8px 16px; margin-right: 8px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer;">Cancel</button>
+            <button id="tag-edit-save" style="padding: 8px 16px; border: none; border-radius: 4px; background: #16a34a; color: white; cursor: pointer;">Save</button>
+        </div>
+    `;
+    
+    document.body.appendChild(dialog);
+    
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.3);
+        z-index: 10000;
+    `;
+    document.body.appendChild(backdrop);
+    
+    // Keep track of current tags
+    let workingTags = [...currentTags];
+    
+    // Function to update the current tags display
+    function updateCurrentTagsDisplay() {
+        const display = document.getElementById('current-tags-display');
+        if (workingTags.length > 0) {
+            display.innerHTML = workingTags.map(tag => `
+                <span class="current-tag" data-tag="${tag}" style="
+                    background: #16a34a;
+                    color: white;
+                    padding: 4px 10px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                ">
+                    ${tag}
+                    <span class="remove-tag" data-tag="${tag}" style="cursor: pointer; font-weight: bold;">×</span>
+                </span>
+            `).join('');
+            
+            // Re-attach remove handlers
+            display.querySelectorAll('.remove-tag').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tagToRemove = btn.dataset.tag;
+                    workingTags = workingTags.filter(t => t !== tagToRemove);
+                    updateCurrentTagsDisplay();
+                    updateAvailableTagsVisibility();
+                });
+            });
+        } else {
+            display.innerHTML = '<span style="color: #999; font-size: 12px;">No tags yet. Click available tags below or type new ones.</span>';
+        }
+    }
+    
+    // Function to update available tags visibility
+    function updateAvailableTagsVisibility() {
+        const availableTagsContainer = document.getElementById('available-tags');
+        if (availableTagsContainer) {
+            availableTagsContainer.querySelectorAll('.available-tag').forEach(tagEl => {
+                const tag = tagEl.dataset.tag;
+                if (workingTags.includes(tag)) {
+                    tagEl.style.display = 'none';
+                } else {
+                    tagEl.style.display = 'inline-block';
+                }
+            });
+        }
+    }
+    
+    // Handle clicking on available tags
+    const availableTagsContainer = document.getElementById('available-tags');
+    if (availableTagsContainer) {
+        availableTagsContainer.querySelectorAll('.available-tag').forEach(tagEl => {
+            tagEl.addEventListener('click', () => {
+                const tag = tagEl.dataset.tag;
+                if (!workingTags.includes(tag)) {
+                    workingTags.push(tag);
+                    updateCurrentTagsDisplay();
+                    updateAvailableTagsVisibility();
+                }
+            });
+            
+            // Add hover effect
+            tagEl.addEventListener('mouseenter', () => {
+                tagEl.style.background = '#16a34a';
+                tagEl.style.color = 'white';
+                tagEl.style.borderColor = '#16a34a';
+            });
+            tagEl.addEventListener('mouseleave', () => {
+                tagEl.style.background = '#e9ecef';
+                tagEl.style.color = '#495057';
+                tagEl.style.borderColor = '#dee2e6';
+            });
+        });
+    }
+    
+    // Handle removing current tags
+    document.querySelectorAll('.remove-tag').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tagToRemove = btn.dataset.tag;
+            workingTags = workingTags.filter(t => t !== tagToRemove);
+            updateCurrentTagsDisplay();
+            updateAvailableTagsVisibility();
+        });
+    });
+    
+    // Handle input field for new tags
+    const tagInput = document.getElementById('tag-edit-input');
+    tagInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const input = tagInput.value.trim();
+            if (input) {
+                const newTags = input.split(',').map(t => t.trim()).filter(t => t.length > 0);
+                newTags.forEach(tag => {
+                    if (!workingTags.includes(tag)) {
+                        workingTags.push(tag);
+                    }
+                });
+                tagInput.value = '';
+                updateCurrentTagsDisplay();
+                updateAvailableTagsVisibility();
+            }
+        }
+    });
+    
+    // Focus on input
+    tagInput.focus();
+    
+    // Handle save
+    document.getElementById('tag-edit-save').addEventListener('click', async () => {
+        // Add any remaining text in the input field
+        const remainingInput = document.getElementById('tag-edit-input').value.trim();
+        if (remainingInput) {
+            const additionalTags = remainingInput.split(',').map(t => t.trim()).filter(t => t.length > 0);
+            additionalTags.forEach(tag => {
+                if (!workingTags.includes(tag)) {
+                    workingTags.push(tag);
+                }
+            });
+        }
+        
+        const newTitle = document.getElementById('title-edit-input').value.trim();
+        const newCategory = document.getElementById('category-edit-input').value.trim();
+        
+        const newTags = workingTags;
+        
+        // Update metadata
+        const newMetadata = {
+            ...metadata,
+            title: newTitle || metadata.title,
+            category: newCategory || metadata.category
+        };
+        
+        // Generate new content with updated frontmatter
+        const newContent = window.tagManager.updateFileFrontmatter(filePath, newMetadata, newTags);
+        
+        if (newContent) {
+            try {
+                // Save the file with updated frontmatter
+                const result = await window.electronAPI.invoke('write-file', filePath, newContent);
+                
+                if (result.success) {
+                    showNotification('Tags updated successfully', 'success');
+                    
+                    // Update the tag manager's internal state
+                    window.tagManager.processFile(filePath, newContent);
+                    
+                    // Refresh the file tree to show updated tags
+                    if (window.renderFileTree) {
+                        window.renderFileTree();
+                    }
+                    
+                    // If this is the current file, reload it in the editor
+                    if (window.currentFilePath === filePath && window.openFileInEditor) {
+                        await window.openFileInEditor(filePath, newContent);
+                    }
+                } else {
+                    showNotification('Failed to save tags', 'error');
+                }
+            } catch (error) {
+                console.error('[showTagEditDialog] Error saving tags:', error);
+                showNotification('Error saving tags', 'error');
+            }
+        }
+        
+        // Close dialog
+        dialog.remove();
+        backdrop.remove();
+    });
+    
+    // Handle cancel
+    document.getElementById('tag-edit-cancel').addEventListener('click', () => {
+        dialog.remove();
+        backdrop.remove();
+    });
+    
+    // Handle escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            dialog.remove();
+            backdrop.remove();
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+// Function to pre-process tags for markdown files in the tree
+async function preProcessMarkdownTags(node) {
+    if (!window.tagManager || !window.electronAPI) return;
+    
+    // Process this node if it's a markdown file
+    if (node.type === 'file' && node.name.endsWith('.md')) {
+        try {
+            const result = await window.electronAPI.invoke('open-file-path', node.path);
+            if (result.success && result.content) {
+                window.tagManager.processFile(node.path, result.content);
+            }
+        } catch (error) {
+            console.warn('[preProcessMarkdownTags] Error processing file:', node.path, error);
+        }
+    }
+    
+    // Recursively process children
+    if (node.children) {
+        await Promise.all(node.children.map(child => preProcessMarkdownTags(child)));
     }
 }
 
@@ -3597,6 +4193,11 @@ function showFileContextMenu(event, filePath, isFolder) {
             { label: 'Delete File', action: 'delete' },
             { label: 'Copy Path', action: 'copy-path' }
         );
+        
+        // Add tag editing option for markdown files
+        if (filePath.endsWith('.md')) {
+            menuItems.push({ label: 'Edit Tags', action: 'edit-tags' });
+        }
     }
     
     menuItems.forEach((item, index) => {
@@ -3708,6 +4309,12 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
                     console.error('[handleFileContextMenuAction] Error copying path:', error);
                     showNotification('Error copying path', 'error');
                 }
+            }
+            break;
+            
+        case 'edit-tags':
+            if (!isFolder && filePath.endsWith('.md')) {
+                await showTagEditDialog(filePath);
             }
             break;
             
@@ -3947,13 +4554,19 @@ if (window.electronAPI) {
     window.electronAPI.on('refresh-file-tree', () => {
         console.log('[Renderer] Received refresh-file-tree signal.');
         console.log('[Renderer] Current structure view:', currentStructureView);
-        // Always switch to file view and refresh file tree
+        
+        // Reset the rendered flag to force a refresh
+        fileTreeRendered = false;
+        
+        // Switch to file view (which will trigger renderFileTree if needed)
         if (currentStructureView !== 'files') {
             console.log('[Renderer] Switching to file view');
             switchStructureView('file');
+        } else {
+            // If already in file view, manually refresh
+            console.log('[Renderer] Already in file view, refreshing tree');
+            renderFileTree();
         }
-        console.log('[Renderer] Calling renderFileTree()');
-        renderFileTree();
     });
 }
 
@@ -5318,6 +5931,13 @@ function setupSmartMinimap(editor) {
 
 // --- Global exports for modules ---
 window.renderFileTree = renderFileTree;
+window.addTagFilter = addTagFilter; // Expose tag filter function
+window.showFilesView = function() {
+    // Switch to files view in the left sidebar
+    if (showFilesBtn) {
+        showFilesBtn.click();
+    }
+};
 
 // === File Tree Keyboard Navigation ===
 let currentSelectedFileIndex = -1;

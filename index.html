@@ -687,6 +687,114 @@
             text-overflow: ellipsis;
         }
 
+        /* File tree main content */
+        .file-tree-main {
+            display: flex;
+            align-items: center;
+        }
+
+        /* File tags display */
+        .file-tags {
+            margin-top: 2px;
+            margin-left: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        .file-tag {
+            background: var(--primary-500);
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 500;
+            display: inline-block;
+            max-width: 60px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        body.dark-mode .file-tag {
+            background: var(--primary-600);
+            color: var(--neutral-100);
+        }
+
+        .file-tree-item:hover .file-tags {
+            opacity: 1;
+        }
+
+        /* Tag search interface */
+        #tag-search-input {
+            transition: border-color 0.2s;
+        }
+
+        #tag-search-input:focus {
+            outline: none;
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 1px var(--primary-500);
+        }
+
+        body.dark-mode #tag-search-input {
+            background: var(--neutral-800);
+            border-color: var(--neutral-600);
+            color: var(--text-color);
+        }
+
+        body.dark-mode #tag-search-input:focus {
+            border-color: var(--primary-500);
+        }
+
+        /* Tag filter chips */
+        .tag-chip {
+            background: var(--primary-100);
+            color: var(--primary-700);
+            border: 1px solid var(--primary-300);
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .tag-chip:hover {
+            background: var(--primary-200);
+        }
+
+        .tag-chip.active {
+            background: var(--primary-500);
+            color: white;
+            border-color: var(--primary-500);
+        }
+
+        .tag-chip-remove {
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        body.dark-mode .tag-chip {
+            background: var(--primary-900);
+            color: var(--primary-200);
+            border-color: var(--primary-700);
+        }
+
+        body.dark-mode .tag-chip:hover {
+            background: var(--primary-800);
+        }
+
+        body.dark-mode .tag-chip.active {
+            background: var(--primary-600);
+            color: white;
+        }
+
         /* Status bar styling */
         #editor-status-bar {
             transition: background-color 0.2s, color 0.2s, border-color 0.2s;
@@ -1045,6 +1153,11 @@
                     <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
                     <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
                 </div>
+                <!-- Tag search interface (only visible in Files view) -->
+                <div id="tag-search-section" style="display: none; margin-top: 4px;">
+                    <input type="text" id="tag-search-input" placeholder="Search files by tags..." style="width: 100%; padding: 4px 8px; border: 1px solid var(--neutral-300); border-radius: 4px; font-size: 11px; background: var(--neutral-0);">
+                    <div id="tag-filter-chips" style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; min-height: 20px;"></div>
+                </div>
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                     <h2 id="structure-pane-title">Structure</h2>
                     <div style="display: flex; gap: 4px;">
@@ -1260,8 +1373,11 @@
                         <div id="search-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
                             <!-- Global Search and Replace Interface -->
                             <div class="search-controls" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                                <div style="padding: 8px; background: #f0f7ff; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #0066cc;">
+                                    💡 <strong>Tip:</strong> Search will include tags, metadata (title, category, description), and file content. Click on tags in results to filter files.
+                                </div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="text" id="global-search-input" placeholder="Search in all files..." style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 3px;">
+                                    <input type="text" id="global-search-input" placeholder="Search in all files, tags, and metadata..." style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 3px;">
                                     <button id="global-search-execute" class="btn" title="Execute Search">Search</button>
                                 </div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
@@ -1522,6 +1638,7 @@
     <script src="orchestrator/modules/dragdrop.js" defer></script>
     <script src="orchestrator/modules/previewZoom.js" defer></script>
     <script src="orchestrator/modules/fileFilters.js" defer></script>
+    <script src="orchestrator/modules/tagManager.js" defer></script>
     <script type="module" src="orchestrator/modules/graph.js" defer></script>
     <script type="module" src="orchestrator/modules/circle.js" defer></script>
     
@@ -3063,28 +3180,61 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         // Global function to fix stuck processing indicators
         window.fixStuckProcessingIndicator = function() {
             console.log('[Debug] Attempting to fix stuck processing indicator...');
+            let fixed = false;
             
             // Method 1: Try to hide via flow detection instance
             if (window.aiFlowDetection && typeof window.aiFlowDetection.forceHideIndicator === 'function') {
                 window.aiFlowDetection.forceHideIndicator();
                 console.log('[Debug] Used aiFlowDetection.forceHideIndicator()');
+                fixed = true;
             }
             
             // Method 2: Direct DOM manipulation to hide any visible flow indicators
             const flowIndicator = document.getElementById('ai-flow-indicator');
-            if (flowIndicator) {
-                flowIndicator.classList.remove('visible');
+            if (flowIndicator && (flowIndicator.classList.contains('visible') || flowIndicator.style.display !== 'none')) {
+                flowIndicator.classList.remove('visible', 'flow-deep', 'flow-light', 'flow-struggling');
                 flowIndicator.style.display = 'none';
+                flowIndicator.style.opacity = '0';
                 console.log('[Debug] Direct DOM hide of flow indicator');
+                fixed = true;
             }
             
-            // Method 3: Look for any other processing/loading indicators
-            const loadingElements = document.querySelectorAll('.loading, .processing, .spinner, [class*="load"], [class*="process"]');
-            loadingElements.forEach(el => {
-                el.style.display = 'none';
-                el.classList.add('hidden');
-                console.log('[Debug] Hid loading element:', el.className);
+            // Method 3: Clear all active timeouts related to indicators
+            if (window.aiFlowDetection && window.aiFlowDetection.flowIndicatorTimeout) {
+                clearTimeout(window.aiFlowDetection.flowIndicatorTimeout);
+                window.aiFlowDetection.flowIndicatorTimeout = null;
+                console.log('[Debug] Cleared flow indicator timeout');
+                fixed = true;
+            }
+            
+            // Method 4: Look for any other processing/loading indicators
+            const loadingSelectors = [
+                '.loading', '.processing', '.spinner', '[class*="load"]', '[class*="process"]',
+                '.flow-indicator', '[class*="flow"]', '.ai-flow-indicator'
+            ];
+            
+            loadingSelectors.forEach(selector => {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(el => {
+                    if (el.style.display !== 'none' || el.classList.contains('visible')) {
+                        el.style.display = 'none';
+                        el.style.opacity = '0';
+                        el.classList.remove('visible', 'active', 'show');
+                        el.classList.add('hidden');
+                        console.log('[Debug] Hid element with selector:', selector, el.className);
+                        fixed = true;
+                    }
+                });
             });
+            
+            // Method 5: Stop any intervals that might be causing the indicator to reappear
+            if (window.aiFlowDetection) {
+                window.aiFlowDetection.flowEngine.isActive = false;
+                console.log('[Debug] Deactivated flow engine');
+                fixed = true;
+            }
+            
+            console.log(fixed ? '[Debug] Processing indicator fix applied' : '[Debug] No stuck indicators found');
             
             console.log('[Debug] Processing indicator fix complete. Try typing to see if indicator reappears.');
         };

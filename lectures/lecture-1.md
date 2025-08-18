@@ -1,3 +1,10 @@
+---
+tags: ["dialectic"]
+category: null
+author: null
+date: null
+description: null
+---
 <!-- TOC START -->
 ## <a id="table-of-contents"></a>Table of Contents
 
@@ -105,8 +112,7 @@ The course will use CGScholar – a platform I think most of you will be familia
 
 A previous version of this course ran in 2023 and 2024: [[2023-Course]]
 
-Despite this being a new version, it is very different. And I would encourage people to look back to Bill and Mary's earlier course, and especially their videos, which are excellent. As you will probably gather, I have a quite different take. I would say by going back and forth, you might get the best of both worlds. Keep the link to the course handy, and feel free to consult both videos and readings.
-
+Despite this having the same name as that course, it is very different. And I would encourage people to look back to Bill and Mary's earlier course, and especially their videos, which are excellent. As you will probably gather, I have a quite different take. I would say by going back and forth, you might get the best of both worlds. Keep the link to the course handy, and feel free to consult both videos and readings.
 
 
 
@@ -138,16 +144,28 @@ The third reason relates less to Hegel's direct views about learning, and more t
 ## Organization of the Course
 
 
+The course is structured over eight weeks, and each week introduces and discusses a new concept. 
 
- [[lecture-concepts]]
+1. Synthesis: Machine Learning and Human Learning
+
+
+3. Experience
+4. Attention
+5. Recognition
+6. Consciousness (Self/Other/Un/Non)
+7. Alignment
+8. Critique 
+9. Synthesis: Technosymbiosis
+
 
 
 --- 
 
-A word on software....
+## A word on software....
 
 
 
+---
 
 Authors:
 
