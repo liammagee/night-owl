@@ -144,7 +144,12 @@ Finally, we return to where we started: with the concept of synthesis. However �
 
 ## A word on software....
 
+---
+
+## Development of "Hegel Pedagogy AI" Note Converter
+
 Now some of you may have seen that I'm using some unusual software to do this presentation – and I'll be using it for the rest of this course. You'll see it's called "Hegel Pedagogy AI", and indeed I've written this software – or more exactly, I've prompted Claude to write the software. I used to be a software developer, and I've always wanted something that could convert notes into a presentation. So I asked Claude to write this "note converter" for this course. It may change week-to-week, and if I think it is useful for anyone other than myself, I'll release it.
+
 
 But more to the point, I want people also to experiment with how these AI tools also write software. In fact this might be one of the sweet spots of AI today – as a software writing assistant. For the right applications, it has reduced the technical demands of users to nearly zero. One practical effect is that the key skills needed for so-called "vibe coding" are no longer deep algorithmic knowledge, but rather design and writing – specifically, how to talk to machines to get the results you want. Management, in other words, and not far removed from teaching. A new kind of human human learning is required to make use of these new kinds of learning machines, and to offset some of the conceptual terrain of this course, we'll also be practicing how to write software.
 

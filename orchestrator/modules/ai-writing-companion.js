@@ -773,6 +773,14 @@ class AIWritingCompanion {
     
     // === AI-Powered Message Generation ===
     
+    // Utility function to clean AI responses
+    cleanAIResponse(response) {
+        if (!response || typeof response !== 'string') return response;
+        
+        // Remove <think>...</think> tags and their content
+        return response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
+    
     async generateAIEncouragement(analysis, persona) {
         const lastSentence = analysis.lastSentence || '';
         const recentText = analysis.recentText || '';
@@ -802,7 +810,7 @@ Be warm, specific, and helpful. Focus on their actual content, not generic writi
                 }
             });
             
-            return response?.response?.trim() || null;
+            return this.cleanAIResponse(response?.response?.trim()) || null;
         } catch (error) {
             console.log('[AI Companion] AI encouragement generation failed:', error);
             return null;
@@ -838,7 +846,7 @@ Be thoughtful, specific to their content, and insightful. Avoid generic advice.`
                 }
             });
             
-            return response?.response?.trim() || null;
+            return this.cleanAIResponse(response?.response?.trim()) || null;
         } catch (error) {
             console.log('[AI Companion] AI insight generation failed:', error);
             return null;

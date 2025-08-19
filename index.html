@@ -35,6 +35,101 @@
             min-height: 100vh !important;
         }
         
+        /* Active Presenting Mode - Hide everything except presentation and speaker notes */
+        body.is-presenting #left-sidebar {
+            display: none !important;
+        }
+        
+        body.is-presenting #sidebar-resizer {
+            display: none !important;
+        }
+        
+        body.is-presenting #editor-container {
+            display: none !important;
+        }
+        
+        body.is-presenting #mode-switcher {
+            display: none !important;
+        }
+        
+        body.is-presenting #editor-toolbar {
+            display: none !important;
+        }
+        
+        body.is-presenting #preview-pane,
+        body.is-presenting #chat-pane,
+        body.is-presenting #graph-content,
+        body.is-presenting #network-content,
+        body.is-presenting #circle-content {
+            display: none !important;
+        }
+        
+        body.is-presenting #right-pane {
+            flex: 1 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        
+        body.is-presenting #presentation-content {
+            display: flex !important;
+            width: 100% !important;
+            height: 100vh !important;
+        }
+        
+        body.is-presenting #main-content {
+            height: 100vh !important;
+        }
+        
+        body.is-presenting .resizer {
+            display: none !important;
+        }
+        
+        /* Ensure speaker notes remain visible in presenting mode */
+        body.is-presenting #speaker-notes-panel {
+            display: block !important;
+            position: fixed !important;
+            bottom: 0 !important;
+            right: 0 !important;
+            width: 350px !important;
+            max-width: 30% !important;
+            z-index: 1000 !important;
+        }
+        
+        /* Restore visibility when NOT actively presenting */
+        body:not(.is-presenting) #left-sidebar {
+            display: flex !important;
+        }
+        
+        body:not(.is-presenting) #sidebar-resizer {
+            display: block !important;
+        }
+        
+        body:not(.is-presenting) #editor-container {
+            display: flex !important;
+        }
+        
+        body:not(.is-presenting) #mode-switcher {
+            display: flex !important;
+        }
+        
+        body:not(.is-presenting) #editor-toolbar {
+            display: flex !important;
+        }
+        
+        body:not(.is-presenting) .resizer {
+            display: block !important;
+        }
+        
+        body:not(.is-presenting) #main-content {
+            height: auto !important;
+        }
+        
+        body:not(.is-presenting) #right-pane {
+            flex: 1 !important;
+            width: auto !important;
+            max-width: none !important;
+        }
+        
         
         /* Mode switcher button styles */
         .mode-btn:hover {
@@ -2332,6 +2427,27 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             return () => window.removeEventListener('keydown', handleKeyPress);
           }, [currentSlide, goToSlide]);
 
+          // Control body class for presenting mode
+          useEffect(() => {
+            if (isPresenting) {
+              document.body.classList.add('is-presenting');
+              console.log('[Presentation] Added is-presenting class to body');
+            } else {
+              document.body.classList.remove('is-presenting');
+              console.log('[Presentation] Removed is-presenting class from body');
+            }
+          }, [isPresenting]);
+
+          // Listen for external exit presentation events
+          useEffect(() => {
+            const handleExitPresenting = () => {
+              setIsPresenting(false);
+            };
+            
+            window.addEventListener('exitPresenting', handleExitPresenting);
+            return () => window.removeEventListener('exitPresenting', handleExitPresenting);
+          }, []);
+
           // Update speaker notes display when current slide changes
           useEffect(() => {
             const updateSpeakerNotes = () => {
@@ -2682,6 +2798,20 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           if (panel && notesContainer) {
             panel.style.display = 'block';
             
+            // Add exit presentation mode button if not already present and actively presenting
+            if (!document.getElementById('exit-presentation-btn') && document.body.classList.contains('is-presenting')) {
+              const exitBtn = document.createElement('button');
+              exitBtn.id = 'exit-presentation-btn';
+              exitBtn.innerHTML = 'Exit Presentation (ESC)';
+              exitBtn.style.cssText = 'position: fixed; top: 10px; right: 10px; z-index: 10000; padding: 8px 16px; background: rgba(0,0,0,0.7); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; cursor: pointer; font-size: 12px;';
+              exitBtn.onclick = () => {
+                // Trigger the React component to exit presenting
+                const event = new CustomEvent('exitPresenting');
+                window.dispatchEvent(event);
+              };
+              document.body.appendChild(exitBtn);
+            }
+            
             // Extract all speaker notes
             const allNotes = extractSpeakerNotes(content);
             const currentSlideNotes = allNotes[0] || ''; // Start with first slide
@@ -2702,6 +2832,53 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             panel.style.display = 'none';
             console.log('[Speaker Notes] Panel hidden');
           }
+          
+          // Remove exit presentation button
+          const exitBtn = document.getElementById('exit-presentation-btn');
+          if (exitBtn) {
+            exitBtn.remove();
+          }
+        }
+        
+        function restoreUIElementsAfterPresentation() {
+          console.log('[Mode Switching] Restoring UI elements after presentation mode');
+          
+          // Force refresh of pane visibility and layout
+          if (window.refreshPaneVisibility) {
+            window.refreshPaneVisibility();
+          }
+          
+          // Reset any inline styles that might have been applied
+          const elementsToReset = [
+            '#left-sidebar', '#sidebar-resizer', '#editor-container', '#mode-switcher', 
+            '#editor-toolbar', '#right-pane', '#main-content'
+          ];
+          
+          elementsToReset.forEach(selector => {
+            const element = document.querySelector(selector);
+            if (element) {
+              // Remove any inline display styles that might override CSS
+              element.style.removeProperty('display');
+              element.style.removeProperty('width');
+              element.style.removeProperty('height');
+              element.style.removeProperty('flex');
+            }
+          });
+          
+          // Trigger a layout refresh
+          setTimeout(() => {
+            if (window.refreshEditorLayout) {
+              window.refreshEditorLayout();
+            }
+            
+            // Ensure editor is visible and focused
+            const editorContainer = document.getElementById('editor-container');
+            if (editorContainer) {
+              editorContainer.style.display = '';
+            }
+            
+            console.log('[Mode Switching] UI restoration completed');
+          }, 100);
         }
         
         function updateSpeakerNotes(slideIndex, content) {
@@ -2881,6 +3058,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           } else {
             document.body.classList.remove('presentation-mode');
             hideSpeakerNotesPanel();
+            
+            // Don't restore UI elements automatically - only when actually exiting presenting mode
+            // The is-presenting class controls the UI visibility now
           }
 
           currentMode = modeName;
@@ -3147,6 +3327,23 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         } else {
           setupModeSwitching();
         }
+
+        // Global keyboard shortcuts for presentation mode
+        document.addEventListener('keydown', (e) => {
+          // ESC to exit presenting mode (not just presentation mode)
+          if (e.key === 'Escape' && document.body.classList.contains('is-presenting')) {
+            e.preventDefault();
+            // This will be handled by the React component's useEffect for ESC key
+            // The React component should handle setIsPresenting(false)
+          }
+          
+          // F5 or Ctrl/Cmd+P to toggle presentation mode (not presenting)
+          if ((e.key === 'F5' || (e.key === 'p' && (e.ctrlKey || e.metaKey))) && !e.altKey && !e.shiftKey) {
+            e.preventDefault();
+            const isInPresentationMode = document.body.classList.contains('presentation-mode');
+            switchMode(isInPresentationMode ? 'editor' : 'presentation');
+          }
+        });
 
         // Expose mode switching globally
         window.switchToMode = switchToMode;

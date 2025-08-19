@@ -1115,7 +1115,7 @@ class AIFlowDetection {
             
             if (response && response.response) {
                 // console.log('[Flow Detection] Received AI insight:', response.response.substring(0, 100) + '...');
-                const insight = response.response.trim();
+                const insight = this.cleanAIResponse(response.response.trim());
                 
                 // Ensure the insight includes context reference
                 return this.formatInsightWithContext(insight, context);
@@ -1125,6 +1125,14 @@ class AIFlowDetection {
         }
         
         return null;
+    }
+    
+    // Utility function to clean AI responses
+    cleanAIResponse(response) {
+        if (!response || typeof response !== 'string') return response;
+        
+        // Remove <think>...</think> tags and their content
+        return response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     }
     
     buildContextualPrompt(context) {

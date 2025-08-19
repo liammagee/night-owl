@@ -8,6 +8,14 @@ const fsSync = require('fs');
 const AIService = require('./services/aiService');
 require('@electron/remote/main').initialize();
 
+// Utility function to clean AI responses
+function cleanAIResponse(response) {
+    if (!response || typeof response !== 'string') return response;
+    
+    // Remove <think>...</think> tags and their content
+    return response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
 // Set app name immediately - before anything else
 app.setName('Hegel Pedagogy AI');
 process.title = 'Hegel Pedagogy AI';
@@ -2600,7 +2608,7 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
       console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
       
       return {
-        response: response.response,
+        response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
         usage: response.usage
@@ -2800,7 +2808,7 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
       console.log(`[main.js] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
       
       return {
-        response: response.response,
+        response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
         usage: response.usage

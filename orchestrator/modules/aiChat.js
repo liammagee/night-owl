@@ -1,4 +1,12 @@
 // === AI Chat Module ===
+
+// Utility function to clean AI responses
+function cleanAIResponse(response) {
+    if (!response || typeof response !== 'string') return response;
+    
+    // Remove <think>...</think> tags and their content
+    return response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
 // Terminal-style AI Chat like Claude Code
 // Features:
 // - Terminal-style interface
@@ -210,7 +218,7 @@ async function sendChatMessage() {
             
             addChatMessage(userMessage, 'AI');
         } else if (result.response) {
-            addChatMessage(result.response, 'AI', false, { provider: result.provider, model: result.model });
+            addChatMessage(cleanAIResponse(result.response), 'AI', false, { provider: result.provider, model: result.model });
         } else {
             addChatMessage('Received an empty response from the AI.', 'AI');
         }
