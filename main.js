@@ -2825,6 +2825,52 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     }
   });
 
+  // AI Chat handler (used by AI flow detection and other modules)
+  ipcMain.handle('ai-chat', async (event, data) => {
+    const { message, options = {} } = data;
+    
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+        console.error('[main.js] AI Service not available. Cannot send ai-chat message.');
+        return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
+    }
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+        console.error('[main.js] Invalid ai-chat message received.');
+        return { error: 'Invalid message format.' };
+    }
+    
+    console.log(`[main.js] 🤖 AI Chat request: "${message.substring(0, 100)}..."`);
+    console.log('[main.js] AI Chat options:', options);
+    
+    try {
+      const response = await aiService.sendMessage(message, options);
+      console.log(`[main.js] AI Chat response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      
+      return {
+        response: response.response,
+        provider: response.provider,
+        model: response.model,
+        usage: response.usage
+      };
+    } catch (error) {
+        console.error('[main.js] Error in ai-chat:', error);
+        let errorMessage = 'An error occurred while contacting the AI service.';
+        
+        if (error.message) {
+            if (error.message.includes('401')) {
+                errorMessage = 'Invalid API key. Please check your API key configuration.';
+            } else if (error.message.includes('429')) {
+                errorMessage = 'Rate limit exceeded. Please try again later.';
+            } else if (error.message.includes('402')) {
+                errorMessage = 'Quota exceeded. Please check your billing.';
+            } else {
+                errorMessage = `API Error: ${error.message}`;
+            }
+        }
+        
+        return { error: errorMessage };
+    }
+  });
+
   // Enhanced AI Chat with File Context
   ipcMain.handle('send-chat-message-with-context', async (event, data) => {
     const { message, fileContext, currentFile } = data;
@@ -3897,50 +3943,9 @@ Keep it concise and focused on the most important points.`;
     }
   });
 
-  // Handle Accessible HTML export for presentations
-  ipcMain.handle('perform-export-html-accessible', async (event, content, exportOptions) => {
-    console.log('[main.js] Received perform-export-html-accessible with options:', exportOptions);
-    try {
-      const { dialog } = require('electron');
-      const path = require('path');
-      const fs = require('fs').promises;
-      
-      const defaultPath = currentFilePath ? 
-        currentFilePath.replace(/\.[^/.]+$/, '.html') : 
-        'presentation.html';
-      
-      const result = await dialog.showSaveDialog(mainWindow, {
-        title: 'Export as Accessible HTML',
-        defaultPath: defaultPath,
-        filters: [
-          { name: 'HTML Files', extensions: ['html'] }
-        ]
-      });
-
-      if (result.canceled) {
-        return { success: false, cancelled: true };
-      }
-
-      // Generate accessible HTML content
-      const accessibleHTML = generateAccessibleHTML(content);
-      
-      // Write the HTML file
-      await fs.writeFile(result.filePath, accessibleHTML, 'utf8');
-      
-      console.log('[main.js] Accessible HTML export completed successfully');
-      return { 
-        success: true, 
-        filePath: result.filePath
-      };
-    } catch (error) {
-      console.error('[main.js] Error exporting Accessible HTML:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
   // Generate accessible HTML with WCAG compliance
-  function generateAccessibleHTML(markdownContent) {
-    const marked = require('marked');
+  async function generateAccessibleHTML(markdownContent) {
+    const { marked } = await import('marked');
     
     // Configure marked for better accessibility
     marked.setOptions({
@@ -4280,7 +4285,7 @@ Keep it concise and focused on the most important points.`;
             
             // Update counter
             document.getElementById('slide-counter').textContent = 
-                totalSlides > 0 ? \`Slide \${currentSlide + 1} of \${totalSlides}\` : 'No slides';
+                totalSlides > 0 ? 'Slide ' + (currentSlide + 1) + ' of ' + totalSlides : 'No slides';
             
             // Update navigation buttons
             document.getElementById('prev-btn').disabled = currentSlide === 0;
@@ -4346,6 +4351,59 @@ Keep it concise and focused on the most important points.`;
 </body>
 </html>`;
   }
+
+  // Handle Accessible HTML export for presentations
+  ipcMain.handle('perform-export-html-accessible', async (event, content, exportOptions) => {
+    console.log('[main.js] Received perform-export-html-accessible with options:', exportOptions);
+    try {
+      const { dialog } = require('electron');
+      const path = require('path');
+      const fs = require('fs').promises;
+      
+      const defaultPath = currentFilePath ? 
+        currentFilePath.replace(/\.[^/.]+$/, '.html') : 
+        'presentation.html';
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export as Accessible HTML',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'HTML Files', extensions: ['html'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      // Generate accessible HTML content
+      console.log('[main.js] About to call generateAccessibleHTML with content length:', content.length);
+      const accessibleHTML = await generateAccessibleHTML(content);
+      console.log('[main.js] generateAccessibleHTML returned type:', typeof accessibleHTML);
+      console.log('[main.js] generateAccessibleHTML instanceof Promise:', accessibleHTML instanceof Promise);
+      console.log('[main.js] generateAccessibleHTML returned value (first 100 chars):', 
+        typeof accessibleHTML === 'string' ? accessibleHTML.substring(0, 100) : 'NOT A STRING');
+      
+      // Ensure it's a string before writing
+      if (typeof accessibleHTML !== 'string') {
+        throw new Error(`generateAccessibleHTML returned ${typeof accessibleHTML}, expected string`);
+      }
+      
+      // Write the HTML file
+      await fs.writeFile(result.filePath, accessibleHTML, 'utf8');
+      
+      console.log('[main.js] Accessible HTML export completed successfully');
+      return { 
+        success: true, 
+        filePath: result.filePath
+      };
+    } catch (error) {
+      console.error('[main.js] Error exporting Accessible HTML:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+
 
   // Handle PDF export with pandoc (with full bibliography support)
   ipcMain.handle('perform-export-pdf-pandoc', async (event, content, exportOptions) => {

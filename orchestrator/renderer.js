@@ -3464,9 +3464,9 @@ function switchStructureView(view) {
         initializeTagFiltering();
         
         // Only render file tree if it hasn't been rendered yet
-        if (!fileTreeRendered) {
+        if (!fileTreeRendered && !isRenderingFileTree) {
             renderFileTree(); // Populate the file tree view
-            fileTreeRendered = true;
+            // Note: fileTreeRendered is set to true inside renderFileTree after successful render
         }
     }
 }
@@ -3477,6 +3477,13 @@ window.expandedFolders = window.expandedFolders || new Set();
 
 async function renderFileTree() {
     console.log('[renderFileTree] Starting file tree render');
+    
+    // Prevent concurrent renders
+    if (isRenderingFileTree) {
+        console.log('[renderFileTree] Already rendering, skipping duplicate render');
+        return;
+    }
+    
     if (!window.electronAPI) {
         console.warn('[renderFileTree] ElectronAPI not available');
         return;
@@ -3485,15 +3492,21 @@ async function renderFileTree() {
     const fileTreeView = document.getElementById('file-tree-view');
     
     try {
+        // Set rendering flag
+        isRenderingFileTree = true;
+        
         const fileTree = await window.electronAPI.invoke('request-file-tree');
         
         if (!fileTreeView) {
             console.warn('[renderFileTree] fileTreeView element not found');
+            isRenderingFileTree = false;
             return;
         }
         
-        // Clear existing content
-        fileTreeView.innerHTML = '';
+        // Clear existing content - double check it's still the file tree view
+        if (fileTreeView.id === 'file-tree-view') {
+            fileTreeView.innerHTML = '';
+        }
         
         // Mark tree as rendered
         fileTreeRendered = true;
@@ -3521,6 +3534,10 @@ async function renderFileTree() {
         if (fileTreeView) {
             fileTreeView.innerHTML = '<div class="error">Error loading files</div>';
         }
+    } finally {
+        // Always clear the rendering flag
+        isRenderingFileTree = false;
+        console.log('[renderFileTree] Render complete');
     }
 }
 
@@ -3580,7 +3597,7 @@ function renderFileTreeNode(node, container, depth) {
                 toggleFolderExpansion(node.path);
                 // Reset the flag to allow re-render
                 fileTreeRendered = false;
-                renderFileTree(); // Re-render the tree to reflect changes
+                debouncedRenderFileTree(); // Use debounced version to prevent rapid re-renders
             }
         });
         
@@ -3646,6 +3663,23 @@ let tagFilteringInitialized = false;
 
 // File tree rendering state
 let fileTreeRendered = false;
+let isRenderingFileTree = false;  // Prevent concurrent renders
+
+// Debounce utility for file tree rendering
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Debounced version of renderFileTree
+const debouncedRenderFileTree = debounce(renderFileTree, 100);
 
 // Initialize tag filtering system
 function initializeTagFiltering() {
@@ -4483,7 +4517,8 @@ async function handleCreateFolder() {
             console.log(`[Renderer] Folder created successfully: ${result.folderPath}`);
             hideFolderNameModal();
             // Refresh the file tree to show the new folder
-            renderFileTree();
+            fileTreeRendered = false;
+            debouncedRenderFileTree();
             showNotification('Folder created successfully', 'success');
         } else {
             console.error(`[Renderer] Error creating folder: ${result.error}`);
@@ -4622,7 +4657,8 @@ if (window.electronAPI) {
         } else {
             // If already in file view, manually refresh
             console.log('[Renderer] Already in file view, refreshing tree');
-            renderFileTree();
+            fileTreeRendered = false;  // Reset flag to force refresh
+            debouncedRenderFileTree();
         }
     });
 }
@@ -5988,6 +6024,7 @@ function setupSmartMinimap(editor) {
 
 // --- Global exports for modules ---
 window.renderFileTree = renderFileTree;
+window.debouncedRenderFileTree = debouncedRenderFileTree;
 window.addTagFilter = addTagFilter; // Expose tag filter function
 window.showFilesView = function() {
     // Switch to files view in the left sidebar

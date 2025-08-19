@@ -1,443 +1,536 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>temp_html_pandoc_export</title>
-  <style>
-    html {
-      color: #1a1a1a;
-      background-color: #fdfdfd;
-    }
-    body {
-      margin: 0 auto;
-      max-width: 36em;
-      padding-left: 50px;
-      padding-right: 50px;
-      padding-top: 50px;
-      padding-bottom: 50px;
-      hyphens: auto;
-      overflow-wrap: break-word;
-      text-rendering: optimizeLegibility;
-      font-kerning: normal;
-    }
-    @media (max-width: 600px) {
-      body {
-        font-size: 0.9em;
-        padding: 12px;
-      }
-      h1 {
-        font-size: 1.8em;
-      }
-    }
-    @media print {
-      html {
-        background-color: white;
-      }
-      body {
-        background-color: transparent;
-        color: black;
-        font-size: 12pt;
-      }
-      p, h2, h3 {
-        orphans: 3;
-        widows: 3;
-      }
-      h2, h3, h4 {
-        page-break-after: avoid;
-      }
-    }
-    p {
-      margin: 1em 0;
-    }
-    a {
-      color: #1a1a1a;
-    }
-    a:visited {
-      color: #1a1a1a;
-    }
-    img {
-      max-width: 100%;
-    }
-    svg {
-      height: auto;
-      max-width: 100%;
-    }
-    h1, h2, h3, h4, h5, h6 {
-      margin-top: 1.4em;
-    }
-    h5, h6 {
-      font-size: 1em;
-      font-style: italic;
-    }
-    h6 {
-      font-weight: normal;
-    }
-    ol, ul {
-      padding-left: 1.7em;
-      margin-top: 1em;
-    }
-    li > ol, li > ul {
-      margin-top: 0;
-    }
-    blockquote {
-      margin: 1em 0 1em 1.7em;
-      padding-left: 1em;
-      border-left: 2px solid #e6e6e6;
-      color: #606060;
-    }
-    code {
-      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
-      font-size: 85%;
-      margin: 0;
-      hyphens: manual;
-    }
-    pre {
-      margin: 1em 0;
-      overflow: auto;
-    }
-    pre code {
-      padding: 0;
-      overflow: visible;
-      overflow-wrap: normal;
-    }
-    .sourceCode {
-     background-color: transparent;
-     overflow: visible;
-    }
-    hr {
-      background-color: #1a1a1a;
-      border: none;
-      height: 1px;
-      margin: 1em 0;
-    }
-    table {
-      margin: 1em 0;
-      border-collapse: collapse;
-      width: 100%;
-      overflow-x: auto;
-      display: block;
-      font-variant-numeric: lining-nums tabular-nums;
-    }
-    table caption {
-      margin-bottom: 0.75em;
-    }
-    tbody {
-      margin-top: 0.5em;
-      border-top: 1px solid #1a1a1a;
-      border-bottom: 1px solid #1a1a1a;
-    }
-    th {
-      border-top: 1px solid #1a1a1a;
-      padding: 0.25em 0.5em 0.25em 0.5em;
-    }
-    td {
-      padding: 0.125em 0.5em 0.25em 0.5em;
-    }
-    header {
-      margin-bottom: 4em;
-      text-align: center;
-    }
-    #TOC li {
-      list-style: none;
-    }
-    #TOC ul {
-      padding-left: 1.3em;
-    }
-    #TOC > ul {
-      padding-left: 0;
-    }
-    #TOC a:not(:hover) {
-      text-decoration: none;
-    }
-    code{white-space: pre-wrap;}
-    span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
-    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    /* The extra [class] is a hack that increases specificity enough to
-       override a similar rule in reveal.js */
-    ul.task-list[class]{list-style: none;}
-    ul.task-list li input[type="checkbox"] {
-      font-size: inherit;
-      width: 0.8em;
-      margin: 0 0.8em 0.2em -1.6em;
-      vertical-align: middle;
-    }
-    /* CSS for citations */
-    div.csl-bib-body { }
-    div.csl-entry {
-      clear: both;
-      margin-bottom: 0em;
-    }
-    .hanging-indent div.csl-entry {
-      margin-left:2em;
-      text-indent:-2em;
-    }
-    div.csl-left-margin {
-      min-width:2em;
-      float:left;
-    }
-    div.csl-right-inline {
-      margin-left:2em;
-      padding-left:1em;
-    }
-    div.csl-indent {
-      margin-left: 2em;
-    }  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accessible Presentation</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        /* Skip link for keyboard navigation */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 6px;
+            background: #000;
+            color: #fff;
+            padding: 8px;
+            text-decoration: none;
+            border-radius: 4px;
+            z-index: 1000;
+        }
+        
+        .skip-link:focus {
+            top: 6px;
+        }
+        
+        /* Main container */
+        .presentation-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        /* Navigation */
+        .presentation-nav {
+            background: #34495e;
+            padding: 15px 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #2c3e50;
+        }
+        
+        .nav-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .nav-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .nav-button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .nav-button:hover, .nav-button:focus {
+            background: #2980b9;
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+        
+        .nav-button:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+        }
+        
+        /* Slide styles */
+        .slide {
+            padding: 40px;
+            min-height: 500px;
+            border-bottom: 1px solid #ecf0f1;
+            display: none;
+            outline: none;
+        }
+        
+        .slide:focus {
+            box-shadow: inset 0 0 0 3px #3498db;
+        }
+        
+        .slide.active {
+            display: block;
+        }
+        
+        .slide-title {
+            color: #2c3e50;
+            font-size: 2rem;
+            margin-bottom: 30px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3498db;
+            line-height: 1.2;
+        }
+        
+        .slide h3 {
+            color: #34495e;
+            font-size: 1.5rem;
+            margin: 25px 0 15px 0;
+        }
+        
+        .slide h4 {
+            color: #34495e;
+            font-size: 1.25rem;
+            margin: 20px 0 12px 0;
+        }
+        
+        .slide p {
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+        
+        .slide ul, .slide ol {
+            margin: 20px 0;
+            padding-left: 30px;
+        }
+        
+        .slide li {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        /* Code blocks */
+        .slide pre {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Consolas', 'Source Code Pro', monospace;
+        }
+        
+        .slide code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', 'Source Code Pro', monospace;
+            font-size: 0.9em;
+        }
+        
+        /* Blockquotes */
+        .slide blockquote {
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            font-style: italic;
+            color: #5a6c7d;
+        }
+        
+        /* Tables */
+        .slide table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+        
+        .slide th, .slide td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        .slide th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        /* Images */
+        .slide img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        
+        /* Links */
+        .slide a {
+            color: #3498db;
+            text-decoration: underline;
+            transition: color 0.2s;
+        }
+        
+        .slide a:hover, .slide a:focus {
+            color: #2980b9;
+            outline: 2px solid #3498db;
+            outline-offset: 2px;
+        }
+        
+        /* Print styles */
+        @media print {
+            .presentation-nav {
+                display: none;
+            }
+            
+            .slide {
+                display: block !important;
+                page-break-after: always;
+                padding: 20px;
+                min-height: auto;
+                border-bottom: none;
+                box-shadow: none;
+            }
+            
+            .slide:last-child {
+                page-break-after: auto;
+            }
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            body {
+                background: #000;
+                color: #fff;
+            }
+            
+            .presentation-container {
+                background: #000;
+                border: 2px solid #fff;
+            }
+            
+            .slide {
+                background: #000;
+                color: #fff;
+            }
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
 </head>
 <body>
-<h1 id="machine-learning-and-human-learning">Machine Learning and Human
-Learning</h1>
-<h2 id="readings">Readings</h2>
-<p>None for Week 1!</p>
-<h2 id="assessment">Assessment</h2>
-<p>Comment on any of the following questions: - What does it mean to
-learn? How do you know when human learning happens: in the classroom,
-workplace or life? - Machine learning is clearly inspired by human
-learning. In your use of AI to date, how would you describe what it has
-learned (memorized, regurgitated, etc)? When AI gets things wrong, how
-are its errors different (or similar) to human mistakes? - I have
-introduced the concept of “synthesis” to describe the similarities and
-differences between machine and human learning. What are your views?</p>
-<h2 id="structure">Structure</h2>
-<ol type="1">
-<li>Outline of the Course - Circular Structure</li>
-</ol>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <div class="presentation-container">
+        <nav class="presentation-nav" role="navigation" aria-label="Presentation navigation">
+            <h1 class="nav-title" id="presentation-title">Accessible Presentation</h1>
+            <div class="nav-controls">
+                <button class="nav-button" id="prev-btn" onclick="previousSlide()" aria-label="Previous slide">Previous</button>
+                <span id="slide-counter" aria-live="polite">Slide 1</span>
+                <button class="nav-button" id="next-btn" onclick="nextSlide()" aria-label="Next slide">Next</button>
+            </div>
+        </nav>
+        
+        <main id="main-content" role="main">
+            <hr>
+<p>tags: [&quot;dialectic&quot;]</p>
+<hr>
+<!-- TOC START -->
+<section id="slide-1" class="slide" role="region" aria-labelledby="slide-1-heading" tabindex="0">
+        <h2 id="slide-1-heading" class="slide-title"><a id="table-of-contents"></a>Table of Contents</h2>
 <ul>
-<li>[[lecture-concepts]]</li>
+<li><a href="#machine-learning-and-human-learning">Machine Learning and Human Learning</a><ul>
+<li><a href="#readings">Readings</a></li>
+<li><a href="#assessment">Assessment</a></li>
+<li><a href="#structure">Structure</a></li>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#main-lecture">Main Lecture</a><ul>
+<li><a href="#modalities-of-learning">Modalities of Learning</a></li>
+<li><a href="#comparative-analysis-of-human-and-machine-learning">Comparative Analysis of Human and Machine Learning</a></li>
+<li><a href="#concepts">Concepts</a></li>
 </ul>
-<ol start="2" type="1">
+</li>
+</ul>
+</li>
+</ul>
+<!-- TOC END -->
+
+
+
+
+
+
+<h1><a id="machine-learning-and-human-learning"></a>Machine Learning and Human Learning</h1>
+
+      </section><section id="slide-2" class="slide" role="region" aria-labelledby="slide-2-heading" tabindex="0">
+        <h2 id="slide-2-heading" class="slide-title"><a id="readings"></a>Readings</h2>
+<p>None for Week 1!</p>
+
+      </section><section id="slide-3" class="slide" role="region" aria-labelledby="slide-3-heading" tabindex="0">
+        <h2 id="slide-3-heading" class="slide-title"><a id="assessment"></a>Assessment</h2>
+<p>Comment on any of the following questions:</p>
+<ul>
+<li>What does it mean to learn? How do you know when human learning happens: in the classroom, workplace or life?</li>
+<li>Machine learning is clearly inspired by human learning. In your use of AI to date, how would you describe what it has learned (memorized, regurgitated, etc)? When AI gets things wrong, how are its errors different (or similar) to human mistakes?</li>
+<li>I have introduced the concept of &quot;synthesis&quot; to describe the similarities and differences between machine and human learning.  What are your views? Do the similarities outweigh the differences, or vice versa?</li>
+</ul>
+
+      </section><section id="slide-4" class="slide" role="region" aria-labelledby="slide-4-heading" tabindex="0">
+        <h2 id="slide-4-heading" class="slide-title"><a id="structure"></a>Structure</h2>
+<ol>
+<li>Introduction to the Course</li>
 <li>Weekly Format</li>
 </ol>
 <ul>
 <li>Mix of theory (lectures) / practice / discussion</li>
 </ul>
-<ol type="1">
-<li>Assessments</li>
-<li>A previous version of this course ran in 2023 and 2024:
-[[2023-Course]]</li>
+<ol start="3">
+<li>Assessments  </li>
+<li>A previous version of this course ran in 2023 and 2024: [[2023-Course]]</li>
+<li>Circular Structure</li>
+</ol>
+<ul>
+<li>[[lecture-concepts]]</li>
+</ul>
+<ol start="6">
 <li>Lens: Hegelian Philosophy. Why Hegel?</li>
 </ol>
 <ul>
-<li>basic hypothesis: machine learning is rooted in 18th century
-empiricism (more data = more truth)</li>
-<li>What does Hegel offer? One way to think about learning as
-<em>nonlinear</em> (structured / dialectical / involving negation etc).
-This is important for later pedagogical theorists such as Dewey,
-Vygotsky and Piaget – Hegel’s influence on these thinkers (and their
-general critique of mechanical learning will become clear).</li>
-<li>This will hopefully become clear! We start with the idea of
-synthesis between machine learning and human learning, then go down
-several rabbit holes, before returning, in Week 8, to a modified idea of
-synthesis.</li>
+<li>basic hypothesis: machine learning is rooted in 18th century empiricism (more data = more truth)</li>
+<li>What does Hegel offer? One way to think about learning as <em>nonlinear</em> (structured / dialectical / involving negation etc). This is important for later pedagogical theorists such as Dewey, Vygotsky and Piaget – Hegel&#39;s influence on these thinkers (and their general critique of mechanical learning will become clear).</li>
+<li>This will hopefully become clear! We start with the idea of synthesis between machine learning and human learning, then go down several rabbit holes, before returning, in Week 8, to a modified idea of synthesis.</li>
 </ul>
-<ol start="6" type="1">
-<li><p>8 Weeks = 8 Concepts</p></li>
-<li><p>Discussion</p></li>
-<li><p>as</p></li>
-<li><p>asdf</p></li>
-<li><p>asd</p></li>
-<li><p>asdf</p></li>
+<ol start="7">
+<li>8 Weeks = 8 Concepts</li>
+<li>Discussion</li>
 </ol>
-<h2 id="overview">Overview</h2>
+
+      </section><section id="slide-5" class="slide" role="region" aria-labelledby="slide-5-heading" tabindex="0">
+        <h2 id="slide-5-heading" class="slide-title"><a id="overview"></a>Overview</h2>
 <p>Welcome to Machine Learning and Human Learning!</p>
-<p>In this course we’ll be exploring these two related – but also very
-distinct – ideas. This week I’ll provide an overview of the course,
-readings, approach and assessment. I’ll also be introducing the work of
-Hegel, an Enlightenment-era German philosopher who will supply an
-important lens onto many of the questions posed by machines which
-purport to learn.</p>
-<p>We’ll also have a general open discussion about machine learning and
-human learning: what unites them, and what distinguishes them. In true
-dialectical fashion, we will then think about what possible synthesis we
-might see between these two modalities of learning. Part of this
-discussion will involve, naturally enough, a machine that will be
-joining us – GPT-5 – to share its views.</p>
-<hr />
-<h2 id="comparative-analysis-of-human-and-machine-learning">Comparative
-Analysis of Human and Machine Learning</h2>
+<p>In this course we&#39;ll be exploring these two related – but also very distinct – ideas. This week I&#39;ll provide an overview of the course, readings, approach and assessment. I&#39;ll also be introducing the work of Hegel, an Enlightenment-era German philosopher who will supply an important lens onto many of the questions posed by this new era of machine learning. </p>
+<p>We&#39;ll also have a general open discussion about machine learning and human learning: what unites them, and what distinguishes them. In true dialectical fashion - a term we will get used to as we read Hegel – we will then think about what possible synthesis we might see between these two ways of learning. Part of this discussion will involve, naturally enough, a machine that will be joining us – GPT-5 – to share its views.</p>
+<hr>
+
+      </section><section id="slide-6" class="slide" role="region" aria-labelledby="slide-6-heading" tabindex="0">
+        <h2 id="slide-6-heading" class="slide-title"><a id="main-lecture"></a>Welcome to Machine Learning and Human Learning!</h2>
+<hr>
+<h3>Synthesis</h3>
+<p>We have entered an era in which our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. </p>
+<p>But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from <em>us</em> – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which &quot;learning&quot; comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.</p>
+<p>We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Harraway); of cyber-social systems (Kalantzis Cope); and of compound terms like &#39;technosymbiosis&#39; (Katherine Hayles) or a term I&#39;ll be using, in the context of learning, &#39;symbiotic pedagogy&#39;. But the wider concept we&#39;ll be working with this week - and returning to, as we&#39;ll see - is that of <em>synthesis</em>. <em>Synthesis</em> will describe how both the similarities and differences between machine and human learning come together in our present moment.</p>
+<p>Through the course we will be studying this relationship in a number of ways. Later I&#39;ll talk through the organization of the course materials. </p>
+<hr>
+
+      </section><section id="slide-7" class="slide" role="region" aria-labelledby="slide-7-heading" tabindex="0">
+        <h2 id="slide-7-heading" class="slide-title">Administration</h2>
+<h3>Weekly seminars.</h3>
+<p>My preference is for these to be two hours (5:30 - 7:30), with a brief break. I&#39;m flexible here though. Essentially we have a lot we can present, discuss and practice. My ideal here is that I will present 2 x 15 minute lecture pods, after which we will have a mix of discussion and practice with AI models.</p>
+<p>But the course hours are much fewer than this. What do people think? Otherwise we can truncate to 90 or even 60 minutes.</p>
+<h3>Assessment</h3>
+<p>The course will use CGScholar – a platform I think most of you will be familiar with? Assessments will be divided between:</p>
+<ol>
+<li>Weekly discussion and commentary in CGScholar (formative learning!)</li>
+<li>An individual curriculum, learning guide or conference presentation outline (summative learning!). This will be your choice, but could be either of:
+  a. Learning materials designed for machines, describing some facet of human culture
+  b. or Learning materials designed for humans, describing some facet of machine &quot;experience&quot;</li>
+</ol>
+<h3>Previous course</h3>
+<p>A previous version of this course ran in 2023 and 2024: [[2023-Course]]</p>
+<p>Despite this having the same name as that course, it is very different. And I would encourage people to look back to Bill and Mary&#39;s earlier course, and especially their videos, which are excellent. As you will probably gather, I have a quite different take. I would say by going back and forth, you might get the best of both worlds. Keep the link to the course handy, and feel free to consult both videos and readings.</p>
+<hr>
+<h3>Our Approach in 2025</h3>
+<p>So what distinguishes our approach in 2025? The first and biggest difference will be my reliance on the work of a early 19th century German Philosopher, Georg Wilhelm Friedrich Hegel. </p>
+<p>Why Hegel? Why build a course on machine learning around a thinker who pre-dates, not only the recent era of machine learning, but the entire history of computation altogether?</p>
+<p>Let me give a few reasons.</p>
+<p>First, I will be arguing one of the present limitations of machine learning is that it is stuck in a period of thinking about learning: the 18th century. According to the philosophy of the period – and I am of course simplifying here – the human mind was a blank slate that needed to be filled up with facts. Learning was a comparatively simple process of <em>accumulation</em>. Just as life itself is the experience of a sequence of moments, each of which is compared to other moments, so learning is the acquisition of experience that are recorded in the mind. </p>
+<p>This, as we&#39;ll review, is a form of the <em>empiricism</em> that underpins our current paradigm of machine learning. Now Hegel – as we&#39;ll also see – represents a profound challenge to the empirical tradition. His account of experience is not simply accumulative –– it is <em>dialectical</em>, which presumes that new experiences can sometimes <em>negate</em> those that they succeed. Learning proceeds, in other words, in a series of developmental stages, each of which involves some kind of realization or learning moment which can sometimes refute a past moment. Although, at least in Hegel&#39;s account, both past and present moment, even if they stand in contradiction, can be reconciled in a process of <em>synthesis</em>, constituting in turn a future moment which initiates the whole process all over again. Some of you might hear echoes here of later theorists of learning like Jean Piaget, who also supposed learning proceeded in development stages.</p>
+<p>In addition – and here is the second reason – Hegel&#39;s account is rooted in our experience of <em>others</em>. In a way that prempts another learning theorist, Vygotsky, Hegel&#39;s account of human experience also involves a specific development from consciousness to self-consciousness. Ironically, our awareness of ourselves is closely connected to our awareness of other selves who are not our self - other people, in other words. This awareness means our experience and learning is <em>social</em>, conditioned and mediated by others. Now it is an open question as to whether machines are said to be social at all, but certainly not, as we&#39;ll see, in the sense that Hegel means. </p>
+<p>The third reason relates less to Hegel&#39;s direct views about learning, and more to his understanding of history. Within the Western tradition of philosophy, Hegel is the first and central philosopher of history – in the sense that he discusses history as something like a wider social and collective learning project. History moreover has a tendency or direction: it moves towards gradual realization or recognition, what Hegel terms, grandiosely, as the Absolute Idea or Absolute Knowledge. Outside religion, perhaps few today would agree strongly with Hegel that history follows a determinate path. However, with the arrival of AI – and certainly with much of the hype that comes with it – we are also forced to confront a series of questions: where are we going with AI? Will we arrive at a singularity, when AI becomes smarter than humans? And what skills do future human learners need to navigate this particular historical moment? Hegel doesn&#39;t answer this question, but – especially in his confrontation with the major events of his own time, including the French Revolution – he is already opening a way for consideration of our position within a wider time and history. </p>
+<hr>
+
+      </section><section id="slide-8" class="slide" role="region" aria-labelledby="slide-8-heading" tabindex="0">
+        <h2 id="slide-8-heading" class="slide-title">Organization of the Course</h2>
+<p>The course is structured over eight weeks, and each week introduces and discusses a new concept. </p>
+<ol>
+<li><strong>Synthesis</strong> This is the introduction and overview we are doing today. </li>
+<li>Experience</li>
+</ol>
 <ul>
-<li>The course provides an overview of both human and machine
-learning.</li>
-<li>It aims to identify similarities between human and machine learning
-processes.</li>
-<li>It emphasizes the distinguishing factors between human and machine
-learning.</li>
-<li>This course employs a comparative and contrastive approach towards
-understanding learning processes.</li>
+<li>Next week we&#39;ll be looking at the concept of Experience. This is a crucial idea in Hegel&#39;s <strong>Phenomenology of Spirit</strong>, and constitutes the single largest implicit criticism of non-human learning. We will examine how Hegel unpacks this idea, and contrast it with other ideas of experience (e.g. Locke) that might be closer to what we see of machinic &quot;experience&quot;. We will also discuss the relationship of experience to learning, consciousness, perception and memory.</li>
 </ul>
-<pre class="notes"><code>This course presents an outline of human and machine learning. As the title suggests, this involves a process of comparison and contrast: what is common to both human and machine learning, and what distinguishes them. </code></pre>
-<hr />
-<h2
-id="philosophical-inquiry-into-learning-and-symbiotic-pedagogy">Philosophical
-Inquiry into Learning and Symbiotic Pedagogy</h2>
+<ol start="3">
+<li>Attention</li>
+</ol>
 <ul>
-<li>Treat learning as a philosophical question alongside child
-psychology, linguistics, and computer science.</li>
-<li>Reframe learning from a set of features to a process that traverses
-key distinctions (human/machine, individual/society, child/adult).</li>
-<li>Emphasize cooperative, sociotechnical dynamics captured by the term
-“symbiotic pedagogy.”</li>
-<li>Develop normative criteria to distinguish legitimate from
-illegitimate forms of human and machine learning.</li>
+<li>Following that, we will focus on the idea of attention. This is an idea that spans neuroscience, psychology, computer science, philosophy and media studies. We&#39;ll examine a key text in the development of machine learning, &quot;Attention is All you Need&quot;. But we will also think about how attention is important for human learning. And we will look at recent critical studies of attention and what has become known as the Attention Economy.</li>
 </ul>
-<pre class="notes"><code>This process is something that, for this course, I want to approach in a philosophical way. What I mean by this is that, alongside texts from areas of child psychology, linguistics and computer science, I want us to investigate the idea of &quot;learning&quot; through a fundamentally *philosophical* type of inquiry. This I think leads us to think about less about learning as a set of features that pertain to humans, machines or both, and more about learning as itself a process that ranges across a set of common distinctions: between human and machine, but also between individual and society, between child and adult, and so on. It will also help us, I hope, to think about learning as something cooperative, involving both social and technical, or what are sometimes thought as sociotechnical systems. I&#39;ve coined the term &quot;symbiotic pedagogy&quot; to describe this kind of cooperation. Finally, we might conclude by developing some normative claims: about what constitutes legitimate as opposed to illegitimate forms of human and machine learning.</code></pre>
-<hr />
-<p>The presentation of the course will be unusual. I plan to develop and
-deliver the lecture material offline, and then use the weekly hour
-allocated to us to discuss both that material and associated readings.
-This will in some ways add more labor and time to the course, but also
-allow us to plumb more deeply into a complex topic that ranges across
-disciplinary fields.</p>
-<hr />
-<p>For this year (at least), I plan to develop this philosophical lens
-around the work of a specific philosopher, Georg Friedrich Hegel – a
-German thinker of the early 19th century. Shortly I’ll provide some more
-detail about Hegel and his work, but I want to begin with a
-justification of this particular orientation. Why build a course around
-a thinker who pre-dates, not only the recent era of machine learning,
-but the entire history of computation altogether?</p>
-<hr />
-<p>The key text we’ll be examining here is Hegel’s <em>Phenomenology of
-Mind</em> (1807). For this course I will be using this text as a sort of
-<em>avant la lettre</em> account of how a <em>subject</em> – an entity
-that for the moment we will assume can exist in human, in machinic and
-perhaps in other situations – forms itself as a subject. In perhaps less
-obscure terms, how something like us learns to be as a conscious self.
-This text by Hegel occupies an important place in Western philosophy,
-and in some ways – as I hope to make clear – can be seen as one of the
-historical pivots around which questions of learning can be responded
-to.</p>
-<hr />
-<p>Controversially, this includes questions of machine learning. I will
-be arguing that Hegel’s text makes the possibility of machine learning
-thinkable. I will also be arguing that present day machine learning
-fails, quite dramatically, to live up to the standard Hegel sets for it.
-In this failing, we can say that machines still do not learn. This is
-not the standard of consciousness, but rather something even more
-fundamental to learning – as I said earlier, how a subject
-<em>becomes</em> a subject. This involves creating a relationship
-between itself and its world, its history and future. Hopefully this
-will become clearer as we progress.</p>
-<hr />
-<p>How does this connect with machine learning? Part of this course will
-examine the technical process by which machines learn – though I devote
-more time to the sibling course, <em>Introduction to Generative AI for
-Education</em>, for this work. Here we will spend more time thinking
-about the philosophical underpinnings of machine learning, and focus on
-one specific area that so far remains an open area of research in
-computer science: the problem of <em>continuous learning</em>. What is
-this problem? Let’s imagine I sit down to <em>talk</em> to an AI agent
-such as ChatGPT. I notice that I am usually initiating a new
-conversation – though of course I can also choose to resume a prior
-conversation too. If I have paid for the subscription service and turned
-on the personalization feature, I notice also that the agent seems to
-know some details about me. Indeed, over time – if I connect the agent
-to my files and data – I also notice that this personalization seems to
-become more sophisticated and knowledgeable too.</p>
-<hr />
-<p>However in another sense the system remains the same system it was at
-the point that its initial training was completed. Evidence of this
-appears in the common problem of cut-off dates – the point at which the
-content of the web was digested and fed into the machine learning
-algorithm. If we make an analogy to the human situation, it is as though
-this student had stopped acquiring any real new information after a
-certain point. Although it can pretend to know more, if I remove the
-connection to my data or personal history, the machine immediately
-forgets what it has known about me. The effect of this is not very
-obvious, because usually the training data cut-off is recent enough, and
-it is supplemented by Internet information. But were we to project
-ourselves a hundred years into the future, we’d have the strange sense
-of interacting with a mechanical ghost: its knowledge would not have
-been updated.</p>
-<hr />
-<p>There are efforts to develop continuous learning systems, though none
-are yet deployed in the major AI systems available to us. And this
-points immediately to one of the key fissures between human and machine
-learning. Try as we might, as human subjects we are unable to stop
-<em>experiencing</em> the world. In the same thought experiment, even if
-I was locked in a stimulus-free chamber for a period of time, if you
-asked me a question about what had happened in the world in the meantime
-I could not answer. But I would have experienced <em>something</em>. The
-machine does not – yet – do this.</p>
-<hr />
-<p>This focus on experience justifies the selection of Hegel’s
-<em>Phenomenology</em> – really one of the most important documents of
-the idea of experience in the Western philosophical tradition. here
-isn’t time to recapitulate the full complex story of the
-<em>Phenomenology</em>. We will be focussing on certain strategic
-elements of that story, which I will argue helps us to understand
-something about human processes of learning, and also how that relates
-to the machinic simulation of learning. Two of those elements involves
-the developmental and socialized nature of learning – aspects given much
-greater and more explicit treatment in pedagogical theory via the works
-of Piaget and Vygotsky. While Hegel’s work does not discuss, for
-example, the stages of child development, in a certain sense the entire
-text of <em>Phenomenology</em> is an effort to understand the sequence
-or series of moves through which we come to a position of understanding
-and knowledge about the world and ourselves. In the first few lectures,
-we will be working through how Hegel sees this happening for an
-individual. In the latter part of the course, we will branch out to
-think of how learning is also social, and we will tackle – again with
-Hegel’s support – different moments of socialized development too.</p>
-<hr />
-<p>This discussion will not be directed, though, toward the simple aim
-of how machine learning is – and in a certain sense cannot ever be –
-equivalent to human learning. Our aim is instead more ambitious. Hegel
-was also a thinker of history, and understood history as also undergoing
-a series of developments. Without committing ourselves to Hegel’s quite
-dogmatic understanding, we will seek to thematise how machine learning
-fits into a wider picture of human development and progress. What is –
-from a human learning perspective – the “end game” of machine learning?
-Where does it fit within our – usually implicit – account of why
-learning is important? This is not just a question of how we can use
-machine learning systems to supplement, accelerate and democratize how
-humans learn. It is rather a question of how we need to rewire both the
-content and the form of human learning in a world that is transforming
-dramatically – and which we need to insist upon still having some agency
-in that process of transformation. This will be what I hope is the
-practical payoff for an otherwise arduous conceptual journey through the
-world of Hegelian philosophy.</p>
+<ol start="4">
+<li>Recognition</li>
+</ol>
+<ul>
+<li>Another key Hegelian idea, this week we will examine how <em>recognition</em> connects individual  learning to our relation to others - to, in other words, a social process. We&#39;ll discuss here Vygotsky&#39;s theory of human learning, and also examine ways machines could be considered as &quot;recognizing&quot; us.</li>
+</ul>
+<ol start="5">
+<li>Consciousness (Self/Other/Un/Non)
+The early parts of Phenomenology of Spirit is dominated by the ideas of Consciousness and Self-consciousness. We&#39;ll explore how these relate to Experience, Attention and Recognition (and whether indeed they &quot;synthesize&quot; these earlier ideas). We&#39;ll explore also later ideas of the Unconscious (Freud) and Nonconscious Cognition (Katherine Hayles). This leads us naturally to an obvious question: can machines be conscious? If not, can they be unconscious? </li>
+<li>Alignment
+Alignment is a &quot;vogue&quot; term in machine learning, and describes the process of aligning machines to human values and interests. One technical process for doing this is RLHF – reinforcement learning from human feedback.  This relates closely to ideas of &quot;norms&quot;. As opposed to rules or laws, norms describe often implied values that condition our practices, including our speaking practices. So &quot;alignment&quot; also can describe human learning – aligning ourselves with others. And increasingly today, we can also think of humans aligning themselves with machine values, especially in pedagogical settings.  </li>
+<li>Critique 
+&quot;Critique&quot; then brings us to what happens when alignment, one way or another, fails: when technology, in other words, fails to meet the wider social standards we set for it. Critique is another keyword also in the Hegelian nomenclature - it comes famously from Kant, for whom &quot;Critique&quot; is the method for understanding how &quot;pure&quot; (rational, scientific), &quot;practical&quot; (applied, moral) and &quot;judgemental&quot; (aesthetic) reasoning can happen. Here we will look at how Critical AI has been responding to AI - and look in turn at how AI works itself as a tool for, as well as of, critique.  </li>
+<li>Synthesis: Technosymbiosis</li>
+</ol>
+<hr>
+
+      </section><section id="slide-9" class="slide" role="region" aria-labelledby="slide-9-heading" tabindex="0">
+        <h2 id="slide-9-heading" class="slide-title">A word on software....</h2>
+<hr>
+
+      </section><section id="slide-10" class="slide" role="region" aria-labelledby="slide-10-heading" tabindex="0">
+        <h2 id="slide-10-heading" class="slide-title">Introductions</h2>
+<hr>
 <p>Authors:</p>
-<p><span class="citation"
-data-cites="hegel2025phenomenology kojeve1980introduction hyppolite1974genesis houlgate2012hegel heidegger1988hegel pippin2010hegel hegel2014science vzivzek2020hegel">(G.
-W. Hegel 2025; Kojève 1980; Hyppolite 1974; Houlgate 2012; Heidegger
-1988; Pippin 2010; G. W. F. Hegel 2014; Žižek 2020)</span></p>
-<div id="refs" class="references csl-bib-body hanging-indent"
-data-entry-spacing="0" role="list">
-<div id="ref-hegel2025phenomenology" class="csl-entry" role="listitem">
-Hegel, Georg WF. 2025. <em>The Phenomenology of Spirit (the
-Phenomenology of Mind)</em>. Rare Treasure Editions.
-</div>
-<div id="ref-hegel2014science" class="csl-entry" role="listitem">
-Hegel, Georg Wilhelm Friedrich. 2014. <em>Science of Logic</em>.
-Routledge.
-</div>
-<div id="ref-heidegger1988hegel" class="csl-entry" role="listitem">
-Heidegger, Martin. 1988. <em>Hegel’s Phenomenology of Spirit</em>.
-Indiana university press.
-</div>
-<div id="ref-houlgate2012hegel" class="csl-entry" role="listitem">
-Houlgate, Stephen. 2012. <span>“Hegel’s ’Phenomenology of
-Spirit’.”</span>
-</div>
-<div id="ref-hyppolite1974genesis" class="csl-entry" role="listitem">
-Hyppolite, Jean. 1974. <em>Genesis and Structure of Hegel’s"
-Phenomenology of Spirit"</em>. Northwestern University Press.
-</div>
-<div id="ref-kojeve1980introduction" class="csl-entry" role="listitem">
-Kojève, Alexandre. 1980. <em>Introduction to the Reading of Hegel</em>.
-Cornell University Press.
-</div>
-<div id="ref-pippin2010hegel" class="csl-entry" role="listitem">
-Pippin, Robert B. 2010. <em>Hegel on Self-Consciousness: Desire and
-Death in the Phenomenology of Spirit</em>. Princeton University Press.
-</div>
-<div id="ref-vzivzek2020hegel" class="csl-entry" role="listitem">
-Žižek, Slavoj. 2020. <span>“Hegel in a Wired Brain.”</span>
-</div>
-</div>
+<p>[@hegel2025phenomenology; @kojeve1980introduction; @hyppolite1974genesis; @houlgate2012hegel; @heidegger1988hegel; @pippin2010hegel; @hegel2014science; @vzivzek2020hegel]</p>
+
+      </section>
+        </main>
+    </div>
+    
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        function showSlide(n) {
+            // Hide all slides
+            slides.forEach(slide => {
+                slide.classList.remove('active');
+                slide.setAttribute('aria-hidden', 'true');
+            });
+            
+            // Normalize slide number
+            if (n >= totalSlides) currentSlide = 0;
+            if (n < 0) currentSlide = totalSlides - 1;
+            
+            // Show current slide
+            if (slides[currentSlide]) {
+                slides[currentSlide].classList.add('active');
+                slides[currentSlide].setAttribute('aria-hidden', 'false');
+                slides[currentSlide].focus();
+            }
+            
+            // Update counter
+            document.getElementById('slide-counter').textContent = 
+                totalSlides > 0 ? 'Slide ' + (currentSlide + 1) + ' of ' + totalSlides : 'No slides';
+            
+            // Update navigation buttons
+            document.getElementById('prev-btn').disabled = currentSlide === 0;
+            document.getElementById('next-btn').disabled = currentSlide === totalSlides - 1;
+        }
+        
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                showSlide(currentSlide);
+            }
+        }
+        
+        function previousSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                showSlide(currentSlide);
+            }
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    previousSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    currentSlide = 0;
+                    showSlide(currentSlide);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    currentSlide = totalSlides - 1;
+                    showSlide(currentSlide);
+                    break;
+            }
+        });
+        
+        // Initialize presentation
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up slide attributes
+            slides.forEach((slide, index) => {
+                slide.setAttribute('aria-hidden', index !== 0 ? 'true' : 'false');
+                slide.setAttribute('tabindex', '0');
+            });
+            
+            // Show first slide
+            showSlide(0);
+            
+            // Set focus to first slide for screen readers
+            if (slides[0]) {
+                slides[0].focus();
+            }
+        });
+    </script>
 </body>
 </html>

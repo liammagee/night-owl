@@ -1,9 +1,5 @@
 ---
 tags: ["dialectic"]
-category: null
-author: null
-date: null
-description: null
 ---
 <!-- TOC START -->
 ## <a id="table-of-contents"></a>Table of Contents

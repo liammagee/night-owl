@@ -443,6 +443,12 @@ class AIFlowDetection {
         indicator.addEventListener('click', (e) => {
             console.log('[Flow Detection] Indicator clicked - dismissing manually');
             indicator.classList.remove('visible');
+            
+            // Force hide the indicator completely after transition
+            setTimeout(() => {
+                indicator.style.display = 'none';
+            }, 300); // Wait for CSS transition to complete
+            
             if (this.flowIndicatorTimeout) {
                 clearTimeout(this.flowIndicatorTimeout);
                 this.flowIndicatorTimeout = null;
@@ -565,6 +571,9 @@ class AIFlowDetection {
         
         // console.log(`[Flow Detection] Showing indicator: ${text} (${className}) for ${autoHideDelay}ms`);
         
+        // Reset display style in case it was previously hidden
+        indicator.style.display = '';
+        
         indicator.classList.add(className, 'visible');
         indicator.querySelector('.flow-indicator-icon').textContent = icon;
         indicator.querySelector('.flow-indicator-text').textContent = text;
@@ -580,6 +589,12 @@ class AIFlowDetection {
             this.flowIndicatorTimeout = setTimeout(() => {
                 // console.log(`[Flow Detection] Auto-hiding indicator after ${autoHideDelay}ms timeout`);
                 indicator.classList.remove('visible');
+                
+                // Force hide the indicator completely after transition
+                setTimeout(() => {
+                    indicator.style.display = 'none';
+                }, 300); // Wait for CSS transition to complete
+                
                 this.flowIndicatorTimeout = null;
                 this.lastIndicatorHidden = Date.now();
                 // console.log(`[Flow Detection] Indicator auto-hidden at ${new Date().toLocaleTimeString()}, ${this.indicatorCooldown/1000}s cooldown started`);
@@ -1449,6 +1464,12 @@ Avoid generic advice. Be specific to what the user is actually working on.`;
         const indicator = document.getElementById('ai-flow-indicator');
         if (indicator) {
             indicator.classList.remove('visible');
+            
+            // Force hide the indicator completely after transition
+            setTimeout(() => {
+                indicator.style.display = 'none';
+            }, 300); // Wait for CSS transition to complete
+            
             this.lastIndicatorHidden = Date.now();
             
             // Clear any pending timeouts
