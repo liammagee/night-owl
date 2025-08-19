@@ -39,6 +39,8 @@ class AIWritingCompanion {
             analysisInterval: 30000, // Analyze every 30 seconds during active writing
             lastAnalysis: 0,
             currentInsights: [],
+            recentTypingBuffer: '', // Buffer to track last ~150 characters as they're typed
+            maxTypingBufferSize: 150, // Maximum characters to keep in typing buffer
         };
         
         // Adaptive Learning
@@ -123,13 +125,15 @@ class AIWritingCompanion {
         const analyzeWriting = () => {
             if (!this.feedbackSystem.enabled) return;
             
-            const currentContent = this.getCurrentWritingContent();
-            if (currentContent === lastContent) return;
+            console.log('[AI Companion] ⏰ Timer-based analysis triggered');
             
-            const newText = currentContent.slice(lastContent.length);
-            if (newText.length > 0) {
-                this.processNewWriting(newText);
-                lastContent = currentContent;
+            // Don't use timer-based content comparison anymore since we have real-time capture
+            // Only trigger analysis if we have enough content in our real-time buffer
+            if (this.realTimeAnalysis.recentTypingBuffer.length > 20) {
+                console.log('[AI Companion] ⏰ Timer triggering analysis with real-time buffer');
+                this.performContextualAnalysis();
+            } else {
+                console.log('[AI Companion] ⏰ Timer skipped - insufficient real-time buffer content');
             }
         };
         
@@ -149,7 +153,22 @@ class AIWritingCompanion {
     }
     
     processNewWriting(newText) {
-        // Add to analysis buffer
+        console.log('[AI Companion] 📝 New text received:', JSON.stringify(newText));
+        
+        // Add new text to the real-time typing buffer
+        this.realTimeAnalysis.recentTypingBuffer += newText;
+        
+        // Keep typing buffer at manageable size (last ~150 characters)
+        if (this.realTimeAnalysis.recentTypingBuffer.length > this.realTimeAnalysis.maxTypingBufferSize) {
+            const beforeTrim = this.realTimeAnalysis.recentTypingBuffer.length;
+            // Keep only the last maxTypingBufferSize characters
+            this.realTimeAnalysis.recentTypingBuffer = this.realTimeAnalysis.recentTypingBuffer.slice(-this.realTimeAnalysis.maxTypingBufferSize);
+            console.log('[AI Companion] ✂️ Trimmed typing buffer from', beforeTrim, 'to', this.realTimeAnalysis.recentTypingBuffer.length, 'characters');
+        }
+        
+        console.log('[AI Companion] 📦 Current typing buffer:', JSON.stringify(this.realTimeAnalysis.recentTypingBuffer));
+        
+        // Add to analysis buffer for broader analysis
         this.realTimeAnalysis.analysisBuffer.push({
             text: newText,
             timestamp: Date.now(),
@@ -161,11 +180,15 @@ class AIWritingCompanion {
             this.realTimeAnalysis.analysisBuffer.shift();
         }
         
-        // Trigger analysis if enough new content
+        // Trigger analysis if enough new content - reduced thresholds for testing
         const totalNewWords = this.realTimeAnalysis.analysisBuffer
             .reduce((count, entry) => count + this.countWords(entry.text), 0);
         
-        if (totalNewWords >= 50 || Date.now() - this.realTimeAnalysis.lastAnalysis > 60000) {
+        console.log('[AI Companion] 📊 Analysis trigger check - words:', totalNewWords, 'time since last:', Date.now() - this.realTimeAnalysis.lastAnalysis);
+        
+        // More aggressive triggering for testing: 10 words or 30 seconds
+        if (totalNewWords >= 10 || Date.now() - this.realTimeAnalysis.lastAnalysis > 30000) {
+            console.log('[AI Companion] 🚀 Triggering analysis due to threshold met');
             this.performContextualAnalysis();
         }
     }
@@ -186,9 +209,18 @@ class AIWritingCompanion {
             // Analyze multiple dimensions
             const analysis = await this.analyzeWritingDimensions(recentWriting);
             
-            // Add the recent text to analysis for context in feedback
-            analysis.recentText = recentWriting;
+            // Add FULL DOCUMENT CONTEXT for AI understanding
+            const fullContent = this.getCurrentWritingContent();
+            analysis.fullContext = fullContent;
+            analysis.recentText = recentWriting; // Keep this for analysis buffer data
+            
+            // Add REAL-TIME TYPED TEXT as the focus point
             analysis.lastSentence = this.extractCurrentTyping();
+            
+            console.log('[AI Companion] 🔍 Analysis prepared with:');
+            console.log('[AI Companion] 📄 Full document length:', fullContent.length);
+            console.log('[AI Companion] 📚 Recent analysis text length:', recentWriting.length);
+            console.log('[AI Companion] 📝 Real-time last sentence:', JSON.stringify(analysis.lastSentence));
             
             // Generate contextual feedback based on analysis
             await this.generateContextualFeedback(analysis);
@@ -270,46 +302,84 @@ class AIWritingCompanion {
     // === Contextual Feedback Generation ===
     
     async generateContextualFeedback(analysis) {
-        const context = this.getCurrentWritingContext();
-        const persona = this.selectOptimalPersona(analysis, context);
-        
-        // Determine if feedback should be shown
-        if (!this.shouldShowFeedback(analysis)) return;
-        
-        // Generate personalized feedback
-        const feedback = await this.generatePersonalizedFeedback(analysis, persona, context);
-        
-        if (feedback) {
-            // Log feedback generation
-            this.logUsage('feedback_generated', {
-                type: feedback.type,
-                persona: feedback.persona,
-                flowState: analysis.flow?.state,
-                confidence: feedback.confidence,
-                sessionDuration: context.sessionDuration,
-                source: feedback.source
-            });
+        try {
+            const context = this.getCurrentWritingContext();
+            const persona = this.selectOptimalPersona(analysis, context);
             
-            this.showContextualFeedback(feedback);
-            this.recordFeedbackInteraction(feedback, analysis);
+            // Determine if feedback should be shown
+            if (!this.shouldShowFeedback(analysis)) {
+                this.hideProgressIndicator();
+                return;
+            }
+            
+            // Generate personalized feedback
+            const feedback = await this.generatePersonalizedFeedback(analysis, persona, context);
+            
+            if (feedback) {
+                // Log feedback generation
+                this.logUsage('feedback_generated', {
+                    type: feedback.type,
+                    persona: feedback.persona,
+                    flowState: analysis.flow?.state,
+                    confidence: feedback.confidence,
+                    sessionDuration: context.sessionDuration,
+                    source: feedback.source
+                });
+                
+                this.showContextualFeedback(feedback);
+                this.recordFeedbackInteraction(feedback, analysis);
+                
+                // Hide progress indicator on successful feedback
+                this.hideProgressIndicator();
+                this.showNotification('✅ Ash has responded!', 'success');
+            } else {
+                // Hide progress indicator if no feedback was generated
+                this.hideProgressIndicator();
+                this.showNotification('⚠️ Ash couldn\'t generate feedback right now', 'warning');
+            }
+        } catch (error) {
+            console.error('[AI Companion] Error generating contextual feedback:', error);
+            this.hideProgressIndicator();
+            this.showNotification('❌ Error generating feedback from Ash', 'error');
         }
     }
     
     shouldShowFeedback(analysis) {
+        console.log('[AI Companion] 🤔 Checking if should show feedback:');
+        console.log('[AI Companion] 🌊 Flow state:', analysis.flow?.state);
+        console.log('[AI Companion] 📊 Progress milestone:', analysis.progress?.milestone);
+        console.log('[AI Companion] 🎨 Creativity breakthrough:', analysis.creativity?.breakthrough);
+        
+        const timeSinceLastFeedback = Date.now() - this.getLastFeedbackTime();
+        console.log('[AI Companion] ⏱️ Time since last feedback:', timeSinceLastFeedback, 'ms');
+        
+        // MORE AGGRESSIVE FOR TESTING: Show feedback much more frequently
+        
         // Don't interrupt during deep flow
-        if (analysis.flow.state === 'deep_flow') return false;
+        if (analysis.flow.state === 'deep_flow') {
+            console.log('[AI Companion] ❌ Skipping - in deep flow');
+            return false;
+        }
         
         // Show encouragement when struggling
-        if (analysis.flow.state === 'struggling' || analysis.flow.state === 'blocked') return true;
+        if (analysis.flow.state === 'struggling' || analysis.flow.state === 'blocked') {
+            console.log('[AI Companion] ✅ Showing - struggling or blocked');
+            return true;
+        }
         
         // Show insights when there's something meaningful to share
-        if (analysis.progress.milestone || analysis.creativity.breakthrough) return true;
+        if (analysis.progress?.milestone || analysis.creativity?.breakthrough) {
+            console.log('[AI Companion] ✅ Showing - milestone or breakthrough');
+            return true;
+        }
         
-        // Adaptive timing based on user preferences
-        const timeSinceLastFeedback = Date.now() - this.getLastFeedbackTime();
-        const minimumInterval = this.adaptiveLearning.personalityProfile.feedbackFrequency || 600000; // 10 minutes default
+        // REDUCED TIMING: Show feedback every 60 seconds for testing (instead of 10 minutes)
+        const minimumInterval = 60000; // 1 minute for testing
+        const shouldShow = timeSinceLastFeedback > minimumInterval;
         
-        return timeSinceLastFeedback > minimumInterval;
+        console.log('[AI Companion] 🕐 Minimum interval check:', shouldShow, '(need >', minimumInterval, 'ms)');
+        
+        return shouldShow;
     }
     
     async generatePersonalizedFeedback(analysis, persona, context) {
@@ -725,49 +795,44 @@ class AIWritingCompanion {
     }
     
     extractCurrentTyping() {
-        // Get the most recent text entries from the analysis buffer
-        const recentEntries = this.realTimeAnalysis.analysisBuffer.slice(-3); // Last 3 entries
+        console.log('[AI Companion] 🔍 Extracting current typing...');
+        console.log('[AI Companion] 🔍 Typing buffer length:', this.realTimeAnalysis.recentTypingBuffer.length);
+        console.log('[AI Companion] 🔍 Analysis buffer entries:', this.realTimeAnalysis.analysisBuffer.length);
         
-        if (recentEntries.length === 0) return '';
+        // Return the real-time typing buffer which captures actual characters as typed
+        let result = this.realTimeAnalysis.recentTypingBuffer.trim();
+        console.log('[AI Companion] 📝 From typing buffer:', JSON.stringify(result));
         
-        // Combine the recent typing into a single string
-        const recentTyping = recentEntries.map(entry => entry.text).join('');
-        
-        // Get the current cursor position to understand what's being typed
-        const currentContent = this.getCurrentWritingContent();
-        
-        // Find the last sentence or paragraph being worked on
-        const lines = currentContent.split('\n');
-        const lastLine = lines[lines.length - 1] || '';
-        
-        // If the last line is short, include the previous line for context
-        let workingText = lastLine;
-        if (lastLine.length < 50 && lines.length > 1) {
-            workingText = (lines[lines.length - 2] || '') + ' ' + lastLine;
+        // If the typing buffer is empty, fall back to recent analysis buffer entries
+        if (result.length === 0) {
+            const recentEntries = this.realTimeAnalysis.analysisBuffer.slice(-3); // Last 3 entries
+            if (recentEntries.length > 0) {
+                result = recentEntries.map(entry => entry.text).join('').trim();
+                console.log('[AI Companion] 📚 From analysis buffer:', JSON.stringify(result));
+                console.log('[AI Companion] 📚 Analysis buffer entries detail:', recentEntries);
+            }
         }
         
-        // Alternatively, get the last 100 characters from the end of the document
-        const lastChars = currentContent.slice(-100).trim();
-        
-        // Return the most meaningful context - prefer the working line/paragraph
-        let result = workingText.trim();
-        
-        // If working text is too short, use the recent characters
-        if (result.length < 20 && lastChars.length > result.length) {
-            result = lastChars;
+        // CRITICAL: If we're falling back to document extraction, something is wrong!
+        if (result.length === 0) {
+            console.error('[AI Companion] ❌ CRITICAL: Both typing buffer and analysis buffer are empty!');
+            console.error('[AI Companion] ❌ This means editor change events are not working!');
+            
+            const currentContent = this.getCurrentWritingContent();
+            result = currentContent.slice(-100).trim();
+            console.log('[AI Companion] 📄 FALLBACK - From document end:', JSON.stringify(result));
+            console.log('[AI Companion] 📄 Full document length:', currentContent.length);
         }
         
-        // If still too short, use recent typing from buffer
-        if (result.length < 10 && recentTyping.length > 0) {
-            result = recentTyping.slice(-80); // Last 80 characters typed
-        }
-        
-        // Clean up and truncate for display
+        // Clean up and format for display
         result = result.replace(/\s+/g, ' ').trim();
+        
+        // Truncate if too long for UI display, but preserve the most recent content
         if (result.length > 120) {
             result = '...' + result.slice(-117);
         }
         
+        console.log('[AI Companion] ✅ Final extracted typing:', JSON.stringify(result));
         return result;
     }
     
@@ -777,40 +842,96 @@ class AIWritingCompanion {
     cleanAIResponse(response) {
         if (!response || typeof response !== 'string') return response;
         
-        // Remove <think>...</think> tags and their content
-        return response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        const originalResponse = response;
+        
+        // Remove <think>...</think> tags and their content (case insensitive, multiline)
+        response = response.replace(/<think>[\s\S]*?<\/think>/gi, '');
+        
+        // Also remove any other thinking patterns that might slip through
+        response = response.replace(/\*thinking\*[\s\S]*?\*\/thinking\*/gi, '');
+        response = response.replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, '');
+        response = response.replace(/\(thinking:[\s\S]*?\)/gi, '');
+        
+        // Clean up extra whitespace
+        response = response.trim();
+        
+        // Log if anything was cleaned
+        if (originalResponse !== response) {
+            console.log('[AI Companion] 🧹 Cleaned AI response:');
+            console.log('[AI Companion] 📥 Original:', JSON.stringify(originalResponse));
+            console.log('[AI Companion] 🧽 Cleaned:', JSON.stringify(response));
+        }
+        
+        return response;
     }
     
     async generateAIEncouragement(analysis, persona) {
         const lastSentence = analysis.lastSentence || '';
-        const recentText = analysis.recentText || '';
+        const fullContext = analysis.fullContext || '';
         const flowState = analysis.flow?.state || 'neutral';
+        
+        console.log('[AI Companion] 🎯 Generating AI encouragement with data:');
+        console.log('[AI Companion] 📝 Real-time last sentence:', JSON.stringify(lastSentence));
+        console.log('[AI Companion] 📄 Full context length:', fullContext.length);
+        console.log('[AI Companion] 📚 Context preview:', JSON.stringify(fullContext.slice(-300)));
+        console.log('[AI Companion] 🌊 Flow state:', flowState);
         
         const prompt = `I'm ${persona.name}, an AI writing companion. The user is currently ${flowState} in their writing flow.
 
-Their last sentence: "${lastSentence}"
+FULL DOCUMENT CONTEXT (for understanding what they're writing about):
+"${fullContext}"
 
-Recent context: "${recentText.slice(-200)}"
+WHAT THEY JUST TYPED (focus for feedback): "${lastSentence}"
 
 Generate a brief, encouraging comment (1-2 sentences) that:
-- Starts with "Re: '[their exact last sentence]'" 
-- Provides specific encouragement based on what they're actually writing about
+- Starts with "Re: '[their exact last sentence they just typed]'" 
+- Provides specific encouragement based on what they're writing about (use full context to understand the topic)
+- References their actual current work and ideas
 - Matches my personality: ${persona.style}
 - Is appropriate for their current flow state: ${flowState}
 
-Be warm, specific, and helpful. Focus on their actual content, not generic writing advice.`;
+Be warm, specific, and helpful. Focus on the text they just typed while showing understanding of their broader work.`;
+
+        console.log('[AI Companion] 🚀 Sending encouragement prompt to AI service:');
+        console.log('[AI Companion] 📋 FULL PROMPT:', prompt);
 
         try {
-            const response = await window.electronAPI.invoke('ai-chat', {
+            // Get AI settings from configuration
+            let temperature = 0.8; // Default fallback
+            let maxTokens = 200;   // Default for companion messages (reasonable length)
+            
+            try {
+                const settings = await window.electronAPI.invoke('get-settings');
+                if (settings && settings.ai) {
+                    temperature = parseFloat(settings.ai.temperature) || 0.8;
+                    maxTokens = parseInt(settings.ai.maxTokens) || 200;
+                    console.log('[AI Companion] ⚙️ Using AI settings - temperature:', temperature, 'maxTokens:', maxTokens);
+                } else {
+                    console.log('[AI Companion] ⚙️ No AI settings found, using defaults');
+                }
+            } catch (settingsError) {
+                console.warn('[AI Companion] Could not load settings, using defaults:', settingsError);
+            }
+            
+            const requestData = {
                 message: prompt,
                 options: {
-                    temperature: 0.8,
-                    maxTokens: 120,
+                    temperature: temperature,
+                    maxTokens: maxTokens,
                     newConversation: true
                 }
-            });
+            };
             
-            return this.cleanAIResponse(response?.response?.trim()) || null;
+            console.log('[AI Companion] 📤 AI request data:', JSON.stringify(requestData, null, 2));
+            
+            const response = await window.electronAPI.invoke('ai-chat', requestData);
+            
+            console.log('[AI Companion] 📥 AI response received:', JSON.stringify(response, null, 2));
+            
+            const cleanedResponse = this.cleanAIResponse(response?.response?.trim()) || null;
+            console.log('[AI Companion] ✨ Cleaned response:', JSON.stringify(cleanedResponse));
+            
+            return cleanedResponse;
         } catch (error) {
             console.log('[AI Companion] AI encouragement generation failed:', error);
             return null;
@@ -819,34 +940,71 @@ Be warm, specific, and helpful. Focus on their actual content, not generic writi
     
     async generateAIInsight(analysis, persona) {
         const lastSentence = analysis.lastSentence || '';
-        const recentText = analysis.recentText || '';
+        const fullContext = analysis.fullContext || '';
         const flowState = analysis.flow?.state || 'neutral';
+        
+        console.log('[AI Companion] 💡 Generating AI insight with data:');
+        console.log('[AI Companion] 📝 Real-time last sentence:', JSON.stringify(lastSentence));
+        console.log('[AI Companion] 📄 Full context length:', fullContext.length);
+        console.log('[AI Companion] 📚 Context preview:', JSON.stringify(fullContext.slice(-300)));
+        console.log('[AI Companion] 🌊 Flow state:', flowState);
         
         const prompt = `I'm ${persona.name}, an AI writing companion. The user is in "${flowState}" flow state.
 
-Their last sentence: "${lastSentence}"
+FULL DOCUMENT CONTEXT (for understanding what they're writing about):
+"${fullContext}"
 
-Recent context: "${recentText.slice(-200)}"
+WHAT THEY JUST TYPED (focus for feedback): "${lastSentence}"
 
 Generate a brief writing insight (1-2 sentences) that:
-- Starts with "Re: '[their exact last sentence]'"
-- Provides a specific insight about their writing direction, style, or ideas
+- Starts with "Re: '[their exact last sentence they just typed]'"
+- Provides a specific insight about their writing direction, style, or ideas based on their full work
 - Matches my personality: ${persona.style}
-- Offers constructive next steps or observations
+- Offers constructive next steps or observations about their current work
 
-Be thoughtful, specific to their content, and insightful. Avoid generic advice.`;
+Be thoughtful, specific to their content, and insightful. Focus on the text they just typed while showing understanding of their broader work.`;
+
+        console.log('[AI Companion] 🚀 Sending insight prompt to AI service:');
+        console.log('[AI Companion] 📋 FULL PROMPT:', prompt);
 
         try {
-            const response = await window.electronAPI.invoke('ai-chat', {
+            // Get AI settings from configuration
+            let temperature = 0.7; // Default fallback for insights (slightly lower)
+            let maxTokens = 200;   // Default for companion messages
+            
+            try {
+                const settings = await window.electronAPI.invoke('get-settings');
+                if (settings && settings.ai) {
+                    // Use slightly lower temperature for insights than encouragement (more focused)
+                    temperature = parseFloat(settings.ai.temperature || 0.8) * 0.9;
+                    maxTokens = parseInt(settings.ai.maxTokens) || 200;
+                    console.log('[AI Companion] ⚙️ Using AI settings for insights - temperature:', temperature, 'maxTokens:', maxTokens);
+                } else {
+                    console.log('[AI Companion] ⚙️ No AI settings found, using defaults for insights');
+                }
+            } catch (settingsError) {
+                console.warn('[AI Companion] Could not load settings, using defaults:', settingsError);
+            }
+            
+            const requestData = {
                 message: prompt,
                 options: {
-                    temperature: 0.7,
-                    maxTokens: 120,
+                    temperature: temperature,
+                    maxTokens: maxTokens,
                     newConversation: true
                 }
-            });
+            };
             
-            return this.cleanAIResponse(response?.response?.trim()) || null;
+            console.log('[AI Companion] 📤 AI insight request data:', JSON.stringify(requestData, null, 2));
+            
+            const response = await window.electronAPI.invoke('ai-chat', requestData);
+            
+            console.log('[AI Companion] 📥 AI insight response received:', JSON.stringify(response, null, 2));
+            
+            const cleanedResponse = this.cleanAIResponse(response?.response?.trim()) || null;
+            console.log('[AI Companion] ✨ Cleaned insight response:', JSON.stringify(cleanedResponse));
+            
+            return cleanedResponse;
         } catch (error) {
             console.log('[AI Companion] AI insight generation failed:', error);
             return null;
@@ -1754,6 +1912,233 @@ Be thoughtful, specific to their content, and insightful. Avoid generic advice.`
             
         } catch (error) {
             console.warn('[AI Companion] Learning model update failed:', error);
+        }
+    }
+    
+    // === Debug Methods ===
+    
+    debugTriggerAnalysis() {
+        console.log('[AI Companion] 🔧 DEBUG: Force triggering analysis');
+        console.log('[AI Companion] 🔧 Current typing buffer:', JSON.stringify(this.realTimeAnalysis.recentTypingBuffer));
+        console.log('[AI Companion] 🔧 Analysis buffer entries:', this.realTimeAnalysis.analysisBuffer.length);
+        this.performContextualAnalysis();
+    }
+    
+    debugForceShowFeedback() {
+        console.log('[AI Companion] 🔧 DEBUG: Force showing feedback (bypassing shouldShowFeedback)');
+        
+        // Create a simple analysis with current typing buffer
+        const analysis = {
+            flow: { state: 'struggling' }, // Force struggling state to trigger feedback
+            recentText: this.realTimeAnalysis.recentTypingBuffer || 'test text',
+            lastSentence: this.extractCurrentTyping(),
+            progress: { milestone: false },
+            creativity: { breakthrough: false }
+        };
+        
+        console.log('[AI Companion] 🔧 DEBUG analysis:', analysis);
+        
+        // Force generate feedback
+        this.generateContextualFeedback(analysis);
+    }
+    
+    debugGetTypingBuffer() {
+        console.log('[AI Companion] 🔧 DEBUG: Current typing buffer:', JSON.stringify(this.realTimeAnalysis.recentTypingBuffer));
+        return this.realTimeAnalysis.recentTypingBuffer;
+    }
+    
+    debugClearTypingBuffer() {
+        console.log('[AI Companion] 🔧 DEBUG: Clearing typing buffer');
+        this.realTimeAnalysis.recentTypingBuffer = '';
+    }
+    
+    debugTestRealTimeCapture(testText = 'Hello world test') {
+        console.log('[AI Companion] 🧪 DEBUG: Testing real-time capture with:', JSON.stringify(testText));
+        
+        // Manually call processNewWriting to test the system
+        this.processNewWriting(testText);
+        
+        // Check what's in the buffer
+        console.log('[AI Companion] 🧪 Buffer after test:', JSON.stringify(this.realTimeAnalysis.recentTypingBuffer));
+        
+        // Test extraction
+        const extracted = this.extractCurrentTyping();
+        console.log('[AI Companion] 🧪 Extracted text:', JSON.stringify(extracted));
+        
+        return extracted;
+    }
+    
+    debugTestFullPipeline() {
+        console.log('[AI Companion] 🧪 DEBUG: Testing full pipeline...');
+        
+        // Step 1: Test typing capture
+        const testText = 'This is a test sentence about Hegel and dialectics.';
+        this.debugTestRealTimeCapture(testText);
+        
+        // Step 2: Check if editor events are connected
+        console.log('[AI Companion] 🧪 Checking editor integration...');
+        console.log('[AI Companion] 🧪 window.editor exists:', !!window.editor);
+        console.log('[AI Companion] 🧪 window.aiCompanion exists:', !!window.aiCompanion);
+        
+        // Step 3: Force trigger analysis
+        console.log('[AI Companion] 🧪 Force triggering analysis...');
+        this.debugForceShowFeedback();
+        
+        return {
+            typingBuffer: this.realTimeAnalysis.recentTypingBuffer,
+            analysisBufferEntries: this.realTimeAnalysis.analysisBuffer.length,
+            editorExists: !!window.editor,
+            companionExists: !!window.aiCompanion
+        };
+    }
+    
+    // === Manual Invocation ===
+    
+    invokeAshManually(selectedText = null) {
+        console.log('[AI Companion] 🎯 Manual invocation of Ash');
+        
+        // If text is selected, use it to override the typing buffer
+        if (selectedText && selectedText.trim()) {
+            console.log('[AI Companion] 📝 Using selected text:', JSON.stringify(selectedText));
+            // Set the typing buffer to the selected text
+            this.realTimeAnalysis.recentTypingBuffer = selectedText.trim();
+            // Also add to analysis buffer
+            this.realTimeAnalysis.analysisBuffer.push({
+                text: selectedText.trim(),
+                timestamp: Date.now(),
+                context: this.getCurrentWritingContext(),
+                source: 'manual_selection'
+            });
+        } else {
+            console.log('[AI Companion] 📝 No selected text, using current typing buffer');
+        }
+        
+        // Force show feedback regardless of conditions
+        this.debugForceShowFeedback();
+        
+        return this.realTimeAnalysis.recentTypingBuffer;
+    }
+    
+    getSelectedText() {
+        // Get selected text from Monaco editor or fallback editor
+        if (window.editor && typeof window.editor.getSelection === 'function') {
+            const selection = window.editor.getSelection();
+            if (selection && !selection.isEmpty()) {
+                const model = window.editor.getModel();
+                if (model) {
+                    return model.getValueInRange(selection);
+                }
+            }
+        } else if (window.fallbackEditor) {
+            // Fallback textarea
+            const start = window.fallbackEditor.selectionStart;
+            const end = window.fallbackEditor.selectionEnd;
+            if (start !== end) {
+                return window.fallbackEditor.value.substring(start, end);
+            }
+        }
+        return null;
+    }
+    
+    handleKeyboardInvocation() {
+        console.log('[AI Companion] ⌨️ Keyboard shortcut triggered');
+        
+        // Show progress indicator
+        this.showProgressIndicator();
+        
+        // Get selected text if any
+        const selectedText = this.getSelectedText();
+        
+        if (selectedText) {
+            console.log('[AI Companion] ✅ Found selected text, using as focus');
+            this.invokeAshManually(selectedText);
+        } else {
+            console.log('[AI Companion] ⚪ No selection, using current typing buffer');
+            this.invokeAshManually();
+        }
+    }
+    
+    showProgressIndicator() {
+        // Update the Invoke Ash button to show progress
+        const invokeAshBtn = document.getElementById('invoke-ash-btn');
+        if (invokeAshBtn) {
+            invokeAshBtn.innerHTML = '⏳'; // Loading spinner
+            invokeAshBtn.title = 'Ash is thinking...';
+            invokeAshBtn.disabled = true;
+            invokeAshBtn.style.opacity = '0.7';
+            
+            // Add a subtle pulsing animation
+            invokeAshBtn.style.animation = 'pulse 1.5s ease-in-out infinite';
+            
+            // Add the keyframe animation if it doesn't exist
+            if (!document.querySelector('#ash-loading-animation')) {
+                const style = document.createElement('style');
+                style.id = 'ash-loading-animation';
+                style.textContent = `
+                    @keyframes pulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.05); }
+                        100% { transform: scale(1); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+        
+        // Show a temporary notification
+        this.showNotification('🤔 Ash is analyzing your text...', 'info');
+        
+        console.log('[AI Companion] 🔄 Progress indicator shown');
+    }
+    
+    hideProgressIndicator() {
+        // Restore the Invoke Ash button
+        const invokeAshBtn = document.getElementById('invoke-ash-btn');
+        if (invokeAshBtn) {
+            invokeAshBtn.innerHTML = '💬'; // Original icon
+            invokeAshBtn.title = 'Invoke Ash (AI Writing Companion) - Ctrl+Shift+A';
+            invokeAshBtn.disabled = false;
+            invokeAshBtn.style.opacity = '1';
+            invokeAshBtn.style.animation = ''; // Remove animation
+        }
+        
+        console.log('[AI Companion] ✅ Progress indicator hidden');
+    }
+    
+    showNotification(message, type = 'info') {
+        // Try to use the global notification system if available
+        if (window.showNotification && typeof window.showNotification === 'function') {
+            window.showNotification(message, type);
+        } else {
+            // Fallback: create a simple toast notification
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'info' ? '#e3f2fd' : type === 'success' ? '#e8f5e8' : '#fff3cd'};
+                border: 1px solid ${type === 'info' ? '#90caf9' : type === 'success' ? '#c3e6c3' : '#ffeaa7'};
+                color: ${type === 'info' ? '#1976d2' : type === 'success' ? '#2e7d32' : '#f57c00'};
+                padding: 12px 16px;
+                border-radius: 4px;
+                font-size: 14px;
+                max-width: 300px;
+                z-index: 10000;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                transition: opacity 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
         }
     }
 }

@@ -1415,6 +1415,9 @@
                         <button id="ai-todo-suggestions-btn" class="toolbar-btn" title="Get AI TODO Suggestions">
                             🤖
                         </button>
+                        <button id="invoke-ash-btn" class="toolbar-btn" title="Invoke Ash (AI Writing Companion) - Ctrl+Shift+A">
+                            💬
+                        </button>
                 </div>
                 <!-- Container for editor and preview panes -->
                 <div id="panes-container" style="display: flex; flex: 1; overflow: hidden;">
@@ -3337,6 +3340,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             // The React component should handle setIsPresenting(false)
           }
           
+          // Ctrl+Shift+A to invoke Ash (AI Writing Companion)
+          if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+            e.preventDefault();
+            if (window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function') {
+              console.log('[Keyboard] Invoking Ash via Ctrl+Shift+A');
+              window.aiCompanion.handleKeyboardInvocation();
+            } else {
+              console.warn('[Keyboard] AI Companion not available for keyboard shortcut');
+            }
+          }
+          
           // F5 or Ctrl/Cmd+P to toggle presentation mode (not presenting)
           if ((e.key === 'F5' || (e.key === 'p' && (e.ctrlKey || e.metaKey))) && !e.altKey && !e.shiftKey) {
             e.preventDefault();
@@ -4021,7 +4035,19 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           setupNetworkControls();
           setupNetworkFileWatchers();
           
-          
+          // Initialize Ash button
+          const invokeAshBtn = document.getElementById('invoke-ash-btn');
+          if (invokeAshBtn) {
+            invokeAshBtn.addEventListener('click', () => {
+              if (window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function') {
+                console.log('[UI] Invoking Ash via button click');
+                window.aiCompanion.handleKeyboardInvocation();
+              } else {
+                console.warn('[UI] AI Companion not available for button click');
+                alert('AI Companion is not yet initialized. Please wait a moment and try again.');
+              }
+            });
+          }
         }
         
         // Initialize when DOM is ready

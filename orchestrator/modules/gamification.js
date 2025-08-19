@@ -3222,16 +3222,17 @@ class WritingGamification {
         if (typeof AIWritingCompanion !== 'undefined' && !this.aiCompanion) {
             this.aiCompanion = new AIWritingCompanion(this);
             
-            // Initialize AI Flow Detection
-            if (typeof AIFlowDetection !== 'undefined' && !this.aiFlowDetection) {
-                this.aiFlowDetection = new AIFlowDetection(this.aiCompanion, this);
-            }
+            // DISABLED: AI Flow Detection (duplicate system using file-based text extraction)
+            // Keep only AI Writing Companion which uses real-time typing capture
+            // if (typeof AIFlowDetection !== 'undefined' && !this.aiFlowDetection) {
+            //     this.aiFlowDetection = new AIFlowDetection(this.aiCompanion, this);
+            // }
             
             // Make available globally for debugging
             window.aiCompanion = this.aiCompanion;
-            if (this.aiFlowDetection) {
-                window.aiFlowDetection = this.aiFlowDetection;
-            }
+            // if (this.aiFlowDetection) {
+            //     window.aiFlowDetection = this.aiFlowDetection;
+            // }
             
             // Add global usage report function
             window.getAIUsageReport = () => {

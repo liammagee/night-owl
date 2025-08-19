@@ -1131,8 +1131,27 @@ class AIFlowDetection {
     cleanAIResponse(response) {
         if (!response || typeof response !== 'string') return response;
         
-        // Remove <think>...</think> tags and their content
-        return response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        const originalResponse = response;
+        
+        // Remove <think>...</think> tags and their content (case insensitive, multiline)
+        response = response.replace(/<think>[\s\S]*?<\/think>/gi, '');
+        
+        // Also remove any other thinking patterns that might slip through
+        response = response.replace(/\*thinking\*[\s\S]*?\*\/thinking\*/gi, '');
+        response = response.replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, '');
+        response = response.replace(/\(thinking:[\s\S]*?\)/gi, '');
+        
+        // Clean up extra whitespace
+        response = response.trim();
+        
+        // Log if anything was cleaned
+        if (originalResponse !== response) {
+            console.log('[Flow Detection] 🧹 Cleaned AI response:');
+            console.log('[Flow Detection] 📥 Original:', JSON.stringify(originalResponse));
+            console.log('[Flow Detection] 🧽 Cleaned:', JSON.stringify(response));
+        }
+        
+        return response;
     }
     
     buildContextualPrompt(context) {

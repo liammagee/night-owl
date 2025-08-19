@@ -1871,8 +1871,72 @@ async function initializeMonacoEditor() {
             }, 100);
             
             await updatePreviewAndStructure(editor.getValue());
-            editor.onDidChangeModelContent(async () => {
+            
+            // Track previous content to detect changes
+            let previousContent = editor.getValue();
+            
+            editor.onDidChangeModelContent(async (event) => {
                 const currentContent = editor.getValue();
+                
+                // Process content changes for AI writing companion
+                console.log('[Editor] 📝 Content change detected, current length:', currentContent.length, 'previous length:', previousContent.length);
+                
+                if (window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function') {
+                    console.log('[Editor] 🤖 AI Companion available, processing changes...');
+                    
+                    // Extract changes from Monaco's event if available
+                    if (event && event.changes && event.changes.length > 0) {
+                        console.log('[Editor] 🔍 Processing Monaco change events, count:', event.changes.length);
+                        
+                        // Process each change in the event
+                        for (const change of event.changes) {
+                            console.log('[Editor] 📋 Change details:', {
+                                text: change.text,
+                                textLength: change.text?.length,
+                                range: change.range
+                            });
+                            
+                            if (change.text && change.text.length > 0) {
+                                console.log('[Editor] ✅ Sending to AI Companion:', JSON.stringify(change.text));
+                                // This is new text being added
+                                window.aiCompanion.processNewWriting(change.text);
+                            } else {
+                                console.log('[Editor] ⚠️ Change event has no text or empty text');
+                            }
+                        }
+                    } else {
+                        console.log('[Editor] 🔄 Using fallback change detection...');
+                        console.log('[Editor] 🔄 Event details:', { 
+                            hasEvent: !!event, 
+                            hasChanges: !!(event && event.changes), 
+                            changesLength: event && event.changes ? event.changes.length : 'N/A' 
+                        });
+                        
+                        // Fallback: detect simple additions
+                        if (currentContent.length > previousContent.length) {
+                            const newText = currentContent.slice(previousContent.length);
+                            console.log('[Editor] 📝 Fallback detected new text:', JSON.stringify(newText));
+                            
+                            if (newText.length > 0) {
+                                console.log('[Editor] ✅ Sending fallback text to AI Companion');
+                                window.aiCompanion.processNewWriting(newText);
+                            }
+                        } else if (currentContent.length < previousContent.length) {
+                            console.log('[Editor] ✂️ Text was deleted (length decreased)');
+                        } else {
+                            console.log('[Editor] ❌ No change in content length');
+                        }
+                    }
+                } else {
+                    console.log('[Editor] ❌ AI Companion not available:', {
+                        hasWindow: !!window.aiCompanion,
+                        hasMethod: !!(window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function')
+                    });
+                }
+                
+                // Update for next change detection
+                previousContent = currentContent;
+                
                 await updatePreviewAndStructure(currentContent);
                 scheduleAutoSave(); // Schedule auto-save when content changes
             });
@@ -2790,8 +2854,27 @@ async function createFallbackEditor() {
     editorContainer.innerHTML = '';
     editorContainer.appendChild(textarea);
     await updatePreviewAndStructure(textarea.value);
-    textarea.addEventListener('input', async () => {
-        await updatePreviewAndStructure(textarea.value);
+    // Track previous content for change detection
+    let previousFallbackContent = textarea.value;
+    
+    textarea.addEventListener('input', async (event) => {
+        const currentContent = textarea.value;
+        
+        // Process content changes for AI writing companion
+        if (window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function') {
+            // Detect new text added
+            if (currentContent.length > previousFallbackContent.length) {
+                const newText = currentContent.slice(previousFallbackContent.length);
+                if (newText.length > 0) {
+                    window.aiCompanion.processNewWriting(newText);
+                }
+            }
+        }
+        
+        // Update for next change detection
+        previousFallbackContent = currentContent;
+        
+        await updatePreviewAndStructure(currentContent);
     });
     
     // Update cursor position for fallback editor
@@ -3032,7 +3115,31 @@ function createEmergencyEditor() {
             focus: () => textarea.focus(),
             onKeyDown: () => {}, // Stub for listManagement.js
             onDidChangeModelContent: (callback) => {
-                textarea.addEventListener('input', callback);
+                // Track previous content for AI companion integration
+                let previousEmergencyContent = textarea.value;
+                
+                const wrappedCallback = (event) => {
+                    const currentContent = textarea.value;
+                    
+                    // Process content changes for AI writing companion
+                    if (window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function') {
+                        // Detect new text added
+                        if (currentContent.length > previousEmergencyContent.length) {
+                            const newText = currentContent.slice(previousEmergencyContent.length);
+                            if (newText.length > 0) {
+                                window.aiCompanion.processNewWriting(newText);
+                            }
+                        }
+                    }
+                    
+                    // Update for next change detection
+                    previousEmergencyContent = currentContent;
+                    
+                    // Call the original callback
+                    callback(event);
+                };
+                
+                textarea.addEventListener('input', wrappedCallback);
                 return { dispose: () => {} };
             },
             getPosition: () => ({ lineNumber: 1, column: 1 }),
