@@ -56,7 +56,7 @@ function addChatMessage(message, sender, isCommand = false, responseInfo = null)
         if (responseInfo && responseInfo.provider && responseInfo.model) {
             updateProviderInfo(responseInfo.provider, responseInfo.model);
         }
-        promptSpan.innerHTML = `<span class="terminal-assistant">maya</span><span class="terminal-separator">:</span> `;
+        promptSpan.innerHTML = `<span class="terminal-assistant">ash</span><span class="terminal-separator">:</span> `;
     }
 
     const contentSpan = document.createElement('span');

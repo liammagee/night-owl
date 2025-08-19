@@ -54,7 +54,7 @@ class AIWritingCompanion {
             current: 'adaptive', // Changes based on writing context
             personas: {
                 encouraging: {
-                    name: 'Maya',
+                    name: 'Ash',
                     style: 'supportive and warm',
                     triggers: ['struggle', 'low_confidence', 'beginning_session'],
                     responses: this.getEncouragingResponses()
@@ -72,7 +72,7 @@ class AIWritingCompanion {
                     responses: this.getCreativeResponses()
                 },
                 adaptive: {
-                    name: 'Sage',
+                    name: 'Ash',
                     style: 'contextually aware',
                     triggers: ['any'],
                     responses: this.getAdaptiveResponses()
@@ -188,7 +188,7 @@ class AIWritingCompanion {
             
             // Add the recent text to analysis for context in feedback
             analysis.recentText = recentWriting;
-            analysis.lastSentence = this.extractLastSentence(recentWriting);
+            analysis.lastSentence = this.extractCurrentTyping();
             
             // Generate contextual feedback based on analysis
             await this.generateContextualFeedback(analysis);
@@ -722,6 +722,53 @@ class AIWritingCompanion {
         }
         
         return lastSentence;
+    }
+    
+    extractCurrentTyping() {
+        // Get the most recent text entries from the analysis buffer
+        const recentEntries = this.realTimeAnalysis.analysisBuffer.slice(-3); // Last 3 entries
+        
+        if (recentEntries.length === 0) return '';
+        
+        // Combine the recent typing into a single string
+        const recentTyping = recentEntries.map(entry => entry.text).join('');
+        
+        // Get the current cursor position to understand what's being typed
+        const currentContent = this.getCurrentWritingContent();
+        
+        // Find the last sentence or paragraph being worked on
+        const lines = currentContent.split('\n');
+        const lastLine = lines[lines.length - 1] || '';
+        
+        // If the last line is short, include the previous line for context
+        let workingText = lastLine;
+        if (lastLine.length < 50 && lines.length > 1) {
+            workingText = (lines[lines.length - 2] || '') + ' ' + lastLine;
+        }
+        
+        // Alternatively, get the last 100 characters from the end of the document
+        const lastChars = currentContent.slice(-100).trim();
+        
+        // Return the most meaningful context - prefer the working line/paragraph
+        let result = workingText.trim();
+        
+        // If working text is too short, use the recent characters
+        if (result.length < 20 && lastChars.length > result.length) {
+            result = lastChars;
+        }
+        
+        // If still too short, use recent typing from buffer
+        if (result.length < 10 && recentTyping.length > 0) {
+            result = recentTyping.slice(-80); // Last 80 characters typed
+        }
+        
+        // Clean up and truncate for display
+        result = result.replace(/\s+/g, ' ').trim();
+        if (result.length > 120) {
+            result = '...' + result.slice(-117);
+        }
+        
+        return result;
     }
     
     // === AI-Powered Message Generation ===
