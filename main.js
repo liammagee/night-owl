@@ -938,6 +938,15 @@ function createMainMenu() {
               }
             }
           },
+          {
+            label: 'Export as Accessible HTML',
+            click: () => {
+              if (mainWindow) {
+                console.log('[main.js] Export Accessible HTML menu item clicked. Triggering export-html-accessible in renderer.');
+                mainWindow.webContents.send('trigger-export-html-accessible');
+              }
+            }
+          },
           { type: 'separator' },
           {
             label: 'Exit',
@@ -3887,6 +3896,456 @@ Keep it concise and focused on the most important points.`;
       return { success: false, error: error.message };
     }
   });
+
+  // Handle Accessible HTML export for presentations
+  ipcMain.handle('perform-export-html-accessible', async (event, content, exportOptions) => {
+    console.log('[main.js] Received perform-export-html-accessible with options:', exportOptions);
+    try {
+      const { dialog } = require('electron');
+      const path = require('path');
+      const fs = require('fs').promises;
+      
+      const defaultPath = currentFilePath ? 
+        currentFilePath.replace(/\.[^/.]+$/, '.html') : 
+        'presentation.html';
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export as Accessible HTML',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'HTML Files', extensions: ['html'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      // Generate accessible HTML content
+      const accessibleHTML = generateAccessibleHTML(content);
+      
+      // Write the HTML file
+      await fs.writeFile(result.filePath, accessibleHTML, 'utf8');
+      
+      console.log('[main.js] Accessible HTML export completed successfully');
+      return { 
+        success: true, 
+        filePath: result.filePath
+      };
+    } catch (error) {
+      console.error('[main.js] Error exporting Accessible HTML:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Generate accessible HTML with WCAG compliance
+  function generateAccessibleHTML(markdownContent) {
+    const marked = require('marked');
+    
+    // Configure marked for better accessibility
+    marked.setOptions({
+      headerIds: true,
+      headerPrefix: 'heading-'
+    });
+    
+    // Convert markdown to HTML
+    const bodyContent = marked.parse(markdownContent);
+    
+    // Process content for presentation structure
+    const slides = bodyContent.split(/<h2[^>]*>/i);
+    let slideNumber = 0;
+    
+    const processedSlides = slides.map((slide, index) => {
+      if (index === 0 && !slide.trim().startsWith('<h1')) {
+        return slide; // Keep intro content as-is
+      }
+      
+      slideNumber++;
+      const slideId = `slide-${slideNumber}`;
+      
+      // Add slide wrapper with proper ARIA attributes
+      return `<section id="${slideId}" class="slide" role="region" aria-labelledby="${slideId}-heading" tabindex="0">
+        <h2 id="${slideId}-heading" class="slide-title">${slide}
+      </section>`;
+    }).filter(slide => slide.trim()); // Remove empty slides
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accessible Presentation</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        /* Skip link for keyboard navigation */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 6px;
+            background: #000;
+            color: #fff;
+            padding: 8px;
+            text-decoration: none;
+            border-radius: 4px;
+            z-index: 1000;
+        }
+        
+        .skip-link:focus {
+            top: 6px;
+        }
+        
+        /* Main container */
+        .presentation-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        /* Navigation */
+        .presentation-nav {
+            background: #34495e;
+            padding: 15px 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #2c3e50;
+        }
+        
+        .nav-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .nav-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .nav-button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .nav-button:hover, .nav-button:focus {
+            background: #2980b9;
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+        
+        .nav-button:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+        }
+        
+        /* Slide styles */
+        .slide {
+            padding: 40px;
+            min-height: 500px;
+            border-bottom: 1px solid #ecf0f1;
+            display: none;
+            outline: none;
+        }
+        
+        .slide:focus {
+            box-shadow: inset 0 0 0 3px #3498db;
+        }
+        
+        .slide.active {
+            display: block;
+        }
+        
+        .slide-title {
+            color: #2c3e50;
+            font-size: 2rem;
+            margin-bottom: 30px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3498db;
+            line-height: 1.2;
+        }
+        
+        .slide h3 {
+            color: #34495e;
+            font-size: 1.5rem;
+            margin: 25px 0 15px 0;
+        }
+        
+        .slide h4 {
+            color: #34495e;
+            font-size: 1.25rem;
+            margin: 20px 0 12px 0;
+        }
+        
+        .slide p {
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+        
+        .slide ul, .slide ol {
+            margin: 20px 0;
+            padding-left: 30px;
+        }
+        
+        .slide li {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        /* Code blocks */
+        .slide pre {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Consolas', 'Source Code Pro', monospace;
+        }
+        
+        .slide code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', 'Source Code Pro', monospace;
+            font-size: 0.9em;
+        }
+        
+        /* Blockquotes */
+        .slide blockquote {
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            font-style: italic;
+            color: #5a6c7d;
+        }
+        
+        /* Tables */
+        .slide table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+        
+        .slide th, .slide td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        .slide th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        /* Images */
+        .slide img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        
+        /* Links */
+        .slide a {
+            color: #3498db;
+            text-decoration: underline;
+            transition: color 0.2s;
+        }
+        
+        .slide a:hover, .slide a:focus {
+            color: #2980b9;
+            outline: 2px solid #3498db;
+            outline-offset: 2px;
+        }
+        
+        /* Print styles */
+        @media print {
+            .presentation-nav {
+                display: none;
+            }
+            
+            .slide {
+                display: block !important;
+                page-break-after: always;
+                padding: 20px;
+                min-height: auto;
+                border-bottom: none;
+                box-shadow: none;
+            }
+            
+            .slide:last-child {
+                page-break-after: auto;
+            }
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            body {
+                background: #000;
+                color: #fff;
+            }
+            
+            .presentation-container {
+                background: #000;
+                border: 2px solid #fff;
+            }
+            
+            .slide {
+                background: #000;
+                color: #fff;
+            }
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <div class="presentation-container">
+        <nav class="presentation-nav" role="navigation" aria-label="Presentation navigation">
+            <h1 class="nav-title" id="presentation-title">Accessible Presentation</h1>
+            <div class="nav-controls">
+                <button class="nav-button" id="prev-btn" onclick="previousSlide()" aria-label="Previous slide">Previous</button>
+                <span id="slide-counter" aria-live="polite">Slide 1</span>
+                <button class="nav-button" id="next-btn" onclick="nextSlide()" aria-label="Next slide">Next</button>
+            </div>
+        </nav>
+        
+        <main id="main-content" role="main">
+            ${processedSlides.join('')}
+        </main>
+    </div>
+    
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        function showSlide(n) {
+            // Hide all slides
+            slides.forEach(slide => {
+                slide.classList.remove('active');
+                slide.setAttribute('aria-hidden', 'true');
+            });
+            
+            // Normalize slide number
+            if (n >= totalSlides) currentSlide = 0;
+            if (n < 0) currentSlide = totalSlides - 1;
+            
+            // Show current slide
+            if (slides[currentSlide]) {
+                slides[currentSlide].classList.add('active');
+                slides[currentSlide].setAttribute('aria-hidden', 'false');
+                slides[currentSlide].focus();
+            }
+            
+            // Update counter
+            document.getElementById('slide-counter').textContent = 
+                totalSlides > 0 ? \`Slide \${currentSlide + 1} of \${totalSlides}\` : 'No slides';
+            
+            // Update navigation buttons
+            document.getElementById('prev-btn').disabled = currentSlide === 0;
+            document.getElementById('next-btn').disabled = currentSlide === totalSlides - 1;
+        }
+        
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                showSlide(currentSlide);
+            }
+        }
+        
+        function previousSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                showSlide(currentSlide);
+            }
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    previousSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    currentSlide = 0;
+                    showSlide(currentSlide);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    currentSlide = totalSlides - 1;
+                    showSlide(currentSlide);
+                    break;
+            }
+        });
+        
+        // Initialize presentation
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up slide attributes
+            slides.forEach((slide, index) => {
+                slide.setAttribute('aria-hidden', index !== 0 ? 'true' : 'false');
+                slide.setAttribute('tabindex', '0');
+            });
+            
+            // Show first slide
+            showSlide(0);
+            
+            // Set focus to first slide for screen readers
+            if (slides[0]) {
+                slides[0].focus();
+            }
+        });
+    </script>
+</body>
+</html>`;
+  }
 
   // Handle PDF export with pandoc (with full bibliography support)
   ipcMain.handle('perform-export-pdf-pandoc', async (event, content, exportOptions) => {

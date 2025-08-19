@@ -118,7 +118,7 @@ class AIFlowDetection {
             this.createInsightsPanel();
             
             this.initialized = true;
-            console.log('[AI Flow Detection] Flow detection system initialized');
+            // console.log('[AI Flow Detection] Flow detection system initialized');
             
         } catch (error) {
             console.error('[AI Flow Detection] Initialization failed:', error);
@@ -468,15 +468,15 @@ class AIFlowDetection {
     scheduleFlowIndicatorUpdate() {
         // Clear any existing debounce timeout
         if (this.updateDebounceTimeout) {
-            console.log('[Flow Detection] Clearing existing debounce timeout');
+            // console.log('[Flow Detection] Clearing existing debounce timeout');
             clearTimeout(this.updateDebounceTimeout);
         }
         
-        console.log(`[Flow Detection] Scheduling indicator update with ${this.updateDebounceDelay}ms debounce`);
+        // console.log(`[Flow Detection] Scheduling indicator update with ${this.updateDebounceDelay}ms debounce`);
         
         // Schedule the update after debounce delay
         this.updateDebounceTimeout = setTimeout(() => {
-            console.log('[Flow Detection] Debounce timeout expired - updating indicator now');
+            // console.log('[Flow Detection] Debounce timeout expired - updating indicator now');
             this.updateFlowIndicator();
             this.updateDebounceTimeout = null;
         }, this.updateDebounceDelay);
@@ -492,11 +492,11 @@ class AIFlowDetection {
         const flowScore = this.flowEngine.currentFlowScore;
         const flowState = this.determineFlowState(flowScore);
         
-        console.log(`[Flow Detection] updateFlowIndicator called - Score: ${flowScore.toFixed(3)}, State: ${flowState}`);
+        // console.log(`[Flow Detection] updateFlowIndicator called - Score: ${flowScore.toFixed(3)}, State: ${flowState}`);
         
         // Clear any existing timeout first
         if (this.flowIndicatorTimeout) {
-            console.log('[Flow Detection] Clearing existing auto-hide timeout');
+            // console.log('[Flow Detection] Clearing existing auto-hide timeout');
             clearTimeout(this.flowIndicatorTimeout);
             this.flowIndicatorTimeout = null;
         }
@@ -506,14 +506,14 @@ class AIFlowDetection {
         const timeSinceHidden = now - this.lastIndicatorHidden;
         if (timeSinceHidden < this.indicatorCooldown) {
             const cooldownRemaining = Math.round((this.indicatorCooldown - timeSinceHidden) / 1000);
-            console.log(`[Flow Detection] Indicator in cooldown for ${cooldownRemaining}s more (last hidden: ${new Date(this.lastIndicatorHidden).toLocaleTimeString()})`);
+            // console.log(`[Flow Detection] Indicator in cooldown for ${cooldownRemaining}s more (last hidden: ${new Date(this.lastIndicatorHidden).toLocaleTimeString()})`);
             return; // Still in cooldown, don't show indicator
         }
         
         // Check if this is the same state we just showed (prevent repetitive showing)
         const timeSinceStateChange = now - this.lastStateChangeTime;
         if (this.lastShownState === flowState && timeSinceStateChange < 30000) { // 30 seconds
-            console.log(`[Flow Detection] Same state '${flowState}' recently shown ${Math.round(timeSinceStateChange/1000)}s ago - not showing again`);
+            // console.log(`[Flow Detection] Same state '${flowState}' recently shown ${Math.round(timeSinceStateChange/1000)}s ago - not showing again`);
             return;
         }
         
@@ -521,7 +521,7 @@ class AIFlowDetection {
         if (this.lastShownState !== flowState) {
             this.lastShownState = flowState;
             this.lastStateChangeTime = now;
-            console.log(`[Flow Detection] Flow state changed to '${flowState}'`);
+            // console.log(`[Flow Detection] Flow state changed to '${flowState}'`);
         }
         
         // Remove existing flow classes
@@ -563,7 +563,7 @@ class AIFlowDetection {
                 return;
         }
         
-        console.log(`[Flow Detection] Showing indicator: ${text} (${className}) for ${autoHideDelay}ms`);
+        // console.log(`[Flow Detection] Showing indicator: ${text} (${className}) for ${autoHideDelay}ms`);
         
         indicator.classList.add(className, 'visible');
         indicator.querySelector('.flow-indicator-icon').textContent = icon;
@@ -571,18 +571,18 @@ class AIFlowDetection {
         
         // Log visibility change
         if (!wasVisible) {
-            console.log(`[Flow Detection] Indicator became visible at ${new Date().toLocaleTimeString()}`);
+            // console.log(`[Flow Detection] Indicator became visible at ${new Date().toLocaleTimeString()}`);
         }
         
         // Set auto-hide timeout with logging
         if (autoHideDelay) {
-            console.log(`[Flow Detection] Setting auto-hide timeout for ${autoHideDelay}ms`);
+            // console.log(`[Flow Detection] Setting auto-hide timeout for ${autoHideDelay}ms`);
             this.flowIndicatorTimeout = setTimeout(() => {
-                console.log(`[Flow Detection] Auto-hiding indicator after ${autoHideDelay}ms timeout`);
+                // console.log(`[Flow Detection] Auto-hiding indicator after ${autoHideDelay}ms timeout`);
                 indicator.classList.remove('visible');
                 this.flowIndicatorTimeout = null;
                 this.lastIndicatorHidden = Date.now();
-                console.log(`[Flow Detection] Indicator auto-hidden at ${new Date().toLocaleTimeString()}, ${this.indicatorCooldown/1000}s cooldown started`);
+                // console.log(`[Flow Detection] Indicator auto-hidden at ${new Date().toLocaleTimeString()}, ${this.indicatorCooldown/1000}s cooldown started`);
             }, autoHideDelay);
         }
     }
@@ -827,7 +827,7 @@ class AIFlowDetection {
             this.textCollection.fileContent = fullContent;
             this.textCollection.lastContentUpdate = now;
             
-            console.log(`[Flow Detection] Updated file context: ${currentFile} (${fullContent.length} chars)`);
+            // console.log(`[Flow Detection] Updated file context: ${currentFile} (${fullContent.length} chars)`);
         }
     }
     
@@ -888,7 +888,7 @@ class AIFlowDetection {
     
     initializeFlowPrediction() {
         // Set up the flow prediction system
-        console.log('[AI Flow Detection] Flow prediction model initialized');
+        // console.log('[AI Flow Detection] Flow prediction model initialized');
     }
     
     analyzeBurstPatterns() {
@@ -1079,14 +1079,14 @@ class AIFlowDetection {
     async requestAIInsight(context) {
         // Check if AI service is available
         if (!window.electronAPI || !window.electronAPI.invoke) {
-            console.log('[Flow Detection] AI service not available');
+            // console.log('[Flow Detection] AI service not available');
             return null;
         }
         
         const prompt = this.buildContextualPrompt(context);
         
         try {
-            console.log('[Flow Detection] Requesting AI contextual insight...');
+            // console.log('[Flow Detection] Requesting AI contextual insight...');
             
             const response = await window.electronAPI.invoke('ai-chat', {
                 message: prompt,
@@ -1099,7 +1099,7 @@ class AIFlowDetection {
             });
             
             if (response && response.response) {
-                console.log('[Flow Detection] Received AI insight:', response.response.substring(0, 100) + '...');
+                // console.log('[Flow Detection] Received AI insight:', response.response.substring(0, 100) + '...');
                 const insight = response.response.trim();
                 
                 // Ensure the insight includes context reference
@@ -1415,18 +1415,18 @@ Avoid generic advice. Be specific to what the user is actually working on.`;
         const recentIntervals = this.flowEngine.typingPattern.intervals.slice(-20);
         const dataPoints = recentIntervals.length;
         
-        console.log(`[Flow Detection] calculateQuickFlowScore - Data points: ${dataPoints}, Rhythm: ${rhythm.toFixed(3)}, Consistency: ${consistency.toFixed(3)}, Cognitive load: ${cognitiveLoad.toFixed(3)}`);
+        // console.log(`[Flow Detection] calculateQuickFlowScore - Data points: ${dataPoints}, Rhythm: ${rhythm.toFixed(3)}, Consistency: ${consistency.toFixed(3)}, Cognitive load: ${cognitiveLoad.toFixed(3)}`);
         
         if (dataPoints < 20) {
             // Not enough data to determine flow state - don't trigger indicator
-            console.log('[Flow Detection] Insufficient data for flow calculation (need 20+ keystrokes)');
+            // console.log('[Flow Detection] Insufficient data for flow calculation (need 20+ keystrokes)');
             return 0.6; // Neutral state that won't trigger indicator
         }
         
         // Quick flow estimation with bias toward neutral scores
         const baseScore = (rhythm * 0.3 + consistency * 0.3 + (1 - cognitiveLoad) * 0.2 + 0.2); // Added 0.2 baseline
         
-        console.log(`[Flow Detection] Base score calculated: ${baseScore.toFixed(3)}`);
+        // console.log(`[Flow Detection] Base score calculated: ${baseScore.toFixed(3)}`);
         
         // More conservative thresholds - only show indicator for clearly notable states
         let finalScore;
@@ -1438,14 +1438,14 @@ Avoid generic advice. Be specific to what the user is actually working on.`;
             finalScore = 0.6; // Neutral state - don't show indicator
         }
         
-        console.log(`[Flow Detection] Final flow score: ${finalScore.toFixed(3)} ${finalScore !== baseScore ? '(adjusted to neutral to reduce noise)' : ''}`);
+        // console.log(`[Flow Detection] Final flow score: ${finalScore.toFixed(3)} ${finalScore !== baseScore ? '(adjusted to neutral to reduce noise)' : ''}`);
         
         return finalScore;
     }
     
     // Method to force hide the indicator (useful for debugging)
     forceHideIndicator() {
-        console.log('[Flow Detection] Force hiding indicator');
+        // console.log('[Flow Detection] Force hiding indicator');
         const indicator = document.getElementById('ai-flow-indicator');
         if (indicator) {
             indicator.classList.remove('visible');
@@ -1455,36 +1455,36 @@ Avoid generic advice. Be specific to what the user is actually working on.`;
             if (this.flowIndicatorTimeout) {
                 clearTimeout(this.flowIndicatorTimeout);
                 this.flowIndicatorTimeout = null;
-                console.log('[Flow Detection] Cleared auto-hide timeout during force hide');
+                // console.log('[Flow Detection] Cleared auto-hide timeout during force hide');
             }
-            console.log(`[Flow Detection] Indicator force hidden at ${new Date().toLocaleTimeString()}`);
+            // console.log(`[Flow Detection] Indicator force hidden at ${new Date().toLocaleTimeString()}`);
         } else {
-            console.log('[Flow Detection] No indicator to force hide');
+            // console.log('[Flow Detection] No indicator to force hide');
         }
     }
     
     // Method to completely remove the indicator
     removeIndicator() {
-        console.log('[Flow Detection] Removing indicator completely');
+        // console.log('[Flow Detection] Removing indicator completely');
         const indicator = document.getElementById('ai-flow-indicator');
         if (indicator) {
             indicator.remove();
-            console.log('[Flow Detection] Indicator element removed from DOM');
+            // console.log('[Flow Detection] Indicator element removed from DOM');
         } else {
-            console.log('[Flow Detection] No indicator element to remove');
+            // console.log('[Flow Detection] No indicator element to remove');
         }
         
         // Clear any pending timeouts
         if (this.flowIndicatorTimeout) {
             clearTimeout(this.flowIndicatorTimeout);
             this.flowIndicatorTimeout = null;
-            console.log('[Flow Detection] Cleared auto-hide timeout during removal');
+            // console.log('[Flow Detection] Cleared auto-hide timeout during removal');
         }
         
         if (this.updateDebounceTimeout) {
             clearTimeout(this.updateDebounceTimeout);
             this.updateDebounceTimeout = null;
-            console.log('[Flow Detection] Cleared debounce timeout during removal');
+            // console.log('[Flow Detection] Cleared debounce timeout during removal');
         }
     }
     
@@ -1641,5 +1641,5 @@ if (typeof window !== 'undefined') {
         }
     };
     
-    console.log('[Flow Detection] Debug helpers available: flowDebug.help() for commands');
+    // console.log('[Flow Detection] Debug helpers available: flowDebug.help() for commands');
 }

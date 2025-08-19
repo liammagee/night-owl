@@ -111,7 +111,7 @@ class WritingGamification {
             this.initializeTodoGamification();
         }, 100);
         
-        console.log('[Gamification] Writing momentum and focus system initialized');
+        // console.log('[Gamification] Writing momentum and focus system initialized');
     }
 
     initialize() {
@@ -129,7 +129,7 @@ class WritingGamification {
     
     startWritingSession() {
         if (this.currentSession) {
-            console.log('[Gamification] Session already active');
+            // console.log('[Gamification] Session already active');
             return;
         }
 
@@ -148,14 +148,14 @@ class WritingGamification {
         this.sessionStartWordCount = this.getCurrentWordCount();
         this.sessionWordCount = 0;
         
-        console.log('[Gamification] Writing session started:', this.currentSession.id);
+        // console.log('[Gamification] Writing session started:', this.currentSession.id);
         this.updateGamificationUI();
         this.showNotification('✍️ Writing session started! Keep the momentum flowing.', 'success');
     }
 
     endWritingSession() {
         if (!this.currentSession) {
-            console.log('[Gamification] No active session to end');
+            // console.log('[Gamification] No active session to end');
             return;
         }
 

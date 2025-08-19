@@ -31,11 +31,7 @@ class PreviewZoom {
     initialize() {
         if (this.isInitialized) return;
         
-        console.log('[PreviewZoom] 🚀 Initializing preview zoom functionality:', {
-            isEnabled: this.isEnabled,
-            currentZoomLevel: this.currentZoomLevel,
-            maxZoomLevel: this.maxZoomLevel
-        });
+        // console.log('[PreviewZoom] 🚀 Initializing preview zoom functionality');
         this.addControls();
         this.isInitialized = true;
     }
@@ -78,7 +74,7 @@ class PreviewZoom {
         // Check expiry
         const now = Date.now();
         if (now - cached.timestamp > this.cacheExpiryMs) {
-            console.log('[PreviewZoom] Cache expired for', filePath);
+            // console.log('[PreviewZoom] Cache expired for', filePath);
             return false;
         }
         
@@ -87,11 +83,11 @@ class PreviewZoom {
         const hasSignificantChange = similarity < (1 - this.changeThreshold);
         
         if (hasSignificantChange) {
-            console.log(`[PreviewZoom] Significant content change detected (${Math.round((1-similarity)*100)}% different) for ${filePath}`);
+            // console.log(`[PreviewZoom] Significant content change detected for ${filePath}`);
             return false;
         }
         
-        console.log(`[PreviewZoom] Using cached summaries for ${filePath} (${Math.round(similarity*100)}% similar)`);
+        // console.log(`[PreviewZoom] Using cached summaries for ${filePath}`);
         return true;
     }
 
@@ -106,7 +102,7 @@ class PreviewZoom {
             },
             timestamp: Date.now()
         });
-        console.log(`[PreviewZoom] Cached summaries for ${filePath}`);
+        // console.log(`[PreviewZoom] Cached summaries for ${filePath}`);
     }
 
     // Load summaries from cache

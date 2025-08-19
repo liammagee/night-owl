@@ -312,4 +312,4 @@ if (typeof window !== 'undefined') {
     window.tagManager = tagManager;
 }
 
-console.log('[TagManager] Tag management system initialized');
+// console.log('[TagManager] Tag management system initialized');

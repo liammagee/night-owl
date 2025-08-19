@@ -103,6 +103,7 @@ function initializeCommandPalette() {
     registerCommand('export.html', 'Export: HTML', () => window.exportToHTML());
     registerCommand('export.htmlWithRefs', 'Export: HTML with References', () => window.exportToHTMLWithReferences());
     registerCommand('export.powerpoint', 'Export: PowerPoint', () => window.exportToPowerPoint());
+    registerCommand('export.accessible-html', 'Export: Accessible HTML', () => window.exportToAccessibleHTML());
     
     // AI Operations
     registerCommand('ai.chat', 'AI: Toggle Chat Panel', () => window.toggleAIChat());

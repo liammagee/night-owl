@@ -64,3 +64,4 @@ Defines tasks relating to this software itself.
 59. Accessible HTML export
 61. Add local AI - DONE
 62. Remote server - DONE
+63. Update icon - DONE

@@ -226,6 +226,20 @@ function exportToPowerPoint() {
     }
 }
 
+function exportToAccessibleHTML() {
+    if (!window.currentFilePath) {
+        if (window.showNotification) {
+            window.showNotification('Please open a file first', 'error');
+        }
+        return;
+    }
+    
+    if (window.electronAPI) {
+        // Trigger the accessible HTML export directly
+        window.electronAPI.send('trigger-export-html-accessible');
+    }
+}
+
 // --- Export Event Handlers ---
 function initializeExportHandlers() {
     
@@ -422,6 +436,41 @@ function initializeExportHandlers() {
         }
     });
 
+    // Accessible HTML export handler
+    window.electronAPI.on('trigger-export-html-accessible', async () => {
+        const content = getCurrentEditorContent();
+        try {
+            // Show initial notification
+            if (window.showNotification) {
+                window.showNotification('Preparing accessible HTML export...', 'info');
+            }
+            
+            // Export options for accessible HTML
+            const exportOptions = {
+                accessible: true,
+                wcagCompliant: true
+            };
+            
+            const result = await window.electronAPI.invoke('perform-export-html-accessible', content, exportOptions);
+            if (result.success) {
+                
+                // Success message
+                let message = 'Accessible HTML presentation exported successfully';
+                if (window.showNotification) {
+                    window.showNotification(message, 'success');
+                }
+            } else if (!result.cancelled) {
+                if (window.showNotification) {
+                    window.showNotification(result.error || 'Accessible HTML export failed', 'error');
+                }
+            }
+        } catch (error) {
+            if (window.showNotification) {
+                window.showNotification('Error during accessible HTML export', 'error');
+            }
+        }
+    });
+
     // PDF with references export handler
     window.electronAPI.on('trigger-export-pdf-pandoc', async () => {
         const content = getCurrentEditorContent();
@@ -475,7 +524,8 @@ function createExportMenu() {
         { label: 'PDF with References', action: exportToPDFWithReferences },
         { label: 'HTML', action: exportToHTML },
         { label: 'HTML with References', action: exportToHTMLWithReferences },
-        { label: 'PowerPoint', action: exportToPowerPoint }
+        { label: 'PowerPoint', action: exportToPowerPoint },
+        { label: 'Accessible HTML', action: exportToAccessibleHTML }
     ];
 }
 
@@ -548,5 +598,6 @@ window.exportToPDFWithReferences = exportToPDFWithReferences;
 window.exportToHTML = exportToHTML;
 window.exportToHTMLWithReferences = exportToHTMLWithReferences;
 window.exportToPowerPoint = exportToPowerPoint;
+window.exportToAccessibleHTML = exportToAccessibleHTML;
 window.initializeExportHandlers = initializeExportHandlers;
 window.exportAllFormats = exportAllFormats;
