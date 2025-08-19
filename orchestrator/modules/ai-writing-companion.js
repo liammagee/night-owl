@@ -186,8 +186,12 @@ class AIWritingCompanion {
             // Analyze multiple dimensions
             const analysis = await this.analyzeWritingDimensions(recentWriting);
             
+            // Add the recent text to analysis for context in feedback
+            analysis.recentText = recentWriting;
+            analysis.lastSentence = this.extractLastSentence(recentWriting);
+            
             // Generate contextual feedback based on analysis
-            this.generateContextualFeedback(analysis);
+            await this.generateContextualFeedback(analysis);
             
             // Update learning model
             this.updateLearningModel(analysis);
@@ -265,7 +269,7 @@ class AIWritingCompanion {
     
     // === Contextual Feedback Generation ===
     
-    generateContextualFeedback(analysis) {
+    async generateContextualFeedback(analysis) {
         const context = this.getCurrentWritingContext();
         const persona = this.selectOptimalPersona(analysis, context);
         
@@ -273,7 +277,7 @@ class AIWritingCompanion {
         if (!this.shouldShowFeedback(analysis)) return;
         
         // Generate personalized feedback
-        const feedback = this.generatePersonalizedFeedback(analysis, persona, context);
+        const feedback = await this.generatePersonalizedFeedback(analysis, persona, context);
         
         if (feedback) {
             // Log feedback generation
@@ -282,7 +286,8 @@ class AIWritingCompanion {
                 persona: feedback.persona,
                 flowState: analysis.flow?.state,
                 confidence: feedback.confidence,
-                sessionDuration: context.sessionDuration
+                sessionDuration: context.sessionDuration,
+                source: feedback.source
             });
             
             this.showContextualFeedback(feedback);
@@ -307,15 +312,15 @@ class AIWritingCompanion {
         return timeSinceLastFeedback > minimumInterval;
     }
     
-    generatePersonalizedFeedback(analysis, persona, context) {
+    async generatePersonalizedFeedback(analysis, persona, context) {
         const feedbackType = this.selectFeedbackType(analysis, context);
         const personalizations = this.getPersonalizations(analysis);
         
         switch (feedbackType) {
             case 'encouragement':
-                return this.generateEncouragement(analysis, persona, personalizations);
+                return await this.generateEncouragement(analysis, persona, personalizations);
             case 'insight':
-                return this.generateInsight(analysis, persona, personalizations);
+                return await this.generateInsight(analysis, persona, personalizations);
             case 'suggestion':
                 return this.generateSuggestion(analysis, persona, personalizations);
             case 'celebration':
@@ -325,20 +330,58 @@ class AIWritingCompanion {
         }
     }
     
-    generateEncouragement(analysis, persona, personalizations) {
+    async generateEncouragement(analysis, persona, personalizations) {
+        // Get the user's last sentence for context
+        const lastSentence = analysis.lastSentence || '';
+        const hasLastSentence = lastSentence.trim().length > 0;
+        
+        // Try to generate AI-powered contextual encouragement first
+        if (window.electronAPI && hasLastSentence) {
+            try {
+                const aiMessage = await this.generateAIEncouragement(analysis, persona);
+                if (aiMessage) {
+                    return {
+                        type: 'encouragement',
+                        persona: persona.name,
+                        message: aiMessage,
+                        confidence: 0.9,
+                        timing: 'gentle',
+                        source: 'ai'
+                    };
+                }
+            } catch (error) {
+                console.log('[AI Companion] AI encouragement failed, using fallback:', error.message);
+            }
+        }
+        
+        // Fallback to predefined messages
         const encouragements = {
             struggling: [
-                `${persona.name} notices you're working through some complexity here. Every great writer faces these moments—they're often where the best insights emerge.`,
-                `I can sense you're pushing through a challenging section. Your persistence shows real dedication to your craft.`,
-                `This feels like deep thinking territory. Sometimes the best writing comes after we wrestle with our ideas.`
+                hasLastSentence ? 
+                    `${persona.name} notices you're working through some complexity here. Re: "${lastSentence}" - Every great writer faces these moments—they're often where the best insights emerge.` :
+                    `${persona.name} notices you're working through some complexity here. Every great writer faces these moments—they're often where the best insights emerge.`,
+                hasLastSentence ? 
+                    `I can sense you're pushing through a challenging section. Re: "${lastSentence}" - Your persistence shows real dedication to your craft.` :
+                    `I can sense you're pushing through a challenging section. Your persistence shows real dedication to your craft.`,
+                hasLastSentence ? 
+                    `This feels like deep thinking territory. Re: "${lastSentence}" - Sometimes the best writing comes after we wrestle with our ideas.` :
+                    `This feels like deep thinking territory. Sometimes the best writing comes after we wrestle with our ideas.`
             ],
             beginning: [
-                `${persona.name} here! I'm excited to write alongside you today. Your unique perspective always leads to interesting places.`,
-                `Ready to explore some ideas together? I love seeing where your thoughts take us.`
+                hasLastSentence ? 
+                    `${persona.name} here! Re: "${lastSentence}" - I'm excited to see where this direction takes us today. Your unique perspective always leads to interesting places.` :
+                    `${persona.name} here! I'm excited to write alongside you today. Your unique perspective always leads to interesting places.`,
+                hasLastSentence ? 
+                    `Ready to explore some ideas together? Re: "${lastSentence}" - I love seeing where your thoughts take us.` :
+                    `Ready to explore some ideas together? I love seeing where your thoughts take us.`
             ],
             momentum: [
-                `You're building beautiful momentum here. I can feel the energy in your words.`,
-                `There's a lovely rhythm developing in your writing. Keep riding this wave.`
+                hasLastSentence ? 
+                    `You're building beautiful momentum here. Re: "${lastSentence}" - I can feel the energy in your words.` :
+                    `You're building beautiful momentum here. I can feel the energy in your words.`,
+                hasLastSentence ? 
+                    `There's a lovely rhythm developing in your writing. Re: "${lastSentence}" - Keep riding this wave.` :
+                    `There's a lovely rhythm developing in your writing. Keep riding this wave.`
             ]
         };
         
@@ -353,26 +396,60 @@ class AIWritingCompanion {
             persona: persona.name,
             message,
             confidence: 0.8,
-            timing: 'gentle'
+            timing: 'gentle',
+            source: 'fallback'
         };
     }
     
-    generateInsight(analysis, persona, personalizations) {
+    async generateInsight(analysis, persona, personalizations) {
+        // Get the user's last sentence for context
+        const lastSentence = analysis.lastSentence || '';
+        const hasLastSentence = lastSentence.trim().length > 0;
+        
+        // Try to generate AI-powered contextual insight first
+        if (window.electronAPI && hasLastSentence) {
+            try {
+                const aiMessage = await this.generateAIInsight(analysis, persona);
+                if (aiMessage) {
+                    return {
+                        type: 'insight',
+                        persona: persona.name,
+                        message: aiMessage,
+                        confidence: 0.9,
+                        timing: 'thoughtful',
+                        source: 'ai'
+                    };
+                }
+            } catch (error) {
+                console.log('[AI Companion] AI insight failed, using fallback:', error.message);
+            }
+        }
+        
+        // Fallback to predefined insights
         const insights = [];
         
         // Flow insights
         if (analysis.flow.score > 0.7) {
-            insights.push(`You're in a wonderful flow state—your ideas are connecting beautifully. Consider continuing for another ${this.suggestOptimalDuration()} to maximize this momentum.`);
+            insights.push(hasLastSentence ? 
+                `You're in a wonderful flow state—your ideas are connecting beautifully. Re: "${lastSentence}" - Consider continuing for another ${this.suggestOptimalDuration()} to maximize this momentum.` :
+                `You're in a wonderful flow state—your ideas are connecting beautifully. Consider continuing for another ${this.suggestOptimalDuration()} to maximize this momentum.`
+            );
         }
         
         // Style insights
         if (analysis.style.evolution) {
-            insights.push(`I'm noticing your writing style is evolving. Your sentences are becoming more ${analysis.style.direction}—it's adding real depth to your voice.`);
+            insights.push(hasLastSentence ? 
+                `I'm noticing your writing style is evolving. Re: "${lastSentence}" - Your sentences are becoming more ${analysis.style.direction}—it's adding real depth to your voice.` :
+                `I'm noticing your writing style is evolving. Your sentences are becoming more ${analysis.style.direction}—it's adding real depth to your voice.`
+            );
         }
         
         // Creativity insights
         if (analysis.creativity.score > 0.6) {
-            insights.push(`Your creativity is really sparking today. The way you're connecting ideas feels fresh and original.`);
+            insights.push(hasLastSentence ? 
+                `Your creativity is really sparking today. Re: "${lastSentence}" - The way you're connecting ideas feels fresh and original.` :
+                `Your creativity is really sparking today. The way you're connecting ideas feels fresh and original.`
+            );
         }
         
         if (insights.length === 0) return null;
@@ -382,7 +459,8 @@ class AIWritingCompanion {
             persona: persona.name,
             message: insights[Math.floor(Math.random() * insights.length)],
             confidence: 0.7,
-            timing: 'thoughtful'
+            timing: 'thoughtful',
+            source: 'fallback'
         };
     }
     
@@ -608,6 +686,116 @@ class AIWritingCompanion {
             dayOfWeek: new Date().getDay(),
             isFocusSession: !!this.gamification?.focusSession
         };
+    }
+    
+    extractLastSentence(text) {
+        if (!text || typeof text !== 'string') return '';
+        
+        // Clean up the text
+        const cleaned = text.trim().replace(/\s+/g, ' ');
+        
+        // Split by sentence endings, but keep the punctuation
+        const sentences = cleaned.split(/([.!?]+)/);
+        
+        // Find the last meaningful sentence
+        let lastSentence = '';
+        for (let i = sentences.length - 1; i >= 0; i--) {
+            const sentence = sentences[i].trim();
+            if (sentence && !sentence.match(/^[.!?]+$/)) {
+                lastSentence = sentence;
+                // Add back the punctuation if the next element is punctuation
+                if (i + 1 < sentences.length && sentences[i + 1].match(/^[.!?]+$/)) {
+                    lastSentence += sentences[i + 1];
+                }
+                break;
+            }
+        }
+        
+        // Fallback: take the last 100 characters if no sentence found
+        if (!lastSentence && cleaned.length > 0) {
+            lastSentence = cleaned.slice(-100);
+        }
+        
+        // Truncate if too long for UI display
+        if (lastSentence.length > 120) {
+            lastSentence = '...' + lastSentence.slice(-117);
+        }
+        
+        return lastSentence;
+    }
+    
+    // === AI-Powered Message Generation ===
+    
+    async generateAIEncouragement(analysis, persona) {
+        const lastSentence = analysis.lastSentence || '';
+        const recentText = analysis.recentText || '';
+        const flowState = analysis.flow?.state || 'neutral';
+        
+        const prompt = `I'm ${persona.name}, an AI writing companion. The user is currently ${flowState} in their writing flow.
+
+Their last sentence: "${lastSentence}"
+
+Recent context: "${recentText.slice(-200)}"
+
+Generate a brief, encouraging comment (1-2 sentences) that:
+- Starts with "Re: '[their exact last sentence]'" 
+- Provides specific encouragement based on what they're actually writing about
+- Matches my personality: ${persona.style}
+- Is appropriate for their current flow state: ${flowState}
+
+Be warm, specific, and helpful. Focus on their actual content, not generic writing advice.`;
+
+        try {
+            const response = await window.electronAPI.invoke('ai-chat', {
+                message: prompt,
+                options: {
+                    temperature: 0.8,
+                    maxTokens: 120,
+                    newConversation: true
+                }
+            });
+            
+            return response?.response?.trim() || null;
+        } catch (error) {
+            console.log('[AI Companion] AI encouragement generation failed:', error);
+            return null;
+        }
+    }
+    
+    async generateAIInsight(analysis, persona) {
+        const lastSentence = analysis.lastSentence || '';
+        const recentText = analysis.recentText || '';
+        const flowState = analysis.flow?.state || 'neutral';
+        
+        const prompt = `I'm ${persona.name}, an AI writing companion. The user is in "${flowState}" flow state.
+
+Their last sentence: "${lastSentence}"
+
+Recent context: "${recentText.slice(-200)}"
+
+Generate a brief writing insight (1-2 sentences) that:
+- Starts with "Re: '[their exact last sentence]'"
+- Provides a specific insight about their writing direction, style, or ideas
+- Matches my personality: ${persona.style}
+- Offers constructive next steps or observations
+
+Be thoughtful, specific to their content, and insightful. Avoid generic advice.`;
+
+        try {
+            const response = await window.electronAPI.invoke('ai-chat', {
+                message: prompt,
+                options: {
+                    temperature: 0.7,
+                    maxTokens: 120,
+                    newConversation: true
+                }
+            });
+            
+            return response?.response?.trim() || null;
+        } catch (error) {
+            console.log('[AI Companion] AI insight generation failed:', error);
+            return null;
+        }
     }
     
     countWords(text) {

@@ -1,25 +1,3 @@
----
-tags: ["dialectic"]
-
----
-<!-- TOC START -->
-## <a id="table-of-contents"></a>Table of Contents
-
-- [Machine Learning and Human Learning](#machine-learning-and-human-learning)
-  - [Readings](#readings)
-  - [Assessment](#assessment)
-  - [Structure](#structure)
-  - [Overview](#overview)
-  - [Main Lecture](#main-lecture)
-    - [Modalities of Learning](#modalities-of-learning)
-    - [Comparative Analysis of Human and Machine Learning](#comparative-analysis-of-human-and-machine-learning)
-    - [Concepts](#concepts)
-
-<!-- TOC END -->
-
-
-
-
 
 
 # <a id="machine-learning-and-human-learning"></a>Machine Learning and Human Learning
@@ -33,6 +11,7 @@ None for Week 1!
 
 
 ## <a id="assessment"></a>Assessment
+
 
 Comment on any of the following questions:
  - What does it mean to learn? How do you know when human learning happens: in the classroom, workplace or life?
@@ -133,7 +112,7 @@ In addition – and here is the second reason – Hegel's account is rooted in o
 
 The third reason relates less to Hegel's direct views about learning, and more to his understanding of history. Within the Western tradition of philosophy, Hegel is the first and central philosopher of history – in the sense that he discusses history as something like a wider social and collective learning project. History moreover has a tendency or direction: it moves towards gradual realization or recognition, what Hegel terms, grandiosely, as the Absolute Idea or Absolute Knowledge. Outside religion, perhaps few today would agree strongly with Hegel that history follows a determinate path. However, with the arrival of AI – and certainly with much of the hype that comes with it – we are also forced to confront a series of questions: where are we going with AI? Will we arrive at a singularity, when AI becomes smarter than humans? And what skills do future human learners need to navigate this particular historical moment? Hegel doesn't answer this question, but – especially in his confrontation with the major events of his own time, including the French Revolution – he is already opening a way for consideration of our position within a wider time and history. 
 
-And finally, Hegel occupies an unusual position himself in the recent history of philosophy. Long regarded – for reasons we shall see, as we begin to look at some of his text – as an obscure and complex thinker without much value to mainstream philosophy, he has become central in recent decades to debates about language, norms and consciousness. Robert Brandom, a prominent American philosopher, has written for example an 800 page volume called *A Spirit of Trust: A Reading of Hegel's Phenomenology of Spirit*. Brandom, among others, is an important thinker in his own right about machine learning
+And finally, Hegel occupies an unusual position himself in the recent history of philosophy. Long regarded – for reasons we shall see, as we begin to look at some of his text – as an obscure and complex thinker without much value to mainstream philosophy, he has become central in recent decades to debates about language, norms and consciousness. Robert Brandom, a prominent American philosopher, has written for example an 800 page volume called *A Spirit of Trust: A Reading of Hegel's Phenomenology of Spirit*. Brandom, among others, is an important thinker in his own right about AI, and this suggests Hegel provides us with good background – if we want it – to contemporary discussions about learning and language. 
 
 
 --- 
@@ -157,7 +136,7 @@ Alignment is a "vogue" term in machine learning, and describes the process of al
 7. Critique 
 "Critique" then brings us to what happens when alignment, one way or another, fails: when technology, in other words, fails to meet the wider social standards we set for it. Critique is another keyword also in the Hegelian nomenclature - it comes famously from Kant, for whom "Critique" is the method for understanding how "pure" (rational, scientific), "practical" (applied, moral) and "judgemental" (aesthetic) reasoning can happen. Here we will look at how Critical AI has been responding to AI - and look in turn at how AI works itself as a tool for, as well as of, critique.  
 8. Synthesis: Technosymbiosis
-
+Finally, we return to where we started: with the concept of synthesis. However – just like a Hegelian process of argument – our original concept is now modified and inflected by the other concepts and materials we've encountered. In particular we are in a position to understand N. Katherine Hayles' idea of "technosymbiosis" – the combining of technology and life – a synthesis that also incorporates earlier ideas of experience, attention, recognition, consciousness, alignment and critique. 
 
 
 

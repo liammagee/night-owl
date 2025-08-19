@@ -1134,18 +1134,18 @@ class AIFlowDetection {
         const lastSentence = context.lastSentence;
         
         return `I'm writing a ${fileType} file and my current flow state is "${flowState}". 
-        
-My last sentence or paragraph is: "${lastSentence}"
+
+LAST SENTENCE I WROTE: "${lastSentence}"
 
 Recent text context: "${recentText.slice(-100)}"
 
 Provide a brief, helpful writing suggestion or insight (1-2 sentences max). Focus on:
-- Content direction or next steps
+- Content direction or next steps based on my last sentence
 - Writing flow improvements 
 - Philosophical connections (if relevant)
 - Structural suggestions
 
-IMPORTANT: Start your response with "Re: '[brief excerpt]'" to show what text you're responding to, then give your suggestion.
+CRITICAL FOR TROUBLESHOOTING: You MUST start your response with "Re: 'EXACT QUOTE FROM MY LAST SENTENCE'" followed by your specific suggestion. Use the exact words from my last sentence in the quote, not a paraphrase.
 
 Be encouraging and specific to what I'm actually writing about.`;
     }
@@ -1160,11 +1160,11 @@ Your insights should be:
 - Focused on immediate next steps or improvements
 - Philosophically informed when relevant
 
-REQUIRED FORMAT: Always start with "Re: '[brief excerpt from their text]'" to show what you're responding to, then provide your suggestion.
+CRITICAL REQUIREMENT FOR TROUBLESHOOTING: Always start with "Re: 'EXACT QUOTE FROM THEIR LAST SENTENCE'" using their actual words verbatim, then provide your suggestion. This helps debug when responses seem generic.
 
-Example: "Re: 'The dialectical process reveals...' Consider exploring how this movement connects to your earlier point about consciousness."
+Example: "Re: 'The dialectical process reveals the inherent contradictions within consciousness itself.' This opens up fascinating questions about how consciousness mediates its own self-understanding."
 
-Avoid generic advice. Be specific to what the user is actually working on.`;
+Never paraphrase or summarize in the quote - use their exact words. Avoid generic advice. Be specific to what the user is actually working on.`;
     }
     
     formatInsightWithContext(insight, context) {
@@ -1173,11 +1173,18 @@ Avoid generic advice. Be specific to what the user is actually working on.`;
             return insight;
         }
         
-        // Extract a brief excerpt from the last sentence for context
-        const lastSentence = context.lastSentence || context.recentText.slice(-50);
-        const excerpt = this.extractBriefExcerpt(lastSentence);
+        // For troubleshooting: Always include the full last sentence
+        const lastSentence = context.lastSentence || context.recentText.slice(-100);
         
-        // Format the insight with context
+        // Clean up the last sentence for display
+        const cleanSentence = lastSentence.trim().replace(/\s+/g, ' ');
+        
+        // Truncate if very long, but prefer showing the full sentence for debugging
+        const excerpt = cleanSentence.length > 60 ? 
+            cleanSentence.slice(-60) + '...' : 
+            cleanSentence;
+        
+        // Format the insight with full context for debugging
         return `Re: "${excerpt}" ${insight}`;
     }
     
