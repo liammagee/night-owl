@@ -5078,6 +5078,10 @@ Keep it concise and focused on the most important points.`;
         console.log('[main.js] Triggering PowerPoint export');
         mainWindow.webContents.send('trigger-export-pptx');
         break;
+      case 'html-accessible':
+        console.log('[main.js] Triggering accessible HTML export');
+        mainWindow.webContents.send('trigger-export-html-accessible');
+        break;
       default:
         console.error(`[main.js] Unknown export type: ${exportType}`);
     }

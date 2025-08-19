@@ -235,8 +235,7 @@ function exportToAccessibleHTML() {
     }
     
     if (window.electronAPI) {
-        // Trigger the accessible HTML export directly
-        window.electronAPI.send('trigger-export-html-accessible');
+        window.electronAPI.invoke('trigger-export', 'html-accessible');
     }
 }
 

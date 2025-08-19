@@ -2997,6 +2997,14 @@ async function performAppInitialization() {
     } else {
         console.warn('[renderer.js] AI Chat initialization function not found');
     }
+    
+    // Initialize Export handlers
+    if (window.initializeExportHandlers) {
+        console.log('[renderer.js] Initializing export handlers...');
+        window.initializeExportHandlers();
+    } else {
+        console.warn('[renderer.js] Export handlers initialization function not found');
+    }
 }
 
 // Emergency fallback - create a basic editor immediately if nothing else works
