@@ -97,7 +97,7 @@ class AIService {
     // Local AI Provider (OpenAI-compatible)
     try {
       // Default URL if not configured - will be updated from settings later
-      const localAIUrl = process.env.LOCAL_AI_URL || 'http://10.0.0.71:1234/';
+      const localAIUrl = process.env.LOCAL_AI_URL || 'http://localhost:1234/';
       this.providers.set('local', new LocalAIProvider(localAIUrl));
       console.log('[AIService] Local AI provider initialized');
       console.log(`[AIService] Local AI URL: ${localAIUrl}`);
@@ -231,6 +231,21 @@ class AIService {
       
       console.error(`[AIService] Error with ${provider}:`, error.message);
       console.error(`[AIService] Full error:`, error);
+      
+      // Provide user-friendly error messages for specific provider issues
+      if (provider === 'local' && error.message.includes('fetch failed')) {
+        const enhancedError = new Error(
+          `🔌 Local AI Connection Failed\n\n` +
+          `The local AI server appears to be unreachable. Please check:\n\n` +
+          `• Is your local AI server (like Ollama, LocalAI, or LM Studio) running?\n` +
+          `• Is it accessible at the configured URL?\n` +
+          `• Does it support OpenAI-compatible API endpoints?\n\n` +
+          `Original error: ${error.message}`
+        );
+        enhancedError.code = 'LOCAL_AI_CONNECTION_FAILED';
+        throw enhancedError;
+      }
+      
       throw error;
     }
   }
@@ -721,7 +736,8 @@ class LocalAIProvider extends BaseProvider {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(apiPayload)
+        body: JSON.stringify(apiPayload),
+        timeout: 30000 // 30 second timeout
       });
 
       if (!response.ok) {
@@ -743,11 +759,62 @@ class LocalAIProvider extends BaseProvider {
       };
     } catch (error) {
       console.error(`[LocalAIProvider] API call failed:`, error.message);
+      console.error(`[LocalAIProvider] Target URL:`, this.apiUrl);
+      console.error(`[LocalAIProvider] Base URL:`, this.baseUrl);
+      
+      // Enhanced error reporting
+      let errorMessage = 'Local AI request failed: ';
+      
+      if (error.code === 'ECONNREFUSED') {
+        errorMessage += `Connection refused. Is your local AI server running at ${this.baseUrl}?`;
+      } else if (error.code === 'ENOTFOUND' || error.message.includes('getaddrinfo ENOTFOUND')) {
+        errorMessage += `Host not found. Please check the server URL: ${this.baseUrl}`;
+      } else if (error.code === 'ECONNRESET') {
+        errorMessage += `Connection was reset by the server. The local AI service may be overloaded.`;
+      } else if (error.message.includes('fetch failed')) {
+        errorMessage += `Network request failed. Please verify:\n` +
+          `• Local AI server is running at ${this.baseUrl}\n` +
+          `• Server is accessible from this machine\n` +
+          `• No firewall is blocking the connection\n` +
+          `• Server supports OpenAI-compatible API at /v1/chat/completions`;
+      } else if (error.name === 'TimeoutError') {
+        errorMessage += `Request timed out after 30 seconds. The local AI server may be slow or unresponsive.`;
+      } else {
+        errorMessage += error.message;
+      }
+      
       if (error.response) {
         console.error(`[LocalAIProvider] API response status:`, error.response.status);
         console.error(`[LocalAIProvider] API response data:`, error.response.data);
       }
-      throw new Error(`Local AI request failed: ${error.message}`);
+      
+      throw new Error(errorMessage);
+    }
+  }
+
+  async testConnection() {
+    try {
+      console.log(`[LocalAIProvider] Testing connection to ${this.baseUrl}`);
+      
+      // Try to fetch models endpoint first (simpler test)
+      const modelsUrl = this.baseUrl + 'v1/models';
+      const response = await fetch(modelsUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[LocalAIProvider] ✅ Connection successful. Available models:`, data.data?.length || 'unknown');
+        return { success: true, models: data.data };
+      } else {
+        console.log(`[LocalAIProvider] ⚠️ Models endpoint returned ${response.status}. Server may be running but not fully ready.`);
+        return { success: false, error: `Server returned ${response.status}` };
+      }
+    } catch (error) {
+      console.error(`[LocalAIProvider] ❌ Connection test failed:`, error.message);
+      return { success: false, error: error.message };
     }
   }
 

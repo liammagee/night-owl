@@ -155,13 +155,19 @@ class AIWritingCompanion {
             console.log('[AI Companion] ⏰ Timer-based analysis triggered');
             
             // Don't use timer-based content comparison anymore since we have real-time capture
-            // Only trigger analysis if we have enough content in our real-time buffer
-            if (this.realTimeAnalysis.recentTypingBuffer.length >= this.realTimeAnalysis.characterThreshold) {
-                console.log('[AI Companion] ⏰ Timer triggering analysis with real-time buffer');
+            // Only trigger analysis if we have enough meaningful content in our real-time buffer
+            const currentBuffer = this.realTimeAnalysis.recentTypingBuffer;
+            const hasEnoughChars = currentBuffer.length >= this.realTimeAnalysis.characterThreshold;
+            const hasMeaningfulContent = this.hasMeaningfulText(currentBuffer);
+            
+            if (hasEnoughChars && hasMeaningfulContent) {
+                console.log('[AI Companion] ⏰ Timer triggering analysis with meaningful real-time buffer');
                 this.performContextualAnalysis();
             } else {
-                console.log('[AI Companion] ⏰ Timer skipped - insufficient real-time buffer content:', 
-                    this.realTimeAnalysis.recentTypingBuffer.length, 'chars, need:', this.realTimeAnalysis.characterThreshold);
+                const reason = !hasEnoughChars ? 
+                    `insufficient characters (${currentBuffer.length}/${this.realTimeAnalysis.characterThreshold})` :
+                    'no meaningful content detected';
+                console.log('[AI Companion] ⏰ Timer skipped -', reason, '- buffer:', JSON.stringify(currentBuffer.substring(0, 50)));
             }
         };
         
@@ -214,17 +220,23 @@ class AIWritingCompanion {
         
         console.log('[AI Companion] 📊 Analysis trigger check - words:', totalNewWords, 'time since last:', Date.now() - this.realTimeAnalysis.lastAnalysis);
         
-        // Trigger analysis based on word count or time, but also check character threshold
-        const hasEnoughCharacters = this.realTimeAnalysis.recentTypingBuffer.length >= this.realTimeAnalysis.characterThreshold;
+        // Trigger analysis based on word count or time, but also check character threshold and meaningful content
+        const currentBuffer = this.realTimeAnalysis.recentTypingBuffer;
+        const hasEnoughCharacters = currentBuffer.length >= this.realTimeAnalysis.characterThreshold;
+        const hasMeaningfulContent = this.hasMeaningfulText(currentBuffer);
         const hasEnoughWords = totalNewWords >= 10;
         const timeSinceLastAnalysis = Date.now() - this.realTimeAnalysis.lastAnalysis > 30000;
         
-        if ((hasEnoughWords || timeSinceLastAnalysis) && hasEnoughCharacters) {
-            console.log('[AI Companion] 🚀 Triggering analysis due to threshold met - words:', totalNewWords, 'chars:', this.realTimeAnalysis.recentTypingBuffer.length);
+        if ((hasEnoughWords || timeSinceLastAnalysis) && hasEnoughCharacters && hasMeaningfulContent) {
+            console.log('[AI Companion] 🚀 Triggering analysis due to threshold met - words:', totalNewWords, 'chars:', currentBuffer.length);
             this.performContextualAnalysis();
-        } else if ((hasEnoughWords || timeSinceLastAnalysis) && !hasEnoughCharacters) {
-            console.log('[AI Companion] ⏳ Analysis trigger conditions met but insufficient characters:', 
-                this.realTimeAnalysis.recentTypingBuffer.length, 'need:', this.realTimeAnalysis.characterThreshold);
+        } else if ((hasEnoughWords || timeSinceLastAnalysis)) {
+            const reasons = [];
+            if (!hasEnoughCharacters) reasons.push(`insufficient characters (${currentBuffer.length}/${this.realTimeAnalysis.characterThreshold})`);
+            if (!hasMeaningfulContent) reasons.push('no meaningful content');
+            
+            console.log('[AI Companion] ⏳ Analysis trigger conditions met but blocked:', reasons.join(', '), 
+                '- buffer:', JSON.stringify(currentBuffer.substring(0, 50)));
         }
     }
     
@@ -241,6 +253,16 @@ class AIWritingCompanion {
             
             if (recentWriting.length < 10) return;
             
+            // Get the current typing before proceeding
+            const currentTyping = this.extractCurrentTyping();
+            
+            // CRITICAL: Don't proceed if we have no meaningful typing activity
+            if (!this.hasMeaningfulText(currentTyping) && !this.hasMeaningfulText(recentWriting)) {
+                this.log('basic', 'analysis', 'Skipping analysis - no meaningful text activity detected');
+                console.log('[AI Companion] ⏸️ Analysis skipped - no meaningful text activity');
+                return;
+            }
+            
             // Analyze multiple dimensions
             const analysis = await this.analyzeWritingDimensions(recentWriting);
             
@@ -250,7 +272,7 @@ class AIWritingCompanion {
             analysis.recentText = recentWriting; // Keep this for analysis buffer data
             
             // Add REAL-TIME TYPED TEXT as the focus point
-            analysis.lastSentence = this.extractCurrentTyping();
+            analysis.lastSentence = currentTyping;
             
             console.log('[AI Companion] 🔍 Analysis prepared with:');
             console.log('[AI Companion] 📄 Full document length:', fullContent.length);
@@ -338,6 +360,17 @@ class AIWritingCompanion {
     
     async generateContextualFeedback(analysis) {
         try {
+            // FINAL SAFEGUARD: Don't generate feedback without meaningful content
+            const hasLastSentence = analysis.lastSentence && this.hasMeaningfulText(analysis.lastSentence);
+            const hasRecentText = analysis.recentText && this.hasMeaningfulText(analysis.recentText);
+            
+            if (!hasLastSentence && !hasRecentText) {
+                this.log('basic', 'analysis', 'Skipping feedback generation - no meaningful content in analysis');
+                console.log('[AI Companion] ⏸️ Feedback generation skipped - no meaningful content');
+                this.hideProgressIndicator();
+                return;
+            }
+            
             const context = this.getCurrentWritingContext();
             const persona = this.selectOptimalPersona(analysis, context);
             
@@ -1900,6 +1933,52 @@ Be thoughtful about their writing process without referencing specific recent te
         return 0.7; // Placeholder - could be enhanced with actual keystroke timing data
     }
     
+    // === Text Validation ===
+    
+    hasMeaningfulText(text) {
+        if (!text || typeof text !== 'string') return false;
+        
+        const cleaned = text.trim();
+        if (cleaned.length < 5) return false; // Too short to be meaningful
+        
+        // Check for sentence-like structure
+        const hasWords = /\b[a-zA-Z]+\b/.test(cleaned); // Contains actual words
+        const hasSpaces = /\s/.test(cleaned); // Contains spaces (multiple words)
+        const hasLetters = /[a-zA-Z]/.test(cleaned); // Contains letters (not just punctuation/numbers)
+        
+        // Basic heuristics for meaningful text:
+        // - Has actual letters
+        // - If longer than 15 characters, should have spaces (multiple words)
+        // - Not just repetitive characters
+        const notRepetitive = !this.isRepetitiveText(cleaned);
+        
+        const meaningful = hasLetters && hasWords && notRepetitive && 
+                          (cleaned.length <= 15 || hasSpaces);
+        
+        if (!meaningful) {
+            console.log('[AI Companion] 🚫 Text not meaningful:', JSON.stringify(cleaned), {
+                hasWords, hasSpaces, hasLetters, notRepetitive, length: cleaned.length
+            });
+        }
+        
+        return meaningful;
+    }
+    
+    isRepetitiveText(text) {
+        if (text.length < 3) return false;
+        
+        // Check if more than 70% of characters are the same
+        const charCount = {};
+        for (const char of text) {
+            charCount[char] = (charCount[char] || 0) + 1;
+        }
+        
+        const maxCount = Math.max(...Object.values(charCount));
+        const repetitiveThreshold = text.length * 0.7;
+        
+        return maxCount > repetitiveThreshold;
+    }
+    
     // === Settings Management ===
     
     async loadCompanionSettings() {
@@ -2083,11 +2162,20 @@ Be thoughtful about their writing process without referencing specific recent te
     debugForceShowFeedback() {
         console.log('[AI Companion] 🔧 DEBUG: Force showing feedback (bypassing shouldShowFeedback)');
         
+        const currentTyping = this.extractCurrentTyping();
+        
+        // Even in debug mode, don't proceed without some content
+        if (!currentTyping && !this.realTimeAnalysis.recentTypingBuffer) {
+            console.log('[AI Companion] 🔧 DEBUG: No content available for feedback, creating test content');
+            // For debug purposes, create some test content
+            this.realTimeAnalysis.recentTypingBuffer = 'This is test content for debugging purposes.';
+        }
+        
         // Create a simple analysis with current typing buffer
         const analysis = {
             flow: { state: 'struggling' }, // Force struggling state to trigger feedback
             recentText: this.realTimeAnalysis.recentTypingBuffer || 'test text',
-            lastSentence: this.extractCurrentTyping(),
+            lastSentence: currentTyping || 'test sentence',
             progress: { milestone: false },
             creativity: { breakthrough: false }
         };

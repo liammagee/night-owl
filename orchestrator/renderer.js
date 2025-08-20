@@ -5211,10 +5211,13 @@ async function performAutoSave() {
     try {
         const content = editor.getValue();
         console.log('[renderer.js] Performing auto-save...');
+        console.log('[renderer.js] Auto-save: currentFilePath =', window.currentFilePath);
+        console.log('[renderer.js] Auto-save: content length =', content.length);
         
         // Only save if we have a current file path
         if (window.currentFilePath && window.electronAPI) {
-            const result = await window.electronAPI.invoke('perform-save', content);
+            // CRITICAL FIX: Pass the file path explicitly to prevent saving to wrong file
+            const result = await window.electronAPI.invoke('perform-save-with-path', content, window.currentFilePath);
             
             if (result.success) {
                 lastSavedContent = content;

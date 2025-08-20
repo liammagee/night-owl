@@ -48,17 +48,7 @@ let aiService;
 let lastContextHash = null;
 let lastFileTimestamps = new Map();
 
-try {
-  aiService = new AIService();
-  console.log('[main.js] AI Service initialized with providers:', aiService.getAvailableProviders());
-  
-  if (aiService.getAvailableProviders().length === 0) {
-    console.warn('[main.js] WARNING: No AI providers configured. AI Chat feature will be disabled.');
-    console.warn('[main.js] Please add API keys to your .env file. See .env.example for details.');
-  }
-} catch (error) {
-  console.error('[main.js] Error initializing AI Service:', error);
-}
+// AIService will be initialized after settings are loaded
 
 // --- Process Event Handlers ---
 // Handle uncaught exceptions and EPIPE errors
@@ -672,15 +662,37 @@ function updateSettings(category, newSettings) {
 // Load settings before app ready
 loadSettings();
 
+// Initialize AI Service with settings
+try {
+  // Pass the local AI URL from settings to the environment before initializing
+  if (appSettings.ai && appSettings.ai.localAIUrl) {
+    process.env.LOCAL_AI_URL = appSettings.ai.localAIUrl;
+    console.log('[main.js] Setting LOCAL_AI_URL from settings:', appSettings.ai.localAIUrl);
+  }
+  
+  aiService = new AIService();
+  console.log('[main.js] AI Service initialized with providers:', aiService.getAvailableProviders());
+  
+  if (aiService.getAvailableProviders().length === 0) {
+    console.warn('[main.js] WARNING: No AI providers configured. AI Chat feature will be disabled.');
+    console.warn('[main.js] Please add API keys to your .env file. See .env.example for details.');
+  }
+} catch (error) {
+  console.error('[main.js] Error initializing AI Service:', error);
+}
+
 // Apply saved AI settings if they exist
-if (aiService && appSettings.ai && appSettings.ai.preferredProvider && appSettings.ai.preferredProvider !== 'auto') {
-  try {
-    if (aiService.getAvailableProviders().includes(appSettings.ai.preferredProvider)) {
-      aiService.setDefaultProvider(appSettings.ai.preferredProvider);
-      console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
+if (aiService && appSettings.ai) {
+  // Apply preferred provider if configured
+  if (appSettings.ai.preferredProvider && appSettings.ai.preferredProvider !== 'auto') {
+    try {
+      if (aiService.getAvailableProviders().includes(appSettings.ai.preferredProvider)) {
+        aiService.setDefaultProvider(appSettings.ai.preferredProvider);
+        console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
+      }
+    } catch (error) {
+      console.warn('[main.js] Could not apply saved AI provider preference:', error);
     }
-  } catch (error) {
-    console.warn('[main.js] Could not apply saved AI provider preference:', error);
   }
 }
 
@@ -3264,6 +3276,28 @@ Keep it concise and focused on the most important points.`;
         // This prevents addH1HeadingIfNeeded from being called during auto-save
         return { success: false, error: 'No current file path available for save operation' };
     }
+  });
+
+  // CRITICAL FIX: New handler that explicitly receives the file path to prevent auto-save corruption
+  ipcMain.handle('perform-save-with-path', async (event, content, filePath) => {
+    console.log(`[main.js] Received perform-save-with-path. Target path: "${filePath}"`);
+    console.log(`[main.js] Current main process path: "${currentFilePath}"`);
+    
+    if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
+        console.log('[main.js] Invalid file path provided to perform-save-with-path');
+        return { success: false, error: 'Invalid file path provided' };
+    }
+    
+    // Verify the file path matches what we expect or update our tracking
+    if (currentFilePath !== filePath) {
+        console.warn(`[main.js] WARNING: File path mismatch! Main process thinks current file is "${currentFilePath}" but renderer wants to save to "${filePath}"`);
+        console.warn(`[main.js] Updating main process currentFilePath to match renderer`);
+        currentFilePath = filePath;
+        appSettings.currentFile = filePath;
+        saveSettings();
+    }
+    
+    return await saveFile(filePath, content);
   });
 
   ipcMain.handle('perform-save-as', async (event, options) => {

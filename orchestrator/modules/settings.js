@@ -513,7 +513,7 @@ function generateAISettings() {
             <!-- Local AI Configuration -->
             <div class="settings-group" id="local-ai-config" style="margin-top: 15px; display: ${currentSettings.ai?.preferredProvider === 'local' ? 'block' : 'none'};">
                 <label>
-                    <input type="text" id="local-ai-url" value="${currentSettings.ai?.localAIUrl || 'http://10.0.0.71:1234/'}" placeholder="http://10.0.0.71:1234/" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <input type="text" id="local-ai-url" value="${currentSettings.ai?.localAIUrl || 'http://localhost:1234/'}" placeholder="http://localhost:1234/" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
                     <span>Local AI Server URL</span>
                 </label>
                 <div style="font-size: 11px; color: #666; margin-top: 4px;">

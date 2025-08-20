@@ -537,11 +537,26 @@ async function formatDisplayMath() {
 
 // --- Slide Markers ---
 async function addSlideMarkersToParagraphs() {
-    // EMERGENCY DISABLE: This function was causing automatic file overwrites
-    console.error('[addSlideMarkersToParagraphs] DISABLED - Function blocked to prevent file corruption');
-    alert('Slide marker addition has been temporarily disabled to prevent file corruption.');
-    return;
+    if (!window.editor) {
+        console.error('[addSlideMarkersToParagraphs] No editor available');
+        return;
+    }
     
+    // Add confirmation dialog to prevent accidental modifications
+    const confirmed = confirm(
+        'This will add slide markers (---) after each paragraph in your document.\n\n' +
+        'This is useful for creating presentation slides from your content.\n\n' +
+        'Do you want to continue?'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    const content = window.editor.getValue();
+    const lines = content.split('\n');
+    const newLines = [];
+    let i = 0;
     
     while (i < lines.length) {
         const line = lines[i];
@@ -590,7 +605,19 @@ async function addSlideMarkersToParagraphs() {
         if (window.updatePreviewAndStructure) {
             await window.updatePreviewAndStructure(newContent);
         }
+        
+        // Count how many markers were added
+        const originalMarkers = (content.match(/^---$/gm) || []).length;
+        const newMarkers = (newContent.match(/^---$/gm) || []).length;
+        const markersAdded = newMarkers - originalMarkers;
+        
+        if (window.showNotification) {
+            window.showNotification(`Added ${markersAdded} slide marker${markersAdded !== 1 ? 's' : ''}`, 'success');
+        }
     } else {
+        if (window.showNotification) {
+            window.showNotification('No paragraphs needed slide markers', 'info');
+        }
     }
 }
 
@@ -634,6 +661,10 @@ async function removeAllSlideMarkers() {
     window.editor.setValue(newContent);
     if (window.updatePreviewAndStructure) {
         await window.updatePreviewAndStructure(newContent);
+    }
+    
+    if (window.showNotification) {
+        window.showNotification(`Removed ${slideMarkerCount} slide marker${slideMarkerCount !== 1 ? 's' : ''}`, 'success');
     }
 }
 

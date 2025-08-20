@@ -1,61 +1,20 @@
 
-
-# <a id="machine-learning-and-human-learning"></a>Machine Learning and Human Learning
-
-
-
-## <a id="readings"></a>Readings
-
-None for Week 1!
-
-
-
-## <a id="assessment"></a>Assessment
-
-
-Comment on any of the following questions:
- - What does it mean to learn? How do you know when human learning happens: in the classroom, workplace or life?
- - Machine learning is clearly inspired by human learning. In your use of AI to date, how would you describe what it has learned (memorized, regurgitated, etc)? When AI gets things wrong, how are its errors different (or similar) to human mistakes?
- - I have introduced the concept of "synthesis" to describe the similarities and differences between machine and human learning.  What are your views? Do the similarities outweigh the differences, or vice versa?
-
-
-## <a id="structure"></a>Structure
-
-1. Introduction to the Course
-2. Weekly Format
-  - Mix of theory (lectures) / practice / discussion
-3. Assessments  
-4. A previous version of this course ran in 2023 and 2024: [[2023-Course]]
-5. Circular Structure
-  - [[lecture-concepts]]
-6. Lens: Hegelian Philosophy. Why Hegel?
-  - basic hypothesis: machine learning is rooted in 18th century empiricism (more data = more truth)
-  - What does Hegel offer? One way to think about learning as *nonlinear* (structured / dialectical / involving negation etc). This is important for later pedagogical theorists such as Dewey, Vygotsky and Piaget – Hegel's influence on these thinkers (and their general critique of mechanical learning will become clear).
-  - This will hopefully become clear! We start with the idea of synthesis between machine learning and human learning, then go down several rabbit holes, before returning, in Week 8, to a modified idea of synthesis.
-7. 8 Weeks = 8 Concepts
-8. Discussion
-
-
-
-## <a id="overview"></a>Overview
-
-
-Welcome to Machine Learning and Human Learning!
-
-In this course we'll be exploring these two related – but also very distinct – ideas. This week I'll provide an overview of the course, readings, approach and assessment. I'll also be introducing the work of Hegel, an Enlightenment-era German philosopher who will supply an important lens onto many of the questions posed by this new era of machine learning. 
-
-We'll also have a general open discussion about machine learning and human learning: what unites them, and what distinguishes them. In true dialectical fashion - a term we will get used to as we read Hegel – we will then think about what possible synthesis we might see between these two ways of learning. Part of this discussion will involve, naturally enough, a machine that will be joining us – GPT-5 – to share its views.
-
-
-
----
-
 ## <a id="main-lecture"></a>Welcome to Machine Learning and Human Learning!
 
 ---
 
-### Synthesis
+### <a id="synthesis"></a>Synthesis
 
+---
+
+## The Symbiotic Shift of Learning in the Age of Generative AI
+
+- Human learning has historically been mediated by tools (stylus → smartphone), reshaping memory and cognition.
+- Generative AI now learns from human-generated data, creating a reciprocal learning loop where machines teach us new ways to interact with information.
+- This intertwined relationship is framed through concepts like socio‑technical systems, cyborgism, technosymbiosis, and the course’s focus on *synthesis*—the convergence of machine and human learning modes.
+- The curriculum will explore these dynamics, examining how our educational practices must adapt to this new symbiotic pedagogy.
+
+```notes
 We have entered an era in which our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 
 
 But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.
@@ -63,19 +22,22 @@ But today we also talk about machines learning how to do things themselves. Most
 We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Harraway); of cyber-social systems (Kalantzis Cope); and of compound terms like 'technosymbiosis' (Katherine Hayles) or a term I'll be using, in the context of learning, 'symbiotic pedagogy'. But the wider concept we'll be working with this week - and returning to, as we'll see - is that of *synthesis*. *Synthesis* will describe how both the similarities and differences between machine and human learning come together in our present moment.
 
 Through the course we will be studying this relationship in a number of ways. Later I'll talk through the organization of the course materials. 
+```
+
+
 
 ---
 
-## Administration
+## <a id="administration"></a>Administration
 
 
-### Weekly seminars. 
+### <a id="weekly-seminars"></a>Weekly seminars.
 
 My preference is for these to be two hours (5:30 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. My ideal here is that I will present 2 x 15 minute lecture pods, after which we will have a mix of discussion and practice with AI models.
 
 But the course hours are much fewer than this. What do people think? Otherwise we can truncate to 90 or even 60 minutes.
 
-### Assessment
+### <a id="assessment"></a>Assessment
 
 The course will use CGScholar – a platform I think most of you will be familiar with? Assessments will be divided between:
 
@@ -84,7 +46,7 @@ The course will use CGScholar – a platform I think most of you will be familia
   a. Learning materials designed for machines, describing some facet of human culture
   b. or Learning materials designed for humans, describing some facet of machine "experience"
 
-### Previous course
+### <a id="previous-course"></a>Previous course
 
 A previous version of this course ran in 2023 and 2024: [[2023-Course]]
 
@@ -94,7 +56,7 @@ Despite this having the same name as that course, it is very different. And I wo
 
 ---
 
-### Our Approach in 2025
+### <a id="our-approach-in-2025"></a>Our Approach in 2025
 
 
 
@@ -117,7 +79,7 @@ And finally, Hegel occupies an unusual position himself in the recent history of
 
 --- 
 
-## Organization of the Course
+## <a id="organization-of-the-course"></a>Organization of the Course
 
 
 The course is structured over eight weeks, and each week introduces and discusses a new concept. 
@@ -142,11 +104,11 @@ Finally, we return to where we started: with the concept of synthesis. However �
 
 --- 
 
-## A word on software....
+## <a id="a-word-on-software"></a>A word on software....
 
 ---
 
-## Development of "Hegel Pedagogy AI" Note Converter
+## <a id="development-of-hegel-pedagogy-ai-note-converter"></a>Development of "Hegel Pedagogy AI" Note Converter
 
 Now some of you may have seen that I'm using some unusual software to do this presentation – and I'll be using it for the rest of this course. You'll see it's called "Hegel Pedagogy AI", and indeed I've written this software – or more exactly, I've prompted Claude to write the software. I used to be a software developer, and I've always wanted something that could convert notes into a presentation. So I asked Claude to write this "note converter" for this course. It may change week-to-week, and if I think it is useful for anyone other than myself, I'll release it.
 
@@ -155,12 +117,11 @@ But more to the point, I want people also to experiment with how these AI tools 
 
 --- 
 
-## Introductions
+## <a id="introductions"></a>Introductions
 
 Finally, let's introduce ourselves...
 
 
-Here's some text about Hegel. Let's see.
 
 
 ---
