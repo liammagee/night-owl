@@ -608,6 +608,14 @@ function generateAISettings() {
                             Maximum characters to send as context (for performance)
                         </div>
                     </div>
+                    
+                    <div style="margin-top: 8px;">
+                        <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #333;">Character Threshold:</label>
+                        <input type="number" id="ai-companion-character-threshold" value="${currentSettings.ai?.companionCharacterThreshold || 20}" min="5" max="100" step="5" style="width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
+                        <div style="font-size: 10px; color: #666; margin-top: 2px;">
+                            Minimum characters to type before AI provides feedback (reduces interruptions)
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1251,6 +1259,12 @@ function collectSettingsFromForm() {
     if (aiCompanionMaxContext && aiCompanionMaxContext > 0) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.companionMaxContextLength = aiCompanionMaxContext;
+    }
+    
+    const aiCompanionCharacterThreshold = parseInt(document.getElementById('ai-companion-character-threshold')?.value);
+    if (aiCompanionCharacterThreshold && aiCompanionCharacterThreshold > 0) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.companionCharacterThreshold = aiCompanionCharacterThreshold;
     }
     
     // Export settings

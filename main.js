@@ -1558,7 +1558,7 @@ Editor:
 • Cmd/Ctrl+Shift+S: Save As
 
 AI Writing:
-• Cmd/Shift+I: Invoke Ash (AI Writing Companion)
+• Cmd+Shift+': Invoke Ash (AI Writing Companion)
 
 Presentation:
 • Cmd/Ctrl+P: Toggle presentation mode

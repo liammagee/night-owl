@@ -1415,7 +1415,7 @@
                         <button id="ai-todo-suggestions-btn" class="toolbar-btn" title="Get AI TODO Suggestions">
                             🤖
                         </button>
-                        <button id="invoke-ash-btn" class="toolbar-btn" title="Invoke Ash (AI Writing Companion) - Cmd+Shift+I">
+                        <button id="invoke-ash-btn" class="toolbar-btn" title="Invoke Ash (AI Writing Companion) - Cmd+Shift+'">
                             💬
                         </button>
                 </div>
@@ -3340,11 +3340,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             // The React component should handle setIsPresenting(false)
           }
           
-          // Cmd+Shift+I to invoke Ash (AI Writing Companion)
-          if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'I') {
+          // Cmd+Shift+' to invoke Ash (AI Writing Companion)
+          if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "'") {
             e.preventDefault();
             if (window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function') {
-              console.log('[Keyboard] Invoking Ash via Cmd+Shift+I');
+              console.log('[Keyboard] Invoking Ash via Cmd+Shift+\\'');
               window.aiCompanion.handleKeyboardInvocation();
             } else {
               console.warn('[Keyboard] AI Companion not available for keyboard shortcut');

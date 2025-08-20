@@ -64,6 +64,7 @@ class AIWritingCompanion {
             currentInsights: [],
             recentTypingBuffer: '', // Buffer to track last ~150 characters as they're typed
             maxTypingBufferSize: 150, // Maximum characters to keep in typing buffer
+            characterThreshold: 20, // Minimum characters typed before triggering AI analysis
         };
         
         // Adaptive Learning
@@ -111,6 +112,9 @@ class AIWritingCompanion {
     async init() {
         if (this.initialized) return;
         
+        // Load settings first
+        await this.loadCompanionSettings();
+        
         try {
             console.log('[AI Companion] Initializing intelligent writing companion...');
             
@@ -152,11 +156,12 @@ class AIWritingCompanion {
             
             // Don't use timer-based content comparison anymore since we have real-time capture
             // Only trigger analysis if we have enough content in our real-time buffer
-            if (this.realTimeAnalysis.recentTypingBuffer.length > 20) {
+            if (this.realTimeAnalysis.recentTypingBuffer.length >= this.realTimeAnalysis.characterThreshold) {
                 console.log('[AI Companion] ⏰ Timer triggering analysis with real-time buffer');
                 this.performContextualAnalysis();
             } else {
-                console.log('[AI Companion] ⏰ Timer skipped - insufficient real-time buffer content');
+                console.log('[AI Companion] ⏰ Timer skipped - insufficient real-time buffer content:', 
+                    this.realTimeAnalysis.recentTypingBuffer.length, 'chars, need:', this.realTimeAnalysis.characterThreshold);
             }
         };
         
@@ -209,10 +214,17 @@ class AIWritingCompanion {
         
         console.log('[AI Companion] 📊 Analysis trigger check - words:', totalNewWords, 'time since last:', Date.now() - this.realTimeAnalysis.lastAnalysis);
         
-        // More aggressive triggering for testing: 10 words or 30 seconds
-        if (totalNewWords >= 10 || Date.now() - this.realTimeAnalysis.lastAnalysis > 30000) {
-            console.log('[AI Companion] 🚀 Triggering analysis due to threshold met');
+        // Trigger analysis based on word count or time, but also check character threshold
+        const hasEnoughCharacters = this.realTimeAnalysis.recentTypingBuffer.length >= this.realTimeAnalysis.characterThreshold;
+        const hasEnoughWords = totalNewWords >= 10;
+        const timeSinceLastAnalysis = Date.now() - this.realTimeAnalysis.lastAnalysis > 30000;
+        
+        if ((hasEnoughWords || timeSinceLastAnalysis) && hasEnoughCharacters) {
+            console.log('[AI Companion] 🚀 Triggering analysis due to threshold met - words:', totalNewWords, 'chars:', this.realTimeAnalysis.recentTypingBuffer.length);
             this.performContextualAnalysis();
+        } else if ((hasEnoughWords || timeSinceLastAnalysis) && !hasEnoughCharacters) {
+            console.log('[AI Companion] ⏳ Analysis trigger conditions met but insufficient characters:', 
+                this.realTimeAnalysis.recentTypingBuffer.length, 'need:', this.realTimeAnalysis.characterThreshold);
         }
     }
     
@@ -764,12 +776,40 @@ class AIWritingCompanion {
     getCurrentWritingContent() {
         // Get current editor content - integrate with existing editor
         if (window.editor && window.editor.getValue) {
-            return window.editor.getValue();
+            const content = window.editor.getValue();
+            
+            // Non-intrusive debug logging for content access
+            this.log('debug', 'context', 'Accessing editor content:', {
+                contentLength: content.length,
+                currentFilePath: window.currentFilePath || 'unknown',
+                contentHash: this.getContentHash(content),
+                timestamp: new Date().toISOString()
+            });
+            
+            return content;
         }
         
         // Fallback to any textarea or contenteditable
         const editor = document.querySelector('textarea, [contenteditable="true"]');
-        return editor ? (editor.value || editor.textContent || '') : '';
+        const content = editor ? (editor.value || editor.textContent || '') : '';
+        
+        this.log('debug', 'context', 'Accessing fallback editor content:', {
+            contentLength: content.length,
+            currentFilePath: window.currentFilePath || 'unknown',
+            contentHash: this.getContentHash(content),
+            timestamp: new Date().toISOString()
+        });
+        
+        return content;
+    }
+    
+    // Helper method to create a simple hash for content comparison
+    getContentHash(content) {
+        if (!content) return 'empty';
+        // Simple hash of first 100 and last 100 characters for comparison
+        const start = content.substring(0, 100);
+        const end = content.length > 100 ? content.substring(content.length - 100) : '';
+        return `${start.length}:${end.length}:${content.length}`;
     }
     
     getCurrentWritingContext() {
@@ -1860,6 +1900,39 @@ Be thoughtful about their writing process without referencing specific recent te
         return 0.7; // Placeholder - could be enhanced with actual keystroke timing data
     }
     
+    // === Settings Management ===
+    
+    async loadCompanionSettings() {
+        this.log('basic', 'system', 'Loading AI companion settings...');
+        
+        try {
+            const settings = await window.electronAPI.invoke('get-settings');
+            if (settings && settings.ai) {
+                // Load character threshold setting
+                if (settings.ai.companionCharacterThreshold !== undefined) {
+                    this.realTimeAnalysis.characterThreshold = settings.ai.companionCharacterThreshold;
+                    this.log('basic', 'system', `Character threshold set to: ${this.realTimeAnalysis.characterThreshold}`);
+                }
+                
+                // Load context settings
+                if (settings.ai.companionContextScope) {
+                    this.contextConfig.scope = settings.ai.companionContextScope;
+                }
+                
+                if (settings.ai.companionMaxContextLength) {
+                    this.contextConfig.maxFullDocumentLength = settings.ai.companionMaxContextLength;
+                }
+                
+                // Update logging settings if they exist
+                if (settings.logging) {
+                    Object.assign(this.loggingConfig, settings.logging);
+                }
+            }
+        } catch (error) {
+            console.warn('[AI Companion] Could not load settings, using defaults:', error);
+        }
+    }
+    
     // === Missing Helper Methods ===
     
     estimateAvgSyllables(words) {
@@ -2191,7 +2264,7 @@ Be thoughtful about their writing process without referencing specific recent te
         const invokeAshBtn = document.getElementById('invoke-ash-btn');
         if (invokeAshBtn) {
             invokeAshBtn.innerHTML = '💬'; // Original icon
-            invokeAshBtn.title = 'Invoke Ash (AI Writing Companion) - Cmd+Shift+I';
+            invokeAshBtn.title = 'Invoke Ash (AI Writing Companion) - Cmd+Shift+A';
             invokeAshBtn.disabled = false;
             invokeAshBtn.style.opacity = '1';
             invokeAshBtn.style.animation = ''; // Remove animation
@@ -2529,6 +2602,48 @@ Be thoughtful about their writing process without referencing specific recent te
             tested: ['none', 'basic', 'verbose', 'debug'],
             categories: ['user', 'context', 'ai-input', 'ai-output', 'analysis', 'performance'],
             currentConfig: this.getLoggingConfig()
+        };
+    }
+    
+    // Debug method for investigating file content issues
+    debugInvestigateContentIssues() {
+        console.log('[AI Companion] 🔍 Investigating potential file content issues...');
+        
+        const currentContent = this.getCurrentWritingContent();
+        const currentPath = window.currentFilePath || 'unknown';
+        
+        console.log('📄 Current file path:', currentPath);
+        console.log('📄 Content length:', currentContent.length);
+        console.log('📄 Content hash:', this.getContentHash(currentContent));
+        console.log('📄 Content start (100 chars):', JSON.stringify(currentContent.substring(0, 100)));
+        console.log('📄 Content end (100 chars):', JSON.stringify(currentContent.substring(Math.max(0, currentContent.length - 100))));
+        
+        // Check editor state
+        console.log('🖊️ Editor state:');
+        console.log('  window.editor exists:', !!window.editor);
+        console.log('  window.editor.getValue available:', !!(window.editor && window.editor.getValue));
+        
+        if (window.editor && window.editor.getModel) {
+            const model = window.editor.getModel();
+            console.log('  Editor model exists:', !!model);
+            if (model) {
+                console.log('  Model language:', model.getLanguageId());
+                console.log('  Model line count:', model.getLineCount());
+            }
+        }
+        
+        // Check auto-save state
+        console.log('💾 Auto-save state:');
+        console.log('  hasUnsavedChanges:', typeof hasUnsavedChanges !== 'undefined' ? hasUnsavedChanges : 'unknown');
+        console.log('  suppressAutoSave:', typeof suppressAutoSave !== 'undefined' ? suppressAutoSave : 'unknown');
+        console.log('  autoSaveTimer active:', typeof autoSaveTimer !== 'undefined' && autoSaveTimer ? true : false);
+        
+        return {
+            filePath: currentPath,
+            contentLength: currentContent.length,
+            contentHash: this.getContentHash(currentContent),
+            editorExists: !!window.editor,
+            timestamp: new Date().toISOString()
         };
     }
     

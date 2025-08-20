@@ -169,7 +169,8 @@ async function sendChatMessage() {
 
     // Get current editor content
     let editorContent = '';
-    let currentFileName = window.currentFilePath || 'untitled';
+    // Prioritize the editor's actual filename if available, fall back to window.currentFilePath
+    let currentFileName = (window.editor && window.editorFileName) ? window.editorFileName : (window.currentFilePath || 'untitled');
     
     if (window.editor && typeof window.editor.getValue === 'function') {
         editorContent = window.editor.getValue();
@@ -713,8 +714,16 @@ async function showChatContext() {
     const chatMessages = document.getElementById('chat-messages');
     const contextDisplay = document.getElementById('chat-context-display');
     
-    // Update header context
-    const currentFile = window.currentFilePath;
+    // Update header context - ensure we have the actual current file
+    // Get the current file from the editor's state, not just window.currentFilePath
+    let currentFile = window.currentFilePath;
+    
+    // Double-check that the editor's content matches what we think is current
+    if (window.editor && window.editorFileName) {
+        // Use the editor's actual filename if available
+        currentFile = window.editorFileName;
+    }
+    
     if (contextDisplay) {
         let contextText = '';
         

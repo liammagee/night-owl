@@ -2469,6 +2469,7 @@ async function openFileInEditor(filePath, content, options = {}) {
     if (!options.isInternalLinkPreview) {
         console.log('[FILEPATH TRACE] Setting currentFilePath FROM:', window.currentFilePath, 'TO:', filePath);
         window.currentFilePath = filePath;
+        window.editorFileName = filePath; // Also set editorFileName for AI Chat context
     } else {
         console.log('[FILEPATH TRACE] SKIPPING currentFilePath change (internal link preview)');
     }
@@ -4478,6 +4479,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
                                 window.editor.setValue('');
                             }
                             window.currentFilePath = null;
+                            window.editorFileName = null; // Also clear editorFileName
                             const currentFileNameEl = document.getElementById('current-file-name');
                             if (currentFileNameEl) {
                                 currentFileNameEl.textContent = 'No file selected';
@@ -4713,6 +4715,7 @@ if (window.electronAPI) {
         
         // Clear current file path so save will trigger save-as dialog
         window.currentFilePath = null;
+        window.editorFileName = null; // Also clear editorFileName
         
         // Clear editor
         if (editor) {
@@ -5223,6 +5226,7 @@ async function performAutoSave() {
                 // Update current file path if this was a save-as operation
                 if (result.filePath && result.filePath !== window.currentFilePath) {
                     window.currentFilePath = result.filePath;
+                    window.editorFileName = result.filePath; // Also update editorFileName
                     if (window.electronAPI) {
                         window.electronAPI.invoke('set-current-file', result.filePath);
                     }
@@ -5539,6 +5543,7 @@ async function saveFile() {
                 // Update file tree and current file info if this was a new file save
                 if (result.filePath && !window.currentFilePath) {
                     window.currentFilePath = result.filePath;
+                    window.editorFileName = result.filePath; // Also update editorFileName
                     const fileName = result.filePath.split('/').pop();
                     const currentFileNameEl = document.getElementById('current-file-name');
                     if (currentFileNameEl) {
@@ -5571,6 +5576,7 @@ async function saveFile() {
             
             if (result.success && result.filePath) {
                 window.currentFilePath = result.filePath;
+                window.editorFileName = result.filePath; // Also update editorFileName
                 
                 // Only add H1 heading for truly empty or very short content to avoid modifying existing files
                 const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
@@ -5728,6 +5734,7 @@ async function saveAsFile() {
         
         if (result.success && result.filePath) {
             window.currentFilePath = result.filePath;
+            window.editorFileName = result.filePath; // Also update editorFileName
             
             // Only add H1 heading for truly empty or very short content to avoid modifying existing files
             const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
