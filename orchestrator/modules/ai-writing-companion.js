@@ -476,8 +476,11 @@ class AIWritingCompanion {
         const lastSentence = analysis.lastSentence || '';
         const hasLastSentence = lastSentence.trim().length > 0;
         
+        // CRITICAL: Only call AI if we have ACTUAL meaningful typing activity
+        const hasActualTyping = hasLastSentence && this.hasMeaningfulText(lastSentence) && this.hasRecentTypingActivity();
+        
         // Try to generate AI-powered contextual encouragement first
-        if (window.electronAPI && hasLastSentence) {
+        if (window.electronAPI && hasActualTyping) {
             try {
                 const aiMessage = await this.generateAIEncouragement(analysis, persona);
                 if (aiMessage) {
@@ -547,8 +550,11 @@ class AIWritingCompanion {
         const lastSentence = analysis.lastSentence || '';
         const hasLastSentence = lastSentence.trim().length > 0;
         
+        // CRITICAL: Only call AI if we have ACTUAL meaningful typing activity
+        const hasActualTyping = hasLastSentence && this.hasMeaningfulText(lastSentence) && this.hasRecentTypingActivity();
+        
         // Try to generate AI-powered contextual insight first
-        if (window.electronAPI && hasLastSentence) {
+        if (window.electronAPI && hasActualTyping) {
             try {
                 const aiMessage = await this.generateAIInsight(analysis, persona);
                 if (aiMessage) {
@@ -969,6 +975,12 @@ class AIWritingCompanion {
         const fullContext = analysis.fullContext || '';
         const flowState = analysis.flow?.state || 'neutral';
         
+        // FINAL SAFEGUARD: Block AI calls without meaningful typing
+        if (!this.hasMeaningfulText(lastSentence) || !this.hasRecentTypingActivity()) {
+            console.log('[AI Companion] 🚫 Blocking AI encouragement - no meaningful typing activity');
+            return null;
+        }
+        
         this.log('verbose', 'ai-input', 'Generating AI encouragement with data:', {
             lastSentence: lastSentence,
             contextLength: fullContext.length,
@@ -1073,6 +1085,12 @@ Be supportive about their writing process without referencing specific recent te
         const lastSentence = analysis.lastSentence || '';
         const fullContext = analysis.fullContext || '';
         const flowState = analysis.flow?.state || 'neutral';
+        
+        // FINAL SAFEGUARD: Block AI calls without meaningful typing
+        if (!this.hasMeaningfulText(lastSentence) || !this.hasRecentTypingActivity()) {
+            console.log('[AI Companion] 🚫 Blocking AI insight - no meaningful typing activity');
+            return null;
+        }
         
         this.log('verbose', 'ai-input', 'Generating AI insight with data:', {
             lastSentence: lastSentence,
@@ -1977,6 +1995,35 @@ Be thoughtful about their writing process without referencing specific recent te
         const repetitiveThreshold = text.length * 0.7;
         
         return maxCount > repetitiveThreshold;
+    }
+    
+    hasRecentTypingActivity() {
+        // Check if there's been actual typing activity recently
+        const now = Date.now();
+        const recentThreshold = 30000; // 30 seconds
+        
+        // Check if analysis buffer has recent entries
+        const recentEntries = this.realTimeAnalysis.analysisBuffer.filter(
+            entry => (now - entry.timestamp) < recentThreshold
+        );
+        
+        // Check if typing buffer has content and was updated recently
+        const hasActiveTypingBuffer = this.realTimeAnalysis.recentTypingBuffer.length > 0;
+        const lastActivityTime = this.realTimeAnalysis.lastAnalysis || 0;
+        const hasRecentActivity = (now - lastActivityTime) < recentThreshold;
+        
+        const hasActivity = (recentEntries.length > 0 || hasActiveTypingBuffer) && hasRecentActivity;
+        
+        if (!hasActivity) {
+            console.log('[AI Companion] 🚫 No recent typing activity detected:', {
+                recentEntries: recentEntries.length,
+                typingBufferLength: this.realTimeAnalysis.recentTypingBuffer.length,
+                timeSinceLastActivity: now - lastActivityTime,
+                threshold: recentThreshold
+            });
+        }
+        
+        return hasActivity;
     }
     
     // === Settings Management ===
