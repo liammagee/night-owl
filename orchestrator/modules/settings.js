@@ -583,11 +583,31 @@ function generateAISettings() {
                     <span>Enable Note Extraction</span>
                 </label>
                 <label>
-                    <input type="checkbox" id="ai-writing-companion-enabled" ${currentSettings.ai?.enableWritingCompanion !== false ? 'checked' : ''}>
+                    <input type="checkbox" id="ai-writing-companion-enabled" ${currentSettings.ai?.enableWritingCompanion !== false ? 'checked' : ''} onchange="toggleWritingCompanionOptions()">
                     <span>Enable AI Writing Companion</span>
                 </label>
                 <div style="margin-left: 20px; font-size: 11px; color: #666; margin-top: 2px;">
                     Real-time flow detection, contextual feedback, and intelligent writing insights
+                </div>
+                
+                <div style="margin-left: 20px; margin-top: 10px; display: ${currentSettings.ai?.enableWritingCompanion !== false ? 'block' : 'none'};" id="writing-companion-options">
+                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #333;">Context Scope:</label>
+                    <select id="ai-companion-context-scope" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
+                        <option value="full_document" ${(!currentSettings.ai?.companionContextScope || currentSettings.ai?.companionContextScope === 'full_document') ? 'selected' : ''}>Full Document (Recommended)</option>
+                        <option value="recent_text_only" ${currentSettings.ai?.companionContextScope === 'recent_text_only' ? 'selected' : ''}>Recent Text Only</option>
+                        <option value="selected_text_only" ${currentSettings.ai?.companionContextScope === 'selected_text_only' ? 'selected' : ''}>Selected Text Only</option>
+                    </select>
+                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                        Controls how much context the AI writing companion uses for feedback
+                    </div>
+                    
+                    <div style="margin-top: 8px;">
+                        <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #333;">Max Document Length:</label>
+                        <input type="number" id="ai-companion-max-context" value="${currentSettings.ai?.companionMaxContextLength || 10000}" min="1000" max="50000" step="1000" style="width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
+                        <div style="font-size: 10px; color: #666; margin-top: 2px;">
+                            Maximum characters to send as context (for performance)
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1221,6 +1241,18 @@ function collectSettingsFromForm() {
         updatedSettings.ai.enableWritingCompanion = aiWritingCompanionEnabled;
     }
     
+    const aiCompanionContextScope = document.getElementById('ai-companion-context-scope')?.value;
+    if (aiCompanionContextScope) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.companionContextScope = aiCompanionContextScope;
+    }
+    
+    const aiCompanionMaxContext = parseInt(document.getElementById('ai-companion-max-context')?.value);
+    if (aiCompanionMaxContext && aiCompanionMaxContext > 0) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.companionMaxContextLength = aiCompanionMaxContext;
+    }
+    
     // Export settings
     const defaultFormat = document.getElementById('default-export-format')?.value;
     if (defaultFormat) {
@@ -1515,6 +1547,15 @@ function toggleSystemPromptOptions() {
             const defaultPrompt = 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
             customTextarea.value = defaultPrompt;
         }
+    }
+}
+
+function toggleWritingCompanionOptions() {
+    const isEnabled = document.getElementById('ai-writing-companion-enabled')?.checked;
+    const optionsDiv = document.getElementById('writing-companion-options');
+    
+    if (optionsDiv) {
+        optionsDiv.style.display = isEnabled ? 'block' : 'none';
     }
 }
 

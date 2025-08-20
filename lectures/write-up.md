@@ -10,7 +10,6 @@ None for Week 1!
 
 
 
-
 ## <a id="assessment"></a>Assessment
 
 

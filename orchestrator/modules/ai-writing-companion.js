@@ -31,6 +31,29 @@ class AIWritingCompanion {
             suppressionPeriod: 300000, // 5 minutes between similar feedback types
         };
         
+        // Context Configuration (will be loaded from settings)
+        this.contextConfig = {
+            scope: 'full_document', // Options: 'full_document', 'recent_text_only', 'selected_text_only'
+            maxFullDocumentLength: 10000, // Maximum characters to send as full context (performance limit)
+            recentTextLength: 500, // Length of recent text to use when scope is 'recent_text_only'
+            includeLineNumbers: false, // Whether to include line numbers in context
+            preserveFormatting: true, // Whether to preserve markdown formatting in context
+        };
+        
+        // Load context configuration from settings
+        this.loadContextSettings();
+        
+        // Logging Configuration
+        this.loggingConfig = {
+            level: 'basic', // Options: 'none', 'basic', 'verbose', 'debug'
+            logAIInputs: true, // Whether to log full AI prompts
+            logAIOutputs: true, // Whether to log AI responses
+            logContextPreparation: false, // Whether to log context preparation details
+            logAnalysisSteps: false, // Whether to log analysis step details
+            logUserInteractions: true, // Whether to log user interactions
+            logPerformanceMetrics: false, // Whether to log performance timing
+        };
+        
         // Real-time Analysis
         this.realTimeAnalysis = {
             isAnalyzing: false,
@@ -153,7 +176,7 @@ class AIWritingCompanion {
     }
     
     processNewWriting(newText) {
-        console.log('[AI Companion] 📝 New text received:', JSON.stringify(newText));
+        this.log('verbose', 'user', 'New text received:', newText);
         
         // Add new text to the real-time typing buffer
         this.realTimeAnalysis.recentTypingBuffer += newText;
@@ -329,9 +352,12 @@ class AIWritingCompanion {
                 this.showContextualFeedback(feedback);
                 this.recordFeedbackInteraction(feedback, analysis);
                 
+                // Copy to AI Chat pane for persistence
+                this.copyFeedbackToChat(analysis, feedback);
+                
                 // Hide progress indicator on successful feedback
                 this.hideProgressIndicator();
-                this.showNotification('✅ Ash has responded!', 'success');
+                this.showNotification('✅ Ash has responded! (Copied to Chat)', 'success');
             } else {
                 // Hide progress indicator if no feedback was generated
                 this.hideProgressIndicator();
@@ -815,13 +841,13 @@ class AIWritingCompanion {
         
         // CRITICAL: If we're falling back to document extraction, something is wrong!
         if (result.length === 0) {
-            console.error('[AI Companion] ❌ CRITICAL: Both typing buffer and analysis buffer are empty!');
-            console.error('[AI Companion] ❌ This means editor change events are not working!');
+            this.log('basic', 'user', 'CRITICAL: Both typing buffer and analysis buffer are empty!');
+            this.log('basic', 'user', 'This indicates editor change events may not be working properly');
             
-            const currentContent = this.getCurrentWritingContent();
-            result = currentContent.slice(-100).trim();
-            console.log('[AI Companion] 📄 FALLBACK - From document end:', JSON.stringify(result));
-            console.log('[AI Companion] 📄 Full document length:', currentContent.length);
+            // DO NOT fall back to document content as this confuses file context with user input
+            // Return empty string to indicate no recent typing activity
+            result = '';
+            this.log('basic', 'user', 'No recent typing activity detected - using empty string');
         }
         
         // Clean up and format for display
@@ -870,30 +896,62 @@ class AIWritingCompanion {
         const fullContext = analysis.fullContext || '';
         const flowState = analysis.flow?.state || 'neutral';
         
-        console.log('[AI Companion] 🎯 Generating AI encouragement with data:');
-        console.log('[AI Companion] 📝 Real-time last sentence:', JSON.stringify(lastSentence));
-        console.log('[AI Companion] 📄 Full context length:', fullContext.length);
-        console.log('[AI Companion] 📚 Context preview:', JSON.stringify(fullContext.slice(-300)));
-        console.log('[AI Companion] 🌊 Flow state:', flowState);
+        this.log('verbose', 'ai-input', 'Generating AI encouragement with data:', {
+            lastSentence: lastSentence,
+            contextLength: fullContext.length,
+            contextPreview: fullContext.slice(-300),
+            flowState: flowState
+        });
         
-        const prompt = `I'm ${persona.name}, an AI writing companion. The user is currently ${flowState} in their writing flow.
+        // Apply context configuration
+        const contextText = this.prepareContextForAI(fullContext, lastSentence);
+        
+        // Debug logging for context verification
+        this.log('verbose', 'ai-input', 'Context preparation details:', {
+            fullContextLength: fullContext.length,
+            contextScope: this.contextConfig.scope,
+            preparedContextLength: contextText.length,
+            lastSentenceLength: lastSentence.length
+        });
+        
+        // Build prompt with clear distinction between file context and user input
+        let prompt = `I'm ${persona.name}, an AI writing companion. The user is currently ${flowState} in their writing flow.
 
-FULL DOCUMENT CONTEXT (for understanding what they're writing about):
-"${fullContext}"
+DOCUMENT CONTEXT (general background - do NOT quote from this as "what they just typed"):
+${this.contextConfig.scope === 'full_document' ? 'FULL DOCUMENT:' : 'RECENT WRITING:'}
+"${contextText}"
+`;
 
-WHAT THEY JUST TYPED (focus for feedback): "${lastSentence}"
+        // Only include "what they typed" section if there's actual recent typing
+        if (lastSentence && lastSentence.trim().length > 0) {
+            prompt += `
+WHAT THEY JUST TYPED (specific focus for feedback):
+"${lastSentence}"
 
 Generate a brief, encouraging comment (1-2 sentences) that:
-- Starts with "Re: '[their exact last sentence they just typed]'" 
-- Provides specific encouragement based on what they're writing about (use full context to understand the topic)
-- References their actual current work and ideas
+- Starts with "Re: '[their exact text from WHAT THEY JUST TYPED]'"
+- Provides specific encouragement about their current typing
+- Uses the document context to understand the broader topic
 - Matches my personality: ${persona.style}
 - Is appropriate for their current flow state: ${flowState}
 
-Be warm, specific, and helpful. Focus on the text they just typed while showing understanding of their broader work.`;
+Focus on what they just typed while showing understanding of their broader work.`;
+        } else {
+            prompt += `
+The user hasn't typed anything recently - they may be reading, thinking, or just opened the document.
 
-        console.log('[AI Companion] 🚀 Sending encouragement prompt to AI service:');
-        console.log('[AI Companion] 📋 FULL PROMPT:', prompt);
+Generate a brief, encouraging comment (1-2 sentences) that:
+- Does NOT claim they typed anything specific
+- Provides general encouragement about their writing project
+- References their document content to show understanding of their work
+- Matches my personality: ${persona.style}
+- Is appropriate for their current flow state: ${flowState}
+
+Be supportive about their writing process without referencing specific recent text.`;
+        }
+
+        this.log('debug', 'ai-input', 'Sending encouragement prompt to AI service');
+        this.log('debug', 'ai-input', 'FULL PROMPT:', prompt);
 
         try {
             // Get AI settings from configuration
@@ -943,29 +1001,54 @@ Be warm, specific, and helpful. Focus on the text they just typed while showing 
         const fullContext = analysis.fullContext || '';
         const flowState = analysis.flow?.state || 'neutral';
         
-        console.log('[AI Companion] 💡 Generating AI insight with data:');
-        console.log('[AI Companion] 📝 Real-time last sentence:', JSON.stringify(lastSentence));
-        console.log('[AI Companion] 📄 Full context length:', fullContext.length);
-        console.log('[AI Companion] 📚 Context preview:', JSON.stringify(fullContext.slice(-300)));
-        console.log('[AI Companion] 🌊 Flow state:', flowState);
+        this.log('verbose', 'ai-input', 'Generating AI insight with data:', {
+            lastSentence: lastSentence,
+            contextLength: fullContext.length,
+            contextPreview: fullContext.slice(-300),
+            flowState: flowState
+        });
         
-        const prompt = `I'm ${persona.name}, an AI writing companion. The user is in "${flowState}" flow state.
+        // Apply context configuration
+        const contextText = this.prepareContextForAI(fullContext, lastSentence);
+        
+        // Build prompt with clear distinction between file context and user input
+        let prompt = `I'm ${persona.name}, an AI writing companion. The user is in "${flowState}" flow state.
 
-FULL DOCUMENT CONTEXT (for understanding what they're writing about):
-"${fullContext}"
+DOCUMENT CONTEXT (general background - do NOT quote from this as "what they just typed"):
+${this.contextConfig.scope === 'full_document' ? 'FULL DOCUMENT:' : 'RECENT WRITING:'}
+"${contextText}"
+`;
 
-WHAT THEY JUST TYPED (focus for feedback): "${lastSentence}"
+        // Only include "what they typed" section if there's actual recent typing
+        if (lastSentence && lastSentence.trim().length > 0) {
+            prompt += `
+WHAT THEY JUST TYPED (specific focus for feedback):
+"${lastSentence}"
 
 Generate a brief writing insight (1-2 sentences) that:
-- Starts with "Re: '[their exact last sentence they just typed]'"
-- Provides a specific insight about their writing direction, style, or ideas based on their full work
+- Starts with "Re: '[their exact text from WHAT THEY JUST TYPED]'"
+- Provides a specific insight about their current typing
+- Uses the document context to understand their writing direction and style
 - Matches my personality: ${persona.style}
-- Offers constructive next steps or observations about their current work
+- Offers constructive observations about their current work
 
-Be thoughtful, specific to their content, and insightful. Focus on the text they just typed while showing understanding of their broader work.`;
+Be thoughtful and insightful about what they just typed while showing understanding of their broader work.`;
+        } else {
+            prompt += `
+The user hasn't typed anything recently - they may be reading, thinking, or just opened the document.
 
-        console.log('[AI Companion] 🚀 Sending insight prompt to AI service:');
-        console.log('[AI Companion] 📋 FULL PROMPT:', prompt);
+Generate a brief writing insight (1-2 sentences) that:
+- Does NOT claim they typed anything specific
+- Provides general insights about their writing project
+- Uses the document context to understand their writing direction and themes
+- Matches my personality: ${persona.style}
+- Offers constructive observations about their work
+
+Be thoughtful about their writing process without referencing specific recent text.`;
+        }
+
+        this.log('debug', 'ai-input', 'Sending insight prompt to AI service');
+        this.log('debug', 'ai-input', 'FULL PROMPT:', prompt);
 
         try {
             // Get AI settings from configuration
@@ -1980,7 +2063,16 @@ Be thoughtful, specific to their content, and insightful. Focus on the text they
         console.log('[AI Companion] 🧪 window.editor exists:', !!window.editor);
         console.log('[AI Companion] 🧪 window.aiCompanion exists:', !!window.aiCompanion);
         
-        // Step 3: Force trigger analysis
+        // Step 3: Test context handling
+        console.log('[AI Companion] 🧪 Testing context handling...');
+        const fullContent = this.getCurrentWritingContent();
+        const contextText = this.prepareContextForAI(fullContent, testText);
+        console.log('[AI Companion] 🧪 Full content length:', fullContent.length);
+        console.log('[AI Companion] 🧪 Context scope:', this.contextConfig.scope);
+        console.log('[AI Companion] 🧪 Prepared context length:', contextText.length);
+        console.log('[AI Companion] 🧪 Context preview:', contextText.substring(0, 200));
+        
+        // Step 4: Force trigger analysis
         console.log('[AI Companion] 🧪 Force triggering analysis...');
         this.debugForceShowFeedback();
         
@@ -1988,18 +2080,21 @@ Be thoughtful, specific to their content, and insightful. Focus on the text they
             typingBuffer: this.realTimeAnalysis.recentTypingBuffer,
             analysisBufferEntries: this.realTimeAnalysis.analysisBuffer.length,
             editorExists: !!window.editor,
-            companionExists: !!window.aiCompanion
+            companionExists: !!window.aiCompanion,
+            contextScope: this.contextConfig.scope,
+            fullContentLength: fullContent.length,
+            preparedContextLength: contextText.length
         };
     }
     
     // === Manual Invocation ===
     
     invokeAshManually(selectedText = null) {
-        console.log('[AI Companion] 🎯 Manual invocation of Ash');
+        this.log('basic', 'user', 'Manual invocation of Ash');
         
         // If text is selected, use it to override the typing buffer
         if (selectedText && selectedText.trim()) {
-            console.log('[AI Companion] 📝 Using selected text:', JSON.stringify(selectedText));
+            this.log('verbose', 'user', 'Using selected text:', selectedText);
             // Set the typing buffer to the selected text
             this.realTimeAnalysis.recentTypingBuffer = selectedText.trim();
             // Also add to analysis buffer
@@ -2010,7 +2105,7 @@ Be thoughtful, specific to their content, and insightful. Focus on the text they
                 source: 'manual_selection'
             });
         } else {
-            console.log('[AI Companion] 📝 No selected text, using current typing buffer');
+            this.log('verbose', 'user', 'No selected text, using current typing buffer');
         }
         
         // Force show feedback regardless of conditions
@@ -2041,7 +2136,7 @@ Be thoughtful, specific to their content, and insightful. Focus on the text they
     }
     
     handleKeyboardInvocation() {
-        console.log('[AI Companion] ⌨️ Keyboard shortcut triggered');
+        this.log('basic', 'user', 'Keyboard shortcut triggered');
         
         // Show progress indicator
         this.showProgressIndicator();
@@ -2050,10 +2145,10 @@ Be thoughtful, specific to their content, and insightful. Focus on the text they
         const selectedText = this.getSelectedText();
         
         if (selectedText) {
-            console.log('[AI Companion] ✅ Found selected text, using as focus');
+            this.log('verbose', 'user', 'Found selected text, using as focus');
             this.invokeAshManually(selectedText);
         } else {
-            console.log('[AI Companion] ⚪ No selection, using current typing buffer');
+            this.log('verbose', 'user', 'No selection, using current typing buffer');
             this.invokeAshManually();
         }
     }
@@ -2096,7 +2191,7 @@ Be thoughtful, specific to their content, and insightful. Focus on the text they
         const invokeAshBtn = document.getElementById('invoke-ash-btn');
         if (invokeAshBtn) {
             invokeAshBtn.innerHTML = '💬'; // Original icon
-            invokeAshBtn.title = 'Invoke Ash (AI Writing Companion) - Ctrl+Shift+A';
+            invokeAshBtn.title = 'Invoke Ash (AI Writing Companion) - Cmd+Shift+I';
             invokeAshBtn.disabled = false;
             invokeAshBtn.style.opacity = '1';
             invokeAshBtn.style.animation = ''; // Remove animation
@@ -2139,6 +2234,359 @@ Be thoughtful, specific to their content, and insightful. Focus on the text they
                     }
                 }, 300);
             }, 3000);
+        }
+    }
+    
+    // === Settings Loading ===
+    
+    async loadContextSettings() {
+        try {
+            const settings = await window.electronAPI.invoke('get-settings');
+            if (settings && settings.ai) {
+                // Load context scope setting
+                if (settings.ai.companionContextScope) {
+                    this.contextConfig.scope = settings.ai.companionContextScope;
+                    this.log('basic', 'config', `Loaded context scope from settings: ${settings.ai.companionContextScope}`);
+                }
+                
+                // Load max context length setting
+                if (settings.ai.companionMaxContextLength && settings.ai.companionMaxContextLength > 0) {
+                    this.contextConfig.maxFullDocumentLength = settings.ai.companionMaxContextLength;
+                    this.log('basic', 'config', `Loaded max context length from settings: ${settings.ai.companionMaxContextLength}`);
+                }
+                
+                this.log('basic', 'config', 'Context configuration loaded from settings successfully');
+            } else {
+                this.log('basic', 'config', 'No AI settings found, using default context configuration');
+            }
+        } catch (error) {
+            this.log('basic', 'config', `Failed to load context settings, using defaults: ${error.message}`);
+        }
+    }
+    
+    // === Logging Methods ===
+    
+    log(level, category, message, data = null) {
+        // Check if logging is enabled for this level and category
+        if (!this.shouldLog(level, category)) return;
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1); // HH:MM:SS.mmm
+        const prefix = `[AI Companion] [${timestamp}] [${level.toUpperCase()}] [${category}]`;
+        
+        if (data !== null) {
+            console.log(prefix, message, data);
+        } else {
+            console.log(prefix, message);
+        }
+    }
+    
+    shouldLog(level, category) {
+        // If logging is completely disabled
+        if (this.loggingConfig.level === 'none') return false;
+        
+        // Check category-specific settings
+        switch (category) {
+            case 'ai-input':
+                return this.loggingConfig.logAIInputs;
+            case 'ai-output':
+                return this.loggingConfig.logAIOutputs;
+            case 'context':
+                return this.loggingConfig.logContextPreparation;
+            case 'analysis':
+                return this.loggingConfig.logAnalysisSteps;
+            case 'user':
+                return this.loggingConfig.logUserInteractions;
+            case 'performance':
+                return this.loggingConfig.logPerformanceMetrics;
+        }
+        
+        // Check level hierarchy
+        const levels = ['none', 'basic', 'verbose', 'debug'];
+        const currentLevel = levels.indexOf(this.loggingConfig.level);
+        const messageLevel = levels.indexOf(level);
+        
+        if (currentLevel === -1 || messageLevel === -1) return false;
+        
+        return messageLevel <= currentLevel;
+    }
+    
+    // Configuration methods for logging
+    setLoggingLevel(level) {
+        const validLevels = ['none', 'basic', 'verbose', 'debug'];
+        if (validLevels.includes(level)) {
+            this.loggingConfig.level = level;
+            this.log('basic', 'config', `Logging level set to: ${level}`);
+            return true;
+        } else {
+            console.warn('[AI Companion] Invalid logging level:', level, 'Valid options:', validLevels);
+            return false;
+        }
+    }
+    
+    setLoggingOption(option, value) {
+        const validOptions = ['logAIInputs', 'logAIOutputs', 'logContextPreparation', 'logAnalysisSteps', 'logUserInteractions', 'logPerformanceMetrics'];
+        if (validOptions.includes(option) && typeof value === 'boolean') {
+            this.loggingConfig[option] = value;
+            this.log('basic', 'config', `Logging option ${option} set to: ${value}`);
+            return true;
+        } else {
+            console.warn('[AI Companion] Invalid logging option or value:', option, value);
+            return false;
+        }
+    }
+    
+    getLoggingConfig() {
+        return { ...this.loggingConfig }; // Return copy to prevent external modification
+    }
+    
+    // Bulk configuration update
+    configureLogging(config) {
+        const updated = [];
+        
+        if (config.level) {
+            if (this.setLoggingLevel(config.level)) {
+                updated.push(`level: ${config.level}`);
+            }
+        }
+        
+        ['logAIInputs', 'logAIOutputs', 'logContextPreparation', 'logAnalysisSteps', 'logUserInteractions', 'logPerformanceMetrics'].forEach(option => {
+            if (config[option] !== undefined) {
+                if (this.setLoggingOption(option, config[option])) {
+                    updated.push(`${option}: ${config[option]}`);
+                }
+            }
+        });
+        
+        this.log('basic', 'config', 'Logging configuration updated:', updated.join(', '));
+        return updated.length > 0;
+    }
+    
+    // === Context Preparation Methods ===
+    
+    prepareContextForAI(fullContent, focusText) {
+        this.log('verbose', 'context', `Preparing context for AI with scope: ${this.contextConfig.scope}`);
+        
+        let contextText = '';
+        
+        switch (this.contextConfig.scope) {
+            case 'full_document':
+                contextText = fullContent || '';
+                // Truncate if too long for performance
+                if (contextText.length > this.contextConfig.maxFullDocumentLength) {
+                    this.log('verbose', 'context', `Truncating full document context from ${contextText.length} to ${this.contextConfig.maxFullDocumentLength} characters`);
+                    // Keep the beginning and end, remove middle
+                    const keepStart = Math.floor(this.contextConfig.maxFullDocumentLength * 0.3);
+                    const keepEnd = Math.floor(this.contextConfig.maxFullDocumentLength * 0.7);
+                    contextText = contextText.substring(0, keepStart) + 
+                                 '\n\n[... content truncated for length ...]\n\n' + 
+                                 contextText.substring(contextText.length - keepEnd);
+                }
+                break;
+                
+            case 'recent_text_only':
+                // Use recent analysis buffer + typing buffer
+                const recentEntries = this.realTimeAnalysis.analysisBuffer.slice(-5);
+                const recentText = recentEntries.map(entry => entry.text).join(' ');
+                const combinedRecent = (recentText + ' ' + this.realTimeAnalysis.recentTypingBuffer).trim();
+                contextText = combinedRecent.slice(-this.contextConfig.recentTextLength);
+                this.log('verbose', 'context', `Using recent text context: ${contextText.length} characters`);
+                break;
+                
+            case 'selected_text_only':
+                // Use only the focus text (what they just typed or selected)
+                contextText = focusText || '';
+                this.log('verbose', 'context', `Using selected text only: ${contextText.length} characters`);
+                break;
+                
+            default:
+                this.log('basic', 'context', `Unknown context scope: ${this.contextConfig.scope}, defaulting to full document`);
+                contextText = fullContent || '';
+        }
+        
+        // Apply formatting options
+        if (!this.contextConfig.preserveFormatting) {
+            // Strip markdown formatting for cleaner context
+            contextText = this.stripMarkdownFormatting(contextText);
+        }
+        
+        this.log('verbose', 'context', `Context prepared: ${contextText.length} characters`);
+        return contextText;
+    }
+    
+    stripMarkdownFormatting(text) {
+        if (!text) return '';
+        
+        // Remove common markdown syntax while preserving readability
+        return text
+            .replace(/#{1,6}\s+/g, '') // Headers
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+            .replace(/\*(.*?)\*/g, '$1') // Italic
+            .replace(/`(.*?)`/g, '$1') // Inline code
+            .replace(/```[\s\S]*?```/g, '[code block]') // Code blocks
+            .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Links
+            .replace(/^\s*[-*+]\s+/gm, '') // List items
+            .replace(/^\s*\d+\.\s+/gm, '') // Numbered lists
+            .replace(/^\s*>\s+/gm, '') // Blockquotes
+            .replace(/\n\s*\n/g, '\n') // Extra newlines
+            .trim();
+    }
+    
+    // Configuration methods
+    setContextScope(scope) {
+        const validScopes = ['full_document', 'recent_text_only', 'selected_text_only'];
+        if (validScopes.includes(scope)) {
+            this.contextConfig.scope = scope;
+            console.log('[AI Companion] ⚙️ Context scope set to:', scope);
+            return true;
+        } else {
+            console.warn('[AI Companion] ⚠️ Invalid context scope:', scope, 'Valid options:', validScopes);
+            return false;
+        }
+    }
+    
+    getContextScope() {
+        return this.contextConfig.scope;
+    }
+    
+    setMaxFullDocumentLength(length) {
+        if (typeof length === 'number' && length > 0) {
+            this.contextConfig.maxFullDocumentLength = length;
+            console.log('[AI Companion] ⚙️ Max full document length set to:', length);
+            return true;
+        } else {
+            console.warn('[AI Companion] ⚠️ Invalid max document length:', length);
+            return false;
+        }
+    }
+    
+    setRecentTextLength(length) {
+        if (typeof length === 'number' && length > 0) {
+            this.contextConfig.recentTextLength = length;
+            console.log('[AI Companion] ⚙️ Recent text length set to:', length);
+            return true;
+        } else {
+            console.warn('[AI Companion] ⚠️ Invalid recent text length:', length);
+            return false;
+        }
+    }
+    
+    getContextConfig() {
+        return { ...this.contextConfig }; // Return copy to prevent external modification
+    }
+    
+    // Debug method for context testing
+    debugTestContextHandling() {
+        console.log('[AI Companion] 🧪 DEBUG: Testing context handling...');
+        
+        const fullContent = this.getCurrentWritingContent();
+        const testFocusText = 'This is a test focus sentence.';
+        
+        // Test all context scopes
+        const originalScope = this.contextConfig.scope;
+        const results = {};
+        
+        ['full_document', 'recent_text_only', 'selected_text_only'].forEach(scope => {
+            this.setContextScope(scope);
+            const contextText = this.prepareContextForAI(fullContent, testFocusText);
+            results[scope] = {
+                length: contextText.length,
+                preview: contextText.substring(0, 100)
+            };
+            console.log(`[AI Companion] 🧪 ${scope}:`, contextText.length, 'chars');
+        });
+        
+        // Restore original scope
+        this.setContextScope(originalScope);
+        
+        console.log('[AI Companion] 🧪 Context test results:', results);
+        return results;
+    }
+    
+    // Debug method for logging testing
+    debugTestLogging() {
+        console.log('[AI Companion] 🧪 DEBUG: Testing logging configuration...');
+        
+        const originalConfig = { ...this.loggingConfig };
+        console.log('Original config:', originalConfig);
+        
+        // Test all logging levels
+        ['none', 'basic', 'verbose', 'debug'].forEach(level => {
+            console.log(`\n--- Testing level: ${level} ---`);
+            this.setLoggingLevel(level);
+            
+            // Test different categories
+            this.log('basic', 'user', 'Test basic user message');
+            this.log('verbose', 'context', 'Test verbose context message');
+            this.log('debug', 'ai-input', 'Test debug AI input message');
+            this.log('verbose', 'ai-output', 'Test verbose AI output message');
+        });
+        
+        // Restore original config
+        this.configureLogging(originalConfig);
+        console.log('\n✅ Logging test complete - original config restored');
+        
+        return {
+            tested: ['none', 'basic', 'verbose', 'debug'],
+            categories: ['user', 'context', 'ai-input', 'ai-output', 'analysis', 'performance'],
+            currentConfig: this.getLoggingConfig()
+        };
+    }
+    
+    // === Chat Integration ===
+    
+    copyFeedbackToChat(analysis, feedback) {
+        try {
+            // Check if AI Chat functionality is available
+            if (!window.addChatMessage || typeof window.addChatMessage !== 'function') {
+                console.warn('[AI Companion] AI Chat not available for copying feedback');
+                return;
+            }
+            
+            console.log('[AI Companion] 📋 Copying feedback to AI Chat pane');
+            
+            // Get the user's focus text (what Ash analyzed)
+            const userFocusText = analysis.lastSentence || 'No text selected';
+            const feedbackMessage = feedback.message || 'No feedback generated';
+            const feedbackType = feedback.type || 'feedback';
+            const currentFile = window.currentFilePath || 'document';
+            const fileName = currentFile.split('/').pop() || currentFile.split('\\').pop() || 'document';
+            
+            // Format a comprehensive user message
+            const userMessage = `**Ash Feedback Request**
+            
+📄 **File**: ${fileName}
+🎯 **Type**: ${feedbackType}
+📝 **Focus text**: "${userFocusText}"
+
+Please provide writing feedback on the above text.`;
+            
+            // Add user message to chat
+            window.addChatMessage(userMessage, 'User');
+            
+            // Add Ash's response to chat with proper attribution
+            window.addChatMessage(feedbackMessage, 'AI', false, { 
+                provider: 'Ash', 
+                model: 'Writing Companion' 
+            });
+            
+            console.log('[AI Companion] ✅ Feedback copied to AI Chat successfully');
+            
+            // Optional: Auto-scroll to the chat pane to show the new messages
+            this.scrollToChatMessages();
+            
+        } catch (error) {
+            console.error('[AI Companion] Error copying feedback to chat:', error);
+        }
+    }
+    
+    scrollToChatMessages() {
+        try {
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        } catch (error) {
+            console.warn('[AI Companion] Could not scroll to chat messages:', error);
         }
     }
 }

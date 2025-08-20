@@ -1557,6 +1557,9 @@ Editor:
 • Cmd/Ctrl+S: Save
 • Cmd/Ctrl+Shift+S: Save As
 
+AI Writing:
+• Cmd/Shift+I: Invoke Ash (AI Writing Companion)
+
 Presentation:
 • Cmd/Ctrl+P: Toggle presentation mode
 • F5: Start presentation
@@ -3962,7 +3965,7 @@ Keep it concise and focused on the most important points.`;
     });
     
     // Convert markdown to HTML
-    const bodyContent = marked.parse(markdownContent);
+    const bodyContent = await marked.parse(markdownContent);
     
     // Process content for presentation structure
     const slides = bodyContent.split(/<h2[^>]*>/i);
