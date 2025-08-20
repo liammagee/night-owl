@@ -2170,6 +2170,46 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             return () => clearTimeout(initTimeout);
           }, []);
 
+          // Center on first slide when presentation view becomes active
+          useEffect(() => {
+            const checkIfPresentationActive = () => {
+              const presentationContent = document.getElementById('presentation-content');
+              if (presentationContent && presentationContent.classList.contains('active')) {
+                // Presentation view is now active, center on first slide if we haven't moved yet
+                if (slides.length > 0 && pan.x === 0 && pan.y === 0 && zoom === 1) {
+                  console.log('[Presentation] Presentation view activated, centering on first slide');
+                  setTimeout(() => {
+                    if (canvasRef.current && canvasRef.current.clientWidth > 0) {
+                      goToSlide(0);
+                    }
+                  }, 150); // Slightly longer delay to ensure view is fully active
+                }
+              }
+            };
+
+            // Set up a mutation observer to watch for class changes on the presentation content
+            const presentationContent = document.getElementById('presentation-content');
+            if (presentationContent) {
+              const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                  if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    checkIfPresentationActive();
+                  }
+                });
+              });
+
+              observer.observe(presentationContent, {
+                attributes: true,
+                attributeFilter: ['class']
+              });
+
+              // Also check immediately in case it's already active
+              checkIfPresentationActive();
+
+              return () => observer.disconnect();
+            }
+          }, [slides.length, pan.x, pan.y, zoom, goToSlide]);
+
           // Listen for content updates from the lecture summary generator
           useEffect(() => {
             const handleContentUpdate = (event) => {
@@ -2185,6 +2225,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 setZoom(1);
                 setPan({ x: 0, y: 0 });
                 setFocusedSlide(null);
+                
+                // Center first slide after state updates
+                setTimeout(() => {
+                  if (canvasRef.current && newSlides.length > 0) {
+                    console.log('[Presentation] Centering first slide after content update');
+                    goToSlide(0);
+                  }
+                }, 50);
                 // Successfully updated slides
               } else {
                 console.warn('[React Presentation] No valid content received');
@@ -2212,7 +2260,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                   const newSlides = parseMarkdown(content);
                   setSlides(newSlides);
                   setCurrentSlide(0);
-                  setTimeout(() => goToSlide(0), 0);
+                  // Ensure canvas is ready before centering first slide
+                  setTimeout(() => {
+                    if (canvasRef.current && newSlides.length > 0) {
+                      console.log('[Presentation] Centering first slide on presentation start');
+                      goToSlide(0);
+                    }
+                  }, 100); // Give more time for canvas to be ready
                 }
               });
 
@@ -2284,6 +2338,22 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             }
           }, [layoutType]);
 
+          // Center view on first slide when slides are initially loaded
+          useEffect(() => {
+            if (slides.length > 0 && canvasRef.current) {
+              // Only center if we're at the initial position (haven't moved around yet)
+              if (pan.x === 0 && pan.y === 0 && zoom === 1 && currentSlide === 0) {
+                console.log('[Presentation] Initial slides loaded, centering on first slide');
+                // Small delay to ensure canvas is properly rendered
+                setTimeout(() => {
+                  if (canvasRef.current && canvasRef.current.clientWidth > 0) {
+                    goToSlide(0);
+                  }
+                }, 100);
+              }
+            }
+          }, [slides.length, pan.x, pan.y, zoom, currentSlide, goToSlide]);
+
           // Render math in slides whenever slides change
           useEffect(() => {
             if (slides.length > 0 && window.MathJax && window.MathJax.typesetPromise) {
@@ -2307,7 +2377,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             
             const slide = slides[slideIndex];
             const canvas = canvasRef.current;
-            if (!canvas) return;
+            if (!canvas) {
+              console.warn('[Presentation] Canvas not ready for goToSlide, retrying...');
+              setTimeout(() => goToSlide(slideIndex), 50);
+              return;
+            }
+
+            // Ensure canvas has proper dimensions
+            if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+              console.warn('[Presentation] Canvas dimensions not ready, retrying...');
+              setTimeout(() => goToSlide(slideIndex), 50);
+              return;
+            }
 
             const targetZoom = 1.2;
             const viewportCenterX = canvas.clientWidth / 2;
@@ -2320,6 +2401,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               y: viewportCenterY - (slideCenterY * targetZoom)
             };
 
+            console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
+            
             setCurrentSlide(slideIndex);
             setFocusedSlide(null);
             setZoom(targetZoom);
