@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const AIService = require('./services/aiService');
+const ipcHandlers = require('./ipc');
 require('@electron/remote/main').initialize();
 
 // Utility function to clean AI responses
@@ -2239,6 +2240,19 @@ app.whenReady().then(() => {
   }
 
   // --- IPC Handlers ---
+  
+  // Register modular IPC handlers
+  ipcHandlers.registerAllHandlers({
+    appSettings,
+    defaultSettings,
+    saveSettings,
+    mainWindow,
+    aiService,
+    currentFilePath,
+    setCurrentFilePath: (path) => { currentFilePath = path; },
+    buildSystemMessage,
+    cleanAIResponse
+  });
   
   // Create folder handler
   ipcMain.handle('create-folder', async (event, folderName) => {
@@ -4886,10 +4900,7 @@ Keep it concise and focused on the most important points.`;
     }
   });
 
-  // Enhanced settings handlers
-  ipcMain.handle('get-settings', (event, category = null) => {
-    return getSettings(category);
-  });
+  // Settings handlers moved to ipc/settingsHandlers.js
   
   ipcMain.handle('set-settings', (event, category, newSettings) => {
     if (typeof category === 'string') {
