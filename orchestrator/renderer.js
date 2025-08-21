@@ -1881,7 +1881,8 @@ async function initializeMonacoEditor() {
                 // Process content changes for AI writing companion
                 console.log('[Editor] 📝 Content change detected, current length:', currentContent.length, 'previous length:', previousContent.length);
                 
-                if (window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function') {
+                // CRITICAL: Only process for AI companion if this is NOT a programmatic change
+                if (window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function' && !suppressAutoSave) {
                     console.log('[Editor] 🤖 AI Companion available, processing changes...');
                     
                     // Extract changes from Monaco's event if available
@@ -2706,6 +2707,11 @@ async function handleEditableFile(filePath, content, fileTypes) {
     lastSavedContent = content;
     hasUnsavedChanges = false;
     updateUnsavedIndicator(false);
+    
+    // Clear AI companion buffers when opening new file to prevent stale analysis
+    if (window.aiCompanion && typeof window.aiCompanion.clearAllBuffers === 'function') {
+        window.aiCompanion.clearAllBuffers();
+    }
     
     // Update preview and structure (unless suppressed)
     if (!window.suppressNextPreviewUpdate && !window.suppressPreviewUpdateCount) {

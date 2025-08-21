@@ -189,6 +189,13 @@ class AIWritingCompanion {
     processNewWriting(newText) {
         this.log('verbose', 'user', 'New text received:', newText);
         
+        // CRITICAL: Reject content that looks like file loading or bulk content changes
+        if (this.isLikelyFileLoadingContent(newText)) {
+            console.log('[AI Companion] 🚫 Rejecting content that appears to be from file loading or bulk changes');
+            console.log('[AI Companion] 🚫 Rejected content preview:', JSON.stringify(newText.substring(0, 100)));
+            return;
+        }
+        
         // Add new text to the real-time typing buffer
         this.realTimeAnalysis.recentTypingBuffer += newText;
         
@@ -2024,6 +2031,59 @@ Be thoughtful about their writing process without referencing specific recent te
         }
         
         return hasActivity;
+    }
+    
+    isLikelyFileLoadingContent(text) {
+        if (!text || typeof text !== 'string') return false;
+        
+        // Reject very large chunks of text (likely file content)
+        if (text.length > 500) {
+            console.log('[AI Companion] 🚫 Rejecting large text chunk (likely file loading):', text.length, 'characters');
+            return true;
+        }
+        
+        // Reject text that contains multiple lines with markdown structure (likely full file)
+        const lines = text.split('\n');
+        if (lines.length > 10) {
+            console.log('[AI Companion] 🚫 Rejecting multi-line content (likely file loading):', lines.length, 'lines');
+            return true;
+        }
+        
+        // Reject text that starts with markdown headers or other file-like patterns
+        const filePatterns = [
+            /^#\s+/, // Starts with markdown header
+            /^---\s*$/, // Starts with markdown separator
+            /^\s*```/, // Starts with code block
+            /^@\w+\{/, // Starts with citation
+            /^\s*\[\d+\]:/, // Starts with reference
+        ];
+        
+        for (const pattern of filePatterns) {
+            if (pattern.test(text)) {
+                console.log('[AI Companion] 🚫 Rejecting content matching file pattern:', pattern);
+                return true;
+            }
+        }
+        
+        // Reject content that's mostly structured (more than 50% non-letter characters)
+        const letterCount = (text.match(/[a-zA-Z]/g) || []).length;
+        const letterRatio = letterCount / text.length;
+        if (letterRatio < 0.5 && text.length > 50) {
+            console.log('[AI Companion] 🚫 Rejecting structured content (low letter ratio):', letterRatio);
+            return true;
+        }
+        
+        return false; // Content looks like actual typing
+    }
+    
+    // === Buffer Management ===
+    
+    clearAllBuffers() {
+        console.log('[AI Companion] 🧹 Clearing all buffers (file changed or reset)');
+        this.realTimeAnalysis.recentTypingBuffer = '';
+        this.realTimeAnalysis.analysisBuffer = [];
+        this.realTimeAnalysis.lastAnalysis = 0;
+        this.log('basic', 'system', 'All AI companion buffers cleared');
     }
     
     // === Settings Management ===
