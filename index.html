@@ -629,67 +629,13 @@
             cursor: grabbing;
         }
         
-        /* Custom Title Bar */
-        .title-bar {
-            height: 32px;
-            background: #2d2d2d;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: 500;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            -webkit-app-region: drag;
-            z-index: 2000;
-            user-select: none;
-            padding-left: 80px; /* Space for invisible macOS traffic lights */
-        }
+        /* Custom titlebar removed - using native window frame */
         
-        .title-bar-controls {
-            position: absolute;
-            right: 10px;
-            display: flex;
-            gap: 8px;
-            -webkit-app-region: no-drag;
-        }
-        
-        .title-bar-button {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            transition: opacity 0.2s;
-        }
-        
-        .title-bar-button:hover {
-            opacity: 0.8;
-        }
-        
-        .title-bar-close {
-            background: #ff5f57;
-        }
-        
-        .title-bar-minimize {
-            background: #ffbd2e;
-        }
-        
-        .title-bar-maximize {
-            background: #28ca42;
-        }
-        
-        /* Adjust view containers to account for title bar */
+        /* View containers use full height with native titlebar */
         .view-container {
-            height: calc(100vh - 32px);
+            height: 100vh;
             margin-top: 0px;
-            top: 32px;
+            top: 0px;
             position: absolute;
             width: 100%;
         }
@@ -1244,14 +1190,7 @@
 </head>
 <body>
     <!-- Custom Title Bar -->
-    <div class="title-bar">
-        <span id="title-text">Hegel Pedagogy AI</span>
-        <div class="title-bar-controls">
-            <div class="title-bar-button title-bar-minimize" id="minimize-btn"></div>
-            <div class="title-bar-button title-bar-maximize" id="maximize-btn"></div>
-            <div class="title-bar-button title-bar-close" id="close-btn"></div>
-        </div>
-    </div>
+    <!-- Custom titlebar removed - using native window controls -->
     
     <!-- Main Application Container -->
     <div id="app-container">

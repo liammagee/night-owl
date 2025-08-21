@@ -282,54 +282,7 @@ function setupModeSwitching() {
     };
   }
 
-  // Window controls (if in Electron)
-  if (window.electronAPI && window.electronAPI.isElectron) {
-    try {
-      const minimizeBtn = document.getElementById('minimize-btn');
-      const maximizeBtn = document.getElementById('maximize-btn');
-      const closeBtn = document.getElementById('close-btn');
-
-      if (minimizeBtn) {
-        minimizeBtn.addEventListener('click', () => {
-          window.electronAPI.minimize();
-        });
-      }
-
-      if (maximizeBtn) {
-        maximizeBtn.addEventListener('click', async () => {
-          const isMaximized = await window.electronAPI.isMaximized();
-          if (isMaximized) {
-            window.electronAPI.unmaximize();
-          } else {
-            window.electronAPI.maximize();
-          }
-        });
-      }
-
-      if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-          window.electronAPI.close();
-        });
-      }
-    } catch (error) {
-      console.warn('[Mode Switching] Error setting up window controls:', error);
-    }
-  }
-
-  // Handle macOS-style traffic light positioning
-  if (navigator.platform.includes('Mac')) {
-    const titleBarControls = document.querySelector('.title-bar-controls');
-    if (titleBarControls) {
-      titleBarControls.style.left = '20px';
-      titleBarControls.style.top = '22px';
-    }
-  } else {
-    const titleBarControls = document.querySelector('.title-bar-controls');
-    if (titleBarControls) {
-      titleBarControls.style.right = '20px';
-      titleBarControls.style.top = '22px';
-    }
-  }
+  // Custom window controls removed - using native titlebar
 
   console.log('[Mode Switching] Mode switching setup completed');
 }

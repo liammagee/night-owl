@@ -744,7 +744,7 @@ function createWindow() {
       enableRemoteModule: false,
     },
     title: 'Hegel Pedagogy AI - Advanced Editor & Presentations',
-    titleBarStyle: 'hidden',
+    // Use native window frame and titlebar
     icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     show: false
   });
