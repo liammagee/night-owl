@@ -1,0 +1,20 @@
+{
+  "name": "hegel-pedagogy-components",
+  "version": "1.0.0",
+  "description": "React components for Hegel Pedagogy AI application",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "babel src --out-dir dist --copy-files",
+    "watch": "babel src --out-dir dist --watch --copy-files"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.22.0",
+    "@babel/core": "^7.22.0",
+    "@babel/preset-env": "^7.22.0",
+    "@babel/preset-react": "^7.22.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
