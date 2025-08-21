@@ -273,8 +273,8 @@ class GamificationManager {
         const settings = window.appSettings || {};
         const aiEnabled = settings.ai?.enableWritingCompanion !== false;
         
-        if (aiEnabled && typeof AIWritingCompanion !== 'undefined' && !this.aiCompanion) {
-            this.aiCompanion = new AIWritingCompanion(this);
+        if (aiEnabled && typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
+            this.aiCompanion = new AICompanionManager(this);
             window.aiCompanion = this.aiCompanion;
             console.log('[GamificationManager] AI Writing Companion initialized');
         }

@@ -3219,8 +3219,15 @@ class WritingGamification {
         }
         
         // Initialize AI Writing Companion if available
-        if (typeof AIWritingCompanion !== 'undefined' && !this.aiCompanion) {
-            this.aiCompanion = new AIWritingCompanion(this);
+        console.log('[Gamification] Checking AICompanionManager availability:', {
+            AICompanionManagerExists: typeof AICompanionManager !== 'undefined',
+            currentCompanion: !!this.aiCompanion
+        });
+        
+        if (typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
+            console.log('[Gamification] Creating new AICompanionManager instance...');
+            this.aiCompanion = new AICompanionManager(this);
+            console.log('[Gamification] AICompanionManager created successfully');
             
             // DISABLED: AI Flow Detection (duplicate system using file-based text extraction)
             // Keep only AI Writing Companion which uses real-time typing capture
@@ -3230,6 +3237,11 @@ class WritingGamification {
             
             // Make available globally for debugging
             window.aiCompanion = this.aiCompanion;
+            console.log('[Gamification] Set window.aiCompanion:', {
+                exists: !!window.aiCompanion,
+                hasHandleKeyboardInvocation: !!(window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function'),
+                methods: window.aiCompanion ? Object.getOwnPropertyNames(Object.getPrototypeOf(window.aiCompanion)).filter(name => typeof window.aiCompanion[name] === 'function') : []
+            });
             // if (this.aiFlowDetection) {
             //     window.aiFlowDetection = this.aiFlowDetection;
             // }
@@ -3252,6 +3264,11 @@ class WritingGamification {
             };
             
             console.log('[Gamification] AI Writing Companion initialized');
+        } else {
+            console.warn('[Gamification] AICompanionManager not available or already initialized:', {
+                AICompanionManagerExists: typeof AICompanionManager !== 'undefined',
+                alreadyHasCompanion: !!this.aiCompanion
+            });
         }
     }
     

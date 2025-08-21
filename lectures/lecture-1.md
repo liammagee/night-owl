@@ -253,6 +253,16 @@ Finally, we return to where we started: with the concept of synthesis. However �
 ```
 
 
+---
+
+## Technosymbiosis – A Dialectical Journey Toward Human‑Machine Co‑Development
+
+- Finally, a word from GPT-5 on all this...
+ 
+> This lecture traces a dialectical arc from the initial synthesis of machine and human learning to a higher reconciliation in technosymbiosis. Learning, for both, proceeds through experience as determinate negation: errors, surprises, and feedback that reshape models and minds. Attention functions as the selective mediation of this process—mechanically as weighting and salience, pedagogically as disciplined focus—organizing the field in which meaning can emerge. Recognition supplies the intersubjective and evaluative moment: humans become self-conscious through mutual acknowledgment, while models are shaped by social signals (labels, feedback) that confer norms. Across these movements, we clarify consciousness—self- and other-relation for persons, and the un/non-conscious operations of machines—so that we do not confuse functional intelligence with lived subjectivity. Alignment then names the practical task of orienting capacities toward shared ends, integrating ethical, social, and technical constraints. Critique provides the immanent negativity that guards against dogma and misalignment, refining concepts and objectives. The result is a second, richer synthesis: technosymbiosis, in which human Bildung and machine optimization co-develop, each sublating the other’s limits while preserving their difference.
+
+
+
 
 --- 
 
@@ -275,10 +285,6 @@ But more to the point, I want people also to experiment with how these AI tools 
 
 ## <a id="introductions"></a>Introductions
 
-Finally, let's introduce ourselves...
-
-
-
 
 
 ---
@@ -286,3 +292,12 @@ Finally, let's introduce ourselves...
 Authors:
 
 [@hegel2025phenomenology; @kojeve1980introduction; @hyppolite1974genesis; @houlgate2012hegel; @heidegger1988hegel; @pippin2010hegel; @hegel2014science; @vzivzek2020hegel]
+
+
+---
+
+[[lecture-1-critiquemd]]
+
+typing some text
+
+Here some more text

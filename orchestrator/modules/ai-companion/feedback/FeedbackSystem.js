@@ -23,7 +23,10 @@ class FeedbackSystem {
         this.feedbackHistory = [];
         this.lastFeedbackTime = 0;
         
-        // Mentor personas
+        // Response libraries (must be initialized first)
+        this.responseLibraries = this.initializeResponseLibraries();
+
+        // Mentor personas (depends on responseLibraries)
         this.mentorPersonas = {
             current: 'adaptive',
             personas: {
@@ -53,9 +56,6 @@ class FeedbackSystem {
                 }
             }
         };
-
-        // Response libraries
-        this.responseLibraries = this.initializeResponseLibraries();
     }
 
     // === Main Feedback Generation ===

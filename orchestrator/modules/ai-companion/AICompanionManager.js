@@ -18,7 +18,9 @@ class AICompanionManager {
             lastAnalysis: 0,
             analysisInterval: 30000, // Analyze every 30 seconds during active writing
             sessionStartTime: Date.now(),
-            currentInsights: []
+            currentInsights: [],
+            lastAnalyzedContent: '', // Track what content was actually analyzed
+            lastAnalyzedContentHash: '' // Hash of last analyzed content for comparison
         };
 
         // Adaptive Learning
@@ -82,14 +84,41 @@ class AICompanionManager {
         if (!this.feedbackSystem.feedbackConfig.enabled) return;
 
         const analysisTimer = setInterval(async () => {
-            if (this.realTimeAnalysis.isAnalyzing) return;
+            console.log('[AICompanion] ⏰ Interval-based analysis check (every 30s)');
+            
+            if (this.realTimeAnalysis.isAnalyzing) {
+                console.log('[AICompanion] ⏸️ Already analyzing, skipping interval check');
+                return;
+            }
 
             const currentText = this.getCurrentText();
+            const currentHash = this.simpleHash(currentText);
+            const timeSinceLastAnalysis = Date.now() - this.realTimeAnalysis.lastAnalysis;
+            
+            // Use same smart content checking as keystroke-based analysis
+            const contentDifference = this.calculateContentDifference(currentText, this.realTimeAnalysis.lastAnalyzedContent);
+            
             const hasEnoughChars = currentText && currentText.length >= this.contextManager.realTimeAnalysis.characterThreshold;
             const hasMeaningfulContent = hasEnoughChars && this.contextManager.hasMeaningfulText(currentText);
+            const contentHashChanged = currentHash !== this.realTimeAnalysis.lastAnalyzedContentHash;
+            const hasNewContent = contentDifference.newWords > 0 || contentDifference.newCharacters > 0;
+            
+            console.log('[AICompanion] ⏰ Interval check:', {
+                hasEnoughChars,
+                hasMeaningfulContent,
+                contentHashChanged,
+                hasNewContent,
+                timeSinceLastAnalysis: Math.round(timeSinceLastAnalysis / 1000) + 's',
+                newWords: contentDifference.newWords,
+                newChars: contentDifference.newCharacters
+            });
 
-            if (hasEnoughChars && hasMeaningfulContent) {
+            // Only analyze if content has actually changed since last analysis
+            if (hasEnoughChars && hasMeaningfulContent && contentHashChanged && hasNewContent) {
+                console.log('[AICompanion] ⏰ Interval triggering analysis - new content detected');
                 await this.performRealTimeAnalysis();
+            } else {
+                console.log('[AICompanion] ⏰ Interval skipping - no new content or conditions not met');
             }
         }, this.realTimeAnalysis.analysisInterval);
 
@@ -101,9 +130,15 @@ class AICompanionManager {
     }
 
     async performRealTimeAnalysis() {
-        if (this.realTimeAnalysis.isAnalyzing) return;
+        console.log('[AICompanion] 🎯 performRealTimeAnalysis CALLED');
+        
+        if (this.realTimeAnalysis.isAnalyzing) {
+            console.log('[AICompanion] ⏸️ Already analyzing, skipping');
+            return;
+        }
 
         try {
+            console.log('[AICompanion] ▶️ Starting real-time analysis');
             this.realTimeAnalysis.isAnalyzing = true;
             this.showProgressIndicator();
 
@@ -138,9 +173,13 @@ class AICompanionManager {
             const feedback = await this.feedbackSystem.generateContextualFeedback(combinedAnalysis);
             
             if (feedback) {
-                this.showContextualFeedback(feedback);
-                this.copyFeedbackToChat(combinedAnalysis, feedback);
-                this.showNotification('✅ Ash has responded! (Copied to Chat)', 'success');
+                this.showContextualFeedback(feedback, combinedAnalysis);
+                this.showNotification('✅ Ash has responded!', 'success');
+                
+                // Track the content that was actually analyzed to prevent re-analyzing the same content
+                this.realTimeAnalysis.lastAnalyzedContent = text;
+                this.realTimeAnalysis.lastAnalyzedContentHash = this.simpleHash(text);
+                this.log('verbose', 'buffer_management', `Updated analyzed content (${text.length} chars) to prevent repeat analysis`);
             }
 
             this.hideProgressIndicator();
@@ -154,27 +193,52 @@ class AICompanionManager {
     }
 
     processNewWriting(newText) {
+        console.log(`[AICompanion] 🔵 processNewWriting called with: "${newText}"`);
+        
         // Update context manager buffers
         this.contextManager.updateTypingBuffer(newText);
         
         // Skip analysis for file loading content
         if (this.contextManager.isLikelyFileLoadingContent(newText)) {
+            console.log('[AICompanion] ⏭️ Skipping file loading content');
             return;
         }
 
         this.contextManager.updateAnalysisBuffer(newText);
 
-        // Check if enough content for analysis
-        const currentBuffer = this.contextManager.getCurrentAnalysisBuffer();
+        // Check if current content is significantly different from last analyzed content
+        const currentText = this.getCurrentText();
+        const currentHash = this.simpleHash(currentText);
         const timeSinceLastAnalysis = Date.now() - this.realTimeAnalysis.lastAnalysis;
         
-        const hasEnoughWords = currentBuffer.split(/\s+/).length >= 20;
-        const hasEnoughCharacters = currentBuffer.length >= this.contextManager.realTimeAnalysis.characterThreshold;
-        const hasMeaningfulContent = this.contextManager.hasMeaningfulText(currentBuffer);
+        // Calculate content difference
+        const contentDifference = this.calculateContentDifference(currentText, this.realTimeAnalysis.lastAnalyzedContent);
         
-        if ((hasEnoughWords || timeSinceLastAnalysis > 60000) && hasEnoughCharacters && hasMeaningfulContent) {
+        const hasEnoughNewWords = contentDifference.newWords >= 20;
+        const hasEnoughNewCharacters = contentDifference.newCharacters >= this.contextManager.realTimeAnalysis.characterThreshold;
+        const hasMeaningfulNewContent = this.contextManager.hasMeaningfulText(contentDifference.newText);
+        const contentHashChanged = currentHash !== this.realTimeAnalysis.lastAnalyzedContentHash;
+        
+        console.log(`[AICompanion] 📊 Analysis check:`, {
+            newText: `"${newText}"`,
+            currentTextLength: currentText.length,
+            lastAnalyzedLength: this.realTimeAnalysis.lastAnalyzedContent.length,
+            newWords: contentDifference.newWords,
+            newCharacters: contentDifference.newCharacters,
+            hasEnoughNewWords,
+            hasEnoughNewCharacters,
+            hasMeaningfulNewContent,
+            contentHashChanged,
+            timeSinceLastAnalysis: Math.round(timeSinceLastAnalysis / 1000) + 's',
+            newTextSample: `"${contentDifference.newText.slice(0, 50)}..."`
+        });
+        
+        if (contentHashChanged && ((hasEnoughNewWords || timeSinceLastAnalysis > 60000) && hasEnoughNewCharacters && hasMeaningfulNewContent)) {
+            console.log('[AICompanion] 🚀 TRIGGERING ANALYSIS in 2 seconds');
             // Trigger analysis with slight delay to avoid interrupting flow
             setTimeout(() => this.performRealTimeAnalysis(), 2000);
+        } else {
+            console.log('[AICompanion] ❌ NOT triggering analysis - conditions not met');
         }
     }
 
@@ -298,7 +362,7 @@ class AICompanionManager {
 
     // === Feedback Display ===
 
-    showContextualFeedback(feedback) {
+    showContextualFeedback(feedback, analysis) {
         // Create or update feedback display
         let feedbackPane = document.getElementById('ai-companion-feedback');
         
@@ -307,8 +371,11 @@ class AICompanionManager {
             document.body.appendChild(feedbackPane);
         }
 
+        // Generate unique ID for this feedback instance to handle save functionality
+        const feedbackId = `feedback_${Date.now()}`;
+
         feedbackPane.innerHTML = `
-            <div class="ai-feedback-content">
+            <div class="ai-feedback-content" data-feedback-id="${feedbackId}">
                 <div class="ai-feedback-header">
                     <span class="ai-persona">${feedback.persona}</span>
                     <span class="ai-feedback-type">${feedback.type}</span>
@@ -319,17 +386,33 @@ class AICompanionManager {
                     <span class="ai-feedback-time">${new Date(feedback.timestamp).toLocaleTimeString()}</span>
                     <span class="ai-feedback-confidence">Confidence: ${Math.round(feedback.confidence * 100)}%</span>
                 </div>
+                <div class="ai-feedback-actions">
+                    <button class="ai-feedback-thanks-btn" onclick="this.parentElement.parentElement.parentElement.style.display='none'">
+                        👍 Thanks
+                    </button>
+                    <button class="ai-feedback-save-btn" onclick="window.aiCompanion.saveFeedbackToChat('${feedbackId}')">
+                        📋 Save to Chat
+                    </button>
+                </div>
             </div>
         `;
 
+        // Store the feedback and analysis data for later use
+        feedbackPane.setAttribute('data-feedback', JSON.stringify(feedback));
+        feedbackPane.setAttribute('data-analysis', JSON.stringify({
+            flowState: analysis.flow?.state,
+            wordCount: analysis.wordCount,
+            sessionDuration: analysis.sessionDuration
+        }));
+
         feedbackPane.style.display = 'block';
 
-        // Auto-hide after 10 seconds
+        // Auto-hide after 15 seconds (extended since user might want to save to chat)
         setTimeout(() => {
             if (feedbackPane.style.display !== 'none') {
                 feedbackPane.style.display = 'none';
             }
-        }, 10000);
+        }, 15000);
     }
 
     createFeedbackPane() {
@@ -348,16 +431,129 @@ class AICompanionManager {
             display: none;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         `;
+        
+        // Add CSS for the Save to Chat button
+        if (!document.getElementById('ai-feedback-styles')) {
+            const style = document.createElement('style');
+            style.id = 'ai-feedback-styles';
+            style.textContent = `
+                .ai-feedback-content {
+                    padding: 16px;
+                }
+                .ai-feedback-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 12px;
+                    padding-bottom: 8px;
+                    border-bottom: 1px solid #eee;
+                }
+                .ai-persona {
+                    font-weight: 600;
+                    color: #333;
+                }
+                .ai-feedback-type {
+                    font-size: 12px;
+                    color: #666;
+                    background: #f5f5f5;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                }
+                .ai-feedback-close {
+                    background: none;
+                    border: none;
+                    font-size: 18px;
+                    cursor: pointer;
+                    color: #999;
+                }
+                .ai-feedback-close:hover {
+                    color: #666;
+                }
+                .ai-feedback-message {
+                    margin-bottom: 12px;
+                    line-height: 1.4;
+                    color: #444;
+                }
+                .ai-feedback-footer {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 11px;
+                    color: #888;
+                    margin-bottom: 12px;
+                }
+                .ai-feedback-actions {
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                }
+                .ai-feedback-thanks-btn, .ai-feedback-save-btn {
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 13px;
+                    font-weight: 500;
+                    transition: all 0.2s;
+                }
+                .ai-feedback-thanks-btn {
+                    background: #f0f0f0;
+                    color: #333;
+                    border: 1px solid #ddd;
+                }
+                .ai-feedback-thanks-btn:hover {
+                    background: #e0e0e0;
+                }
+                .ai-feedback-save-btn {
+                    background: #007acc;
+                    color: white;
+                }
+                .ai-feedback-save-btn:hover {
+                    background: #005a9e;
+                }
+                .ai-feedback-thanks-btn:active, .ai-feedback-save-btn:active {
+                    transform: translateY(1px);
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
         return pane;
     }
 
-    copyFeedbackToChat(analysis, feedback) {
-        // Copy feedback to AI chat pane for persistence
-        if (typeof window.showAIChatResponse === 'function') {
-            const contextSummary = `Writing Context: ${analysis.flow?.state || 'unknown'} flow, ${analysis.wordCount || 0} words`;
-            const fullMessage = `${feedback.message}\n\n_${contextSummary}_`;
+    saveFeedbackToChat(feedbackId) {
+        console.log('[AICompanionManager] saveFeedbackToChat called with ID:', feedbackId);
+        
+        // Get the feedback data from the popup
+        const feedbackPane = document.getElementById('ai-companion-feedback');
+        if (!feedbackPane) {
+            console.error('[AICompanionManager] Feedback pane not found');
+            return;
+        }
+
+        try {
+            const feedbackData = JSON.parse(feedbackPane.getAttribute('data-feedback'));
+            const analysisData = JSON.parse(feedbackPane.getAttribute('data-analysis'));
             
-            window.showAIChatResponse(fullMessage);
+            console.log('[AICompanionManager] Feedback data:', { feedbackData, analysisData });
+            console.log('[AICompanionManager] showAIChatResponse available:', typeof window.showAIChatResponse === 'function');
+            
+            if (typeof window.showAIChatResponse === 'function') {
+                const contextSummary = `Writing Context: ${analysisData.flowState || 'unknown'} flow, ${analysisData.wordCount || 0} words`;
+                const fullMessage = `${feedbackData.message}\n\n_${contextSummary}_`;
+                
+                console.log('[AICompanionManager] Sending to AI Chat:', fullMessage);
+                window.showAIChatResponse(fullMessage);
+                
+                // Show confirmation and hide the feedback popup
+                this.showNotification('💾 Feedback saved to AI Chat', 'success', 2000);
+                feedbackPane.style.display = 'none';
+            } else {
+                console.warn('[AICompanionManager] showAIChatResponse function not available');
+                this.showNotification('⚠️ AI Chat not available', 'warning', 3000);
+            }
+        } catch (error) {
+            console.error('[AICompanionManager] Error saving feedback to chat:', error);
+            this.showNotification('❌ Failed to save feedback', 'error', 2000);
         }
     }
 
@@ -531,8 +727,106 @@ class AICompanionManager {
         this.contextManager.resetBuffers();
         this.feedbackSystem.feedbackHistory = [];
         this.realTimeAnalysis.lastAnalysis = 0;
+        this.realTimeAnalysis.lastAnalyzedContent = '';
+        this.realTimeAnalysis.lastAnalyzedContentHash = '';
         this.realTimeAnalysis.sessionStartTime = Date.now();
         console.log('[AICompanionManager] System reset');
+    }
+
+    // === Backward Compatibility Methods ===
+
+    clearAllBuffers() {
+        // For compatibility with renderer.js calls
+        this.contextManager.resetBuffers();
+        console.log('[AICompanionManager] All buffers cleared (compatibility method)');
+    }
+
+    handleKeyboardInvocation() {
+        // For compatibility with index.html keyboard shortcuts
+        // Trigger immediate analysis if conditions are met
+        const currentText = this.getCurrentText();
+        if (currentText && this.contextManager.hasMeaningfulText(currentText)) {
+            console.log('[AICompanionManager] Keyboard invocation triggered');
+            this.performRealTimeAnalysis();
+        } else {
+            this.showNotification('💭 No meaningful text to analyze', 'info', 2000);
+        }
+    }
+
+    // === Content Analysis Helpers ===
+
+    simpleHash(str) {
+        // Simple hash function for content comparison
+        let hash = 0;
+        if (str.length === 0) return hash;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return hash;
+    }
+
+    calculateContentDifference(currentContent, lastAnalyzedContent) {
+        // Calculate what's actually new since last analysis
+        if (!lastAnalyzedContent) {
+            // First analysis - everything is new
+            const words = currentContent.split(/\s+/).filter(word => word.trim().length > 0);
+            return {
+                newText: currentContent,
+                newCharacters: currentContent.length,
+                newWords: words.length
+            };
+        }
+
+        // Find the difference between current and last analyzed content
+        let newText = '';
+        let newCharacters = 0;
+        
+        if (currentContent.length > lastAnalyzedContent.length) {
+            // Content was added
+            if (currentContent.startsWith(lastAnalyzedContent)) {
+                // Simple case: content was appended
+                newText = currentContent.slice(lastAnalyzedContent.length);
+                newCharacters = newText.length;
+            } else {
+                // Content was modified or inserted - analyze the difference more carefully
+                // For simplicity, consider everything new if content changed significantly
+                const similarity = this.calculateStringSimilarity(currentContent, lastAnalyzedContent);
+                if (similarity < 0.8) {
+                    // Significant change - treat as mostly new content
+                    newText = currentContent;
+                    newCharacters = currentContent.length;
+                } else {
+                    // Minor changes - estimate new content
+                    newCharacters = Math.abs(currentContent.length - lastAnalyzedContent.length);
+                    newText = currentContent.slice(-newCharacters);
+                }
+            }
+        } else {
+            // Content was deleted or unchanged
+            newCharacters = 0;
+            newText = '';
+        }
+
+        const newWords = newText.split(/\s+/).filter(word => word.trim().length > 0);
+        
+        return {
+            newText,
+            newCharacters,
+            newWords: newWords.length
+        };
+    }
+
+    calculateStringSimilarity(str1, str2) {
+        // Simple similarity calculation (Jaccard similarity on words)
+        const words1 = new Set(str1.split(/\s+/).filter(word => word.trim().length > 0));
+        const words2 = new Set(str2.split(/\s+/).filter(word => word.trim().length > 0));
+        
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        const union = new Set([...words1, ...words2]);
+        
+        return intersection.size / union.size;
     }
 }
 
