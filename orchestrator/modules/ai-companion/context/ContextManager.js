@@ -38,6 +38,14 @@ class ContextManager {
     prepareContext(options = {}) {
         const startTime = Date.now();
         
+        console.log('[ContextManager] 📄 Preparing context with scope:', this.contextConfig.scope);
+        console.log('[ContextManager] 📄 Context config:', {
+            scope: this.contextConfig.scope,
+            maxLength: this.contextConfig.maxFullDocumentLength,
+            includeLineNumbers: this.contextConfig.includeLineNumbers,
+            preserveFormatting: this.contextConfig.preserveFormatting
+        });
+        
         let context = '';
         let metadata = {
             scope: this.contextConfig.scope,
@@ -77,6 +85,13 @@ class ContextManager {
             }
 
             metadata.length = context.length;
+            
+            console.log('[ContextManager] 📄 Context prepared:', {
+                scope: metadata.scope,
+                length: metadata.length,
+                truncated: metadata.truncated,
+                preview: context.slice(0, 100) + (context.length > 100 ? '...' : '')
+            });
 
             this.logContextPreparation(context, metadata, Date.now() - startTime);
 
@@ -314,19 +329,26 @@ class ContextManager {
     async loadContextSettings() {
         try {
             const settings = await window.electronAPI.invoke('get-settings');
+            console.log('[ContextManager] 🔧 Loading context settings:', settings?.ai);
+            
             if (settings && settings.ai) {
                 // Load context scope setting
                 if (settings.ai.companionContextScope) {
+                    console.log('[ContextManager] 🔧 Setting context scope from settings:', settings.ai.companionContextScope);
                     this.contextConfig.scope = settings.ai.companionContextScope;
+                } else {
+                    console.log('[ContextManager] 🔧 No companionContextScope in settings, using default:', this.contextConfig.scope);
                 }
                 
                 // Load max context length setting
                 if (settings.ai.companionMaxContextLength) {
+                    console.log('[ContextManager] 🔧 Setting max context length from settings:', settings.ai.companionMaxContextLength);
                     this.contextConfig.maxFullDocumentLength = settings.ai.companionMaxContextLength;
                 }
 
                 // Load character threshold setting
                 if (settings.ai.companionCharacterThreshold !== undefined) {
+                    console.log('[ContextManager] 🔧 Setting character threshold from settings:', settings.ai.companionCharacterThreshold);
                     this.realTimeAnalysis.characterThreshold = settings.ai.companionCharacterThreshold;
                 }
 
@@ -334,7 +356,15 @@ class ContextManager {
                 if (settings.logging) {
                     Object.assign(this.loggingConfig, settings.logging);
                 }
+            } else {
+                console.log('[ContextManager] 🔧 No AI settings found, using defaults');
             }
+            
+            console.log('[ContextManager] 🔧 Final context config:', {
+                scope: this.contextConfig.scope,
+                maxLength: this.contextConfig.maxFullDocumentLength,
+                charThreshold: this.realTimeAnalysis.characterThreshold
+            });
         } catch (error) {
             console.warn('[ContextManager] Could not load settings, using defaults:', error);
         }

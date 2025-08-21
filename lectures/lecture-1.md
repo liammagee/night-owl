@@ -298,6 +298,6 @@ Authors:
 
 [[lecture-1-critiquemd]]
 
-typing some text
+testing
 
-Here some more text
+testing some more

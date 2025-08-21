@@ -135,9 +135,14 @@ class FeedbackSystem {
         try {
             // Use AI service to generate contextual feedback
             const aiPrompt = this.buildFeedbackPrompt(analysis, persona, feedbackType, personalizations, context);
+            console.log('[FeedbackSystem] 🔄 Attempting AI service call with FRESH conversation (no history)');
+            console.log('[FeedbackSystem] 📝 Prompt preview:', aiPrompt.slice(0, 200) + '...');
+            
             const response = await this.callAIService(aiPrompt);
+            console.log('[FeedbackSystem] 🎯 AI service response:', response);
             
             if (response && response.message) {
+                console.log('[FeedbackSystem] ✅ Using AI-generated feedback');
                 return {
                     type: feedbackType,
                     persona: persona.name,
@@ -151,13 +156,16 @@ class FeedbackSystem {
                         creativity: analysis.creativity?.score
                     }
                 };
+            } else {
+                console.warn('[FeedbackSystem] ⚠️ AI service returned no valid response, falling back to templates');
             }
             
         } catch (error) {
-            console.error('[FeedbackSystem] Error generating AI feedback:', error);
+            console.error('[FeedbackSystem] ❌ Error generating AI feedback:', error);
         }
         
         // Fallback to template-based feedback
+        console.log('[FeedbackSystem] 📝 Falling back to template-based feedback');
         return this.generateTemplateFeedback(analysis, persona, feedbackType);
     }
 
@@ -219,10 +227,14 @@ class FeedbackSystem {
     // === AI Service Integration ===
 
     buildFeedbackPrompt(analysis, persona, feedbackType, personalizations, context) {
+        const hasSelectedText = analysis.selectedText && analysis.selectedText.trim().length > 0;
+        const currentText = analysis.recentText || analysis.lastSentence || '';
+        const textLabel = hasSelectedText ? "Selected text" : "Recent text";
+        
         const basePrompt = `You are ${persona.name}, an AI writing companion with a ${persona.style} approach. 
         
 Writing Context:
-- Current text: "${analysis.recentText || analysis.lastSentence || ''}"
+- ${textLabel}: "${currentText}"${hasSelectedText ? ' (user has specifically selected this text for analysis)' : ''}
 - Flow state: ${personalizations.flowState}
 - Word count: ${personalizations.wordCount}
 - Writing sentiment: ${personalizations.sentimentTrend}
@@ -231,10 +243,13 @@ Writing Context:
 Task: Provide ${feedbackType} feedback that is:
 - Brief (1-2 sentences)
 - ${persona.style}
-- Contextually relevant
+- Contextually relevant${hasSelectedText ? ' to the selected text' : ''}
 - Encouraging but not generic
 
-Focus on the writer's current progress and state, not general writing advice.`;
+${hasSelectedText ? 
+    'Focus specifically on the selected text and provide targeted feedback about it.' : 
+    'Focus on the writer\'s current progress and state, not general writing advice.'
+}`;
 
         return basePrompt;
     }
@@ -248,10 +263,14 @@ Focus on the writer's current progress and state, not general writing advice.`;
             // Fallback direct call
             const response = await window.electronAPI.invoke('ai-chat', {
                 message: prompt,
-                context: 'writing_companion'
+                options: {
+                    context: 'writing_companion',
+                    newConversation: true, // Clear all conversation history - fresh start every time
+                    conversationType: 'writing_analysis' // Distinct from regular chat
+                }
             });
             
-            return response.success ? { message: response.reply, confidence: 0.8 } : null;
+            return response.response ? { message: response.response, confidence: 0.8 } : null;
             
         } catch (error) {
             console.error('[FeedbackSystem] AI service call failed:', error);
@@ -262,15 +281,21 @@ Focus on the writer's current progress and state, not general writing advice.`;
     // === Template-based Feedback ===
 
     generateTemplateFeedback(analysis, persona, feedbackType) {
+        console.log('[FeedbackSystem] 📋 Generating template feedback:', { feedbackType, persona: persona.name });
+        
         const templates = this.responseLibraries[feedbackType] || [];
+        console.log('[FeedbackSystem] Available templates for', feedbackType, ':', templates.length);
         
         if (templates.length === 0) {
+            console.warn('[FeedbackSystem] ⚠️ No templates available for feedback type:', feedbackType);
             return null;
         }
         
         // Select template based on analysis
         const template = this.selectBestTemplate(templates, analysis);
         const message = this.personalizeTemplate(template, analysis);
+        
+        console.log('[FeedbackSystem] 📝 Generated template message:', message);
         
         return {
             type: feedbackType,

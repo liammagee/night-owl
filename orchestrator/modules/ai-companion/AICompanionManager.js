@@ -156,11 +156,23 @@ class AICompanionManager {
             // Analyze flow state
             const flowAnalysis = this.analyzeFlowState(text);
             
+            // Check for selected text to override recent typing buffer
+            const selectedText = this.getSelectedText();
+            const recentText = selectedText || this.contextManager.getRecentTypingBuffer();
+            
+            console.log('[AICompanion] 🔍 Text context for analysis:', {
+                hasSelectedText: !!selectedText,
+                selectedLength: selectedText?.length || 0,
+                recentBufferLength: this.contextManager.getRecentTypingBuffer().length,
+                usingSelected: !!selectedText
+            });
+
             // Combine analysis results
             const combinedAnalysis = {
                 ...textAnalysis,
                 flow: flowAnalysis,
-                recentText: this.contextManager.getRecentTypingBuffer(),
+                recentText: recentText,
+                selectedText: selectedText, // Include as separate field for prompt context
                 lastSentence: this.extractLastSentence(text),
                 wordCount: this.getWordCount(text),
                 sessionDuration: Date.now() - this.realTimeAnalysis.sessionStartTime,
@@ -322,7 +334,7 @@ class AICompanionManager {
         const startTime = Date.now();
         
         try {
-            this.log('verbose', 'ai_request', `Calling AI service with prompt length: ${prompt.length}`);
+            this.log('verbose', 'ai_request', `Calling AI service with fresh conversation - no history (prompt length: ${prompt.length})`);
             
             if (this.loggingConfig.logAIInputs) {
                 this.log('debug', 'ai_input', prompt);
@@ -330,26 +342,30 @@ class AICompanionManager {
 
             const response = await window.electronAPI.invoke('ai-chat', {
                 message: prompt,
-                context: 'writing_companion',
-                ...options
+                options: {
+                    context: 'writing_companion',
+                    newConversation: true, // Clear all conversation history - fresh start every time
+                    conversationType: 'writing_analysis', // Distinct from regular chat
+                    ...options
+                }
             });
 
             const duration = Date.now() - startTime;
             
-            if (response.success) {
+            if (response.response) {
                 this.log('verbose', 'ai_response', `AI response received in ${duration}ms`);
                 
                 if (this.loggingConfig.logAIOutputs) {
-                    this.log('debug', 'ai_output', response.reply);
+                    this.log('debug', 'ai_output', response.response);
                 }
 
                 return {
-                    message: response.reply,
+                    message: response.response,
                     confidence: response.confidence || 0.8,
                     duration
                 };
             } else {
-                this.log('basic', 'ai_error', `AI service error: ${response.error}`);
+                this.log('basic', 'ai_error', `AI service error: ${response.error || 'No response received'}`);
                 return null;
             }
 
@@ -535,20 +551,20 @@ class AICompanionManager {
             const analysisData = JSON.parse(feedbackPane.getAttribute('data-analysis'));
             
             console.log('[AICompanionManager] Feedback data:', { feedbackData, analysisData });
-            console.log('[AICompanionManager] showAIChatResponse available:', typeof window.showAIChatResponse === 'function');
+            console.log('[AICompanionManager] addChatMessage available:', typeof window.addChatMessage === 'function');
             
-            if (typeof window.showAIChatResponse === 'function') {
+            if (typeof window.addChatMessage === 'function') {
                 const contextSummary = `Writing Context: ${analysisData.flowState || 'unknown'} flow, ${analysisData.wordCount || 0} words`;
-                const fullMessage = `${feedbackData.message}\n\n_${contextSummary}_`;
+                const fullMessage = `**Ash's Feedback:**\n\n${feedbackData.message}\n\n_${contextSummary}_`;
                 
                 console.log('[AICompanionManager] Sending to AI Chat:', fullMessage);
-                window.showAIChatResponse(fullMessage);
+                window.addChatMessage(fullMessage, 'AI');
                 
                 // Show confirmation and hide the feedback popup
                 this.showNotification('💾 Feedback saved to AI Chat', 'success', 2000);
                 feedbackPane.style.display = 'none';
             } else {
-                console.warn('[AICompanionManager] showAIChatResponse function not available');
+                console.warn('[AICompanionManager] addChatMessage function not available');
                 this.showNotification('⚠️ AI Chat not available', 'warning', 3000);
             }
         } catch (error) {
@@ -593,6 +609,18 @@ class AICompanionManager {
     getCurrentText() {
         if (!editor) return '';
         return editor.getValue();
+    }
+
+    getSelectedText() {
+        if (!editor) return null;
+        
+        const selection = editor.getSelection();
+        if (!selection.isEmpty()) {
+            const selectedText = editor.getModel().getValueInRange(selection);
+            return selectedText.trim().length > 0 ? selectedText : null;
+        }
+        
+        return null;
     }
 
     extractLastSentence(text) {
