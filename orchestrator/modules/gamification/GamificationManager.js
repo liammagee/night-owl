@@ -72,12 +72,12 @@ class GamificationManager {
         this.initializeXPSystem();
         this.initializeAudioContext();
         
-        // Initialize integrations after a short delay
+        // Initialize integrations after a delay to allow all modules to load
         setTimeout(() => {
             this.initializeChallenges();
             this.initializeAICompanion();
             this.initializeTodoGamification();
-        }, 100);
+        }, 500);
         
         console.log('[GamificationManager] Gamification system initialized');
     }
@@ -273,10 +273,28 @@ class GamificationManager {
         const settings = window.appSettings || {};
         const aiEnabled = settings.ai?.enableWritingCompanion !== false;
         
+        console.log('[GamificationManager] Initializing AI Companion:', {
+            aiEnabled,
+            AICompanionManagerAvailable: typeof AICompanionManager !== 'undefined',
+            currentAICompanion: !!this.aiCompanion
+        });
+        
         if (aiEnabled && typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
-            this.aiCompanion = new AICompanionManager(this);
-            window.aiCompanion = this.aiCompanion;
-            console.log('[GamificationManager] AI Writing Companion initialized');
+            try {
+                this.aiCompanion = new AICompanionManager(this);
+                window.aiCompanion = this.aiCompanion;
+                window.aiCompanionManager = this.aiCompanion; // For compatibility
+                console.log('[GamificationManager] AI Writing Companion initialized successfully');
+                console.log('[GamificationManager] window.aiCompanion available:', typeof window.aiCompanion?.handleKeyboardInvocation === 'function');
+            } catch (error) {
+                console.error('[GamificationManager] Failed to initialize AI Companion:', error);
+            }
+        } else {
+            console.log('[GamificationManager] AI Companion not initialized:', {
+                aiEnabled,
+                AICompanionManagerAvailable: typeof AICompanionManager !== 'undefined',
+                alreadyHasAICompanion: !!this.aiCompanion
+            });
         }
     }
 

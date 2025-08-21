@@ -1740,9 +1740,6 @@
     <script src="orchestrator/modules/autosave.js" defer></script>
     <!-- D3.js v7.8.5 already loaded above with React/Babel -->
     <script src="orchestrator/modules/wholepart.js" defer></script>
-    <script src="orchestrator/modules/gamification.js" defer></script>
-    <script src="orchestrator/modules/collaborative-challenges.js" defer></script>
-    <script src="orchestrator/modules/challenges-ui.js" defer></script>
     <!-- AI Assistant Configuration -->
     <script src="orchestrator/modules/ai-assistant-config.js" defer></script>
     <!-- AI Writing Companion - Modular Architecture -->
@@ -1750,7 +1747,23 @@
     <script src="orchestrator/modules/ai-companion/context/ContextManager.js" defer></script>
     <script src="orchestrator/modules/ai-companion/feedback/FeedbackSystem.js" defer></script>
     <script src="orchestrator/modules/ai-companion/AICompanionManager.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection.js" defer></script>
+    <!-- Gamification System - Modular Architecture -->
+    <script src="orchestrator/modules/gamification/core/WritingSession.js" defer></script>
+    <script src="orchestrator/modules/gamification/timers/FocusTimer.js" defer></script>
+    <script src="orchestrator/modules/gamification/core/FlowState.js" defer></script>
+    <script src="orchestrator/modules/gamification/data/DataPersistence.js" defer></script>
+    <script src="orchestrator/modules/gamification/GamificationManager.js" defer></script>
+    <script src="orchestrator/modules/collaborative-challenges.js" defer></script>
+    <script src="orchestrator/modules/challenges-ui.js" defer></script>
+    <!-- AI Flow Detection - Modular System -->
+    <script src="orchestrator/modules/ai-flow-detection/TextCollectionManager.js" defer></script>
+    <script src="orchestrator/modules/ai-flow-detection/TypingPatternAnalyzer.js" defer></script>
+    <script src="orchestrator/modules/ai-flow-detection/CognitiveLoadAssessment.js" defer></script>
+    <script src="orchestrator/modules/ai-flow-detection/FlowStateEngine.js" defer></script>
+    <script src="orchestrator/modules/ai-flow-detection/InsightsEngine.js" defer></script>
+    <script src="orchestrator/modules/ai-flow-detection/FlowIndicatorUI.js" defer></script>
+    <script src="orchestrator/modules/ai-flow-detection/AIFlowDetectionManager.js" defer></script>
+    <script src="orchestrator/modules/ai-flow-detection/index.js" defer></script>
     <script src="orchestrator/modules/todo-gamification.js" defer></script>
     <script src="orchestrator/modules/dragdrop.js" defer></script>
     <script src="orchestrator/modules/previewZoom.js" defer></script>
@@ -3445,11 +3458,38 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           // Cmd+Shift+' to invoke Ash (AI Writing Companion)
           if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "'") {
             e.preventDefault();
+            console.log('[Keyboard] Ash shortcut pressed - checking availability:', {
+              hasAICompanion: !!window.aiCompanion,
+              hasHandleKeyboardInvocation: typeof window.aiCompanion?.handleKeyboardInvocation === 'function',
+              hasGamification: !!window.gamification,
+              hasGamificationManager: !!window.gamificationManager
+            });
             if (window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function') {
               console.log('[Keyboard] Invoking Ash via Cmd+Shift+\'');
               window.aiCompanion.handleKeyboardInvocation();
             } else {
               console.warn('[Keyboard] AI Companion not available for keyboard shortcut');
+              console.log('[Keyboard] Available objects:', {
+                aiCompanion: window.aiCompanion,
+                gamification: window.gamification,
+                gamificationManager: window.gamificationManager
+              });
+              
+              // Try to force initialize AI companion
+              if (window.gamification && typeof window.gamification.initializeAICompanion === 'function') {
+                console.log('[Keyboard] Attempting to force initialize AI Companion');
+                window.gamification.initializeAICompanion();
+                
+                // Try again after a brief delay
+                setTimeout(() => {
+                  if (window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function') {
+                    console.log('[Keyboard] AI Companion now available, invoking Ash');
+                    window.aiCompanion.handleKeyboardInvocation();
+                  } else {
+                    alert('AI Companion could not be initialized. Please check the console for errors.');
+                  }
+                }, 100);
+              }
             }
           }
           
@@ -4137,18 +4177,66 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           setupNetworkControls();
           setupNetworkFileWatchers();
           
+          // Initialize gamification system
+          if (typeof GamificationManager !== 'undefined' && !window.gamification) {
+            console.log('[App] Initializing Gamification Manager...');
+            window.gamification = new GamificationManager();
+            window.gamificationManager = window.gamification; // For compatibility
+            
+            // Call initialize method after a short delay to ensure DOM is ready
+            setTimeout(() => {
+              if (typeof window.gamification.initialize === 'function') {
+                console.log('[App] Calling gamification.initialize()');
+                window.gamification.initialize();
+              }
+            }, 100);
+            
+            console.log('[App] Gamification Manager initialized');
+          }
+          
           // Initialize Ash button
           const invokeAshBtn = document.getElementById('invoke-ash-btn');
           if (invokeAshBtn) {
+            console.log('[App] Ash button found, adding click handler');
             invokeAshBtn.addEventListener('click', () => {
+              console.log('[UI] Ash button clicked - checking availability:', {
+                hasAICompanion: !!window.aiCompanion,
+                hasHandleKeyboardInvocation: typeof window.aiCompanion?.handleKeyboardInvocation === 'function',
+                hasGamification: !!window.gamification,
+                hasGamificationManager: !!window.gamificationManager
+              });
               if (window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function') {
                 console.log('[UI] Invoking Ash via button click');
                 window.aiCompanion.handleKeyboardInvocation();
               } else {
                 console.warn('[UI] AI Companion not available for button click');
-                alert('AI Companion is not yet initialized. Please wait a moment and try again.');
+                console.log('[UI] Available objects:', {
+                  aiCompanion: window.aiCompanion,
+                  gamification: window.gamification,
+                  gamificationManager: window.gamificationManager
+                });
+                
+                // Try to force initialize AI companion
+                if (window.gamification && typeof window.gamification.initializeAICompanion === 'function') {
+                  console.log('[UI] Attempting to force initialize AI Companion');
+                  window.gamification.initializeAICompanion();
+                  
+                  // Try again after a brief delay
+                  setTimeout(() => {
+                    if (window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function') {
+                      console.log('[UI] AI Companion now available, invoking Ash');
+                      window.aiCompanion.handleKeyboardInvocation();
+                    } else {
+                      alert('AI Companion could not be initialized. Please check the console for errors.');
+                    }
+                  }, 100);
+                } else {
+                  alert('AI Companion is not yet initialized. Please wait a moment and try again.');
+                }
               }
             });
+          } else {
+            console.warn('[App] Ash button not found in DOM');
           }
         }
         
