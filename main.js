@@ -2631,7 +2631,7 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     return defaultMessage;
   }
 
-  ipcMain.handle('send-chat-message', async (event, userMessage) => {
+  ipcMain.handle('send-chat-message', async (event, userMessage, assistantConfig) => {
     if (!aiService || aiService.getAvailableProviders().length === 0) {
         console.error('[main.js] AI Service not available. Cannot send chat message.');
         return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
@@ -2642,19 +2642,31 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
     }
     console.log(`[main.js] 🤖 Received chat message of ${userMessage.length} characters`);
     
+    // Apply AI assistant configuration or fallback to saved AI settings
     const aiSettings = appSettings.ai || {};
-    logMessage('📝 MESSAGE being sent to AI service:', userMessage, aiSettings);
+    const finalConfig = assistantConfig ? {
+      ...aiSettings,
+      ...assistantConfig,
+      preferredProvider: (assistantConfig.provider && assistantConfig.provider !== 'auto' && assistantConfig.provider !== 'default') ? assistantConfig.provider : aiSettings.preferredProvider,
+      preferredModel: (assistantConfig.model && assistantConfig.model !== 'auto' && assistantConfig.model !== 'default') ? assistantConfig.model : aiSettings.preferredModel,
+      systemMessage: assistantConfig.systemMessage || await buildSystemMessage(aiSettings)
+    } : aiSettings;
+    
+    console.log('[main.js] Using assistant configuration:', assistantConfig ? `${assistantConfig.assistantName} (${assistantConfig.assistantId})` : 'default');
+    logMessage('📝 MESSAGE being sent to AI service:', userMessage, finalConfig);
     
     try {
-      const systemMessage = await buildSystemMessage(aiSettings);
+      const systemMessage = finalConfig.systemMessage || await buildSystemMessage(finalConfig);
       
       // Apply user settings for provider and model
       const options = {
-        provider: aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined,
-        model: aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined,
+        provider: (finalConfig.preferredProvider && finalConfig.preferredProvider !== 'auto' && finalConfig.preferredProvider !== 'default') ? finalConfig.preferredProvider : undefined,
+        model: (finalConfig.preferredModel && finalConfig.preferredModel !== 'auto' && finalConfig.preferredModel !== 'default') ? finalConfig.preferredModel : undefined,
         systemMessage,
-        temperature: aiSettings.temperature,
-        maxTokens: aiSettings.maxTokens,
+        temperature: finalConfig.temperature,
+        maxTokens: finalConfig.maxTokens || aiSettings.maxTokens,
+        timeout: finalConfig.timeout,
+        newConversation: finalConfig.newConversation,
         settings: aiSettings
       };
       
@@ -2935,7 +2947,7 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
 
   // Enhanced AI Chat with File Context
   ipcMain.handle('send-chat-message-with-context', async (event, data) => {
-    const { message, fileContext, currentFile } = data;
+    const { message, fileContext, currentFile, assistantConfig } = data;
     
     if (!aiService || aiService.getAvailableProviders().length === 0) {
       console.error('[main.js] AI Service not available. Cannot send chat message.');
@@ -2984,21 +2996,32 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
         console.log('[main.js] Skipping file context - no changes detected');
       }
 
-      // Apply saved AI settings
+      // Apply AI assistant configuration or fallback to saved AI settings
       const aiSettings = appSettings.ai || {};
+      const finalConfig = assistantConfig ? {
+        ...aiSettings,
+        ...assistantConfig,
+        // Keep file-level settings but allow assistant config to override
+        preferredProvider: (assistantConfig.provider && assistantConfig.provider !== 'auto' && assistantConfig.provider !== 'default') ? assistantConfig.provider : aiSettings.preferredProvider,
+        preferredModel: (assistantConfig.model && assistantConfig.model !== 'auto' && assistantConfig.model !== 'default') ? assistantConfig.model : aiSettings.preferredModel,
+        systemMessage: assistantConfig.systemMessage || await buildSystemMessage(aiSettings)
+      } : aiSettings;
       
+      console.log('[main.js] Using assistant configuration:', assistantConfig ? `${assistantConfig.assistantName} (${assistantConfig.assistantId})` : 'default');
       console.log('[main.js] Enhanced message length:', enhancedPrompt.length, 'characters');
-      logMessage('📝 ENHANCED MESSAGE being sent to AI service:', enhancedPrompt, aiSettings);
+      logMessage('📝 ENHANCED MESSAGE being sent to AI service:', enhancedPrompt, finalConfig);
 
-      const systemMessage = await buildSystemMessage(aiSettings);
+      const systemMessage = finalConfig.systemMessage || await buildSystemMessage(finalConfig);
       
       const options = {
-        provider: aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined,
-        model: aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined,
+        provider: (finalConfig.preferredProvider && finalConfig.preferredProvider !== 'auto' && finalConfig.preferredProvider !== 'default') ? finalConfig.preferredProvider : undefined,
+        model: (finalConfig.preferredModel && finalConfig.preferredModel !== 'auto' && finalConfig.preferredModel !== 'default') ? finalConfig.preferredModel : undefined,
         systemMessage,
-        temperature: aiSettings.temperature,
-        maxTokens: aiSettings.maxTokens,
-        settings: aiSettings
+        temperature: finalConfig.temperature,
+        maxTokens: finalConfig.maxTokens || aiSettings.maxTokens,
+        timeout: finalConfig.timeout,
+        newConversation: finalConfig.newConversation,
+        settings: finalConfig
       };
       
       console.log('[main.js] 🔧 Applying saved AI settings:', {

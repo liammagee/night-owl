@@ -335,7 +335,13 @@ class AICompanionManager {
         const startTime = Date.now();
         
         try {
-            this.log('verbose', 'ai_request', `Calling AI service with fresh conversation - no history (prompt length: ${prompt.length})`);
+            // Get Ash's configuration
+            const ashConfig = window.aiAssistantConfig ? 
+                window.aiAssistantConfig.createServiceOptions('ash', options) : 
+                { newConversation: true, context: 'writing_companion', ...options };
+            
+            this.log('verbose', 'ai_request', `Calling AI service for Ash with fresh conversation (prompt length: ${prompt.length})`);
+            console.log('[AICompanionManager] 🤖 Using Ash configuration:', ashConfig);
             
             if (this.loggingConfig.logAIInputs) {
                 this.log('debug', 'ai_input', prompt);
@@ -343,12 +349,7 @@ class AICompanionManager {
 
             const response = await window.electronAPI.invoke('ai-chat', {
                 message: prompt,
-                options: {
-                    context: 'writing_companion',
-                    newConversation: true, // Clear all conversation history - fresh start every time
-                    conversationType: 'writing_analysis', // Distinct from regular chat
-                    ...options
-                }
+                options: ashConfig
             });
 
             const duration = Date.now() - startTime;

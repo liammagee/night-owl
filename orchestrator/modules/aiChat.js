@@ -83,7 +83,7 @@ function addChatMessage(message, sender, isCommand = false, responseInfo = null)
         if (responseInfo && responseInfo.provider && responseInfo.model) {
             updateProviderInfo(responseInfo.provider, responseInfo.model);
         }
-        promptSpan.innerHTML = `<span class="terminal-assistant">ash</span><span class="terminal-separator">:</span> `;
+        promptSpan.innerHTML = `<span class="terminal-assistant">dr. chen</span><span class="terminal-separator">:</span> `;
     }
 
     const contentSpan = document.createElement('span');
@@ -193,18 +193,31 @@ async function sendChatMessage() {
     try {
         let result;
         
+        // Get Dr. Chen's configuration 
+        console.log('[AI Chat] 🔍 aiAssistantConfig available:', !!window.aiAssistantConfig);
+        if (window.aiAssistantConfig) {
+            console.log('[AI Chat] 🔍 Available assistants:', window.aiAssistantConfig.getAllAssistants().map(a => a.key));
+        }
+        
+        const chenConfig = window.aiAssistantConfig ? 
+            window.aiAssistantConfig.createServiceOptions('chen') : 
+            { context: 'chat_dialogue' };
+        
+        console.log('[AI Chat] 🎓 Using Dr. Chen configuration:', chenConfig);
+
         // Try to use enhanced handler with file context
         try {
             const fileContext = includeOtherFiles ? await getFileSystemContext() : null;
             result = await window.electronAPI.invoke('send-chat-message-with-context', {
                 message: enhancedMessage,
                 fileContext: fileContext,
-                currentFile: currentFileName
+                currentFile: currentFileName,
+                assistantConfig: chenConfig // Add assistant configuration
             });
         } catch (contextError) {
             // Fallback to basic handler if enhanced one isn't available
             console.warn('[AI Chat] Enhanced handler not available, using basic handler:', contextError.message);
-            result = await window.electronAPI.invoke('send-chat-message', enhancedMessage);
+            result = await window.electronAPI.invoke('send-chat-message', enhancedMessage, chenConfig);
         }
         
         // Stop typing animation and remove typing indicator

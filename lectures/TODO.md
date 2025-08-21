@@ -66,3 +66,4 @@ Defines tasks relating to this software itself.
 62. Remote server - DONE
 63. Update icon - DONE
 64. Vibe lecturing
+65. Drama machine

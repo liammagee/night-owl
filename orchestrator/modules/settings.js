@@ -485,39 +485,101 @@ function generateGamificationSettings() {
 function generateAISettings() {
     return `
         <div class="settings-section">
-            <h3>AI Provider Configuration</h3>
-            <div class="settings-group">
-                <label>
-                    <select id="ai-provider" onchange="updateModelOptions()">
-                        <option value="auto" ${(currentSettings.ai?.preferredProvider || 'auto') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
-                        <option value="openai" ${currentSettings.ai?.preferredProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
-                        <option value="anthropic" ${currentSettings.ai?.preferredProvider === 'anthropic' ? 'selected' : ''}>Anthropic</option>
-                        <option value="groq" ${currentSettings.ai?.preferredProvider === 'groq' ? 'selected' : ''}>Groq</option>
-                        <option value="openrouter" ${currentSettings.ai?.preferredProvider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
-                        <option value="local" ${currentSettings.ai?.preferredProvider === 'local' ? 'selected' : ''}>Local AI</option>
-                    </select>
-                    <span>Preferred Provider</span>
-                </label>
-                <label>
-                    <select id="ai-model">
-                        <option value="auto">Auto (Provider Default)</option>
-                        ${generateModelOptions(currentSettings.ai?.preferredProvider || 'auto', currentSettings.ai?.preferredModel)}
-                    </select>
-                    <span>Preferred Model</span>
-                </label>
-                <div id="current-config" style="margin-top: 10px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px; color: #666;">
-                    Current: Loading configuration...
+            <h3>AI Assistant Configuration</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Configure different AI assistants for different purposes. Ash provides quick writing feedback, while Dr. Chen offers deep dialogue and analysis.
+            </p>
+            
+            <!-- Assistant Selection Tabs -->
+            <div class="assistant-tabs" style="margin-bottom: 20px;">
+                <button class="assistant-tab active" onclick="switchAssistantTab('ash')" id="ash-tab">Ash (Quick Feedback)</button>
+                <button class="assistant-tab" onclick="switchAssistantTab('chen')" id="chen-tab">Dr. Chen (Deep Dialogue)</button>
+            </div>
+            
+            <!-- Ash Configuration -->
+            <div id="ash-config" class="assistant-config active">
+                <h4 style="color: #007acc; margin-bottom: 15px;">Ash - AI Writing Companion</h4>
+                <div class="settings-group">
+                    <label>
+                        <select id="ash-provider" onchange="updateModelOptions('ash')">
+                            <option value="auto" ${getAssistantProvider('ash') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
+                            <option value="openai" ${getAssistantProvider('ash') === 'openai' ? 'selected' : ''}>OpenAI</option>
+                            <option value="anthropic" ${getAssistantProvider('ash') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
+                            <option value="groq" ${getAssistantProvider('ash') === 'groq' ? 'selected' : ''}>Groq</option>
+                            <option value="openrouter" ${getAssistantProvider('ash') === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
+                            <option value="local" ${getAssistantProvider('ash') === 'local' ? 'selected' : ''}>Local AI</option>
+                        </select>
+                        <span>AI Provider</span>
+                    </label>
+                    <label>
+                        <select id="ash-model">
+                            <option value="auto">Auto (Provider Default)</option>
+                            ${generateModelOptions(getAssistantProvider('ash'), getAssistantModel('ash'))}
+                        </select>
+                        <span>AI Model</span>
+                    </label>
+                    <label>
+                        <input type="range" id="ash-temperature" min="0" max="2" step="0.1" value="${getAssistantTemperature('ash')}">
+                        <span>Temperature: <span id="ash-temperature-value">${getAssistantTemperature('ash')}</span></span>
+                    </label>
+                    <label>
+                        <input type="number" id="ash-max-tokens" value="${getAssistantMaxTokens('ash')}" min="50" max="500" step="10">
+                        <span>Max Tokens (Brief responses)</span>
+                    </label>
                 </div>
             </div>
             
-            <!-- Local AI Configuration -->
-            <div class="settings-group" id="local-ai-config" style="margin-top: 15px; display: ${currentSettings.ai?.preferredProvider === 'local' ? 'block' : 'none'};">
-                <label>
-                    <input type="text" id="local-ai-url" value="${currentSettings.ai?.localAIUrl || 'http://localhost:1234/'}" placeholder="http://localhost:1234/" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <span>Local AI Server URL</span>
-                </label>
-                <div style="font-size: 11px; color: #666; margin-top: 4px;">
-                    URL for your local AI server (OpenAI-compatible API). Include the trailing slash.
+            <!-- Dr. Chen Configuration -->
+            <div id="chen-config" class="assistant-config">
+                <h4 style="color: #007acc; margin-bottom: 15px;">Dr. Chen - Philosophical Dialogue Partner</h4>
+                <div class="settings-group">
+                    <label>
+                        <select id="chen-provider" onchange="updateModelOptions('chen')">
+                            <option value="auto" ${getAssistantProvider('chen') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
+                            <option value="openai" ${getAssistantProvider('chen') === 'openai' ? 'selected' : ''}>OpenAI</option>
+                            <option value="anthropic" ${getAssistantProvider('chen') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
+                            <option value="groq" ${getAssistantProvider('chen') === 'groq' ? 'selected' : ''}>Groq</option>
+                            <option value="openrouter" ${getAssistantProvider('chen') === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
+                            <option value="local" ${getAssistantProvider('chen') === 'local' ? 'selected' : ''}>Local AI</option>
+                        </select>
+                        <span>AI Provider</span>
+                    </label>
+                    <label>
+                        <select id="chen-model">
+                            <option value="auto">Auto (Provider Default)</option>
+                            ${generateModelOptions(getAssistantProvider('chen'), getAssistantModel('chen'))}
+                        </select>
+                        <span>AI Model</span>
+                    </label>
+                    <label>
+                        <input type="range" id="chen-temperature" min="0" max="2" step="0.1" value="${getAssistantTemperature('chen')}">
+                        <span>Temperature: <span id="chen-temperature-value">${getAssistantTemperature('chen')}</span></span>
+                    </label>
+                    <label>
+                        <input type="number" id="chen-max-tokens" value="${getAssistantMaxTokens('chen')}" min="200" max="2000" step="50">
+                        <span>Max Tokens (Detailed responses)</span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Global AI Configuration -->
+            <div class="settings-section">
+                <h3>Global AI Configuration</h3>
+                <div class="settings-group">
+                    <div id="current-config" style="margin-top: 10px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px; color: #666;">
+                        Current: Loading configuration...
+                    </div>
+                </div>
+            
+                <!-- Local AI Configuration -->
+                <div class="settings-group" id="local-ai-config" style="margin-top: 15px; display: none;">
+                    <label>
+                        <input type="text" id="local-ai-url" value="${currentSettings.ai?.localAIUrl || 'http://localhost:1234/'}" placeholder="http://localhost:1234/" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <span>Local AI Server URL</span>
+                    </label>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                        URL for your local AI server (OpenAI-compatible API). Include the trailing slash.
+                    </div>
                 </div>
             </div>
         </div>
@@ -937,11 +999,32 @@ function addSettingsEventListeners(category) {
         });
     }
     
-    // Temperature slider update
+    // Temperature slider update - legacy single AI config
     const tempSlider = document.getElementById('ai-temperature');
     if (tempSlider) {
         tempSlider.addEventListener('input', (e) => {
             const valueSpan = document.getElementById('temperature-value');
+            if (valueSpan) {
+                valueSpan.textContent = e.target.value;
+            }
+        });
+    }
+    
+    // Dual assistant temperature sliders
+    const ashTempSlider = document.getElementById('ash-temperature');
+    if (ashTempSlider) {
+        ashTempSlider.addEventListener('input', (e) => {
+            const valueSpan = document.getElementById('ash-temperature-value');
+            if (valueSpan) {
+                valueSpan.textContent = e.target.value;
+            }
+        });
+    }
+    
+    const chenTempSlider = document.getElementById('chen-temperature');
+    if (chenTempSlider) {
+        chenTempSlider.addEventListener('input', (e) => {
+            const valueSpan = document.getElementById('chen-temperature-value');
             if (valueSpan) {
                 valueSpan.textContent = e.target.value;
             }
@@ -974,6 +1057,68 @@ function addSettingsEventListeners(category) {
             excludePatterns.addEventListener('input', updateFilterPreview);
         }
     }
+    
+    // AI assistant tab styling
+    if (category === 'ai') {
+        // Add assistant tab styles
+        injectAssistantTabStyles();
+    }
+}
+
+// Inject CSS styles for assistant tabs
+function injectAssistantTabStyles() {
+    if (document.getElementById('assistant-tab-styles')) return;
+    
+    const styles = document.createElement('style');
+    styles.id = 'assistant-tab-styles';
+    styles.textContent = `
+        .assistant-tabs {
+            display: flex;
+            border-bottom: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+        }
+        
+        .assistant-tab {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.2s;
+            margin-right: 10px;
+        }
+        
+        .assistant-tab:hover {
+            color: #333;
+            background: #f8f9fa;
+        }
+        
+        .assistant-tab.active {
+            color: #007acc;
+            border-bottom-color: #007acc;
+        }
+        
+        .assistant-config {
+            display: none;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .assistant-config.active {
+            display: block;
+        }
+        
+        .assistant-config h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+    `;
+    
+    document.head.appendChild(styles);
 }
 
 async function saveSettingsDialog() {
@@ -1168,16 +1313,50 @@ function collectSettingsFromForm() {
         updatedSettings.gamification.menuCollapsedDefault = menuCollapsedDefault;
     }
     
-    // AI settings
+    // Dual assistant AI settings
+    if (!updatedSettings.ai) updatedSettings.ai = {};
+    if (!updatedSettings.ai.assistants) updatedSettings.ai.assistants = {};
+    
+    // Ash assistant settings
+    const ashProvider = document.getElementById('ash-provider')?.value;
+    const ashModel = document.getElementById('ash-model')?.value;
+    const ashTemperature = document.getElementById('ash-temperature')?.value;
+    const ashMaxTokens = document.getElementById('ash-max-tokens')?.value;
+    
+    if (ashProvider || ashModel || ashTemperature || ashMaxTokens) {
+        if (!updatedSettings.ai.assistants.ash) updatedSettings.ai.assistants.ash = {};
+        if (!updatedSettings.ai.assistants.ash.aiSettings) updatedSettings.ai.assistants.ash.aiSettings = {};
+        
+        if (ashProvider) updatedSettings.ai.assistants.ash.aiSettings.provider = ashProvider;
+        if (ashModel) updatedSettings.ai.assistants.ash.aiSettings.model = ashModel;
+        if (ashTemperature) updatedSettings.ai.assistants.ash.aiSettings.temperature = parseFloat(ashTemperature);
+        if (ashMaxTokens) updatedSettings.ai.assistants.ash.aiSettings.maxTokens = parseInt(ashMaxTokens);
+    }
+    
+    // Dr. Chen assistant settings
+    const chenProvider = document.getElementById('chen-provider')?.value;
+    const chenModel = document.getElementById('chen-model')?.value;
+    const chenTemperature = document.getElementById('chen-temperature')?.value;
+    const chenMaxTokens = document.getElementById('chen-max-tokens')?.value;
+    
+    if (chenProvider || chenModel || chenTemperature || chenMaxTokens) {
+        if (!updatedSettings.ai.assistants.chen) updatedSettings.ai.assistants.chen = {};
+        if (!updatedSettings.ai.assistants.chen.aiSettings) updatedSettings.ai.assistants.chen.aiSettings = {};
+        
+        if (chenProvider) updatedSettings.ai.assistants.chen.aiSettings.provider = chenProvider;
+        if (chenModel) updatedSettings.ai.assistants.chen.aiSettings.model = chenModel;
+        if (chenTemperature) updatedSettings.ai.assistants.chen.aiSettings.temperature = parseFloat(chenTemperature);
+        if (chenMaxTokens) updatedSettings.ai.assistants.chen.aiSettings.maxTokens = parseInt(chenMaxTokens);
+    }
+    
+    // Legacy AI settings (for backward compatibility)
     const aiProvider = document.getElementById('ai-provider')?.value;
     if (aiProvider) {
-        if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.preferredProvider = aiProvider;
     }
     
     const aiModel = document.getElementById('ai-model')?.value;
     if (aiModel) {
-        if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.preferredModel = aiModel;
     }
     
@@ -1476,6 +1655,82 @@ function resetSettingsFromDialog() {
 
 // AI Settings Helper Functions
 
+// Get assistant configuration from settings or defaults
+function getAssistantProvider(assistantKey) {
+    if (!currentSettings?.ai?.assistants?.[assistantKey]?.aiSettings?.provider) {
+        // Return default from aiAssistantConfig if available
+        if (window.aiAssistantConfig) {
+            const assistant = window.aiAssistantConfig.getAssistant(assistantKey);
+            return assistant?.aiSettings?.provider || 'auto';
+        }
+        return 'auto';
+    }
+    return currentSettings.ai.assistants[assistantKey].aiSettings.provider;
+}
+
+function getAssistantModel(assistantKey) {
+    if (!currentSettings?.ai?.assistants?.[assistantKey]?.aiSettings?.model) {
+        if (window.aiAssistantConfig) {
+            const assistant = window.aiAssistantConfig.getAssistant(assistantKey);
+            return assistant?.aiSettings?.model || 'auto';
+        }
+        return 'auto';
+    }
+    return currentSettings.ai.assistants[assistantKey].aiSettings.model;
+}
+
+function getAssistantTemperature(assistantKey) {
+    if (!currentSettings?.ai?.assistants?.[assistantKey]?.aiSettings?.temperature) {
+        if (window.aiAssistantConfig) {
+            const assistant = window.aiAssistantConfig.getAssistant(assistantKey);
+            return assistant?.aiSettings?.temperature || (assistantKey === 'ash' ? 0.7 : 0.8);
+        }
+        return assistantKey === 'ash' ? 0.7 : 0.8;
+    }
+    return currentSettings.ai.assistants[assistantKey].aiSettings.temperature;
+}
+
+function getAssistantMaxTokens(assistantKey) {
+    if (!currentSettings?.ai?.assistants?.[assistantKey]?.aiSettings?.maxTokens) {
+        if (window.aiAssistantConfig) {
+            const assistant = window.aiAssistantConfig.getAssistant(assistantKey);
+            return assistant?.aiSettings?.maxTokens || (assistantKey === 'ash' ? 150 : 1000);
+        }
+        return assistantKey === 'ash' ? 150 : 1000;
+    }
+    return currentSettings.ai.assistants[assistantKey].aiSettings.maxTokens;
+}
+
+function switchAssistantTab(assistantKey) {
+    // Update tab selection
+    document.querySelectorAll('.assistant-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    document.getElementById(`${assistantKey}-tab`).classList.add('active');
+    
+    // Update config visibility
+    document.querySelectorAll('.assistant-config').forEach(config => {
+        config.classList.remove('active');
+    });
+    document.getElementById(`${assistantKey}-config`).classList.add('active');
+    
+    // Update local AI config visibility based on current assistant
+    updateLocalAIVisibility();
+}
+
+function updateLocalAIVisibility() {
+    const localAIConfig = document.getElementById('local-ai-config');
+    const activeConfig = document.querySelector('.assistant-config.active');
+    
+    if (!localAIConfig || !activeConfig) return;
+    
+    const assistantKey = activeConfig.id.replace('-config', '');
+    const providerSelect = document.getElementById(`${assistantKey}-provider`);
+    const isLocal = providerSelect && providerSelect.value === 'local';
+    
+    localAIConfig.style.display = isLocal ? 'block' : 'none';
+}
+
 function generateModelOptions(provider, selectedModel) {
     const models = {
         openai: [
@@ -1508,7 +1763,31 @@ function generateModelOptions(provider, selectedModel) {
     ).join('');
 }
 
-async function updateModelOptions() {
+async function updateModelOptions(assistantKey) {
+    // If assistantKey is provided, update specific assistant model options
+    if (assistantKey) {
+        const providerSelect = document.getElementById(`${assistantKey}-provider`);
+        const modelSelect = document.getElementById(`${assistantKey}-model`);
+        
+        if (!providerSelect || !modelSelect) return;
+        
+        const provider = providerSelect.value;
+        
+        // Update model options
+        if (provider === 'auto') {
+            modelSelect.innerHTML = '<option value="auto" selected>Auto (Provider Default)</option>';
+        } else {
+            modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>' + 
+                                    generateModelOptions(provider, null);
+        }
+        
+        // Update local AI visibility
+        updateLocalAIVisibility();
+        
+        return;
+    }
+    
+    // Legacy support - fallback for old single AI provider setup
     const providerSelect = document.getElementById('ai-provider');
     const modelSelect = document.getElementById('ai-model');
     const currentConfigDiv = document.getElementById('current-config');
