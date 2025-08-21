@@ -171,6 +171,7 @@ class AICompanionManager {
             const combinedAnalysis = {
                 ...textAnalysis,
                 flow: flowAnalysis,
+                fullDocumentText: text, // Include full document context for AI prompt
                 recentText: recentText,
                 selectedText: selectedText, // Include as separate field for prompt context
                 lastSentence: this.extractLastSentence(text),

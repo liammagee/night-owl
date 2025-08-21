@@ -5,3 +5,5 @@ This week we'll be talking about a seemingly simple idea: attention.
 Attention features in several areas.
 
 
+Just doing some vibe lecturing right here, will the AI be prompted?
+

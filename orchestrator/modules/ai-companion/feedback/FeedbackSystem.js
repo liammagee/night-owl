@@ -231,10 +231,27 @@ class FeedbackSystem {
         const currentText = analysis.recentText || analysis.lastSentence || '';
         const textLabel = hasSelectedText ? "Selected text" : "Recent text";
         
-        const basePrompt = `You are ${persona.name}, an AI writing companion with a ${persona.style} approach. 
+        // Include full document if available and if it's different from recent text
+        const hasFullDocument = analysis.fullDocumentText && analysis.fullDocumentText.length > currentText.length + 100;
         
-Writing Context:
+        // Use the configured max context length or default to 10000 chars for prompt
+        const maxContextLength = analysis.contextMetadata?.maxLength || 10000;
+        const documentPreview = hasFullDocument ? 
+            (analysis.fullDocumentText.length > maxContextLength ? 
+                analysis.fullDocumentText.slice(0, maxContextLength) + '...[truncated]' : 
+                analysis.fullDocumentText) : '';
+        
+        const basePrompt = `You are ${persona.name}, an AI writing companion with a ${persona.style} approach. 
+
+${hasFullDocument ? `FULL DOCUMENT CONTEXT:
+\"\"\"
+${documentPreview}
+\"\"\"
+
+` : ''}Writing Context:
 - ${textLabel}: "${currentText}"${hasSelectedText ? ' (user has specifically selected this text for analysis)' : ''}
+- Document scope: ${analysis.contextMetadata?.scope || 'unknown'}
+- Document length: ${analysis.fullDocumentText?.length || 0} characters
 - Flow state: ${personalizations.flowState}
 - Word count: ${personalizations.wordCount}
 - Writing sentiment: ${personalizations.sentimentTrend}
@@ -243,13 +260,18 @@ Writing Context:
 Task: Provide ${feedbackType} feedback that is:
 - Brief (1-2 sentences)
 - ${persona.style}
-- Contextually relevant${hasSelectedText ? ' to the selected text' : ''}
+- Contextually relevant${hasSelectedText ? ' to the selected text' : ''}${hasFullDocument ? ' within the document context' : ''}
 - Encouraging but not generic
 
 ${hasSelectedText ? 
-    'Focus specifically on the selected text and provide targeted feedback about it.' : 
-    'Focus on the writer\'s current progress and state, not general writing advice.'
+    'Focus specifically on the selected text and provide targeted feedback about it, considering its place in the overall document.' : 
+    hasFullDocument ?
+        'Focus on the writer\'s recent progress within the context of the full document.' :
+        'Focus on the writer\'s current progress and state, not general writing advice.'
 }`;
+
+        console.log('[FeedbackSystem] 📄 Prompt includes full document:', hasFullDocument, 
+                    'Document length:', analysis.fullDocumentText?.length || 0);
 
         return basePrompt;
     }
