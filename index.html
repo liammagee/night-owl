@@ -4177,22 +4177,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           setupNetworkControls();
           setupNetworkFileWatchers();
           
-          // Initialize gamification system
-          if (typeof GamificationManager !== 'undefined' && !window.gamification) {
-            console.log('[App] Initializing Gamification Manager...');
-            window.gamification = new GamificationManager();
-            window.gamificationManager = window.gamification; // For compatibility
-            
-            // Call initialize method after a short delay to ensure DOM is ready
-            setTimeout(() => {
-              if (typeof window.gamification.initialize === 'function') {
-                console.log('[App] Calling gamification.initialize()');
-                window.gamification.initialize();
-              }
-            }, 100);
-            
-            console.log('[App] Gamification Manager initialized');
-          }
+          // Gamification system is now initialized in renderer.js
           
           // Initialize Ash button
           const invokeAshBtn = document.getElementById('invoke-ash-btn');

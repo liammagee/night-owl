@@ -3056,38 +3056,53 @@ async function performAppInitialization() {
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
         
         // Initialize gamification system
-        console.log('[renderer.js] Checking for gamification initialization function...');
-        console.log('[renderer.js] window.initializeGamification exists:', typeof window.initializeGamification);
-        if (window.initializeGamification) {
+        console.log('[renderer.js] Checking for gamification system...');
+        console.log('[renderer.js] window.gamification exists:', !!window.gamification);
+        console.log('[renderer.js] GamificationManager class exists:', typeof GamificationManager !== 'undefined');
+        
+        if (!window.gamification && typeof GamificationManager !== 'undefined') {
             try {
-                console.log('[renderer.js] Calling initializeGamification...');
-                window.initializeGamification();
-                console.log('[renderer.js] Gamification system initialized successfully');
+                console.log('[renderer.js] Creating GamificationManager...');
+                window.gamification = new GamificationManager();
+                window.gamificationManager = window.gamification; // For compatibility
+                window.gamificationInstance = window.gamification; // For legacy code compatibility
                 
-                // Initialize AI TODO suggestions toolbar button
-                const aiTodoBtn = document.getElementById('ai-todo-suggestions-btn');
-                if (aiTodoBtn) {
-                    aiTodoBtn.addEventListener('click', () => {
-                        console.log('[renderer.js] AI TODO suggestions button clicked');
-                        const gamification = window.gamificationInstance;
-                        if (gamification && gamification.todoGamification) {
-                            gamification.todoGamification.generateAISuggestionsNow();
-                        } else {
-                            console.warn('[renderer.js] TODO gamification not available');
-                            if (window.showNotification) {
-                                window.showNotification('TODO gamification not initialized. Please open a TODO file first.', 'warning');
-                            }
-                        }
-                    });
-                    console.log('[renderer.js] AI TODO suggestions button handler added');
-                } else {
-                    console.warn('[renderer.js] AI TODO suggestions button not found');
+                // Call initialize method
+                if (typeof window.gamification.initialize === 'function') {
+                    setTimeout(() => {
+                        console.log('[renderer.js] Calling gamification.initialize()...');
+                        window.gamification.initialize();
+                    }, 200);
                 }
+                
+                console.log('[renderer.js] Gamification system initialized successfully');
             } catch (error) {
                 console.error('[renderer.js] Error initializing gamification:', error);
             }
+        } else if (window.gamification) {
+            console.log('[renderer.js] Gamification system already initialized');
         } else {
-            console.warn('[renderer.js] initializeGamification function not found');
+            console.warn('[renderer.js] GamificationManager class not available');
+        }
+        
+        // Initialize AI TODO suggestions toolbar button
+        const aiTodoBtn = document.getElementById('ai-todo-suggestions-btn');
+        if (aiTodoBtn) {
+            aiTodoBtn.addEventListener('click', () => {
+                console.log('[renderer.js] AI TODO suggestions button clicked');
+                const gamification = window.gamification || window.gamificationInstance;
+                if (gamification && gamification.todoGamification) {
+                    gamification.todoGamification.generateAISuggestionsNow();
+                } else {
+                    console.warn('[renderer.js] TODO gamification not available');
+                    if (window.showNotification) {
+                        window.showNotification('TODO gamification not initialized. Please open a TODO file first.', 'warning');
+                    }
+                }
+            });
+            console.log('[renderer.js] AI TODO suggestions button handler added');
+        } else {
+            console.warn('[renderer.js] AI TODO suggestions button not found');
         }
         
         console.log('[renderer.js] *** ABOUT TO CALL initializeMonacoEditor() ***');
