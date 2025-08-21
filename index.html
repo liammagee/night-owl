@@ -521,7 +521,8 @@
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <!-- D3.js v7.8.5 (local copy) for visualizations and whole/part diagrams -->
+    <script src="lib/d3.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         /* Tailwind-inspired utility classes for presentation view */
@@ -1737,8 +1738,7 @@
     <script src="orchestrator/modules/listManagement.js" defer></script>
     <script src="orchestrator/modules/speakerNotes.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
-    <!-- D3.js for whole/part visualizations -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <!-- D3.js v7.8.5 already loaded above with React/Babel -->
     <script src="orchestrator/modules/wholepart.js" defer></script>
     <script src="orchestrator/modules/gamification.js" defer></script>
     <script src="orchestrator/modules/collaborative-challenges.js" defer></script>

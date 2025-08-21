@@ -15,6 +15,9 @@ downloads/
 eggs/
 .eggs/
 lib/
+!lib/
+lib/*
+!lib/d3.min.js
 lib64/
 parts/
 sdist/
