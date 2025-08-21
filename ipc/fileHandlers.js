@@ -521,6 +521,71 @@ function register(deps) {
     }
   });
 
+  // File Rename Operation
+  ipcMain.handle('rename-item', async (event, { filePath, newName }) => {
+    try {
+      console.log(`[FileHandlers] Renaming item: ${filePath} to ${newName}`);
+      
+      // Validate inputs
+      if (!filePath || !newName) {
+        return {
+          success: false,
+          error: 'File path and new name are required'
+        };
+      }
+      
+      // Validate new name (basic validation)
+      if (newName.includes('/') || newName.includes('\\')) {
+        return {
+          success: false,
+          error: 'File name cannot contain path separators'
+        };
+      }
+      
+      if (newName.trim() === '') {
+        return {
+          success: false,
+          error: 'File name cannot be empty'
+        };
+      }
+      
+      // Construct new path
+      const directory = path.dirname(filePath);
+      const newPath = path.join(directory, newName);
+      
+      // Check if target already exists
+      try {
+        await fs.access(newPath);
+        return {
+          success: false,
+          error: `A file or folder named "${newName}" already exists`
+        };
+      } catch (error) {
+        // Good - target doesn't exist, we can proceed
+      }
+      
+      // Perform the rename
+      await fs.rename(filePath, newPath);
+      
+      console.log(`[FileHandlers] Item renamed successfully: ${filePath} -> ${newPath}`);
+      return {
+        success: true,
+        oldPath: filePath,
+        newPath: newPath,
+        oldName: path.basename(filePath),
+        newName: newName,
+        message: `Item renamed to "${newName}" successfully`
+      };
+    } catch (error) {
+      console.error(`[FileHandlers] Error renaming item ${filePath}:`, error);
+      return {
+        success: false,
+        error: `Failed to rename item: ${error.message}`,
+        oldPath: filePath
+      };
+    }
+  });
+
   // Theme Handler (moved from main)
   ipcMain.handle('get-initial-theme', (event) => {
     try {
@@ -578,7 +643,7 @@ function register(deps) {
     }
   });
 
-  console.log('[FileHandlers] Registered 20 file system handlers');
+  console.log('[FileHandlers] Registered 21 file system handlers');
 
   // Helper functions
   async function buildFileTree(dirPath) {

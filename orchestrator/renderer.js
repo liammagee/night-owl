@@ -4536,7 +4536,22 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
             );
             if (newName && newName !== filePath.split('/').pop()) {
                 console.log(`[handleFileContextMenuAction] Renaming ${filePath} to ${newName}`);
-                showNotification('Rename functionality not yet implemented', 'warning');
+                try {
+                    const result = await window.electronAPI.invoke('rename-item', { 
+                        filePath: filePath, 
+                        newName: newName 
+                    });
+                    if (result.success) {
+                        showNotification(`${isFolder ? 'Folder' : 'File'} renamed to "${newName}" successfully`, 'success');
+                        // Refresh the file tree to show the renamed item
+                        renderFileTree();
+                    } else {
+                        showNotification(`Failed to rename ${isFolder ? 'folder' : 'file'}: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Rename error:', error);
+                    showNotification(`Failed to rename ${isFolder ? 'folder' : 'file'}: ${error.message}`, 'error');
+                }
             }
             break;
             
