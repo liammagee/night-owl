@@ -302,15 +302,18 @@ async function updatePreviewAndStructure(markdownContent) {
     await renderRegularMarkdown(markdownContent);
 }
 
-async function renderRegularMarkdown(markdownContent) {
+// Helper functions for markdown rendering
+function resetKanbanStateAndLayout() {
     // Reset kanban state when switching to non-kanban files
     if (window.resetKanbanState) {
         window.resetKanbanState();
     }
-    
-    // Restore normal layout (in case we're switching from Kanban view)
+}
+
+function restoreNormalLayout() {
     const editorPane = document.getElementById('editor-pane');
     const previewPane = document.getElementById('preview-pane');
+    
     if (editorPane && previewPane) {
         editorPane.style.flex = '1'; // 50% width for editor
         previewPane.style.flex = '1'; // 50% width for preview
@@ -330,49 +333,52 @@ async function renderRegularMarkdown(markdownContent) {
         console.log('[renderer.js] Restored normal layout and removed Kanban constraints');
     }
     
-    // Also reset any problematic saved layout that might be causing width issues
+    return { editorPane, previewPane };
+}
+
+function checkAndFixCorruptedLayout(editorPane, previewPane) {
     const leftSidebar = document.getElementById('left-sidebar');
-    if (leftSidebar && editorPane && previewPane) {
-        // Check for corrupted layout values and reset if necessary
-        let shouldResetLayout = false;
-        
-        try {
-            const settings = window.appSettings;
-            if (settings?.layout) {
-                const rightWidthNum = parseFloat(settings.layout.rightWidth);
-                const editorWidthNum = parseFloat(settings.layout.editorWidth);
-                const structureWidthNum = parseFloat(settings.layout.structureWidth);
-                
-                // If any width is over 80% or the total is over 120%, layout is corrupted
-                if (rightWidthNum > 80 || editorWidthNum > 80 || structureWidthNum > 80 ||
-                    (rightWidthNum + editorWidthNum + structureWidthNum) > 120) {
-                    shouldResetLayout = true;
-                    console.log('[renderer.js] Detected corrupted layout values, resetting');
-                }
-            }
-        } catch (error) {
-            shouldResetLayout = true;
-            console.log('[renderer.js] Error checking layout, resetting to defaults');
-        }
-        
-        if (shouldResetLayout) {
-            // Reset to sensible default layout when switching from Kanban
-            leftSidebar.style.flex = '0 0 18%';
-            editorPane.style.flex = '0 0 41%';
-            previewPane.style.flex = '0 0 41%';
+    if (!leftSidebar || !editorPane || !previewPane) return;
+    
+    let shouldResetLayout = false;
+    
+    try {
+        const settings = window.appSettings;
+        if (settings?.layout) {
+            const rightWidthNum = parseFloat(settings.layout.rightWidth);
+            const editorWidthNum = parseFloat(settings.layout.editorWidth);
+            const structureWidthNum = parseFloat(settings.layout.structureWidth);
             
-            // Also save the corrected layout
-            if (window.electronAPI) {
-                window.electronAPI.invoke('set-settings', 'layout', {
-                    structureWidth: '18%',
-                    editorWidth: '41%',
-                    rightWidth: '41%'
-                }).catch(error => console.error('Failed to save corrected layout:', error));
+            // If any width is over 80% or the total is over 120%, layout is corrupted
+            if (rightWidthNum > 80 || editorWidthNum > 80 || structureWidthNum > 80 ||
+                (rightWidthNum + editorWidthNum + structureWidthNum) > 120) {
+                shouldResetLayout = true;
+                console.log('[renderer.js] Detected corrupted layout values, resetting');
             }
         }
+    } catch (error) {
+        shouldResetLayout = true;
+        console.log('[renderer.js] Error checking layout, resetting to defaults');
     }
     
-    // Also remove overflow constraints from preview content
+    if (shouldResetLayout) {
+        // Reset to sensible default layout when switching from Kanban
+        leftSidebar.style.flex = '0 0 18%';
+        editorPane.style.flex = '0 0 41%';
+        previewPane.style.flex = '0 0 41%';
+        
+        // Also save the corrected layout
+        if (window.electronAPI) {
+            window.electronAPI.invoke('set-settings', 'layout', {
+                structureWidth: '18%',
+                editorWidth: '41%',
+                rightWidth: '41%'
+            }).catch(error => console.error('Failed to save corrected layout:', error));
+        }
+    }
+}
+
+function removePreviewOverflowConstraints() {
     if (previewContent) {
         previewContent.style.setProperty('overflow-x', 'visible', 'important');
         previewContent.style.setProperty('overflow-y', 'visible', 'important');
@@ -382,88 +388,104 @@ async function renderRegularMarkdown(markdownContent) {
             previewContent.style.removeProperty('overflow-y');
         }, 10);
     }
+}
+
+function createCustomMarkdownRenderer() {
+    const renderer = new marked.Renderer();
+    const originalHeading = renderer.heading.bind(renderer);
+    const originalImage = renderer.image.bind(renderer);
+
+    // Override the heading method to add IDs
+    renderer.heading = (text, level, raw) => {
+        let html = originalHeading(text, level, raw);
+        const id = `heading-${slugify(raw || text)}`;
+        if (id !== 'heading-') {
+            html = html.replace(/^(<h[1-6])/, `$1 id="${id}"`);
+        }
+        return html;
+    };
+
+    // Override the image method to fix relative paths
+    renderer.image = (href, title, text) => {
+        if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('file://')) {
+            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+            const fullPath = `file://${baseDir}/${href}`;
+            return originalImage(fullPath, title, text);
+        }
+        return originalImage(href, title, text);
+    };
+
+    return renderer;
+}
+
+function processMarkdownContent(markdownContent) {
+    let processedContent = markdownContent;
+    
+    // Process annotations first
+    if (typeof processAnnotations === 'function') {
+        processedContent = processAnnotations(markdownContent);
+    }
+    
+    // Process speaker notes after annotations
+    processedContent = processSpeakerNotes(processedContent);
+    
+    return processedContent;
+}
+
+async function renderMarkdownContent(markdownContent) {
+    // Check if marked is available
+    if (typeof marked === 'undefined') {
+        console.error('[renderer.js] Marked library not loaded, using fallback');
+        previewContent.innerHTML = '<pre>' + markdownContent + '</pre>';
+        return;
+    }
+
+    if (!window.marked) {
+        console.warn('[renderer.js] Marked instance not available yet');
+        previewContent.innerHTML = '<p>Markdown preview loading...</p>';
+        return;
+    }
+
+    const renderer = createCustomMarkdownRenderer();
+    const processedContent = processMarkdownContent(markdownContent);
+    
+    // Use the custom renderer with marked.parse
+    let htmlContent = window.marked.parse(processedContent, { 
+        renderer: renderer, 
+        gfm: true, 
+        breaks: true 
+    });
+    
+    // Process Obsidian-style [[]] internal links on the rendered HTML
+    if (typeof processInternalLinksHTML === 'function') {
+        htmlContent = await processInternalLinksHTML(htmlContent);
+    }
+    
+    // Apply preview zoom if available
+    if (window.previewZoom) {
+        htmlContent = await window.previewZoom.onPreviewUpdate(window.currentFilePath, htmlContent);
+    }
+    
+    previewContent.innerHTML = htmlContent;
+    
+    // Render math equations with MathJax
+    await renderMathInContent(previewContent);
+    
+    // Update speaker notes display if visible
+    updateSpeakerNotesDisplay();
+}
+
+async function renderRegularMarkdown(markdownContent) {
+    resetKanbanStateAndLayout();
+    const { editorPane, previewPane } = restoreNormalLayout();
+    checkAndFixCorruptedLayout(editorPane, previewPane);
+    removePreviewOverflowConstraints();
     
     // Update status bar with current content
     updateStatusBar(markdownContent);
 
     try {
-        // Check if marked is available
-        if (typeof marked === 'undefined') {
-            console.error('[renderer.js] Marked library not loaded, using fallback');
-            previewContent.innerHTML = '<pre>' + markdownContent + '</pre>';
-            return;
-        }
-        
-        // Create a custom Marked renderer
-        const renderer = new marked.Renderer();
-        const originalHeading = renderer.heading.bind(renderer); // Keep original renderer
-        const originalImage = renderer.image.bind(renderer); // Keep original image renderer
-        const originalParagraph = renderer.paragraph.bind(renderer); // Keep original paragraph renderer
-
-        // Override the heading method
-        renderer.heading = (text, level, raw) => {
-            // Use the original renderer first to get the basic HTML
-            let html = originalHeading(text, level, raw);
-            // Generate the ID using the raw, unescaped text
-            const id = `heading-${slugify(raw || text)}`; // Use raw, fallback to text if raw is undefined
-            if (id !== 'heading-') { // Avoid empty IDs
-                // Add the ID to the heading tag
-                // This is a bit fragile; assumes the heading tag is the first tag
-                 html = html.replace(/^(<h[1-6])/, `$1 id="${id}"`);
-            } else {
-            }
-            return html;
-        };
-
-        // Override the image method to fix relative paths
-        renderer.image = (href, title, text) => {
-            // Check if this is a relative path
-            if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('file://')) {
-                // Use current file directory if available, otherwise fallback to working directory
-                const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
-                const fullPath = `file://${baseDir}/${href}`;
-                return originalImage(fullPath, title, text);
-            }
-            return originalImage(href, title, text);
-        };
-
-        if (window.marked) {
-            // Process content in the correct order: annotations first, then speaker notes, then internal links
-            // processAnnotations is handled by the annotations.js module
-            let processedContent = markdownContent;
-            if (typeof processAnnotations === 'function') {
-                processedContent = processAnnotations(markdownContent);
-            }
-            
-            // Process speaker notes after annotations
-            processedContent = processSpeakerNotes(processedContent);
-            
-            // Use the custom renderer with marked.parse first
-            let htmlContent = window.marked.parse(processedContent, { renderer: renderer, gfm: true, breaks: true });
-            
-            // Process Obsidian-style [[]] internal links on the rendered HTML (now async)
-            // processInternalLinks is handled by the internalLinks.js module
-            if (typeof processInternalLinksHTML === 'function') {
-                htmlContent = await processInternalLinksHTML(htmlContent);
-            }
-            
-            // Apply preview zoom if available
-            if (window.previewZoom) {
-                htmlContent = await window.previewZoom.onPreviewUpdate(window.currentFilePath, htmlContent);
-            }
-            
-            previewContent.innerHTML = htmlContent;
-            
-            // Render math equations with MathJax
-            await renderMathInContent(previewContent);
-            
-            // Update speaker notes display if visible
-            updateSpeakerNotesDisplay();
-            
-        } else {
-            console.warn('[renderer.js] Marked instance not available yet');
-            previewContent.innerHTML = '<p>Markdown preview loading...</p>';
-        }
+        await renderMarkdownContent(markdownContent);
     } catch (error) {
         console.error('[renderer.js] Error parsing Markdown for preview:', error);
         previewContent.innerHTML = '<p>Error rendering Markdown preview.</p>';
@@ -474,23 +496,26 @@ async function renderRegularMarkdown(markdownContent) {
 }
 
 // --- Structure Pane Logic ---
-function updateStructurePane(markdownContent) {
+// Helper functions for structure pane
+function validateStructurePaneInputs(markdownContent) {
     if (!markedInstance) {
         console.warn('[renderer.js] Marked instance not ready for structure pane.');
-        return;
+        return { isValid: false };
     }
     
-    // Handle undefined or null markdownContent
     if (!markdownContent || typeof markdownContent !== 'string') {
         console.warn('[renderer.js] markdownContent is undefined or not a string:', markdownContent);
         const structurePane = document.getElementById('structure-pane');
         if (structurePane) {
             structurePane.innerHTML = '<p>No content to display structure.</p>';
         }
-        return;
+        return { isValid: false };
     }
+    
+    return { isValid: true };
+}
 
-    structureList.innerHTML = ''; // Clear existing structure
+function extractHeadingsFromMarkdown(markdownContent) {
     const lines = markdownContent.split('\n');
     const headings = [];
     const headingRegex = /^(#{1,6})\s+(.*)/; // Regex to find headings
@@ -510,10 +535,13 @@ function updateStructurePane(markdownContent) {
         }
     });
 
-    // First pass: Identify headings and their start lines (Now done by iterating lines)
-    // Second pass: Determine end lines
+    return { headings, totalLines: lines.length };
+}
+
+function calculateHeadingEndLines(headings, totalLines) {
+    // Determine end lines for each heading
     for (let i = 0; i < headings.length; i++) {
-        let nextHeadingLine = lines.length; // Default to end of doc
+        let nextHeadingLine = totalLines; // Default to end of doc
         for (let j = i + 1; j < headings.length; j++) {
             // Find the next heading at the same or higher level
             if (headings[j].level <= headings[i].level) {
@@ -528,80 +556,106 @@ function updateStructurePane(markdownContent) {
              headings[i].endLine = headings[i].startLine; 
         }
     }
+    
+    return headings;
+}
+
+function createHeadingListElement(heading, index) {
+    const li = document.createElement('li');
+    li.classList.add(`level-${heading.level}`);
+
+    // Add toggle icon
+    const toggle = document.createElement('span');
+    toggle.classList.add('structure-toggle');
+    toggle.textContent = '▼'; // Default: expanded
+    toggle.onclick = (event) => {
+        event.stopPropagation(); // Prevent li's onclick from firing
+        toggleCollapse(li, heading.level);
+    };
+    li.appendChild(toggle);
+
+    // Add heading text
+    const textSpan = document.createElement('span');
+    textSpan.textContent = heading.title;
+    li.appendChild(textSpan);
+
+    // Set attributes
+    li.draggable = true;
+    li.dataset.startLine = heading.startLine;
+    li.dataset.endLine = heading.endLine;
+    li.dataset.headingIndex = index;
+    li.dataset.level = heading.level;
+    li.dataset.expanded = 'true'; // Default state
+    li.dataset.headingText = heading.title;
+
+    // Add event handlers
+    setupHeadingElementHandlers(li, heading);
+    
+    return li;
+}
+
+function setupHeadingElementHandlers(li, heading) {
+    // Drag and drop handlers
+    li.ondragstart = (event) => handleDragStart(event, heading);
+    li.ondragover = (event) => handleDragOver(event);
+    li.ondrop = (event) => handleDrop(event, heading);
+    li.oncontextmenu = (event) => handleContextMenu(event, heading);
+    
+    // Click handler for scrolling
+    li.onclick = (event) => {
+        // Prevent triggering click if toggle icon was clicked
+        if (event.target.classList.contains('structure-toggle')) {
+            return;
+        }
+
+        const lineNumber = parseInt(li.dataset.startLine, 10) + 1; // Get startLine and add 1 for editor
+        const headingText = li.dataset.headingText; // Get heading text from LI dataset
+
+        scrollToHeadingInEditor(lineNumber);
+        scrollToHeadingInPreview(headingText);
+    };
+}
+
+function scrollToHeadingInEditor(lineNumber) {
+    if (editor && typeof editor.revealLineInCenter === 'function') {
+        editor.revealLineInCenter(lineNumber);
+        editor.setPosition({ lineNumber: lineNumber, column: 1 });
+        editor.focus(); // Focus editor after scrolling
+    }
+}
+
+function scrollToHeadingInPreview(headingText) {
+    if (headingText) {
+        const previewId = `heading-${slugify(headingText)}`;
+        const previewElement = document.getElementById(previewId);
+        const previewContentDiv = document.getElementById('preview-content');
+
+        if (previewElement && previewContentDiv) {
+            // Wrap scroll in requestAnimationFrame to handle timing issues
+            requestAnimationFrame(() => {
+                previewElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start' // Scrolls to the top of the element
+                });
+            });
+        }
+    }
+}
+
+function updateStructurePane(markdownContent) {
+    const validation = validateStructurePaneInputs(markdownContent);
+    if (!validation.isValid) {
+        return;
+    }
+
+    structureList.innerHTML = ''; // Clear existing structure
+    
+    const { headings, totalLines } = extractHeadingsFromMarkdown(markdownContent);
+    const processedHeadings = calculateHeadingEndLines(headings, totalLines);
 
     // Populate the structure list
-    headings.forEach((heading, index) => {
-         const li = document.createElement('li');
-         li.classList.add(`level-${heading.level}`);
-
-         // Add toggle icon
-         const toggle = document.createElement('span');
-         toggle.classList.add('structure-toggle');
-         toggle.textContent = '▼'; // Default: expanded
-         toggle.onclick = (event) => {
-             event.stopPropagation(); // Prevent li's onclick from firing
-             toggleCollapse(li, heading.level);
-         };
-         li.appendChild(toggle);
-
-         // Add heading text
-         const textSpan = document.createElement('span');
-         textSpan.textContent = heading.title;
-         li.appendChild(textSpan);
-
-         li.draggable = true;
-         li.dataset.startLine = heading.startLine; // Now uses the correct index
-         li.dataset.endLine = heading.endLine;
-         li.dataset.headingIndex = index; // Keep track of the original index
-         li.dataset.level = heading.level;
-         li.dataset.expanded = 'true'; // Default state
-         li.dataset.headingText = heading.title; // Use heading.title here
-
-         // Placeholder event handlers - Implement these functions later
-         li.ondragstart = (event) => handleDragStart(event, heading);
-         li.ondragover = (event) => handleDragOver(event);
-         li.ondrop = (event) => handleDrop(event, heading);
-         li.oncontextmenu = (event) => handleContextMenu(event, heading);
-         // Optional: Add click listener to scroll editor
-         li.onclick = (event) => {
-            // Prevent triggering click if toggle icon was clicked
-            if (event.target.classList.contains('structure-toggle')) {
-                return;
-            }
-
-            const lineNumber = parseInt(li.dataset.startLine, 10) + 1; // Get startLine and add 1 for editor
-            const headingText = li.dataset.headingText; // Get heading text from LI dataset
-
-            // 1. Scroll Editor Pane
-            if (editor && typeof editor.revealLineInCenter === 'function') {
-                editor.revealLineInCenter(lineNumber);
-                editor.setPosition({ lineNumber: lineNumber, column: 1 });
-                editor.focus(); // Focus editor after scrolling
-            } else {
-            }
-
-            // 2. Scroll Preview Pane
-            if (headingText) {
-                const previewId = `heading-${slugify(headingText)}`;
-                const previewElement = document.getElementById(previewId);
-                const previewContentDiv = document.getElementById('preview-content');
-
-                if (previewElement && previewContentDiv) {
-                    // --- Removed diagnostic logs ---
-                    
-                    // Wrap scroll in requestAnimationFrame to handle timing issues
-                    requestAnimationFrame(() => {
-                        previewElement.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start' // Scrolls to the top of the element
-                        });
-                    });
-                    
-                } else {
-                }
-            } else {
-            }
-        };
+    processedHeadings.forEach((heading, index) => {
+        const li = createHeadingListElement(heading, index);
         structureList.appendChild(li);
     });
 }
@@ -1169,6 +1223,99 @@ window.foldCurrent = foldCurrent;
 window.unfoldCurrent = unfoldCurrent;
 
 // --- AI Summarization Action ---
+// Helper functions for AI summarization actions
+function validateEditorSelection(ed, actionName) {
+    const selection = ed.getSelection();
+    const selectedText = ed.getModel().getValueInRange(selection);
+    
+    if (!selectedText || selectedText.trim() === '') {
+        console.warn(`[renderer.js] No text selected for ${actionName}`);
+        showNotification(`Please select some text to ${actionName.toLowerCase()}`, 'warning');
+        return { isValid: false };
+    }
+    
+    return { isValid: true, selection, selectedText };
+}
+
+async function handleAISummarization(ed) {
+    const validation = validateEditorSelection(ed, 'AI summarization');
+    if (!validation.isValid) return;
+    
+    const { selection, selectedText } = validation;
+    
+    try {
+        showNotification('Generating speaker notes...', 'info');
+        
+        const result = await window.electronAPI.invoke('summarize-text-to-notes', selectedText);
+        
+        if (result.error) {
+            console.error('[renderer.js] AI summarization failed:', result.error);
+            showNotification(`Error: ${result.error}`, 'error');
+            return;
+        }
+        
+        if (result.success) {
+            ed.executeEdits('ai-summarization', [{
+                range: selection,
+                text: result.wrappedText
+            }]);
+            
+            showNotification(`Speaker notes generated using ${result.provider} (${result.model})`, 'success');
+            
+            console.log('[renderer.js] Original text replaced with notes:', {
+                original: selectedText.substring(0, 100) + '...',
+                heading: result.heading,
+                bullets: result.bullets,
+                provider: result.provider,
+                model: result.model
+            });
+        }
+    } catch (error) {
+        console.error('[renderer.js] Error in AI summarization:', error);
+        showNotification('Failed to generate speaker notes. Please try again.', 'error');
+    }
+}
+
+async function handleNotesExtraction(ed) {
+    const validation = validateEditorSelection(ed, 'notes extraction');
+    if (!validation.isValid) return;
+    
+    const { selection, selectedText } = validation;
+    
+    console.log(`[renderer.js] Starting notes extraction for selected text: "${selectedText.substring(0, 100)}..."`);
+    
+    try {
+        showNotification('Extracting notes content...', 'info');
+        
+        const result = await window.electronAPI.invoke('extract-notes-content', selectedText);
+        
+        if (result.error) {
+            console.error('[renderer.js] Notes extraction failed:', result.error);
+            showNotification(`Error: ${result.error}`, 'error');
+            return;
+        }
+        
+        if (result.success) {
+            console.log(`[renderer.js] Notes extraction successful: found ${result.blocksFound} block(s)`);
+            
+            ed.executeEdits('extract-notes', [{
+                range: selection,
+                text: result.extractedContent
+            }]);
+            
+            const message = `Extracted content from ${result.blocksFound} notes block${result.blocksFound === 1 ? '' : 's'}`;
+            showNotification(message, 'success');
+        } else {
+            console.warn('[renderer.js] Notes extraction returned no success flag');
+            showNotification('Failed to extract notes content', 'error');
+        }
+        
+    } catch (error) {
+        console.error('[renderer.js] Notes extraction failed:', error);
+        showNotification('Failed to extract notes content', 'error');
+    }
+}
+
 function addAISummarizationAction() {
     if (!editor) {
         console.warn('[renderer.js] Cannot add AI summarization action: editor not available');
@@ -1181,58 +1328,8 @@ function addAISummarizationAction() {
         label: '🤖 Summarize to Speaker Notes',
         contextMenuGroupId: 'modification',
         contextMenuOrder: 1.5,
-        
-        // Show only when text is selected
         precondition: 'editorHasSelection',
-        
-        run: async function(ed) {
-            const selection = ed.getSelection();
-            const selectedText = ed.getModel().getValueInRange(selection);
-            
-            if (!selectedText || selectedText.trim() === '') {
-                console.warn('[renderer.js] No text selected for AI summarization');
-                showNotification('Please select some text to summarize', 'warning');
-                return;
-            }
-            
-            
-            try {
-                // Show loading indicator
-                showNotification('Generating speaker notes...', 'info');
-                
-                // Call the AI summarization service
-                const result = await window.electronAPI.invoke('summarize-text-to-notes', selectedText);
-                
-                if (result.error) {
-                    console.error('[renderer.js] AI summarization failed:', result.error);
-                    showNotification(`Error: ${result.error}`, 'error');
-                    return;
-                }
-                
-                if (result.success) {
-                    
-                    // Replace selected text with the wrapped notes
-                    ed.executeEdits('ai-summarization', [{
-                        range: selection,
-                        text: result.wrappedText
-                    }]);
-                    
-                    showNotification(`Speaker notes generated using ${result.provider} (${result.model})`, 'success');
-                    
-                    // Log the transformation for debugging
-                    console.log('[renderer.js] Original text replaced with notes:', {
-                        original: selectedText.substring(0, 100) + '...',
-                        heading: result.heading,
-                        bullets: result.bullets,
-                        provider: result.provider,
-                        model: result.model
-                    });
-                }
-            } catch (error) {
-                console.error('[renderer.js] Error in AI summarization:', error);
-                showNotification('Failed to generate speaker notes. Please try again.', 'error');
-            }
-        }
+        run: handleAISummarization
     });
     
     // Add context menu action for extracting notes content
@@ -1241,59 +1338,9 @@ function addAISummarizationAction() {
         label: '📝 Extract Notes Content',
         contextMenuGroupId: 'modification',
         contextMenuOrder: 1.6,
-        
-        // Show only when text is selected
         precondition: 'editorHasSelection',
-        
-        run: async function(ed) {
-            const selection = ed.getSelection();
-            const selectedText = ed.getModel().getValueInRange(selection);
-            
-            if (!selectedText || selectedText.trim() === '') {
-                console.warn('[renderer.js] No text selected for notes extraction');
-                showNotification('Please select some text to extract notes from', 'warning');
-                return;
-            }
-            
-            console.log(`[renderer.js] Starting notes extraction for selected text: "${selectedText.substring(0, 100)}..."`);
-            
-            try {
-                // Show loading indicator
-                showNotification('Extracting notes content...', 'info');
-                
-                // Call the notes extraction service
-                const result = await window.electronAPI.invoke('extract-notes-content', selectedText);
-                
-                if (result.error) {
-                    console.error('[renderer.js] Notes extraction failed:', result.error);
-                    showNotification(`Error: ${result.error}`, 'error');
-                    return;
-                }
-                
-                if (result.success) {
-                    console.log(`[renderer.js] Notes extraction successful: found ${result.blocksFound} block(s)`);
-                    
-                    // Replace selected text with the extracted notes content
-                    ed.executeEdits('extract-notes', [{
-                        range: selection,
-                        text: result.extractedContent
-                    }]);
-                    
-                    // Show success notification
-                    const message = `Extracted content from ${result.blocksFound} notes block${result.blocksFound === 1 ? '' : 's'}`;
-                    showNotification(message, 'success');
-                } else {
-                    console.warn('[renderer.js] Notes extraction returned no success flag');
-                    showNotification('Failed to extract notes content', 'error');
-                }
-                
-            } catch (error) {
-                console.error('[renderer.js] Notes extraction failed:', error);
-                showNotification('Failed to extract notes content', 'error');
-            }
-        }
+        run: handleNotesExtraction
     });
-    
 }
 
 // --- Command Palette Action ---
@@ -3371,51 +3418,47 @@ showWholepartBtn.addEventListener('click', () => {
 });
 
 // --- Right Pane Switching Function ---
-function showRightPane(paneType) {
-    console.log('[DEBUG] showRightPane called with:', paneType);
+// Helper functions for right pane management
+function debugToggleButtonsVisibility(toggleButtons, phase) {
+    if (!toggleButtons) return;
     
-    // Check toggle buttons visibility before switching
-    const toggleButtons = document.querySelector('#right-pane .toggle-buttons');
-    if (toggleButtons) {
-        console.log('[DEBUG] Right pane toggle buttons before switch - display:', window.getComputedStyle(toggleButtons).display);
-        console.log('[DEBUG] Right pane toggle buttons before switch - visibility:', window.getComputedStyle(toggleButtons).visibility);
-        console.log('[DEBUG] Right pane toggle buttons before switch - parent:', toggleButtons.parentElement);
-    }
+    console.log(`[DEBUG] Right pane toggle buttons ${phase} - display:`, window.getComputedStyle(toggleButtons).display);
+    console.log(`[DEBUG] Right pane toggle buttons ${phase} - visibility:`, window.getComputedStyle(toggleButtons).visibility);
+    console.log(`[DEBUG] Right pane toggle buttons ${phase} - parent:`, toggleButtons.parentElement);
+}
+
+function hideAllRightPanes() {
+    const panes = [
+        { element: previewPane, name: 'preview' },
+        { element: chatPane, name: 'chat' },
+        { element: wholepartPane, name: 'wholepart' },
+        { element: document.getElementById('search-pane'), name: 'search' },
+        { element: document.getElementById('speaker-notes-pane'), name: 'speaker-notes' }
+    ];
     
-    // Hide all content panes and add hidden class
-    if (previewPane) {
-        previewPane.style.display = 'none';
-        previewPane.classList.add('pane-hidden');
-    }
-    if (chatPane) {
-        chatPane.style.display = 'none';
-        chatPane.classList.add('pane-hidden');
-    }
-    if (wholepartPane) {
-        wholepartPane.style.display = 'none';
-        wholepartPane.classList.add('pane-hidden');
-    }
-    const searchPane = document.getElementById('search-pane');
-    if (searchPane) {
-        searchPane.style.display = 'none';
-        searchPane.classList.add('pane-hidden');
-    }
-    const speakerNotesPane = document.getElementById('speaker-notes-pane');
-    if (speakerNotesPane) {
-        speakerNotesPane.style.display = 'none';
-        speakerNotesPane.classList.add('pane-hidden');
-    }
+    panes.forEach(({ element }) => {
+        if (element) {
+            element.style.display = 'none';
+            element.classList.add('pane-hidden');
+        }
+    });
+}
+
+function deactivateAllToggleButtons() {
+    const buttons = [
+        showPreviewBtn,
+        showChatBtn,
+        showWholepartBtn,
+        document.getElementById('show-search-btn'),
+        document.getElementById('show-speaker-notes-btn')
+    ];
     
-    // Remove active state from all toggle buttons
-    if (showPreviewBtn) showPreviewBtn.classList.remove('active');
-    if (showChatBtn) showChatBtn.classList.remove('active');
-    if (showWholepartBtn) showWholepartBtn.classList.remove('active');
-    const showSearchBtn = document.getElementById('show-search-btn');
-    if (showSearchBtn) showSearchBtn.classList.remove('active');
-    const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
-    if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.remove('active');
-    
-    // Show the requested pane and activate its button
+    buttons.forEach(btn => {
+        if (btn) btn.classList.remove('active');
+    });
+}
+
+function showSpecificPane(paneType) {
     switch (paneType) {
         case 'preview':
             if (previewPane) {
@@ -3448,7 +3491,6 @@ function showRightPane(paneType) {
             }
             const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
             if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.add('active');
-            // Update speaker notes content when pane is shown
             updateSpeakerNotesDisplay();
             break;
         case 'wholepart':
@@ -3457,7 +3499,6 @@ function showRightPane(paneType) {
                 wholepartPane.classList.remove('pane-hidden');
             }
             if (showWholepartBtn) showWholepartBtn.classList.add('active');
-            // Initialize wholepart visualization when pane is shown
             if (window.initializeWholepartVisualization) {
                 window.initializeWholepartVisualization();
             }
@@ -3471,76 +3512,90 @@ function showRightPane(paneType) {
             if (showPreviewBtn) showPreviewBtn.classList.add('active');
             break;
     }
+}
+
+function debugDetailedToggleButtonsInfo(toggleButtons) {
+    if (!toggleButtons) return;
     
-    // Check toggle buttons visibility after switching
-    if (toggleButtons) {
-        console.log('[DEBUG] Right pane toggle buttons after switch - display:', window.getComputedStyle(toggleButtons).display);
-        console.log('[DEBUG] Right pane toggle buttons after switch - visibility:', window.getComputedStyle(toggleButtons).visibility);
-        console.log('[DEBUG] Right pane toggle buttons after switch - parent:', toggleButtons.parentElement);
-        console.log('[DEBUG] Right pane toggle buttons after switch - style:', toggleButtons.style.cssText);
-        
-        // Check the actual position and size
-        const rect = toggleButtons.getBoundingClientRect();
-        console.log('[DEBUG] Toggle buttons position/size:', {
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-            bottom: rect.bottom,
-            right: rect.right
-        });
-        
-        // Check viewport dimensions
-        console.log('[DEBUG] Viewport dimensions:', {
-            width: window.innerWidth,
-            height: window.innerHeight
-        });
-        
-        // Check if it's actually visible in viewport
-        const isInViewport = rect.top >= 0 && rect.left >= 0 && 
-                           rect.bottom <= window.innerHeight && 
-                           rect.right <= window.innerWidth;
-        console.log('[DEBUG] Toggle buttons in viewport:', isInViewport);
-        
-        // Check the right pane itself
-        const rightPane = document.getElementById('right-pane');
-        if (rightPane) {
-            const rightPaneRect = rightPane.getBoundingClientRect();
-            console.log('[DEBUG] Right pane position/size:', {
-                top: rightPaneRect.top,
-                left: rightPaneRect.left,
-                width: rightPaneRect.width,
-                height: rightPaneRect.height
-            });
-        }
-        
-        // Check z-index and positioning
-        const computedStyle = window.getComputedStyle(toggleButtons);
-        console.log('[DEBUG] Toggle buttons computed style:', {
-            position: computedStyle.position,
-            zIndex: computedStyle.zIndex,
-            transform: computedStyle.transform,
-            opacity: computedStyle.opacity,
-            overflow: computedStyle.overflow
-        });
-        
-        // Check if anything is covering the buttons
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const elementAtCenter = document.elementFromPoint(centerX, centerY);
-        console.log('[DEBUG] Element at toggle buttons center:', elementAtCenter);
-        
-        // Check the buttons themselves
-        const buttons = toggleButtons.querySelectorAll('button');
-        console.log('[DEBUG] Number of buttons found:', buttons.length);
-        buttons.forEach((btn, index) => {
-            const btnRect = btn.getBoundingClientRect();
-            console.log(`[DEBUG] Button ${index} (${btn.textContent}):`, {
-                visible: btnRect.width > 0 && btnRect.height > 0,
-                position: { top: btnRect.top, left: btnRect.left, width: btnRect.width, height: btnRect.height }
-            });
+    console.log('[DEBUG] Right pane toggle buttons after switch - display:', window.getComputedStyle(toggleButtons).display);
+    console.log('[DEBUG] Right pane toggle buttons after switch - visibility:', window.getComputedStyle(toggleButtons).visibility);
+    console.log('[DEBUG] Right pane toggle buttons after switch - parent:', toggleButtons.parentElement);
+    console.log('[DEBUG] Right pane toggle buttons after switch - style:', toggleButtons.style.cssText);
+    
+    // Check the actual position and size
+    const rect = toggleButtons.getBoundingClientRect();
+    console.log('[DEBUG] Toggle buttons position/size:', {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+        bottom: rect.bottom,
+        right: rect.right
+    });
+    
+    // Check viewport dimensions
+    console.log('[DEBUG] Viewport dimensions:', {
+        width: window.innerWidth,
+        height: window.innerHeight
+    });
+    
+    // Check if it's actually visible in viewport
+    const isInViewport = rect.top >= 0 && rect.left >= 0 && 
+                       rect.bottom <= window.innerHeight && 
+                       rect.right <= window.innerWidth;
+    console.log('[DEBUG] Toggle buttons in viewport:', isInViewport);
+    
+    // Check the right pane itself
+    const rightPane = document.getElementById('right-pane');
+    if (rightPane) {
+        const rightPaneRect = rightPane.getBoundingClientRect();
+        console.log('[DEBUG] Right pane position/size:', {
+            top: rightPaneRect.top,
+            left: rightPaneRect.left,
+            width: rightPaneRect.width,
+            height: rightPaneRect.height
         });
     }
+    
+    // Check z-index and positioning
+    const computedStyle = window.getComputedStyle(toggleButtons);
+    console.log('[DEBUG] Toggle buttons computed style:', {
+        position: computedStyle.position,
+        zIndex: computedStyle.zIndex,
+        transform: computedStyle.transform,
+        opacity: computedStyle.opacity,
+        overflow: computedStyle.overflow
+    });
+    
+    // Check if anything is covering the buttons
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const elementAtCenter = document.elementFromPoint(centerX, centerY);
+    console.log('[DEBUG] Element at toggle buttons center:', elementAtCenter);
+    
+    // Check the buttons themselves
+    const buttons = toggleButtons.querySelectorAll('button');
+    console.log('[DEBUG] Number of buttons found:', buttons.length);
+    buttons.forEach((btn, index) => {
+        const btnRect = btn.getBoundingClientRect();
+        console.log(`[DEBUG] Button ${index} (${btn.textContent}):`, {
+            visible: btnRect.width > 0 && btnRect.height > 0,
+            position: { top: btnRect.top, left: btnRect.left, width: btnRect.width, height: btnRect.height }
+        });
+    });
+}
+
+function showRightPane(paneType) {
+    console.log('[DEBUG] showRightPane called with:', paneType);
+    
+    const toggleButtons = document.querySelector('#right-pane .toggle-buttons');
+    debugToggleButtonsVisibility(toggleButtons, 'before switch');
+    
+    hideAllRightPanes();
+    deactivateAllToggleButtons();
+    showSpecificPane(paneType);
+    
+    debugDetailedToggleButtonsInfo(toggleButtons);
 }
 
 // --- Structure Pane / File Tree Functions ---

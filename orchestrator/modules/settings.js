@@ -1,5 +1,7 @@
 
 // === Settings Dialog Implementation ===
+import { getSettings, saveSettings, handleError, invokeElectronAPI } from '../utils/api-helpers.js';
+import { createModal, showModal, hideModal, createButton } from '../utils/dom-helpers.js';
 
 let settingsDialog = null;
 let currentSettings = null;
@@ -7,7 +9,7 @@ let currentSettings = null;
 async function openSettingsDialog(category = 'general') {
     try {
         // Load current settings
-        currentSettings = await window.electronAPI.invoke('get-settings');
+        currentSettings = await getSettings();
         
         // Create dialog if it doesn't exist
         if (!settingsDialog) {
@@ -18,45 +20,28 @@ async function openSettingsDialog(category = 'general') {
         showSettingsCategory(category);
         
         // Show the dialog
-        settingsDialog.classList.add('active');
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        showModal(settingsDialog);
         
     } catch (error) {
-        console.error('[Renderer] Error opening settings dialog:', error);
-        showNotification('Error opening settings dialog', 'error');
+        handleError('Error opening settings dialog', error, 'Settings');
     }
 }
 
 function createSettingsDialog() {
-    // Create dialog overlay
-    settingsDialog = document.createElement('div');
-    settingsDialog.id = 'settings-dialog';
-    settingsDialog.className = 'modal-overlay';
+    // Create modal using utility function
+    const modalElements = createModal({
+        id: 'settings-dialog',
+        title: 'Settings',
+        onClose: closeSettingsDialog,
+        onSave: saveSettingsDialog
+    });
     
-    // Create dialog content
-    const dialogContent = document.createElement('div');
-    dialogContent.className = 'modal-dialog';
+    settingsDialog = modalElements.modal;
+    const { body } = modalElements;
     
-    // Create dialog header
-    const header = document.createElement('div');
-    header.className = 'modal-header';
-    
-    const title = document.createElement('h2');
+    // Customize the title element
+    const title = settingsDialog.querySelector('.modal-title');
     title.id = 'settings-title';
-    title.textContent = 'Settings';
-    title.className = 'modal-title';
-    
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '×';
-    closeBtn.className = 'modal-close';
-    closeBtn.onclick = closeSettingsDialog;
-    
-    header.appendChild(title);
-    header.appendChild(closeBtn);
-    
-    // Create dialog body
-    const body = document.createElement('div');
-    body.className = 'modal-body';
     
     // Create sidebar
     const sidebar = document.createElement('div');
@@ -68,40 +53,8 @@ function createSettingsDialog() {
     content.id = 'settings-content';
     content.className = 'modal-content';
     
-    // Settings styles are now in main CSS file
-    
     body.appendChild(sidebar);
     body.appendChild(content);
-    
-    // Create footer
-    const footer = document.createElement('div');
-    footer.className = 'modal-footer';
-    
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.className = 'btn btn-secondary';
-    cancelBtn.onclick = closeSettingsDialog;
-    
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = 'Save Settings';
-    saveBtn.style.cssText = `
-        padding: 8px 16px;
-        border: none;
-        background: #0066cc;
-        color: white;
-        border-radius: 4px;
-        cursor: pointer;
-    `;
-    saveBtn.onclick = saveSettingsDialog;
-    
-    footer.appendChild(cancelBtn);
-    footer.appendChild(saveBtn);
-    
-    // Assemble dialog
-    dialogContent.appendChild(header);
-    dialogContent.appendChild(body);
-    dialogContent.appendChild(footer);
-    settingsDialog.appendChild(dialogContent);
     
     // Add to document
     document.body.appendChild(settingsDialog);
@@ -981,8 +934,8 @@ async function saveSettingsDialog() {
         // Collect all form values
         const updatedSettings = collectSettingsFromForm();
         
-        // Update settings via IPC
-        await window.electronAPI.invoke('set-settings', updatedSettings);
+        // Update settings via IPC using utility function
+        await saveSettings(updatedSettings);
         
         // Update global settings object
         window.appSettings = updatedSettings;
@@ -1008,8 +961,7 @@ async function saveSettingsDialog() {
         showNotification('Settings saved successfully', 'success');
         
     } catch (error) {
-        console.error('[Renderer] Error saving settings:', error);
-        showNotification('Error saving settings', 'error');
+        handleError('Error saving settings', error, 'Settings');
     }
 }
 
@@ -1361,8 +1313,7 @@ function collectSettingsFromForm() {
 
 function closeSettingsDialog() {
     if (settingsDialog) {
-        settingsDialog.classList.remove('active');
-        document.body.style.overflow = 'auto';
+        hideModal(settingsDialog);
     }
 }
 
@@ -1434,7 +1385,9 @@ async function testVisualizationFilters() {
 // Helper functions for dialog buttons
 async function changeWorkingDirectory() {
     try {
-        const result = await window.electronAPI.invoke('change-working-directory');
+        const result = await invokeElectronAPI('change-working-directory', null, {
+            errorMessage: 'Error changing working directory'
+        });
         if (result.success) {
             const input = document.getElementById('working-directory');
             if (input && result.directory) {
@@ -1442,7 +1395,7 @@ async function changeWorkingDirectory() {
             }
         }
     } catch (error) {
-        console.error('[Renderer] Error changing working directory:', error);
+        handleError('Error changing working directory', error, 'Settings');
     }
 }
 

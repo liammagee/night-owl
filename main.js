@@ -807,810 +807,141 @@ function createWindow() {
   });
 }
 
+// Helper functions for menu creation
+function createFileMenuItems() {
+    return [
+      {
+        label: 'New File',
+        accelerator: 'CmdOrCtrl+N',
+        click: async () => {
+          if (!mainWindow) return;
+          console.log('[main.js] New File menu item clicked.');
+          currentFilePath = null;
+          mainWindow.setTitle('Hegel Pedagogy AI - Untitled');
+          mainWindow.webContents.send('new-file-created');
+          console.log('[main.js] Sent new-file-created signal to renderer.');
+        }
+      },
+      {
+        label: 'Open File...',
+        accelerator: 'CmdOrCtrl+O',
+        click: async () => {
+          if (!mainWindow) return;
+          console.log('[main.js] Open File menu item clicked.');
+          const result = await openFile();
+          if (result && result.filePath && mainWindow) {
+              console.log(`[main.js] File opened via menu: ${result.filePath}`);
+          } else {
+               console.log('[main.js] Open File dialog cancelled or failed.');
+          }
+        }
+      },
+      { type: 'separator' },
+      {
+        label: 'Save',
+        accelerator: 'CmdOrCtrl+S',
+        click: async () => {
+          if (!mainWindow) return;
+          console.log('[main.js] Save menu item clicked.');
+          mainWindow.webContents.send('perform-save');
+        }
+      },
+      {
+        label: 'Save As...',
+        accelerator: 'CmdOrCtrl+Shift+S',
+        click: async () => {
+          if (!mainWindow) return;
+          console.log('[main.js] Save As menu item clicked.');
+          mainWindow.webContents.send('perform-save-as');
+        }
+      }
+    ];
+}
+
+function createEditMenuItems() {
+    return [
+      { label: 'Undo', accelerator: 'CmdOrCtrl+Z', role: 'undo' },
+      { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', role: 'redo' },
+      { type: 'separator' },
+      { label: 'Cut', accelerator: 'CmdOrCtrl+X', role: 'cut' },
+      { label: 'Copy', accelerator: 'CmdOrCtrl+C', role: 'copy' },
+      { label: 'Paste', accelerator: 'CmdOrCtrl+V', role: 'paste' },
+      { label: 'Select All', accelerator: 'CmdOrCtrl+A', role: 'selectAll' },
+      { type: 'separator' },
+      {
+        label: 'Settings...',
+        accelerator: 'CmdOrCtrl+,',
+        click: () => {
+          if (!mainWindow) return;
+          mainWindow.webContents.send('open-settings');
+        }
+      }
+    ];
+}
+
+function createViewMenuItems() {
+    return [
+      {
+        label: 'Mode',
+        submenu: [
+          {
+            label: 'Editor',
+            accelerator: 'CmdOrCtrl+1',
+            click: () => {
+              if (!mainWindow) return;
+              mainWindow.webContents.send('switch-to-editor');
+            }
+          },
+          {
+            label: 'Presentation',
+            accelerator: 'CmdOrCtrl+2',
+            click: () => {
+              if (!mainWindow) return;
+              mainWindow.webContents.send('switch-to-presentation');
+            }
+          }
+        ]
+      },
+      { type: 'separator' },
+      {
+        label: 'Toggle Developer Tools',
+        accelerator: process.platform === 'darwin' ? 'Alt+Cmd+I' : 'Ctrl+Shift+I',
+        click: () => {
+          if (!mainWindow) return;
+          mainWindow.webContents.toggleDevTools();
+        }
+      }
+    ];
+}
+
 function createMainMenu() {
     const template = [
       {
         label: 'File',
-        submenu: [
-          {
-            label: 'New File',
-            accelerator: 'CmdOrCtrl+N',
-            click: async () => {
-              if (!mainWindow) return;
-              console.log('[main.js] New File menu item clicked.');
-              currentFilePath = null;
-              mainWindow.setTitle('Hegel Pedagogy AI - Untitled');
-              mainWindow.webContents.send('new-file-created');
-              console.log('[main.js] Sent new-file-created signal to renderer.');
-            }
-          },
-          {
-            label: 'Open File...',
-            accelerator: 'CmdOrCtrl+O',
-            click: async () => {
-              if (!mainWindow) return;
-              console.log('[main.js] Open File menu item clicked.');
-              const result = await openFile();
-              if (result && result.filePath && mainWindow) {
-                  console.log(`[main.js] File opened via menu: ${result.filePath}`);
-              } else {
-                   console.log('[main.js] Open File dialog cancelled or failed.');
-              }
-            }
-          },
-          {
-            label: 'Open Markdown File (Presentation)',
-            accelerator: 'CmdOrCtrl+Shift+O',
-            click: async () => {
-              if (!mainWindow) return;
-              const result = await dialog.showOpenDialog(mainWindow, {
-                properties: ['openFile'],
-                filters: [
-                  { name: 'Markdown Files', extensions: ['md', 'markdown'] },
-                  { name: 'All Files', extensions: ['*'] }
-                ]
-              });
-
-              if (!result.canceled && result.filePaths.length > 0) {
-                const filePath = result.filePaths[0];
-                try {
-                  const content = require('fs').readFileSync(filePath, 'utf-8');
-                  mainWindow.webContents.send('load-presentation-file', content, filePath, null);
-                } catch (error) {
-                  console.error('Error loading file:', error);
-                  mainWindow.webContents.send('load-presentation-file', null, filePath, error.message);
-                }
-              }
-            }
-          },
-          {
-            label: 'Open Folder...',
-            accelerator: 'CmdOrCtrl+Alt+O',
-            click: async () => {
-               if (!mainWindow) return;
-               console.log('[main.js] Open Folder menu item clicked.');
-               try {
-                    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-                        properties: ['openDirectory']
-                    });
-                    if (!canceled && filePaths && filePaths.length > 0) {
-                        const folderPath = filePaths[0];
-                        console.log(`[main.js] Folder selected: ${folderPath}`);
-                        currentWorkingDirectory = folderPath;
-                        appSettings.workingDirectory = folderPath;
-                        addToRecentWorkspaces(folderPath); // Track workspace in recents
-                        currentFilePath = null;
-                        mainWindow.setTitle('Hegel Pedagogy AI - Untitled'); 
-                        mainWindow.webContents.send('refresh-file-tree');
-                         console.log('[main.js] Sent refresh-file-tree signal to renderer.');
-                    } else {
-                         console.log('[main.js] Open Folder dialog cancelled.');
-                    }
-               } catch (err) {
-                    console.error('[main.js] Error opening folder:', err);
-                    dialog.showErrorBox('Open Folder Error', `Could not open the selected folder: ${err.message}`);
-               }
-            }
-          },
-          {
-            label: 'Save',
-            accelerator: 'CmdOrCtrl+S',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Save menu item clicked. Triggering save in renderer.');
-                mainWindow.webContents.send('trigger-save');
-              }
-            }
-          },
-          {
-            label: 'Save As...',
-            accelerator: 'Shift+CmdOrCtrl+S',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Save As menu item clicked. Triggering save-as in renderer.');
-                mainWindow.webContents.send('trigger-save-as');
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Export as HTML',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Export HTML menu item clicked. Triggering export-html in renderer.');
-                mainWindow.webContents.send('trigger-export-html');
-              }
-            }
-          },
-          {
-            label: 'Export as HTML (with References)',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Export HTML with References menu item clicked. Triggering export-html-pandoc in renderer.');
-                mainWindow.webContents.send('trigger-export-html-pandoc');
-              }
-            }
-          },
-          {
-            label: 'Export as PDF',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Export PDF menu item clicked. Triggering export-pdf in renderer.');
-                mainWindow.webContents.send('trigger-export-pdf');
-              }
-            }
-          },
-          {
-            label: 'Export as PDF (with References)',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Export PDF with References menu item clicked. Triggering export-pdf-pandoc in renderer.');
-                mainWindow.webContents.send('trigger-export-pdf-pandoc');
-              }
-            }
-          },
-          {
-            label: 'Export as PowerPoint',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Export PowerPoint menu item clicked. Triggering export-pptx in renderer.');
-                mainWindow.webContents.send('trigger-export-pptx');
-              }
-            }
-          },
-          {
-            label: 'Export as Accessible HTML',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Export Accessible HTML menu item clicked. Triggering export-html-accessible in renderer.');
-                mainWindow.webContents.send('trigger-export-html-accessible');
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Exit',
-            accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Alt+F4',
-            click: () => {
-              app.quit();
-            }
-          }
-        ]
+        submenu: createFileMenuItems()
       },
       {
-        label: 'Edit',
-        submenu: [
-          { role: 'undo' },
-          { role: 'redo' },
-          { type: 'separator' },
-          { role: 'cut' },
-          { role: 'copy' },
-          { role: 'paste' },
-          { role: 'selectAll' }
-        ]
+        label: 'Edit', 
+        submenu: createEditMenuItems()
       },
       {
-        label: 'Format',
-        submenu: [
-          {
-            label: 'Bold',
-            accelerator: 'CmdOrCtrl+B',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Bold');
-                mainWindow.webContents.send('format-text', { type: 'bold' });
-              }
-            }
-          },
-          {
-            label: 'Italic',
-            accelerator: 'CmdOrCtrl+I',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Italic');
-                mainWindow.webContents.send('format-text', { type: 'italic' });
-              }
-            }
-          },
-          {
-            label: 'Code',
-            accelerator: 'CmdOrCtrl+`',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Code');
-                mainWindow.webContents.send('format-text', { type: 'code' });
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Heading 1',
-            accelerator: 'CmdOrCtrl+Alt+1',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Heading 1');
-                mainWindow.webContents.send('format-text', { type: 'heading1' });
-              }
-            }
-          },
-          {
-            label: 'Heading 2',
-            accelerator: 'CmdOrCtrl+Alt+2',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Heading 2');
-                mainWindow.webContents.send('format-text', { type: 'heading2' });
-              }
-            }
-          },
-          {
-            label: 'Heading 3',
-            accelerator: 'CmdOrCtrl+Alt+3',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Heading 3');
-                mainWindow.webContents.send('format-text', { type: 'heading3' });
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Bullet List',
-            accelerator: 'CmdOrCtrl+Shift+8',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Bullet List');
-                mainWindow.webContents.send('format-text', { type: 'bulletlist' });
-              }
-            }
-          },
-          {
-            label: 'Numbered List',
-            accelerator: 'CmdOrCtrl+Shift+7',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Numbered List');
-                mainWindow.webContents.send('format-text', { type: 'numberedlist' });
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Insert Link',
-            accelerator: 'CmdOrCtrl+K',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Insert Link');
-                mainWindow.webContents.send('format-text', { type: 'link' });
-              }
-            }
-          },
-          {
-            label: 'Insert Image',
-            accelerator: 'CmdOrCtrl+Shift+I',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Insert Image');
-                mainWindow.webContents.send('format-text', { type: 'image' });
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Blockquote',
-            accelerator: 'CmdOrCtrl+Shift+.',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Blockquote');
-                mainWindow.webContents.send('format-text', { type: 'blockquote' });
-              }
-            }
-          },
-          {
-            label: 'Strikethrough',
-            accelerator: 'CmdOrCtrl+Shift+X',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Strikethrough');
-                mainWindow.webContents.send('format-text', { type: 'strikethrough' });
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Fold Current Section',
-            accelerator: 'CmdOrCtrl+Shift+[',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Fold Current');
-                mainWindow.webContents.send('format-text', { type: 'fold-current' });
-              }
-            }
-          },
-          {
-            label: 'Expand Current Section',
-            accelerator: 'CmdOrCtrl+Shift+]',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Expand Current');
-                mainWindow.webContents.send('format-text', { type: 'unfold-current' });
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Fold All Sections',
-            accelerator: 'CmdOrCtrl+K CmdOrCtrl+0',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Fold All');
-                mainWindow.webContents.send('format-text', { type: 'fold-all' });
-              }
-            }
-          },
-          {
-            label: 'Expand All Sections',
-            accelerator: 'CmdOrCtrl+K CmdOrCtrl+J',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Format: Expand All');
-                mainWindow.webContents.send('format-text', { type: 'unfold-all' });
-              }
-            }
-          }
-        ]
-      },
-      {
-         label: 'View',
-         submenu: [
-            { role: 'reload' },
-            { role: 'forceReload' },
-            { role: 'toggleDevTools' },
-            { type: 'separator' },
-            {
-                label: 'Theme',
-                submenu: [
-                    { label: 'Light', type: 'radio', checked: nativeTheme.themeSource === 'light', click: () => { 
-                        console.log('[main.js] Theme menu: Light selected'); 
-                        nativeTheme.themeSource = 'light'; 
-                        if (mainWindow) { 
-                            console.log('[main.js] Sending set-theme: light');
-                            mainWindow.webContents.send('set-theme', 'light'); 
-                        } 
-                    } },
-                    { label: 'Dark', type: 'radio', checked: nativeTheme.themeSource === 'dark', click: () => { 
-                        console.log('[main.js] Theme menu: Dark selected'); 
-                        nativeTheme.themeSource = 'dark'; 
-                        if (mainWindow) { 
-                            console.log('[main.js] Sending set-theme: dark');
-                            mainWindow.webContents.send('set-theme', 'dark'); 
-                        } 
-                    } },
-                    { label: 'System', type: 'radio', checked: nativeTheme.themeSource === 'system', click: () => { 
-                        console.log('[main.js] Theme menu: System selected'); 
-                        nativeTheme.themeSource = 'system'; 
-                        if (mainWindow) { 
-                            const sysTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-                            console.log('[main.js] Sending set-theme:', sysTheme);
-                            mainWindow.webContents.send('set-theme', sysTheme); 
-                        } 
-                    } },
-                ]
-            },
-            { type: 'separator' },
-            {
-                label: 'Editor Mode',
-                accelerator: 'CmdOrCtrl+1',
-                click: () => {
-                    if (mainWindow) {
-                        console.log('[main.js] Switching to Editor mode via menu');
-                        mainWindow.webContents.send('switch-to-editor');
-                    }
-                }
-            },
-            {
-                label: 'Presentation Mode',
-                accelerator: 'CmdOrCtrl+2',
-                click: () => {
-                    if (mainWindow) {
-                        console.log('[main.js] Switching to Presentation mode via menu');
-                        mainWindow.webContents.send('switch-to-presentation');
-                    }
-                }
-            },
-            {
-                label: 'Network Mode',
-                accelerator: 'CmdOrCtrl+3',
-                click: () => {
-                    if (mainWindow) {
-                        console.log('[main.js] Switching to Network mode via menu');
-                        mainWindow.webContents.send('switch-to-network');
-                    }
-                }
-            },
-            { type: 'separator' },
-            {
-                label: 'Command Palette...',
-                accelerator: 'CmdOrCtrl+Shift+P',
-                click: () => {
-                    if (mainWindow) {
-                        console.log('[main.js] Opening Command Palette via menu');
-                        mainWindow.webContents.send('show-command-palette');
-                    }
-                }
-            },
-            {
-                label: 'Style Settings...',
-                accelerator: 'CmdOrCtrl+Shift+T',
-                click: () => {
-                    if (mainWindow) {
-                        console.log('[main.js] Opening Style Settings via menu');
-                        mainWindow.webContents.send('open-style-settings');
-                    }
-                }
-            },
-            { type: 'separator' },
-            { role: 'resetZoom' },
-            { role: 'zoomIn' },
-            { role: 'zoomOut' },
-            { type: 'separator' },
-            { role: 'togglefullscreen' }
-         ]
-      },
-      {
-        label: 'Presentation',
-        submenu: [
-          {
-            label: 'Generate Lecture Summary',
-            accelerator: 'CmdOrCtrl+G',
-            click: async () => {
-              if (mainWindow) {
-                console.log('[main.js] Generate Lecture Summary clicked');
-                await generateAndLoadLectureSummary();
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Toggle Presentation Mode',
-            accelerator: 'CmdOrCtrl+P',
-            click: () => {
-              if (mainWindow) {
-                mainWindow.webContents.send('toggle-presentation-mode');
-              }
-            }
-          },
-          {
-            label: 'Start Presentation',
-            accelerator: 'F5',
-            click: () => {
-              if (mainWindow) {
-                mainWindow.webContents.send('start-presentation');
-              }
-            }
-          },
-          {
-            label: 'Exit Presentation',
-            accelerator: 'Escape',
-            click: () => {
-              if (mainWindow) {
-                mainWindow.webContents.send('exit-presentation');
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Next Slide',
-            accelerator: 'Right',
-            click: () => {
-              if (mainWindow) {
-                mainWindow.webContents.send('next-slide');
-              }
-            }
-          },
-          {
-            label: 'Previous Slide',
-            accelerator: 'Left',
-            click: () => {
-              if (mainWindow) {
-                mainWindow.webContents.send('previous-slide');
-              }
-            }
-          },
-          {
-            label: 'First Slide',
-            accelerator: 'Home',
-            click: () => {
-              if (mainWindow) {
-                mainWindow.webContents.send('first-slide');
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Layout',
-            submenu: [
-              {
-                label: 'Spiral',
-                type: 'radio',
-                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'spiral',
-                click: () => {
-                  if (!appSettings.presentation) appSettings.presentation = {};
-                  appSettings.presentation.layout = 'spiral';
-                  saveSettings();
-                  mainWindow?.webContents.send('change-layout', 'spiral');
-                }
-              },
-              {
-                label: 'Linear',
-                type: 'radio',
-                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'linear',
-                click: () => {
-                  if (!appSettings.presentation) appSettings.presentation = {};
-                  appSettings.presentation.layout = 'linear';
-                  saveSettings();
-                  mainWindow?.webContents.send('change-layout', 'linear');
-                }
-              },
-              {
-                label: 'Grid',
-                type: 'radio',
-                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'grid',
-                click: () => {
-                  if (!appSettings.presentation) appSettings.presentation = {};
-                  appSettings.presentation.layout = 'grid';
-                  saveSettings();
-                  mainWindow?.webContents.send('change-layout', 'grid');
-                }
-              },
-              {
-                label: 'Circle',
-                type: 'radio',
-                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'circle',
-                click: () => {
-                  if (!appSettings.presentation) appSettings.presentation = {};
-                  appSettings.presentation.layout = 'circle';
-                  saveSettings();
-                  mainWindow?.webContents.send('change-layout', 'circle');
-                }
-              },
-              {
-                label: 'Tree',
-                type: 'radio',
-                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'tree',
-                click: () => {
-                  if (!appSettings.presentation) appSettings.presentation = {};
-                  appSettings.presentation.layout = 'tree';
-                  saveSettings();
-                  mainWindow?.webContents.send('change-layout', 'tree');
-                }
-              },
-              {
-                label: 'Zigzag',
-                type: 'radio',
-                checked: (appSettings.presentation?.layout || defaultSettings.presentation.layout) === 'zigzag',
-                click: () => {
-                  if (!appSettings.presentation) appSettings.presentation = {};
-                  appSettings.presentation.layout = 'zigzag';
-                  saveSettings();
-                  mainWindow?.webContents.send('change-layout', 'zigzag');
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
-        label: 'Settings',
-        submenu: [
-          {
-            label: 'Preferences...',
-            accelerator: 'CmdOrCtrl+,',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Opening settings dialog');
-                mainWindow.webContents.send('open-settings-dialog');
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'AI Configuration',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Opening AI configuration dialog');
-                mainWindow.webContents.send('open-ai-settings-dialog');
-              }
-            }
-          },
-          {
-            label: 'Editor Settings',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Opening editor settings dialog');
-                mainWindow.webContents.send('open-editor-settings-dialog');
-              }
-            }
-          },
-          {
-            label: 'Export Preferences',
-            click: () => {
-              if (mainWindow) {
-                console.log('[main.js] Opening export settings dialog');
-                mainWindow.webContents.send('open-export-settings-dialog');
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Import Settings...',
-            click: async () => {
-              try {
-                const result = await dialog.showOpenDialog(mainWindow, {
-                  title: 'Import Settings',
-                  defaultPath: app.getPath('documents'),
-                  filters: [
-                    { name: 'JSON Files', extensions: ['json'] },
-                    { name: 'All Files', extensions: ['*'] }
-                  ],
-                  properties: ['openFile']
-                });
-
-                if (!result.canceled && result.filePaths.length > 0) {
-                  const fs = require('fs').promises;
-                  const importData = JSON.parse(await fs.readFile(result.filePaths[0], 'utf8'));
-                  const importResult = importSettings(importData);
-                  
-                  if (importResult.success) {
-                    dialog.showMessageBox(mainWindow, {
-                      type: 'info',
-                      title: 'Import Complete',
-                      message: 'Settings imported successfully',
-                      detail: 'The application will restart to apply the new settings.'
-                    });
-                    app.relaunch();
-                    app.exit();
-                  } else {
-                    dialog.showErrorBox('Import Failed', importResult.error);
-                  }
-                }
-              } catch (error) {
-                dialog.showErrorBox('Import Error', error.message);
-              }
-            }
-          },
-          {
-            label: 'Export Settings...',
-            click: async () => {
-              try {
-                const result = await dialog.showSaveDialog(mainWindow, {
-                  title: 'Export Settings',
-                  defaultPath: path.join(app.getPath('documents'), 'hegel-pedagogy-ai-settings.json'),
-                  filters: [
-                    { name: 'JSON Files', extensions: ['json'] },
-                    { name: 'All Files', extensions: ['*'] }
-                  ]
-                });
-
-                if (!result.canceled) {
-                  const fs = require('fs').promises;
-                  const exportData = exportSettings();
-                  await fs.writeFile(result.filePath, JSON.stringify(exportData, null, 2));
-                  
-                  dialog.showMessageBox(mainWindow, {
-                    type: 'info',
-                    title: 'Export Complete',
-                    message: 'Settings exported successfully',
-                    detail: `Settings saved to: ${result.filePath}`
-                  });
-                }
-              } catch (error) {
-                dialog.showErrorBox('Export Error', error.message);
-              }
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Reset All Settings',
-            click: () => {
-              dialog.showMessageBox(mainWindow, {
-                type: 'warning',
-                title: 'Reset Settings',
-                message: 'Are you sure you want to reset all settings to their default values?',
-                detail: 'This action cannot be undone. The application will restart after resetting.',
-                buttons: ['Cancel', 'Reset'],
-                defaultId: 0,
-                cancelId: 0
-              }).then((result) => {
-                if (result.response === 1) {
-                  // Reset to defaults
-                  appSettings = JSON.parse(JSON.stringify(defaultSettings));
-                  saveSettings();
-                  
-                  dialog.showMessageBox(mainWindow, {
-                    type: 'info',
-                    title: 'Reset Complete',
-                    message: 'All settings have been reset to defaults',
-                    detail: 'The application will restart to apply the changes.'
-                  });
-                  app.relaunch();
-                  app.exit();
-                }
-              });
-            }
-          }
-        ]
-      },
-      {
-        label: 'Help',
-        submenu: [
-          {
-            label: 'About Hegel Pedagogy AI',
-            click: () => {
-              dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: 'About Hegel Pedagogy AI',
-                message: 'Hegel Pedagogy AI',
-                detail: 'Advanced Markdown editor and presentation platform for exploring Hegelian philosophy and AI pedagogy.\n\nVersion 1.0.0'
-              });
-            }
-          },
-          {
-            label: 'Keyboard Shortcuts',
-            click: () => {
-              dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: 'Keyboard Shortcuts',
-                message: 'Keyboard Shortcuts',
-                detail: `
-Editor:
-• Cmd/Ctrl+N: New file
-• Cmd/Ctrl+O: Open file
-• Cmd/Ctrl+S: Save
-• Cmd/Ctrl+Shift+S: Save As
-
-AI Writing:
-• Cmd+Shift+': Invoke Ash (AI Writing Companion)
-
-Presentation:
-• Cmd/Ctrl+P: Toggle presentation mode
-• F5: Start presentation
-• Escape: Exit presentation
-• Arrow Keys: Navigate slides
-• Home: Go to first slide
-
-View:
-• Cmd/Ctrl+Plus: Zoom in
-• Cmd/Ctrl+Minus: Zoom out
-• Cmd/Ctrl+0: Reset zoom
-• F11: Toggle fullscreen
-                `.trim()
-              });
-            }
-          }
-        ]
+        label: 'View',
+        submenu: createViewMenuItems()
       }
     ];
 
-    // Add macOS specific menu items
+    // macOS specific adjustments
     if (process.platform === 'darwin') {
-      template.unshift({ 
-        label: app.getName(), 
-        submenu: [
-          { role: 'about' }, 
-          { type: 'separator' }, 
-          { role: 'services' }, 
-          { type: 'separator' }, 
-          { role: 'hide' }, 
-          { role: 'hideOthers' }, 
-          { role: 'unhide' }, 
-          { type: 'separator' }, 
-          { role: 'quit' }
-        ] 
-      });
-      // Edit menu
-      template[2].submenu.push({ type: 'separator' }, { label: 'Speech', submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }] });
+        template.unshift({
+          label: app.getName(),
+          submenu: [
+            { label: 'About ' + app.getName(), role: 'about' },
+            { type: 'separator' },
+            { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() }
+          ] 
+        });
     }
+
     return template;
 }
 
