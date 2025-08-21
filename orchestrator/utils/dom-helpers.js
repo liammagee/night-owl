@@ -1,6 +1,9 @@
 // === DOM Helper Utilities ===
 // Common patterns for DOM manipulation and modal creation
 
+// Global utilities available in window scope
+window.DomHelpers = window.DomHelpers || {};
+
 /**
  * Creates a standardized modal dialog structure
  * @param {Object} config - Modal configuration
@@ -11,7 +14,7 @@
  * @param {boolean} config.showFooter - Whether to show footer (default: true)
  * @returns {Object} Modal elements { modal, header, body, footer }
  */
-function createModal(config) {
+window.DomHelpers.createModal = function(config) {
     const {
         id,
         title,
@@ -86,7 +89,7 @@ function createModal(config) {
  * Shows a modal with body scroll prevention
  * @param {HTMLElement} modal - The modal element to show
  */
-function showModal(modal) {
+window.DomHelpers.showModal = function(modal) {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
@@ -95,7 +98,7 @@ function showModal(modal) {
  * Hides a modal and restores body scroll
  * @param {HTMLElement} modal - The modal element to hide
  */
-function hideModal(modal) {
+window.DomHelpers.hideModal = function(modal) {
     modal.classList.remove('active');
     document.body.style.overflow = '';
 }
@@ -109,7 +112,7 @@ function hideModal(modal) {
  * @param {Object} config.style - Inline styles (optional)
  * @returns {HTMLButtonElement} The button element
  */
-function createButton(config) {
+window.DomHelpers.createButton = function(config) {
     const { text, className, onClick, style = {} } = config;
     
     const button = document.createElement('button');
@@ -133,7 +136,7 @@ function createButton(config) {
  * @param {string} config.placeholder - Placeholder text
  * @returns {HTMLDivElement} The input group container
  */
-function createInputGroup(config) {
+window.DomHelpers.createInputGroup = function(config) {
     const { label, type, id, value = '', placeholder = '' } = config;
     
     const group = document.createElement('div');
@@ -167,7 +170,7 @@ function createInputGroup(config) {
  * @param {string} config.selectedValue - Initially selected value
  * @returns {HTMLDivElement} The select group container
  */
-function createSelectGroup(config) {
+window.DomHelpers.createSelectGroup = function(config) {
     const { label, id, options, selectedValue } = config;
     
     const group = document.createElement('div');
@@ -205,7 +208,7 @@ function createSelectGroup(config) {
  * @param {number} wait - Wait time in milliseconds
  * @returns {Function} Debounced function
  */
-function debounce(func, wait) {
+window.DomHelpers.debounce = function(func, wait) {
     let timeout;
     return function executedFunction(...args) {
         const later = () => {
@@ -217,12 +220,4 @@ function debounce(func, wait) {
     };
 }
 
-export {
-    createModal,
-    showModal,
-    hideModal,
-    createButton,
-    createInputGroup,
-    createSelectGroup,
-    debounce
-};
+// All functions are now available as window.DomHelpers.*

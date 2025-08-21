@@ -1,6 +1,9 @@
 // === API Helper Utilities ===
 // Common patterns for electronAPI calls and error handling
 
+// Global utilities available in window scope
+window.ApiHelpers = window.ApiHelpers || {};
+
 /**
  * Wrapper for electronAPI.invoke calls with standardized error handling
  * @param {string} method - The electronAPI method to invoke
@@ -11,7 +14,7 @@
  * @param {boolean} options.logError - Whether to log errors to console (default: true)
  * @returns {Promise<any>} The result of the API call
  */
-async function invokeElectronAPI(method, data = null, options = {}) {
+window.ApiHelpers.invokeElectronAPI = async function(method, data = null, options = {}) {
     const {
         errorMessage = `Error calling ${method}`,
         showNotification = true,
@@ -53,8 +56,8 @@ async function invokeElectronAPI(method, data = null, options = {}) {
  * @param {any} data - Additional data for the operation
  * @returns {Promise<any>} The result of the file operation
  */
-async function invokeFileOperation(method, filePath, data = null) {
-    return invokeElectronAPI(method, data ? { filePath, ...data } : filePath, {
+window.ApiHelpers.invokeFileOperation = async function(method, filePath, data = null) {
+    return window.ApiHelpers.invokeElectronAPI(method, data ? { filePath, ...data } : filePath, {
         errorMessage: `Failed to ${method.replace('-', ' ')} file`
     });
 }
@@ -64,8 +67,8 @@ async function invokeFileOperation(method, filePath, data = null) {
  * @param {Object} settings - Settings data
  * @returns {Promise<any>} The result of the settings operation
  */
-async function saveSettings(settings) {
-    return invokeElectronAPI('set-settings', settings, {
+window.ApiHelpers.saveSettings = async function(settings) {
+    return window.ApiHelpers.invokeElectronAPI('set-settings', settings, {
         errorMessage: 'Failed to save settings'
     });
 }
@@ -74,8 +77,8 @@ async function saveSettings(settings) {
  * Helper for getting settings
  * @returns {Promise<Object>} The current settings
  */
-async function getSettings() {
-    return invokeElectronAPI('get-settings', null, {
+window.ApiHelpers.getSettings = async function() {
+    return window.ApiHelpers.invokeElectronAPI('get-settings', null, {
         errorMessage: 'Failed to load settings'
     });
 }
@@ -86,7 +89,7 @@ async function getSettings() {
  * @param {string} context - Context description for error logging
  * @returns {Function} Wrapped function with error handling
  */
-function withErrorHandling(fn, context) {
+window.ApiHelpers.withErrorHandling = function(fn, context) {
     return async function(...args) {
         try {
             return await fn.apply(this, args);
@@ -106,18 +109,11 @@ function withErrorHandling(fn, context) {
  * @param {Error} error - The error object
  * @param {string} context - Context for logging
  */
-function handleError(message, error, context = 'Unknown') {
+window.ApiHelpers.handleError = function(message, error, context = 'Unknown') {
     console.error(`[${context}] ${message}:`, error);
     if (typeof showNotification === 'function') {
         showNotification(message, 'error');
     }
 }
 
-export {
-    invokeElectronAPI,
-    invokeFileOperation,
-    saveSettings,
-    getSettings,
-    withErrorHandling,
-    handleError
-};
+// All functions are now available as window.ApiHelpers.*
