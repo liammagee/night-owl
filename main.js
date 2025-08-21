@@ -4902,6 +4902,15 @@ Keep it concise and focused on the most important points.`;
 
   // Settings handlers moved to ipc/settingsHandlers.js
 
+  // Navigation history handlers (temporary - will move to navigationHandlers.js)
+  ipcMain.handle('save-navigation-history', (event, history) => {
+    saveNavigationHistory(history);
+  });
+
+  ipcMain.handle('get-navigation-history', () => {
+    return appSettings.navigation.history || [];
+  });
+
   // Working directory handler
   ipcMain.handle('change-working-directory', async () => {
     if (!mainWindow) return { success: false, error: 'No main window available' };
