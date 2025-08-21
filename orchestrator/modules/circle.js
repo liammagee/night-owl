@@ -299,13 +299,22 @@ class CircleView {
 
         // Position nodes around the circle
         const angleStep = (2 * Math.PI) / stage.nodes.length;
-        stage.nodes.forEach((file, nodeIndex) => {
+        stage.nodes.forEach((fileItem, nodeIndex) => {
             const angle = nodeIndex * angleStep;
             const x = this.centerX + Math.cos(angle) * stage.radius;
             const y = this.centerY + Math.sin(angle) * stage.radius;
 
+            // Extract file path from file item (could be string or object)
+            const filePath = typeof fileItem === 'string' ? fileItem : (fileItem.path || fileItem.filePath || fileItem.name || String(fileItem));
+            
+            // Ensure we have a valid file path
+            if (typeof filePath !== 'string') {
+                console.warn('[CircleView] Invalid file path type:', typeof filePath, fileItem);
+                return;
+            }
+
             // Extract filename without path and extension
-            const fileName = file.split('/').pop().replace('.md', '');
+            const fileName = filePath.split('/').pop().replace('.md', '');
 
             // Node circle
             g.append('circle')
@@ -316,7 +325,7 @@ class CircleView {
                 .attr('stroke', '#333')
                 .attr('stroke-width', 1)
                 .style('cursor', 'pointer')
-                .on('click', () => this.handleNodeClick(file))
+                .on('click', () => this.handleNodeClick(filePath))
                 .on('mouseover', function() { 
                     d3.select(this).attr('r', 10);
                 })

@@ -102,9 +102,18 @@ class GraphView {
             this.pendingLinks = [];
 
             // First pass: Process each file to create nodes
-            for (const file of files) {
-                if (file.endsWith('.md') || file.endsWith('.markdown')) {
-                    await this.processFile(file);
+            for (const fileItem of files) {
+                // Extract file path from file item (could be string or object)
+                const filePath = typeof fileItem === 'string' ? fileItem : (fileItem.path || fileItem.filePath || fileItem.name || String(fileItem));
+                
+                // Ensure we have a valid file path
+                if (typeof filePath !== 'string') {
+                    console.warn('[GraphView] Invalid file path type:', typeof filePath, fileItem);
+                    continue;
+                }
+                
+                if (filePath.endsWith('.md') || filePath.endsWith('.markdown')) {
+                    await this.processFile(filePath);
                 }
             }
 

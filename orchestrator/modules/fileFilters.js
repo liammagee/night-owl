@@ -38,8 +38,17 @@ function matchGlob(pattern, str) {
 }
 
 // Check if a file matches any of the patterns
-function matchesAnyPattern(filePath, patterns) {
+function matchesAnyPattern(fileItem, patterns) {
     if (!patterns || patterns.length === 0) return false;
+    
+    // Extract file path from file item (could be string or object)
+    const filePath = typeof fileItem === 'string' ? fileItem : (fileItem.path || fileItem.filePath || fileItem.name || String(fileItem));
+    
+    // Ensure filePath is a string
+    if (typeof filePath !== 'string') {
+        console.warn('[FileFilters] Invalid file path type:', typeof filePath, fileItem);
+        return false;
+    }
     
     return patterns.some(pattern => {
         if (!pattern.trim()) return false;
