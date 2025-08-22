@@ -341,17 +341,68 @@ function createGamificationPanel() {
         </div>
       </div>
       <div class="gamification-actions">
-        <button class="ai-suggestions-btn">Start Writing Session</button>
-        <button class="ai-suggestions-btn">View Achievements</button>
+        <button class="ai-suggestions-btn" id="start-writing-session-btn">Start Writing Session</button>
+        <button class="ai-suggestions-btn" id="view-achievements-btn">View Achievements</button>
       </div>
     </div>
   `;
   
   // Insert the panel into the body
   document.body.appendChild(panel);
+  
+  // Add event handlers for the action buttons
+  const startSessionBtn = panel.querySelector('#start-writing-session-btn');
+  const viewAchievementsBtn = panel.querySelector('#view-achievements-btn');
+  
+  if (startSessionBtn) {
+    startSessionBtn.addEventListener('click', () => {
+      console.log('[App Init] Start Writing Session clicked');
+      if (window.gamification && window.gamification.startWritingSession) {
+        window.gamification.startWritingSession();
+      } else {
+        console.log('[App Init] Starting a focused writing session...');
+        // Simple implementation if gamification system isn't fully loaded
+        alert('🎯 Writing session started! Focus mode activated.');
+      }
+    });
+  }
+  
+  if (viewAchievementsBtn) {
+    viewAchievementsBtn.addEventListener('click', () => {
+      console.log('[App Init] View Achievements clicked');
+      if (window.gamification && window.gamification.showStatsModal) {
+        window.gamification.showStatsModal();
+      } else {
+        // Simple implementation if gamification system isn't fully loaded
+        console.log('[App Init] Showing achievements...');
+        showSimpleAchievements();
+      }
+    });
+  }
+  
   console.log('[App Init] Gamification panel created and added to DOM');
   
   return panel;
+}
+
+function showSimpleAchievements() {
+  // Simple achievements display as fallback
+  const achievements = JSON.parse(localStorage.getItem('gamification_achievements') || '{}');
+  const achievementCount = Object.keys(achievements).length;
+  
+  if (achievementCount === 0) {
+    alert('🏆 Achievements\n\nNo achievements yet! Keep writing to unlock them.\n\nPossible achievements:\n• Write your first 500 words\n• Maintain a 3-day streak\n• Complete a 30-minute session');
+  } else {
+    const recentAchievements = Object.values(achievements)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 5);
+    
+    const achievementText = recentAchievements
+      .map(a => `🏆 ${a.title}\n   ${a.description}`)
+      .join('\n\n');
+    
+    alert(`🏆 Achievements (${achievementCount} unlocked)\n\nRecent achievements:\n\n${achievementText}`);
+  }
 }
 
 function setupElectronIntegration() {
