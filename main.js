@@ -266,6 +266,20 @@ const defaultSettings = {
         autoSave: true
     },
     
+    // === Gamification Settings ===
+    gamification: {
+        focusSessionsEnabled: true,
+        defaultFocusDuration: 25, // minutes
+        breakReminders: true,
+        achievementsEnabled: true,
+        streakTracking: true,
+        pointsSystem: true,
+        achievementNotifications: true,
+        showProgressBar: true,
+        compactMode: false,
+        menuCollapsedDefault: false
+    },
+    
     // === Advanced Developer Options ===
     advanced: {
         enableDebugMode: false,
