@@ -27,6 +27,11 @@ describe('App Initialization', () => {
       showStatsModal: jest.fn()
     };
 
+    const mockLocalStorage = {
+      getItem: jest.fn(),
+      setItem: jest.fn()
+    };
+    
     global.window = {
       electronAPI: mockElectronAPI,
       gamification: mockGamification,
@@ -36,11 +41,11 @@ describe('App Initialization', () => {
       hideLoading: jest.fn(),
       addEventListener: jest.fn(),
       dispatchEvent: jest.fn(),
-      localStorage: {
-        getItem: jest.fn(),
-        setItem: jest.fn()
-      }
+      localStorage: mockLocalStorage
     };
+    
+    // Also expose mockLocalStorage for tests
+    global.mockLocalStorage = mockLocalStorage;
 
     global.document = {
       ...document,
@@ -189,17 +194,22 @@ describe('App Initialization', () => {
 
   describe('Loading Indicators Setup', () => {
     test('should set up AI loading indicator correctly', () => {
-      setupLoadingIndicators();
-
       const flowIndicator = document.getElementById('ai-flow-indicator');
+      expect(flowIndicator).toBeTruthy();
+      
+      setupLoadingIndicators();
+      
+      // Initially should be hidden (setupLoadingIndicators sets display to 'none')
       expect(flowIndicator.style.display).toBe('none');
       
       // Test show loading
+      expect(typeof window.showAILoading).toBe('function');
       window.showAILoading('Test message');
       expect(flowIndicator.textContent).toBe('Test message');
       expect(flowIndicator.style.display).toBe('block');
       
       // Test hide loading
+      expect(typeof window.hideAILoading).toBe('function');
       window.hideAILoading();
       expect(flowIndicator.style.display).toBe('none');
     });
@@ -237,7 +247,10 @@ describe('App Initialization', () => {
     });
 
     test('should handle missing AI flow indicator gracefully', () => {
-      document.getElementById('ai-flow-indicator').remove();
+      const element = document.getElementById('ai-flow-indicator');
+      if (element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
       
       expect(() => setupLoadingIndicators()).not.toThrow();
     });
@@ -255,7 +268,10 @@ describe('App Initialization', () => {
     });
 
     test('should create gamification panel if missing', () => {
-      document.getElementById('gamification-panel').remove();
+      const element = document.getElementById('gamification-panel');
+      if (element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
       
       setupGamificationToggle();
       
@@ -266,7 +282,7 @@ describe('App Initialization', () => {
     });
 
     test('should load saved panel state from localStorage', () => {
-      window.localStorage.getItem.mockReturnValue('false');
+      global.mockLocalStorage.getItem.mockReturnValue('false');
       
       setupGamificationToggle();
       
@@ -275,7 +291,7 @@ describe('App Initialization', () => {
     });
 
     test('should default to visible when no saved state', () => {
-      window.localStorage.getItem.mockReturnValue(null);
+      global.mockLocalStorage.getItem.mockReturnValue(null);
       
       setupGamificationToggle();
       
@@ -284,7 +300,10 @@ describe('App Initialization', () => {
     });
 
     test('should handle missing toggle button gracefully', () => {
-      document.getElementById('toggle-gamification-btn').remove();
+      const element = document.getElementById('toggle-gamification-btn');
+      if (element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
       
       expect(() => setupGamificationToggle()).not.toThrow();
     });

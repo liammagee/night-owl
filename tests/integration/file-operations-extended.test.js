@@ -68,7 +68,9 @@ describe('File Operations and Export Integration', () => {
     
     // Create subdirectory
     const subDir = path.join(testDir, 'subdirectory');
-    fs.mkdirSync(subDir);
+    if (!fs.existsSync(subDir)) {
+      fs.mkdirSync(subDir);
+    }
     fs.writeFileSync(path.join(subDir, 'nested.md'), '# Nested File\n\nThis is in a subdirectory.');
 
     // Reset all mocks
