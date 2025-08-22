@@ -2071,6 +2071,8 @@ class WritingGamification {
             // Temporarily force enable for debugging
             // return;
         }
+        
+        console.log('[Gamification] Proceeding with UI creation');
 
         // Look for existing editor toolbar first
         let editorToolbar = document.getElementById('editor-toolbar');
@@ -2147,7 +2149,9 @@ class WritingGamification {
         gamificationMenu.appendChild(menuContent);
         
         // Insert after editor toolbar
+        console.log('[Gamification] Inserting gamification menu after editor toolbar');
         editorToolbar.insertAdjacentElement('afterend', gamificationMenu);
+        console.log('[Gamification] Gamification menu inserted successfully');
         
         this.controls = controls;
         this.menuContent = menuContent;

@@ -237,6 +237,123 @@ function setupKeyboardShortcuts() {
   console.log('[App Init] Keyboard shortcuts setup completed');
 }
 
+
+function setupGamificationToggle() {
+  console.log('[App Init] Setting up gamification toggle');
+  
+  // Create or find the gamification panel
+  let gamificationPanel = document.getElementById('gamification-panel');
+  if (!gamificationPanel) {
+    gamificationPanel = createGamificationPanel();
+  }
+  
+  // Add click handler to the dedicated gamification toggle button
+  const gamificationToggleBtn = document.getElementById('toggle-gamification-btn');
+  if (gamificationToggleBtn) {
+    gamificationToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const wasVisible = toggleGamificationPanel();
+      
+      // Update button visual state
+      if (wasVisible) {
+        gamificationToggleBtn.style.background = '#f59e0b'; // Orange - inactive
+        gamificationToggleBtn.style.opacity = '0.7';
+      } else {
+        gamificationToggleBtn.style.background = '#dc2626'; // Red - active
+        gamificationToggleBtn.style.opacity = '1';
+      }
+      
+      console.log('[App Init] Gamification panel toggled via dedicated button');
+    });
+  } else {
+    console.warn('[App Init] Gamification toggle button not found');
+  }
+  
+  // Global toggle function
+  window.toggleGamificationPanel = toggleGamificationPanel;
+  
+  function toggleGamificationPanel() {
+    const isVisible = gamificationPanel.style.display !== 'none';
+    
+    if (isVisible) {
+      gamificationPanel.style.display = 'none';
+      localStorage.setItem('gamification-panel-visible', 'false');
+    } else {
+      gamificationPanel.style.display = 'block';
+      localStorage.setItem('gamification-panel-visible', 'true');
+    }
+    
+    console.log('[App Init] Gamification panel toggled:', !isVisible);
+    return !isVisible;
+  }
+  
+  // Load saved state and set initial button appearance
+  const savedState = localStorage.getItem('gamification-panel-visible');
+  const isVisible = savedState !== 'false'; // Default to visible
+  
+  gamificationPanel.style.display = isVisible ? 'block' : 'none';
+  
+  // Set initial button state
+  if (gamificationToggleBtn) {
+    if (isVisible) {
+      gamificationToggleBtn.style.background = '#dc2626'; // Red - active
+      gamificationToggleBtn.style.opacity = '1';
+    } else {
+      gamificationToggleBtn.style.background = '#f59e0b'; // Orange - inactive
+      gamificationToggleBtn.style.opacity = '0.7';
+    }
+  }
+  
+  console.log('[App Init] Gamification toggle setup completed');
+}
+
+function createGamificationPanel() {
+  console.log('[App Init] Creating gamification panel');
+  
+  const panel = document.createElement('div');
+  panel.id = 'gamification-panel';
+  panel.className = 'gamification-panel';
+  
+  panel.innerHTML = `
+    <div class="gamification-header">
+      <h3>🎮 Writing Stats</h3>
+      <button class="gamification-toggle" onclick="window.toggleGamificationPanel?.()">−</button>
+    </div>
+    <div class="gamification-content">
+      <div class="stats-grid">
+        <div class="stat-item" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Words Today</div>
+        </div>
+        <div class="stat-item" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Current Streak</div>
+        </div>
+        <div class="stat-item" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Sessions</div>
+        </div>
+        <div class="stat-item" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Total Points</div>
+        </div>
+      </div>
+      <div class="gamification-actions">
+        <button class="ai-suggestions-btn">Start Writing Session</button>
+        <button class="ai-suggestions-btn">View Achievements</button>
+      </div>
+    </div>
+  `;
+  
+  // Insert the panel into the body
+  document.body.appendChild(panel);
+  console.log('[App Init] Gamification panel created and added to DOM');
+  
+  return panel;
+}
+
 function setupElectronIntegration() {
   console.log('[App Init] Setting up Electron integration');
   
@@ -270,6 +387,18 @@ function setupElectronIntegration() {
       // Show update notification
     });
     
+    // Handle gamification panel toggle from menu
+    if (window.electronAPI.onToggleGamificationPanel) {
+      window.electronAPI.onToggleGamificationPanel(() => {
+        console.log('[App Init] Toggle gamification panel from menu');
+        if (window.toggleGamificationPanel) {
+          window.toggleGamificationPanel();
+        } else {
+          console.warn('[App Init] toggleGamificationPanel function not available');
+        }
+      });
+    }
+    
     console.log('[App Init] Electron integration setup completed');
   } else {
     console.log('[App Init] Running in web browser environment');
@@ -300,6 +429,22 @@ function initializeApp() {
       setupSpeakerNotesResize();
     }
     
+    // Setup gamification toggle
+    setupGamificationToggle();
+    
+    // Initialize gamification system
+    if (window.initializeGamification) {
+      console.log('[App Init] Initializing gamification system');
+      try {
+        window.initializeGamification();
+        console.log('[App Init] Gamification system initialized successfully');
+      } catch (error) {
+        console.error('[App Init] Error initializing gamification system:', error);
+      }
+    } else {
+      console.warn('[App Init] window.initializeGamification not available');
+    }
+    
     // Initialize default mode
     switchToMode('editor');
     
@@ -327,3 +472,6 @@ window.setupUIInteractions = setupUIInteractions;
 window.setupLoadingIndicators = setupLoadingIndicators;
 window.setupKeyboardShortcuts = setupKeyboardShortcuts;
 window.setupElectronIntegration = setupElectronIntegration;
+window.setupGamificationToggle = setupGamificationToggle;
+window.createGamificationPanel = createGamificationPanel;
+// window.toggleGamificationPanel is exported within setupGamificationToggle

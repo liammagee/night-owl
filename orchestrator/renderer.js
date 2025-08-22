@@ -5394,22 +5394,54 @@ let editorVisible = true;
 let previewVisible = true;
 
 function toggleSidebar() {
+    console.log('[Sidebar Toggle] Function called, current sidebarVisible:', sidebarVisible);
+    
     const sidebar = document.getElementById('left-sidebar');
     const resizer = document.getElementById('sidebar-resizer');
     const toggleBtn = document.getElementById('toggle-sidebar-btn');
     
+    console.log('[Sidebar Toggle] Elements found:', {
+        sidebar: !!sidebar,
+        resizer: !!resizer,
+        toggleBtn: !!toggleBtn
+    });
+    
     if (sidebarVisible) {
+        console.log('[Sidebar Toggle] Hiding sidebar');
         sidebar.style.display = 'none';
         resizer.style.display = 'none';
         toggleBtn.style.background = '#ccc';
         toggleBtn.style.color = '#666';
+        toggleBtn.style.opacity = '0.7';
+        
+        // Remove width constraints completely
+        sidebar.style.width = '0px';
+        sidebar.style.minWidth = '0px';
+        sidebar.style.maxWidth = '0px';
+        sidebar.style.overflow = 'hidden';
+        
+        console.log('[Sidebar Toggle] Sidebar hidden, adjusting layout');
     } else {
+        console.log('[Sidebar Toggle] Showing sidebar');
         sidebar.style.display = 'flex';
         resizer.style.display = 'block';
-        toggleBtn.style.background = '#007acc';
+        toggleBtn.style.background = '#16a34a';
         toggleBtn.style.color = 'white';
+        toggleBtn.style.opacity = '1';
+        
+        // Restore sidebar width
+        sidebar.style.width = '';
+        sidebar.style.minWidth = '';
+        sidebar.style.maxWidth = '';
+        sidebar.style.overflow = '';
+        
+        console.log('[Sidebar Toggle] Sidebar shown, restoring layout');
+        // Restore normal layout proportions
+        refreshLayoutProportions();
     }
+    
     sidebarVisible = !sidebarVisible;
+    console.log('[Sidebar Toggle] Toggle complete, new sidebarVisible:', sidebarVisible);
 }
 
 function toggleEditor() {
@@ -5434,20 +5466,22 @@ function toggleEditor() {
 }
 
 function togglePreview() {
-    const previewPane = document.getElementById('preview-pane');
+    const rightPane = document.getElementById('right-pane');
     const toggleBtn = document.getElementById('toggle-preview-btn');
     
     if (previewVisible) {
-        previewPane.style.display = 'none';
+        rightPane.style.display = 'none';
         toggleBtn.style.background = '#ccc';
         toggleBtn.style.color = '#666';
+        toggleBtn.style.opacity = '0.7';
         // Adjust editor to take full width
-        const editorPane = document.getElementById('editor-pane');
-        if (editorPane) editorPane.style.flex = '1';
+        const editorContainer = document.getElementById('editor-container');
+        if (editorContainer) editorContainer.style.flex = '1';
     } else {
-        previewPane.style.display = 'flex';
-        toggleBtn.style.background = '#007acc';
+        rightPane.style.display = 'flex';
+        toggleBtn.style.background = '#16a34a';
         toggleBtn.style.color = 'white';
+        toggleBtn.style.opacity = '1';
         // Restore normal layout proportions
         refreshLayoutProportions();
     }

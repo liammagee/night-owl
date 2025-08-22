@@ -1,0 +1,92 @@
+/* Interactive elements and animations */
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.notification {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Context menu interactions */
+.context-menu {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.context-menu-item:hover {
+    transition: background-color 0.15s ease-in-out;
+}
+
+/* File tree drag and drop interactions */
+.file-tree li[draggable="true"] {
+    cursor: move;
+    user-select: none;
+}
+
+.file-tree li[draggable="true"]:hover {
+    background-color: var(--hover-color, #f8f9fa);
+}
+
+.file-tree .folder.drag-over {
+    background-color: var(--hover-color, #e3f2fd) !important;
+    border: 2px solid #007bff !important;
+}
+
+.file-tree .dragging {
+    opacity: 0.5 !important;
+    border: 2px dashed #007bff !important;
+}
+
+/* Visual feedback for cut items */
+.file-tree li[style*="opacity: 0.5"] {
+    position: relative;
+}
+
+.file-tree li[style*="opacity: 0.5"]::after {
+    content: "✂️";
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+}
+
+/* Toolbar button interactions */
+.toolbar-btn:hover {
+    background: var(--hover-color, #e9ecef) !important;
+    border-color: #adb5bd !important;
+}
+
+.toolbar-btn:active {
+    background: var(--hover-color, #dee2e6) !important;
+    transform: translateY(1px);
+}
+
+/* Navigation button interactions */
+.nav-btn {
+    transition: all 0.15s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+    background: var(--hover-color, #e9ecef) !important;
+    border-color: #adb5bd !important;
+}
+
+.nav-btn:active:not(:disabled) {
+    background: var(--hover-color, #dee2e6) !important;
+    transform: translateY(1px);
+}
+
+.nav-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+}

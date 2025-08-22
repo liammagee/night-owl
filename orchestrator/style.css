@@ -185,8 +185,7 @@ body, html {
 #app-container {
     display: flex;
     width: 100%;
-    height: calc(100vh - 32px);
-    margin-top: 32px;
+    height: 100vh;
     overflow: hidden;
 }
 

@@ -1,0 +1,127 @@
+/* Mode switching and content view styles */
+
+/* Content view visibility */
+.content-view {
+    display: none !important;
+}
+
+.content-view.active {
+    display: flex !important;
+    flex: 1;
+}
+
+/* Ensure presentation content is visible when active */
+#presentation-content.active {
+    background: #1a1a1a !important;
+    min-height: 100vh !important;
+}
+
+/* Mode switcher */
+#mode-switcher {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Mode buttons */
+.mode-btn {
+    padding: 8px 16px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-btn:hover {
+    background: #f0f0f0;
+}
+
+.mode-btn.active {
+    background: #007acc !important;
+    color: white !important;
+    border-color: #005a9e !important;
+}
+
+/* Presentation mode specific */
+#presentation-content.active {
+    background: #1a1a1a !important;
+    min-height: 100vh !important;
+}
+
+/* Active Presenting Mode - Hide everything except presentation and speaker notes */
+body.is-presenting #left-sidebar,
+body.is-presenting #sidebar-resizer,
+body.is-presenting #editor-container,
+body.is-presenting #mode-switcher,
+body.is-presenting #editor-toolbar,
+body.is-presenting #preview-pane,
+body.is-presenting #chat-pane,
+body.is-presenting #graph-content,
+body.is-presenting #network-content,
+body.is-presenting #circle-content {
+    display: none !important;
+}
+
+body.is-presenting #right-pane {
+    flex: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+body.is-presenting #presentation-content {
+    display: flex !important;
+    width: 100% !important;
+    height: 100vh !important;
+}
+
+body.is-presenting #main-content {
+    height: 100vh !important;
+}
+
+body.is-presenting .resizer {
+    display: none !important;
+}
+
+/* Presentation mode styling */
+body.presentation-mode {
+    overflow: hidden;
+}
+
+body.presentation-mode #left-sidebar,
+body.presentation-mode #editor-container,
+body.presentation-mode #mode-switcher,
+body.presentation-mode #editor-toolbar {
+    display: none;
+}
+
+body.presentation-mode #right-pane {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Network and graph mode containers */
+#network-content,
+#graph-content,
+#circle-content {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+#network-canvas,
+#graph-visualization,
+#circle-visualization {
+    width: 100%;
+    height: 100%;
+}
+
+#network-canvas svg {
+    cursor: grab;
+}
+
+#network-canvas svg:active {
+    cursor: grabbing;
+}

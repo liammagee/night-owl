@@ -1094,6 +1094,16 @@ function createViewMenuItems() {
           }
         }
       },
+      {
+        label: 'Show Writing Stats',
+        accelerator: 'CmdOrCtrl+Shift+G',
+        click: () => {
+          if (mainWindow) {
+            console.log('[main.js] Toggling Writing Stats panel via menu');
+            mainWindow.webContents.send('toggle-gamification-panel');
+          }
+        }
+      },
       { type: 'separator' },
       { role: 'resetZoom' },
       { role: 'zoomIn' },

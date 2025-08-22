@@ -98,6 +98,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       callback(layout);
     });
   },
+  
+  // Gamification panel toggle
+  onToggleGamificationPanel: (callback) => {
+    ipcRenderer.on('toggle-gamification-panel', callback);
+  },
 
   // Utility functions
   isElectron: true,
@@ -121,6 +126,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('zoom-out');
     ipcRenderer.removeAllListeners('reset-zoom');
     ipcRenderer.removeAllListeners('change-layout');
+    ipcRenderer.removeAllListeners('toggle-gamification-panel');
   }
 });
 

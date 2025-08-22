@@ -1,0 +1,113 @@
+/* Global search functionality styles */
+
+.search-result-item {
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: #fefdfb;
+    overflow: hidden;
+}
+
+.search-result-header {
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e9ecef;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.search-result-header:hover {
+    background: #e9ecef;
+}
+
+.search-result-matches {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.search-match {
+    padding: 4px 12px;
+    border-bottom: 1px solid #f8f9fa;
+    cursor: pointer;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.search-match:hover {
+    background: #f8f9fa;
+}
+
+.search-match:last-child {
+    border-bottom: none;
+}
+
+.search-match-line {
+    color: #666;
+    font-size: 11px;
+    margin-right: 8px;
+    min-width: 40px;
+    display: inline-block;
+}
+
+.search-match-text {
+    white-space: pre-wrap;
+}
+
+.search-highlight {
+    background: #fff3cd;
+    color: #856404;
+    font-weight: bold;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+
+.search-no-results {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 40px 20px;
+}
+
+.search-loading {
+    text-align: center;
+    color: #6c757d;
+    padding: 20px;
+}
+
+/* Dark mode search styling */
+.dark-mode .search-result-item {
+    background: var(--bg-color, #2d3748);
+    border-color: var(--border-color, #4a5568);
+}
+
+.dark-mode .search-result-header {
+    background: var(--bg-color, #4a5568);
+    border-bottom-color: var(--border-color, #718096);
+    color: var(--text-color, #e2e8f0);
+}
+
+.dark-mode .search-result-header:hover {
+    background: var(--hover-color, #718096);
+}
+
+.dark-mode .search-match {
+    border-bottom-color: var(--border-color, #4a5568);
+    color: var(--text-color, #e2e8f0);
+}
+
+.dark-mode .search-match:hover {
+    background: var(--hover-color, #4a5568);
+}
+
+.dark-mode .search-match-line {
+    color: var(--text-color, #a0aec0);
+}
+
+.dark-mode .search-highlight {
+    background: #fbbf24;
+    color: #92400e;
+}

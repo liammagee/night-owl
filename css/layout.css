@@ -1,0 +1,101 @@
+/* Main layout styles */
+
+#app-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+}
+
+#main-content {
+    display: flex;
+    flex: 1;
+    height: 100vh;
+    position: relative;
+}
+
+/* Left sidebar */
+#left-sidebar {
+    width: 250px;
+    background: #f5f5f5;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Sidebar resizer */
+#sidebar-resizer {
+    width: 4px;
+    background: #ddd;
+    cursor: ew-resize;
+    position: relative;
+}
+
+#sidebar-resizer:hover {
+    background: #007acc;
+}
+
+/* Editor container */
+#editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+}
+
+/* Right pane */
+#right-pane {
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #ddd;
+    background: white;
+}
+
+/* Resizers */
+.resizer {
+    width: 4px;
+    background: #ddd;
+    cursor: ew-resize;
+    position: relative;
+    z-index: 10;
+}
+
+.resizer:hover {
+    background: #007acc;
+}
+
+.resizer:active {
+    background: #005a9e;
+}
+
+/* Container for content panes - allow flex child to scroll */
+.content-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Content pane styling */
+.content-pane {
+    flex: 1;
+    overflow: auto;
+    background: white;
+    padding: 20px;
+}
+
+/* View containers */
+.view-container {
+    height: 100vh;
+    margin-top: 0px;
+    top: 0px;
+    position: absolute;
+    width: 100%;
+}
+
+/* Fix for proper layout calculation */
+#right-pane .content-container {
+    height: calc(100% - 40px); /* Account for toggle buttons height */
+}
