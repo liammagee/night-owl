@@ -91,6 +91,10 @@ function register(deps) {
     }
   });
 
+  ipcMain.handle('get-working-directory', () => {
+    return currentWorkingDirectory || appSettings.workingDirectory;
+  });
+
   ipcMain.handle('change-working-directory', async () => {
     if (!mainWindow) return { success: false, error: 'No main window available' };
     
