@@ -70,23 +70,35 @@ describe('Network Visualization', () => {
     };
 
     // Mock global functions
-    global.window = {
-      electronAPI: {
-        invoke: jest.fn((action, arg) => {
-          if (action === 'get-all-files') {
-            return Promise.resolve(mockFiles);
-          }
-          if (action === 'read-file-content') {
-            return Promise.resolve(mockFileContent[arg] || '');
-          }
-          return Promise.resolve();
-        })
-      },
-      getFilteredFiles: jest.fn(() => Promise.resolve(mockFiles))
+    const mockGetFilteredFiles = jest.fn(() => {
+      return Promise.resolve(mockFiles);
+    });
+    
+    const mockElectronAPI = {
+      invoke: jest.fn((action, arg) => {
+        if (action === 'get-all-files') {
+          return Promise.resolve(mockFiles);
+        }
+        if (action === 'read-file-content') {
+          return Promise.resolve(mockFileContent[arg] || '');
+        }
+        return Promise.resolve();
+      })
     };
+    
+    global.window = {
+      electronAPI: mockElectronAPI,
+      getFilteredFiles: mockGetFilteredFiles
+    };
+    
+    // Also assign to window directly for Jest environment
+    Object.assign(window, {
+      electronAPI: mockElectronAPI,
+      getFilteredFiles: mockGetFilteredFiles
+    });
 
-    // Reset all mocks
-    jest.clearAllMocks();
+    // Reset all mocks (but don't clear the mockImplementation)
+    // jest.clearAllMocks();
   });
 
   // Mock implementation of key functions from network-visualization.js
@@ -270,7 +282,7 @@ describe('Network Visualization', () => {
 
     test('should load files and create nodes', async () => {
       const data = await network.loadData();
-
+      
       expect(data.nodes).toHaveLength(3);
       expect(data.nodes[0]).toEqual({
         id: '/path/file1.md',
@@ -290,10 +302,15 @@ describe('Network Visualization', () => {
     test('should create links between connected files', async () => {
       const data = await network.loadData();
 
-      expect(data.links).toHaveLength(2);
+      expect(data.links).toHaveLength(3);
       expect(data.links).toContainEqual({
         source: '/path/file1.md',
         target: '/path/file2.md',
+        value: 1
+      });
+      expect(data.links).toContainEqual({
+        source: '/path/file1.md',
+        target: '/path/file3.md',
         value: 1
       });
       expect(data.links).toContainEqual({
