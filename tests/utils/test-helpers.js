@@ -1,255 +1,191 @@
-// Test helper utilities
+/**
+ * Common test helper utilities
+ * Provides reusable test patterns and assertions
+ */
 
 /**
- * Mock Electron's electronAPI for renderer tests
+ * Standard beforeEach setup for renderer tests
+ * @param {Function} customSetup - Optional custom setup function
  */
-function createMockElectronAPI() {
-  return {
-    invoke: jest.fn(),
-    on: jest.fn(),
-    removeListener: jest.fn(),
-    send: jest.fn()
-  };
-}
-
-/**
- * Mock Monaco Editor instance
- */
-function createMockMonacoEditor(initialContent = '') {
-  return {
-    getValue: jest.fn(() => initialContent),
-    setValue: jest.fn((content) => {
-      initialContent = content;
-    }),
-    getModel: jest.fn(() => ({
-      getValue: jest.fn(() => initialContent),
-      setValue: jest.fn((content) => {
-        initialContent = content;
-      })
-    })),
-    setModel: jest.fn(),
-    getPosition: jest.fn(() => ({ lineNumber: 1, column: 1 })),
-    setPosition: jest.fn(),
-    getSelection: jest.fn(() => ({
-      startLineNumber: 1,
-      startColumn: 1,
-      endLineNumber: 1,
-      endColumn: 1
-    })),
-    setSelection: jest.fn(),
-    executeEdits: jest.fn(),
-    focus: jest.fn(),
-    layout: jest.fn(),
-    updateOptions: jest.fn(),
-    onDidChangeModelContent: jest.fn(),
-    dispose: jest.fn()
-  };
-}
-
-/**
- * Create mock file tree data structure
- */
-function createMockFileTree() {
-  return {
-    name: 'root',
-    type: 'directory',
-    path: '/mock/root',
-    children: [
-      {
-        name: 'lecture-1.md',
-        type: 'file',
-        path: '/mock/root/lecture-1.md'
-      },
-      {
-        name: 'lecture-2.md', 
-        type: 'file',
-        path: '/mock/root/lecture-2.md'
-      },
-      {
-        name: 'references.bib',
-        type: 'file',
-        path: '/mock/root/references.bib'
-      },
-      {
-        name: 'subfolder',
-        type: 'directory',
-        path: '/mock/root/subfolder',
-        children: [
-          {
-            name: 'nested-file.md',
-            type: 'file',
-            path: '/mock/root/subfolder/nested-file.md'
-          }
-        ]
-      }
-    ]
-  };
-}
-
-/**
- * Wait for a condition to be true with timeout
- */
-async function waitFor(condition, timeout = 5000, interval = 100) {
-  const start = Date.now();
-  
-  while (Date.now() - start < timeout) {
-    if (await condition()) {
-      return true;
+function standardBeforeEach(customSetup) {
+  return function() {
+    // Reset all mocks
+    jest.clearAllMocks();
+    
+    // Run custom setup if provided
+    if (customSetup) {
+      customSetup.call(this);
     }
-    await new Promise(resolve => setTimeout(resolve, interval));
+  };
+}
+
+/**
+ * Standard afterEach cleanup for tests
+ * @param {Function} customCleanup - Optional custom cleanup function
+ */
+function standardAfterEach(customCleanup) {
+  return function() {
+    // Run custom cleanup if provided
+    if (customCleanup) {
+      customCleanup.call(this);
+    }
+    
+    // Restore all mocks to prevent interference with other tests
+    jest.restoreAllMocks();
+  };
+}
+
+/**
+ * Wait for async operations to complete
+ * @param {number} ms - Milliseconds to wait (default: 0)
+ * @returns {Promise} Promise that resolves after delay
+ */
+function waitFor(ms = 0) {
+  if (ms === 0) {
+    return Promise.resolve();
+  }
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Create a spy with automatic cleanup
+ * @param {Object} object - Object to spy on
+ * @param {string} method - Method name to spy on
+ * @param {*} mockImplementation - Optional mock implementation
+ * @returns {jest.SpyInstance} Jest spy that will be automatically restored
+ */
+function createSpy(object, method, mockImplementation) {
+  const spy = jest.spyOn(object, method);
+  if (mockImplementation) {
+    spy.mockImplementation(mockImplementation);
   }
   
-  throw new Error(`Condition not met within ${timeout}ms`);
+  // Store spy for cleanup
+  if (!global.testSpies) {
+    global.testSpies = [];
+  }
+  global.testSpies.push(spy);
+  
+  return spy;
 }
 
 /**
- * Create mock BibTeX entries for testing
+ * Clean up all created spies
  */
-function createMockBibEntries() {
-  return [
-    {
-      type: 'article',
-      key: 'smith2024',
-      fields: {
-        title: 'A Modern Approach to Testing',
-        author: 'John Smith and Jane Doe',
-        journal: 'Journal of Software Testing',
-        year: '2024'
+function cleanupSpies() {
+  if (global.testSpies) {
+    global.testSpies.forEach(spy => {
+      if (spy.mockRestore) {
+        spy.mockRestore();
       }
-    },
-    {
-      type: 'book',
-      key: 'testing2023',
-      fields: {
-        title: 'Comprehensive Testing Strategies',
-        author: 'Alice Johnson',
-        publisher: 'Academic Press',
-        year: '2023'
-      }
-    }
-  ];
-}
-
-/**
- * Create sample content with various features for testing
- */
-function createSampleMarkdownContent() {
-  return `# Test Document
-
-This is a test document with various features.
-
-## Internal Links
-
-References to [[other-file]] and [[another-document|Custom Display]].
-
-## Lists
-
-- Item 1
-- Item 2 with [[internal-ref]]
-- Item 3
-
-## Code
-
-\`\`\`javascript
-function test() {
-    return "hello";
-}
-\`\`\`
-
-## Math
-
-Inline: $x = y + z$
-
-Display:
-$$
-E = mc^2
-$$
-
-## Citations
-
-According to @smith2024, testing is important.`;
-}
-
-/**
- * Mock DOM elements for testing
- */
-function setupMockDOM() {
-  const mockElements = {
-    editor: document.createElement('div'),
-    preview: document.createElement('div'),
-    'file-tree-view': document.createElement('div'),
-    'structure-pane': document.createElement('div'),
-    'folder-name-modal': document.createElement('div'),
-    'folder-name-input': document.createElement('input'),
-    'new-folder-btn': document.createElement('button')
-  };
-  
-  // Mock getElementById to return our mock elements
-  const originalGetElementById = document.getElementById;
-  document.getElementById = jest.fn((id) => {
-    return mockElements[id] || originalGetElementById.call(document, id);
-  });
-  
-  return mockElements;
-}
-
-/**
- * Clean up after DOM mocking
- */
-function teardownMockDOM() {
-  document.getElementById.mockRestore();
-}
-
-/**
- * Assert that content contains internal links
- */
-function assertHasInternalLinks(content, expectedLinks) {
-  const linkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
-  const foundLinks = [];
-  let match;
-  
-  while ((match = linkRegex.exec(content)) !== null) {
-    foundLinks.push({
-      target: match[1],
-      display: match[2] || match[1]
     });
+    global.testSpies = [];
   }
+}
+
+/**
+ * Expect no console errors during test execution
+ */
+function expectNoConsoleErrors() {
+  const originalConsoleError = console.error;
+  const errors = [];
   
-  expect(foundLinks).toHaveLength(expectedLinks.length);
+  console.error = (...args) => {
+    errors.push(args);
+    originalConsoleError(...args);
+  };
   
-  expectedLinks.forEach((expectedLink, index) => {
-    expect(foundLinks[index].target).toBe(expectedLink.target);
-    if (expectedLink.display) {
-      expect(foundLinks[index].display).toBe(expectedLink.display);
+  return {
+    restore: () => {
+      console.error = originalConsoleError;
+      if (errors.length > 0) {
+        throw new Error(`Unexpected console errors: ${JSON.stringify(errors)}`);
+      }
+    }
+  };
+}
+
+/**
+ * Test that a function doesn't throw
+ * @param {Function} fn - Function to test
+ * @param {...any} args - Arguments to pass to function
+ */
+function expectNotToThrow(fn, ...args) {
+  expect(() => fn(...args)).not.toThrow();
+}
+
+/**
+ * Test that an async function doesn't throw
+ * @param {Function} asyncFn - Async function to test
+ * @param {...any} args - Arguments to pass to function
+ */
+async function expectAsyncNotToThrow(asyncFn, ...args) {
+  await expect(asyncFn(...args)).resolves.not.toThrow();
+}
+
+/**
+ * Verify that DOM element has expected properties
+ * @param {Element} element - DOM element to check
+ * @param {Object} expectedProperties - Expected properties
+ */
+function expectElementProperties(element, expectedProperties) {
+  expect(element).toBeTruthy();
+  
+  Object.entries(expectedProperties).forEach(([prop, value]) => {
+    if (prop === 'style') {
+      Object.entries(value).forEach(([styleProp, styleValue]) => {
+        expect(element.style[styleProp]).toBe(styleValue);
+      });
+    } else {
+      expect(element[prop]).toBe(value);
     }
   });
 }
 
 /**
- * Simulate keyboard shortcut
+ * Mock event object for testing event handlers
+ * @param {string} type - Event type (e.g., 'click', 'keypress')
+ * @param {Object} properties - Additional event properties
+ * @returns {Object} Mock event object
  */
-function simulateKeyboardShortcut(key, modifiers = []) {
-  const event = new KeyboardEvent('keydown', {
-    key,
-    ctrlKey: modifiers.includes('ctrl'),
-    shiftKey: modifiers.includes('shift'),
-    altKey: modifiers.includes('alt'),
-    metaKey: modifiers.includes('meta')
+function createMockEvent(type, properties = {}) {
+  return {
+    type,
+    preventDefault: jest.fn(),
+    stopPropagation: jest.fn(),
+    target: null,
+    currentTarget: null,
+    ...properties
+  };
+}
+
+/**
+ * Test suite wrapper that provides common setup/teardown
+ * @param {string} description - Test suite description
+ * @param {Function} tests - Function containing the tests
+ * @param {Object} options - Configuration options
+ * @param {Function} options.beforeEach - Custom beforeEach setup
+ * @param {Function} options.afterEach - Custom afterEach cleanup
+ */
+function describeSuite(description, tests, options = {}) {
+  describe(description, () => {
+    beforeEach(standardBeforeEach(options.beforeEach));
+    afterEach(standardAfterEach(options.afterEach));
+    
+    tests();
   });
-  
-  document.dispatchEvent(event);
-  return event;
 }
 
 module.exports = {
-  createMockElectronAPI,
-  createMockMonacoEditor,
-  createMockFileTree,
+  standardBeforeEach,
+  standardAfterEach,
   waitFor,
-  createMockBibEntries,
-  createSampleMarkdownContent,
-  setupMockDOM,
-  teardownMockDOM,
-  assertHasInternalLinks,
-  simulateKeyboardShortcut
+  createSpy,
+  cleanupSpies,
+  expectNoConsoleErrors,
+  expectNotToThrow,
+  expectAsyncNotToThrow,
+  expectElementProperties,
+  createMockEvent,
+  describeSuite
 };

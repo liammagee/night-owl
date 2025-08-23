@@ -1,12 +1,14 @@
 // Test the mode switching functionality from js/mode-switcher.js
 // Since this module handles presentation modes, editor modes, and network views
 
+const { setupBasicDOM, initializeModeElements, createMockEditor, setupMockWindow } = require('../../utils');
+
 describe('Mode Switcher', () => {
   let mockEditor, mockUpdatePreview, mockSetContent;
   
   beforeEach(() => {
-    // Reset DOM
-    document.body.innerHTML = `
+    // Setup DOM using utility
+    setupBasicDOM(`
       <div id="editor-content" class="content-section"></div>
       <div id="presentation-content" class="content-section"></div>
       <div id="network-content" class="content-section"></div>
@@ -17,84 +19,29 @@ describe('Mode Switcher', () => {
       <button id="network-mode-btn" class="mode-btn"></button>
       <button id="graph-mode-btn" class="mode-btn"></button>
       <button id="circle-mode-btn" class="mode-btn"></button>
-    `;
+    `);
     
-    // Initialize both className and style properties for jsdom compatibility
-    ['editor', 'presentation', 'network', 'graph', 'circle'].forEach(mode => {
-      const element = document.getElementById(`${mode}-content`);
-      const button = document.getElementById(`${mode}-mode-btn`);
-      
-      // Initialize DOM properties for jsdom compatibility
-      if (element) {
-        // Initialize className
-        Object.defineProperty(element, 'className', {
-          value: 'content-section',
-          writable: true,
-          enumerable: true,
-          configurable: true
-        });
-        
-        // Initialize style object
-        if (!element.style || typeof element.style !== 'object') {
-          Object.defineProperty(element, 'style', {
-            value: {},
-            writable: true,
-            enumerable: true,
-            configurable: true
-          });
-        }
-      }
-      
-      if (button) {
-        // Initialize className
-        Object.defineProperty(button, 'className', {
-          value: 'mode-btn',
-          writable: true,
-          enumerable: true,
-          configurable: true
-        });
-        
-        // Initialize style object
-        if (!button.style || typeof button.style !== 'object') {
-          Object.defineProperty(button, 'style', {
-            value: {},
-            writable: true,
-            enumerable: true,
-            configurable: true
-          });
-        }
-      }
-    });
+    // Initialize mode elements for jsdom compatibility
+    initializeModeElements(['editor', 'presentation', 'network', 'graph', 'circle']);
 
     // Reset all mocks first
     jest.clearAllMocks();
 
-    // Mock global functions
-    mockEditor = {
-      getValue: jest.fn(() => '# Test Content'),
-      setValue: jest.fn(),
-      layout: jest.fn()
-    };
+    // Create mock objects using utilities
+    mockEditor = createMockEditor({ getValue: jest.fn(() => '# Test Content') });
     mockUpdatePreview = jest.fn();
     mockSetContent = jest.fn();
 
-    global.window = {
+    // Setup window with mocks
+    setupMockWindow({
       editor: mockEditor,
-      updatePreviewAndStructure: mockUpdatePreview,
-      setPresentationContent: mockSetContent,
-      initializeNetworkView: jest.fn(),
-      initializeGraphView: jest.fn(),
-      initializeCircleView: jest.fn()
-    };
-    
-    // Also assign to window directly for Jest environment
-    Object.assign(window, {
-      editor: mockEditor,
-      updatePreviewAndStructure: mockUpdatePreview,
-      setPresentationContent: mockSetContent,
-      initializeNetworkView: jest.fn(),
-      initializeGraphView: jest.fn(),
-      initializeCircleView: jest.fn()
+      additional: {
+        updatePreviewAndStructure: mockUpdatePreview,
+        setPresentationContent: mockSetContent,
+        initializeNetworkView: jest.fn(),
+        initializeGraphView: jest.fn(),
+        initializeCircleView: jest.fn()
+      }
     });
   });
 

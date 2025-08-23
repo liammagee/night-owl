@@ -1,124 +1,50 @@
 // Test the application initialization functionality from js/app-init.js
 
+const { setupBasicDOM, initializeDOMElements, createMockElectronAPI, createMockLocalStorage, setupMockWindow } = require('../../utils');
+
 describe('App Initialization', () => {
-  let mockElectronAPI, mockGamification;
+  let mockElectronAPI, mockGamification, mockLocalStorage;
   
   beforeEach(() => {
-    // Reset DOM
-    document.body.innerHTML = `
+    // Setup DOM using utility
+    setupBasicDOM(`
       <div id="app-container"></div>
       <div id="gamification-panel" style="display: none;"></div>
       <button id="toggle-gamification-btn"></button>
       <div id="ai-flow-indicator" style="display: none;"></div>
-    `;
+    `);
     
-    // Initialize DOM elements with proper jsdom compatibility
-    const elements = ['app-container', 'gamification-panel', 'toggle-gamification-btn', 'ai-flow-indicator'];
-    elements.forEach(id => {
-      const element = document.getElementById(id);
-      if (element) {
-        // Initialize style object with proper getters/setters
-        if (!element.style || typeof element.style !== 'object') {
-          const styleObj = {};
-          Object.defineProperty(element, 'style', {
-            value: styleObj,
-            writable: true,
-            enumerable: true,
-            configurable: true
-          });
-        }
-        
-        // Initialize textContent property
-        if (element.textContent === undefined) {
-          Object.defineProperty(element, 'textContent', {
-            value: '',
-            writable: true,
-            enumerable: true,
-            configurable: true
-          });
-        }
-        
-        // Set initial display values from the HTML style attributes
-        if (id === 'gamification-panel' || id === 'ai-flow-indicator') {
-          element.style.display = 'none';
-        }
-      }
-    });
-
-    // Mock global objects
-    mockElectronAPI = {
-      isElectron: true,
-      invoke: jest.fn(),
-      onAppReady: jest.fn(),
-      onFileOpened: jest.fn(),
-      onUpdateAvailable: jest.fn(),
-      onToggleGamificationPanel: jest.fn()
-    };
+    // Initialize DOM elements using utility
+    initializeDOMElements(['app-container', 'gamification-panel', 'toggle-gamification-btn', 'ai-flow-indicator']);
+    
+    // Set initial display values for specific elements
+    const gamificationPanel = document.getElementById('gamification-panel');
+    const aiIndicator = document.getElementById('ai-flow-indicator');
+    if (gamificationPanel) gamificationPanel.style.display = 'none';
+    if (aiIndicator) aiIndicator.style.display = 'none';
 
     mockGamification = {
       startWritingSession: jest.fn(),
       showStatsModal: jest.fn()
     };
+    
+    mockLocalStorage = createMockLocalStorage();
 
-    const mockLocalStorage = {
-      getItem: jest.fn(),
-      setItem: jest.fn()
-    };
-    
-    // Set up global.window for any code that references it
-    global.window = {
+    // Setup window with mocks using utility
+    setupMockWindow({
       electronAPI: mockElectronAPI,
-      gamification: mockGamification,
-      showAILoading: jest.fn(),
-      hideAILoading: jest.fn(),
-      showLoading: jest.fn(),
-      hideLoading: jest.fn(),
-      addEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-      localStorage: mockLocalStorage
-    };
-    
-    // Set up actual window object for Jest environment
-    Object.assign(window, {
-      electronAPI: mockElectronAPI,
-      gamification: mockGamification,
-      showAILoading: jest.fn(),
-      hideAILoading: jest.fn(),
-      showLoading: jest.fn(),
-      hideLoading: jest.fn(),
-      addEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-      localStorage: mockLocalStorage
+      localStorage: mockLocalStorage,
+      additional: {
+        gamification: mockGamification
+      }
     });
     
     // Also expose mockLocalStorage for tests
     global.mockLocalStorage = mockLocalStorage;
 
-    // Mock document methods without overriding read-only properties
+    // Mock document methods
     document.addEventListener = jest.fn();
     document.querySelectorAll = jest.fn(() => []);
-    
-    // Override getElementById to add querySelector support
-    const originalGetElementById = document.getElementById;
-    document.getElementById = (id) => {
-      const element = document.body.querySelector(`#${id}`);
-      if (element) {
-        // Ensure querySelector is available on all elements
-        if (!element.querySelector) {
-          element.querySelector = (selector) => {
-            // Basic querySelector mock for innerHTML-created elements
-            if (element.innerHTML) {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(`<div>${element.innerHTML}</div>`, 'text/html');
-              return doc.querySelector(selector);
-            }
-            return null;
-          };
-        }
-      }
-      return element;
-    };
-    
     global.document = document;
 
     // Reset all mocks
@@ -531,9 +457,9 @@ describe('App Initialization', () => {
       
       setupElectronIntegration();
 
-      expect(mockElectronAPI.onAppReady).toHaveBeenCalled();
-      expect(mockElectronAPI.onFileOpened).toHaveBeenCalled();
-      expect(mockElectronAPI.onToggleGamificationPanel).toHaveBeenCalled();
+      expect(window.electronAPI.onAppReady).toHaveBeenCalled();
+      expect(window.electronAPI.onFileOpened).toHaveBeenCalled();
+      expect(window.electronAPI.onToggleGamificationPanel).toHaveBeenCalled();
     });
 
     test('should handle missing Electron API gracefully', () => {
@@ -543,11 +469,11 @@ describe('App Initialization', () => {
     });
 
     test('should handle Electron API without isElectron flag', () => {
-      window.electronAPI = { ...mockElectronAPI, isElectron: false };
+      window.electronAPI = { ...window.electronAPI, isElectron: false };
       
       setupElectronIntegration();
       
-      expect(mockElectronAPI.onAppReady).not.toHaveBeenCalled();
+      expect(window.electronAPI.onAppReady).not.toHaveBeenCalled();
     });
 
     test('should handle missing Electron API methods gracefully', () => {
@@ -566,10 +492,10 @@ describe('App Initialization', () => {
       setupElectronIntegration();
 
       // Ensure the Electron API was called
-      expect(mockElectronAPI.onToggleGamificationPanel).toHaveBeenCalled();
+      expect(window.electronAPI.onToggleGamificationPanel).toHaveBeenCalled();
       
       // Simulate Electron menu trigger
-      const toggleHandler = mockElectronAPI.onToggleGamificationPanel.mock.calls[0][0];
+      const toggleHandler = window.electronAPI.onToggleGamificationPanel.mock.calls[0][0];
       
       // Mock the toggle function
       window.toggleGamificationPanel = jest.fn();
@@ -586,9 +512,9 @@ describe('App Initialization', () => {
       setupElectronIntegration();
 
       // Ensure the handler was registered
-      expect(mockElectronAPI.onFileOpened).toHaveBeenCalled();
+      expect(window.electronAPI.onFileOpened).toHaveBeenCalled();
       
-      const fileHandler = mockElectronAPI.onFileOpened.mock.calls[0][0];
+      const fileHandler = window.electronAPI.onFileOpened.mock.calls[0][0];
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       
       fileHandler('test content', '/path/to/file.md');
@@ -605,9 +531,9 @@ describe('App Initialization', () => {
       setupElectronIntegration();
 
       // Ensure the handler was registered
-      expect(mockElectronAPI.onAppReady).toHaveBeenCalled();
+      expect(window.electronAPI.onAppReady).toHaveBeenCalled();
       
-      const readyHandler = mockElectronAPI.onAppReady.mock.calls[0][0];
+      const readyHandler = window.electronAPI.onAppReady.mock.calls[0][0];
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       
       readyHandler();

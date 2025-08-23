@@ -1,11 +1,13 @@
 // Test the network visualization functionality from js/network-visualization.js
 
+const { setupBasicDOM, createMockD3, createMockFileData, setupNetworkMocks, setupMockWindow } = require('../../utils');
+
 describe('Network Visualization', () => {
-  let mockD3, mockFiles, mockFileContent;
+  let mockD3, mockFiles, mockFileContent, mockGetFilteredFiles, mockElectronAPI;
   
   beforeEach(() => {
-    // Reset DOM
-    document.body.innerHTML = `
+    // Setup DOM using utility
+    setupBasicDOM(`
       <div id="network-svg"></div>
       <div id="graph-svg"></div>
       <div id="circle-svg"></div>
@@ -17,88 +19,29 @@ describe('Network Visualization', () => {
         <button id="reset-zoom-btn">Reset Zoom</button>
         <input type="range" id="link-distance-slider" min="50" max="300" value="150">
       </div>
-    `;
+    `);
 
-    // Mock D3.js
-    mockD3 = {
-      select: jest.fn().mockReturnThis(),
-      selectAll: jest.fn().mockReturnThis(),
-      append: jest.fn().mockReturnThis(),
-      attr: jest.fn().mockReturnThis(),
-      style: jest.fn().mockReturnThis(),
-      text: jest.fn().mockReturnThis(),
-      data: jest.fn().mockReturnThis(),
-      enter: jest.fn().mockReturnThis(),
-      exit: jest.fn().mockReturnThis(),
-      remove: jest.fn().mockReturnThis(),
-      on: jest.fn().mockReturnThis(),
-      call: jest.fn().mockReturnThis(),
-      transition: jest.fn().mockReturnThis(),
-      duration: jest.fn().mockReturnThis(),
-      zoom: jest.fn(() => mockD3),
-      zoomIdentity: { k: 1, x: 0, y: 0 },
-      forceSimulation: jest.fn(() => ({
-        nodes: jest.fn().mockReturnThis(),
-        force: jest.fn().mockReturnThis(),
-        on: jest.fn().mockReturnThis(),
-        alpha: jest.fn().mockReturnThis(),
-        restart: jest.fn().mockReturnThis()
-      })),
-      forceManyBody: jest.fn(() => ({ strength: jest.fn().mockReturnThis() })),
-      forceLink: jest.fn(() => ({ 
-        id: jest.fn().mockReturnThis(),
-        distance: jest.fn().mockReturnThis()
-      })),
-      forceCenter: jest.fn(() => mockD3),
-      scaleOrdinal: jest.fn(() => mockD3),
-      schemeCategory10: ['#1f77b4', '#ff7f0e', '#2ca02c']
-    };
-
+    // Create D3 mock using utility
+    mockD3 = createMockD3();
     global.d3 = mockD3;
 
-    // Mock file data
-    mockFiles = [
-      { name: 'file1.md', path: '/path/file1.md' },
-      { name: 'file2.md', path: '/path/file2.md' },
-      { name: 'file3.md', path: '/path/file3.md' }
-    ];
+    // Create file data using utility
+    const fileData = createMockFileData();
+    mockFiles = fileData.files;
+    mockFileContent = fileData.fileContent;
 
-    mockFileContent = {
-      '/path/file1.md': 'This links to [[file2]] and mentions [[file3|Custom Name]]',
-      '/path/file2.md': 'This references [[file1]] and has content',
-      '/path/file3.md': 'Standalone file with no links'
-    };
-
-    // Mock global functions
-    const mockGetFilteredFiles = jest.fn(() => {
-      return Promise.resolve(mockFiles);
-    });
+    // Setup network mocks using utility
+    const networkMocks = setupNetworkMocks(fileData);
+    mockGetFilteredFiles = networkMocks.mockGetFilteredFiles;
+    mockElectronAPI = networkMocks.mockElectronAPI;
     
-    const mockElectronAPI = {
-      invoke: jest.fn((action, arg) => {
-        if (action === 'get-all-files') {
-          return Promise.resolve(mockFiles);
-        }
-        if (action === 'read-file-content') {
-          return Promise.resolve(mockFileContent[arg] || '');
-        }
-        return Promise.resolve();
-      })
-    };
-    
-    global.window = {
+    // Setup window with mocks
+    setupMockWindow({
       electronAPI: mockElectronAPI,
-      getFilteredFiles: mockGetFilteredFiles
-    };
-    
-    // Also assign to window directly for Jest environment
-    Object.assign(window, {
-      electronAPI: mockElectronAPI,
-      getFilteredFiles: mockGetFilteredFiles
+      additional: {
+        getFilteredFiles: mockGetFilteredFiles
+      }
     });
-
-    // Reset all mocks (but don't clear the mockImplementation)
-    // jest.clearAllMocks();
   });
 
   // Mock implementation of key functions from network-visualization.js
