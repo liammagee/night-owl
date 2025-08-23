@@ -57,8 +57,7 @@
       "services/**/*",
       "lectures/**/*",
       "texts/**/*",
-      "sample-presentation.md",
-      "lecture_summary.md"
+      "docs/**/*"
     ],
     "mac": {
       "category": "public.app-category.education",

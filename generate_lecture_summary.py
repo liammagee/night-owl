@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to parse lectures folder and generate a schematic summary Markdown file
-similar to the sample-presentation.md format.
+similar to the docs/samples/sample-presentation.md format.
 """
 
 import os
@@ -180,7 +180,7 @@ def main():
     else:
         # Fallback to default behavior
         lectures_dir = Path("lectures")
-        output_file = Path("lecture_summary.md")
+        output_file = Path("docs/samples/lecture_summary.md")
     
     if not lectures_dir.exists():
         print(f"Lectures directory not found: {lectures_dir}")
