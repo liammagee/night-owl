@@ -3393,10 +3393,19 @@ class WritingGamification {
             currentCompanion: !!this.aiCompanion
         });
         
-        if (typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
+        // Check for existing global AI companion first to prevent duplicates
+        const existingCompanion = window.aiCompanionManager || window.globalAICompanion;
+        
+        if (existingCompanion) {
+            console.log('[Gamification] Using existing global AICompanionManager to prevent duplicates');
+            this.aiCompanion = existingCompanion;
+        } else if (typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
             console.log('[Gamification] Creating new AICompanionManager instance...');
             this.aiCompanion = new AICompanionManager(this);
             console.log('[Gamification] AICompanionManager created successfully');
+            
+            // Make it globally available to prevent other systems from creating duplicates
+            window.aiCompanionManager = this.aiCompanion;
             
             // DISABLED: AI Flow Detection (duplicate system using file-based text extraction)
             // Keep only AI Writing Companion which uses real-time typing capture

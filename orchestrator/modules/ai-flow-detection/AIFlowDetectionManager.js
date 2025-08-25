@@ -21,6 +21,10 @@ class AIFlowDetectionManager {
         this.lastFullAnalysis = 0;
         this.analysisInterval = 5000; // Full analysis every 5 seconds
         
+        // Content change detection to prevent unnecessary AI calls
+        this.lastContentHash = '';
+        this.textChangeThreshold = 10; // Minimum character change to trigger AI analysis
+        
         // Integration hooks
         this.eventListeners = new Map();
         
@@ -37,6 +41,11 @@ class AIFlowDetectionManager {
             
             // Set up periodic analysis
             this.setupPeriodicAnalysis();
+            
+            // Initialize content hash with current text
+            const initialContext = this.gatherAnalysisContext();
+            this.lastContentHash = this.hashString(initialContext.recentText || '');
+            console.log('[AIFlowDetectionManager] Initial content hash set:', this.lastContentHash);
             
             // Activate flow detection
             this.flowStateEngine.activate();
@@ -205,6 +214,18 @@ class AIFlowDetectionManager {
             // Gather comprehensive context
             const analysisContext = this.gatherAnalysisContext();
             
+            // Check if content has changed significantly to warrant AI analysis
+            const currentContent = analysisContext.recentText || '';
+            const currentContentHash = this.hashString(currentContent);
+            const contentChanged = currentContentHash !== this.lastContentHash;
+            
+            if (contentChanged) {
+                console.log('[AIFlowDetectionManager] ✅ Content change detected - proceeding with AI analysis');
+                this.lastContentHash = currentContentHash;
+            } else {
+                console.log('[AIFlowDetectionManager] ⏸️ No content changes - skipping AI insights generation');
+            }
+            
             // Perform cognitive load assessment
             if (analysisContext.recentText) {
                 this.cognitiveLoadAssessment.assessCognitiveLoad(analysisContext.recentText, analysisContext);
@@ -219,20 +240,25 @@ class AIFlowDetectionManager {
                 flowScore: this.flowStateEngine.flowEngine.currentFlowScore
             };
             
-            // Generate AI insights if AI companion is available
-            let aiService = null;
-            if (this.aiCompanion && typeof this.aiCompanion.callAIService === 'function') {
-                aiService = {
-                    sendMessage: (message, options) => this.aiCompanion.callAIService(message, options)
-                };
+            // Generate AI insights only if content changed and AI companion is available
+            let insights = null;
+            if (contentChanged && this.aiCompanion && typeof this.aiCompanion.callAIService === 'function') {
+                // Check if the AI companion's auto-invocation is enabled
+                if (this.aiCompanion.isAutoInvocationEnabled && !this.aiCompanion.isAutoInvocationEnabled()) {
+                    console.log('[AIFlowDetectionManager] ⏸️ AI companion auto-invocation disabled - skipping AI insights');
+                } else {
+                    const aiService = {
+                        sendMessage: (message, options) => this.aiCompanion.callAIService(message, options)
+                    };
+                    insights = await this.insightsEngine.generateInsights(analysisContext, aiService);
+                }
             }
-            
-            const insights = await this.insightsEngine.generateInsights(analysisContext, aiService);
             
             // Notify systems of analysis completion
             this.dispatchEvent('analysisCompleted', {
                 flowMetrics,
                 insights,
+                contentChanged,
                 timestamp: Date.now()
             });
             
@@ -355,6 +381,18 @@ class AIFlowDetectionManager {
         this.stop();
         this.clearAnalysisData();
         this.init();
+    }
+
+    // Simple hash function for content change detection
+    hashString(str) {
+        let hash = 0;
+        if (str.length === 0) return hash;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return hash;
     }
 
     // Debug utilities for development

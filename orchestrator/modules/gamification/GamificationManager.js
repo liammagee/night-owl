@@ -279,7 +279,13 @@ class GamificationManager {
             currentAICompanion: !!this.aiCompanion
         });
         
-        if (aiEnabled && typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
+        // Check for existing global AI companion first to prevent duplicates
+        const existingCompanion = window.aiCompanionManager || window.aiCompanion || window.globalAICompanion;
+        
+        if (existingCompanion) {
+            console.log('[GamificationManager] Using existing global AICompanionManager to prevent duplicates');
+            this.aiCompanion = existingCompanion;
+        } else if (aiEnabled && typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
             try {
                 this.aiCompanion = new AICompanionManager(this);
                 window.aiCompanion = this.aiCompanion;

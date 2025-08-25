@@ -172,7 +172,8 @@ class AIWritingCompanion {
         };
         
         // Store last content hash to detect actual changes
-        let lastContentHash = '';
+        const initialContent = this.getCurrentWritingContent();
+        let lastContentHash = this.hashString(initialContent);
         
         // Set up intelligent polling based on writing activity
         const setupAnalysisTimer = () => {
@@ -187,30 +188,25 @@ class AIWritingCompanion {
             
             // More frequent analysis during active writing
             const interval = this.gamification?.currentSession ? 15000 : 60000;
+            console.log(`[AI Companion] ⏰ Setting up timer with ${interval}ms interval`);
+            
             analysisTimer = setInterval(() => {
                 // Check if content has actually changed
                 const currentContent = this.getCurrentWritingContent();
                 const currentHash = this.hashString(currentContent);
                 
                 if (currentHash === lastContentHash) {
-                    console.log('[AI Companion] ⏸️ Timer skipped - no content changes detected');
+                    console.log('[AI Companion] ⏸️ Timer skipped - no content changes detected (hash: ' + currentHash + ')');
                     return;
                 }
                 
+                console.log(`[AI Companion] ✅ Content changed detected - old hash: ${lastContentHash}, new hash: ${currentHash}`);
                 lastContentHash = currentHash;
                 analyzeWriting();
             }, interval);
         };
         
         setupAnalysisTimer();
-        
-        // Adjust analysis frequency based on writing activity
-        setInterval(() => {
-            // Update last content hash when readjusting
-            const currentContent = this.getCurrentWritingContent();
-            lastContentHash = this.hashString(currentContent);
-            setupAnalysisTimer();
-        }, 300000); // Readjust every 5 minutes
     }
     
     processNewWriting(newText) {
@@ -1370,6 +1366,11 @@ Be thoughtful about their writing process without referencing specific recent te
         preferences.autoInvocationEnabled = !preferences.autoInvocationEnabled;
         localStorage.setItem('ai_companion_preferences', JSON.stringify(preferences));
         console.log(`[AI Companion] ${preferences.autoInvocationEnabled ? '✅ Enabled' : '⏸️ Disabled'} auto-invocation`);
+        return preferences.autoInvocationEnabled;
+    }
+    
+    isAutoInvocationEnabled() {
+        const preferences = this.loadUserPreferences();
         return preferences.autoInvocationEnabled;
     }
     
