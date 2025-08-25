@@ -253,6 +253,11 @@ class FlowIndicatorUI {
     shouldShowIndicator(flowState) {
         const now = Date.now();
         
+        // Don't show indicators during presentation mode
+        if (document.body.classList.contains('is-presenting')) {
+            return false;
+        }
+        
         // Cooldown check
         const timeSinceHidden = now - this.lastIndicatorHidden;
         if (timeSinceHidden < this.indicatorCooldown) {

@@ -60,20 +60,32 @@ The course will use CGScholar – a platform I think most of you will be familia
   b. or Learning materials designed for humans, describing some facet of machine "experience"
   c. A hybrid guide for a new world of cyber-social learning - how both machines and humans can learn from eachother.
 
+
+
+```notes
 A note on use of machine learning materials – for the formative assessment tasks, it would be good to use machine learning explicitly, but in a way that is visible. My preferred option for this at the moment is actually in the form of a dialogue – and edited chat session between you and your preferred chat agent / assistant – followed by some kind of summary by you, which includes your reflection on what the AI supplied, and your consideration of how useful the resulting artefact would really be. 
 
 Michele has already authored a fantastic and comprehensive handbook, and I have done some work on creative dialogues with AI – either or both could be models for how this task would proceed.
 
 We can discuss which models, and how to access them in future weeks.
-
+```
 
 ---
-### <a id="previous-course"></a>Previous course
+### <a id="previous-course"></a>Current Course vs Previous Version
 
+
+- A previous course ran in 2023 and 2024 under the same name.
+- Despite the shared title, this offering differs significantly in approach and content.
+- Review Bill and Mary's earlier course, especially their excellent instructional videos.
+- Alternate between both courses to gain complementary insights and balanced understanding.
+- Keep the link handy and consult combined videos and readings as needed.
+
+```notes
 A previous version of this course ran in 2023 and 2024: [[2023-Course]]
 
 Despite this having the same name as that course, it is very different. And I would encourage people to look back to Bill and Mary's earlier course, and especially their videos, which are excellent. As you will probably gather, I have a quite different take. I would say by going back and forth, you might get the best of both worlds. Keep the link to the course handy, and feel free to consult both videos and readings.
 
+```
 
 
 ---
@@ -81,8 +93,6 @@ Despite this having the same name as that course, it is very different. And I wo
 ### <a id="our-approach-in-2025"></a>Our Approach in 2025
 
 
-
----
 
 ### Leveraging Hegel for a Contemporary Machine‑Learning Curriculum
 
@@ -150,7 +160,21 @@ The third reason relates less to Hegel's direct views about learning, and more t
 - The text underscores how historical philosophy can inform contemporary AI ethics and pedagogy.
 
 ```notes
-And finally, Hegel occupies an unusual position himself in the recent history of philosophy. Long regarded – for reasons we shall see, as we begin to look at some of his text – as an obscure and complex thinker without much value to mainstream philosophy, he has become central in recent decades to debates about language, norms and consciousness. Robert Brandom, a prominent American philosopher, has written for example an 800 page volume called *A Spirit of Trust: A Reading of Hegel's Phenomenology of Spirit*. Brandom, among others, is an important thinker in his own right about AI, and this suggests Hegel provides us with good background – if we want it – to contemporary discussions about learning and language. 
+Fourth, Hegel occupies an unusual position himself in the recent history of philosophy. Long regarded – for reasons we shall see, as we begin to look at some of his text – as an obscure and complex thinker without much value to mainstream philosophy, he has become central in recent decades to debates about language, norms and consciousness. Robert Brandom, a prominent American philosopher, has written for example an 800 page volume called *A Spirit of Trust: A Reading of Hegel's Phenomenology of Spirit*. Brandom, among others, is an important thinker in his own right about AI, and this suggests Hegel provides us with good background – if we want it – to contemporary discussions about learning and language. 
+```
+
+---
+
+### AI as a Productive Contradiction
+
+- Consider AI's manifold effects: enabling, constraining, helping some, harming others.
+- Approach AI with Hegelian contradictions: both this-and-that, benefits inseparable from harms.
+- Temporarily suspend strict non-contradiction to think conjunctively before judging better/worse.
+- Recognize binary logic underlies machines and us, yet humans can hold paradox.
+
+```notes
+Finally, a challenge for us today is to think through what Artificial Intelligence means for us in its manifold sense: what it does for us, what it limits us to, what it enables and constrains, who it helps, who it oppresses, and so on. In other words, we need to think AI always in a certain spirit of contradiction: as involving the good and the bad, and understanding how these are to some degrees indissociable. Hegel is **the** thinker of contradiction, the paradoxes of "the this and the not-this" are throughout his work. There is an irony then that in trying to think about AI *intelligently* we have to give up on a particular rule of logic – the law of non-contradiction – that for many is the very hallmark of intelligent, that is to say, *consistent* thinking. We don't need to give it up entirely, of course, and we cannot – machine learning is bound up, for example, in binary logic, and it is foundational for us as well as for machines. But we can perhaps suspend it, in order to hold on to the idea that before we *judge* machine learning – in a disjunctive sense, as better or worse – we need to think it *conjunctively*: as both *this-and-that*, or *this-and-not-this*, simultaneously. We have to allow ourselves to do what, in a certain sense, machines cannot do, in order to talk about how they are different, as well as similar, to us.
+
 ```
 
 

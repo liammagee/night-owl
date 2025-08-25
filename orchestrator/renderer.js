@@ -5113,7 +5113,7 @@ if (window.electronAPI) {
             showNotification('Preparing HTML export...', 'info');
             
             // Generate HTML from markdown
-            const htmlContent = generateHTMLFromMarkdown(content);
+            const htmlContent = await generateHTMLFromMarkdown(content);
             
             // Export options for enhanced pandoc support
             const exportOptions = {
@@ -5157,7 +5157,7 @@ if (window.electronAPI) {
             showNotification('Preparing HTML export with references...', 'info');
             
             // Generate HTML from markdown
-            const htmlContent = generateHTMLFromMarkdown(content);
+            const htmlContent = await generateHTMLFromMarkdown(content);
             
             // Export options for pandoc with bibliography support
             const exportOptions = {
@@ -5201,7 +5201,7 @@ if (window.electronAPI) {
             showNotification('Preparing PDF export...', 'info');
             
             // Generate HTML from markdown
-            const htmlContent = generateHTMLFromMarkdown(content);
+            const htmlContent = await generateHTMLFromMarkdown(content);
             
             // Export options for enhanced pandoc support
             const exportOptions = {

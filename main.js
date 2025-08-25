@@ -762,6 +762,8 @@ nativeTheme.on('updated', () => {
 });
 
 // --- Window Creation ---
+let speakerNotesWindow = null;
+
 function createWindow() {
   console.log('[main.js] Creating main window...');
   mainWindow = new BrowserWindow({
@@ -2314,6 +2316,246 @@ app.whenReady().then(() => {
   }
 
   // --- IPC Handlers ---
+  
+  // Speaker Notes Window handlers
+  ipcMain.handle('open-speaker-notes-window', async (event, notes) => {
+    if (speakerNotesWindow && !speakerNotesWindow.isDestroyed()) {
+      speakerNotesWindow.focus();
+      speakerNotesWindow.webContents.send('update-speaker-notes', notes);
+      return { success: true };
+    }
+    
+    // Get screen dimensions for positioning
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    
+    // Calculate 2:1 ratio - main window gets 2/3, notes get 1/3
+    const notesWidth = Math.floor(screenWidth / 3);
+    const mainWidth = screenWidth - notesWidth;
+    const windowHeight = screenHeight;
+    
+    // Position main window on the left (2/3 of screen)
+    if (mainWindow) {
+      mainWindow.setBounds({
+        x: 0,
+        y: 0,
+        width: mainWidth,
+        height: windowHeight
+      });
+      console.log(`[main.js] Positioned main window: ${mainWidth}x${windowHeight} at (0,0)`);
+    }
+    
+    speakerNotesWindow = new BrowserWindow({
+      width: notesWidth,
+      height: windowHeight,
+      x: mainWidth, // Position on the right side
+      y: 0,
+      minWidth: 300,
+      minHeight: 400,
+      title: 'Speaker Notes - NightOwl',
+      webPreferences: {
+        contextIsolation: false,
+        nodeIntegration: true,
+      },
+      alwaysOnTop: false,
+      frame: true,
+      show: false
+    });
+    
+    // Load a simple HTML page for speaker notes with proper styling
+    const notesHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Speaker Notes</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #2c3e50;
+      color: white;
+      overflow-y: auto;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    
+    .speaker-notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 16px 16px 8px 16px;
+      padding-top: 8px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .speaker-notes-header h4 {
+      margin: 0;
+      font-size: 14px;
+      color: #ecf0f1;
+    }
+    
+    .slide-indicator {
+      background: #34495e;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    
+    #notes-content {
+      font-size: 13px;
+      line-height: 1.4;
+      color: #bdc3c7;
+      padding: 0 16px 16px 16px;
+      overflow-y: auto;
+      height: calc(100vh - 80px);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    #notes-content h3 {
+      color: #4ecdc4;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    
+    #notes-content p {
+      margin-bottom: 10px;
+      font-size: 14px !important;
+    }
+    
+    #notes-content ul,
+    #notes-content ol {
+      margin-left: 20px;
+      margin-bottom: 10px;
+    }
+    
+    #notes-content li {
+      margin-bottom: 5px;
+    }
+    
+    em {
+      color: #95a5a6;
+      font-style: italic;
+    }
+    
+    /* Make sure text is readable */
+    #notes-content strong {
+      color: #ecf0f1;
+    }
+    
+    /* Style any code blocks */
+    #notes-content code {
+      background: rgba(52, 73, 94, 0.5);
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="speaker-notes-header">
+    <h4>📝 Speaker Notes</h4>
+    <div class="slide-indicator">Slide <span id="slide-number">1</span></div>
+  </div>
+  <div id="notes-content"><em>No speaker notes for this slide.</em></div>
+  <script>
+    const { ipcRenderer } = require('electron');
+    
+    ipcRenderer.on('update-speaker-notes', (event, data) => {
+      const contentDiv = document.getElementById('notes-content');
+      const slideNumber = document.getElementById('slide-number');
+      
+      if (data.notes) {
+        contentDiv.innerHTML = data.notes || '<em>No speaker notes for this slide.</em>';
+      } else {
+        contentDiv.innerHTML = '<em>No speaker notes for this slide.</em>';
+      }
+      if (data.slideNumber !== undefined) {
+        slideNumber.textContent = data.slideNumber;
+      }
+    });
+  </script>
+</body>
+</html>`;
+    
+    speakerNotesWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(notesHTML)}`);
+    
+    speakerNotesWindow.once('ready-to-show', () => {
+      speakerNotesWindow.show();
+      speakerNotesWindow.webContents.send('update-speaker-notes', notes);
+    });
+    
+    speakerNotesWindow.on('closed', () => {
+      speakerNotesWindow = null;
+      
+      // Restore main window to full screen when speaker notes window is manually closed
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        mainWindow.setBounds({
+          x: 0,
+          y: 0,
+          width: screenWidth,
+          height: screenHeight
+        });
+        console.log('[main.js] Restored main window to full screen after manual close');
+        
+        // Notify main window that speaker notes window was closed
+        mainWindow.webContents.send('speaker-notes-window-closed');
+      }
+    });
+    
+    return { success: true };
+  });
+  
+  ipcMain.handle('close-speaker-notes-window', async () => {
+    if (speakerNotesWindow && !speakerNotesWindow.isDestroyed()) {
+      speakerNotesWindow.close();
+      speakerNotesWindow = null;
+    }
+    
+    // Restore main window to full screen when speaker notes are closed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const { screen } = require('electron');
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+      
+      mainWindow.setBounds({
+        x: 0,
+        y: 0,
+        width: screenWidth,
+        height: screenHeight
+      });
+      console.log('[main.js] Restored main window to full screen');
+    }
+    
+    return { success: true };
+  });
+  
+  ipcMain.handle('update-speaker-notes', async (event, notes) => {
+    if (speakerNotesWindow && !speakerNotesWindow.isDestroyed()) {
+      speakerNotesWindow.webContents.send('update-speaker-notes', notes);
+    } else {
+      // Return failure so caller knows the window needs to be recreated
+      return { success: false, error: 'Speaker notes window not available' };
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle('focus-main-window', async () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.focus();
+      mainWindow.show();
+      return { success: true };
+    }
+    return { success: false, error: 'Main window not available' };
+  });
   
   // Register modular IPC handlers
   ipcHandlers.registerAllHandlers({

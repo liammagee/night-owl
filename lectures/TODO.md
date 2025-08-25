@@ -33,7 +33,7 @@ Defines tasks relating to this software itself.
 27. Kanban - stop moving presentation around - DONE
 28. Etract content to new file - DONE
 29. Autocomplete internal links - DONE
-30. Refactor - IN PROGRESS
+30. Refactor - DONE
 31. Test and fix global search - DONE
 32. Fix new file bug - save to current directory - DONE
 33. Themes - DONE
