@@ -209,7 +209,8 @@ class AIService {
         systemMessage,
         temperature,
         maxTokens,
-        conversationHistory: this.conversationHistory
+        conversationHistory: this.conversationHistory,
+        verboseLogging
       });
       
       // Add assistant response to history
@@ -403,7 +404,8 @@ class OpenAIProvider extends BaseProvider {
     const {
       model = process.env.OPENAI_MODEL || 'gpt-5',
       systemMessage,
-      conversationHistory = []
+      conversationHistory = [],
+      verboseLogging = false
     } = options;
       // temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
       // maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
@@ -486,7 +488,8 @@ class AnthropicProvider extends BaseProvider {
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
       maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
-      conversationHistory = []
+      conversationHistory = [],
+      verboseLogging = false
     } = options;
 
     // Build messages array with conversation history
@@ -570,7 +573,8 @@ class GroqProvider extends BaseProvider {
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
       maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
-      conversationHistory = []
+      conversationHistory = [],
+      verboseLogging = false
     } = options;
 
     // Build messages array with conversation history
@@ -649,7 +653,8 @@ class OpenRouterProvider extends BaseProvider {
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
       maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
-      conversationHistory = []
+      conversationHistory = [],
+      verboseLogging = false
     } = options;
 
     // Build messages array with conversation history
@@ -733,7 +738,8 @@ class LocalAIProvider extends BaseProvider {
       systemMessage,
       temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
       maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
-      conversationHistory = []
+      conversationHistory = [],
+      verboseLogging = false
     } = options;
 
     // Build messages array similar to OpenAI format
