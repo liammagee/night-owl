@@ -121,7 +121,27 @@ class AIService {
 
   async sendMessage(message, options = {}) {
     // Extract options with defaults
-    const provider = options.provider || this.defaultProvider;
+    let provider = options.provider || this.defaultProvider;
+    
+    // Handle 'auto' provider by mapping to 'local' or first available provider
+    if (provider === 'auto') {
+      if (this.providers.has('local')) {
+        provider = 'local';
+        console.log('[AIService] Auto provider mapped to: local');
+      } else if (this.providers.size > 0) {
+        // Fallback to first available provider
+        provider = Array.from(this.providers.keys())[0];
+        console.log(`[AIService] Auto provider mapped to first available: ${provider}`);
+      } else {
+        // No providers available
+        console.error('[AIService] No AI providers available');
+        return {
+          content: 'AI service is not available. Please check your configuration.',
+          error: 'No AI providers configured'
+        };
+      }
+    }
+    
     const model = options.model;
     const systemMessage = options.systemMessage || 'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
     const temperature = options.temperature !== undefined ? options.temperature : (parseFloat(process.env.AI_TEMPERATURE) || 0.7);
@@ -266,11 +286,23 @@ class AIService {
   }
 
   setDefaultProvider(provider) {
-    if (this.providers.has(provider)) {
+    // Handle 'auto' provider
+    if (provider === 'auto') {
+      if (this.providers.has('local')) {
+        this.defaultProvider = 'local';
+        console.log('[AIService] Auto provider set to: local');
+      } else if (this.providers.size > 0) {
+        this.defaultProvider = Array.from(this.providers.keys())[0];
+        console.log(`[AIService] Auto provider set to first available: ${this.defaultProvider}`);
+      } else {
+        console.error('[AIService] No providers available to set as default');
+        this.defaultProvider = 'auto'; // Keep as auto, will be handled in sendMessage
+      }
+    } else if (this.providers.has(provider)) {
       this.defaultProvider = provider;
       console.log(`[AIService] Default provider set to: ${provider}`);
     } else {
-      throw new Error(`Provider '${provider}' not available`);
+      console.warn(`[AIService] Provider '${provider}' not available, keeping current default: ${this.defaultProvider}`);
     }
   }
 

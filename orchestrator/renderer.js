@@ -423,11 +423,16 @@ function createCustomMarkdownRenderer() {
 }
 
 function processMarkdownContent(markdownContent) {
+    // Ensure we have a string to process
+    if (typeof markdownContent !== 'string') {
+        markdownContent = markdownContent || '';
+    }
+    
     let processedContent = markdownContent;
     
     // Process annotations first
     if (typeof processAnnotations === 'function') {
-        processedContent = processAnnotations(markdownContent);
+        processedContent = processAnnotations(processedContent);
     }
     
     // Process speaker notes after annotations

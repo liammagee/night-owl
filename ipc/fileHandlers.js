@@ -3,6 +3,7 @@
 
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 
 /**
@@ -93,6 +94,39 @@ function register(deps) {
 
   ipcMain.handle('get-working-directory', () => {
     return currentWorkingDirectory || appSettings.workingDirectory;
+  });
+
+  ipcMain.handle('list-directory-files', async (event, relativePath) => {
+    try {
+      const workingDir = getWorkingDirectory();
+      const targetDir = relativePath ? path.join(workingDir, relativePath) : workingDir;
+      
+      console.log(`[FileHandlers] Listing files in directory: ${targetDir}`);
+      
+      // Check if directory exists
+      if (!fsSync.existsSync(targetDir)) {
+        console.warn(`[FileHandlers] Directory not found: ${targetDir}`);
+        return [];
+      }
+      
+      // Get all files in the directory
+      const items = await fs.readdir(targetDir, { withFileTypes: true });
+      
+      // Filter and map files (excluding directories)
+      const files = items
+        .filter(item => item.isFile() && (item.name.endsWith('.md') || item.name.endsWith('.markdown')))
+        .map(item => ({
+          name: item.name,
+          path: path.join(targetDir, item.name),
+          relativePath: path.relative(workingDir, path.join(targetDir, item.name))
+        }));
+      
+      console.log(`[FileHandlers] Found ${files.length} markdown files`);
+      return files;
+    } catch (error) {
+      console.error('[FileHandlers] Error listing directory files:', error);
+      return [];
+    }
   });
 
   ipcMain.handle('change-working-directory', async () => {
@@ -647,7 +681,7 @@ function register(deps) {
     }
   });
 
-  console.log('[FileHandlers] Registered 21 file system handlers');
+  console.log('[FileHandlers] Registered 22 file system handlers');
 
   // Helper functions
   async function buildFileTree(dirPath) {

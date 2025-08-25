@@ -699,12 +699,11 @@ try {
 // Apply saved AI settings if they exist
 if (aiService && appSettings.ai) {
   // Apply preferred provider if configured
-  if (appSettings.ai.preferredProvider && appSettings.ai.preferredProvider !== 'auto') {
+  if (appSettings.ai.preferredProvider) {
     try {
-      if (aiService.getAvailableProviders().includes(appSettings.ai.preferredProvider)) {
-        aiService.setDefaultProvider(appSettings.ai.preferredProvider);
-        console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
-      }
+      // Handle both 'auto' and specific providers
+      aiService.setDefaultProvider(appSettings.ai.preferredProvider);
+      console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
     } catch (error) {
       console.warn('[main.js] Could not apply saved AI provider preference:', error);
     }

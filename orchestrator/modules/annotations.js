@@ -12,7 +12,8 @@ const annotations = new Map();
 function processAnnotations(text) {
     // Handle undefined or null text
     if (!text || typeof text !== 'string') {
-        console.warn('[Annotations] Text is undefined or not a string:', text);
+        // This is normal during initial load or when no content is present
+        // console.debug('[Annotations] Processing empty or non-string text');
         return text || '';
     }
     
@@ -22,7 +23,7 @@ function processAnnotations(text) {
     }
     annotationCounter = window.annotationCounter;
     
-    console.log('[Annotations] Processing annotations on content length:', text.length);
+    // console.log('[Annotations] Processing annotations on content length:', text.length);
     let processedText = text;
     
     // 1. Process HTML comment annotations: <!-- @note: This is an annotation -->
