@@ -616,20 +616,6 @@ function generateAISettings() {
         </div>
         
         <div class="settings-section">
-            <h3>AI Parameters</h3>
-            <div class="settings-group">
-                <label>
-                    <input type="range" id="ai-temperature" min="0" max="2" step="0.1" value="${currentSettings.ai?.temperature || 0.7}">
-                    <span>Temperature: <span id="temperature-value">${currentSettings.ai?.temperature || 0.7}</span></span>
-                </label>
-                <label>
-                    <input type="number" id="ai-max-tokens" value="${currentSettings.ai?.maxTokens || 2000}" min="100" max="8000" step="100">
-                    <span>Max Tokens</span>
-                </label>
-            </div>
-        </div>
-        
-        <div class="settings-section">
             <h3>AI Features</h3>
             <div class="settings-group">
                 <label>
@@ -999,16 +985,6 @@ function addSettingsEventListeners(category) {
         });
     }
     
-    // Temperature slider update - legacy single AI config
-    const tempSlider = document.getElementById('ai-temperature');
-    if (tempSlider) {
-        tempSlider.addEventListener('input', (e) => {
-            const valueSpan = document.getElementById('temperature-value');
-            if (valueSpan) {
-                valueSpan.textContent = e.target.value;
-            }
-        });
-    }
     
     // Dual assistant temperature sliders
     const ashTempSlider = document.getElementById('ash-temperature');
@@ -1354,16 +1330,7 @@ function collectSettingsFromForm() {
     if (chenTemperature) updatedSettings.ai.assistants.chen.aiSettings.temperature = parseFloat(chenTemperature);
     if (chenMaxTokens) updatedSettings.ai.assistants.chen.aiSettings.maxTokens = parseInt(chenMaxTokens);
     
-    // Legacy AI settings (for backward compatibility)
-    const aiProvider = document.getElementById('ai-provider')?.value;
-    if (aiProvider) {
-        updatedSettings.ai.preferredProvider = aiProvider;
-    }
-    
-    const aiModel = document.getElementById('ai-model')?.value;
-    if (aiModel) {
-        updatedSettings.ai.preferredModel = aiModel;
-    }
+    // Note: Legacy AI provider/model settings removed - now using assistant-specific settings
     
     const localAIUrl = document.getElementById('local-ai-url')?.value;
     if (localAIUrl !== undefined) {
@@ -1371,17 +1338,6 @@ function collectSettingsFromForm() {
         updatedSettings.ai.localAIUrl = localAIUrl;
     }
     
-    const aiTemperature = document.getElementById('ai-temperature')?.value;
-    if (aiTemperature) {
-        if (!updatedSettings.ai) updatedSettings.ai = {};
-        updatedSettings.ai.temperature = parseFloat(aiTemperature);
-    }
-    
-    const aiMaxTokens = document.getElementById('ai-max-tokens')?.value;
-    if (aiMaxTokens) {
-        if (!updatedSettings.ai) updatedSettings.ai = {};
-        updatedSettings.ai.maxTokens = parseInt(aiMaxTokens);
-    }
     
     // System prompt settings
     const systemPromptSource = document.querySelector('input[name="system-prompt-source"]:checked')?.value;
@@ -1792,39 +1748,17 @@ async function updateModelOptions(assistantKey) {
         return;
     }
     
-    // Legacy support - fallback for old single AI provider setup
-    const providerSelect = document.getElementById('ai-provider');
-    const modelSelect = document.getElementById('ai-model');
-    const currentConfigDiv = document.getElementById('current-config');
-    
-    if (!providerSelect || !modelSelect || !currentConfigDiv) return;
-    
-    const provider = providerSelect.value;
-    
-    // Show/hide Local AI configuration
+    // Show/hide Local AI configuration based on assistant settings
     const localAIConfig = document.getElementById('local-ai-config');
     if (localAIConfig) {
-        localAIConfig.style.display = provider === 'local' ? 'block' : 'none';
+        // Show local AI config if any assistant uses local provider
+        const ashProvider = document.getElementById('ash-provider')?.value;
+        const chenProvider = document.getElementById('chen-provider')?.value;
+        const showLocalConfig = ashProvider === 'local' || chenProvider === 'local';
+        localAIConfig.style.display = showLocalConfig ? 'block' : 'none';
     }
     
-    // Update model options
-    if (provider === 'auto') {
-        modelSelect.innerHTML = '<option value="auto" selected>Auto (Provider Default)</option>';
-    } else {
-        modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>' + 
-                                generateModelOptions(provider, null);
-    }
-    
-    // Update current configuration display
-    try {
-        const currentConfig = await window.electronAPI.invoke('get-current-ai-config');
-        const configText = currentConfig.success ? 
-            `Current: ${currentConfig.provider} / ${currentConfig.model}` :
-            'Current: Configuration unavailable';
-        currentConfigDiv.textContent = configText;
-    } catch (error) {
-        currentConfigDiv.textContent = 'Current: Error loading configuration';
-    }
+    // Note: Legacy model updating code removed - now handled by updateModelOptions() per assistant
 }
 
 function toggleSystemPromptOptions() {

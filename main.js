@@ -159,7 +159,26 @@ const defaultSettings = {
             maxEntries: 100,
             autoSave: true
         },
-        responseFormat: 'markdown' // 'plain', 'markdown', 'html'
+        responseFormat: 'markdown', // 'plain', 'markdown', 'html'
+        // Assistant configurations
+        assistants: {
+            ash: {
+                aiSettings: {
+                    provider: 'auto',
+                    model: 'auto',
+                    temperature: 0.7,
+                    maxTokens: 200
+                }
+            },
+            chen: {
+                aiSettings: {
+                    provider: 'auto',
+                    model: 'auto',
+                    temperature: 0.8,
+                    maxTokens: 1000
+                }
+            }
+        }
     },
     
     // === Export Settings ===

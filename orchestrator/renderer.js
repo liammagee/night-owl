@@ -1481,6 +1481,42 @@ function addCommandPaletteAction() {
     // console.log('[renderer.js] Command palette action added to Monaco editor');
 }
 
+// --- Custom Selection Keybindings ---
+function addCustomSelectionKeybindings() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot add selection keybindings: editor not available');
+        return;
+    }
+    
+    // Override Shift+Option+Up to extend selection to previous line instead of duplicating line
+    editor.addAction({
+        id: 'extend-selection-up',
+        label: 'Extend Selection Up',
+        keybindings: [
+            monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.UpArrow
+        ],
+        run: function(ed) {
+            // Use Monaco's built-in action for extending selection up
+            ed.getAction('cursorUpSelect').run();
+        }
+    });
+    
+    // Override Shift+Option+Down to extend selection to next line
+    editor.addAction({
+        id: 'extend-selection-down',
+        label: 'Extend Selection Down',
+        keybindings: [
+            monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.DownArrow
+        ],
+        run: function(ed) {
+            // Use Monaco's built-in action for extending selection down
+            ed.getAction('cursorDownSelect').run();
+        }
+    });
+    
+    console.log('[renderer.js] Custom selection keybindings added');
+}
+
 // --- Navigation Controls Setup ---
 function setupNavigationControls() {
     const backBtn = document.getElementById('nav-back-btn');
@@ -2025,6 +2061,7 @@ async function initializeMonacoEditor() {
                 registerMarkdownFoldingProvider();
                 addFoldingKeyboardShortcuts();
                 addFormattingKeyboardShortcuts();
+                addCustomSelectionKeybindings();
                 addFoldingToolbarControls();
                 addAISummarizationAction();
                 addCommandPaletteAction();

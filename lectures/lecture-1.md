@@ -17,6 +17,7 @@ But today we also talk about machines learning how to do things themselves. Most
 We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Harraway); of cyber-social systems (Kalantzis Cope); and of compound terms like 'technosymbiosis' (Katherine Hayles) or a term I'll be using, in the context of learning, 'symbiotic pedagogy'. But the wider concept we'll be working with this week - and returning to, as we'll see - is that of *synthesis*. *Synthesis* will describe how both the similarities and differences between machine and human learning come together in our present moment.
 
 Through the course we will be studying this relationship in a number of ways. Later I'll talk through the organization of the course materials. 
+Through the course we will be studying this relationship in a number of ways. Later I'll talk through the organization of the course materials. 
 
 ```
 
