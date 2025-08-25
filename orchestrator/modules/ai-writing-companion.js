@@ -239,38 +239,9 @@ class AIWritingCompanion {
         const initialContent = this.getCurrentWritingContent();
         let lastContentHash = this.hashString(initialContent);
         
-        // Set up intelligent polling based on writing activity
-        const setupAnalysisTimer = () => {
-            if (analysisTimer) clearInterval(analysisTimer);
-            
-            // Check if automatic invocation is enabled
-            const settings = this.loadUserPreferences();
-            if (!settings.autoInvocationEnabled) {
-                console.log('[AI Companion] ⏸️ Auto-invocation disabled by user settings');
-                return;
-            }
-            
-            // More frequent analysis during active writing
-            const interval = this.gamification?.currentSession ? 15000 : 60000;
-            console.log(`[AI Companion] ⏰ Setting up timer with ${interval}ms interval`);
-            
-            analysisTimer = setInterval(() => {
-                // Check if content has actually changed
-                const currentContent = this.getCurrentWritingContent();
-                const currentHash = this.hashString(currentContent);
-                
-                if (currentHash === lastContentHash) {
-                    console.log('[AI Companion] ⏸️ Timer skipped - no content changes detected (hash: ' + currentHash + ')');
-                    return;
-                }
-                
-                console.log(`[AI Companion] ✅ Content changed detected - old hash: ${lastContentHash}, new hash: ${currentHash}`);
-                lastContentHash = currentHash;
-                analyzeWriting();
-            }, interval);
-        };
-        
-        setupAnalysisTimer();
+        // DISABLED: Timer-based analysis to prevent automatic AI requests
+        // AI Writing Companion should only respond to explicit user requests or character thresholds
+        console.log('[AI Companion] ⏸️ Timer-based analysis disabled - only manual invocation and character thresholds will trigger AI');
     }
     
     processNewWriting(newText) {
@@ -556,13 +527,11 @@ class AIWritingCompanion {
             return true;
         }
         
-        // REDUCED TIMING: Show feedback every 60 seconds for testing (instead of 10 minutes)
-        const minimumInterval = 60000; // 1 minute for testing
-        const shouldShow = timeSinceLastFeedback > minimumInterval;
+        // DISABLED: Time-based feedback to prevent automatic AI requests  
+        // Only explicit user requests, struggling/blocked states, or major milestones should trigger feedback
+        console.log('[AI Companion] ⏸️ No valid trigger conditions met for feedback');
         
-        console.log('[AI Companion] 🕐 Minimum interval check:', shouldShow, '(need >', minimumInterval, 'ms)');
-        
-        return shouldShow;
+        return false;
     }
     
     async generatePersonalizedFeedback(analysis, persona, context) {
@@ -1165,6 +1134,8 @@ Be supportive about their writing process without referencing specific recent te
             // Get Ash assistant settings from configuration
             let temperature = 0.7; // Default fallback for Ash
             let maxTokens = 200;   // Default for companion messages (reasonable length)
+            let provider = undefined;
+            let model = undefined;
             
             try {
                 const settings = await window.electronAPI.invoke('get-settings');
@@ -1172,7 +1143,9 @@ Be supportive about their writing process without referencing specific recent te
                     const ashSettings = settings.ai.assistants.ash.aiSettings;
                     temperature = parseFloat(ashSettings.temperature) || 0.7;
                     maxTokens = parseInt(ashSettings.maxTokens) || 200;
-                    console.log('[AI Companion] ⚙️ Using Ash assistant settings - temperature:', temperature, 'maxTokens:', maxTokens);
+                    provider = ashSettings.provider;
+                    model = ashSettings.model;
+                    console.log('[AI Companion] ⚙️ Using Ash assistant settings - provider:', provider, 'model:', model, 'temperature:', temperature, 'maxTokens:', maxTokens);
                 } else {
                     console.log('[AI Companion] ⚙️ No Ash settings found, using defaults');
                 }
@@ -1184,6 +1157,8 @@ Be supportive about their writing process without referencing specific recent te
                 message: prompt,
                 options: {
                     assistant: 'ash',
+                    provider: provider,
+                    model: model,
                     temperature: temperature,
                     maxTokens: maxTokens,
                     newConversation: true
@@ -1270,6 +1245,8 @@ Be thoughtful about their writing process without referencing specific recent te
             // Get Ash assistant settings from configuration
             let temperature = 0.7; // Default fallback for insights
             let maxTokens = 200;   // Default for companion messages
+            let provider = undefined;
+            let model = undefined;
             
             try {
                 const settings = await window.electronAPI.invoke('get-settings');
@@ -1277,7 +1254,9 @@ Be thoughtful about their writing process without referencing specific recent te
                     const ashSettings = settings.ai.assistants.ash.aiSettings;
                     temperature = parseFloat(ashSettings.temperature) || 0.7;
                     maxTokens = parseInt(ashSettings.maxTokens) || 200;
-                    console.log('[AI Companion] ⚙️ Using Ash assistant settings for insights - temperature:', temperature, 'maxTokens:', maxTokens);
+                    provider = ashSettings.provider;
+                    model = ashSettings.model;
+                    console.log('[AI Companion] ⚙️ Using Ash assistant settings for insights - provider:', provider, 'model:', model, 'temperature:', temperature, 'maxTokens:', maxTokens);
                 } else {
                     console.log('[AI Companion] ⚙️ No Ash settings found, using defaults for insights');
                 }
@@ -1289,6 +1268,8 @@ Be thoughtful about their writing process without referencing specific recent te
                 message: prompt,
                 options: {
                     assistant: 'ash',
+                    provider: provider,
+                    model: model,
                     temperature: temperature,
                     maxTokens: maxTokens,
                     newConversation: true

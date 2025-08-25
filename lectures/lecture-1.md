@@ -9,21 +9,6 @@
 Welcome to Machine Learning and Human Learning!
 
 
-```notes
-**Main Topic / Theme**  
-- Introduction to the intersection of **Machine Learning (ML)** and **Human Learning**.
-
-### Key Points / Arguments  
-
-1. **Synergy Between ML & Human Cognition**
-   - ML can model patterns in human learning data.
-   - Human learners provide feedback that refines ML models.
-
-
-```
-
----
-
 
 What is this course about? 
 
