@@ -182,8 +182,9 @@ class AIWritingCompanion {
             }
         };
         
-        // Check periodically for Monaco editor
-        setInterval(checkForMonaco, 1000);
+        // DISABLED: Check periodically for Monaco editor to prevent background AI requests
+        // setInterval(checkForMonaco, 1000);
+        console.log('[AI Companion] ⏸️ Monaco editor polling disabled to prevent background AI requests');
     }
     
     // Check if enough keystrokes have occurred since last AI insight

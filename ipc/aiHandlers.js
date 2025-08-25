@@ -433,17 +433,18 @@ function register(deps) {
     console.log(`[AIHandlers] Summarizing text of ${selectedText.length} characters`);
 
     try {
-      const prompt = `Please analyze and summarize the following text into concise, well-organized notes. Focus on the key points, main arguments, and important details. Format the output as clear, structured notes that capture the essence of the content:
+      const prompt = `Please analyze and summarize the following text into concise speaker notes. Convert the content into clear bullet points that capture the key information for presentation purposes.
 
 ${selectedText}
 
-Please provide a concise summary with:
-1. Main topic/theme
-2. Key points or arguments
-3. Important details or examples
-4. Any conclusions or implications
+Format your response as bullet points using this exact format:
+• Main topic or theme
+• Key argument 1
+• Key argument 2
+• Important detail or example
+• Conclusion or implication
 
-Format as structured notes, not as a paragraph.`;
+Use only bullet points (•) - no numbers, no sub-bullets, no paragraphs. Each bullet should be a concise, standalone point suitable for speaker notes during a presentation.`;
 
       const aiSettings = appSettings.ai || {};
       const systemMessage = await buildSystemMessage(aiSettings);

@@ -81,6 +81,10 @@ class AICompanionManager {
     // === Real-time Analysis ===
 
     startRealTimeAnalysis() {
+        // DISABLED: Real-time analysis timer to prevent background AI requests
+        console.log('[AICompanion] ⏸️ Real-time analysis timer disabled to prevent background AI requests');
+        return;
+        
         if (!this.feedbackSystem.feedbackConfig.enabled) return;
 
         const analysisTimer = setInterval(async () => {
@@ -122,11 +126,12 @@ class AICompanionManager {
             }
         }, this.realTimeAnalysis.analysisInterval);
 
-        // Readjust timer interval based on activity
-        setInterval(() => {
-            if (analysisTimer) clearInterval(analysisTimer);
-            this.startRealTimeAnalysis();
-        }, 300000); // Readjust every 5 minutes
+        // DISABLED: Readjust timer interval to prevent background AI requests
+        // setInterval(() => {
+        //     if (analysisTimer) clearInterval(analysisTimer);
+        //     this.startRealTimeAnalysis();
+        // }, 300000);
+        console.log('[AICompanion] ⏸️ Timer readjustment disabled to prevent background AI requests');
     }
 
     async performRealTimeAnalysis() {

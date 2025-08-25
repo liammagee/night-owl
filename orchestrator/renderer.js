@@ -1236,6 +1236,14 @@ function validateEditorSelection(ed, actionName) {
     const selection = ed.getSelection();
     const selectedText = ed.getModel().getValueInRange(selection);
     
+    // DEBUG: Log selection details
+    console.log(`[renderer.js] ${actionName} - Selection debug:`, {
+        selection: selection,
+        selectedTextLength: selectedText?.length || 0,
+        selectedTextPreview: selectedText?.substring(0, 100) + '...',
+        selectionEmpty: selection.isEmpty()
+    });
+    
     if (!selectedText || selectedText.trim() === '') {
         console.warn(`[renderer.js] No text selected for ${actionName}`);
         showNotification(`Please select some text to ${actionName.toLowerCase()}`, 'warning');
@@ -1263,24 +1271,21 @@ async function handleAISummarization(ed) {
         }
         
         if (result.success) {
-            // Insert speaker notes after the selected text, non-destructively
-            const notesText = '\n\n```notes\n' + result.summary + '\n```\n';
+            // Replace selected text with bullet points and put original text in notes block
+            const bulletPoints = result.summary; // AI-generated bullet points
+            const originalText = selectedText; // Original selected text
+            const notesText = bulletPoints + '\n\n```notes\n' + originalText + '\n```';
             
             ed.executeEdits('ai-summarization', [{
-                range: {
-                    startLineNumber: selection.endLineNumber,
-                    startColumn: selection.endColumn,
-                    endLineNumber: selection.endLineNumber,
-                    endColumn: selection.endColumn
-                },
+                range: selection,
                 text: notesText
             }]);
             
             showNotification(`Speaker notes generated using ${result.provider} (${result.model})`, 'success');
             
-            console.log('[renderer.js] Speaker notes generated and inserted:', {
-                original: selectedText.substring(0, 100) + '...',
-                summary: result.summary?.substring(0, 100) + '...',
+            console.log('[renderer.js] Speaker notes generated - replaced text with bullets and moved original to notes:', {
+                bulletPoints: result.summary?.substring(0, 100) + '...',
+                originalInNotes: selectedText.substring(0, 100) + '...',
                 provider: result.provider,
                 model: result.model
             });

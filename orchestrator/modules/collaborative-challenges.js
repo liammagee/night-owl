@@ -709,15 +709,16 @@ class CollaborativeChallenges {
     }
     
     startPeriodicUpdates() {
-        // Update leaderboards every 5 minutes
-        setInterval(() => {
-            this.updateGlobalLeaderboards();
-        }, 5 * 60 * 1000);
+        // DISABLED: Periodic updates to prevent background AI requests
+        // setInterval(() => {
+        //     this.updateGlobalLeaderboards();
+        // }, 5 * 60 * 1000);
         
-        // Check for expired challenges every hour
-        setInterval(() => {
-            this.checkExpiredChallenges();
-        }, 60 * 60 * 1000);
+        // DISABLED: Check for expired challenges to prevent background AI requests
+        // setInterval(() => {
+        //     this.checkExpiredChallenges();
+        // }, 60 * 60 * 1000);
+        console.log('[Collaborative Challenges] ⏸️ Periodic updates disabled to prevent background AI requests');
     }
     
     checkExpiredChallenges() {

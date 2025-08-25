@@ -10,6 +10,7 @@ Welcome to Machine Learning and Human Learning!
 
 
 
+
 What is this course about? 
 
 First it is a response to a certain new reality about learning, triggered by the advent of machine learning. Our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 

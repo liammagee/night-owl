@@ -170,8 +170,9 @@ class TodoGamification {
         // Update gamification UI when board changes
         this.updateGamificationDisplay();
         
-        // Generate AI suggestions if needed
-        this.checkAndGenerateAISuggestions(boardData);
+        // DISABLED: AI suggestions to prevent background AI requests
+        // this.checkAndGenerateAISuggestions(boardData);
+        console.log('[TODO Gamification] ⏸️ AI suggestions check disabled to prevent background AI requests');
         
         // Set up reminders for tasks
         this.setupTaskReminders(boardData);
@@ -260,13 +261,14 @@ class TodoGamification {
     // === Reminders System ===
     
     setupReminders() {
-        // Check for reminders every 15 minutes
-        setInterval(() => {
-            this.checkReminders();
-        }, 900000);
+        // DISABLED: Check for reminders to prevent background AI requests
+        // setInterval(() => {
+        //     this.checkReminders();
+        // }, 900000);
         
-        // Initial check
-        setTimeout(() => this.checkReminders(), 5000);
+        // DISABLED: Initial check to prevent background AI requests
+        // setTimeout(() => this.checkReminders(), 5000);
+        console.log('[TODO Gamification] ⏸️ Reminder system disabled to prevent background AI requests');
     }
     
     checkReminders() {
@@ -383,11 +385,12 @@ class TodoGamification {
             clearTimeout(this.suggestionTimer);
         }
         
-        // Reduce wait time for testing - Wait a bit to see if user is still actively editing
-        this.suggestionTimer = setTimeout(() => {
-            console.log('[TODO Gamification] Generating AI suggestions after timeout...');
-            this.generateAISuggestions(boardData);
-        }, 5000); // Reduced to 5 seconds for better user experience
+        // DISABLED: AI suggestion timer to prevent automatic AI requests
+        // this.suggestionTimer = setTimeout(() => {
+        //     console.log('[TODO Gamification] Generating AI suggestions after timeout...');
+        //     this.generateAISuggestions(boardData);
+        // }, 5000);
+        console.log('[TODO Gamification] ⏸️ AI suggestion timer disabled to prevent background AI requests');
     }
     
     async generateAISuggestions(boardData) {

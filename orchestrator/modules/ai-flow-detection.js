@@ -1400,11 +1400,13 @@ Never paraphrase or summarize in the quote - use their exact words. Avoid generi
     }
     
     startInsightsEngine() {
-        setInterval(async () => {
-            if (this.gamification?.currentSession) {
-                await this.generateRealtimeInsights();
-            }
-        }, this.insightsEngine.displayState.updateFrequency);
+        // DISABLED: Insights engine timer to prevent background AI requests
+        // setInterval(async () => {
+        //     if (this.gamification?.currentSession) {
+        //         await this.generateRealtimeInsights();
+        //     }
+        // }, this.insightsEngine.displayState.updateFrequency);
+        console.log('[AI Flow Detection] ⏸️ Insights engine timer disabled to prevent background AI requests');
     }
     
     updateRealTimeFlowState() {
