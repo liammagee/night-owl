@@ -511,8 +511,14 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
     
     try {
         // Get current file content
-        const content = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.invoke('read-file', filePath);
         
+        // Check if file read was successful
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to read file');
+        }
+        
+        const content = result.content || '';
         const lines = content.split('\n');
         const lineNumber = parseInt(taskElement.dataset.lineNumber);
         
@@ -808,7 +814,14 @@ async function handleAddTask(columnId, filePath, container) {
 async function updateTaskTextInFile(filePath, taskElement, newText) {
     
     try {
-        const content = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.invoke('read-file', filePath);
+        
+        // Check if file read was successful
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to read file');
+        }
+        
+        const content = result.content || '';
         const lines = content.split('\n');
         const lineNumber = parseInt(taskElement.dataset.lineNumber);
         
@@ -862,7 +875,14 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
 async function deleteTaskFromFile(filePath, taskElement) {
     
     try {
-        const content = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.invoke('read-file', filePath);
+        
+        // Check if file read was successful
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to read file');
+        }
+        
+        const content = result.content || '';
         const lines = content.split('\n');
         const lineNumber = parseInt(taskElement.dataset.lineNumber);
         
@@ -881,7 +901,14 @@ async function deleteTaskFromFile(filePath, taskElement) {
 async function addTaskToFile(filePath, taskText, columnId) {
     
     try {
-        const content = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.invoke('read-file', filePath);
+        
+        // Check if file read was successful
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to read file');
+        }
+        
+        const content = result.content || '';
         const lines = content.split('\n');
         
         // Get settings to determine status markers

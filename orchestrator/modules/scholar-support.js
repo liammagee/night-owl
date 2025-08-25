@@ -1,6 +1,5 @@
 // === Scholar Support Module ===
 // AI-powered academic writing assistance for generating contextual headings
-console.log('🎓 SCHOLAR SUPPORT JS FILE LOADING...');
 
 class ScholarSupport {
     constructor() {

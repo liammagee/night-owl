@@ -1,6 +1,7 @@
 // === File Tagging System with YAML Frontmatter ===
 // Handles parsing, managing, and filtering files by tags
 
+
 class TagManager {
     constructor() {
         this.fileTags = new Map(); // Map<filePath, {tags: [], metadata: {}}>

@@ -1324,6 +1324,101 @@ async function handleNotesExtraction(ed) {
     }
 }
 
+async function handleScholarSupport(ed) {
+    const validation = validateEditorSelection(ed, 'scholar support');
+    if (!validation.isValid) return;
+    
+    const { selection, selectedText } = validation;
+    
+    console.log(`[renderer.js] 🎓 Starting AI heading generation for selected text: "${selectedText.substring(0, 50)}..."`);
+    
+    try {
+        showNotification('🤔 Dr. Chen is analyzing your selection...', 'info');
+        
+        // Get full document content for context
+        const fullContent = ed.getValue();
+        
+        // Build prompt for Dr. Chen
+        const prompt = `I am Dr. Chen, an AI assistant specializing in academic writing and scholarly document organization.
+
+You are working on a scholarly document. I need to generate a concise, contextual heading for a selected text passage.
+
+DOCUMENT CONTEXT (for understanding existing heading style and content themes):
+${fullContent.length > 3000 ? fullContent.substring(0, 3000) + '...' : fullContent}
+
+SELECTED TEXT TO SUMMARIZE:
+${selectedText}
+
+TASK: Generate a single, concise heading that:
+1. Summarizes the key concept/theme of the selected text
+2. Matches the style and tone of existing headings in this document  
+3. Uses academic writing conventions
+4. Is suitable for scholarly/academic work
+
+Use ## markdown heading format.
+
+Respond with ONLY the heading text (including the ## markdown symbols). No explanation or additional text.`;
+
+        const result = await window.electronAPI.invoke('ai-chat', {
+            message: prompt,
+            options: {
+                temperature: 0.3,
+                maxTokens: 100,
+                newConversation: true,
+                provider: 'anthropic'
+            }
+        });
+        
+        if (result.error) {
+            console.error('[renderer.js] 🎓 Scholar support failed:', result.error);
+            showNotification(`Error generating heading: ${result.error}`, 'error');
+            return;
+        }
+        
+        if (result.response) {
+            // Clean up the AI response
+            let heading = result.response.trim();
+            heading = heading.replace(/^["']|["']$/g, ''); // Remove quotes
+            if (!heading.startsWith('#')) {
+                heading = '## ' + heading;
+            }
+            heading = heading.replace(/\s+/g, ' '); // Remove multiple spaces
+            heading = heading.replace(/^(#+)([^#\s])/, '$1 $2'); // Ensure space after #
+            
+            console.log(`[renderer.js] 🎓 Generated heading: "${heading}"`);
+            
+            // Find insertion point - look for preceding paragraph break
+            const selectionStart = selection.getStartPosition();
+            let insertLineNumber = selectionStart.lineNumber;
+            
+            // Find the preceding paragraph break (empty line or start of document)
+            for (let i = selectionStart.lineNumber - 1; i >= 1; i--) {
+                const lineContent = ed.getModel().getLineContent(i);
+                if (lineContent.trim() === '') {
+                    insertLineNumber = i + 1;
+                    break;
+                }
+            }
+            
+            // Insert heading with proper spacing
+            const insertText = insertLineNumber === 1 ? `${heading}\n\n` : `\n${heading}\n\n`;
+            const insertPosition = { lineNumber: insertLineNumber, column: 1 };
+            
+            ed.executeEdits('scholar-support', [{
+                range: new monaco.Range(insertPosition.lineNumber, insertPosition.column, insertPosition.lineNumber, insertPosition.column),
+                text: insertText
+            }]);
+            
+            showNotification(`🎓 AI heading inserted: "${heading}"`, 'success');
+            console.log(`[renderer.js] 🎓 Successfully inserted heading at line ${insertLineNumber}`);
+        }
+        
+    } catch (error) {
+        console.error('[renderer.js] 🎓 Scholar support failed:', error);
+        showNotification('Failed to generate AI heading. Please try again.', 'error');
+    }
+}
+
 function addAISummarizationAction() {
     if (!editor) {
         console.warn('[renderer.js] Cannot add AI summarization action: editor not available');
@@ -1348,6 +1443,16 @@ function addAISummarizationAction() {
         contextMenuOrder: 1.6,
         precondition: 'editorHasSelection',
         run: handleNotesExtraction
+    });
+    
+    // Add context menu action for scholar support (AI heading generation)
+    editor.addAction({
+        id: 'generate-ai-heading',
+        label: '📑 Generate AI Heading',
+        contextMenuGroupId: 'modification',
+        contextMenuOrder: 1.7,
+        precondition: 'editorHasSelection',
+        run: handleScholarSupport
     });
 }
 
@@ -6431,216 +6536,4 @@ function newFile() {
 }
 window.newFile = newFile;
 
-// === Scholar Support Feature ===
-// AI-powered academic writing assistance for generating contextual headings
-console.log('🎓 Scholar Support: Initializing text selection handler...');
 
-let scholarSupportButton = null;
-
-function hideScholarButton() {
-    if (scholarSupportButton) {
-        scholarSupportButton.remove();
-        scholarSupportButton = null;
-    }
-}
-
-function showScholarButton(selection, selectedText) {
-    hideScholarButton();
-    
-    const button = document.createElement('button');
-    button.innerHTML = '📑 Add Heading';
-    button.title = 'Generate contextual heading for selected text';
-    button.style.cssText = `
-        position: fixed;
-        left: ${selection.getRangeAt(0).getBoundingClientRect().left}px;
-        top: ${selection.getRangeAt(0).getBoundingClientRect().top - 40}px;
-        z-index: 10000;
-        padding: 6px 12px;
-        background-color: #667eea;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 500;
-        cursor: pointer;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    `;
-    
-    button.onclick = async () => {
-        try {
-            hideScholarButton();
-            
-            // Show loading indicator
-            const indicator = document.createElement('div');
-            indicator.innerHTML = '🤔 Dr. Chen is analyzing...';
-            indicator.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #667eea;
-                color: white;
-                padding: 10px 15px;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 500;
-                z-index: 10001;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            `;
-            document.body.appendChild(indicator);
-            
-            // Get current document content
-            let fullContent = '';
-            if (window.monaco && window.editor) {
-                fullContent = window.editor.getValue();
-            } else {
-                const textarea = document.querySelector('#editor-textarea');
-                if (textarea) fullContent = textarea.value;
-            }
-            
-            // Generate heading using AI
-            const heading = await generateHeadingWithAI(selectedText, fullContent);
-            
-            if (heading) {
-                // Insert heading
-                await insertHeadingInEditor(heading, selection);
-                console.log('🎓 Scholar Support: Successfully inserted heading:', heading);
-            }
-            
-            indicator.remove();
-            
-        } catch (error) {
-            console.error('🎓 Scholar Support: Error generating heading:', error);
-            // Show error
-            const error_msg = document.createElement('div');
-            error_msg.innerHTML = '❌ Failed to generate heading';
-            error_msg.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #e53e3e;
-                color: white;
-                padding: 10px 15px;
-                border-radius: 6px;
-                font-size: 13px;
-                z-index: 10001;
-            `;
-            document.body.appendChild(error_msg);
-            setTimeout(() => error_msg.remove(), 3000);
-        }
-    };
-    
-    document.body.appendChild(button);
-    scholarSupportButton = button;
-    
-    // Auto-hide after 5 seconds
-    setTimeout(hideScholarButton, 5000);
-}
-
-async function generateHeadingWithAI(selectedText, fullContent) {
-    if (!window.electronAPI) {
-        throw new Error('Electron API not available');
-    }
-    
-    const prompt = `I am Dr. Chen, an AI assistant specializing in academic writing and scholarly document organization.
-
-You are working on a scholarly document. I need to generate a concise, contextual heading for a selected text passage.
-
-DOCUMENT CONTEXT (for understanding existing heading style and content themes):
-${fullContent.length > 3000 ? fullContent.substring(0, 3000) + '...' : fullContent}
-
-SELECTED TEXT TO SUMMARIZE:
-${selectedText}
-
-TASK: Generate a single, concise heading that:
-1. Summarizes the key concept/theme of the selected text
-2. Matches the style and tone of existing headings in this document  
-3. Uses academic writing conventions
-4. Is suitable for scholarly/academic work
-
-Use ## markdown heading format.
-
-Respond with ONLY the heading text (including the ## markdown symbols). No explanation or additional text.`;
-    
-    const response = await window.electronAPI.invoke('ai-chat', {
-        message: prompt,
-        options: {
-            temperature: 0.3,
-            maxTokens: 100,
-            newConversation: true,
-            provider: 'chen'
-        }
-    });
-    
-    if (!response?.response) {
-        throw new Error('No response from AI service');
-    }
-    
-    // Clean up the response
-    let heading = response.response.trim();
-    heading = heading.replace(/^["']|["']$/g, ''); // Remove quotes
-    if (!heading.startsWith('#')) {
-        heading = '## ' + heading;
-    }
-    heading = heading.replace(/\s+/g, ' '); // Remove multiple spaces
-    heading = heading.replace(/^(#+)([^#\s])/, '$1 $2'); // Ensure space after #
-    
-    return heading;
-}
-
-async function insertHeadingInEditor(heading, selection) {
-    if (window.monaco && window.editor) {
-        const editor = window.editor;
-        const model = editor.getModel();
-        const selectionStart = editor.getSelection().getStartPosition();
-        let insertLineNumber = selectionStart.lineNumber;
-        
-        // Find preceding paragraph break
-        for (let i = selectionStart.lineNumber - 1; i >= 1; i--) {
-            const lineContent = model.getLineContent(i);
-            if (lineContent.trim() === '') {
-                insertLineNumber = i + 1;
-                break;
-            }
-        }
-        
-        const insertText = insertLineNumber === 1 ? `${heading}\n\n` : `\n${heading}\n\n`;
-        const insertPosition = { lineNumber: insertLineNumber, column: 1 };
-        
-        editor.executeEdits('scholar-support', [{
-            range: new monaco.Range(insertPosition.lineNumber, insertPosition.column, insertPosition.lineNumber, insertPosition.column),
-            text: insertText
-        }]);
-        
-        editor.focus();
-    }
-}
-
-// Set up text selection handlers for scholar support
-document.addEventListener('mouseup', (e) => {
-    setTimeout(() => {
-        const selection = window.getSelection();
-        if (!selection || selection.isCollapsed) {
-            hideScholarButton();
-            return;
-        }
-        
-        const selectedText = selection.toString().trim();
-        if (selectedText.length < 10) {
-            hideScholarButton();
-            return;
-        }
-        
-        // Check if selection is in editor area
-        const editorElement = document.querySelector('.monaco-editor') || 
-                             document.querySelector('#editor-textarea');
-        
-        if (editorElement && editorElement.contains(selection.anchorNode)) {
-            console.log('🎓 Scholar Support: Text selected:', selectedText.substring(0, 50) + '...');
-            showScholarButton(selection, selectedText);
-        } else {
-            hideScholarButton();
-        }
-    }, 10);
-});
-
-console.log('🎓 Scholar Support: Text selection handler initialized successfully');
