@@ -1236,13 +1236,8 @@ function validateEditorSelection(ed, actionName) {
     const selection = ed.getSelection();
     const selectedText = ed.getModel().getValueInRange(selection);
     
-    // DEBUG: Log selection details
-    console.log(`[renderer.js] ${actionName} - Selection debug:`, {
-        selection: selection,
-        selectedTextLength: selectedText?.length || 0,
-        selectedTextPreview: selectedText?.substring(0, 100) + '...',
-        selectionEmpty: selection.isEmpty()
-    });
+    // DEBUG: Log selection details  
+    console.log(`[renderer.js] ${actionName} - Selected text (${selectedText?.length || 0} chars):`, selectedText?.substring(0, 200) + '...');
     
     if (!selectedText || selectedText.trim() === '') {
         console.warn(`[renderer.js] No text selected for ${actionName}`);

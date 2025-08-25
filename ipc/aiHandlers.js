@@ -430,28 +430,54 @@ function register(deps) {
       return { error: 'No text selected for summarization.' };
     }
 
-    console.log(`[AIHandlers] Summarizing text of ${selectedText.length} characters`);
-
-    try {
-      const prompt = `Please analyze and summarize the following text into concise speaker notes. Convert the content into clear bullet points that capture the key information for presentation purposes.
+    const prompt = `Generate a concise H3 heading (###) and summarize the following text into 3-5 bullet points suitable for ONE presentation slide.
 
 ${selectedText}
 
-Format your response as bullet points using this exact format:
-• Main topic or theme
-• Key argument 1
-• Key argument 2
-• Important detail or example
-• Conclusion or implication
+STRICT FORMATTING REQUIREMENTS:
+- Start with a short, descriptive H3 heading using ### (5-8 words maximum). Make sure to include the '###'.
+- Follow with 3-5 bullet points using dashes (- symbol)
+- Each bullet point must be ONE line only
+- NO sub-bullets, NO tables, NO complex formatting
+- NO other markdown formatting (no **bold**, no links, no code blocks)
+- Each bullet point should be 10-15 words maximum
+- Focus on the most important takeaways only
 
-Use only bullet points (•) - no numbers, no sub-bullets, no paragraphs. Each bullet should be a concise, standalone point suitable for speaker notes during a presentation.`;
+Example format:
+### Machine Learning Fundamentals
 
-      const aiSettings = appSettings.ai || {};
-      const systemMessage = await buildSystemMessage(aiSettings);
+- Main concept or theme
+- Key finding or argument  
+- Important implication
+- Practical application
+- Conclusion
+
+Generate the heading and bullet points only, nothing else.`;
+
+    console.log(`[AIHandlers] Summarizing ${selectedText.length} chars: "${selectedText.substring(0, 100)}..."`);
+    console.log(`[AIHandlers] Prompt being sent to AI:`, prompt.substring(0, 300) + '...');
+
+    try {
+      // Use Ash's specific settings for summarization
+      const ashSettings = appSettings.ai?.assistants?.ash?.aiSettings || {};
+      console.log(`[AIHandlers] Using Ash settings for summarization:`, ashSettings);
+      
+      let provider = ashSettings.provider;
+      let model = ashSettings.model;
+      
+      // Fallback to general AI settings if Ash settings not available
+      if (!provider || provider === 'auto' || provider === 'default') {
+        const generalSettings = appSettings.ai || {};
+        provider = generalSettings.preferredProvider !== 'auto' ? generalSettings.preferredProvider : undefined;
+        model = generalSettings.preferredModel !== 'auto' ? generalSettings.preferredModel : undefined;
+        console.log(`[AIHandlers] Falling back to general settings: provider=${provider}, model=${model}`);
+      }
+
+      const systemMessage = await buildSystemMessage(ashSettings);
       
       const response = await aiService.sendMessage(prompt, {
-        provider: aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined,
-        model: aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined,
+        provider,
+        model,
         systemMessage,
         temperature: 0.3, // Lower temperature for more focused summaries
         maxTokens: 1000
@@ -520,54 +546,105 @@ Use only bullet points (•) - no numbers, no sub-bullets, no paragraphs. Each b
     }
 
     console.log(`[AIHandlers] Extracting notes content from ${selectedText.length} characters of text`);
+    console.log(`[AIHandlers] Selected text (full):`, JSON.stringify(selectedText));
 
     try {
-      // Look for note blocks like [Note: ...] or similar patterns
-      const notePatterns = [
-        /\[Note:\s*([^\]]+)\]/gi,
-        /\[NOTE:\s*([^\]]+)\]/gi,
-        /\*\*Note:\*\*\s*([^\n]+)/gi,
-        /Note:\s*([^\n]+)/gi,
-        /\(\*([^)]+)\*\)/gi, // Footnote-style notes
-        /<!--\s*([^-]+)\s*-->/gi // HTML comments as notes
+      // Look for ```notes blocks that contain speaker notes
+      // Try multiple pattern variations to handle different formatting
+      const notesBlockPatterns = [
+        /```notes\s*\n([\s\S]*?)\n\s*```/g,  // Standard format with newlines
+        /```notes\n([\s\S]*?)\n```/g,        // Strict format  
+        /```notes\s+([\s\S]*?)\s+```/g,      // With spaces around content
+        /```notes([\s\S]*?)```/g,            // No newlines/spaces required
+        /```notes\s*([^\n]*?)\s*```/g,       // Single line format
       ];
-
+      
       let extractedNotes = [];
       let blocksFound = 0;
 
-      // Extract notes using each pattern
-      notePatterns.forEach((pattern, index) => {
-        let match;
-        while ((match = pattern.exec(selectedText)) !== null) {
-          const noteContent = match[1].trim();
+      // Try each pattern
+      console.log(`[AIHandlers] Trying ${notesBlockPatterns.length} different patterns...`);
+      
+      for (let i = 0; i < notesBlockPatterns.length; i++) {
+        const pattern = notesBlockPatterns[i];
+        console.log(`[AIHandlers] Testing pattern ${i + 1}:`, pattern.source);
+        
+        // Reset regex lastIndex to ensure fresh matching
+        pattern.lastIndex = 0;
+        
+        const matches = [...selectedText.matchAll(pattern)];
+        console.log(`[AIHandlers] Pattern ${i + 1} found ${matches.length} matches`);
+        
+        matches.forEach((match, j) => {
+          console.log(`[AIHandlers] Match ${j + 1}:`, match);
+          const noteContent = match[1]?.trim();
+          console.log(`[AIHandlers] Extracted note content:`, JSON.stringify(noteContent));
+          
           if (noteContent && noteContent.length > 0) {
             extractedNotes.push({
               content: noteContent,
-              type: ['bracket-note', 'bracket-note-caps', 'bold-note', 'inline-note', 'footnote', 'comment'][index],
+              type: 'speaker-notes',
               position: match.index
             });
             blocksFound++;
           }
+        });
+        
+        // If we found matches with this pattern, stop trying others
+        if (blocksFound > 0) {
+          console.log(`[AIHandlers] Pattern ${i + 1} worked! Found ${blocksFound} blocks.`);
+          break;
         }
-      });
+      }
+      
+      console.log(`[AIHandlers] Total blocks found: ${blocksFound}`);
+
+      // If no ```notes blocks found, also look for legacy note patterns as fallback
+      if (blocksFound === 0) {
+        console.log(`[AIHandlers] No [backtick]notes blocks found, trying legacy patterns...`);
+        const legacyPatterns = [
+          /\[Note:\s*([^\]]+)\]/gi,
+          /\[NOTE:\s*([^\]]+)\]/gi,
+          /\*\*Note:\*\*\s*([^\n]+)/gi,
+          /Note:\s*([^\n]+)/gi,
+        ];
+
+        legacyPatterns.forEach((pattern, i) => {
+          console.log(`[AIHandlers] Trying legacy pattern ${i + 1}:`, pattern.source);
+          pattern.lastIndex = 0;
+          const matches = [...selectedText.matchAll(pattern)];
+          
+          matches.forEach((match) => {
+            const noteContent = match[1]?.trim();
+            if (noteContent && noteContent.length > 0) {
+              extractedNotes.push({
+                content: noteContent,
+                type: 'legacy-note',
+                position: match.index
+              });
+              blocksFound++;
+            }
+          });
+        });
+      }
 
       // Sort by position in text
       extractedNotes.sort((a, b) => a.position - b.position);
 
-      // Format the extracted notes
-      let formattedNotes = '';
+      // Format the extracted notes - just return the content directly
+      let extractedContent = '';
       if (extractedNotes.length > 0) {
-        formattedNotes = '# Extracted Notes\n\n';
-        extractedNotes.forEach((note, index) => {
-          formattedNotes += `${index + 1}. ${note.content}\n`;
-        });
+        // For speaker notes, return the content directly without extra formatting
+        extractedContent = extractedNotes.map(note => note.content).join('\n\n');
+        console.log(`[AIHandlers] Final extracted content:`, JSON.stringify(extractedContent));
       } else {
-        formattedNotes = '# No Notes Found\n\nNo note patterns were detected in the selected text.\n\nSupported patterns:\n- [Note: content]\n- **Note:** content\n- Note: content\n- (*content*)\n- <!-- content -->';
+        extractedContent = 'No speaker notes found in the selected text.\n\nLooking for ```notes blocks containing speaker notes.';
+        console.log(`[AIHandlers] No notes found, returning fallback message`);
       }
 
       return {
         success: true,
-        extractedContent: formattedNotes,
+        extractedContent: extractedContent,
         blocksFound,
         notes: extractedNotes
       };
