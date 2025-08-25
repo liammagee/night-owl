@@ -232,8 +232,7 @@ async function updatePreviewAndStructure(markdownContent) {
         window.electronAPI.invoke('get-settings')
             .then(async settings => {
                 if (shouldRenderAsKanban(currentFilePath, settings)) {
-                    // Add visual indicator to title
-                    document.title = '📋 Kanban: ' + (currentFilePath.split('/').pop() || 'TODO');
+                    // Title remains consistent - don't change document title for Kanban files
                     
                     // Parse Kanban data
                     const parsedKanban = parseKanbanFromMarkdown(markdownContent, settings);
@@ -290,7 +289,7 @@ async function updatePreviewAndStructure(markdownContent) {
                 }
                 
                 // Not a Kanban file - render as regular markdown
-                document.title = '📝 ' + (currentFilePath.split('/').pop() || 'Markdown');
+                // Title remains consistent - don't change document title for markdown files
                 await renderRegularMarkdown(markdownContent);
             })
             .catch(async error => {
@@ -4394,7 +4393,7 @@ async function preProcessMarkdownTags(node) {
     // Process this node if it's a markdown file
     if (node.type === 'file' && node.name.endsWith('.md')) {
         try {
-            const result = await window.electronAPI.invoke('open-file-path', node.path);
+            const result = await window.electronAPI.invoke('read-file-content-only', node.path);
             if (result.success && result.content) {
                 window.tagManager.processFile(node.path, result.content);
             }

@@ -284,6 +284,35 @@ function register(deps) {
     }
   });
 
+  // Read file content without updating current file (for file tree processing, etc.)
+  ipcMain.handle('read-file-content-only', async (event, filePath) => {
+    try {
+      console.log(`[FileHandlers] Reading file content only: ${filePath}`);
+      
+      // Check if file exists
+      await fs.access(filePath);
+      
+      // Read the file content
+      const content = await fs.readFile(filePath, 'utf8');
+      
+      // DO NOT update current file path - this is just for reading
+      
+      return {
+        success: true,
+        content: content,
+        filePath: filePath,
+        fileName: path.basename(filePath)
+      };
+    } catch (error) {
+      console.error(`[FileHandlers] Error reading file content ${filePath}:`, error);
+      return {
+        success: false,
+        error: `Failed to read file: ${error.message}`,
+        filePath: filePath
+      };
+    }
+  });
+
   ipcMain.handle('perform-open-file', async (event, filename) => {
     try {
       const workingDir = getWorkingDirectory();

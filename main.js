@@ -831,7 +831,7 @@ function createFileMenuItems() {
           if (!mainWindow) return;
           console.log('[main.js] New File menu item clicked.');
           currentFilePath = null;
-          mainWindow.setTitle('NightOwl - Untitled');
+          // Title remains consistent - don't change app title for new files
           mainWindow.webContents.send('new-file-created');
           console.log('[main.js] Sent new-file-created signal to renderer.');
         }
@@ -892,7 +892,7 @@ function createFileMenuItems() {
                     appSettings.workingDirectory = folderPath;
                     addToRecentWorkspaces(folderPath);
                     currentFilePath = null;
-                    mainWindow.setTitle('NightOwl - Untitled'); 
+                    // Title remains consistent - don't change app title for directory changes
                     mainWindow.webContents.send('refresh-file-tree');
                      console.log('[main.js] Sent refresh-file-tree signal to renderer.');
                 } else {
@@ -1752,9 +1752,7 @@ async function saveFile(filePath, content) {
         await fs.writeFile(filePath, content, 'utf8');
         console.log(`[main.js] Content successfully saved to ${filePath}`);
         currentFilePath = filePath;
-        if (mainWindow) {
-            mainWindow.setTitle(`NightOwl - ${path.basename(filePath)}`);
-        }
+        // Title remains consistent - don't change app title based on file name
         return { success: true, filePath: filePath };
     } catch (err) {
         console.error(`[main.js] Error saving file to ${filePath}:`, err);
@@ -2222,7 +2220,7 @@ async function openFile() {
         console.log(`[main.js] User selected file: ${filePath}`);
         const content = await fs.readFile(filePath, 'utf8');
         currentFilePath = filePath;
-        mainWindow.setTitle(`NightOwl - ${path.basename(filePath)}`);
+        // Title remains consistent - don't change app title based on file name
          if (mainWindow) {
             mainWindow.webContents.send('file-opened', { filePath, content });
             console.log(`[main.js] Sent file-opened event for ${filePath}`);
@@ -2307,7 +2305,12 @@ app.whenReady().then(() => {
     aiService,
     currentFilePath,
     currentWorkingDirectory,
-    setCurrentFilePath: (path) => { currentFilePath = path; },
+    setCurrentFilePath: (path) => { 
+      currentFilePath = path; 
+      appSettings.currentFile = path; 
+      saveSettings();
+      console.log(`[main.js] Current file updated and saved to settings: ${path}`);
+    },
     buildSystemMessage,
     cleanAIResponse
   });
