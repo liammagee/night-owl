@@ -1371,8 +1371,7 @@ Respond with ONLY the heading text (including the ## markdown symbols). No expla
             options: {
                 temperature: 0.3,
                 maxTokens: 100,
-                newConversation: true,
-                provider: 'anthropic'
+                newConversation: true
             }
         });
         
@@ -1495,29 +1494,59 @@ function addCustomSelectionKeybindings() {
         return;
     }
     
-    // Override Shift+Option+Up to extend selection to previous line instead of duplicating line
+    // Override Shift+Option+Up to select whole lines upward
     editor.addAction({
-        id: 'extend-selection-up',
-        label: 'Extend Selection Up',
+        id: 'select-lines-up',
+        label: 'Select Whole Lines Up',
         keybindings: [
             monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.UpArrow
         ],
         run: function(ed) {
-            // Use Monaco's proper command for extending selection up
-            ed.trigger('keyboard', 'cursorUpSelect', null);
+            const selection = ed.getSelection();
+            const model = ed.getModel();
+            
+            // Get the current selection bounds
+            const startLine = Math.min(selection.startLineNumber, selection.endLineNumber);
+            const endLine = Math.max(selection.startLineNumber, selection.endLineNumber);
+            
+            // Extend selection up by one line (select the line above)
+            const newStartLine = Math.max(1, startLine - 1);
+            
+            // Create new selection from start of new start line to end of current end line
+            const newSelection = new monaco.Selection(
+                newStartLine, 1,
+                endLine, model.getLineMaxColumn(endLine)
+            );
+            
+            ed.setSelection(newSelection);
         }
     });
     
-    // Override Shift+Option+Down to extend selection to next line
+    // Override Shift+Option+Down to select whole lines downward
     editor.addAction({
-        id: 'extend-selection-down',
-        label: 'Extend Selection Down',
+        id: 'select-lines-down',
+        label: 'Select Whole Lines Down',
         keybindings: [
             monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.DownArrow
         ],
         run: function(ed) {
-            // Use Monaco's proper command for extending selection down
-            ed.trigger('keyboard', 'cursorDownSelect', null);
+            const selection = ed.getSelection();
+            const model = ed.getModel();
+            
+            // Get the current selection bounds
+            const startLine = Math.min(selection.startLineNumber, selection.endLineNumber);
+            const endLine = Math.max(selection.startLineNumber, selection.endLineNumber);
+            
+            // Extend selection down by one line (select the line below)
+            const newEndLine = Math.min(model.getLineCount(), endLine + 1);
+            
+            // Create new selection from start of current start line to end of new end line
+            const newSelection = new monaco.Selection(
+                startLine, 1,
+                newEndLine, model.getLineMaxColumn(newEndLine)
+            );
+            
+            ed.setSelection(newSelection);
         }
     });
     

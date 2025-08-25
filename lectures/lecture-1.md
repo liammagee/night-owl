@@ -6,26 +6,27 @@
 
 ### Towards Synthesis? Rethinking Learning in the AI Era
 
-- Course addresses new learning realities emergent with modern machine learning technologies.
-- Argues our concepts of learning are changing, perhaps fundamentally transformed already.
-- Traces history of tools shaping how humans externalize and re-internalize memory.
-- Positions machines as central actors in human learning, past and present.
+
+
+- Responds to a new learning reality shaped by advances in machine learning.
+- Traces historical tools externalizing memory, from stylus to internet and smartphones.
+- Highlights reciprocal learning: generative AI learns from us, we learn differently.
+- Explores differences between ChatGPT requests and calculators or traditional search engines.
+- Frames relationship through synthesis, alongside concepts like technosymbiosis and symbiotic pedagogy.
 
 ```notes
 Welcome to Machine Learning and Human Learning!
 
-
 What is this course about? 
 
 First it is a response to a certain new reality about learning, triggered by the advent of machine learning. Our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn.
-```
-
 
 But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.
 
 We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Harraway); of cyber-social systems (Kalantzis Cope); and of compound terms like 'technosymbiosis' (Katherine Hayles) or a term I'll be using, in the context of learning, 'symbiotic pedagogy'. But the wider concept we'll be working with this week - and returning to, as we'll see - is that of *synthesis*. *Synthesis* will describe how both the similarities and differences between machine and human learning come together in our present moment.
 
 Through the course we will be studying this relationship in a number of ways. Later I'll talk through the organization of the course materials. 
+```
 
 
 
