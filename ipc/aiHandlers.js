@@ -118,7 +118,38 @@ function register(deps) {
     console.log('[AIHandlers] AI Chat options:', options);
     
     try {
-      const response = await aiService.sendMessage(message, options);
+      // Ensure settings are passed to the AI service
+      const aiSettings = appSettings.ai || {};
+      
+      // Determine which assistant to use (default to 'ash' for writing companion)
+      const assistantKey = options.assistant || 'ash';
+      let finalOptions = { ...options };
+      
+      // Apply assistant-specific settings if available
+      if (aiSettings.assistants && aiSettings.assistants[assistantKey] && aiSettings.assistants[assistantKey].aiSettings) {
+        const assistantSettings = aiSettings.assistants[assistantKey].aiSettings;
+        
+        // Apply provider and model from assistant settings if not already specified
+        if (!finalOptions.provider && assistantSettings.provider) {
+          finalOptions.provider = assistantSettings.provider;
+        }
+        if (!finalOptions.model && assistantSettings.model) {
+          finalOptions.model = assistantSettings.model;
+        }
+        if (!finalOptions.temperature && assistantSettings.temperature) {
+          finalOptions.temperature = assistantSettings.temperature;
+        }
+        if (!finalOptions.maxTokens && assistantSettings.maxTokens) {
+          finalOptions.maxTokens = assistantSettings.maxTokens;
+        }
+        
+        console.log(`[AIHandlers] Using assistant '${assistantKey}' with provider: ${finalOptions.provider}, model: ${finalOptions.model}`);
+      }
+      
+      // Always pass settings to the AI service
+      finalOptions.settings = aiSettings;
+      
+      const response = await aiService.sendMessage(message, finalOptions);
       console.log(`[AIHandlers] AI Chat response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
       
       return {
@@ -481,7 +512,72 @@ Format as structured notes, not as a paragraph.`;
     }
   });
 
-  console.log('[AIHandlers] Registered 16 AI service handlers');
+  // Extract notes content from text
+  ipcMain.handle('extract-notes-content', async (_event, selectedText) => {
+    if (!selectedText || typeof selectedText !== 'string' || selectedText.trim() === '') {
+      return { error: 'No text provided for notes extraction.' };
+    }
+
+    console.log(`[AIHandlers] Extracting notes content from ${selectedText.length} characters of text`);
+
+    try {
+      // Look for note blocks like [Note: ...] or similar patterns
+      const notePatterns = [
+        /\[Note:\s*([^\]]+)\]/gi,
+        /\[NOTE:\s*([^\]]+)\]/gi,
+        /\*\*Note:\*\*\s*([^\n]+)/gi,
+        /Note:\s*([^\n]+)/gi,
+        /\(\*([^)]+)\*\)/gi, // Footnote-style notes
+        /<!--\s*([^-]+)\s*-->/gi // HTML comments as notes
+      ];
+
+      let extractedNotes = [];
+      let blocksFound = 0;
+
+      // Extract notes using each pattern
+      notePatterns.forEach((pattern, index) => {
+        let match;
+        while ((match = pattern.exec(selectedText)) !== null) {
+          const noteContent = match[1].trim();
+          if (noteContent && noteContent.length > 0) {
+            extractedNotes.push({
+              content: noteContent,
+              type: ['bracket-note', 'bracket-note-caps', 'bold-note', 'inline-note', 'footnote', 'comment'][index],
+              position: match.index
+            });
+            blocksFound++;
+          }
+        }
+      });
+
+      // Sort by position in text
+      extractedNotes.sort((a, b) => a.position - b.position);
+
+      // Format the extracted notes
+      let formattedNotes = '';
+      if (extractedNotes.length > 0) {
+        formattedNotes = '# Extracted Notes\n\n';
+        extractedNotes.forEach((note, index) => {
+          formattedNotes += `${index + 1}. ${note.content}\n`;
+        });
+      } else {
+        formattedNotes = '# No Notes Found\n\nNo note patterns were detected in the selected text.\n\nSupported patterns:\n- [Note: content]\n- **Note:** content\n- Note: content\n- (*content*)\n- <!-- content -->';
+      }
+
+      return {
+        success: true,
+        extractedContent: formattedNotes,
+        blocksFound,
+        notes: extractedNotes
+      };
+
+    } catch (error) {
+      console.error('[AIHandlers] Error extracting notes content:', error);
+      return { error: `Failed to extract notes: ${error.message}` };
+    }
+  });
+
+  console.log('[AIHandlers] Registered 17 AI service handlers');
 }
 
 module.exports = {

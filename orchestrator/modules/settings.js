@@ -1132,6 +1132,9 @@ async function saveSettingsDialog() {
         // Update global settings object
         window.appSettings = updatedSettings;
         
+        // Update currentSettings to reflect the changes (used by helper functions)
+        currentSettings = updatedSettings;
+        
         // Apply editor settings immediately
         if (window.applyEditorSettings) {
             window.applyEditorSettings(updatedSettings);
@@ -1323,15 +1326,16 @@ function collectSettingsFromForm() {
     const ashTemperature = document.getElementById('ash-temperature')?.value;
     const ashMaxTokens = document.getElementById('ash-max-tokens')?.value;
     
-    if (ashProvider || ashModel || ashTemperature || ashMaxTokens) {
-        if (!updatedSettings.ai.assistants.ash) updatedSettings.ai.assistants.ash = {};
-        if (!updatedSettings.ai.assistants.ash.aiSettings) updatedSettings.ai.assistants.ash.aiSettings = {};
-        
-        if (ashProvider) updatedSettings.ai.assistants.ash.aiSettings.provider = ashProvider;
-        if (ashModel) updatedSettings.ai.assistants.ash.aiSettings.model = ashModel;
-        if (ashTemperature) updatedSettings.ai.assistants.ash.aiSettings.temperature = parseFloat(ashTemperature);
-        if (ashMaxTokens) updatedSettings.ai.assistants.ash.aiSettings.maxTokens = parseInt(ashMaxTokens);
-    }
+    console.log('[Settings] Ash settings:', { ashProvider, ashModel, ashTemperature, ashMaxTokens });
+    
+    // Always create the assistant structure and set values (including defaults)
+    if (!updatedSettings.ai.assistants.ash) updatedSettings.ai.assistants.ash = {};
+    if (!updatedSettings.ai.assistants.ash.aiSettings) updatedSettings.ai.assistants.ash.aiSettings = {};
+    
+    updatedSettings.ai.assistants.ash.aiSettings.provider = ashProvider || 'auto';
+    updatedSettings.ai.assistants.ash.aiSettings.model = ashModel || 'auto';
+    if (ashTemperature) updatedSettings.ai.assistants.ash.aiSettings.temperature = parseFloat(ashTemperature);
+    if (ashMaxTokens) updatedSettings.ai.assistants.ash.aiSettings.maxTokens = parseInt(ashMaxTokens);
     
     // Dr. Chen assistant settings
     const chenProvider = document.getElementById('chen-provider')?.value;
@@ -1339,15 +1343,16 @@ function collectSettingsFromForm() {
     const chenTemperature = document.getElementById('chen-temperature')?.value;
     const chenMaxTokens = document.getElementById('chen-max-tokens')?.value;
     
-    if (chenProvider || chenModel || chenTemperature || chenMaxTokens) {
-        if (!updatedSettings.ai.assistants.chen) updatedSettings.ai.assistants.chen = {};
-        if (!updatedSettings.ai.assistants.chen.aiSettings) updatedSettings.ai.assistants.chen.aiSettings = {};
-        
-        if (chenProvider) updatedSettings.ai.assistants.chen.aiSettings.provider = chenProvider;
-        if (chenModel) updatedSettings.ai.assistants.chen.aiSettings.model = chenModel;
-        if (chenTemperature) updatedSettings.ai.assistants.chen.aiSettings.temperature = parseFloat(chenTemperature);
-        if (chenMaxTokens) updatedSettings.ai.assistants.chen.aiSettings.maxTokens = parseInt(chenMaxTokens);
-    }
+    console.log('[Settings] Chen settings:', { chenProvider, chenModel, chenTemperature, chenMaxTokens });
+    
+    // Always create the assistant structure and set values (including defaults)
+    if (!updatedSettings.ai.assistants.chen) updatedSettings.ai.assistants.chen = {};
+    if (!updatedSettings.ai.assistants.chen.aiSettings) updatedSettings.ai.assistants.chen.aiSettings = {};
+    
+    updatedSettings.ai.assistants.chen.aiSettings.provider = chenProvider || 'auto';
+    updatedSettings.ai.assistants.chen.aiSettings.model = chenModel || 'auto';
+    if (chenTemperature) updatedSettings.ai.assistants.chen.aiSettings.temperature = parseFloat(chenTemperature);
+    if (chenMaxTokens) updatedSettings.ai.assistants.chen.aiSettings.maxTokens = parseInt(chenMaxTokens);
     
     // Legacy AI settings (for backward compatibility)
     const aiProvider = document.getElementById('ai-provider')?.value;

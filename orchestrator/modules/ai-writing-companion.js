@@ -72,6 +72,7 @@ class AIWritingCompanion {
             recentTypingBuffer: '', // Buffer to track last ~150 characters as they're typed
             maxTypingBufferSize: 150, // Maximum characters to keep in typing buffer
             characterThreshold: 20, // Minimum characters typed before triggering AI analysis
+            lastContentHash: null, // Track content changes to prevent unnecessary AI calls
         };
         
         // Adaptive Learning
@@ -363,11 +364,22 @@ class AIWritingCompanion {
                 return;
             }
             
+            // Content change detection to prevent unnecessary AI calls
+            const fullContent = this.getCurrentWritingContent();
+            const contentHash = this.hashString(fullContent + recentWriting);
+            
+            if (this.realTimeAnalysis.lastContentHash && contentHash === this.realTimeAnalysis.lastContentHash) {
+                this.log('basic', 'analysis', 'Skipping analysis - no content changes detected');
+                console.log('[AI Companion] ⏸️ Analysis skipped - no content changes since last analysis');
+                return;
+            }
+            
+            this.realTimeAnalysis.lastContentHash = contentHash;
+            
             // Analyze multiple dimensions
             const analysis = await this.analyzeWritingDimensions(recentWriting);
             
             // Add FULL DOCUMENT CONTEXT for AI understanding
-            const fullContent = this.getCurrentWritingContent();
             analysis.fullContext = fullContent;
             analysis.recentText = recentWriting; // Keep this for analysis buffer data
             

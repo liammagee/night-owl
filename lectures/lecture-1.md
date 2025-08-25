@@ -5,20 +5,12 @@
 
 ### <a id="synthesis"></a>Synthesis
 
-- Technological tools have historically reshaped how we externalize and internalize memory, making machines central to human learning.
-- Generative AI now learns from human data and in turn changes the way we learn, creating a reciprocal “learning loop.”
-- This new relationship can be framed through concepts such as socio‑technical systems, cyborgism, technosymbiosis, and symbiotic pedagogy.
-- The course will explore these dynamics, focusing on how synthesis brings together machine and human learning in the present moment.
-
-```notes
 
 Welcome to Machine Learning and Human Learning!
 
 What is this course about? 
 
-
-
-We have entered an era in which our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 
+First it is a response to a certain new reality about learning, triggered by the advent of machine learning. Our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 
 
 But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.
 
@@ -43,9 +35,8 @@ Through the course we will be studying this relationship in a number of ways. La
 - The goal is to balance depth of content with practical engagement within the limited weekly allocation.
 
 ```notes
-My preference is for these to be 90 minutes (5:30 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. My ideal here is that I will present 2 x 15 minute lecture pods, after which we will have a mix of discussion and practice with AI models.
+My preference is for these to be 90 minutes (6:00 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. 
 
-But the course hours are much fewer than this. What do people think? Otherwise we can truncate to 90 or even 60 minutes.
 ```
 ---
 
@@ -53,10 +44,18 @@ But the course hours are much fewer than this. What do people think? Otherwise w
 
 The course will use CGScholar – a platform I think most of you will be familiar with? Assessments will be divided between:
 
-1. Weekly discussion and commentary in CGScholar (formative learning!)
-2. An individual curriculum, learning guide or conference presentation outline (summative learning!). This will be your choice, but could be either of:
+1. Weekly discussion and commentary (weeks 2-8) (70%) in CGScholar (formative assessment). 
+2. A final project (30%): An individual curriculum, learning guide or conference presentation outline (summative assessment). This will be your choice, but could be any of:
   a. Learning materials designed for machines, describing some facet of human culture
   b. or Learning materials designed for humans, describing some facet of machine "experience"
+  c. A hybrid guide for a new world of cyber-social learning - how both machines and humans can learn from eachother.
+
+A note on use of machine learning materials – for the formative assessment tasks, it would be good to use machine learning explicitly, but in a way that is visible. My preferred option for this at the moment is actually in the form of a dialogue – and edited chat session between you and your preferred chat agent / assistant – followed by some kind of summary by you, which includes your reflection on what the AI supplied, and your consideration of how useful the resulting artefact would really be. 
+
+Michele has already authored a fantastic and comprehensive handbook, and I have done some work on creative dialogues with AI – either or both could be models for how this task would proceed.
+
+We can discuss which models, and how to access them in future weeks.
+
 
 ---
 ### <a id="previous-course"></a>Previous course

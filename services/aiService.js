@@ -120,6 +120,9 @@ class AIService {
   }
 
   async sendMessage(message, options = {}) {
+    // Check verbose logging setting early
+    const verboseLogging = options.settings?.verboseLogging || false;
+    
     // Extract options with defaults
     let provider = options.provider || this.defaultProvider;
     
@@ -127,11 +130,11 @@ class AIService {
     if (provider === 'auto') {
       if (this.providers.has('local')) {
         provider = 'local';
-        console.log('[AIService] Auto provider mapped to: local');
+        if (verboseLogging) console.log('[AIService] Auto provider mapped to: local');
       } else if (this.providers.size > 0) {
         // Fallback to first available provider
         provider = Array.from(this.providers.keys())[0];
-        console.log(`[AIService] Auto provider mapped to first available: ${provider}`);
+        if (verboseLogging) console.log(`[AIService] Auto provider mapped to first available: ${provider}`);
       } else {
         // No providers available
         console.error('[AIService] No AI providers available');
@@ -156,47 +159,42 @@ class AIService {
 
     // Add user message to history
     this.addToHistory('user', message);
-
-    console.log(`[AIService] 🚀 sendMessage called with provider: ${provider}, model: ${model}`);
-    console.log('[AIService] 📝 Full API Request Details:');
-    console.log('[AIService] ============================================');
-    console.log('[AIService] Provider:', provider || 'default');
-    console.log('[AIService] Model:', model || 'provider default');
-    console.log('[AIService] Temperature:', temperature);
-    console.log('[AIService] Max Tokens:', maxTokens);
-    console.log('[AIService] Message Length:', message.length, 'characters');
-    console.log('[AIService] Conversation History Length:', this.conversationHistory.length, 'messages');
-    console.log('[AIService] ============================================');
-    // Check verbose logging setting
-    const verboseLogging = settings?.verboseLogging || false;
     
-    console.log('[AIService] 🔧 SYSTEM PROMPT:');
-    console.log('[AIService] --------------------------------------------');
     if (verboseLogging) {
+      console.log(`[AIService] 🚀 sendMessage called with provider: ${provider}, model: ${model}`);
+      console.log('[AIService] 📝 Full API Request Details:');
+      console.log('[AIService] ============================================');
+      console.log('[AIService] Provider:', provider || 'default');
+      console.log('[AIService] Model:', model || 'provider default');
+      console.log('[AIService] Temperature:', temperature);
+      console.log('[AIService] Max Tokens:', maxTokens);
+      console.log('[AIService] Message Length:', message.length, 'characters');
+      console.log('[AIService] Conversation History Length:', this.conversationHistory.length, 'messages');
+      console.log('[AIService] ============================================');
+    } else {
+      console.log(`[AIService] 🚀 AI request: ${provider}${model ? `/${model}` : ''} (${message.length} chars)`);
+    }
+    
+    if (verboseLogging) {
+      console.log('[AIService] 🔧 SYSTEM PROMPT:');
+      console.log('[AIService] --------------------------------------------');
       console.log(systemMessage);
-    } else {
-      const preview = systemMessage.length > 200 ? systemMessage.substring(0, 200) + '...' : systemMessage;
-      console.log(preview);
-    }
-    console.log('[AIService] --------------------------------------------');
-    
-    console.log(`[AIService] 💬 USER MESSAGE ${verboseLogging ? '(FULL)' : '(PREVIEW)'}:`);
-    console.log('[AIService] --------------------------------------------');
-    if (verboseLogging) {
+      console.log('[AIService] --------------------------------------------');
+      
+      console.log('[AIService] 💬 USER MESSAGE (FULL):');
+      console.log('[AIService] --------------------------------------------');
       console.log(message);
-    } else {
-      const preview = message.length > 500 ? message.substring(0, 500) + '...' : message;
-      console.log(preview);
+      console.log('[AIService] --------------------------------------------');
+      
+      console.log('[AIService] 📊 Configuration Details:');
+      console.log('[AIService] Available providers:', Array.from(this.providers.keys()));
+      console.log('[AIService] Default provider (from service):', this.defaultProvider);
+      console.log('[AIService] Actual provider (after options):', provider);
+      console.log('[AIService] Model requested:', model || '(provider default)');
+      console.log('[AIService] Options passed in:', JSON.stringify(options, null, 2));
+      console.log('[AIService] Settings from main process:', settings ? JSON.stringify(settings, null, 2) : 'none');
+      console.log('[AIService] ============================================');
     }
-    console.log('[AIService] --------------------------------------------');
-    console.log('[AIService] 📊 Configuration Details:');
-    console.log('[AIService] Available providers:', Array.from(this.providers.keys()));
-    console.log('[AIService] Default provider (from service):', this.defaultProvider);
-    console.log('[AIService] Actual provider (after options):', provider);
-    console.log('[AIService] Model requested:', model || '(provider default)');
-    console.log('[AIService] Options passed in:', JSON.stringify(options, null, 2));
-    console.log('[AIService] Settings from main process:', settings ? JSON.stringify(settings, null, 2) : 'none');
-    console.log('[AIService] ============================================');
 
     if (!this.providers.has(provider)) {
       throw new Error(`Provider '${provider}' not available. Available providers: ${Array.from(this.providers.keys()).join(', ')}`);
@@ -217,24 +215,23 @@ class AIService {
       // Add assistant response to history
       this.addToHistory('assistant', response.content);
       
-      console.log(`[AIService] ✅ Successfully got response from ${provider}`);
-      console.log('[AIService] 📥 API Response Details:');
-      console.log('[AIService] --------------------------------------------');
-      console.log('[AIService] Provider:', provider);
-      console.log('[AIService] Model Used:', response.model);
-      console.log('[AIService] Response Length:', response.content?.length || 0, 'characters');
-      if (response.usage) {
-        console.log('[AIService] Token Usage:', JSON.stringify(response.usage, null, 2));
-      }
-      console.log(`[AIService] 💬 AI RESPONSE ${verboseLogging ? '(FULL)' : '(PREVIEW)'}:`);
-      console.log('[AIService] --------------------------------------------');
       if (verboseLogging) {
+        console.log(`[AIService] ✅ Successfully got response from ${provider}`);
+        console.log('[AIService] 📥 API Response Details:');
+        console.log('[AIService] --------------------------------------------');
+        console.log('[AIService] Provider:', provider);
+        console.log('[AIService] Model Used:', response.model);
+        console.log('[AIService] Response Length:', response.content?.length || 0, 'characters');
+        if (response.usage) {
+          console.log('[AIService] Token Usage:', JSON.stringify(response.usage, null, 2));
+        }
+        console.log('[AIService] 💬 AI RESPONSE (FULL):');
+        console.log('[AIService] --------------------------------------------');
         console.log(response.content);
+        console.log('[AIService] --------------------------------------------');
       } else {
-        const preview = response.content?.length > 500 ? response.content.substring(0, 500) + '...' : response.content;
-        console.log(preview);
+        console.log(`[AIService] ✅ Response: ${provider}${response.model ? `/${response.model}` : ''} (${response.content?.length || 0} chars)`);
       }
-      console.log('[AIService] --------------------------------------------');
       
       return {
         response: response.content,
