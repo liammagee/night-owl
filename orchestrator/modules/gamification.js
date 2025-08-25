@@ -2158,36 +2158,65 @@ class WritingGamification {
         this.isMenuExpanded = this.loadMenuState();
         this.updateMenuState();
         
-        // Add event listeners
-        document.getElementById('gamification-toggle').addEventListener('click', () => {
-            this.toggleMenu();
-        });
+        // Add event listeners with error checking
+        const toggleButton = document.getElementById('gamification-toggle');
+        if (toggleButton) {
+            console.log('[Gamification] Adding click listener to toggle button');
+            toggleButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[Gamification] Toggle button clicked');
+                this.toggleMenu();
+            });
+        } else {
+            console.error('[Gamification] Toggle button not found!');
+        }
 
-        document.getElementById('start-writing-session').addEventListener('click', () => {
-            this.startWritingSession();
-        });
+        const startButton = document.getElementById('start-writing-session');
+        if (startButton) {
+            startButton.addEventListener('click', () => {
+                this.startWritingSession();
+            });
+        } else {
+            console.warn('[Gamification] Start writing session button not found');
+        }
         
-        document.getElementById('end-writing-session').addEventListener('click', () => {
-            this.endWritingSession();
-        });
+        const endButton = document.getElementById('end-writing-session');
+        if (endButton) {
+            endButton.addEventListener('click', () => {
+                this.endWritingSession();
+            });
+        } else {
+            console.warn('[Gamification] End writing session button not found');
+        }
         
-        document.getElementById('show-stats').addEventListener('click', () => {
-            console.log('[Gamification] Stats button clicked');
-            try {
-                this.showStatsModal();
-            } catch (error) {
-                console.error('[Gamification] Error showing stats modal:', error);
-            }
-        });
+        const statsButton = document.getElementById('show-stats');
+        if (statsButton) {
+            statsButton.addEventListener('click', () => {
+                console.log('[Gamification] Stats button clicked');
+                try {
+                    this.showStatsModal();
+                } catch (error) {
+                    console.error('[Gamification] Error showing stats modal:', error);
+                }
+            });
+        } else {
+            console.warn('[Gamification] Show stats button not found');
+        }
         
-        document.getElementById('customize-goals').addEventListener('click', () => {
-            console.log('[Gamification] Goals button clicked');
-            try {
-                this.showGoalsModal();
-            } catch (error) {
-                console.error('[Gamification] Error showing goals modal:', error);
-            }
-        });
+        const goalsButton = document.getElementById('customize-goals');
+        if (goalsButton) {
+            goalsButton.addEventListener('click', () => {
+                console.log('[Gamification] Goals button clicked');
+                try {
+                    this.showGoalsModal();
+                } catch (error) {
+                    console.error('[Gamification] Error showing goals modal:', error);
+                }
+            });
+        } else {
+            console.warn('[Gamification] Customize goals button not found');
+        }
         
         // Focus session controls
         document.getElementById('start-focus-session').addEventListener('click', () => {
@@ -2234,15 +2263,23 @@ class WritingGamification {
     }
 
     toggleMenu() {
+        console.log('[Gamification] toggleMenu called, current state:', this.isMenuExpanded);
         this.isMenuExpanded = !this.isMenuExpanded;
+        console.log('[Gamification] New state:', this.isMenuExpanded);
         this.updateMenuState();
         this.saveMenuState();
     }
 
     updateMenuState() {
-        if (!this.menuContent) return;
+        console.log('[Gamification] updateMenuState called, menuContent exists:', !!this.menuContent);
+        if (!this.menuContent) {
+            console.error('[Gamification] menuContent is null or undefined!');
+            return;
+        }
         
         const toggle = document.getElementById('gamification-toggle');
+        console.log('[Gamification] Toggle button found:', !!toggle, 'isExpanded:', this.isMenuExpanded);
+        
         if (this.isMenuExpanded) {
             this.menuContent.style.display = 'block';
             if (toggle) toggle.textContent = '▲';

@@ -238,6 +238,68 @@ function setupKeyboardShortcuts() {
 }
 
 
+function setupGamificationToggleIntegration() {
+  console.log('[App Init] Setting up gamification toggle integration');
+  
+  const setupToggleHandler = () => {
+    const gamificationToggleBtn = document.getElementById('toggle-gamification-btn');
+    if (gamificationToggleBtn) {
+      console.log('[App Init] Found gamification toggle button, setting up handler');
+      
+      gamificationToggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        console.log('[App Init] Gamification toggle button clicked');
+        
+        // Check if gamification system is loaded and has toggle function
+        if (window.writingGamification && window.writingGamification.toggleMenu) {
+          console.log('[App Init] Calling gamification.toggleMenu()');
+          window.writingGamification.toggleMenu();
+        } else if (window.gamificationInstance && window.gamificationInstance.toggleMenu) {
+          console.log('[App Init] Calling gamificationInstance.toggleMenu()');
+          window.gamificationInstance.toggleMenu();
+        } else {
+          console.warn('[App Init] Gamification system not ready, trying global toggle function');
+          
+          // Fallback: look for the gamification panel and toggle it manually
+          const gamificationPanel = document.querySelector('.gamification-panel') || document.getElementById('gamification-panel');
+          if (gamificationPanel) {
+            const isVisible = gamificationPanel.style.display !== 'none';
+            gamificationPanel.style.display = isVisible ? 'none' : 'block';
+            console.log('[App Init] Manually toggled gamification panel:', !isVisible);
+            
+            // Update the toggle button appearance
+            const toggleBtn = document.getElementById('toggle-gamification-btn');
+            if (toggleBtn) {
+              if (isVisible) {
+                toggleBtn.style.background = '#f59e0b'; // Orange - inactive
+                toggleBtn.style.opacity = '0.7';
+              } else {
+                toggleBtn.style.background = '#dc2626'; // Red - active
+                toggleBtn.style.opacity = '1';
+              }
+            }
+          } else {
+            console.error('[App Init] No gamification panel found to toggle');
+            console.log('[App Init] Available panels:', document.querySelectorAll('[class*="gamification"]'));
+          }
+        }
+      });
+      
+      console.log('[App Init] Gamification toggle button handler added');
+    } else {
+      console.warn('[App Init] Gamification toggle button not found - retrying in 200ms');
+      setTimeout(setupToggleHandler, 200);
+    }
+  };
+  
+  // Start setup with retry logic for button availability
+  setupToggleHandler();
+  
+  console.log('[App Init] Gamification toggle integration setup completed');
+}
+
 function setupGamificationToggle() {
   console.log('[App Init] Setting up gamification toggle');
   
@@ -480,21 +542,27 @@ function initializeApp() {
       setupSpeakerNotesResize();
     }
     
-    // Setup gamification toggle
-    setupGamificationToggle();
+    // Setup gamification toggle - Integration with gamification.js system
+    setupGamificationToggleIntegration();
     
-    // Initialize gamification system
-    if (window.initializeGamification) {
-      console.log('[App Init] Initializing gamification system');
-      try {
-        window.initializeGamification();
-        console.log('[App Init] Gamification system initialized successfully');
-      } catch (error) {
-        console.error('[App Init] Error initializing gamification system:', error);
+    // Initialize gamification system from gamification.js with retry logic
+    const initGamification = () => {
+      if (window.initializeGamification) {
+        console.log('[App Init] Initializing gamification system from gamification.js');
+        try {
+          window.initializeGamification();
+          console.log('[App Init] Gamification system initialized successfully');
+        } catch (error) {
+          console.error('[App Init] Error initializing gamification system:', error);
+        }
+      } else {
+        console.warn('[App Init] window.initializeGamification not available - retrying in 100ms');
+        setTimeout(initGamification, 100);
       }
-    } else {
-      console.warn('[App Init] window.initializeGamification not available');
-    }
+    };
+    
+    // Start gamification initialization (with retry logic for deferred scripts)
+    initGamification();
     
     // Initialize default mode
     switchToMode('editor');
