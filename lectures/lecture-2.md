@@ -14,7 +14,7 @@
 
 Welcome to Machine Learning and Human Learning!
 
-What is this course about? Most obviously we are
+What is this course about? 
 
 
 
@@ -37,13 +37,13 @@ Through the course we will be studying this relationship in a number of ways. La
 ### <a id="weekly-seminars"></a>Weekly seminars.
 
 
-- Preferred session duration is two hours (5:30‑7:30) with a brief break, including two 15‑minute lecture pods followed by discussion and AI practice.
+- Preferred session duration is 90 minutes (6:00‑7:30) with a brief break, including two 15‑minute lecture pods followed by discussion and AI practice.
 - Flexibility exists; the actual course schedule may be shorter due to overall time constraints.
 - Options under consideration are trimming sessions to 90 minutes or even 60 minutes, pending participant feedback.
 - The goal is to balance depth of content with practical engagement within the limited weekly allocation.
 
 ```notes
-My preference is for these to be two hours (5:30 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. My ideal here is that I will present 2 x 15 minute lecture pods, after which we will have a mix of discussion and practice with AI models.
+My preference is for these to be 90 minutes (6:00 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. My ideal here is that I will present 2 x 15 minute lecture pods, after which we will have a mix of discussion and practice with AI models.
 
 But the course hours are much fewer than this. What do people think? Otherwise we can truncate to 90 or even 60 minutes.
 ```

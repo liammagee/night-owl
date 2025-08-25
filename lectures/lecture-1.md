@@ -11,6 +11,13 @@
 - The course will explore these dynamics, focusing on how synthesis brings together machine and human learning in the present moment.
 
 ```notes
+
+Welcome to Machine Learning and Human Learning!
+
+What is this course about? 
+
+
+
 We have entered an era in which our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn. 
 
 But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.
@@ -30,13 +37,13 @@ Through the course we will be studying this relationship in a number of ways. La
 ### <a id="weekly-seminars"></a>Weekly seminars.
 
 
-- Preferred session duration is two hours (5:30‑7:30) with a brief break, including two 15‑minute lecture pods followed by discussion and AI practice.
+- Preferred session duration is 90 minutes (6:00‑7:30) with a brief break, including two 15‑minute lecture pods followed by discussion and AI practice.
 - Flexibility exists; the actual course schedule may be shorter due to overall time constraints.
 - Options under consideration are trimming sessions to 90 minutes or even 60 minutes, pending participant feedback.
 - The goal is to balance depth of content with practical engagement within the limited weekly allocation.
 
 ```notes
-My preference is for these to be two hours (5:30 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. My ideal here is that I will present 2 x 15 minute lecture pods, after which we will have a mix of discussion and practice with AI models.
+My preference is for these to be 90 minutes (5:30 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. My ideal here is that I will present 2 x 15 minute lecture pods, after which we will have a mix of discussion and practice with AI models.
 
 But the course hours are much fewer than this. What do people think? Otherwise we can truncate to 90 or even 60 minutes.
 ```

@@ -31,6 +31,13 @@ class AIWritingCompanion {
             suppressionPeriod: 300000, // 5 minutes between similar feedback types
         };
         
+        // Keystroke tracking for AI insight frequency control
+        this.keystrokeTracking = {
+            count: 0, // Total keystrokes since last AI insight
+            lastAIInsightTime: 0, // Timestamp when AI insight was last generated
+            threshold: this.analysisEngine.preferences.aiInsightKeystrokeThreshold || 100
+        };
+        
         // Context Configuration (will be loaded from settings)
         this.contextConfig = {
             scope: 'full_document', // Options: 'full_document', 'recent_text_only', 'selected_text_only'
@@ -134,12 +141,68 @@ class AIWritingCompanion {
             // Initialize personality detection
             this.initializePersonalityDetection();
             
+            // Setup keystroke tracking for AI insight frequency control
+            this.setupKeystrokeTracking();
+            
             this.initialized = true;
             console.log('[AI Companion] AI Writing Companion initialized successfully');
             
         } catch (error) {
             console.error('[AI Companion] Initialization failed:', error);
         }
+    }
+    
+    // === Keystroke Tracking for AI Insight Frequency Control ===
+    
+    setupKeystrokeTracking() {
+        // Set up keystroke counting for both Monaco editor and textarea
+        const trackKeystroke = () => {
+            this.keystrokeTracking.count++;
+            console.log(`[AI Companion] Keystroke count: ${this.keystrokeTracking.count}/${this.keystrokeTracking.threshold}`);
+        };
+        
+        // Monaco editor keystroke tracking
+        if (window.editor && window.editor.onKeyDown) {
+            window.editor.onKeyDown(trackKeystroke);
+        }
+        
+        // Textarea fallback keystroke tracking
+        const textarea = document.querySelector('#editor-textarea');
+        if (textarea) {
+            textarea.addEventListener('keydown', trackKeystroke);
+        }
+        
+        // Set up listener for when Monaco editor becomes available later
+        const checkForMonaco = () => {
+            if (window.editor && window.editor.onKeyDown && !this.monacoKeystrokeSetup) {
+                window.editor.onKeyDown(trackKeystroke);
+                this.monacoKeystrokeSetup = true;
+                console.log('[AI Companion] Keystroke tracking set up for Monaco editor');
+            }
+        };
+        
+        // Check periodically for Monaco editor
+        setInterval(checkForMonaco, 1000);
+    }
+    
+    // Check if enough keystrokes have occurred since last AI insight
+    hasMetKeystrokeThreshold() {
+        const preferences = this.loadUserPreferences();
+        const threshold = preferences.aiInsightKeystrokeThreshold || 100;
+        
+        // Update threshold if preferences changed
+        if (this.keystrokeTracking.threshold !== threshold) {
+            this.keystrokeTracking.threshold = threshold;
+        }
+        
+        return this.keystrokeTracking.count >= threshold;
+    }
+    
+    // Reset keystroke counter after AI insight is generated
+    resetKeystrokeCounter() {
+        this.keystrokeTracking.count = 0;
+        this.keystrokeTracking.lastAIInsightTime = Date.now();
+        console.log('[AI Companion] Keystroke counter reset after AI insight generation');
     }
     
     // === Real-time Writing Analysis ===
@@ -590,11 +653,22 @@ class AIWritingCompanion {
         // CRITICAL: Only call AI if we have ACTUAL meaningful typing activity
         const hasActualTyping = hasLastSentence && this.hasMeaningfulText(lastSentence) && this.hasRecentTypingActivity();
         
+        // Check keystroke threshold before generating AI insight
+        const hasMetKeystrokeThreshold = this.hasMetKeystrokeThreshold();
+        
+        // Log keystroke threshold status
+        if (!hasMetKeystrokeThreshold) {
+            console.log(`[AI Companion] ⏸️ Keystroke threshold not met: ${this.keystrokeTracking.count}/${this.keystrokeTracking.threshold} keystrokes`);
+        }
+        
         // Try to generate AI-powered contextual insight first
-        if (window.electronAPI && hasActualTyping) {
+        if (window.electronAPI && hasActualTyping && hasMetKeystrokeThreshold) {
             try {
                 const aiMessage = await this.generateAIInsight(analysis, persona);
                 if (aiMessage) {
+                    // Reset keystroke counter since AI insight was successfully generated
+                    this.resetKeystrokeCounter();
+                    
                     return {
                         type: 'insight',
                         persona: persona.name,
@@ -1331,7 +1405,8 @@ Be thoughtful about their writing process without referencing specific recent te
             intrusivenessLevel: 'low', // low, moderate, high
             learningMode: true,
             autoInvocationEnabled: false, // Default to false - only invoke when user requests or makes text changes
-            requireTextChanges: true // Only invoke when there are actual text changes
+            requireTextChanges: true, // Only invoke when there are actual text changes
+            aiInsightKeystrokeThreshold: 100 // Number of keystrokes before AI insight can be generated
         };
     }
     
