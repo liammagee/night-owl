@@ -1162,26 +1162,28 @@ Be supportive about their writing process without referencing specific recent te
         this.log('debug', 'ai-input', 'FULL PROMPT:', prompt);
 
         try {
-            // Get AI settings from configuration
-            let temperature = 0.8; // Default fallback
+            // Get Ash assistant settings from configuration
+            let temperature = 0.7; // Default fallback for Ash
             let maxTokens = 200;   // Default for companion messages (reasonable length)
             
             try {
                 const settings = await window.electronAPI.invoke('get-settings');
-                if (settings && settings.ai) {
-                    temperature = parseFloat(settings.ai.temperature) || 0.8;
-                    maxTokens = parseInt(settings.ai.maxTokens) || 200;
-                    console.log('[AI Companion] ⚙️ Using AI settings - temperature:', temperature, 'maxTokens:', maxTokens);
+                if (settings && settings.ai && settings.ai.assistants && settings.ai.assistants.ash) {
+                    const ashSettings = settings.ai.assistants.ash.aiSettings;
+                    temperature = parseFloat(ashSettings.temperature) || 0.7;
+                    maxTokens = parseInt(ashSettings.maxTokens) || 200;
+                    console.log('[AI Companion] ⚙️ Using Ash assistant settings - temperature:', temperature, 'maxTokens:', maxTokens);
                 } else {
-                    console.log('[AI Companion] ⚙️ No AI settings found, using defaults');
+                    console.log('[AI Companion] ⚙️ No Ash settings found, using defaults');
                 }
             } catch (settingsError) {
-                console.warn('[AI Companion] Could not load settings, using defaults:', settingsError);
+                console.warn('[AI Companion] Could not load Ash settings, using defaults:', settingsError);
             }
             
             const requestData = {
                 message: prompt,
                 options: {
+                    assistant: 'ash',
                     temperature: temperature,
                     maxTokens: maxTokens,
                     newConversation: true
@@ -1265,27 +1267,28 @@ Be thoughtful about their writing process without referencing specific recent te
         this.log('debug', 'ai-input', 'FULL PROMPT:', prompt);
 
         try {
-            // Get AI settings from configuration
-            let temperature = 0.7; // Default fallback for insights (slightly lower)
+            // Get Ash assistant settings from configuration
+            let temperature = 0.7; // Default fallback for insights
             let maxTokens = 200;   // Default for companion messages
             
             try {
                 const settings = await window.electronAPI.invoke('get-settings');
-                if (settings && settings.ai) {
-                    // Use slightly lower temperature for insights than encouragement (more focused)
-                    temperature = parseFloat(settings.ai.temperature || 0.8) * 0.9;
-                    maxTokens = parseInt(settings.ai.maxTokens) || 200;
-                    console.log('[AI Companion] ⚙️ Using AI settings for insights - temperature:', temperature, 'maxTokens:', maxTokens);
+                if (settings && settings.ai && settings.ai.assistants && settings.ai.assistants.ash) {
+                    const ashSettings = settings.ai.assistants.ash.aiSettings;
+                    temperature = parseFloat(ashSettings.temperature) || 0.7;
+                    maxTokens = parseInt(ashSettings.maxTokens) || 200;
+                    console.log('[AI Companion] ⚙️ Using Ash assistant settings for insights - temperature:', temperature, 'maxTokens:', maxTokens);
                 } else {
-                    console.log('[AI Companion] ⚙️ No AI settings found, using defaults for insights');
+                    console.log('[AI Companion] ⚙️ No Ash settings found, using defaults for insights');
                 }
             } catch (settingsError) {
-                console.warn('[AI Companion] Could not load settings, using defaults:', settingsError);
+                console.warn('[AI Companion] Could not load Ash settings, using defaults:', settingsError);
             }
             
             const requestData = {
                 message: prompt,
                 options: {
+                    assistant: 'ash',
                     temperature: temperature,
                     maxTokens: maxTokens,
                     newConversation: true

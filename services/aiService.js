@@ -423,10 +423,12 @@ class OpenAIProvider extends BaseProvider {
     console.log(`[OpenAIProvider] 📤 Sending to OpenAI API`);
     console.log(`[OpenAIProvider] Model: ${model}`);
     console.log(`[OpenAIProvider] Messages in conversation: ${messages.length}`);
-    console.log(`[OpenAIProvider] Full API Payload:`, JSON.stringify({
-      model,
-      messages,
-    }, null, 2));
+    if (verboseLogging) {
+      console.log(`[OpenAIProvider] Full API Payload:`, JSON.stringify({
+        model,
+        messages,
+      }, null, 2));
+    }
 //       max_completion_tokens: maxTokens
 
     try {
@@ -509,7 +511,9 @@ class AnthropicProvider extends BaseProvider {
 
     console.log(`[AnthropicProvider] 📤 Sending to Anthropic API`);
     console.log(`[AnthropicProvider] Model: ${model}`);
-    console.log(`[AnthropicProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    if (verboseLogging) {
+      console.log(`[AnthropicProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -590,7 +594,9 @@ class GroqProvider extends BaseProvider {
 
     console.log(`[GroqProvider] 📤 Sending to Groq API`);
     console.log(`[GroqProvider] Model: ${model}`);
-    console.log(`[GroqProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    if (verboseLogging) {
+      console.log(`[GroqProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    }
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -667,7 +673,9 @@ class OpenRouterProvider extends BaseProvider {
 
     console.log(`[OpenRouterProvider] 📤 Sending to OpenRouter API`);
     console.log(`[OpenRouterProvider] Model: ${model}`);
-    console.log(`[OpenRouterProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    if (verboseLogging) {
+      console.log(`[OpenRouterProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    }
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -757,7 +765,9 @@ class LocalAIProvider extends BaseProvider {
     console.log(`[LocalAIProvider] URL: ${this.apiUrl}`);
     console.log(`[LocalAIProvider] Model: ${model}`);
     console.log(`[LocalAIProvider] Messages in conversation: ${messages.length}`);
-    console.log(`[LocalAIProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    if (verboseLogging) {
+      console.log(`[LocalAIProvider] Full API Payload:`, JSON.stringify(apiPayload, null, 2));
+    }
 
     try {
       const response = await fetch(this.apiUrl, {

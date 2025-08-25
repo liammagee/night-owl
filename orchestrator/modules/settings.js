@@ -562,23 +562,19 @@ function generateAISettings() {
                 </div>
             </div>
             
-            <!-- Global AI Configuration -->
+            <!-- Local AI Configuration -->
             <div class="settings-section">
-                <h3>Global AI Configuration</h3>
-                <div class="settings-group">
-                    <div id="current-config" style="margin-top: 10px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px; color: #666;">
-                        Current: Loading configuration...
-                    </div>
-                </div>
-            
-                <!-- Local AI Configuration -->
-                <div class="settings-group" id="local-ai-config" style="margin-top: 15px; display: none;">
+                <h3>Local AI Configuration</h3>
+                <div class="settings-group" id="local-ai-config">
                     <label>
                         <input type="text" id="local-ai-url" value="${currentSettings.ai?.localAIUrl || 'http://localhost:1234/'}" placeholder="http://localhost:1234/" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
                         <span>Local AI Server URL</span>
                     </label>
                     <div style="font-size: 11px; color: #666; margin-top: 4px;">
                         URL for your local AI server (OpenAI-compatible API). Include the trailing slash.
+                    </div>
+                    <div style="font-size: 11px; color: #666; margin-top: 8px;">
+                        <strong>Note:</strong> This setting applies when either assistant uses "Local AI" provider.
                     </div>
                 </div>
             </div>
@@ -1302,16 +1298,15 @@ function collectSettingsFromForm() {
     const ashTemperature = document.getElementById('ash-temperature')?.value;
     const ashMaxTokens = document.getElementById('ash-max-tokens')?.value;
     
-    console.log('[Settings] Ash settings:', { ashProvider, ashModel, ashTemperature, ashMaxTokens });
-    
     // Always create the assistant structure and set values (including defaults)
     if (!updatedSettings.ai.assistants.ash) updatedSettings.ai.assistants.ash = {};
     if (!updatedSettings.ai.assistants.ash.aiSettings) updatedSettings.ai.assistants.ash.aiSettings = {};
     
     updatedSettings.ai.assistants.ash.aiSettings.provider = ashProvider || 'auto';
     updatedSettings.ai.assistants.ash.aiSettings.model = ashModel || 'auto';
-    if (ashTemperature) updatedSettings.ai.assistants.ash.aiSettings.temperature = parseFloat(ashTemperature);
-    if (ashMaxTokens) updatedSettings.ai.assistants.ash.aiSettings.maxTokens = parseInt(ashMaxTokens);
+    updatedSettings.ai.assistants.ash.aiSettings.temperature = ashTemperature ? parseFloat(ashTemperature) : 0.7;
+    updatedSettings.ai.assistants.ash.aiSettings.maxTokens = ashMaxTokens ? parseInt(ashMaxTokens) : 200;
+    
     
     // Dr. Chen assistant settings
     const chenProvider = document.getElementById('chen-provider')?.value;
@@ -1319,16 +1314,14 @@ function collectSettingsFromForm() {
     const chenTemperature = document.getElementById('chen-temperature')?.value;
     const chenMaxTokens = document.getElementById('chen-max-tokens')?.value;
     
-    console.log('[Settings] Chen settings:', { chenProvider, chenModel, chenTemperature, chenMaxTokens });
-    
     // Always create the assistant structure and set values (including defaults)
     if (!updatedSettings.ai.assistants.chen) updatedSettings.ai.assistants.chen = {};
     if (!updatedSettings.ai.assistants.chen.aiSettings) updatedSettings.ai.assistants.chen.aiSettings = {};
     
     updatedSettings.ai.assistants.chen.aiSettings.provider = chenProvider || 'auto';
     updatedSettings.ai.assistants.chen.aiSettings.model = chenModel || 'auto';
-    if (chenTemperature) updatedSettings.ai.assistants.chen.aiSettings.temperature = parseFloat(chenTemperature);
-    if (chenMaxTokens) updatedSettings.ai.assistants.chen.aiSettings.maxTokens = parseInt(chenMaxTokens);
+    updatedSettings.ai.assistants.chen.aiSettings.temperature = chenTemperature ? parseFloat(chenTemperature) : 0.8;
+    updatedSettings.ai.assistants.chen.aiSettings.maxTokens = chenMaxTokens ? parseInt(chenMaxTokens) : 1000;
     
     // Note: Legacy AI provider/model settings removed - now using assistant-specific settings
     
@@ -1618,7 +1611,9 @@ function resetSettingsFromDialog() {
 
 // Get assistant configuration from settings or defaults
 function getAssistantProvider(assistantKey) {
-    if (!currentSettings?.ai?.assistants?.[assistantKey]?.aiSettings?.provider) {
+    const provider = currentSettings?.ai?.assistants?.[assistantKey]?.aiSettings?.provider;
+    
+    if (!provider) {
         // Return default from aiAssistantConfig if available
         if (window.aiAssistantConfig) {
             const assistant = window.aiAssistantConfig.getAssistant(assistantKey);
@@ -1626,7 +1621,7 @@ function getAssistantProvider(assistantKey) {
         }
         return 'auto';
     }
-    return currentSettings.ai.assistants[assistantKey].aiSettings.provider;
+    return provider;
 }
 
 function getAssistantModel(assistantKey) {

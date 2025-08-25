@@ -163,8 +163,10 @@ function register(deps) {
         updateSettings(category, newSettings);
       } else {
         // If category is actually the settings object (legacy call)
-        appSettings = { ...appSettings, ...category };
-        saveSettings();
+        // Use proper deep merge by updating each category individually
+        Object.keys(category).forEach(key => {
+          updateSettingsCategory(key, category[key]);
+        });
       }
       return { success: true };
     } catch (error) {

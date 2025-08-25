@@ -1496,8 +1496,8 @@ function addCustomSelectionKeybindings() {
             monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.UpArrow
         ],
         run: function(ed) {
-            // Use Monaco's built-in action for extending selection up
-            ed.getAction('cursorUpSelect').run();
+            // Use Monaco's proper command for extending selection up
+            ed.trigger('keyboard', 'cursorUpSelect', null);
         }
     });
     
@@ -1509,8 +1509,8 @@ function addCustomSelectionKeybindings() {
             monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.DownArrow
         ],
         run: function(ed) {
-            // Use Monaco's built-in action for extending selection down
-            ed.getAction('cursorDownSelect').run();
+            // Use Monaco's proper command for extending selection down
+            ed.trigger('keyboard', 'cursorDownSelect', null);
         }
     });
     
