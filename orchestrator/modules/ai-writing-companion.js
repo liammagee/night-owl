@@ -171,19 +171,46 @@ class AIWritingCompanion {
             }
         };
         
+        // Store last content hash to detect actual changes
+        let lastContentHash = '';
+        
         // Set up intelligent polling based on writing activity
         const setupAnalysisTimer = () => {
             if (analysisTimer) clearInterval(analysisTimer);
             
+            // Check if automatic invocation is enabled
+            const settings = this.loadUserPreferences();
+            if (!settings.autoInvocationEnabled) {
+                console.log('[AI Companion] ⏸️ Auto-invocation disabled by user settings');
+                return;
+            }
+            
             // More frequent analysis during active writing
             const interval = this.gamification?.currentSession ? 15000 : 60000;
-            analysisTimer = setInterval(analyzeWriting, interval);
+            analysisTimer = setInterval(() => {
+                // Check if content has actually changed
+                const currentContent = this.getCurrentWritingContent();
+                const currentHash = this.hashString(currentContent);
+                
+                if (currentHash === lastContentHash) {
+                    console.log('[AI Companion] ⏸️ Timer skipped - no content changes detected');
+                    return;
+                }
+                
+                lastContentHash = currentHash;
+                analyzeWriting();
+            }, interval);
         };
         
         setupAnalysisTimer();
         
         // Adjust analysis frequency based on writing activity
-        setInterval(setupAnalysisTimer, 300000); // Readjust every 5 minutes
+        setInterval(() => {
+            // Update last content hash when readjusting
+            const currentContent = this.getCurrentWritingContent();
+            lastContentHash = this.hashString(currentContent);
+            setupAnalysisTimer();
+        }, 300000); // Readjust every 5 minutes
     }
     
     processNewWriting(newText) {
@@ -193,6 +220,13 @@ class AIWritingCompanion {
         if (this.isLikelyFileLoadingContent(newText)) {
             console.log('[AI Companion] 🚫 Rejecting content that appears to be from file loading or bulk changes');
             console.log('[AI Companion] 🚫 Rejected content preview:', JSON.stringify(newText.substring(0, 100)));
+            return;
+        }
+        
+        // Check if auto-invocation requires actual text changes
+        const settings = this.loadUserPreferences();
+        if (settings.requireTextChanges && !this.hasRecentTypingActivity()) {
+            console.log('[AI Companion] ⏸️ Skipping processing - no recent typing activity detected');
             return;
         }
         
@@ -1299,8 +1333,44 @@ Be thoughtful about their writing process without referencing specific recent te
             preferredPersona: 'adaptive',
             feedbackTypes: ['encouragement', 'insights'],
             intrusivenessLevel: 'low', // low, moderate, high
-            learningMode: true
+            learningMode: true,
+            autoInvocationEnabled: false, // Default to false - only invoke when user requests or makes text changes
+            requireTextChanges: true // Only invoke when there are actual text changes
         };
+    }
+    
+    hashString(str) {
+        let hash = 0;
+        if (str.length === 0) return hash;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return hash;
+    }
+    
+    // Methods to control auto-invocation
+    enableAutoInvocation() {
+        const preferences = this.loadUserPreferences();
+        preferences.autoInvocationEnabled = true;
+        localStorage.setItem('ai_companion_preferences', JSON.stringify(preferences));
+        console.log('[AI Companion] ✅ Auto-invocation enabled');
+    }
+    
+    disableAutoInvocation() {
+        const preferences = this.loadUserPreferences();
+        preferences.autoInvocationEnabled = false;
+        localStorage.setItem('ai_companion_preferences', JSON.stringify(preferences));
+        console.log('[AI Companion] ⏸️ Auto-invocation disabled');
+    }
+    
+    toggleAutoInvocation() {
+        const preferences = this.loadUserPreferences();
+        preferences.autoInvocationEnabled = !preferences.autoInvocationEnabled;
+        localStorage.setItem('ai_companion_preferences', JSON.stringify(preferences));
+        console.log(`[AI Companion] ${preferences.autoInvocationEnabled ? '✅ Enabled' : '⏸️ Disabled'} auto-invocation`);
+        return preferences.autoInvocationEnabled;
     }
     
     loadEngagementData() {
@@ -2358,7 +2428,10 @@ Be thoughtful about their writing process without referencing specific recent te
     // === Manual Invocation ===
     
     invokeAshManually(selectedText = null) {
-        this.log('basic', 'user', 'Manual invocation of Ash');
+        this.log('basic', 'user', 'Manual invocation of Ash - bypassing auto-invocation restrictions');
+        
+        // Manual invocation always proceeds regardless of auto-invocation settings
+        // This ensures the user can always explicitly request Ash assistance
         
         // If text is selected, use it to override the typing buffer
         if (selectedText && selectedText.trim()) {
