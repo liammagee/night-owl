@@ -252,22 +252,46 @@ function setupGamificationToggleIntegration() {
         
         console.log('[App Init] Gamification toggle button clicked');
         
-        // Check if gamification system is loaded and has toggle function
-        if (window.writingGamification && window.writingGamification.toggleMenu) {
-          console.log('[App Init] Calling gamification.toggleMenu()');
-          window.writingGamification.toggleMenu();
-        } else if (window.gamificationInstance && window.gamificationInstance.toggleMenu) {
-          console.log('[App Init] Calling gamificationInstance.toggleMenu()');
-          window.gamificationInstance.toggleMenu();
-        } else {
-          console.warn('[App Init] Gamification system not ready, trying global toggle function');
+        // Check if gamification system is loaded and has visibility toggle function
+        if (window.writingGamification && window.writingGamification.toggleMenuVisibility) {
+          console.log('[App Init] Calling gamification.toggleMenuVisibility()');
+          const newVisibility = window.writingGamification.toggleMenuVisibility();
           
-          // Fallback: look for the gamification panel and toggle it manually
-          const gamificationPanel = document.querySelector('.gamification-panel') || document.getElementById('gamification-panel');
-          if (gamificationPanel) {
-            const isVisible = gamificationPanel.style.display !== 'none';
-            gamificationPanel.style.display = isVisible ? 'none' : 'block';
-            console.log('[App Init] Manually toggled gamification panel:', !isVisible);
+          // Update button appearance based on new visibility state
+          const toggleBtn = document.getElementById('toggle-gamification-btn');
+          if (toggleBtn) {
+            if (newVisibility) {
+              toggleBtn.style.background = '#dc2626'; // Red - active/visible
+              toggleBtn.style.opacity = '1';
+            } else {
+              toggleBtn.style.background = '#f59e0b'; // Orange - inactive/hidden
+              toggleBtn.style.opacity = '0.7';
+            }
+          }
+        } else if (window.gamificationInstance && window.gamificationInstance.toggleMenuVisibility) {
+          console.log('[App Init] Calling gamificationInstance.toggleMenuVisibility()');
+          const newVisibility = window.gamificationInstance.toggleMenuVisibility();
+          
+          // Update button appearance based on new visibility state
+          const toggleBtn = document.getElementById('toggle-gamification-btn');
+          if (toggleBtn) {
+            if (newVisibility) {
+              toggleBtn.style.background = '#dc2626'; // Red - active/visible
+              toggleBtn.style.opacity = '1';
+            } else {
+              toggleBtn.style.background = '#f59e0b'; // Orange - inactive/hidden
+              toggleBtn.style.opacity = '0.7';
+            }
+          }
+        } else {
+          console.warn('[App Init] Gamification system not ready, trying to toggle entire gamification menu');
+          
+          // Toggle the entire gamification menu (not just the content)
+          const gamificationMenu = document.getElementById('gamification-menu') || document.querySelector('.gamification-menu');
+          if (gamificationMenu) {
+            const isVisible = gamificationMenu.style.display !== 'none';
+            gamificationMenu.style.display = isVisible ? 'none' : 'block';
+            console.log('[App Init] Manually toggled entire gamification menu:', !isVisible);
             
             // Update the toggle button appearance
             const toggleBtn = document.getElementById('toggle-gamification-btn');
@@ -280,9 +304,12 @@ function setupGamificationToggleIntegration() {
                 toggleBtn.style.opacity = '1';
               }
             }
+            
+            // Save the visibility state
+            localStorage.setItem('gamification-menu-visible', !isVisible);
           } else {
-            console.error('[App Init] No gamification panel found to toggle');
-            console.log('[App Init] Available panels:', document.querySelectorAll('[class*="gamification"]'));
+            console.error('[App Init] No gamification menu found to toggle');
+            console.log('[App Init] Available gamification elements:', document.querySelectorAll('[id*="gamification"], [class*="gamification"]'));
           }
         }
       });

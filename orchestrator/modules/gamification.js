@@ -2106,40 +2106,136 @@ class WritingGamification {
         menuContent.className = 'gamification-menu-content';
         menuContent.id = 'gamification-menu-content';
         
-        // Create controls container
+        // Create dashboard container
         const controls = document.createElement('div');
-        controls.className = 'gamification-controls';
+        controls.className = 'gamification-dashboard';
         controls.innerHTML = `
-            <div class="gamification-section" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px;">
-                <div class="streak-display" style="display: flex; align-items: center; gap: 3px; padding: 4px 8px; background: rgba(255, 107, 53, 0.9); border-radius: 4px; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
-                    <span class="streak-icon">🔥</span>
-                    <span class="streak-count">${this.streakData.currentStreak || 0}</span>
-                    <span class="streak-label">streak</span>
+            <div class="dashboard-grid">
+                <!-- Today's Progress Card -->
+                <div class="dashboard-card progress-card">
+                    <div class="card-header">
+                        <h4 class="card-title">📊 Today's Progress</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="progress-stat">
+                            <div class="progress-number">${this.dailyStats.wordsWritten || 0}</div>
+                            <div class="progress-label">Words Written</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${Math.min((this.dailyStats.wordsWritten || 0) / 500 * 100, 100)}%"></div>
+                            </div>
+                        </div>
+                        <div class="mini-stats">
+                            <div class="mini-stat">
+                                <span class="mini-icon">⏱️</span>
+                                <span class="mini-value session-time">00:00</span>
+                                <span class="mini-label">Session</span>
+                            </div>
+                            <div class="mini-stat">
+                                <span class="mini-icon">🎯</span>
+                                <span class="mini-value">${this.dailyStats.sessionsCompleted || 0}</span>
+                                <span class="mini-label">Sessions</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="session-display" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(52, 152, 219, 0.9); border-radius: 4px; color: white; font-size: 11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
-                    <span class="session-status">✍️</span>
-                    <span class="session-time">00:00</span>
-                    <span class="session-words">0 words</span>
+
+                <!-- Streak & Level Card -->
+                <div class="dashboard-card streak-card">
+                    <div class="card-header">
+                        <h4 class="card-title">🔥 Momentum</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="streak-display">
+                            <div class="streak-number">${this.streakData.currentStreak || 0}</div>
+                            <div class="streak-text">Day Streak</div>
+                        </div>
+                        <div class="level-info">
+                            <div class="level-badge">
+                                <span class="level-icon">⭐</span>
+                                <span class="level-text">Level ${this.xpSystem.currentLevel || 1}</span>
+                            </div>
+                            <div class="points-display">${this.rewards.totalPoints || 0} pts</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="focus-display" style="display: none; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(155, 89, 182, 0.9); border-radius: 4px; color: white; font-size: 11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
-                    <span class="focus-icon">🎯</span>
-                    <span class="focus-time">00:00</span>
-                    <span class="focus-type">focus</span>
+
+                <!-- Session Status Card -->
+                <div class="dashboard-card session-card">
+                    <div class="card-header">
+                        <h4 class="card-title">✍️ Writing Session</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="session-status inactive" id="session-status-display">
+                            <div class="status-indicator"></div>
+                            <div class="status-text">Ready to write</div>
+                        </div>
+                        <div class="session-actions">
+                            <button id="start-writing-session" class="dashboard-btn primary">
+                                <span class="btn-icon">▶️</span>
+                                Start Session
+                            </button>
+                            <button id="end-writing-session" class="dashboard-btn secondary" disabled>
+                                <span class="btn-icon">⏹️</span>
+                                End Session
+                            </button>
+                        </div>
+                        <div class="session-words">
+                            <span class="words-count session-words">0</span> words this session
+                        </div>
+                    </div>
                 </div>
-                <div class="points-display" style="padding: 4px 8px; background: rgba(243, 156, 18, 0.9); border-radius: 4px; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
-                    ${this.rewards.totalPoints || 0} pts
+
+                <!-- Focus Mode Card -->
+                <div class="dashboard-card focus-card">
+                    <div class="card-header">
+                        <h4 class="card-title">🎯 Focus Mode</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="focus-timer" id="focus-timer-display">
+                            <div class="timer-display">25:00</div>
+                            <div class="timer-label">Pomodoro Timer</div>
+                        </div>
+                        <div class="focus-actions">
+                            <button id="start-focus-session" class="dashboard-btn accent">
+                                <span class="btn-icon">🎯</span>
+                                Start Focus
+                            </button>
+                            <div class="focus-controls" style="display: none;">
+                                <button id="pause-focus-session" class="dashboard-btn warning">
+                                    <span class="btn-icon">⏸️</span>
+                                    Pause
+                                </button>
+                                <button id="stop-focus-session" class="dashboard-btn danger">
+                                    <span class="btn-icon">⏹️</span>
+                                    Stop
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="level-display" style="padding: 4px 8px; background: rgba(52, 152, 219, 0.9); border-radius: 4px; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
-                    ⭐ L1
+
+                <!-- Quick Actions Card -->
+                <div class="dashboard-card actions-card">
+                    <div class="card-header">
+                        <h4 class="card-title">⚡ Quick Actions</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="quick-actions">
+                            <button id="show-stats" class="quick-action-btn">
+                                <span class="action-icon">📈</span>
+                                <span class="action-label">View Stats</span>
+                            </button>
+                            <button id="customize-goals" class="quick-action-btn">
+                                <span class="action-icon">🎯</span>
+                                <span class="action-label">Set Goals</span>
+                            </button>
+                            <button class="quick-action-btn" onclick="window.writingGamification?.showAchievements?.()">
+                                <span class="action-icon">🏆</span>
+                                <span class="action-label">Achievements</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div style="width: 1px; height: 16px; background: rgba(155, 89, 182, 0.3); margin: 0 4px;"></div>
-                <button id="start-writing-session" class="toolbar-btn" style="padding: 6px 10px; border: 1px solid rgba(155, 89, 182, 0.5); background: rgba(39, 174, 96, 0.8); color: white; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">Start Writing</button>
-                <button id="end-writing-session" class="toolbar-btn" style="padding: 6px 10px; border: 1px solid rgba(155, 89, 182, 0.5); background: rgba(231, 76, 60, 0.8); color: white; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2);" disabled>End Session</button>
-                <button id="start-focus-session" class="toolbar-btn" style="padding: 6px 10px; border: 1px solid rgba(155, 89, 182, 0.5); background: rgba(155, 89, 182, 0.8); color: white; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">🎯 Focus</button>
-                <button id="pause-focus-session" class="toolbar-btn" style="display: none; padding: 6px 10px; border: 1px solid rgba(155, 89, 182, 0.5); background: rgba(243, 156, 18, 0.8); color: white; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">⏸️</button>
-                <button id="stop-focus-session" class="toolbar-btn" style="display: none; padding: 6px 10px; border: 1px solid rgba(155, 89, 182, 0.5); background: rgba(231, 76, 60, 0.8); color: white; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">⏹️</button>
-                <button id="show-stats" class="toolbar-btn" style="padding: 6px 10px; border: 1px solid rgba(155, 89, 182, 0.5); background: rgba(52, 152, 219, 0.8); color: white; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">Stats</button>
-                <button id="customize-goals" class="toolbar-btn" style="padding: 6px 10px; border: 1px solid rgba(155, 89, 182, 0.5); background: rgba(142, 68, 173, 0.8); color: white; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">🎯 Goals</button>
             </div>
         `;
         
@@ -2157,6 +2253,9 @@ class WritingGamification {
         this.menuContent = menuContent;
         this.isMenuExpanded = this.loadMenuState();
         this.updateMenuState();
+        
+        // Initialize menu visibility from saved state
+        this.initializeMenuVisibility(gamificationMenu);
         
         // Add event listeners with error checking
         const toggleButton = document.getElementById('gamification-toggle');
@@ -2270,6 +2369,24 @@ class WritingGamification {
         this.saveMenuState();
     }
 
+    // Toggle entire menu visibility (for external toggle button)
+    toggleMenuVisibility() {
+        const gamificationMenu = document.getElementById('gamification-menu');
+        if (!gamificationMenu) {
+            console.error('[Gamification] gamification-menu element not found');
+            return false;
+        }
+        
+        const isVisible = gamificationMenu.style.display !== 'none';
+        gamificationMenu.style.display = isVisible ? 'none' : 'block';
+        
+        // Save visibility state
+        localStorage.setItem('gamification-menu-visible', JSON.stringify(!isVisible));
+        
+        console.log('[Gamification] Menu visibility toggled:', !isVisible);
+        return !isVisible;
+    }
+
     updateMenuState() {
         console.log('[Gamification] updateMenuState called, menuContent exists:', !!this.menuContent);
         if (!this.menuContent) {
@@ -2296,6 +2413,17 @@ class WritingGamification {
 
     saveMenuState() {
         localStorage.setItem('gamification-menu-expanded', JSON.stringify(this.isMenuExpanded));
+    }
+
+    initializeMenuVisibility(gamificationMenu) {
+        // Load visibility state (default to visible if not set)
+        const saved = localStorage.getItem('gamification-menu-visible');
+        const isVisible = saved !== null ? JSON.parse(saved) : true;
+        
+        if (gamificationMenu) {
+            gamificationMenu.style.display = isVisible ? 'block' : 'none';
+            console.log('[Gamification] Initialized menu visibility:', isVisible);
+        }
     }
 
     updateGamificationUI() {
