@@ -1263,17 +1263,24 @@ async function handleAISummarization(ed) {
         }
         
         if (result.success) {
+            // Insert speaker notes after the selected text, non-destructively
+            const notesText = '\n\n```notes\n' + result.summary + '\n```\n';
+            
             ed.executeEdits('ai-summarization', [{
-                range: selection,
-                text: result.wrappedText
+                range: {
+                    startLineNumber: selection.endLineNumber,
+                    startColumn: selection.endColumn,
+                    endLineNumber: selection.endLineNumber,
+                    endColumn: selection.endColumn
+                },
+                text: notesText
             }]);
             
             showNotification(`Speaker notes generated using ${result.provider} (${result.model})`, 'success');
             
-            console.log('[renderer.js] Original text replaced with notes:', {
+            console.log('[renderer.js] Speaker notes generated and inserted:', {
                 original: selectedText.substring(0, 100) + '...',
-                heading: result.heading,
-                bullets: result.bullets,
+                summary: result.summary?.substring(0, 100) + '...',
                 provider: result.provider,
                 model: result.model
             });
