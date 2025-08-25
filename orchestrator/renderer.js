@@ -211,12 +211,16 @@ async function updatePreviewAndStructure(markdownContent) {
     }
     
     // Ensure markdownContent is defined
-    if (!markdownContent && window.editor && typeof window.editor.getValue === 'function') {
-        markdownContent = window.editor.getValue();
-    }
-    if (!markdownContent) {
-        markdownContent = '';
-        console.warn('[renderer.js] markdownContent is undefined, using empty string');
+    if (typeof markdownContent === 'undefined' || markdownContent === null) {
+        // Try to get content from editor if available
+        if (window.editor && typeof window.editor.getValue === 'function') {
+            markdownContent = window.editor.getValue();
+        } else {
+            // Only warn if we truly have no content source
+            markdownContent = '';
+            // This is normal on initial load or when called without arguments
+            // console.debug('[renderer.js] No markdown content provided, using empty string');
+        }
     }
     
     // Check if this should be rendered as a Kanban board (async)

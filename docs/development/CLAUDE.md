@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the hegel-pedagogy-ai project - an early-stage repository focused on AI-powered pedagogical applications related to Hegelian philosophy.
+This is NightOwl - an advanced markdown editor and presentation platform for philosophical writing and teaching, with a focus on Hegelian philosophy and AI-powered pedagogical tools.
 
 ## Project Status
 

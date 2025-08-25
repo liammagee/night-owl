@@ -759,7 +759,9 @@ async function handleAddTask(columnId, filePath, container) {
                 
                 // Trigger a preview update to show the new task
                 if (window.updatePreviewAndStructure) {
-                    window.updatePreviewAndStructure();
+                    // Pass editor content if available, otherwise let the function handle it
+                    const content = window.editor && window.editor.getValue ? window.editor.getValue() : undefined;
+                    window.updatePreviewAndStructure(content);
                 }
             } catch (error) {
                 console.error('Error adding task:', error);

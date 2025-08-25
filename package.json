@@ -1,8 +1,8 @@
 {
-  "name": "hegel-pedagogy-ai",
-  "productName": "Hegel Pedagogy AI",
+  "name": "nightowl",
+  "productName": "NightOwl",
   "version": "1.0.0",
-  "description": "Advanced Markdown editor and presentation app for Hegel Pedagogy AI",
+  "description": "Advanced Markdown editor and presentation app for philosophical writing and teaching",
   "main": "main.js",
   "scripts": {
     "dev": "tsx markdown-prezi-app.tsx",
@@ -45,8 +45,8 @@
     "tsx": "^4.20.3"
   },
   "build": {
-    "appId": "com.hegel.pedagogy.electron",
-    "productName": "Hegel Pedagogy AI",
+    "appId": "com.nightowl.app",
+    "productName": "NightOwl",
     "directories": {
       "output": "dist"
     },

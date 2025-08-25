@@ -912,7 +912,9 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             if (window.updatePreviewAndStructure) {
                 setTimeout(() => {
                     console.log('[TODO Gamification] Calling updatePreviewAndStructure...');
-                    window.updatePreviewAndStructure();
+                    // Pass editor content if available, otherwise let the function handle it
+                    const content = window.editor && window.editor.getValue ? window.editor.getValue() : undefined;
+                    window.updatePreviewAndStructure(content);
                     console.log('[TODO Gamification] updatePreviewAndStructure called');
                 }, 100);
             } else {

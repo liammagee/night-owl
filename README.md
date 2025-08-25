@@ -1,6 +1,6 @@
-# hegel-pedagogy-ai
+# NightOwl
 
-Advanced Markdown editor and presentation app for Hegel Pedagogy AI.
+Advanced Markdown editor and presentation app for philosophical writing and teaching.
 
 ## Running the Application
 

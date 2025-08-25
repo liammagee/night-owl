@@ -1,4 +1,4 @@
-// main.js - Merged Hegel Pedagogy AI Application
+// main.js - NightOwl Application
 console.log('--- main.js execution START ---');
 require('dotenv').config(); // Load .env file
 const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');
@@ -18,8 +18,8 @@ function cleanAIResponse(response) {
 }
 
 // Set app name immediately - before anything else
-app.setName('Hegel Pedagogy AI');
-process.title = 'Hegel Pedagogy AI';
+app.setName('NightOwl');
+process.title = 'NightOwl';
 console.log(`[main.js] App name set to: ${app.getName()}`);
 console.log(`[main.js] Process title set to: ${process.title}`);
 
@@ -723,14 +723,14 @@ if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && ap
 // Set additional app metadata
 if (process.platform !== 'darwin') {
     // On non-macOS platforms, also set the desktop name
-    app.setDesktopName('Hegel Pedagogy AI');
+    app.setDesktopName('NightOwl');
 } else {
     // Set macOS About panel information
     app.setAboutPanelOptions({
-        applicationName: 'Hegel Pedagogy AI',
+        applicationName: 'NightOwl',
         applicationVersion: '1.0.0',
         version: '1.0.0',
-        credits: 'Advanced Markdown editor and presentation app for Hegelian philosophy and AI pedagogy'
+        credits: 'Advanced Markdown editor and presentation app for philosophical writing and teaching'
     });
 }
 
@@ -757,7 +757,7 @@ function createWindow() {
       nodeIntegration: false,
       enableRemoteModule: false,
     },
-    title: 'Hegel Pedagogy AI - Advanced Editor & Presentations',
+    title: 'NightOwl - Philosophical Writing & Teaching',
     // Use native window frame and titlebar
     icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     show: false
@@ -832,7 +832,7 @@ function createFileMenuItems() {
           if (!mainWindow) return;
           console.log('[main.js] New File menu item clicked.');
           currentFilePath = null;
-          mainWindow.setTitle('Hegel Pedagogy AI - Untitled');
+          mainWindow.setTitle('NightOwl - Untitled');
           mainWindow.webContents.send('new-file-created');
           console.log('[main.js] Sent new-file-created signal to renderer.');
         }
@@ -893,7 +893,7 @@ function createFileMenuItems() {
                     appSettings.workingDirectory = folderPath;
                     addToRecentWorkspaces(folderPath);
                     currentFilePath = null;
-                    mainWindow.setTitle('Hegel Pedagogy AI - Untitled'); 
+                    mainWindow.setTitle('NightOwl - Untitled'); 
                     mainWindow.webContents.send('refresh-file-tree');
                      console.log('[main.js] Sent refresh-file-tree signal to renderer.');
                 } else {
@@ -1585,12 +1585,12 @@ function createSettingsMenuItems() {
 function createHelpMenuItems() {
     return [
       {
-        label: 'About Hegel Pedagogy AI',
+        label: 'About NightOwl',
         click: () => {
           dialog.showMessageBox(mainWindow, {
             type: 'info',
-            title: 'About Hegel Pedagogy AI',
-            message: 'Hegel Pedagogy AI',
+            title: 'About NightOwl',
+            message: 'NightOwl',
             detail: 'Advanced Markdown editor and presentation platform for exploring Hegelian philosophy and AI pedagogy.\n\nVersion 1.0.0'
           });
         }
@@ -1754,7 +1754,7 @@ async function saveFile(filePath, content) {
         console.log(`[main.js] Content successfully saved to ${filePath}`);
         currentFilePath = filePath;
         if (mainWindow) {
-            mainWindow.setTitle(`Hegel Pedagogy AI - ${path.basename(filePath)}`);
+            mainWindow.setTitle(`NightOwl - ${path.basename(filePath)}`);
         }
         return { success: true, filePath: filePath };
     } catch (err) {
@@ -2223,7 +2223,7 @@ async function openFile() {
         console.log(`[main.js] User selected file: ${filePath}`);
         const content = await fs.readFile(filePath, 'utf8');
         currentFilePath = filePath;
-        mainWindow.setTitle(`Hegel Pedagogy AI - ${path.basename(filePath)}`);
+        mainWindow.setTitle(`NightOwl - ${path.basename(filePath)}`);
          if (mainWindow) {
             mainWindow.webContents.send('file-opened', { filePath, content });
             console.log(`[main.js] Sent file-opened event for ${filePath}`);

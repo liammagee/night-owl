@@ -30,3 +30,29 @@ This focus on experience justifies the selection of Hegel's *Phenomenology* – 
 ---
 
 This discussion will not be directed, though, toward the simple aim of how machine learning is – and in a certain sense cannot ever be – equivalent to human learning. Our aim is instead more ambitious. Hegel was also a thinker of history, and understood history as also undergoing a series of developments. Without committing ourselves to Hegel's quite dogmatic understanding, we will seek to thematise how machine learning fits into a wider picture of human development and progress. What is – from a human learning perspective – the "end game" of machine learning? Where does it fit within our – usually implicit – account of why learning is important? This is not just a question of how we can use machine learning systems to supplement, accelerate and democratize how humans learn. It is rather a question of how we need to rewire both the content and the form of human learning in a world that is transforming dramatically – and which we need to insist upon still having some agency in that process of transformation. This will be what I hope is the practical payoff for an otherwise arduous conceptual journey through the world of Hegelian philosophy.
+
+
+---
+
+What does it mean to be a subject? 
+
+Let's start with a phenomenological experiment. Close your eyes, and try to imagine *where* your sense of subjectivity, or experience, actually is. What is the "seat" of your experience? You might say it is in your head. And what is your orientation: what is the "direction" and position your experience is pointed towards? You might now say it is through your eyes, or at least in the direction your head is facing. 
+
+And while we are here, what about the complex layers of history that make up our subjectivity? Where does our prior experience lie? If I ask you now to bring up a memory – any memory – what is it that you actually do? What do you experience in bringing up a memory? Do you – for a least a moment – experience something like annoyance at having to select one memory over another? And what is this experience of annoyance itself like? What does your body do? Do you sigh for instance? Does your heart beat a little faster, at the request of a professor to draw up a memory? Do you wonder - somewhere – whether this is a waste of time (you didn't enrol in a meditation course)? What does this wondering feel like?
+
+And so on...
+
+The experience *of* experience, we can see, involves a series of sensations and associations. These goings-on are things that we can document, we can capture in some kind of stream of consciousness way. Indeed, even the idea of a "stream" already invokes many assumptions – that our consciousness is deeply connected to time, a series of moments running on, but also connected to prior moments.
+
+And we have a sense that our consciousness is not merely a cerebral matter, but involves our bodies, our organs, that flow with our consciousness, that are caught up in our the directedness of our attentions. 
+
+Finally, we might also have a sense of the "edge" of our consciousness. I want you now to imagine some kind of instrument you use or have used: something external to the body, but closely connected to it. For example, a computer keyboard, a phone screen, a baseball bat, an iron, a hammer, or favourite items of clothing. Everyday, but also intimate, something that feels in certain moments like an extension of the body – something external that becomes you. Does your consciousness ever extend to that object, even momentarily, for example in what people can call a "flow state"? 
+
+And what about other people? We know in extreme cases we can feel other people's pain, sometimes more intensely than our own. It is as though their pain strikes us as more acute, even though it is not our own. It is an even more *intimate* pain, because it is not our body, for instance, but someone else's body that paradoxically is connected via their consciousness to our own.
+
+So here we have a sentiment of consciousness as not merely locked up in a skull – our own – but in some sense already distributed. But not infinite, at least not in everyday experience – we would need some paranormal experience to go so completely out of ourselves that we reach back to before our birth, or after our death, or beyond the limits of our world. Even if we can accept that it is amorphous, consciousness still has a shape, it has edges.
+
+Now what would an entirely *mechanical* experience of consciousness be? We can imagine a stepping stone: for example, the experience of an animal. Non human, but with a brain and body. We all know of examples of literature, film, television that literalise this experiment.
+
+And in certain forms, we can also elaborate this to humanoid or anthropomorphic experience. Being in a human's body but with only an algorithmic simulation of consciousness. C-3PO in Star Wars for example: think about how this *droid* differs from R2D2, which has no human body,  
+
