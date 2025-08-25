@@ -13,7 +13,7 @@ const os = require('os');
 function register(deps) {
   const {
     mainWindow,
-    currentFilePath,
+    getCurrentFilePath,
     currentWorkingDirectory
   } = deps;
 
@@ -142,9 +142,11 @@ function register(deps) {
   ipcMain.handle('perform-export-html', async (event, content, htmlContent, exportOptions) => {
     console.log('[ExportHandlers] Received perform-export-html with options:', exportOptions);
     try {
+      const currentFilePath = getCurrentFilePath();
       const defaultPath = currentFilePath ? 
         currentFilePath.replace(/\.[^/.]+$/, '.html') : 
         'export.html';
+      
       
       const result = await dialog.showSaveDialog(mainWindow, {
         title: 'Export as HTML',
@@ -237,6 +239,7 @@ function register(deps) {
   ipcMain.handle('perform-export-html-pandoc', async (event, content, htmlContent, exportOptions) => {
     console.log('[ExportHandlers] Received perform-export-html-pandoc with options:', exportOptions);
     try {
+      const currentFilePath = getCurrentFilePath();
       const defaultPath = currentFilePath ? 
         currentFilePath.replace(/\.[^/.]+$/, '.html') : 
         'export.html';
@@ -341,6 +344,7 @@ function register(deps) {
   ipcMain.handle('perform-export-pdf', async (event, content, htmlContent, exportOptions) => {
     console.log('[ExportHandlers] Received perform-export-pdf with options:', exportOptions);
     try {
+      const currentFilePath = getCurrentFilePath();
       const defaultPath = currentFilePath ? 
         currentFilePath.replace(/\.[^/.]+$/, '.pdf') : 
         'export.pdf';
@@ -446,6 +450,7 @@ function register(deps) {
   ipcMain.handle('perform-export-pptx', async (event, content, exportOptions) => {
     console.log('[ExportHandlers] Received perform-export-pptx with options:', exportOptions);
     try {
+      const currentFilePath = getCurrentFilePath();
       const defaultPath = currentFilePath ? 
         currentFilePath.replace(/\.[^/.]+$/, '.pptx') : 
         'export.pptx';

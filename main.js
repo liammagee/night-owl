@@ -2564,7 +2564,7 @@ app.whenReady().then(() => {
     saveSettings,
     mainWindow,
     aiService,
-    currentFilePath,
+    getCurrentFilePath: () => currentFilePath,
     currentWorkingDirectory,
     setCurrentFilePath: (path) => { 
       currentFilePath = path; 
