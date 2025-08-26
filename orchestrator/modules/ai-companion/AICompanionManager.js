@@ -103,23 +103,29 @@ class AICompanionManager {
             // Use same smart content checking as keystroke-based analysis
             const contentDifference = this.calculateContentDifference(currentText, this.realTimeAnalysis.lastAnalyzedContent);
             
-            const hasEnoughChars = currentText && currentText.length >= this.contextManager.realTimeAnalysis.characterThreshold;
-            const hasMeaningfulContent = hasEnoughChars && this.contextManager.hasMeaningfulText(currentText);
+            // Use the same thresholds as keystroke-based analysis for consistency
+            const minCharacterThreshold = this.contextManager.realTimeAnalysis.characterThreshold;
+            const minWordThreshold = this.contextManager.realTimeAnalysis.wordThreshold;
+            
+            const hasEnoughNewWords = contentDifference.newWords >= minWordThreshold;
+            const hasEnoughNewCharacters = contentDifference.newCharacters >= minCharacterThreshold;
+            const hasMeaningfulContent = currentText && this.contextManager.hasMeaningfulText(currentText);
             const contentHashChanged = currentHash !== this.realTimeAnalysis.lastAnalyzedContentHash;
-            const hasNewContent = contentDifference.newWords > 0 || contentDifference.newCharacters > 0;
             
             console.log('[AICompanion] ⏰ Interval check:', {
-                hasEnoughChars,
+                hasEnoughNewWords,
+                hasEnoughNewCharacters,
                 hasMeaningfulContent,
                 contentHashChanged,
-                hasNewContent,
                 timeSinceLastAnalysis: Math.round(timeSinceLastAnalysis / 1000) + 's',
                 newWords: contentDifference.newWords,
-                newChars: contentDifference.newCharacters
+                newChars: contentDifference.newCharacters,
+                minWordThreshold,
+                minCharacterThreshold
             });
 
-            // Only analyze if content has actually changed since last analysis
-            if (hasEnoughChars && hasMeaningfulContent && contentHashChanged && hasNewContent) {
+            // Only analyze if we have enough NEW content based on user settings
+            if ((hasEnoughNewWords || hasEnoughNewCharacters) && hasMeaningfulContent && contentHashChanged) {
                 console.log('[AICompanion] ⏰ Interval triggering analysis - new content detected');
                 await this.performRealTimeAnalysis();
             } else {
@@ -253,8 +259,14 @@ class AICompanionManager {
         // Calculate content difference
         const contentDifference = this.calculateContentDifference(currentText, this.realTimeAnalysis.lastAnalyzedContent);
         
-        const hasEnoughNewWords = contentDifference.newWords >= 20;
-        const hasEnoughNewCharacters = contentDifference.newCharacters >= this.contextManager.realTimeAnalysis.characterThreshold;
+        // Use the user-configured thresholds from settings
+        const minCharacterThreshold = this.contextManager.realTimeAnalysis.characterThreshold;
+        const minWordThreshold = this.contextManager.realTimeAnalysis.wordThreshold;
+        console.log(`[AICompanion] 📏 Using thresholds - Characters: ${minCharacterThreshold}, Words: ${minWordThreshold} (from user settings)`);
+        
+        // Require meaningful new content based on user settings
+        const hasEnoughNewWords = contentDifference.newWords >= minWordThreshold;
+        const hasEnoughNewCharacters = contentDifference.newCharacters >= minCharacterThreshold;
         const hasMeaningfulNewContent = this.contextManager.hasMeaningfulText(contentDifference.newText);
         const contentHashChanged = currentHash !== this.realTimeAnalysis.lastAnalyzedContentHash;
         

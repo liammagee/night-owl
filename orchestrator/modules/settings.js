@@ -678,6 +678,14 @@ function generateAISettings() {
                     </div>
                     
                     <div style="margin-top: 8px;">
+                        <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #333;">Minimum Words for AI Feedback:</label>
+                        <input type="number" id="ai-companion-word-threshold" value="${currentSettings.ai?.companionWordThreshold || 10}" min="5" max="50" step="5" style="width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
+                        <div style="font-size: 10px; color: #666; margin-top: 2px;">
+                            Words to type before AI can provide feedback (alternative to character count)
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 8px;">
                         <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #333;">AI Cooldown Period (seconds):</label>
                         <input type="number" id="ai-companion-cooldown-period" value="${(currentSettings.ai?.companionCooldownPeriod || 30000) / 1000}" min="10" max="300" step="10" style="width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
                         <div style="font-size: 10px; color: #666; margin-top: 2px;">
@@ -1429,6 +1437,12 @@ function collectSettingsFromForm() {
     if (aiCompanionCharacterThreshold && aiCompanionCharacterThreshold > 0) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.companionCharacterThreshold = aiCompanionCharacterThreshold;
+    }
+    
+    const aiCompanionWordThreshold = parseInt(document.getElementById('ai-companion-word-threshold')?.value);
+    if (aiCompanionWordThreshold && aiCompanionWordThreshold > 0) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.companionWordThreshold = aiCompanionWordThreshold;
     }
     
     const aiCompanionCooldownPeriod = parseInt(document.getElementById('ai-companion-cooldown-period')?.value);

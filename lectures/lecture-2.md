@@ -1,5 +1,4 @@
 
-
 ## Introducing Hegel and The Concept of Experience (`Ehfahrung')
 
 
@@ -99,18 +98,25 @@ These form a kind of progression, but not in the usual sense of, for example, la
 
 
 ```notes
-Hegel begins with the idea of sense-certainty. 
+Hegel begins with the idea of sense-certainty. What does it mean to experience certainty of your senses? His description of this is like a limited stream-of-consciousness. Things happens: I notice them but only in the sense of a "here" and a "now". There is not "there" and "then" – there is no way to connect each instant of sensation with any other. Moreover nothing can be distinguished in this state, because there is not basis for comparison. What philosophers call qualia, or the qualities that make one thing distinct from another, don't exist at this stage.
 
+In language terms, we have only basic phenomenal description: there is a "this" that is "here" and "now". It is like a pointing or what is called a deictic language: when I say words, all I do is point or indicate.
+
+If we were to imagine this as a machine, it could be like a simple sensor, reading off data but not going anywhere with it. This is not machine *learning* in any sense - nothing is recorded or memorized. 
 
 ```
 
 ---
 
-
 ### Perception
 
 ![image](images/consciousness-perception.png)
 
+The next "shape" of consciousness is more developed. Now things can be perceived; that is, the specific attributes or qualities can be registered. I see this thing here is orange, round and so on.
+
+If we wanted to imagine this in linguistic terms, it is as though our language had now only adjectives. All we could ever say about this or that is descriptive: "orange", "round", and so on.
+
+It is as though our machine now can identify attributes – not however objects. Instead of just indicating on/off, this machine registers these qualities: shades of colour, shapes, and so on. But it cannot classify anything – we have no nouns yet.
 
 ---
 
@@ -119,10 +125,24 @@ Hegel begins with the idea of sense-certainty.
 
 ![image](images/consciousness-understanding.png)
 
+Hegel here has a strange heading title: "Force and the Understanding". Why *force*? Here Hegel is drawing, also strangely for us, upon Newtonian physics. What he is getting at is that a key turn in this shape of consciousness is the arrival of laws explaining cause and effect. When certain qualities occur regularly we start to say they cohere in something we call a thing or object. And the repetition of these qualities means more than one object, and from that we build up the idea of classes or categories. Our limited world now has nouns, descriptions of things in space. And these nouns do things; they act in time, and hence we develop verbs. 
+
+At this stage we have something close to a rudimentary idea of consciousness. We are able to sense things, name them and talk about their relationship to other things.
+
+In our mechnical analogy, what do we have here? A LLM? Something that is consciousness – that knows there are things in the world – but has no sense of itself, and therefore no self-consciousness?
 
 
 ---
 
+
+### Sequgeway: What is Our Experience of Experience?
+
+![experience of experience](images/experience-of-experience.jpeg)
+
+ - What does it mean to be a subject? 
+ - What is our experience of experience?
+
+```notes
 What does it mean to be a subject? 
 
 Let's start with a phenomenological experiment. Close your eyes, and try to imagine *where* your sense of subjectivity, or experience, actually is. What is the "seat" of your experience? You might say it is in your head. And what is your orientation: what is the "direction" and position your experience is pointed towards? You might now say it is through your eyes, or at least in the direction your head is facing. 

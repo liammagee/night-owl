@@ -18,7 +18,8 @@ class ContextManager {
             bufferSize: 200, // Words to analyze at once
             recentTypingBuffer: '', // Buffer to track last ~150 characters as they're typed
             maxTypingBufferSize: 150, // Maximum characters to keep in typing buffer
-            characterThreshold: 20, // Minimum characters typed before triggering AI analysis
+            characterThreshold: 500, // Minimum characters typed before triggering AI analysis (matches UI default)
+            wordThreshold: 10, // Minimum words typed before triggering AI analysis
         };
 
         // Logging configuration
@@ -350,6 +351,12 @@ class ContextManager {
                 if (settings.ai.companionCharacterThreshold !== undefined) {
                     console.log('[ContextManager] 🔧 Setting character threshold from settings:', settings.ai.companionCharacterThreshold);
                     this.realTimeAnalysis.characterThreshold = settings.ai.companionCharacterThreshold;
+                }
+                
+                // Load word threshold setting
+                if (settings.ai.companionWordThreshold !== undefined) {
+                    console.log('[ContextManager] 🔧 Setting word threshold from settings:', settings.ai.companionWordThreshold);
+                    this.realTimeAnalysis.wordThreshold = settings.ai.companionWordThreshold;
                 }
 
                 // Update logging settings if they exist

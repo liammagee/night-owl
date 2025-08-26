@@ -125,12 +125,9 @@ class FeedbackSystem {
                 return null;
             }
 
-            // Check character threshold
-            const currentText = analysis.fullDocumentText || '';
-            if (currentText.length < this.aiCooldown.minimumCharacters) {
-                console.log(`[FeedbackSystem] ⏳ Need ${this.aiCooldown.minimumCharacters - currentText.length} more characters (threshold: ${this.aiCooldown.minimumCharacters})`);
-                return null;
-            }
+            // Trust that AICompanionManager has already determined we have enough content
+            // No need to check character thresholds again here
+            console.log(`[FeedbackSystem] 📊 Processing feedback request with content length: ${(analysis.recentText || analysis.fullDocumentText || '').length} chars`);
             
             const context = this.getCurrentWritingContext();
             const persona = this.selectOptimalPersona(analysis, context);
