@@ -15,7 +15,7 @@ function register(deps) {
     appSettings,
     saveSettings,
     mainWindow,
-    currentFilePath,
+    getCurrentFilePath,
     setCurrentFilePath,
     currentWorkingDirectory
   } = deps;
@@ -348,6 +348,7 @@ function register(deps) {
   // File Save Operations
   ipcMain.handle('perform-save', async (event, content) => {
     try {
+      const currentFilePath = getCurrentFilePath();
       if (!currentFilePath) {
         return { success: false, error: 'No file currently open' };
       }
@@ -470,8 +471,8 @@ function register(deps) {
 
   ipcMain.handle('set-current-file', (event, filePath) => {
     try {
-      setCurrentFilePath(filePath);
       console.log(`[FileHandlers] Current file set to: ${filePath}`);
+      setCurrentFilePath(filePath);
       return { success: true, filePath };
     } catch (error) {
       console.error('[FileHandlers] Error setting current file:', error);

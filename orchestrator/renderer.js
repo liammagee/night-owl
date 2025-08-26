@@ -2455,6 +2455,17 @@ async function loadAppSettings() {
         
         window.currentFilePath = (currentFileFromSettings && currentFileFromSettings.trim()) ? currentFileFromSettings : null;
         console.log('[renderer.js] Set window.currentFilePath to:', window.currentFilePath);
+        
+        // Immediately sync currentFilePath with main process to ensure consistency
+        if (window.currentFilePath) {
+            try {
+                await window.electronAPI.invoke('set-current-file', window.currentFilePath);
+                console.log('[renderer.js] Synced currentFilePath with main process:', window.currentFilePath);
+            } catch (error) {
+                console.error('[renderer.js] Failed to sync currentFilePath with main process:', error);
+            }
+        }
+        
         let themeAppliedFromSettings = false;
         
         // Store flag for file restoration to coordinate with Monaco initialization

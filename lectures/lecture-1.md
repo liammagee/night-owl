@@ -13,17 +13,19 @@
 - Highlights reciprocal learning: generative AI learns from us, we learn differently.
 - Explores differences between ChatGPT requests and calculators or traditional search engines.
 - Frames relationship through synthesis, alongside concepts like technosymbiosis and symbiotic pedagogy.
+- Website: https://cgscholar.com/community/community_profiles/epol-479-fa25
+- DON'T BE PUT OFF BY THE VOCABULARY! This might start as a tough course, but we will stepping through things – with AI's help!
 
 ```notes
 Welcome to Machine Learning and Human Learning!
 
 What is this course about? 
 
-First it is a response to a certain new reality about learning, triggered by the advent of machine learning. Our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological aids, from the writing stylus to the abacus, calculator, Internet and smartphone, has always shaped how we exteriorize our memory, and in turn re-interiorize during recollection. Machines have, in other words, always been central to how we humans learn.
+First it is a response to a certain new reality about learning, triggered by the advent of machine learning. Our ideas about learning are changing, and perhaps have already changed fundamentally. The history of technological supplements or supports, from the writing stylus to the abacus, the calculator, the Internet and the smartphone, has always shaped how we exteriorize our memories – put it out into the world – and in turn re-interiorize those memories during our recollection. Machines have, in other words, always been central to how we humans *learn*.
 
-But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning, in both cases, depends upon the other.
+But today we also talk about machines learning how to do things themselves. Most obviously this happens in the fields of AI, and more specifically, of Generative AI. These machines now learn from *us* – from the traces of us we leave in data stored on the Internet. Machines learn from us; and from these new machines, we also learn differently. Asking ChatGPT to create a new recipe is different, we could say, from asking a calculator to add two numbers or even asking Google to find a recipe. We will explore this difference in the course, but for now we can note that we have entered a period in which "learning" comes to be applied to machines as well as humans, and that this learning – for both cases, machine and human – depends upon the other. Even if they differ, both forms of learning form, in their co-dependence, a kind of *synthesis*.
 
-We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Harraway); of cyber-social systems (Kalantzis Cope); and of compound terms like 'technosymbiosis' (Katherine Hayles) or a term I'll be using, in the context of learning, 'symbiotic pedagogy'. But the wider concept we'll be working with this week - and returning to, as we'll see - is that of *synthesis*. *Synthesis* will describe how both the similarities and differences between machine and human learning come together in our present moment.
+We can now speak in various ways about this much closer relationship we share with machines. We can speak of socio-technical systems; of cyborgian creatures (Haraway); of cyber-social systems (Kalantzis & Cope); and of compound terms like 'technosymbiosis' (N. Katherine Hayles) or a term I'll be using, in the context of learning, 'symbiotic pedagogy'. But the wider concept we'll be working with this week - and returning to, as we'll see - is that of *synthesis*. *Synthesis* will describe how both the similarities and differences between machine and human learning come together in our present moment.
 
 Through the course we will be studying this relationship in a number of ways. Later I'll talk through the organization of the course materials. 
 ```
@@ -45,6 +47,9 @@ Through the course we will be studying this relationship in a number of ways. La
 - The goal is to balance depth of content with practical engagement within the limited weekly allocation.
 
 ```notes
+
+On to some basic notes about the course and administration. 
+
 My preference is for these to be 90 minutes (6:00 - 7:30), with a brief break. I'm flexible here though. Essentially we have a lot we can present, discuss and practice. 
 
 ```
@@ -75,10 +80,11 @@ We can discuss which models, and how to access them in future weeks.
 
 
 - A previous course ran in 2023 and 2024 under the same name.
+  - https://cgscholar.com/bookstore/web_works/epol-490-machine-learning-and-human-learning-3ac5e22b-45c9-4464-a390-95d80e1ab73b?adv=false&category_id=higher-education-modules&path=higher-education-modules%2F160
 - Despite the shared title, this offering differs significantly in approach and content.
 - Review Bill and Mary's earlier course, especially their excellent instructional videos.
 - Alternate between both courses to gain complementary insights and balanced understanding.
-- Keep the link handy and consult combined videos and readings as needed.
+- Keep the link handy and consult combined videos and readings as needed. 
 
 ```notes
 A previous version of this course ran in 2023 and 2024: [[2023-Course]]
@@ -94,20 +100,29 @@ Despite this having the same name as that course, it is very different. And I wo
 
 
 
-### Leveraging Hegel for a Contemporary Machine‑Learning Curriculum
 
-- The course uniquely grounds ML concepts in Hegel’s dialectical framework, offering a philosophical lens rarely applied to technology.
-- It argues that Hegel’s ideas on synthesis, consciousness, and recognition illuminate the reciprocal learning loop between humans and machines.
-- By invoking an early 19th‑century thinker, the approach emphasizes foundational, timeless questions about knowledge, memory, and value alignment in AI.
-- The methodology promises to bridge historical philosophical insights with cutting‑edge ML practices, fostering a deeper critical understanding of AI’s societal impact.
+--- 
+
+### Why Hegel? 
+
+
+- What can 19th century German Philosophy tell us aout Machine (and Human) Learning?
+- And Who's Afraid of Hegel (in the age of Machine Learning)?
+- What can Machine Learning tell us about 19th century German Philosophy? 
 
 ```notes
 So what distinguishes our approach in 2025? The first and biggest difference will be my reliance on the work of a early 19th century German Philosopher, Georg Wilhelm Friedrich Hegel. 
 
 Why Hegel? Why build a course on machine learning around a thinker who pre-dates, not only the recent era of machine learning, but the entire history of computation altogether?
 
-Let me give a few reasons.
+I'll talk through five reasons in a moment.
+
+But in the meantime, I also want to address why we might look at philosophy at all. Do we need it? And should we be intimidated by it? Hegel is also a very "intimidating" philosopher - perhaps the most intimidating in the Western philosophical tradition. 
+
+In what will become a key theme for us here, just as Hegel is a lens for us to understand and critique machine learning, machine learning itself will be a tool for understanding some complex philosophy.
+
 ```
+
 
 ---
 
@@ -117,11 +132,15 @@ Let me give a few reasons.
 - Hegel challenges this view by framing experience dialectically—new insights can negate or transform prior ones.
 - Learning unfolds through developmental stages, each marked by a “learning moment” that may contradict earlier knowledge yet remains integrated via synthesis.
 - This dialectical progression anticipates later stage‑based theories (e.g., Piaget), offering a richer model for both human and machine learning cycles.
+- Learning is also *organized* by our concepts (Kant as well as Hegel).
 
 ```notes
-First, I will be arguing one of the present limitations of machine learning is that it is stuck in a period of thinking about learning: the 18th century. According to the philosophy of the period – and I am of course simplifying here – the human mind was a blank slate that needed to be filled up with facts. Learning was a comparatively simple process of *accumulation*. Just as life itself is the experience of a sequence of moments, each of which is compared to other moments, so learning is the acquisition of experience that are recorded in the mind. 
+First, I will be arguing one of the present limitations of machine learning is that it is stuck in a period of thinking about learning: the 18th century. According to the philosophy of the period – and I am of course simplifying here – the human mind was a blank slate that needed to be filled up with facts. I learn by simply adding new experiences, observations, sensations, to an existing repository, then retrieving from that repository to understand and integrate yet more new experiences. Learning was a comparatively simple process of *accumulation*. Just as life itself is the experience of a sequence of moments, each of which is compared to other moments, so learning is the acquisition of experience that are recorded in the mind. 
 
 This, as we'll review, is a form of the *empiricism* that underpins our current paradigm of machine learning. Now Hegel – as we'll also see – represents a profound challenge to the empirical tradition. His account of experience is not simply accumulative –– it is *dialectical*, which presumes that new experiences can sometimes *negate* those that they succeed. Learning proceeds, in other words, in a series of developmental stages, each of which involves some kind of realization or learning moment which can sometimes refute a past moment. Although, at least in Hegel's account, both past and present moment, even if they stand in contradiction, can be reconciled in a process of *synthesis*, constituting in turn a future moment which initiates the whole process all over again. Some of you might hear echoes here of later theorists of learning like Jean Piaget, who also supposed learning proceeded in development stages.
+
+One final point here: for Hegel, experience is also organized by the concepts we have. For Hegel, as for Kant, I experience properly only if I have some concepts – such as time and space – to help synthesize that experience. We'll return to this point – it is a key distinction between how humans and machines – at least machines today – learn. 
+
 ```
 
 ---
@@ -177,6 +196,16 @@ Finally, a challenge for us today is to think through what Artificial Intelligen
 
 ```
 
+
+---
+
+## <a id="5-reasons-for-Hegel"></a>Five Reasons for Hegel
+
+- Hegel critiques 18th‑century empiricism (learning as mere accumulation) and offers a dialectical model of learning via negation and synthesis—richer for both human and machine learning.
+- He grounds learning in social recognition: the move from consciousness to self‑consciousness through others, highlighting a relational dimension machines may lack.
+- He treats history as a collective learning process with direction, giving a lens to situate AI, singularity debates, and the skills learners will need.
+- His renewed relevance (e.g., Brandom) in language, norms, and consciousness provides contemporary scaffolding for AI ethics, pedagogy, and discourse.
+- As the thinker of contradiction, he helps us hold AI’s benefits and harms together, suspending strict non‑contradiction for nuanced, both‑and evaluation.
 
 --- 
 
@@ -325,7 +354,13 @@ But more to the point, I want people also to experiment with how these AI tools 
 
 ## <a id="introductions"></a>Introductions
 
-
+ - Introductions
+   - Liam Magee
+   - Michele Galla
+   - Everyone else
+   
+ - Discussions: What do you know about Machine Learning? What do you want to know? 
+ 
 
 ---
 
@@ -337,7 +372,3 @@ Authors:
 ---
 
 [[lecture-1-critiquemd]]
-
-testing
-
-testing some more
