@@ -19,12 +19,22 @@ class FeedbackSystem {
             }
         };
 
+        // AI Cooldown System (migrated from legacy system)
+        this.aiCooldown = {
+            lastAICallTime: 0, // Timestamp when AI was last called
+            cooldownPeriod: 30000, // Minimum 30 seconds between AI calls (default)
+            minimumCharacters: 500 // Minimum characters before AI feedback (default)
+        };
+
         // Feedback history
         this.feedbackHistory = [];
         this.lastFeedbackTime = 0;
         
         // Response libraries (must be initialized first)
         this.responseLibraries = this.initializeResponseLibraries();
+
+        // Load cooldown settings from user preferences
+        this.loadCooldownSettings();
 
         // Mentor personas (depends on responseLibraries)
         this.mentorPersonas = {
@@ -68,6 +78,13 @@ class FeedbackSystem {
             
             if (!hasLastSentence && !hasRecentText) {
                 this.log('Skipping feedback generation - no meaningful content');
+                return null;
+            }
+
+            // Check character threshold
+            const currentText = analysis.fullDocumentText || '';
+            if (currentText.length < this.aiCooldown.minimumCharacters) {
+                console.log(`[FeedbackSystem] ⏳ Need ${this.aiCooldown.minimumCharacters - currentText.length} more characters (threshold: ${this.aiCooldown.minimumCharacters})`);
                 return null;
             }
             
@@ -278,6 +295,19 @@ ${hasSelectedText ?
 
     async callAIService(prompt) {
         try {
+            // Check cooldown before making AI call
+            if (!this.checkAICooldown()) {
+                const timeSinceLastCall = Date.now() - this.aiCooldown.lastAICallTime;
+                const remainingTime = Math.ceil((this.aiCooldown.cooldownPeriod - timeSinceLastCall) / 1000);
+                console.log(`[FeedbackSystem] ⏳ AI cooldown active. ${remainingTime}s remaining.`);
+                return null;
+            }
+
+            console.log('[FeedbackSystem] 🔄 Attempting AI service call with FRESH conversation (no history)');
+            
+            // Update cooldown timestamp BEFORE making the call
+            this.aiCooldown.lastAICallTime = Date.now();
+
             if (this.aiCompanion && this.aiCompanion.callAIService) {
                 return await this.aiCompanion.callAIService(prompt);
             }
@@ -524,6 +554,41 @@ ${hasSelectedText ?
 
     disableFeedback() {
         this.feedbackConfig.enabled = false;
+    }
+
+    // === AI Cooldown System ===
+
+    checkAICooldown() {
+        const timeSinceLastCall = Date.now() - this.aiCooldown.lastAICallTime;
+        const cooldownExpired = timeSinceLastCall >= this.aiCooldown.cooldownPeriod;
+        
+        if (!cooldownExpired) {
+            const remainingTime = Math.ceil((this.aiCooldown.cooldownPeriod - timeSinceLastCall) / 1000);
+            console.log(`[FeedbackSystem] ⏳ AI cooldown: ${remainingTime}s remaining`);
+            return false;
+        }
+        
+        console.log('[FeedbackSystem] ✅ AI cooldown expired, ready for new call');
+        return true;
+    }
+
+    async loadCooldownSettings() {
+        try {
+            const settings = await window.electronAPI.invoke('get-settings');
+            if (settings && settings.ai) {
+                if (settings.ai.companionCharacterThreshold) {
+                    this.aiCooldown.minimumCharacters = settings.ai.companionCharacterThreshold;
+                    console.log(`[FeedbackSystem] Character threshold set to: ${this.aiCooldown.minimumCharacters}`);
+                }
+                
+                if (settings.ai.companionCooldownPeriod) {
+                    this.aiCooldown.cooldownPeriod = settings.ai.companionCooldownPeriod;
+                    console.log(`[FeedbackSystem] Cooldown period set to: ${this.aiCooldown.cooldownPeriod}ms`);
+                }
+            }
+        } catch (error) {
+            console.error('[FeedbackSystem] Failed to load cooldown settings:', error);
+        }
     }
 }
 

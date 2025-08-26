@@ -1,4 +1,5 @@
-![alt text](image-url)
+
+
 ## Introducing Hegel and The Concept of Experience (`Ehfahrung')
 
 
@@ -11,15 +12,20 @@
  - German philosopher of the early 19th century
  - Comes *after* Immanuel Kant, and the Critique of Pure Reason / Practical Reason / Judgment (late 1700s)
  - The last of the "polymath" philosophers – across math, science, logic, history, art, literature, psychology 
+ - Product of the Enlightenment and the French Revolution (1789)
+ - Argued that the End of History had been realized - the perfect form of the State had evolved
  
 
-![alt text![image](https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/1831_Schlesinger_Philosoph_Georg_Friedrich_Wilhelm_Hegel_anagoria.JPG/500px-1831_Schlesinger_Philosoph_Georg_Friedrich_Wilhelm_Hegel_anagoria.JPG)](image-url)
+![alt text![image](https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/1831_Schlesinger_Philosoph_Georg_Friedrich_Wilhelm_Hegel_anagoria.JPG/500px-1831_Schlesinger_Philosoph_Georg_Friedrich_Wilhelm_Hegel_anagoria.JPG)
+
+
+
 
 ---
 
 ## Hegel's influence
 
- - Died in 1831 - most famous philosopher in Germany
+ - Died in 1831 - most famous philosopher in Germany at the time
  - Influenced "radical" thinkers of the 1830s/40s - the "Young Hegelians"
  - Including Karl Marx, Friedrich Engels
    - Dialectical materialism - lasting influence
@@ -36,7 +42,65 @@
 
 ---
 
+
+
+### Hegel’s *Phenomenology of Spirit*
+
+- Published in 1807 - famously as Napoleon rode into Jena, Germany in his assault on Europe.  
+- Explores how a subject forms consciousness through self-awareness in its development.
+- Positions learning as central to becoming a conscious entity within society.
+- Serves as historical pivot for modern questions on cognition and AI.
+- Highlights continuity between human, machinic, and other subjects in the process.
+
+```notes
 The key text we'll be examining here is Hegel's *Phenomenology of Mind* (1807). For this course I will be using this text as a sort of *avant la lettre* account of how a *subject* – an entity that for the moment we will assume can exist in human, in machinic and perhaps in other situations – forms itself as a subject. In perhaps less obscure terms, how something like us learns to be as a conscious self. This text by Hegel occupies an important place in Western philosophy, and in some ways – as I hope to make clear – can be seen as one of the historical pivots around which questions of learning can be responded to. 
+```
+
+---
+
+Let's start with the title: in German, *Phänomenologie des Geistes*, translated as either *The Phenomenology of Spirit*  or *The Phenomenology of Mind*. The word "Geist" can in other words be translated as "Spirit" or "Mind" – the cause of a lot of confusion. Think of what word in English sounds closest to *Geist*: "ghost" (but also "guest" and "host"). What is this text about? Something vague, religious, metaphysical: spirit? Or concrete, psychological, scientific: mind? Are we talking about something collective – like a world spirit, or spirit of the times – what we mean when we say *Zeitgeist*? Or something particular and individual – what is happening in *my* mind, right now? Can it be all these things (people have argued this).
+
+
+
+---
+
+What about the other word, *Phenomenology*? Let's now this apart. What does the -ology mean - the *logos*? Its "the study of". But the study of what? The study of phenomena, which sounds like the study of everything (*all* phenomena). But what exactly are phenomena? The word comes from the Greek term *phanomenai*, "to appear". So, phenomena are appearances, and for Kant, who preceded Hegel, phenomena were opposed to noumena, which meant things in themselves. Reality, in other words, as opposed to how things appear to us, the phenomena.
+
+But Hegel disputes this – in his account, all we ever have are phenomena. But things can also appear in different ways: we organize appearances differently, in particular as we learn, develop and grow. Our mind or spirit, in other words, puts phenomena together in different ways - partly because we realize the errors, inconsistencies or troubles involved in older ways. Experience (or Ehfahrung) is the living out of this unceasing process of realization. How does this all unfold? That is the story of the Phenomenology of Mind / Spirit - to study how phenomena present themselves to mind, or more accurately, how the mind moves through its various shapes to organize phenomena as it comes to know them.
+
+
+---
+
+We'l
+
+
+
+
+---
+
+What does it mean to be a subject? 
+
+Let's start with a phenomenological experiment. Close your eyes, and try to imagine *where* your sense of subjectivity, or experience, actually is. What is the "seat" of your experience? You might say it is in your head. And what is your orientation: what is the "direction" and position your experience is pointed towards? You might now say it is through your eyes, or at least in the direction your head is facing. 
+
+And while we are here, what about the complex layers of history that make up our subjectivity? Where does our prior experience lie? If I ask you now to bring up a memory – any memory – what is it that you actually do? What do you experience in bringing up a memory? Do you – for a least a moment – experience something like annoyance at having to select one memory over another? And what is this experience of annoyance itself like? What does your body do? Do you sigh for instance? Does your heart beat a little faster, at the request of a professor to draw up a memory? Do you wonder - somewhere – whether this is a waste of time (you didn't enrol in a meditation course)? What does this wondering feel like?
+
+And so on...
+
+The experience *of* experience, we can see, involves a series of sensations and associations. These goings-on are things that we can document, we can capture in some kind of stream of consciousness way. Indeed, even the idea of a "stream" already invokes many assumptions – that our consciousness is deeply connected to time, a series of moments running on, but also connected to prior moments.
+
+And we have a sense that our consciousness is not merely a cerebral matter, but involves our bodies, our organs, that flow with our consciousness, that are caught up in our the directedness of our attentions. 
+
+Finally, we might also have a sense of the "edge" of our consciousness. I want you now to imagine some kind of instrument you use or have used: something external to the body, but closely connected to it. For example, a computer keyboard, a phone screen, a baseball bat, an iron, a hammer, or favourite items of clothing. Everyday, but also intimate, something that feels in certain moments like an extension of the body – something external that becomes you. Does your consciousness ever extend to that object, even momentarily, for example in what people can call a "flow state"? 
+
+And what about other people? We know in extreme cases we can feel other people's pain, sometimes more intensely than our own. It is as though their pain strikes us as more acute, even though it is not our own. It is an even more *intimate* pain, because it is not our body, for instance, but someone else's body that paradoxically is connected via their consciousness to our own.
+
+So here we have a sentiment of consciousness as not merely locked up in a skull – our own – but in some sense already distributed. But not infinite, at least not in everyday experience – we would need some paranormal experience to go so completely out of ourselves that we reach back to before our birth, or after our death, or beyond the limits of our world. Even if we can accept that it is amorphous, consciousness still has a shape, it has edges.
+
+Now what would an entirely *mechanical* experience of consciousness be? We can imagine a stepping stone: for example, the experience of an animal. Non human, but with a brain and body. We all know of examples of literature, film, television that literalise this experiment.
+
+And in certain forms, we can also elaborate this to humanoid or anthropomorphic experience. Being in a human's body but with only an algorithmic simulation of consciousness. C-3PO in Star Wars for example: think about how this *droid* differs from R2D2, which has no human body,  
+
+
 
 ---
 
@@ -63,27 +127,3 @@ This focus on experience justifies the selection of Hegel's *Phenomenology* – 
 
 This discussion will not be directed, though, toward the simple aim of how machine learning is – and in a certain sense cannot ever be – equivalent to human learning. Our aim is instead more ambitious. Hegel was also a thinker of history, and understood history as also undergoing a series of developments. Without committing ourselves to Hegel's quite dogmatic understanding, we will seek to thematise how machine learning fits into a wider picture of human development and progress. What is – from a human learning perspective – the "end game" of machine learning? Where does it fit within our – usually implicit – account of why learning is important? This is not just a question of how we can use machine learning systems to supplement, accelerate and democratize how humans learn. It is rather a question of how we need to rewire both the content and the form of human learning in a world that is transforming dramatically – and which we need to insist upon still having some agency in that process of transformation. This will be what I hope is the practical payoff for an otherwise arduous conceptual journey through the world of Hegelian philosophy.
 
-
----
-
-What does it mean to be a subject? 
-
-Let's start with a phenomenological experiment. Close your eyes, and try to imagine *where* your sense of subjectivity, or experience, actually is. What is the "seat" of your experience? You might say it is in your head. And what is your orientation: what is the "direction" and position your experience is pointed towards? You might now say it is through your eyes, or at least in the direction your head is facing. 
-
-And while we are here, what about the complex layers of history that make up our subjectivity? Where does our prior experience lie? If I ask you now to bring up a memory – any memory – what is it that you actually do? What do you experience in bringing up a memory? Do you – for a least a moment – experience something like annoyance at having to select one memory over another? And what is this experience of annoyance itself like? What does your body do? Do you sigh for instance? Does your heart beat a little faster, at the request of a professor to draw up a memory? Do you wonder - somewhere – whether this is a waste of time (you didn't enrol in a meditation course)? What does this wondering feel like?
-
-And so on...
-
-The experience *of* experience, we can see, involves a series of sensations and associations. These goings-on are things that we can document, we can capture in some kind of stream of consciousness way. Indeed, even the idea of a "stream" already invokes many assumptions – that our consciousness is deeply connected to time, a series of moments running on, but also connected to prior moments.
-
-And we have a sense that our consciousness is not merely a cerebral matter, but involves our bodies, our organs, that flow with our consciousness, that are caught up in our the directedness of our attentions. 
-
-Finally, we might also have a sense of the "edge" of our consciousness. I want you now to imagine some kind of instrument you use or have used: something external to the body, but closely connected to it. For example, a computer keyboard, a phone screen, a baseball bat, an iron, a hammer, or favourite items of clothing. Everyday, but also intimate, something that feels in certain moments like an extension of the body – something external that becomes you. Does your consciousness ever extend to that object, even momentarily, for example in what people can call a "flow state"? 
-
-And what about other people? We know in extreme cases we can feel other people's pain, sometimes more intensely than our own. It is as though their pain strikes us as more acute, even though it is not our own. It is an even more *intimate* pain, because it is not our body, for instance, but someone else's body that paradoxically is connected via their consciousness to our own.
-
-So here we have a sentiment of consciousness as not merely locked up in a skull – our own – but in some sense already distributed. But not infinite, at least not in everyday experience – we would need some paranormal experience to go so completely out of ourselves that we reach back to before our birth, or after our death, or beyond the limits of our world. Even if we can accept that it is amorphous, consciousness still has a shape, it has edges.
-
-Now what would an entirely *mechanical* experience of consciousness be? We can imagine a stepping stone: for example, the experience of an animal. Non human, but with a brain and body. We all know of examples of literature, film, television that literalise this experiment.
-
-And in certain forms, we can also elaborate this to humanoid or anthropomorphic experience. Being in a human's body but with only an algorithmic simulation of consciousness. C-3PO in Star Wars for example: think about how this *droid* differs from R2D2, which has no human body,  
