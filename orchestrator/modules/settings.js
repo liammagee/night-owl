@@ -654,10 +654,18 @@ function generateAISettings() {
                     </div>
                     
                     <div style="margin-top: 8px;">
-                        <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #333;">Character Threshold:</label>
-                        <input type="number" id="ai-companion-character-threshold" value="${currentSettings.ai?.companionCharacterThreshold || 20}" min="5" max="100" step="5" style="width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
+                        <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #333;">Minimum Characters for AI Feedback:</label>
+                        <input type="number" id="ai-companion-character-threshold" value="${currentSettings.ai?.companionCharacterThreshold || 500}" min="100" max="2000" step="100" style="width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
                         <div style="font-size: 10px; color: #666; margin-top: 2px;">
-                            Minimum characters to type before AI provides feedback (reduces interruptions)
+                            Characters to type before AI can provide feedback (prevents frequent interruptions)
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 8px;">
+                        <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #333;">AI Cooldown Period (seconds):</label>
+                        <input type="number" id="ai-companion-cooldown-period" value="${(currentSettings.ai?.companionCooldownPeriod || 30000) / 1000}" min="10" max="300" step="10" style="width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
+                        <div style="font-size: 10px; color: #666; margin-top: 2px;">
+                            Minimum time between AI feedback messages (prevents API spam)
                         </div>
                     </div>
                 </div>
@@ -1398,6 +1406,13 @@ function collectSettingsFromForm() {
     if (aiCompanionCharacterThreshold && aiCompanionCharacterThreshold > 0) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.companionCharacterThreshold = aiCompanionCharacterThreshold;
+    }
+    
+    const aiCompanionCooldownPeriod = parseInt(document.getElementById('ai-companion-cooldown-period')?.value);
+    if (aiCompanionCooldownPeriod && aiCompanionCooldownPeriod > 0) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        // Convert seconds to milliseconds for storage
+        updatedSettings.ai.companionCooldownPeriod = aiCompanionCooldownPeriod * 1000;
     }
     
     // Export settings

@@ -31,11 +31,11 @@ class AIWritingCompanion {
             suppressionPeriod: 300000, // 5 minutes between similar feedback types
         };
         
-        // Keystroke tracking for AI insight frequency control
-        this.keystrokeTracking = {
-            count: 0, // Total keystrokes since last AI insight
-            lastAIInsightTime: 0, // Timestamp when AI insight was last generated
-            threshold: this.analysisEngine.preferences.aiInsightKeystrokeThreshold || 100
+        // AI API call cooldown mechanism
+        this.aiCooldown = {
+            lastAICallTime: 0, // Timestamp when AI was last called
+            cooldownPeriod: 30000, // Minimum 30 seconds between AI calls
+            minimumCharacters: 500 // Minimum characters typed before AI feedback (replaces both thresholds)
         };
         
         // Context Configuration (will be loaded from settings)
@@ -71,7 +71,6 @@ class AIWritingCompanion {
             currentInsights: [],
             recentTypingBuffer: '', // Buffer to track last ~150 characters as they're typed
             maxTypingBufferSize: 150, // Maximum characters to keep in typing buffer
-            characterThreshold: 20, // Minimum characters typed before triggering AI analysis
             lastContentHash: null, // Track content changes to prevent unnecessary AI calls
         };
         
@@ -142,8 +141,6 @@ class AIWritingCompanion {
             // Initialize personality detection
             this.initializePersonalityDetection();
             
-            // Setup keystroke tracking for AI insight frequency control
-            this.setupKeystrokeTracking();
             
             this.initialized = true;
             console.log('[AI Companion] AI Writing Companion initialized successfully');
@@ -153,58 +150,28 @@ class AIWritingCompanion {
         }
     }
     
-    // === Keystroke Tracking for AI Insight Frequency Control ===
+    // === AI Cooldown Management ===
     
-    setupKeystrokeTracking() {
-        // Set up keystroke counting for both Monaco editor and textarea
-        const trackKeystroke = () => {
-            this.keystrokeTracking.count++;
-            console.log(`[AI Companion] Keystroke count: ${this.keystrokeTracking.count}/${this.keystrokeTracking.threshold}`);
-        };
+    canCallAI() {
+        const timeSinceLastCall = Date.now() - this.aiCooldown.lastAICallTime;
+        const cooldownExpired = timeSinceLastCall >= this.aiCooldown.cooldownPeriod;
+        const hasEnoughCharacters = this.realTimeAnalysis.recentTypingBuffer.length >= this.aiCooldown.minimumCharacters;
         
-        // Monaco editor keystroke tracking
-        if (window.editor && window.editor.onKeyDown) {
-            window.editor.onKeyDown(trackKeystroke);
+        if (!cooldownExpired) {
+            const remainingTime = Math.ceil((this.aiCooldown.cooldownPeriod - timeSinceLastCall) / 1000);
+            console.log(`[AI Companion] ⏳ AI cooldown: ${remainingTime}s remaining`);
         }
         
-        // Textarea fallback keystroke tracking
-        const textarea = document.querySelector('#editor-textarea');
-        if (textarea) {
-            textarea.addEventListener('keydown', trackKeystroke);
+        if (!hasEnoughCharacters) {
+            console.log(`[AI Companion] ⏳ Need ${this.aiCooldown.minimumCharacters - this.realTimeAnalysis.recentTypingBuffer.length} more characters`);
         }
         
-        // Set up listener for when Monaco editor becomes available later
-        const checkForMonaco = () => {
-            if (window.editor && window.editor.onKeyDown && !this.monacoKeystrokeSetup) {
-                window.editor.onKeyDown(trackKeystroke);
-                this.monacoKeystrokeSetup = true;
-                console.log('[AI Companion] Keystroke tracking set up for Monaco editor');
-            }
-        };
-        
-        // DISABLED: Check periodically for Monaco editor to prevent background AI requests
-        // setInterval(checkForMonaco, 1000);
-        console.log('[AI Companion] ⏸️ Monaco editor polling disabled to prevent background AI requests');
+        return cooldownExpired && hasEnoughCharacters;
     }
     
-    // Check if enough keystrokes have occurred since last AI insight
-    hasMetKeystrokeThreshold() {
-        const preferences = this.loadUserPreferences();
-        const threshold = preferences.aiInsightKeystrokeThreshold || 100;
-        
-        // Update threshold if preferences changed
-        if (this.keystrokeTracking.threshold !== threshold) {
-            this.keystrokeTracking.threshold = threshold;
-        }
-        
-        return this.keystrokeTracking.count >= threshold;
-    }
-    
-    // Reset keystroke counter after AI insight is generated
-    resetKeystrokeCounter() {
-        this.keystrokeTracking.count = 0;
-        this.keystrokeTracking.lastAIInsightTime = Date.now();
-        console.log('[AI Companion] Keystroke counter reset after AI insight generation');
+    markAICallMade() {
+        this.aiCooldown.lastAICallTime = Date.now();
+        console.log('[AI Companion] AI call timestamp updated');
     }
     
     // === Real-time Writing Analysis ===
@@ -635,21 +602,18 @@ class AIWritingCompanion {
         // CRITICAL: Only call AI if we have ACTUAL meaningful typing activity
         const hasActualTyping = hasLastSentence && this.hasMeaningfulText(lastSentence) && this.hasRecentTypingActivity();
         
-        // Check keystroke threshold before generating AI insight
-        const hasMetKeystrokeThreshold = this.hasMetKeystrokeThreshold();
-        
-        // Log keystroke threshold status
-        if (!hasMetKeystrokeThreshold) {
-            console.log(`[AI Companion] ⏸️ Keystroke threshold not met: ${this.keystrokeTracking.count}/${this.keystrokeTracking.threshold} keystrokes`);
-        }
+        // Check if we can make an AI call (cooldown and character threshold)
+        const canCallAI = this.canCallAI();
         
         // Try to generate AI-powered contextual insight first
-        if (window.electronAPI && hasActualTyping && hasMetKeystrokeThreshold) {
+        if (window.electronAPI && hasActualTyping && canCallAI) {
             try {
                 const aiMessage = await this.generateAIInsight(analysis, persona);
                 if (aiMessage) {
-                    // Reset keystroke counter since AI insight was successfully generated
-                    this.resetKeystrokeCounter();
+                    // Mark that we made an AI call
+                    this.markAICallMade();
+                    // Clear the typing buffer after successful AI call
+                    this.realTimeAnalysis.recentTypingBuffer = '';
                     
                     return {
                         type: 'insight',
@@ -1402,8 +1366,7 @@ Be thoughtful about their writing process without referencing specific recent te
             intrusivenessLevel: 'low', // low, moderate, high
             learningMode: true,
             autoInvocationEnabled: false, // Default to false - only invoke when user requests or makes text changes
-            requireTextChanges: true, // Only invoke when there are actual text changes
-            aiInsightKeystrokeThreshold: 100 // Number of keystrokes before AI insight can be generated
+            requireTextChanges: true // Only invoke when there are actual text changes
         };
     }
     
@@ -2237,10 +2200,16 @@ Be thoughtful about their writing process without referencing specific recent te
         try {
             const settings = await window.electronAPI.invoke('get-settings');
             if (settings && settings.ai) {
-                // Load character threshold setting
+                // Load unified character threshold setting
                 if (settings.ai.companionCharacterThreshold !== undefined) {
-                    this.realTimeAnalysis.characterThreshold = settings.ai.companionCharacterThreshold;
-                    this.log('basic', 'system', `Character threshold set to: ${this.realTimeAnalysis.characterThreshold}`);
+                    this.aiCooldown.minimumCharacters = settings.ai.companionCharacterThreshold;
+                    this.log('basic', 'system', `AI minimum characters threshold set to: ${this.aiCooldown.minimumCharacters}`);
+                }
+                
+                // Load cooldown period setting (if it exists in settings)
+                if (settings.ai.companionCooldownPeriod !== undefined) {
+                    this.aiCooldown.cooldownPeriod = settings.ai.companionCooldownPeriod;
+                    this.log('basic', 'system', `AI cooldown period set to: ${this.aiCooldown.cooldownPeriod}ms`);
                 }
                 
                 // Load context settings
