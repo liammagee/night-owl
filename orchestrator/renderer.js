@@ -89,26 +89,62 @@ function updateStatusBar(content) {
     
     if (!content) content = '';
     
+    // Check if there's selected text in the Monaco editor
+    let selectedText = '';
+    let isSelection = false;
+    
+    if (editor && editor.getSelection && editor.getModel) {
+        const selection = editor.getSelection();
+        if (selection && !selection.isEmpty()) {
+            selectedText = editor.getModel().getValueInRange(selection);
+            isSelection = true;
+        }
+    }
+    
+    // Determine which content to analyze (selection vs full document)
+    const contentToAnalyze = isSelection ? selectedText : content;
+    const prefix = isSelection ? 'Sel: ' : '';
+    
     // Count words (split by whitespace, filter empty strings)
-    const words = content.trim().split(/\s+/).filter(word => word.length > 0);
-    const wordCount = content.trim() === '' ? 0 : words.length;
+    const words = contentToAnalyze.trim().split(/\s+/).filter(word => word.length > 0);
+    const wordCount = contentToAnalyze.trim() === '' ? 0 : words.length;
     
     // Count characters
-    const charCount = content.length;
+    const charCount = contentToAnalyze.length;
     
     // Count lines
-    const lineCount = content === '' ? 1 : content.split('\n').length;
+    const lineCount = contentToAnalyze === '' ? 1 : contentToAnalyze.split('\n').length;
     
-    // Update status bar elements
-    if (wordCountEl) wordCountEl.textContent = `Words: ${wordCount}`;
-    if (charCountEl) charCountEl.textContent = `Characters: ${charCount}`;
-    if (lineCountEl) lineCountEl.textContent = `Lines: ${lineCount}`;
+    // Update status bar elements with consistent styling
+    if (wordCountEl) {
+        wordCountEl.textContent = `${prefix}Words: ${wordCount}`;
+    }
+    
+    if (charCountEl) {
+        charCountEl.textContent = `${prefix}Chars: ${charCount}`;
+    }
+    
+    if (lineCountEl) {
+        lineCountEl.textContent = `${prefix}Lines: ${lineCount}`;
+    }
     
     // Update cursor position if editor is available
     if (editor && editor.getPosition) {
         const position = editor.getPosition();
         if (cursorPosEl && position) {
-            cursorPosEl.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
+            if (isSelection) {
+                const selection = editor.getSelection();
+                const startLine = selection.startLineNumber;
+                const endLine = selection.endLineNumber;
+                
+                if (startLine === endLine) {
+                    cursorPosEl.textContent = `Ln ${startLine} (sel)`;
+                } else {
+                    cursorPosEl.textContent = `Ln ${startLine}-${endLine} (sel)`;
+                }
+            } else {
+                cursorPosEl.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
+            }
         }
     } else if (cursorPosEl) {
         cursorPosEl.textContent = 'Ln 1, Col 1';
@@ -2107,6 +2143,12 @@ async function initializeMonacoEditor() {
             
             // Track previous content to detect changes
             let previousContent = editor.getValue();
+            
+            // Listen for selection changes to update status bar
+            editor.onDidChangeCursorSelection((event) => {
+                // Update status bar to show selection info
+                updateStatusBar(editor.getValue());
+            });
             
             editor.onDidChangeModelContent(async (event) => {
                 const currentContent = editor.getValue();

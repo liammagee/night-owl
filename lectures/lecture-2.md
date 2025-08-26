@@ -164,7 +164,7 @@ So here we have a sentiment of consciousness as not merely locked up in a skull 
 Now what would an entirely *mechanical* experience of consciousness be? We can imagine a stepping stone: for example, the experience of an animal. Non human, but with a brain and body. We all know of examples of literature, film, television that literalise this experiment.
 
 And in certain forms, we can also elaborate this to humanoid or anthropomorphic experience. Being in a human's body but with only an algorithmic simulation of consciousness. C-3PO in Star Wars for example: think about how this *droid* differs from R2D2, which has no human body,  
-
+```
 
 
 ---
