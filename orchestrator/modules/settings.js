@@ -485,6 +485,22 @@ function generateGamificationSettings() {
 function generateAISettings() {
     return `
         <div class="settings-section">
+            <h3>AI Companion Behavior</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Configure how the AI writing companion interacts with you while writing.
+            </p>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="ai-companion-show-response-notifications" ${currentSettings?.aiCompanion?.showResponseNotifications !== false ? 'checked' : ''}>
+                    <span>Show "Ash has responded!" notifications</span>
+                </label>
+                <p style="color: #666; font-size: 12px; margin-left: 20px; margin-top: 5px;">
+                    When disabled, Ash will still provide feedback popups but won't show notification messages about responses.
+                </p>
+            </div>
+        </div>
+
+        <div class="settings-section">
             <h3>AI Assistant Configuration</h3>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
                 Configure different AI assistants for different purposes. Ash provides quick writing feedback, while Dr. Chen offers deep dialogue and analysis.
@@ -1296,6 +1312,13 @@ function collectSettingsFromForm() {
         updatedSettings.gamification.menuCollapsedDefault = menuCollapsedDefault;
     }
     
+    // AI Companion settings
+    const showResponseNotifications = document.getElementById('ai-companion-show-response-notifications')?.checked;
+    if (showResponseNotifications !== undefined) {
+        if (!updatedSettings.aiCompanion) updatedSettings.aiCompanion = {};
+        updatedSettings.aiCompanion.showResponseNotifications = showResponseNotifications;
+    }
+
     // Dual assistant AI settings
     if (!updatedSettings.ai) updatedSettings.ai = {};
     if (!updatedSettings.ai.assistants) updatedSettings.ai.assistants = {};

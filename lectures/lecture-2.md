@@ -66,13 +66,58 @@ Let's start with the title: in German, *Phänomenologie des Geistes*, translated
 
 What about the other word, *Phenomenology*? Let's now this apart. What does the -ology mean - the *logos*? Its "the study of". But the study of what? The study of phenomena, which sounds like the study of everything (*all* phenomena). But what exactly are phenomena? The word comes from the Greek term *phanomenai*, "to appear". So, phenomena are appearances, and for Kant, who preceded Hegel, phenomena were opposed to noumena, which meant things in themselves. Reality, in other words, as opposed to how things appear to us, the phenomena.
 
-But Hegel disputes this – in his account, all we ever have are phenomena. But things can also appear in different ways: we organize appearances differently, in particular as we learn, develop and grow. Our mind or spirit, in other words, puts phenomena together in different ways - partly because we realize the errors, inconsistencies or troubles involved in older ways. Experience (or Ehfahrung) is the living out of this unceasing process of realization. How does this all unfold? That is the story of the Phenomenology of Mind / Spirit - to study how phenomena present themselves to mind, or more accurately, how the mind moves through its various shapes to organize phenomena as it comes to know them.
+
+---
+
+But Hegel disputes this – in his account, all we ever have are phenomena. But things can also appear in different ways: we organize appearances differently, in particular as we learn, develop and grow. Our mind or spirit, in other words, puts phenomena together in different ways - partly because we realize the errors, inconsistencies or troubles involved in older ways. Experience (or Ehfahrung) is the living out of this unceasing process of realization. How does this all unfold? That is the story of the Phenomenology of Mind / Spirit - to study how phenomena present themselves to mind, or more accurately, how the mind moves through its various shapes to organize phenomena as it comes to know them. 
+
+---
+
+With this last point we also begin to see a fundamental difference between Hegel and what precedes him under the name of empiricism. Whereas empiricism – and perhaps our raw intuition – is that experience *happens to us*. We are, in other words, passive recipients of experience. We will want to pause here, and take stock of this alternative intuition: for Hegel, we are always *constituting* our experience, if for the most part unconsciously. We *make* our experience – even though we are not free to simply make any experience at all. As we will see the structure of experience is past down to us by history, society, language and norms. 
 
 
 ---
 
-We'l
+The first part of the Phenomenology itself deals with three phases of Consciousness (everything in Hegel comes in threes):
 
+ - Sense-certainty
+ - Perception
+ - Understanding
+ 
+These form a kind of progression, but not in the usual sense of, for example, layers of consciousness or childhood development. Instead these are more like *ideas* of consciousness that need to get progressively more refined before we arrive at what it means to understand something. 
+
+
+
+
+
+---
+
+
+### Sense Certainty
+
+![image](images/consciousness-sense-certainty.png)
+
+
+```notes
+Hegel begins with the idea of sense-certainty. 
+
+
+```
+
+---
+
+
+### Perception
+
+![image](images/consciousness-perception.png)
+
+
+---
+
+
+### Understanding
+
+![image](images/consciousness-understanding.png)
 
 
 

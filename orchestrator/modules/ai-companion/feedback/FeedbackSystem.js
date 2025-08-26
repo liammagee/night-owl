@@ -70,6 +70,50 @@ class FeedbackSystem {
 
     // === Main Feedback Generation ===
 
+    async generateExplicitFeedback(analysis) {
+        try {
+            console.log('[FeedbackSystem] 🎯 Generating EXPLICIT feedback - bypassing all cooldowns and thresholds');
+            
+            // Force analysis to have meaningful content for explicit invocations
+            if (!analysis.fullDocumentText || analysis.fullDocumentText.length < 10) {
+                analysis.lastSentence = "User explicitly requested AI feedback";
+                analysis.recentText = "Explicit feedback request";
+                analysis.fullDocumentText = "User has explicitly requested AI feedback assistance.";
+            }
+            
+            const context = this.getCurrentWritingContext();
+            const persona = this.selectOptimalPersona(analysis, context);
+            
+            console.log('[FeedbackSystem] 🚀 Bypassing cooldowns for explicit invocation');
+            
+            // Generate personalized feedback WITHOUT cooldown checks
+            const feedback = await this.generatePersonalizedFeedbackBypass(analysis, persona, context);
+            
+            if (feedback) {
+                // Record feedback interaction
+                this.recordFeedbackInteraction(feedback, analysis);
+                this.lastFeedbackTime = Date.now();
+                
+                // Log usage
+                this.aiCompanion.logUsage('explicit_feedback_generated', {
+                    type: feedback.type,
+                    persona: feedback.persona,
+                    explicit: true
+                });
+                
+                console.log('[FeedbackSystem] ✅ Explicit feedback generated successfully:', feedback);
+                return feedback;
+            }
+            
+            console.warn('[FeedbackSystem] ⚠️ Failed to generate explicit feedback');
+            return null;
+            
+        } catch (error) {
+            console.error('[FeedbackSystem] ❌ Error in explicit feedback generation:', error);
+            return null;
+        }
+    }
+
     async generateContextualFeedback(analysis) {
         try {
             // Validate meaningful content
@@ -145,6 +189,45 @@ class FeedbackSystem {
         return timeSinceLastFeedback > this.feedbackConfig.minimumInterval;
     }
 
+    async generatePersonalizedFeedbackBypass(analysis, persona, context) {
+        const feedbackType = this.selectFeedbackType(analysis, context);
+        const personalizations = this.getPersonalizations(analysis);
+        
+        try {
+            // Use AI service to generate contextual feedback - BYPASS cooldown checks
+            const aiPrompt = this.buildFeedbackPrompt(analysis, persona, feedbackType, personalizations, context);
+            console.log('[FeedbackSystem] 🔄 EXPLICIT INVOCATION - bypassing cooldown for AI service call');
+            console.log('[FeedbackSystem] 📝 Prompt preview:', aiPrompt.slice(0, 200) + '...');
+            
+            const response = await this.callAIServiceBypass(aiPrompt);
+            console.log('[FeedbackSystem] 🎯 AI service response (bypass):', response);
+            
+            if (response && response.message) {
+                console.log('[FeedbackSystem] ✅ Using AI-generated feedback (explicit invocation)');
+                return {
+                    type: feedbackType,
+                    persona: persona.name,
+                    message: response.message,
+                    confidence: response.confidence || 0.9,
+                    timestamp: Date.now(),
+                    source: 'ai_explicit',
+                    analysis: {
+                        flowState: analysis.flow?.state,
+                        sentiment: analysis.sentiment?.tendency
+                    },
+                    explicit: true
+                };
+            }
+            
+        } catch (error) {
+            console.error('[FeedbackSystem] ❌ AI service call failed for explicit invocation:', error);
+        }
+        
+        // Fallback to template-based feedback for explicit invocations
+        console.log('[FeedbackSystem] 🔄 Falling back to template feedback for explicit invocation');
+        return this.generateTemplateFeedback(analysis, persona, feedbackType);
+    }
+
     async generatePersonalizedFeedback(analysis, persona, context) {
         const feedbackType = this.selectFeedbackType(analysis, context);
         const personalizations = this.getPersonalizations(analysis);
@@ -173,6 +256,10 @@ class FeedbackSystem {
                         creativity: analysis.creativity?.score
                     }
                 };
+            } else if (response === null) {
+                // Cooldown is active - don't show any feedback
+                console.log('[FeedbackSystem] 🔇 Cooldown active - suppressing all feedback');
+                return null;
             } else {
                 console.warn('[FeedbackSystem] ⚠️ AI service returned no valid response, falling back to templates');
             }
@@ -181,9 +268,14 @@ class FeedbackSystem {
             console.error('[FeedbackSystem] ❌ Error generating AI feedback:', error);
         }
         
-        // Fallback to template-based feedback
-        console.log('[FeedbackSystem] 📝 Falling back to template-based feedback');
-        return this.generateTemplateFeedback(analysis, persona, feedbackType);
+        // Fallback to template-based feedback only if cooldown has expired
+        if (this.checkAICooldown()) {
+            console.log('[FeedbackSystem] 📝 Cooldown expired - falling back to template-based feedback');
+            return this.generateTemplateFeedback(analysis, persona, feedbackType);
+        }
+        
+        console.log('[FeedbackSystem] 🔇 Still in cooldown - suppressing template feedback');
+        return null;
     }
 
     selectFeedbackType(analysis, context) {
@@ -291,6 +383,35 @@ ${hasSelectedText ?
                     'Document length:', analysis.fullDocumentText?.length || 0);
 
         return basePrompt;
+    }
+
+    async callAIServiceBypass(prompt) {
+        try {
+            console.log('[FeedbackSystem] 🚀 EXPLICIT INVOCATION - bypassing all cooldown checks');
+            
+            // DO NOT check cooldown - this is an explicit invocation
+            // DO NOT update cooldown timestamp - this should not interfere with normal flow
+            
+            if (this.aiCompanion && this.aiCompanion.callAIService) {
+                return await this.aiCompanion.callAIService(prompt);
+            }
+            
+            // Fallback direct call
+            const response = await window.electronAPI.invoke('ai-chat', {
+                message: prompt,
+                options: {
+                    context: 'writing_companion_explicit',
+                    newConversation: true, // Clear all conversation history - fresh start every time
+                    conversationType: 'writing_analysis_explicit' // Distinct from regular AI calls
+                }
+            });
+            
+            return response.response ? { message: response.response, confidence: 0.9 } : null;
+            
+        } catch (error) {
+            console.error('[FeedbackSystem] AI service call failed (explicit invocation):', error);
+            return null;
+        }
     }
 
     async callAIService(prompt) {

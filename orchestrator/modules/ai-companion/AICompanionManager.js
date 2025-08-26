@@ -4,6 +4,7 @@
 
 class AICompanionManager {
     constructor(gamificationInstance) {
+        console.log('[AICompanionManager] 🚀 Initializing AICompanionManager with gamification:', !!gamificationInstance);
         this.gamification = gamificationInstance;
         this.initialized = false;
         
@@ -191,8 +192,15 @@ class AICompanionManager {
             const feedback = await this.feedbackSystem.generateContextualFeedback(combinedAnalysis);
             
             if (feedback) {
+                console.log('[AICompanionManager] 🎯 About to show contextual feedback:', feedback);
                 this.showContextualFeedback(feedback, combinedAnalysis);
-                this.showNotification('✅ Ash has responded!', 'success');
+                
+                // Only show "Ash has responded" notification if enabled in settings
+                const showResponseNotifications = window.appSettings?.aiCompanion?.showResponseNotifications !== false;
+                console.log('[AICompanionManager] 📢 Response notifications enabled:', showResponseNotifications);
+                if (showResponseNotifications) {
+                    this.showNotification('✅ Ash has responded!', 'success');
+                }
                 
                 // Track the content that was actually analyzed to prevent re-analyzing the same content
                 this.realTimeAnalysis.lastAnalyzedContent = text;
@@ -210,8 +218,21 @@ class AICompanionManager {
         }
     }
 
+    // Check if the AI companion system is enabled
+    isEnabled() {
+        // Check if AI writing companion is enabled in settings
+        const settings = window.appSettings || {};
+        return settings.ai?.enableWritingCompanion !== false;
+    }
+
     processNewWriting(newText) {
         console.log(`[AICompanion] 🔵 processNewWriting called with: "${newText}"`);
+        console.log(`[AICompanion] 🔍 Current system state:`, {
+            isAnalyzing: this.realTimeAnalysis?.isAnalyzing,
+            hasContextManager: !!this.contextManager,
+            hasFeedbackSystem: !!this.feedbackSystem,
+            systemEnabled: typeof this.isEnabled === 'function' ? this.isEnabled() : true
+        });
         
         // Update context manager buffers
         this.contextManager.updateTypingBuffer(newText);
@@ -386,6 +407,7 @@ class AICompanionManager {
     // === Feedback Display ===
 
     showContextualFeedback(feedback, analysis) {
+        console.log('[AICompanionManager] 🖼️ showContextualFeedback called with:', { feedback, analysis });
         // Create or update feedback display
         let feedbackPane = document.getElementById('ai-companion-feedback');
         

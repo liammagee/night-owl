@@ -3228,7 +3228,182 @@ document.addEventListener('keydown', async (e) => {
         hideFindReplaceDialog();
         return;
     }
+
+    // Cmd+Shift+' or Ctrl+Shift+': Invoke Ash (AI Writing Companion) explicitly
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "'") {
+        e.preventDefault();
+        console.log('[renderer.js] Explicit Ash invocation triggered (Cmd/Ctrl+Shift+\')');
+        await invokeAshExplicitly();
+        return;
+    }
 });
+
+// === Explicit Ash Invocation ===
+async function invokeAshExplicitly() {
+    try {
+        console.log('[renderer.js] 🎯 Explicit Ash invocation - bypassing all cooldowns and thresholds');
+        
+        // Store the prompt for "Copy to Chat" functionality
+        window.lastExplicitAshPrompt = `Please provide brief writing feedback or encouragement for the current document. The user has explicitly requested your assistance.`;
+        
+        // Get current document content for analysis
+        const currentContent = editor ? editor.getValue() : '';
+        
+        // Check if AI companion is available - try multiple global references
+        let aiCompanion = null;
+        
+        if (window.aiCompanionManager && window.aiCompanionManager.feedbackSystem) {
+            aiCompanion = window.aiCompanionManager;
+            console.log('[renderer.js] Found aiCompanionManager on window');
+        } else if (window.aiCompanion && window.aiCompanion.feedbackSystem) {
+            aiCompanion = window.aiCompanion;
+            console.log('[renderer.js] Found aiCompanion on window');
+        } else if (window.gamificationManager && window.gamificationManager.aiCompanion) {
+            aiCompanion = window.gamificationManager.aiCompanion;
+            console.log('[renderer.js] Found aiCompanion via gamificationManager');
+        } else {
+            console.warn('[renderer.js] ⚠️ AI companion system not available. Checking window properties:', {
+                aiCompanionManager: !!window.aiCompanionManager,
+                aiCompanion: !!window.aiCompanion,
+                gamificationManager: !!window.gamificationManager,
+                gamificationManagerAiCompanion: !!(window.gamificationManager && window.gamificationManager.aiCompanion),
+                windowKeys: Object.keys(window).filter(k => k.toLowerCase().includes('ai') || k.toLowerCase().includes('companion')),
+                allRelevantKeys: Object.keys(window).filter(k => k.toLowerCase().includes('ai') || k.toLowerCase().includes('companion') || k.toLowerCase().includes('gamif'))
+            });
+            
+            // Try to trigger AI companion initialization if gamification manager exists
+            if (window.gamificationManager && !window.gamificationManager.aiCompanion) {
+                console.log('[renderer.js] Gamification manager exists but no AI companion - attempting initialization');
+                try {
+                    if (typeof window.gamificationManager.initializeAICompanion === 'function') {
+                        await window.gamificationManager.initializeAICompanion();
+                        if (window.gamificationManager.aiCompanion) {
+                            aiCompanion = window.gamificationManager.aiCompanion;
+                            console.log('[renderer.js] ✅ Successfully initialized AI companion via gamification manager');
+                        }
+                    }
+                } catch (error) {
+                    console.error('[renderer.js] Failed to initialize AI companion:', error);
+                }
+            }
+        }
+        
+        if (aiCompanion && aiCompanion.feedbackSystem) {
+            console.log('[renderer.js] Using AI companion system for explicit invocation');
+            
+            // Create analysis object with current content
+            const analysis = {
+                fullDocumentText: currentContent,
+                lastSentence: currentContent.split('.').pop()?.trim() || '',
+                recentText: currentContent.slice(-500), // Last 500 chars
+                isExplicitInvocation: true // Flag to bypass cooldowns
+            };
+            
+            // Call feedback system directly, bypassing normal checks
+            const feedback = await aiCompanion.feedbackSystem.generateExplicitFeedback(analysis);
+            
+            if (feedback && feedback.message) {
+                console.log('[renderer.js] ✅ Explicit feedback generated:', feedback.message);
+                // Display feedback in chat pane
+                if (typeof displayAIMessage === 'function') {
+                    displayAIMessage(feedback.message, feedback.persona || 'Ash');
+                } else {
+                    // Fallback: show in console and try to show in UI
+                    console.log('[renderer.js] 💬 Ash says:', feedback.message);
+                    // Convert Markdown to HTML and show in styled notification
+                    let convertedMessage = feedback.message;
+                    
+                    // Convert Markdown to HTML if marked is available
+                    if (window.marked || markedInstance) {
+                        const markdownParser = window.marked || markedInstance;
+                        try {
+                            convertedMessage = markdownParser.parse(feedback.message);
+                            // Remove wrapping <p> tags if present
+                            convertedMessage = convertedMessage.replace(/^<p>|<\/p>$/g, '');
+                        } catch (error) {
+                            console.warn('[renderer.js] Failed to parse markdown:', error);
+                            // Fallback to simple replacements
+                            convertedMessage = feedback.message
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                .replace(/`(.*?)`/g, '<code>$1</code>')
+                                .replace(/\n/g, '<br>');
+                        }
+                    } else {
+                        // Simple Markdown-to-HTML conversions if marked not available
+                        convertedMessage = feedback.message
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                            .replace(/`(.*?)`/g, '<code>$1</code>')
+                            .replace(/\n/g, '<br>');
+                    }
+                    
+                    // Create asynchronous-style popup
+                    showAsyncStyleFeedback(feedback.message, 'Ash', 'explicit_feedback');
+                }
+            } else {
+                console.warn('[renderer.js] ⚠️ No feedback generated from explicit invocation');
+            }
+        } else {
+            console.warn('[renderer.js] ⚠️ AI companion system not available - trying direct fallback');
+            // Fallback: Try to call AI service directly
+            try {
+                const response = await window.electronAPI.invoke('ai-chat', {
+                    message: `Please provide brief writing feedback or encouragement for the current document. The user has explicitly requested your assistance.`,
+                    options: {
+                        context: 'explicit_ash_invocation',
+                        newConversation: true
+                    }
+                });
+                
+                if (response && response.response) {
+                    console.log('[renderer.js] ✅ Direct AI response:', response.response);
+                    if (typeof displayAIMessage === 'function') {
+                        displayAIMessage(response.response, 'Ash');
+                    } else {
+                        console.log('[renderer.js] 💬 Ash says:', response.response);
+                        // Convert Markdown to HTML and show in styled notification
+                        let convertedMessage = response.response;
+                        
+                        // Convert Markdown to HTML if marked is available
+                        if (window.marked || markedInstance) {
+                            const markdownParser = window.marked || markedInstance;
+                            try {
+                                convertedMessage = markdownParser.parse(response.response);
+                                // Remove wrapping <p> tags if present
+                                convertedMessage = convertedMessage.replace(/^<p>|<\/p>$/g, '');
+                            } catch (error) {
+                                console.warn('[renderer.js] Failed to parse markdown:', error);
+                                // Fallback to simple replacements
+                                convertedMessage = response.response
+                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                    .replace(/`(.*?)`/g, '<code>$1</code>')
+                                    .replace(/\n/g, '<br>');
+                            }
+                        } else {
+                            // Simple Markdown-to-HTML conversions if marked not available
+                            convertedMessage = response.response
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                .replace(/`(.*?)`/g, '<code>$1</code>')
+                                .replace(/\n/g, '<br>');
+                        }
+                        
+                        // Create asynchronous-style popup
+                        showAsyncStyleFeedback(response.response, 'Ash', 'explicit_feedback');
+                    }
+                } else {
+                    console.warn('[renderer.js] ⚠️ No response from direct AI call');
+                }
+            } catch (error) {
+                console.error('[renderer.js] ❌ Direct AI call failed:', error);
+            }
+        }
+    } catch (error) {
+        console.error('[renderer.js] ❌ Failed to invoke Ash explicitly:', error);
+    }
+}
 
 // Initialize the application 
 async function performAppInitialization() {
@@ -5403,7 +5578,7 @@ function saveCurrentLayout() {
 
 
 
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', isHTML = false) {
     // Remove any existing notification
     const existingNotification = document.querySelector('.notification');
     if (existingNotification) {
@@ -5418,7 +5593,13 @@ function showNotification(message, type = 'info') {
     // Create new notification
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
-    notification.textContent = message;
+    
+    // Set content based on whether HTML is enabled
+    if (isHTML) {
+        notification.innerHTML = message;
+    } else {
+        notification.textContent = message;
+    }
     
     document.body.appendChild(notification);
     
@@ -6619,5 +6800,171 @@ function newFile() {
     }
 }
 window.newFile = newFile;
+
+// Handler functions for Ash notification buttons
+function handleAshThanks() {
+    console.log('[renderer.js] User clicked Thanks on Ash feedback');
+    // Close the notification
+    const notification = document.getElementById('notification');
+    if (notification) {
+        notification.style.display = 'none';
+    }
+}
+
+function copyAshToChat(response, sender) {
+    console.log('[renderer.js] Copying Ash interaction to chat');
+    try {
+        // Try to add both the prompt and response to the chat if the chat system is available
+        if (window.addMessage && typeof window.addMessage === 'function') {
+            // Store the last explicit prompt that was sent to Ash
+            if (window.lastExplicitAshPrompt) {
+                // Add the user's prompt first
+                window.addMessage(window.lastExplicitAshPrompt, 'You');
+                // Add Ash's response
+                window.addMessage(response, sender);
+                console.log('[renderer.js] Successfully added Ash interaction to chat');
+                showNotification('Conversation copied to chat', 'success');
+            } else {
+                // Just add the response if we don't have the prompt
+                window.addMessage(response, sender);
+                console.log('[renderer.js] Added Ash response to chat (no prompt available)');
+                showNotification('Response copied to chat', 'success');
+            }
+        } else {
+            console.warn('[renderer.js] Chat system not available, falling back to clipboard');
+            // Fallback to copying to clipboard
+            const fullConversation = window.lastExplicitAshPrompt 
+                ? `**You:** ${window.lastExplicitAshPrompt}\n\n**${sender}:** ${response}`
+                : `**${sender}:** ${response}`;
+            
+            navigator.clipboard.writeText(fullConversation).then(() => {
+                console.log('[renderer.js] Ash conversation copied to clipboard');
+                showNotification('Conversation copied to clipboard', 'success');
+            }).catch(err => {
+                console.error('[renderer.js] Failed to copy to clipboard:', err);
+                showNotification('Failed to copy conversation', 'error');
+            });
+        }
+    } catch (error) {
+        console.error('[renderer.js] Error copying Ash conversation:', error);
+        showNotification('Failed to copy conversation', 'error');
+    }
+}
+
+// Function to show async-style feedback popup (matching AICompanionManager style)
+function showAsyncStyleFeedback(message, persona = 'Ash', feedbackType = 'feedback') {
+    // Store the message for copy functionality
+    window.lastExplicitAshResponse = message;
+    
+    // Create or get feedback pane
+    let feedbackPane = document.getElementById('ai-companion-feedback');
+    
+    if (!feedbackPane) {
+        feedbackPane = document.createElement('div');
+        feedbackPane.id = 'ai-companion-feedback';
+        feedbackPane.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            max-width: 400px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: none;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+        document.body.appendChild(feedbackPane);
+        
+        // Add CSS styles if not already added
+        if (!document.getElementById('ai-feedback-styles')) {
+            const style = document.createElement('style');
+            style.id = 'ai-feedback-styles';
+            style.textContent = `
+                .ai-feedback-content { padding: 16px; }
+                .ai-feedback-header { 
+                    display: flex; justify-content: space-between; align-items: center;
+                    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; 
+                }
+                .ai-persona { font-weight: 600; color: #333; }
+                .ai-feedback-type { 
+                    font-size: 12px; color: #666; background: #f5f5f5; 
+                    padding: 2px 6px; border-radius: 3px; 
+                }
+                .ai-feedback-close { 
+                    background: none; border: none; font-size: 18px; 
+                    cursor: pointer; color: #999; 
+                }
+                .ai-feedback-close:hover { color: #666; }
+                .ai-feedback-message { 
+                    margin-bottom: 12px; line-height: 1.4; color: #444; 
+                }
+                .ai-feedback-footer { 
+                    display: flex; justify-content: space-between; 
+                    font-size: 11px; color: #888; margin-bottom: 12px; 
+                }
+                .ai-feedback-actions { 
+                    display: flex; gap: 8px; justify-content: center; 
+                }
+                .ai-feedback-thanks-btn, .ai-feedback-save-btn { 
+                    border: none; padding: 8px 16px; border-radius: 4px; 
+                    cursor: pointer; font-size: 13px; font-weight: 500; 
+                    transition: all 0.2s; 
+                }
+                .ai-feedback-thanks-btn { 
+                    background: #f0f0f0; color: #333; border: 1px solid #ddd; 
+                }
+                .ai-feedback-thanks-btn:hover { background: #e0e0e0; }
+                .ai-feedback-save-btn { background: #007acc; color: white; }
+                .ai-feedback-save-btn:hover { background: #005a9e; }
+                .ai-feedback-thanks-btn:active, .ai-feedback-save-btn:active { 
+                    transform: translateY(1px); 
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+    
+    const feedbackId = `feedback_${Date.now()}`;
+    const currentTime = new Date().toLocaleTimeString();
+    
+    feedbackPane.innerHTML = `
+        <div class="ai-feedback-content" data-feedback-id="${feedbackId}">
+            <div class="ai-feedback-header">
+                <span class="ai-persona">${persona}</span>
+                <span class="ai-feedback-type">${feedbackType}</span>
+                <button class="ai-feedback-close" onclick="this.parentElement.parentElement.parentElement.style.display='none'">×</button>
+            </div>
+            <div class="ai-feedback-message">${message}</div>
+            <div class="ai-feedback-footer">
+                <span class="ai-feedback-time">${currentTime}</span>
+                <span class="ai-feedback-confidence">Explicit Request</span>
+            </div>
+            <div class="ai-feedback-actions">
+                <button class="ai-feedback-thanks-btn" onclick="document.getElementById('ai-companion-feedback').style.display='none'">
+                    👍 Thanks
+                </button>
+                <button class="ai-feedback-save-btn" onclick="copyAshToChat(window.lastExplicitAshResponse, '${persona}')">
+                    📋 Copy to Chat
+                </button>
+            </div>
+        </div>
+    `;
+    
+    feedbackPane.style.display = 'block';
+    
+    // Auto-hide after 15 seconds
+    setTimeout(() => {
+        if (feedbackPane.style.display !== 'none') {
+            feedbackPane.style.display = 'none';
+        }
+    }, 15000);
+}
+
+// Make the button handlers globally available
+window.handleAshThanks = handleAshThanks;
+window.copyAshToChat = copyAshToChat;
+window.showAsyncStyleFeedback = showAsyncStyleFeedback;
 
 
