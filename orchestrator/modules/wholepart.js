@@ -15,6 +15,8 @@ class WholepartVisualization {
         this.animateTransitions = true;
         this.nodeScale = 1.0;
         this.previousScale = 1.0;
+        this.nodeOpacity = 1.0;
+        this.spiralTightness = 2.0; // Controls spiral frequency/density
         
         // Data extracted from current document
         this.concepts = [];
@@ -67,8 +69,10 @@ class WholepartVisualization {
         this.extractConceptsFromDocument();
         this.setupSVG();
         this.setupEventListeners();
+        this.setupAutoReload();
         this.createVisualization(0);
         this.updateDescription(0);
+        this.toggleSpiralControls(0); // Initialize spiral controls visibility
         this.initialized = true;
     }
 
@@ -206,6 +210,7 @@ class WholepartVisualization {
                 this.currentVisualization = newType;
                 this.createVisualization(newType);
                 this.updateDescription(newType);
+                this.toggleSpiralControls(newType);
             });
         }
 
@@ -253,6 +258,10 @@ class WholepartVisualization {
         const darkThemeCheckbox = document.getElementById('wholepart-dark-theme');
         const sizeSlider = document.getElementById('wholepart-size-slider');
         const sizeValue = document.getElementById('wholepart-size-value');
+        const opacitySlider = document.getElementById('wholepart-opacity-slider');
+        const opacityValue = document.getElementById('wholepart-opacity-value');
+        const spiralSlider = document.getElementById('wholepart-spiral-slider');
+        const spiralValue = document.getElementById('wholepart-spiral-value');
 
         if (showLabelsCheckbox) {
             showLabelsCheckbox.addEventListener('change', (e) => {
@@ -284,6 +293,128 @@ class WholepartVisualization {
                 this.updateNodeSize(scale);
                 sizeValue.textContent = scale.toFixed(1) + 'x';
             });
+        }
+
+        if (opacitySlider && opacityValue) {
+            opacitySlider.addEventListener('input', (e) => {
+                const opacity = parseFloat(e.target.value);
+                this.updateNodeOpacity(opacity);
+                opacityValue.textContent = Math.round(opacity * 100) + '%';
+            });
+        }
+
+        if (spiralSlider && spiralValue) {
+            spiralSlider.addEventListener('input', (e) => {
+                const tightness = parseFloat(e.target.value);
+                this.updateSpiralTightness(tightness);
+                spiralValue.textContent = tightness.toFixed(1) + 'x';
+            });
+        }
+    }
+
+    setupAutoReload() {
+        console.log('[Wholepart] Setting up auto-reload functionality');
+        
+        // Store previous values to detect changes
+        this.lastContent = '';
+        this.lastFilePath = '';
+        this.reloadDebounceTimer = null;
+        
+        // Debounced reload function to avoid excessive updates
+        this.debouncedReload = () => {
+            if (this.reloadDebounceTimer) {
+                clearTimeout(this.reloadDebounceTimer);
+            }
+            this.reloadDebounceTimer = setTimeout(() => {
+                this.reloadConceptsIfNeeded();
+            }, 500); // Wait 500ms after last change
+        };
+        
+        // Listen for editor content changes
+        if (window.editor && window.editor.onDidChangeModelContent) {
+            window.editor.onDidChangeModelContent(() => {
+                console.log('[Wholepart] Editor content changed, scheduling reload');
+                this.debouncedReload();
+            });
+        }
+        
+        // Listen for file changes via global events
+        window.addEventListener('fileChanged', (event) => {
+            console.log('[Wholepart] File changed event received:', event.detail);
+            this.debouncedReload();
+        });
+        
+        // Listen for editor model changes (when switching files)
+        if (window.editor && window.editor.onDidChangeModel) {
+            window.editor.onDidChangeModel(() => {
+                console.log('[Wholepart] Editor model changed (file switched)');
+                this.debouncedReload();
+            });
+        }
+        
+        // Fallback: periodic check for file path changes
+        this.fileCheckInterval = setInterval(() => {
+            const currentFilePath = window.currentFilePath || window.currentFile || '';
+            if (currentFilePath !== this.lastFilePath && currentFilePath) {
+                console.log('[Wholepart] File path changed detected:', this.lastFilePath, '->', currentFilePath);
+                this.lastFilePath = currentFilePath;
+                this.debouncedReload();
+            }
+        }, 1000); // Check every second
+    }
+    
+    reloadConceptsIfNeeded() {
+        try {
+            // Only reload if concept relations view is currently visible
+            const conceptRelationsPane = document.getElementById('wholepart-pane');
+            if (!conceptRelationsPane || conceptRelationsPane.style.display === 'none') {
+                console.log('[Wholepart] Skipping reload - Concept Relations not visible');
+                return;
+            }
+            
+            // Get current content
+            let currentContent = '';
+            if (window.editor && typeof window.editor.getValue === 'function') {
+                currentContent = window.editor.getValue();
+            } else if (typeof getCurrentEditorContent === 'function') {
+                currentContent = getCurrentEditorContent();
+            }
+            
+            // Get current file path
+            const currentFilePath = window.currentFilePath || window.currentFile || '';
+            
+            // Check if content or file has actually changed
+            const contentChanged = currentContent !== this.lastContent;
+            const fileChanged = currentFilePath !== this.lastFilePath;
+            
+            if (contentChanged || fileChanged) {
+                console.log('[Wholepart] Reloading concepts due to changes:', {
+                    contentChanged: contentChanged && currentContent.length > 0,
+                    fileChanged,
+                    contentLength: currentContent.length,
+                    filePath: currentFilePath
+                });
+                
+                // Update stored values
+                this.lastContent = currentContent;
+                this.lastFilePath = currentFilePath;
+                
+                // Reload the concepts and visualization
+                this.extractConceptsFromDocument();
+                this.createVisualization(this.currentVisualization);
+            }
+        } catch (error) {
+            console.error('[Wholepart] Error during concept reload:', error);
+        }
+    }
+    
+    // Clean up timers and event listeners
+    destroy() {
+        if (this.fileCheckInterval) {
+            clearInterval(this.fileCheckInterval);
+        }
+        if (this.reloadDebounceTimer) {
+            clearTimeout(this.reloadDebounceTimer);
         }
     }
 
@@ -382,6 +513,36 @@ class WholepartVisualization {
             });
     }
 
+    updateNodeOpacity(opacity) {
+        this.nodeOpacity = opacity;
+        
+        if (!this.nodesGroup) return;
+        
+        // Update node fill opacity
+        this.nodesGroup.selectAll('circle')
+            .transition()
+            .duration(this.animateTransitions ? 200 : 0)
+            .style('fill-opacity', opacity);
+    }
+
+    toggleSpiralControls(visualizationType) {
+        const spiralControls = document.getElementById('wholepart-spiral-controls');
+        if (!spiralControls) return;
+        
+        // Show spiral controls for spiral visualizations (types 3, 4, 6)
+        const isSpiralView = [3, 4, 6].includes(visualizationType);
+        spiralControls.style.display = isSpiralView ? 'flex' : 'none';
+    }
+
+    updateSpiralTightness(tightness) {
+        this.spiralTightness = tightness;
+        
+        // Redraw the current visualization if it's a spiral type
+        if ([3, 4, 6].includes(this.currentVisualization)) {
+            this.createVisualization(this.currentVisualization);
+        }
+    }
+
     createVisualization(type) {
         if (!this.svg) return;
 
@@ -409,43 +570,29 @@ class WholepartVisualization {
     createCircularRing(numParts) {
         const radius = Math.min(this.width, this.height) * 0.35;
         
-        // Create a circular path for the ring
-        const pathData = d3.path();
-        pathData.arc(this.centerX, this.centerY, radius, 0, 2 * Math.PI);
-        
-        // Draw the circular path as background
-        this.connectionsGroup.append('path')
-            .attr('d', pathData.toString())
-            .attr('fill', 'none')
-            .attr('stroke', '#4ecdc4')
-            .attr('stroke-width', 2)
-            .attr('opacity', 0.4);
-        
         // Draw parts in a circle
         for (let i = 0; i < numParts; i++) {
             const angle = (i / numParts) * 2 * Math.PI - Math.PI / 2;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
 
-            // Draw curved connections between adjacent parts
+            // Draw arc connections between adjacent parts (only once per connection)
             if (numParts > 1) {
                 const nextIndex = (i + 1) % numParts;
                 const nextAngle = (nextIndex / numParts) * 2 * Math.PI - Math.PI / 2;
                 const nextX = this.centerX + radius * Math.cos(nextAngle);
                 const nextY = this.centerY + radius * Math.sin(nextAngle);
                 
-                // Calculate control points for quadratic curve along the circle
-                const midAngle = (angle + nextAngle) / 2;
-                const controlRadius = radius * 1.0; // Keep on circle
-                const controlX = this.centerX + controlRadius * Math.cos(midAngle);
-                const controlY = this.centerY + controlRadius * Math.sin(midAngle);
+                // Create SVG arc path using the Arc command
+                // We want the shorter arc between adjacent points
+                const largeArcFlag = 0; // Always use shorter arc for adjacent points
+                const sweepFlag = 1; // Always go clockwise
                 
-                const arcPath = d3.path();
-                arcPath.moveTo(x, y);
-                arcPath.quadraticCurveTo(controlX, controlY, nextX, nextY);
+                // Build SVG path string manually for precise arc control
+                const pathData = `M ${x} ${y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${nextX} ${nextY}`;
                 
                 this.connectionsGroup.append('path')
-                    .attr('d', arcPath.toString())
+                    .attr('d', pathData)
                     .attr('fill', 'none')
                     .attr('stroke', '#4ecdc4')
                     .attr('stroke-width', 2)
@@ -583,7 +730,8 @@ class WholepartVisualization {
     }
 
     createSpiralFromCenter(numParts) {
-        const maxRadius = Math.min(this.width, this.height) * 0.35;
+        // Ensure spiral fills available space
+        const maxRadius = Math.min(this.width, this.height) * 0.45; // Increased from 0.35
         
         // Draw the whole at center
         this.nodesGroup.append('circle')
@@ -609,7 +757,7 @@ class WholepartVisualization {
         
         for (let step = 0; step <= numSteps; step++) {
             const t = step / numSteps;
-            const angle = t * 4 * Math.PI; // 2 full turns
+            const angle = t * this.spiralTightness * 2 * Math.PI; // Use spiral tightness
             const radius = t * maxRadius;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
@@ -631,7 +779,7 @@ class WholepartVisualization {
         // Create spiral path for parts
         for (let i = 0; i < numParts; i++) {
             const t = i / (numParts - 1);
-            const angle = t * 4 * Math.PI; // 2 full turns
+            const angle = t * this.spiralTightness * 2 * Math.PI; // Use spiral tightness
             const radius = t * maxRadius;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
@@ -639,7 +787,7 @@ class WholepartVisualization {
             // Draw curved connection to previous point
             if (i > 0) {
                 const prevT = (i - 1) / (numParts - 1);
-                const prevAngle = prevT * 4 * Math.PI;
+                const prevAngle = prevT * this.spiralTightness * 2 * Math.PI;
                 const prevRadius = prevT * maxRadius;
                 const prevX = this.centerX + prevRadius * Math.cos(prevAngle);
                 const prevY = this.centerY + prevRadius * Math.sin(prevAngle);
@@ -652,7 +800,7 @@ class WholepartVisualization {
                 const steps = 10;
                 for (let j = 1; j <= steps; j++) {
                     const interT = prevT + (t - prevT) * (j / steps);
-                    const interAngle = interT * 4 * Math.PI;
+                    const interAngle = interT * this.spiralTightness * 2 * Math.PI;
                     const interRadius = interT * maxRadius;
                     const interX = this.centerX + interRadius * Math.cos(interAngle);
                     const interY = this.centerY + interRadius * Math.sin(interAngle);
@@ -694,7 +842,7 @@ class WholepartVisualization {
 
     createSpiralOfParts(numParts) {
         // Similar to spiral from center but no central whole
-        const maxRadius = Math.min(this.width, this.height) * 0.4;
+        const maxRadius = Math.min(this.width, this.height) * 0.45; // Fill more space
         const minRadius = 30;
         
         // Create smooth spiral path for background
@@ -703,7 +851,7 @@ class WholepartVisualization {
         
         for (let step = 0; step <= numSteps; step++) {
             const t = step / numSteps;
-            const angle = t * 6 * Math.PI; // 3 full turns
+            const angle = t * this.spiralTightness * 3 * Math.PI; // Use spiral tightness
             const radius = minRadius + t * maxRadius;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
@@ -725,7 +873,7 @@ class WholepartVisualization {
         // Place parts along the spiral
         for (let i = 0; i < numParts; i++) {
             const t = i / (numParts - 1);
-            const angle = t * 6 * Math.PI; // 3 full turns
+            const angle = t * this.spiralTightness * 3 * Math.PI; // Use spiral tightness
             const radius = minRadius + t * maxRadius;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
@@ -733,7 +881,7 @@ class WholepartVisualization {
             // Draw curved connection to previous part
             if (i > 0) {
                 const prevT = (i - 1) / (numParts - 1);
-                const prevAngle = prevT * 6 * Math.PI;
+                const prevAngle = prevT * this.spiralTightness * 3 * Math.PI;
                 const prevRadius = minRadius + prevT * maxRadius;
                 const prevX = this.centerX + prevRadius * Math.cos(prevAngle);
                 const prevY = this.centerY + prevRadius * Math.sin(prevAngle);
@@ -744,7 +892,7 @@ class WholepartVisualization {
                 
                 for (let j = 0; j <= segmentSteps; j++) {
                     const interT = prevT + (t - prevT) * (j / segmentSteps);
-                    const interAngle = interT * 6 * Math.PI;
+                    const interAngle = interT * this.spiralTightness * 3 * Math.PI;
                     const interRadius = minRadius + interT * maxRadius;
                     const interX = this.centerX + interRadius * Math.cos(interAngle);
                     const interY = this.centerY + interRadius * Math.sin(interAngle);
@@ -874,12 +1022,15 @@ class WholepartVisualization {
         // Combination of spiral and radial patterns
         this.createCenterRadial(Math.min(numParts, 6));
         if (numParts > 6) {
-            // Add spiral for extra parts
+            // Add spiral for extra parts - use more space and spiral tightness
             const remaining = numParts - 6;
+            const maxRadius = Math.min(this.width, this.height) * 0.35; // Fill available space
+            const minRadius = 200;
+            
             for (let i = 0; i < remaining; i++) {
-                const t = i / remaining;
-                const angle = t * 4 * Math.PI;
-                const radius = 200 + t * 100;
+                const t = i / (remaining - 1 || 1); // Avoid division by zero
+                const angle = t * this.spiralTightness * 2 * Math.PI; // Use spiral tightness
+                const radius = minRadius + t * maxRadius;
                 const x = this.centerX + radius * Math.cos(angle);
                 const y = this.centerY + radius * Math.sin(angle);
 

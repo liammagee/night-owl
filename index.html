@@ -1064,10 +1064,24 @@
                                 </div>
 
                                 <!-- Size Slider -->
-                                <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
                                     <label for="wholepart-size-slider" style="min-width: 60px;">Node Size:</label>
                                     <input type="range" id="wholepart-size-slider" min="0.1" max="3" step="0.1" value="1" style="flex: 1; min-width: 100px;">
                                     <span id="wholepart-size-value" style="min-width: 30px; text-align: center; color: #666;">1.0x</span>
+                                </div>
+                                
+                                <!-- Opacity Slider -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label for="wholepart-opacity-slider" style="min-width: 60px;">Opacity:</label>
+                                    <input type="range" id="wholepart-opacity-slider" min="0.1" max="1" step="0.1" value="1" style="flex: 1; min-width: 100px;">
+                                    <span id="wholepart-opacity-value" style="min-width: 30px; text-align: center; color: #666;">100%</span>
+                                </div>
+                                
+                                <!-- Spiral Tightness Slider (only visible for spiral views) -->
+                                <div id="wholepart-spiral-controls" style="display: none; align-items: center; gap: 8px;">
+                                    <label for="wholepart-spiral-slider" style="min-width: 60px;">Spiral:</label>
+                                    <input type="range" id="wholepart-spiral-slider" min="0.5" max="4" step="0.1" value="2" style="flex: 1; min-width: 100px;">
+                                    <span id="wholepart-spiral-value" style="min-width: 30px; text-align: center; color: #666;">2.0x</span>
                                 </div>
                             </div>
                             

@@ -1,4 +1,13 @@
-# Machine Learning and Human Learning
+## Machine Learning and Human Learning
+
+
+
+---
+
+## Week 1: Synthesis
+
+
+[[lecture-1]]
 
 
 ---

@@ -68,5 +68,5 @@ Defines tasks relating to this software itself.
 64. Vibe lecturing
 65. Drama machine
 66. Fix slow start up - DONE
-67. Add remote images
+67. Add remote images - DONE
 68. Investigate file overwriting
