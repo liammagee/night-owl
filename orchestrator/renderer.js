@@ -7203,7 +7203,12 @@ async function getAllProjectFiles() {
 // Recursively scan directory for files
 async function scanDirectoryRecursively(dirPath, fileList, rootDir) {
     try {
-        const items = await window.electronAPI.readdir(dirPath);
+        const items = await window.electronAPI.invoke('list-directory-files', dirPath);
+        
+        if (!items || !Array.isArray(items)) {
+            console.warn('[Command Palette] No items returned for directory:', dirPath);
+            return;
+        }
         
         for (const item of items) {
             // Skip hidden files and directories
