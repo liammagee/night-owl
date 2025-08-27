@@ -7182,19 +7182,13 @@ async function loadCommandPaletteFiles() {
     }
 }
 
-// Get all project files
+// Get all project files recursively from current working directory
 async function getAllProjectFiles() {
     try {
-        // Use window.electronAPI to get all files in the current directory
-        const files = await window.electronAPI.readdir(window.currentDirectory || '.');
-        return files
-            .filter(file => !file.isDirectory && !file.name.startsWith('.'))
-            .map(file => ({
-                name: file.name,
-                path: file.path,
-                relativePath: file.path.replace(window.currentDirectory || '', '').replace(/^[\/\\]/, ''),
-                icon: getFileIcon(file.name)
-            }));
+        const workingDir = window.currentDirectory || '.';
+        const files = [];
+        await scanDirectoryRecursively(workingDir, files, workingDir);
+        return files;
     } catch (error) {
         console.error('[Command Palette] Error reading directory:', error);
         // Fallback: use existing loaded files if available
@@ -7203,6 +7197,39 @@ async function getAllProjectFiles() {
             collectFilesFromTree(window.fileTreeData.children, loadedFiles);
         }
         return loadedFiles;
+    }
+}
+
+// Recursively scan directory for files
+async function scanDirectoryRecursively(dirPath, fileList, rootDir) {
+    try {
+        const items = await window.electronAPI.readdir(dirPath);
+        
+        for (const item of items) {
+            // Skip hidden files and directories
+            if (item.name.startsWith('.')) continue;
+            
+            // Skip common non-essential directories
+            if (item.isDirectory && ['node_modules', '.git', 'dist', 'build', '.vscode'].includes(item.name)) {
+                continue;
+            }
+            
+            if (item.isDirectory) {
+                // Recursively scan subdirectory
+                await scanDirectoryRecursively(item.path, fileList, rootDir);
+            } else {
+                // Add file to list
+                const relativePath = item.path.replace(rootDir, '').replace(/^[\/\\]/, '');
+                fileList.push({
+                    name: item.name,
+                    path: item.path,
+                    relativePath: relativePath,
+                    icon: getFileIcon(item.name)
+                });
+            }
+        }
+    } catch (error) {
+        console.error('[Command Palette] Error scanning directory:', dirPath, error);
     }
 }
 
