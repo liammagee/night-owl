@@ -722,9 +722,158 @@
             margin-top: 4px;
             display: none;
         }
+
+        /* Command Palette Styles (VS Code style Cmd+P) */
+        .command-palette-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 10000;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 120px;
+        }
+
+        .command-palette {
+            background: var(--neutral-0);
+            border: 1px solid var(--neutral-300);
+            border-radius: 6px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            width: 600px;
+            max-width: 90vw;
+            max-height: 60vh;
+            display: flex;
+            flex-direction: column;
+            animation: commandPaletteSlideIn 0.15s ease-out;
+        }
+
+        @keyframes commandPaletteSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .command-palette-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--neutral-200);
+        }
+
+        #command-palette-input {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            background: transparent;
+            color: var(--text-color);
+        }
+
+        #command-palette-input::placeholder {
+            color: var(--neutral-500);
+        }
+
+        .command-palette-results {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .command-palette-loading {
+            padding: 20px;
+            text-align: center;
+            color: var(--neutral-500);
+            font-size: 14px;
+        }
+
+        .command-palette-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--neutral-100);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+        }
+
+        .command-palette-item:hover,
+        .command-palette-item.selected {
+            background: var(--primary-100);
+        }
+
+        .command-palette-item-icon {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+            color: var(--neutral-600);
+        }
+
+        .command-palette-item-name {
+            flex: 1;
+            color: var(--text-color);
+        }
+
+        .command-palette-item-path {
+            font-size: 12px;
+            color: var(--neutral-500);
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .command-palette-no-results {
+            padding: 20px;
+            text-align: center;
+            color: var(--neutral-500);
+            font-size: 14px;
+        }
+
+        /* Dark mode styles */
+        body.dark-mode .command-palette-overlay {
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        body.dark-mode .command-palette {
+            background: var(--neutral-800);
+            border-color: var(--neutral-600);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        body.dark-mode .command-palette-header {
+            border-bottom-color: var(--neutral-600);
+        }
+
+        body.dark-mode .command-palette-item {
+            border-bottom-color: var(--neutral-700);
+        }
+
+        body.dark-mode .command-palette-item:hover,
+        body.dark-mode .command-palette-item.selected {
+            background: var(--primary-800);
+        }
     </style>
 </head>
 <body>
+    <!-- Command Palette Modal (VS Code style Cmd+P) -->
+    <div id="command-palette-overlay" class="command-palette-overlay" style="display: none;">
+        <div id="command-palette" class="command-palette">
+            <div class="command-palette-header">
+                <input type="text" id="command-palette-input" placeholder="Type to search files..." autocomplete="off">
+            </div>
+            <div id="command-palette-results" class="command-palette-results">
+                <div class="command-palette-loading">Loading files...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom Title Bar -->
     <!-- Custom titlebar removed - using native window controls -->
     
