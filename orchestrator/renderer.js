@@ -6046,7 +6046,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         if (window.addExportButton) {
             // Add export buttons to visualizations that don't have them built-in
-            window.addExportButton('graph-export-controls', 'graph-visualization', '📸 Export as PNG');
             window.addExportButton('circle-export-controls', 'circle-content', '📸 Export as PNG');
         }
     }, 1500); // Small delay to ensure everything is loaded

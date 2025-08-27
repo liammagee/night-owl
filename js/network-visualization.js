@@ -435,11 +435,41 @@ function setupNetworkFileWatchers() {
   window.addEventListener('editorContentChanged', debounceNetworkUpdate);
 }
 
+// Global instance
+let unifiedNetworkInstance = null;
+
 async function initializeNetworkVisualization() {
-  console.log('[Network] Initializing network visualization');
-  setupNetworkControls();
-  setupNetworkFileWatchers();
-  await refreshNetwork();
+  console.log('[Network] Initializing unified network visualization');
+  
+  const container = document.getElementById('network-visualization');
+  if (!container) {
+    console.error('[Network] Network container not found');
+    return;
+  }
+  
+  // Clear any existing content
+  container.innerHTML = '';
+  
+  // Wait for UnifiedNetworkVisualization to be available
+  if (typeof window.UnifiedNetworkVisualization === 'undefined') {
+    console.error('[Network] UnifiedNetworkVisualization not available');
+    return;
+  }
+  
+  try {
+    // Destroy existing instance
+    if (unifiedNetworkInstance) {
+      unifiedNetworkInstance.destroy();
+    }
+    
+    // Create new instance
+    unifiedNetworkInstance = new window.UnifiedNetworkVisualization();
+    await unifiedNetworkInstance.initialize(container);
+    
+    console.log('[Network] Unified network visualization initialized successfully');
+  } catch (error) {
+    console.error('[Network] Error initializing unified network:', error);
+  }
 }
 
 // Graph and Circle visualization instances

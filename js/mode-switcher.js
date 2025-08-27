@@ -1,5 +1,5 @@
 // Mode Switching Functions
-// Handles switching between editor, presentation, network, graph, and circle modes
+// Handles switching between editor, presentation, network, and circle modes
 
 // Global mode state
 let currentMode = 'editor';
@@ -158,20 +158,17 @@ function switchToMode(modeName) {
     document.body.classList.remove('presentation-mode');
     hideSpeakerNotesPanel();
     
-    // Initialize network visualization
-    console.log('[Mode Switching] Initializing network visualization');
-    if (window.initializeNetworkVisualization) {
-      window.initializeNetworkVisualization();
-    }
-  } else if (modeName === 'graph') {
-    document.body.classList.remove('presentation-mode');
-    hideSpeakerNotesPanel();
-    
-    // Initialize graph visualization
-    console.log('[Mode Switching] Initializing graph visualization');
-    const graphContainer = document.getElementById('graph-visualization');
-    if (graphContainer && window.initializeGraphVisualization) {
-      window.initializeGraphVisualization();
+    // Initialize unified network visualization
+    console.log('[Mode Switching] Initializing unified network visualization');
+    if (window.UnifiedNetworkVisualization) {
+      const networkContainer = document.getElementById('network-content');
+      if (networkContainer && !window.unifiedNetworkInstance) {
+        window.unifiedNetworkInstance = new window.UnifiedNetworkVisualization();
+        window.unifiedNetworkInstance.initialize(networkContainer);
+      } else if (window.unifiedNetworkInstance) {
+        // Just refresh if already exists
+        window.unifiedNetworkInstance.refresh();
+      }
     }
   } else if (modeName === 'circle') {
     document.body.classList.remove('presentation-mode');
@@ -221,14 +218,6 @@ function setupModeSwitching() {
     networkModeBtn.addEventListener('click', () => {
       console.log('[Mode Switching] Network mode button clicked');
       switchToMode('network');
-    });
-  }
-
-  const graphModeBtn = document.getElementById('graph-mode-btn');
-  if (graphModeBtn) {
-    graphModeBtn.addEventListener('click', () => {
-      console.log('[Mode Switching] Graph mode button clicked');
-      switchToMode('graph');
     });
   }
 
