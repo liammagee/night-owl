@@ -174,6 +174,9 @@ class WholepartVisualization {
             .attr('height', this.height)
             .style('background', '#fafafa');
 
+        // Create a group container for all diagram elements (this will be zoomed)
+        this.diagramGroup = this.svg.append('g').attr('class', 'diagram-content');
+
         // Add definitions for markers and gradients
         const defs = this.svg.append('defs');
         
@@ -190,9 +193,9 @@ class WholepartVisualization {
             .attr('fill', '#4ecdc4');
 
         // Create main groups
-        this.connectionsGroup = this.svg.append('g').attr('class', 'connections');
-        this.nodesGroup = this.svg.append('g').attr('class', 'nodes');
-        this.labelsGroup = this.svg.append('g').attr('class', 'labels');
+        this.connectionsGroup = this.diagramGroup.append('g').attr('class', 'connections');
+        this.nodesGroup = this.diagramGroup.append('g').attr('class', 'nodes');
+        this.labelsGroup = this.diagramGroup.append('g').attr('class', 'labels');
     }
 
     setupEventListeners() {
@@ -742,23 +745,16 @@ class WholepartVisualization {
             .attr('stroke', '#c0392b')
             .attr('stroke-width', 3);
 
-        this.labelsGroup.append('text')
-            .attr('x', this.centerX)
-            .attr('y', this.centerY + 4)
-            .attr('text-anchor', 'middle')
-            .attr('font-size', '10px')
-            .attr('font-weight', 'bold')
-            .attr('fill', 'black')
-            .text(this.wholeName);
 
-        // Create smooth spiral path
+        // Create spiral path for parts only (not from center)
+        const minRadius = 40; // Minimum radius to keep first node away from center
         const spiralPoints = [];
         const numSteps = 100; // More steps for smoother curve
         
         for (let step = 0; step <= numSteps; step++) {
             const t = step / numSteps;
             const angle = t * this.spiralTightness * 2 * Math.PI; // Use spiral tightness
-            const radius = t * maxRadius;
+            const radius = minRadius + t * (maxRadius - minRadius); // Match node positioning
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
             spiralPoints.push([x, y]);
@@ -776,48 +772,32 @@ class WholepartVisualization {
             .attr('stroke-width', 2)
             .attr('opacity', 0.5);
 
-        // Create spiral path for parts
+        // Create spiral path for parts (minRadius already defined above)
+        
+        // Add connection from center (whole) to first concept node
+        if (numParts > 0) {
+            const firstX = this.centerX + minRadius * Math.cos(0); // First node at angle 0
+            const firstY = this.centerY + minRadius * Math.sin(0);
+            
+            this.connectionsGroup.append('line')
+                .attr('x1', this.centerX)
+                .attr('y1', this.centerY)
+                .attr('x2', firstX)
+                .attr('y2', firstY)
+                .attr('stroke', '#4ecdc4')
+                .attr('stroke-width', 2)
+                .attr('opacity', 0.8);
+        }
+        
         for (let i = 0; i < numParts; i++) {
-            const t = i / (numParts - 1);
+            // Position nodes evenly along the spiral path (0 to 1)
+            const t = numParts === 1 ? 0 : i / (numParts - 1);
             const angle = t * this.spiralTightness * 2 * Math.PI; // Use spiral tightness
-            const radius = t * maxRadius;
+            const radius = minRadius + t * (maxRadius - minRadius); // Start at minRadius, not 0
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
 
-            // Draw curved connection to previous point
-            if (i > 0) {
-                const prevT = (i - 1) / (numParts - 1);
-                const prevAngle = prevT * this.spiralTightness * 2 * Math.PI;
-                const prevRadius = prevT * maxRadius;
-                const prevX = this.centerX + prevRadius * Math.cos(prevAngle);
-                const prevY = this.centerY + prevRadius * Math.sin(prevAngle);
-                
-                // Create a curved path segment
-                const pathSegment = d3.path();
-                pathSegment.moveTo(prevX, prevY);
-                
-                // Add intermediate points for smooth curve
-                const steps = 10;
-                for (let j = 1; j <= steps; j++) {
-                    const interT = prevT + (t - prevT) * (j / steps);
-                    const interAngle = interT * this.spiralTightness * 2 * Math.PI;
-                    const interRadius = interT * maxRadius;
-                    const interX = this.centerX + interRadius * Math.cos(interAngle);
-                    const interY = this.centerY + interRadius * Math.sin(interAngle);
-                    if (j === 1) {
-                        pathSegment.lineTo(interX, interY);
-                    } else {
-                        pathSegment.lineTo(interX, interY);
-                    }
-                }
-                
-                this.connectionsGroup.append('path')
-                    .attr('d', pathSegment.toString())
-                    .attr('fill', 'none')
-                    .attr('stroke', '#4ecdc4')
-                    .attr('stroke-width', 3)
-                    .attr('opacity', 0.8);
-            }
+            // No individual connections - we already have the continuous spiral path
 
             // Draw part node
             this.nodesGroup.append('circle')
@@ -1198,13 +1178,17 @@ class WholepartVisualization {
     }
 
     zoom(factor) {
-        if (this.svg) {
-            const currentTransform = this.svg.attr('transform') || 'scale(1)';
+        if (this.diagramGroup) {
+            const currentTransform = this.diagramGroup.attr('transform') || 'scale(1)';
             const match = currentTransform.match(/scale\(([^)]+)\)/);
             const currentScale = match ? parseFloat(match[1]) : 1;
             const newScale = Math.max(0.2, Math.min(3, currentScale * factor));
             
-            this.svg.attr('transform', `scale(${newScale})`);
+            // Apply zoom transform to center the scaled content
+            const translateX = this.centerX * (1 - newScale);
+            const translateY = this.centerY * (1 - newScale);
+            
+            this.diagramGroup.attr('transform', `translate(${translateX}, ${translateY}) scale(${newScale})`);
         }
     }
 

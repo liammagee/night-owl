@@ -1,4 +1,4 @@
-## Machine Learning and Human Learning
+# Machine & Human Learning
 
 
 
@@ -20,7 +20,7 @@
 
 ---
 
-## Week 2: Experience (`Ehfahrung')
+## Week 2: Experience
 
 [[lecture-2]]
 
@@ -35,7 +35,7 @@
 
 ---
 
-## Week 4: (May I have your) Attention
+## Week 4: Attention
 
 
 [[lecture-4]]
