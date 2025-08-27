@@ -7,7 +7,7 @@
         script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://cdn.tailwindcss.com 'unsafe-inline';
         style-src 'self' 'unsafe-inline';
         font-src 'self' data:;
-        img-src 'self' data: https: http:;
+        img-src 'self' data: https: http: blob:;
         connect-src 'self';
         worker-src 'self' blob:;
     ">
@@ -56,6 +56,7 @@
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <!-- D3.js v7.8.5 (local copy) for visualizations and whole/part diagrams -->
     <script src="lib/d3.min.js"></script>
     <!-- Babel no longer needed - using pre-compiled components -->
@@ -1048,6 +1049,7 @@
                                 <button id="wholepart-reset" class="btn" style="padding: 4px 12px; font-size: 11px;">🔄 Reset</button>
                                 <button id="wholepart-zoom-in" class="btn" style="padding: 4px 8px; font-size: 11px;">+</button>
                                 <button id="wholepart-zoom-out" class="btn" style="padding: 4px 8px; font-size: 11px;">-</button>
+                                <button id="wholepart-export-png" class="btn" style="padding: 4px 12px; font-size: 11px; margin-left: 10px; background: #4CAF50; color: white; border: 1px solid #45a049;">📸 Export PNG</button>
                             </div>
                         </div>
                     </div>
@@ -1057,6 +1059,7 @@
 
             <!-- Presentation Content -->
             <div id="presentation-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
+                <div id="presentation-export-controls" style="position: absolute; top: 10px; right: 10px; z-index: 1000;"></div>
                 <div id="presentation-root" style="width: 100%; flex: 1; min-height: 0;"></div>
                 <div id="speaker-notes-panel" style="display: none !important;">
                     <!-- Resize Handle -->
@@ -1076,6 +1079,7 @@
             
             <!-- Network Visualization Content -->
             <div id="network-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
+                <div id="network-export-controls" style="position: absolute; top: 10px; right: 10px; z-index: 1000;"></div>
                 <div id="network-visualization" style="width: 100%; flex: 1; min-height: 0; background: #f8f9fa;">
                     <div id="network-canvas" style="width: 100%; height: 100%; position: relative;">
                         <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
@@ -1099,6 +1103,7 @@
             
             <!-- Graph Visualization Content -->
             <div id="graph-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
+                <div id="graph-export-controls" style="position: absolute; top: 10px; right: 10px; z-index: 1000;"></div>
                 <div id="graph-visualization" style="width: 100%; flex: 1; min-height: 0; background: #1e1e1e;">
                     <!-- Graph will be rendered here by graph.js module -->
                 </div>
@@ -1106,6 +1111,7 @@
             
             <!-- Circle Visualization Content -->
             <div id="circle-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
+                <div id="circle-export-controls" style="position: absolute; top: 10px; right: 10px; z-index: 1000;"></div>
                 <div id="circle-visualization" style="width: 100%; flex: 1; min-height: 0; background: #fafafa;">
                     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
                         <div style="font-size: 24px; margin-bottom: 10px;">🔄</div>
@@ -1251,6 +1257,9 @@
     <script src="styles/style-manager.js" defer></script>
     
     <script src="styles/style-settings-ui.js" defer></script>
+    
+    <!-- Export visualization module -->
+    <script src="orchestrator/modules/exportVisualization.js" defer></script>
     
     <!-- Main renderer script -->
     <script src="orchestrator/renderer.js" defer></script>

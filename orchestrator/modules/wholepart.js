@@ -187,6 +187,7 @@ class WholepartVisualization {
         const resetBtn = document.getElementById('wholepart-reset');
         const zoomInBtn = document.getElementById('wholepart-zoom-in');
         const zoomOutBtn = document.getElementById('wholepart-zoom-out');
+        const exportBtn = document.getElementById('wholepart-export-png');
 
         if (visualizationSelect) {
             visualizationSelect.addEventListener('change', (e) => {
@@ -227,6 +228,20 @@ class WholepartVisualization {
                 this.zoom(0.8);
             });
         }
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                this.exportAsPNG();
+            });
+        }
+    }
+
+    exportAsPNG() {
+        if (window.exportVisualizationAsPNG) {
+            window.exportVisualizationAsPNG('wholepart-visualization', 'concept-relations');
+        } else {
+            console.error('Export functionality not available');
+        }
     }
 
     createVisualization(type) {
@@ -254,48 +269,56 @@ class WholepartVisualization {
     }
 
     createCircularRing(numParts) {
-        const radius = Math.min(this.width, this.height) * 0.3;
-        const wholeY = this.centerY - radius - 60;
+        const radius = Math.min(this.width, this.height) * 0.35;
         
-        // Draw the whole at the top
-        this.nodesGroup.append('circle')
-            .attr('cx', this.centerX)
-            .attr('cy', wholeY)
-            .attr('r', 30)
-            .attr('fill', '#e74c3c')
-            .attr('stroke', '#c0392b')
-            .attr('stroke-width', 3);
-
-        this.labelsGroup.append('text')
-            .attr('x', this.centerX)
-            .attr('y', wholeY + 5)
-            .attr('text-anchor', 'middle')
-            .attr('font-size', '12px')
-            .attr('font-weight', 'bold')
-            .attr('fill', 'white')
-            .text(this.wholeName);
-
+        // Create a circular path for the ring
+        const pathData = d3.path();
+        pathData.arc(this.centerX, this.centerY, radius, 0, 2 * Math.PI);
+        
+        // Draw the circular path as background
+        this.connectionsGroup.append('path')
+            .attr('d', pathData.toString())
+            .attr('fill', 'none')
+            .attr('stroke', '#4ecdc4')
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.4);
+        
         // Draw parts in a circle
         for (let i = 0; i < numParts; i++) {
             const angle = (i / numParts) * 2 * Math.PI - Math.PI / 2;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
 
-            // Draw connection to whole
-            this.connectionsGroup.append('line')
-                .attr('x1', this.centerX)
-                .attr('y1', wholeY)
-                .attr('x2', x)
-                .attr('y2', y)
-                .attr('stroke', '#4ecdc4')
-                .attr('stroke-width', 2)
-                .attr('stroke-dasharray', '5,5');
+            // Draw curved connections between adjacent parts
+            if (numParts > 1) {
+                const nextIndex = (i + 1) % numParts;
+                const nextAngle = (nextIndex / numParts) * 2 * Math.PI - Math.PI / 2;
+                const nextX = this.centerX + radius * Math.cos(nextAngle);
+                const nextY = this.centerY + radius * Math.sin(nextAngle);
+                
+                // Calculate control points for quadratic curve along the circle
+                const midAngle = (angle + nextAngle) / 2;
+                const controlRadius = radius * 1.0; // Keep on circle
+                const controlX = this.centerX + controlRadius * Math.cos(midAngle);
+                const controlY = this.centerY + controlRadius * Math.sin(midAngle);
+                
+                const arcPath = d3.path();
+                arcPath.moveTo(x, y);
+                arcPath.quadraticCurveTo(controlX, controlY, nextX, nextY);
+                
+                this.connectionsGroup.append('path')
+                    .attr('d', arcPath.toString())
+                    .attr('fill', 'none')
+                    .attr('stroke', '#4ecdc4')
+                    .attr('stroke-width', 2)
+                    .attr('opacity', 0.8);
+            }
 
             // Draw part node
             this.nodesGroup.append('circle')
                 .attr('cx', x)
                 .attr('cy', y)
-                .attr('r', 20)
+                .attr('r', 22)
                 .attr('fill', '#3498db')
                 .attr('stroke', '#2980b9')
                 .attr('stroke-width', 2);
@@ -307,7 +330,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '10px')
                 .attr('font-weight', 'bold')
-                .attr('fill', 'white')
+                .attr('fill', 'black')
                 .text(this.concepts[i] || `Part ${i + 1}`);
         }
     }
@@ -330,7 +353,7 @@ class WholepartVisualization {
             .attr('text-anchor', 'middle')
             .attr('font-size', '12px')
             .attr('font-weight', 'bold')
-            .attr('fill', 'white')
+            .attr('fill', 'black')
             .text(this.wholeName);
 
         // Draw parts radiating outward
@@ -365,7 +388,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '9px')
                 .attr('font-weight', 'bold')
-                .attr('fill', 'white')
+                .attr('fill', 'black')
                 .text(this.concepts[i] || `Part ${i + 1}`);
         }
     }
@@ -416,7 +439,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '9px')
                 .attr('font-weight', 'bold')
-                .attr('fill', 'white')
+                .attr('fill', 'black')
                 .text(this.concepts[i] || `Part ${i + 1}`);
         }
     }
@@ -439,8 +462,33 @@ class WholepartVisualization {
             .attr('text-anchor', 'middle')
             .attr('font-size', '10px')
             .attr('font-weight', 'bold')
-            .attr('fill', 'white')
+            .attr('fill', 'black')
             .text(this.wholeName);
+
+        // Create smooth spiral path
+        const spiralPoints = [];
+        const numSteps = 100; // More steps for smoother curve
+        
+        for (let step = 0; step <= numSteps; step++) {
+            const t = step / numSteps;
+            const angle = t * 4 * Math.PI; // 2 full turns
+            const radius = t * maxRadius;
+            const x = this.centerX + radius * Math.cos(angle);
+            const y = this.centerY + radius * Math.sin(angle);
+            spiralPoints.push([x, y]);
+        }
+        
+        // Draw the spiral path
+        const line = d3.line()
+            .curve(d3.curveBasis); // Smooth curve
+            
+        this.connectionsGroup.append('path')
+            .datum(spiralPoints)
+            .attr('d', line)
+            .attr('fill', 'none')
+            .attr('stroke', '#4ecdc4')
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.5);
 
         // Create spiral path for parts
         for (let i = 0; i < numParts; i++) {
@@ -449,6 +497,41 @@ class WholepartVisualization {
             const radius = t * maxRadius;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
+
+            // Draw curved connection to previous point
+            if (i > 0) {
+                const prevT = (i - 1) / (numParts - 1);
+                const prevAngle = prevT * 4 * Math.PI;
+                const prevRadius = prevT * maxRadius;
+                const prevX = this.centerX + prevRadius * Math.cos(prevAngle);
+                const prevY = this.centerY + prevRadius * Math.sin(prevAngle);
+                
+                // Create a curved path segment
+                const pathSegment = d3.path();
+                pathSegment.moveTo(prevX, prevY);
+                
+                // Add intermediate points for smooth curve
+                const steps = 10;
+                for (let j = 1; j <= steps; j++) {
+                    const interT = prevT + (t - prevT) * (j / steps);
+                    const interAngle = interT * 4 * Math.PI;
+                    const interRadius = interT * maxRadius;
+                    const interX = this.centerX + interRadius * Math.cos(interAngle);
+                    const interY = this.centerY + interRadius * Math.sin(interAngle);
+                    if (j === 1) {
+                        pathSegment.lineTo(interX, interY);
+                    } else {
+                        pathSegment.lineTo(interX, interY);
+                    }
+                }
+                
+                this.connectionsGroup.append('path')
+                    .attr('d', pathSegment.toString())
+                    .attr('fill', 'none')
+                    .attr('stroke', '#4ecdc4')
+                    .attr('stroke-width', 3)
+                    .attr('opacity', 0.8);
+            }
 
             // Draw part node
             this.nodesGroup.append('circle')
@@ -466,46 +549,82 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '8px')
                 .attr('font-weight', 'bold')
-                .attr('fill', 'white')
+                .attr('fill', 'black')
                 .text(this.concepts[i] || `${i + 1}`);
-
-            // Connect to previous part or center
-            if (i === 0) {
-                this.connectionsGroup.append('line')
-                    .attr('x1', this.centerX)
-                    .attr('y1', this.centerY)
-                    .attr('x2', x)
-                    .attr('y2', y)
-                    .attr('stroke', '#4ecdc4')
-                    .attr('stroke-width', 2);
-            } else {
-                const prevT = (i - 1) / (numParts - 1);
-                const prevAngle = prevT * 4 * Math.PI;
-                const prevRadius = prevT * maxRadius;
-                const prevX = this.centerX + prevRadius * Math.cos(prevAngle);
-                const prevY = this.centerY + prevRadius * Math.sin(prevAngle);
-                
-                this.connectionsGroup.append('line')
-                    .attr('x1', prevX)
-                    .attr('y1', prevY)
-                    .attr('x2', x)
-                    .attr('y2', y)
-                    .attr('stroke', '#4ecdc4')
-                    .attr('stroke-width', 2);
-            }
         }
     }
 
     createSpiralOfParts(numParts) {
         // Similar to spiral from center but no central whole
         const maxRadius = Math.min(this.width, this.height) * 0.4;
+        const minRadius = 30;
         
+        // Create smooth spiral path for background
+        const spiralPoints = [];
+        const numSteps = 150; // More steps for smoother curve with 3 turns
+        
+        for (let step = 0; step <= numSteps; step++) {
+            const t = step / numSteps;
+            const angle = t * 6 * Math.PI; // 3 full turns
+            const radius = minRadius + t * maxRadius;
+            const x = this.centerX + radius * Math.cos(angle);
+            const y = this.centerY + radius * Math.sin(angle);
+            spiralPoints.push([x, y]);
+        }
+        
+        // Draw the background spiral path
+        const line = d3.line()
+            .curve(d3.curveBasis); // Smooth curve
+            
+        this.connectionsGroup.append('path')
+            .datum(spiralPoints)
+            .attr('d', line)
+            .attr('fill', 'none')
+            .attr('stroke', '#4ecdc4')
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.3);
+        
+        // Place parts along the spiral
         for (let i = 0; i < numParts; i++) {
             const t = i / (numParts - 1);
             const angle = t * 6 * Math.PI; // 3 full turns
-            const radius = 30 + t * maxRadius;
+            const radius = minRadius + t * maxRadius;
             const x = this.centerX + radius * Math.cos(angle);
             const y = this.centerY + radius * Math.sin(angle);
+
+            // Draw curved connection to previous part
+            if (i > 0) {
+                const prevT = (i - 1) / (numParts - 1);
+                const prevAngle = prevT * 6 * Math.PI;
+                const prevRadius = minRadius + prevT * maxRadius;
+                const prevX = this.centerX + prevRadius * Math.cos(prevAngle);
+                const prevY = this.centerY + prevRadius * Math.sin(prevAngle);
+                
+                // Create a curved path segment along the spiral
+                const pathPoints = [];
+                const segmentSteps = 20;
+                
+                for (let j = 0; j <= segmentSteps; j++) {
+                    const interT = prevT + (t - prevT) * (j / segmentSteps);
+                    const interAngle = interT * 6 * Math.PI;
+                    const interRadius = minRadius + interT * maxRadius;
+                    const interX = this.centerX + interRadius * Math.cos(interAngle);
+                    const interY = this.centerY + interRadius * Math.sin(interAngle);
+                    pathPoints.push([interX, interY]);
+                }
+                
+                const segmentLine = d3.line()
+                    .curve(d3.curveBasis);
+                    
+                this.connectionsGroup.append('path')
+                    .datum(pathPoints)
+                    .attr('d', segmentLine)
+                    .attr('fill', 'none')
+                    .attr('stroke', '#4ecdc4')
+                    .attr('stroke-width', 3)
+                    .attr('opacity', 0.7)
+                    .attr('marker-end', 'url(#arrowhead)');
+            }
 
             // Draw part node
             const nodeRadius = i === 0 ? 20 : 16; // First part is slightly larger
@@ -524,26 +643,8 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', i === 0 ? '10px' : '8px')
                 .attr('font-weight', 'bold')
-                .attr('fill', 'white')
+                .attr('fill', 'black')
                 .text(this.concepts[i] || `${i + 1}`);
-
-            // Connect to previous part
-            if (i > 0) {
-                const prevT = (i - 1) / (numParts - 1);
-                const prevAngle = prevT * 6 * Math.PI;
-                const prevRadius = 30 + prevT * maxRadius;
-                const prevX = this.centerX + prevRadius * Math.cos(prevAngle);
-                const prevY = this.centerY + prevRadius * Math.sin(prevAngle);
-                
-                this.connectionsGroup.append('line')
-                    .attr('x1', prevX)
-                    .attr('y1', prevY)
-                    .attr('x2', x)
-                    .attr('y2', y)
-                    .attr('stroke', '#4ecdc4')
-                    .attr('stroke-width', 2)
-                    .attr('marker-end', 'url(#arrowhead)');
-            }
         }
     }
 
@@ -581,7 +682,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '8px')
                 .attr('font-weight', 'bold')
-                .attr('fill', 'white')
+                .attr('fill', 'black')
                 .text(this.concepts[i] || `${i + 1}`);
                 
             // Add position indicator
@@ -658,7 +759,7 @@ class WholepartVisualization {
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '8px')
                     .attr('font-weight', 'bold')
-                    .attr('fill', 'white')
+                    .attr('fill', 'black')
                     .text(this.concepts[6 + i] || `${7 + i}`);
             }
         }
@@ -695,7 +796,7 @@ class WholepartVisualization {
                     .attr('text-anchor', 'middle')
                     .attr('font-size', `${10 - level}px`)
                     .attr('font-weight', 'bold')
-                    .attr('fill', 'white')
+                    .attr('fill', 'black')
                     .text(this.concepts[partIndex] || `${partIndex + 1}`);
                 
                 partIndex++;
@@ -743,7 +844,7 @@ class WholepartVisualization {
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '8px')
                     .attr('font-weight', 'bold')
-                    .attr('fill', 'white')
+                    .attr('fill', 'black')
                     .text(this.concepts[partIndex] || `${partIndex + 1}`);
                 
                 partIndex++;

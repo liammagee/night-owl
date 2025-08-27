@@ -2556,6 +2556,28 @@ app.whenReady().then(() => {
     }
     return { success: false, error: 'Main window not available' };
   });
+
+  // Handle saving images to current directory
+  ipcMain.handle('save-image-to-current-dir', async (event, filename, base64data) => {
+    try {
+      const buffer = Buffer.from(base64data, 'base64');
+      const filePath = path.join(currentWorkingDirectory || process.cwd(), filename);
+      
+      // fs is already imported as fs.promises at the top, so use it directly
+      await fs.writeFile(filePath, buffer);
+      
+      return { 
+        success: true, 
+        path: filePath 
+      };
+    } catch (error) {
+      console.error('Error saving image:', error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
   
   // Register modular IPC handlers
   ipcHandlers.registerAllHandlers({

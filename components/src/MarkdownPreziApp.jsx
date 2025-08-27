@@ -247,8 +247,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         return { x: col * spacing, y: gridRow * spacing };
         
       case 'circle':
-        if (index === 0) return { x: 0, y: 0 };
-        const circleAngle = (index - 1) / (total - 1) * 2 * Math.PI;
+        const circleAngle = (index / total) * 2 * Math.PI - Math.PI / 2;
         const circleRadius = 600;
         return {
           x: Math.cos(circleAngle) * circleRadius,
@@ -1305,20 +1304,34 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           <button
             onClick={handleZoomIn}
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+            title="Zoom In"
           >
             <ZoomIn />
           </button>
           <button
             onClick={handleZoomOut}
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+            title="Zoom Out"
           >
             <ZoomOut />
           </button>
           <button
             onClick={resetView}
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+            title="Reset View"
           >
             <Home />
+          </button>
+          <button
+            onClick={() => {
+              if (window.exportVisualizationAsPNG) {
+                window.exportVisualizationAsPNG('presentation-root', 'presentation');
+              }
+            }}
+            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+            title="Export as PNG"
+          >
+            📸
           </button>
           <button
             onClick={() => setIsPresenting(true)}
@@ -1391,6 +1404,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             title="Reset Zoom"
           >
             <Home />
+          </button>
+          <button
+            onClick={() => {
+              if (window.exportVisualizationAsPNG) {
+                window.exportVisualizationAsPNG('presentation-root', 'presentation');
+              }
+            }}
+            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+            title="Export as PNG"
+          >
+            📸
           </button>
           <button
             onClick={() => {

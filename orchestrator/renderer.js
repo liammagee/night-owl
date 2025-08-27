@@ -204,16 +204,29 @@ function processSpeakerNotes(content) {
 async function renderMathInContent(container) {
     if (!container) return;
     
-    // Check if MathJax is available
-    if (typeof window.MathJax === 'undefined') {
+    // Check if MathJax is available and ready
+    if (typeof window.MathJax === 'undefined' || !window.MathJax) {
         return; // MathJax not loaded yet
     }
     
     try {
-        // Tell MathJax to process the new content
-        await window.MathJax.typesetPromise([container]);
+        // Check if MathJax has the typesetPromise method (v3)
+        if (window.MathJax.typesetPromise) {
+            // Tell MathJax to process the new content
+            await window.MathJax.typesetPromise([container]);
+        } else if (window.MathJax.typeset) {
+            // Fallback to synchronous typeset if available
+            window.MathJax.typeset([container]);
+        } else if (window.MathJax.startup && window.MathJax.startup.document) {
+            // Alternative approach for MathJax v3
+            window.MathJax.startup.document.clear();
+            window.MathJax.startup.document.updateDocument();
+        }
     } catch (error) {
-        console.error('Error rendering math:', error);
+        // Only log error if it's not about MathJax not being ready
+        if (!error.message?.includes('typesetPromise')) {
+            console.error('Error rendering math:', error);
+        }
     }
 }
 
@@ -6014,6 +6027,30 @@ document.addEventListener('DOMContentLoaded', function() {
     if (togglePreviewBtn) {
         togglePreviewBtn.addEventListener('click', togglePreview);
     }
+    
+    // Wait for MathJax to be ready
+    if (window.MathJax && window.MathJax.startup) {
+        window.MathJax.startup.promise = window.MathJax.startup.promise.then(() => {
+            console.log('MathJax is ready');
+            // Re-render any existing content that might have math
+            const preview = document.getElementById('preview');
+            if (preview) {
+                renderMathInContent(preview);
+            }
+        }).catch((error) => {
+            console.warn('MathJax initialization error:', error);
+        });
+    }
+
+    // Initialize export buttons for visualizations (excluding presentation which has its own)
+    setTimeout(() => {
+        if (window.addExportButton) {
+            // Add export buttons to each visualization mode (except presentation)
+            window.addExportButton('network-export-controls', 'network-canvas', '📸 Export as PNG');
+            window.addExportButton('graph-export-controls', 'graph-visualization', '📸 Export as PNG');
+            window.addExportButton('circle-export-controls', 'circle-content', '📸 Export as PNG');
+        }
+    }, 1000); // Small delay to ensure everything is loaded
 });
 
 // --- Command Palette ---

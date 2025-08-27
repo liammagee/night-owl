@@ -22,6 +22,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Renderer -> Main (one-way)
   send: (channel, ...args) => ipcRenderer.send(channel, ...args),
 
+  // Save image to current directory
+  saveImageToCurrentDir: async (filename, base64data) => {
+    try {
+      return await ipcRenderer.invoke('save-image-to-current-dir', filename, base64data);
+    } catch (error) {
+      console.error('Error saving image:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   // Presentation-specific file operations
   loadPresentationFile: (callback) => {
     ipcRenderer.on('load-presentation-file', (_, content, filePath, error) => {
