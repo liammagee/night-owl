@@ -7316,16 +7316,7 @@ function renderCommandPaletteResults() {
     
     commandPaletteResults.innerHTML = html;
     
-    // Add click handlers to items
-    const items = commandPaletteResults.querySelectorAll('.command-palette-item');
-    items.forEach((item, index) => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            commandPaletteSelectedIndex = index;
-            openCommandPaletteFile(commandPaletteFilteredFiles[index]);
-        });
-    });
+    // No need to add individual click handlers - we'll use event delegation
 }
 
 // Open selected file
@@ -7400,6 +7391,24 @@ function initializeCommandPalette() {
                     e.preventDefault();
                     hideCommandPalette();
                     break;
+            }
+        });
+    }
+    
+    // Results click handler using event delegation
+    if (commandPaletteResults) {
+        commandPaletteResults.addEventListener('click', (e) => {
+            const item = e.target.closest('.command-palette-item');
+            if (item) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const index = parseInt(item.getAttribute('data-index'));
+                if (!isNaN(index) && commandPaletteFilteredFiles[index]) {
+                    console.log('[Command Palette] Clicked item at index:', index, 'File:', commandPaletteFilteredFiles[index].name);
+                    commandPaletteSelectedIndex = index;
+                    openCommandPaletteFile(commandPaletteFilteredFiles[index]);
+                }
             }
         });
     }
