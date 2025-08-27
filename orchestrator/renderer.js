@@ -3755,6 +3755,16 @@ showFilesBtn.addEventListener('click', () => {
     }
 });
 
+// Search button event listener - handled in search.js module
+const searchBtn = document.getElementById('show-search-btn');
+if (searchBtn) {
+    searchBtn.addEventListener('click', () => {
+        if (currentStructureView !== 'search') {
+            switchStructureView('search');
+        }
+    });
+}
+
 // --- New Folder Button Listener ---
 newFolderBtn.addEventListener('click', async () => {
     console.log('[Renderer] New Folder button clicked');
@@ -3922,8 +3932,7 @@ function showSpecificPane(paneType) {
                 searchPane.style.display = '';
                 searchPane.classList.remove('pane-hidden');
             }
-            const showSearchBtn = document.getElementById('show-search-btn');
-            if (showSearchBtn) showSearchBtn.classList.add('active');
+            if (searchBtn) searchBtn.classList.add('active');
             break;
         case 'speaker-notes':
             const speakerNotesPane = document.getElementById('speaker-notes-pane');
@@ -4043,29 +4052,37 @@ function showRightPane(paneType) {
 // --- Structure Pane / File Tree Functions ---
 
 /**
- * Switches the view in the structure pane between 'structure' and 'file'.
- * @param {'structure' | 'file'} view - The view to switch to.
+ * Switches the view in the structure pane between 'structure', 'file', and 'search'.
+ * @param {'structure' | 'file' | 'search'} view - The view to switch to.
  */
 function switchStructureView(view) {
     currentStructureView = view;
+    
+    // Get elements
+    const fileTreeView = document.getElementById('file-tree-view');
+    const searchPane = document.getElementById('search-pane');
+    
+    // Reset all button states and hide all views
+    showStructureBtn.classList.remove('active');
+    showFilesBtn.classList.remove('active');
+    if (searchBtn) searchBtn.classList.remove('active');
+    
+    structureList.style.display = 'none';
+    if (fileTreeView) fileTreeView.style.display = 'none';
+    if (searchPane) searchPane.style.display = 'none';
+    if (tagSearchSection) tagSearchSection.style.display = 'none';
+    newFolderBtn.style.display = 'none';
+    changeDirectoryBtn.style.display = 'none';
+    
     if (view === 'structure') {
         structurePaneTitle.textContent = 'Structure';
         showStructureBtn.classList.add('active');
-        showFilesBtn.classList.remove('active');
         structureList.style.display = ''; // Show structure list
-        const fileTreeView = document.getElementById('file-tree-view');
-        if (fileTreeView) fileTreeView.style.display = 'none'; // Hide file tree
-        if (tagSearchSection) tagSearchSection.style.display = 'none'; // Hide tag search
-        newFolderBtn.style.display = 'none'; // Hide New Folder button
-        changeDirectoryBtn.style.display = 'none'; // Hide Change Directory button
         // Optionally, re-run structure update if needed
         // updateStructurePane(editor?.getValue() || '');
-    } else { // view === 'file'
+    } else if (view === 'file') {
         structurePaneTitle.textContent = 'Files';
-        showStructureBtn.classList.remove('active');
         showFilesBtn.classList.add('active');
-        structureList.style.display = 'none'; // Hide structure list
-        const fileTreeView = document.getElementById('file-tree-view');
         if (fileTreeView) fileTreeView.style.display = ''; // Show file tree
         if (tagSearchSection) tagSearchSection.style.display = ''; // Show tag search
         newFolderBtn.style.display = ''; // Show New Folder button
@@ -4079,6 +4096,10 @@ function switchStructureView(view) {
             renderFileTree(); // Populate the file tree view
             // Note: fileTreeRendered is set to true inside renderFileTree after successful render
         }
+    } else if (view === 'search') {
+        structurePaneTitle.textContent = 'Search';
+        if (searchBtn) searchBtn.classList.add('active');
+        if (searchPane) searchPane.style.display = 'block'; // Show search pane
     }
 }
 
@@ -4306,15 +4327,19 @@ function initializeTagFiltering() {
     console.log('[TagFiltering] Tag filtering system initialized');
 }
 
-// Handle tag search input
+// Handle tag search input (supports both name and tag filtering)
 function handleTagSearchInput(event) {
     const query = event.target.value.trim();
     
     if (query.length === 0) {
-        // Clear any autocomplete suggestions
+        // Clear any autocomplete suggestions and reset file display
         clearTagSuggestions();
+        applyNameAndTagFilters('');
         return;
     }
+    
+    // Apply real-time name filtering as user types
+    applyNameAndTagFilters(query);
     
     if (query.length >= 2 && window.tagManager) {
         // Show tag suggestions
@@ -4328,13 +4353,18 @@ function handleTagSearchKeydown(event) {
         event.preventDefault();
         const query = event.target.value.trim();
         if (query) {
-            addTagFilter(query);
-            event.target.value = '';
-            clearTagSuggestions();
+            // Try to add as a tag filter if it matches existing tags
+            if (window.tagManager && window.tagManager.searchTags(query).includes(query)) {
+                addTagFilter(query);
+                event.target.value = '';
+                clearTagSuggestions();
+            }
+            // If not a tag, just keep the current name/tag filtering active
         }
     } else if (event.key === 'Escape') {
         event.target.value = '';
         clearTagSuggestions();
+        applyNameAndTagFilters(''); // Reset filters
         event.target.blur();
     }
 }
@@ -4487,6 +4517,63 @@ function applyTagFilters() {
         const matches = Array.from(activeTagFilters).some(filterTag => 
             fileTags.includes(filterTag)
         );
+        
+        item.style.display = matches ? '' : 'none';
+    });
+}
+
+// Apply name and tag filters to file tree (real-time filtering)
+function applyNameAndTagFilters(query) {
+    if (!fileTreeView) return;
+    
+    const fileItems = fileTreeView.querySelectorAll('.file-tree-item');
+    
+    fileItems.forEach(item => {
+        const filePath = item.dataset.path;
+        const isFolder = item.classList.contains('folder');
+        
+        if (isFolder) {
+            // Always show folders
+            item.style.display = '';
+            return;
+        }
+        
+        if (!filePath) {
+            item.style.display = query.length === 0 ? '' : 'none';
+            return;
+        }
+        
+        // Extract filename from path
+        const fileName = filePath.split('/').pop() || '';
+        const fileNameNoExt = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+        
+        let matches = false;
+        
+        if (query.length === 0) {
+            // No query, show all files (unless tag filters are active)
+            matches = activeTagFilters.size === 0;
+            if (activeTagFilters.size > 0 && filePath.endsWith('.md') && window.tagManager) {
+                const fileTags = window.tagManager.getFileTags(filePath);
+                matches = Array.from(activeTagFilters).some(filterTag => 
+                    fileTags.includes(filterTag)
+                );
+            }
+        } else {
+            // Check filename match (case-insensitive)
+            const nameMatch = fileNameNoExt.toLowerCase().includes(query.toLowerCase()) ||
+                              fileName.toLowerCase().includes(query.toLowerCase());
+            
+            // Check tag match for markdown files
+            let tagMatch = false;
+            if (filePath.endsWith('.md') && window.tagManager) {
+                const fileTags = window.tagManager.getFileTags(filePath);
+                tagMatch = fileTags.some(tag => 
+                    tag.toLowerCase().includes(query.toLowerCase())
+                );
+            }
+            
+            matches = nameMatch || tagMatch;
+        }
         
         item.style.display = matches ? '' : 'none';
     });
