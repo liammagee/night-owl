@@ -6042,15 +6042,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Initialize export buttons for visualizations (excluding presentation which has its own)
+    // Initialize export buttons for visualizations (excluding presentation and network which have their own)
     setTimeout(() => {
         if (window.addExportButton) {
-            // Add export buttons to each visualization mode (except presentation)
-            window.addExportButton('network-export-controls', 'network-canvas', '📸 Export as PNG');
+            // Add export buttons to visualizations that don't have them built-in
             window.addExportButton('graph-export-controls', 'graph-visualization', '📸 Export as PNG');
             window.addExportButton('circle-export-controls', 'circle-content', '📸 Export as PNG');
         }
-    }, 1000); // Small delay to ensure everything is loaded
+    }, 1500); // Small delay to ensure everything is loaded
 });
 
 // --- Command Palette ---

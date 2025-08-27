@@ -702,30 +702,38 @@ window.addExportButton = function(containerId, targetElementId, buttonText = 'ðŸ
     }
     
     const button = document.createElement('button');
-    button.className = 'export-png-btn';
+    button.className = 'export-png-btn btn';
     button.innerHTML = buttonText;
+    button.title = 'Export visualization as PNG';
+    
+    // Match the style of other buttons in the control bar
     button.style.cssText = `
-        padding: 8px 12px;
-        background: #4CAF50;
-        color: white;
-        border: none;
+        padding: 6px 12px;
+        background: #f8f9fa;
+        color: #333;
+        border: 1px solid #dee2e6;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 14px;
-        margin: 5px;
-        transition: background 0.3s;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     `;
     
     button.addEventListener('mouseenter', () => {
-        button.style.background = '#45a049';
+        button.style.background = '#e9ecef';
+        button.style.borderColor = '#adb5bd';
     });
     
     button.addEventListener('mouseleave', () => {
-        button.style.background = '#4CAF50';
+        button.style.background = '#f8f9fa';
+        button.style.borderColor = '#dee2e6';
     });
     
     button.addEventListener('click', () => {
-        const modeName = targetElementId.replace('-content', '').replace('-visualization', '');
+        const modeName = targetElementId.replace('-content', '').replace('-visualization', '').replace('-canvas', '');
         window.exportVisualizationAsPNG(targetElementId, modeName);
     });
     
