@@ -7319,7 +7319,10 @@ function renderCommandPaletteResults() {
     // Add click handlers to items
     const items = commandPaletteResults.querySelectorAll('.command-palette-item');
     items.forEach((item, index) => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            commandPaletteSelectedIndex = index;
             openCommandPaletteFile(commandPaletteFilteredFiles[index]);
         });
     });
@@ -7329,10 +7332,18 @@ function renderCommandPaletteResults() {
 async function openCommandPaletteFile(file) {
     hideCommandPalette();
     try {
-        await openFile(file.path);
+        // Read file content first
+        const result = await window.electronAPI.invoke('read-file', file.path);
+        if (result && result.success) {
+            await openFileInEditor(result.filePath, result.content);
+            // Save current file to settings
+            window.electronAPI.invoke('set-current-file', result.filePath);
+        } else {
+            throw new Error(result?.error || 'Failed to read file');
+        }
     } catch (error) {
         console.error('[Command Palette] Error opening file:', error);
-        showTemporaryMessage('Error opening file: ' + file.name, 'error');
+        showNotification('Error opening file: ' + file.name, 'error');
     }
 }
 
