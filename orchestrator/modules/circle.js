@@ -805,7 +805,8 @@ class CircleView {
                 </div>
                 <div style="margin-bottom: 10px;">
                     <button id="circle-reset" style="padding: 8px 12px; margin-right: 5px; font-size: 11px;">Reset</button>
-                    <button id="circle-animate" style="padding: 8px 12px; font-size: 11px;">Animate</button>
+                    <button id="circle-animate" style="padding: 8px 12px; margin-right: 5px; font-size: 11px;">Animate</button>
+                    <button id="circle-export" style="padding: 8px 12px; font-size: 11px; background: #4CAF50; color: white; border: 1px solid #45a049;">📸 Export</button>
                 </div>
                 <div style="margin-bottom: 10px;">
                     <strong>Current Stage:</strong><br>
@@ -861,6 +862,16 @@ class CircleView {
                     this.animateCircle();
                     const stageName = document.getElementById('current-stage-name');
                     if (stageName) stageName.textContent = this.stages[this.currentStage].name;
+                });
+            }
+
+            // Export button
+            const exportButton = document.getElementById('circle-export');
+            if (exportButton) {
+                exportButton.addEventListener('click', () => {
+                    if (window.exportVisualizationAsPNG) {
+                        window.exportVisualizationAsPNG('circle-visualization', 'hermeneutic-circle');
+                    }
                 });
             }
         }
