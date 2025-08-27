@@ -639,7 +639,58 @@ function createHeadingListElement(heading, index) {
     // Add heading text
     const textSpan = document.createElement('span');
     textSpan.textContent = heading.title;
+    textSpan.classList.add('structure-heading-text');
     li.appendChild(textSpan);
+
+    // Add structure action buttons
+    const actionsContainer = document.createElement('div');
+    actionsContainer.classList.add('structure-actions');
+    
+    // Promote heading level (left arrow)
+    const promoteBtn = document.createElement('button');
+    promoteBtn.classList.add('structure-btn', 'structure-promote');
+    promoteBtn.textContent = '←';
+    promoteBtn.title = 'Promote heading level';
+    promoteBtn.onclick = (event) => {
+        event.stopPropagation();
+        promoteHeadingLevel(heading, index);
+    };
+    actionsContainer.appendChild(promoteBtn);
+    
+    // Demote heading level (right arrow)
+    const demoteBtn = document.createElement('button');
+    demoteBtn.classList.add('structure-btn', 'structure-demote');
+    demoteBtn.textContent = '→';
+    demoteBtn.title = 'Demote heading level';
+    demoteBtn.onclick = (event) => {
+        event.stopPropagation();
+        demoteHeadingLevel(heading, index);
+    };
+    actionsContainer.appendChild(demoteBtn);
+    
+    // Move section up
+    const moveUpBtn = document.createElement('button');
+    moveUpBtn.classList.add('structure-btn', 'structure-move-up');
+    moveUpBtn.textContent = '↑';
+    moveUpBtn.title = 'Move section up';
+    moveUpBtn.onclick = (event) => {
+        event.stopPropagation();
+        moveSectionUp(heading, index);
+    };
+    actionsContainer.appendChild(moveUpBtn);
+    
+    // Move section down
+    const moveDownBtn = document.createElement('button');
+    moveDownBtn.classList.add('structure-btn', 'structure-move-down');
+    moveDownBtn.textContent = '↓';
+    moveDownBtn.title = 'Move section down';
+    moveDownBtn.onclick = (event) => {
+        event.stopPropagation();
+        moveSectionDown(heading, index);
+    };
+    actionsContainer.appendChild(moveDownBtn);
+    
+    li.appendChild(actionsContainer);
 
     // Set attributes
     li.draggable = true;
@@ -7425,4 +7476,178 @@ function initializeCommandPalette() {
 
 // Initialize command palette when page loads
 document.addEventListener('DOMContentLoaded', initializeCommandPalette);
+
+// === Structure Manipulation Functions ===
+
+// Promote heading level (H2 → H1, H3 → H2, etc.)
+function promoteHeadingLevel(heading, index) {
+    if (!editor || !editor.getModel()) {
+        console.error('[Structure] Editor not available');
+        return;
+    }
+    
+    if (heading.level <= 1) {
+        showNotification('Cannot promote H1 heading further', 'warning');
+        return;
+    }
+    
+    const model = editor.getModel();
+    const lineNumber = heading.startLine + 1; // Monaco uses 1-based indexing
+    const lineContent = model.getLineContent(lineNumber);
+    
+    // Remove one # from the beginning
+    const newContent = lineContent.replace(/^#+/, (match) => match.slice(0, -1));
+    
+    const range = new monaco.Range(lineNumber, 1, lineNumber, lineContent.length + 1);
+    const edit = {
+        range: range,
+        text: newContent,
+        forceMoveMarkers: true
+    };
+    
+    model.pushEditOperations([], [edit], () => null);
+    showNotification(`Promoted heading to H${heading.level - 1}`, 'success');
+}
+
+// Demote heading level (H1 → H2, H2 → H3, etc.)
+function demoteHeadingLevel(heading, index) {
+    if (!editor || !editor.getModel()) {
+        console.error('[Structure] Editor not available');
+        return;
+    }
+    
+    if (heading.level >= 6) {
+        showNotification('Cannot demote H6 heading further', 'warning');
+        return;
+    }
+    
+    const model = editor.getModel();
+    const lineNumber = heading.startLine + 1; // Monaco uses 1-based indexing
+    const lineContent = model.getLineContent(lineNumber);
+    
+    // Add one # to the beginning
+    const newContent = lineContent.replace(/^(#+)/, '$1#');
+    
+    const range = new monaco.Range(lineNumber, 1, lineNumber, lineContent.length + 1);
+    const edit = {
+        range: range,
+        text: newContent,
+        forceMoveMarkers: true
+    };
+    
+    model.pushEditOperations([], [edit], () => null);
+    showNotification(`Demoted heading to H${heading.level + 1}`, 'success');
+}
+
+// Move section up (including all subsections)
+function moveSectionUp(heading, index) {
+    if (!editor || !editor.getModel()) {
+        console.error('[Structure] Editor not available');
+        return;
+    }
+    
+    if (index === 0) {
+        showNotification('Section is already at the top', 'warning');
+        return;
+    }
+    
+    const model = editor.getModel();
+    const markdownContent = model.getValue();
+    const { headings } = extractHeadingsFromMarkdown(markdownContent);
+    const processedHeadings = calculateHeadingEndLines(headings, model.getLineCount());
+    
+    const currentHeading = processedHeadings[index];
+    const previousHeading = processedHeadings[index - 1];
+    
+    // Get the text content of both sections
+    const currentSectionRange = new monaco.Range(
+        currentHeading.startLine + 1, 1,
+        currentHeading.endLine + 1, model.getLineLength(currentHeading.endLine + 1) + 1
+    );
+    let currentSectionText = model.getValueInRange(currentSectionRange);
+    
+    const previousSectionRange = new monaco.Range(
+        previousHeading.startLine + 1, 1,
+        previousHeading.endLine + 1, model.getLineLength(previousHeading.endLine + 1) + 1
+    );
+    let previousSectionText = model.getValueInRange(previousSectionRange);
+    
+    // Ensure proper newline handling
+    if (!currentSectionText.endsWith('\n')) currentSectionText += '\n';
+    if (!previousSectionText.endsWith('\n')) previousSectionText += '\n';
+    
+    // Create the combined range for both sections
+    const combinedRange = new monaco.Range(
+        previousHeading.startLine + 1, 1,
+        currentHeading.endLine + 1, model.getLineLength(currentHeading.endLine + 1) + 1
+    );
+    
+    // Swap the sections: current section first, then previous section
+    const swappedText = currentSectionText + previousSectionText;
+    
+    const edit = {
+        range: combinedRange,
+        text: swappedText,
+        forceMoveMarkers: true
+    };
+    
+    model.pushEditOperations([], [edit], () => null);
+    showNotification('Section moved up', 'success');
+}
+
+// Move section down (including all subsections)
+function moveSectionDown(heading, index) {
+    if (!editor || !editor.getModel()) {
+        console.error('[Structure] Editor not available');
+        return;
+    }
+    
+    const model = editor.getModel();
+    const markdownContent = model.getValue();
+    const { headings } = extractHeadingsFromMarkdown(markdownContent);
+    const processedHeadings = calculateHeadingEndLines(headings, model.getLineCount());
+    
+    if (index === processedHeadings.length - 1) {
+        showNotification('Section is already at the bottom', 'warning');
+        return;
+    }
+    
+    const currentHeading = processedHeadings[index];
+    const nextHeading = processedHeadings[index + 1];
+    
+    // Get the text content of both sections
+    const currentSectionRange = new monaco.Range(
+        currentHeading.startLine + 1, 1,
+        currentHeading.endLine + 1, model.getLineLength(currentHeading.endLine + 1) + 1
+    );
+    let currentSectionText = model.getValueInRange(currentSectionRange);
+    
+    const nextSectionRange = new monaco.Range(
+        nextHeading.startLine + 1, 1,
+        nextHeading.endLine + 1, model.getLineLength(nextHeading.endLine + 1) + 1
+    );
+    let nextSectionText = model.getValueInRange(nextSectionRange);
+    
+    // Ensure proper newline handling
+    if (!currentSectionText.endsWith('\n')) currentSectionText += '\n';
+    if (!nextSectionText.endsWith('\n')) nextSectionText += '\n';
+    
+    // Create the combined range for both sections
+    const combinedRange = new monaco.Range(
+        currentHeading.startLine + 1, 1,
+        nextHeading.endLine + 1, model.getLineLength(nextHeading.endLine + 1) + 1
+    );
+    
+    // Swap the sections: next section first, then current section
+    const swappedText = nextSectionText + currentSectionText;
+    
+    const edit = {
+        range: combinedRange,
+        text: swappedText,
+        forceMoveMarkers: true
+    };
+    
+    model.pushEditOperations([], [edit], () => null);
+    showNotification('Section moved down', 'success');
+}
 

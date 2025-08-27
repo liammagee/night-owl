@@ -859,6 +859,129 @@
         body.dark-mode .command-palette-item.selected {
             background: var(--primary-800);
         }
+
+        /* Structure Action Buttons */
+        .structure-actions {
+            display: flex;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            margin-left: auto;
+        }
+
+        .structure-heading-text {
+            flex: 1;
+        }
+
+        li:hover .structure-actions {
+            opacity: 1;
+        }
+
+        .structure-btn {
+            background: transparent;
+            border: 1px solid var(--neutral-300);
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 10px;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--neutral-600);
+            transition: all 0.2s ease;
+            min-width: 20px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .structure-btn:hover {
+            background: var(--primary-100);
+            border-color: var(--primary-300);
+            color: var(--primary-700);
+        }
+
+        .structure-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Button-specific colors */
+        .structure-promote:hover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            color: #1976d2;
+        }
+
+        .structure-demote:hover {
+            background: #fff3e0;
+            border-color: #ff9800;
+            color: #f57c00;
+        }
+
+        .structure-move-up:hover {
+            background: #e8f5e8;
+            border-color: #4caf50;
+            color: #388e3c;
+        }
+
+        .structure-move-down:hover {
+            background: #fce4ec;
+            border-color: #e91e63;
+            color: #c2185b;
+        }
+
+        /* Dark mode styles for structure buttons */
+        body.dark-mode .structure-btn {
+            border-color: var(--neutral-600);
+            color: var(--neutral-400);
+        }
+
+        body.dark-mode .structure-btn:hover {
+            background: var(--primary-900);
+            border-color: var(--primary-600);
+            color: var(--primary-300);
+        }
+
+        body.dark-mode .structure-promote:hover {
+            background: #0d47a1;
+            border-color: #1976d2;
+            color: #64b5f6;
+        }
+
+        body.dark-mode .structure-demote:hover {
+            background: #e65100;
+            border-color: #f57c00;
+            color: #ffb74d;
+        }
+
+        body.dark-mode .structure-move-up:hover {
+            background: #1b5e20;
+            border-color: #388e3c;
+            color: #81c784;
+        }
+
+        body.dark-mode .structure-move-down:hover {
+            background: #880e4f;
+            border-color: #c2185b;
+            color: #f48fb1;
+        }
+
+        /* Ensure structure list items have proper flex layout */
+        #structure-list li {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        #structure-list li:hover {
+            background-color: var(--neutral-50);
+        }
+
+        body.dark-mode #structure-list li:hover {
+            background-color: var(--neutral-800);
+        }
     </style>
 </head>
 <body>
