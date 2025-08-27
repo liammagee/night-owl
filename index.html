@@ -882,7 +882,7 @@
             border: 1px solid var(--neutral-300);
             border-radius: 3px;
             padding: 2px 6px;
-            font-size: 10px;
+            font-size: 12px;
             line-height: 1;
             cursor: pointer;
             color: var(--neutral-600);
@@ -892,6 +892,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            font-family: Arial, sans-serif; /* Ensure good arrow display */
+            font-weight: bold;
         }
 
         .structure-btn:hover {
@@ -979,8 +981,18 @@
             background-color: var(--neutral-50);
         }
 
+        #structure-list li.selected {
+            background-color: var(--primary-100);
+            border-left: 3px solid var(--primary-500);
+        }
+
         body.dark-mode #structure-list li:hover {
             background-color: var(--neutral-800);
+        }
+
+        body.dark-mode #structure-list li.selected {
+            background-color: var(--primary-900);
+            border-left: 3px solid var(--primary-400);
         }
     </style>
 </head>

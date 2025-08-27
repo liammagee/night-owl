@@ -636,9 +636,10 @@ function createHeadingListElement(heading, index) {
     };
     li.appendChild(toggle);
 
-    // Add heading text
+    // Add heading text (strip anchor tags for display)
     const textSpan = document.createElement('span');
-    textSpan.textContent = heading.title;
+    const cleanTitle = heading.title.replace(/<a name="[^"]*"><\/a>/g, '').trim();
+    textSpan.textContent = cleanTitle;
     textSpan.classList.add('structure-heading-text');
     li.appendChild(textSpan);
 
@@ -655,6 +656,9 @@ function createHeadingListElement(heading, index) {
         event.stopPropagation();
         promoteHeadingLevel(heading, index);
     };
+    promoteBtn.oncontextmenu = (event) => {
+        event.stopPropagation(); // Let parent handle context menu
+    };
     actionsContainer.appendChild(promoteBtn);
     
     // Demote heading level (right arrow)
@@ -666,27 +670,36 @@ function createHeadingListElement(heading, index) {
         event.stopPropagation();
         demoteHeadingLevel(heading, index);
     };
+    demoteBtn.oncontextmenu = (event) => {
+        event.stopPropagation(); // Let parent handle context menu
+    };
     actionsContainer.appendChild(demoteBtn);
     
     // Move section up
     const moveUpBtn = document.createElement('button');
     moveUpBtn.classList.add('structure-btn', 'structure-move-up');
-    moveUpBtn.textContent = '↑';
+    moveUpBtn.innerHTML = '&#8593;'; // ↑ as HTML entity
     moveUpBtn.title = 'Move section up';
     moveUpBtn.onclick = (event) => {
         event.stopPropagation();
         moveSectionUp(heading, index);
+    };
+    moveUpBtn.oncontextmenu = (event) => {
+        event.stopPropagation(); // Let parent handle context menu
     };
     actionsContainer.appendChild(moveUpBtn);
     
     // Move section down
     const moveDownBtn = document.createElement('button');
     moveDownBtn.classList.add('structure-btn', 'structure-move-down');
-    moveDownBtn.textContent = '↓';
+    moveDownBtn.innerHTML = '&#8595;'; // ↓ as HTML entity
     moveDownBtn.title = 'Move section down';
     moveDownBtn.onclick = (event) => {
         event.stopPropagation();
         moveSectionDown(heading, index);
+    };
+    moveDownBtn.oncontextmenu = (event) => {
+        event.stopPropagation(); // Let parent handle context menu
     };
     actionsContainer.appendChild(moveDownBtn);
     
@@ -714,12 +727,22 @@ function setupHeadingElementHandlers(li, heading) {
     li.ondrop = (event) => handleDrop(event, heading);
     li.oncontextmenu = (event) => handleContextMenu(event, heading);
     
-    // Click handler for scrolling
+    // Click handler for scrolling and selection
     li.onclick = (event) => {
-        // Prevent triggering click if toggle icon was clicked
-        if (event.target.classList.contains('structure-toggle')) {
+        // Prevent triggering click if toggle icon or structure buttons were clicked
+        if (event.target.classList.contains('structure-toggle') || 
+            event.target.classList.contains('structure-btn') ||
+            event.target.closest('.structure-actions')) {
             return;
         }
+
+        // Remove previous selection
+        document.querySelectorAll('#structure-list li.selected').forEach(item => {
+            item.classList.remove('selected');
+        });
+        
+        // Add selection to current item
+        li.classList.add('selected');
 
         const lineNumber = parseInt(li.dataset.startLine, 10) + 1; // Get startLine and add 1 for editor
         const headingText = li.dataset.headingText; // Get heading text from LI dataset
@@ -923,8 +946,8 @@ function handleContextMenu(event, heading) {
     const target = event.target;
     const li = target.closest('li'); // Find the closest list item
 
-    if (li && li.dataset.lineNumber) {
-        const lineNumberStr = li.dataset.lineNumber;
+    if (li && (li.dataset.startLine || li.dataset.lineNumber)) {
+        const lineNumberStr = li.dataset.startLine || li.dataset.lineNumber;
         console.log(`[renderer.js] Requesting context menu from main for line: ${lineNumberStr}`);
 
         // Ask the main process to show the context menu
