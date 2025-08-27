@@ -12,6 +12,9 @@ class WholepartVisualization {
         this.currentVisualization = 0;
         this.isAnimating = false;
         this.animationTime = 0;
+        this.animateTransitions = true;
+        this.nodeScale = 1.0;
+        this.previousScale = 1.0;
         
         // Data extracted from current document
         this.concepts = [];
@@ -70,35 +73,43 @@ class WholepartVisualization {
     }
 
     extractConceptsFromDocument() {
-        // Try to extract concepts from the current editor content
+        // Try to extract concepts from the current editor content ONLY
         let content = '';
+        
+        // Primary method: get from current editor
         if (window.editor && typeof window.editor.getValue === 'function') {
             content = window.editor.getValue();
+            console.log(`[Wholepart] Got content from editor (${content.length} chars)`);
+        }
+        
+        // Fallback: try to get current content from renderer
+        if (!content && typeof getCurrentEditorContent === 'function') {
+            content = getCurrentEditorContent();
+            console.log(`[Wholepart] Got content from getCurrentEditorContent (${content.length} chars)`);
         }
 
         // Extract filename for the "whole"
-        const currentFile = window.currentFilePath || 'Document';
-        this.wholeName = currentFile.split('/').pop()?.replace(/\.[^/.]+$/, "") || 'Document';
+        const currentFile = window.currentFilePath || window.currentFile || 'Document';
+        this.wholeName = currentFile.split('/').pop()?.replace(/\.[^/.]+$/, "") || 'Current Document';
 
-        // Parse different formats of lists
+        console.log(`[Wholepart] Processing current file only: "${this.wholeName}"`);
+
+        // Parse different formats of lists from CURRENT FILE ONLY
         this.concepts = this.parseConceptsFromContent(content);
         
-        // Fallback to default concepts if none found
+        // More minimal fallback if current file has no recognizable concepts
         if (this.concepts.length === 0) {
+            console.log(`[Wholepart] No concepts found in current file "${this.wholeName}", using placeholder`);
             this.concepts = [
-                'Synthesis: ML & Human Learning',
-                'Experience', 
-                'Attention',
-                'Recognition',
-                'Consciousness',
-                'Alignment',
-                'Critique',
-                'Synthesis: Technosymbiosis'
+                'No structured concepts found',
+                'Try adding bullet points (-)',
+                'Or numbered lists (1.)',
+                'Or headings (##)'
             ];
-            this.wholeName = 'Hegel Pedagogy Course';
+            this.wholeName = this.wholeName || 'Current File';
         }
 
-        console.log(`[Wholepart] Extracted ${this.concepts.length} concepts for whole: "${this.wholeName}"`);
+        console.log(`[Wholepart] Extracted ${this.concepts.length} concepts from CURRENT FILE "${this.wholeName}":`, this.concepts);
     }
 
     parseConceptsFromContent(content) {
@@ -234,6 +245,46 @@ class WholepartVisualization {
                 this.exportAsPNG();
             });
         }
+
+        // Viewing options event listeners
+        const showLabelsCheckbox = document.getElementById('wholepart-show-labels');
+        const showConnectionsCheckbox = document.getElementById('wholepart-show-connections');
+        const animateTransitionsCheckbox = document.getElementById('wholepart-animate-transitions');
+        const darkThemeCheckbox = document.getElementById('wholepart-dark-theme');
+        const sizeSlider = document.getElementById('wholepart-size-slider');
+        const sizeValue = document.getElementById('wholepart-size-value');
+
+        if (showLabelsCheckbox) {
+            showLabelsCheckbox.addEventListener('change', (e) => {
+                this.toggleLabels(e.target.checked);
+            });
+        }
+
+        if (showConnectionsCheckbox) {
+            showConnectionsCheckbox.addEventListener('change', (e) => {
+                this.toggleConnections(e.target.checked);
+            });
+        }
+
+        if (animateTransitionsCheckbox) {
+            animateTransitionsCheckbox.addEventListener('change', (e) => {
+                this.animateTransitions = e.target.checked;
+            });
+        }
+
+        if (darkThemeCheckbox) {
+            darkThemeCheckbox.addEventListener('change', (e) => {
+                this.toggleDarkTheme(e.target.checked);
+            });
+        }
+
+        if (sizeSlider && sizeValue) {
+            sizeSlider.addEventListener('input', (e) => {
+                const scale = parseFloat(e.target.value);
+                this.updateNodeSize(scale);
+                sizeValue.textContent = scale.toFixed(1) + 'x';
+            });
+        }
     }
 
     exportAsPNG() {
@@ -242,6 +293,93 @@ class WholepartVisualization {
         } else {
             console.error('Export functionality not available');
         }
+    }
+
+    // Viewing options methods
+    toggleLabels(show) {
+        if (!this.labelsGroup) return;
+        
+        this.labelsGroup.selectAll('text')
+            .style('opacity', show ? 1 : 0);
+    }
+
+    toggleConnections(show) {
+        if (!this.connectionsGroup) return;
+        
+        this.connectionsGroup.selectAll('*')
+            .style('opacity', show ? 1 : 0);
+    }
+
+    toggleDarkTheme(isDark) {
+        const visualization = document.getElementById('wholepart-visualization');
+        if (!visualization) return;
+
+        if (isDark) {
+            visualization.style.background = '#2d3748';
+            if (this.svg) {
+                this.svg.style('background', '#2d3748');
+                // Update node colors for dark theme
+                this.nodesGroup.selectAll('circle')
+                    .style('fill', '#4299e1')
+                    .style('stroke', '#63b3ed');
+                // Update text colors for dark theme  
+                this.labelsGroup.selectAll('text')
+                    .style('fill', '#e2e8f0');
+                // Update connection colors for dark theme
+                this.connectionsGroup.selectAll('*')
+                    .style('stroke', '#4a5568')
+                    .style('fill', '#4a5568');
+            }
+        } else {
+            visualization.style.background = '#fefdfb';
+            if (this.svg) {
+                this.svg.style('background', '#fefdfb');
+                // Restore light theme colors
+                this.nodesGroup.selectAll('circle')
+                    .style('fill', '#4ecdc4')
+                    .style('stroke', '#45b7b8');
+                this.labelsGroup.selectAll('text')
+                    .style('fill', '#2c3e50');
+                this.connectionsGroup.selectAll('*')
+                    .style('stroke', '#95a5a6')
+                    .style('fill', '#95a5a6');
+            }
+        }
+    }
+
+    // Helper method to calculate scaled radius
+    getScaledRadius(baseRadius) {
+        return baseRadius * this.nodeScale;
+    }
+
+    updateNodeSize(scale) {
+        this.nodeScale = scale;
+        
+        if (!this.nodesGroup) return;
+        
+        // Update all circles with new scale
+        this.nodesGroup.selectAll('circle')
+            .transition()
+            .duration(this.animateTransitions ? 200 : 0)
+            .attr('r', function(d) {
+                // Store original radius on first scaling, then use it for subsequent scalings
+                const element = d3.select(this);
+                if (!element.attr('data-original-radius')) {
+                    element.attr('data-original-radius', element.attr('r'));
+                }
+                const originalRadius = parseFloat(element.attr('data-original-radius')) || 12;
+                return originalRadius * scale;
+            });
+
+        // Update text size proportionally (but less dramatically)
+        this.labelsGroup.selectAll('text')
+            .transition()
+            .duration(this.animateTransitions ? 200 : 0)
+            .style('font-size', () => {
+                const baseFontSize = 12;
+                const fontScale = 0.8 + (scale - 0.8) * 0.4; // More subtle scaling for text
+                return Math.max(8, baseFontSize * fontScale) + 'px';
+            });
     }
 
     createVisualization(type) {

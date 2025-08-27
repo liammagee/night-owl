@@ -1038,6 +1038,38 @@
                             <div id="wholepart-description" style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; margin: 0 12px 12px 12px; font-size: 12px; color: #555;">
                                 <strong>Visualization:</strong> <span id="wholepart-description-text">Select a visualization to explore concept relationships.</span>
                             </div>
+
+                            <!-- Viewing Options -->
+                            <div id="wholepart-viewing-options" style="margin: 0 12px 12px 12px; padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 11px;">
+                                <div style="margin-bottom: 8px; font-weight: bold; color: #4ecdc4;">Viewing Options:</div>
+                                
+                                <!-- Checkboxes -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="checkbox" id="wholepart-show-labels" style="margin-right: 4px;" checked>
+                                        <span>Show Labels</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="checkbox" id="wholepart-show-connections" style="margin-right: 4px;" checked>
+                                        <span>Show Connections</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="checkbox" id="wholepart-animate-transitions" style="margin-right: 4px;" checked>
+                                        <span>Animate Transitions</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="checkbox" id="wholepart-dark-theme" style="margin-right: 4px;">
+                                        <span>Dark Theme</span>
+                                    </label>
+                                </div>
+
+                                <!-- Size Slider -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label for="wholepart-size-slider" style="min-width: 60px;">Node Size:</label>
+                                    <input type="range" id="wholepart-size-slider" min="0.1" max="3" step="0.1" value="1" style="flex: 1; min-width: 100px;">
+                                    <span id="wholepart-size-value" style="min-width: 30px; text-align: center; color: #666;">1.0x</span>
+                                </div>
+                            </div>
                             
                             <div id="wholepart-visualization" style="flex: 1; overflow: hidden; margin: 0 12px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fefdfb;">
                                 <!-- D3 visualization will be rendered here -->
