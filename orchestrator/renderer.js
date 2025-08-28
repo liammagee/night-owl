@@ -4378,14 +4378,25 @@ function renderFileTreeNode(node, container, depth) {
         nodeElement.addEventListener('click', async () => {
             try {
                 console.log(`[renderFileTree] Opening file: ${node.path}`);
-                const result = await window.electronAPI.invoke('open-file-path', node.path);
-                console.log(`[renderFileTree] IPC result:`, result);
-                if (result.success && window.openFileInEditor) {
-                    console.log(`[renderFileTree] Calling openFileInEditor with:`, result.filePath, result.content ? result.content.substring(0, 100) + '...' : 'NO CONTENT');
-                    await window.openFileInEditor(result.filePath, result.content);
-                    console.log(`[renderFileTree] openFileInEditor completed`);
+                
+                // Check if it's an image file
+                const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico'];
+                const fileExtension = node.path.toLowerCase().substring(node.path.lastIndexOf('.'));
+                
+                if (imageExtensions.includes(fileExtension)) {
+                    console.log(`[renderFileTree] Opening image file: ${node.path}`);
+                    showImageViewer(node.path);
                 } else {
-                    console.error(`[renderFileTree] Failed to open file:`, result.success ? 'openFileInEditor not available' : result.error);
+                    // Regular file opening logic
+                    const result = await window.electronAPI.invoke('open-file-path', node.path);
+                    console.log(`[renderFileTree] IPC result:`, result);
+                    if (result.success && window.openFileInEditor) {
+                        console.log(`[renderFileTree] Calling openFileInEditor with:`, result.filePath, result.content ? result.content.substring(0, 100) + '...' : 'NO CONTENT');
+                        await window.openFileInEditor(result.filePath, result.content);
+                        console.log(`[renderFileTree] openFileInEditor completed`);
+                    } else {
+                        console.error(`[renderFileTree] Failed to open file:`, result.success ? 'openFileInEditor not available' : result.error);
+                    }
                 }
             } catch (error) {
                 console.error('[renderFileTree] Error opening file:', error);
@@ -7719,4 +7730,184 @@ function moveSectionDown(heading, index) {
     model.pushEditOperations([], [edit], () => null);
     showNotification('Section moved down', 'success');
 }
+
+// Image Viewer Function
+function showImageViewer(imagePath) {
+    console.log('[ImageViewer] Opening image:', imagePath);
+    
+    // Get the main content area
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) {
+        console.error('[ImageViewer] Main content area not found');
+        return;
+    }
+    
+    // Store the current content to restore later
+    const originalContent = mainContent.innerHTML;
+    window.imageViewerOriginalContent = originalContent;
+    
+    // Create image viewer container
+    const viewerContainer = document.createElement('div');
+    viewerContainer.className = 'image-viewer-container';
+    viewerContainer.style.cssText = `
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: #f8f9fa;
+    `;
+    
+    // Create header bar
+    const headerBar = document.createElement('div');
+    headerBar.style.cssText = `
+        height: 50px;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #f8f9fa;
+        padding: 0 16px;
+    `;
+    
+    // Create title
+    const title = document.createElement('div');
+    title.textContent = `📷 ${imagePath.split('/').pop()}`;
+    title.style.cssText = `
+        font-weight: bold;
+        font-size: 14px;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    `;
+    
+    // Create close button
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕ Back to Editor';
+    closeBtn.style.cssText = `
+        background: #007acc;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    `;
+    
+    headerBar.appendChild(title);
+    headerBar.appendChild(closeBtn);
+    
+    // Create image display area
+    const imageArea = document.createElement('div');
+    imageArea.style.cssText = `
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+        padding: 20px;
+        overflow: auto;
+    `;
+    
+    // Create image element
+    const img = document.createElement('img');
+    img.style.cssText = `
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    `;
+    
+    // Create loading message
+    const loading = document.createElement('div');
+    loading.textContent = '📷 Loading image...';
+    loading.style.cssText = `
+        color: #666;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    `;
+    
+    // Create image info panel
+    const infoPanel = document.createElement('div');
+    infoPanel.style.cssText = `
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    `;
+    
+    // Set up image loading
+    img.onload = () => {
+        loading.style.display = 'none';
+        
+        // Update info panel
+        infoPanel.innerHTML = `
+            <div><strong>File:</strong> ${imagePath.split('/').pop()}</div>
+            <div><strong>Path:</strong> ${imagePath}</div>
+            <div><strong>Dimensions:</strong> ${img.naturalWidth} × ${img.naturalHeight}px</div>
+        `;
+        infoPanel.style.opacity = '1';
+        
+        console.log('[ImageViewer] Image loaded successfully');
+    };
+    
+    img.onerror = () => {
+        loading.textContent = '❌ Failed to load image';
+        loading.style.color = 'red';
+        console.error('[ImageViewer] Failed to load image:', imagePath);
+    };
+    
+    // Convert file path to URL for display
+    const imageUrl = `file://${imagePath}`;
+    img.src = imageUrl;
+    
+    // Add elements to areas
+    imageArea.appendChild(img);
+    imageArea.appendChild(loading);
+    
+    // Make image area relative for info panel positioning
+    imageArea.style.position = 'relative';
+    imageArea.appendChild(infoPanel);
+    
+    // Add elements to container
+    viewerContainer.appendChild(headerBar);
+    viewerContainer.appendChild(imageArea);
+    
+    // Event handlers
+    const closeViewer = () => {
+        mainContent.innerHTML = window.imageViewerOriginalContent;
+        delete window.imageViewerOriginalContent;
+        console.log('[ImageViewer] Image viewer closed - restored editor');
+    };
+    
+    closeBtn.addEventListener('click', closeViewer);
+    
+    // Close on Escape key
+    const keyHandler = (e) => {
+        if (e.key === 'Escape') {
+            closeViewer();
+            document.removeEventListener('keydown', keyHandler);
+        }
+    };
+    document.addEventListener('keydown', keyHandler);
+    
+    // Replace main content with image viewer
+    mainContent.innerHTML = '';
+    mainContent.appendChild(viewerContainer);
+}
+
+// Make image viewer available globally
+window.showImageViewer = showImageViewer;
 
