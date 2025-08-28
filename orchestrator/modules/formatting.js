@@ -440,14 +440,134 @@ async function insertLink() {
 async function insertImage() {
     if (!window.editor) return;
     
-    createInputDialog('Insert Image', [
-        { name: 'url', label: 'Image URL', placeholder: 'https://example.com/image.jpg' },
-        { name: 'alt', label: 'Alt Text', value: 'image', placeholder: 'Description of the image' }
-    ], async (values) => {
-        if (!values.url) return;
+    createImageDialog();
+}
+
+function createImageDialog() {
+    const dialog = document.createElement('div');
+    dialog.className = 'input-dialog-overlay';
+    dialog.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    `;
+    
+    const dialogContent = document.createElement('div');
+    dialogContent.className = 'input-dialog-content';
+    dialogContent.style.cssText = `
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        min-width: 450px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        color: black;
+    `;
+    
+    const titleEl = document.createElement('h3');
+    titleEl.textContent = 'Insert Image';
+    titleEl.style.margin = '0 0 15px 0';
+    dialogContent.appendChild(titleEl);
+    
+    // Image source section
+    const sourceLabel = document.createElement('label');
+    sourceLabel.textContent = 'Image Source:';
+    sourceLabel.style.cssText = 'display: block; margin-bottom: 8px; font-weight: bold;';
+    dialogContent.appendChild(sourceLabel);
+    
+    const sourceContainer = document.createElement('div');
+    sourceContainer.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; align-items: stretch;';
+    
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.placeholder = 'Enter image URL or select a file...';
+    urlInput.style.cssText = 'flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;';
+    
+    const selectFileBtn = document.createElement('button');
+    selectFileBtn.textContent = 'Select Image File';
+    selectFileBtn.style.cssText = `
+        background: #007acc;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        white-space: nowrap;
+    `;
+    
+    sourceContainer.appendChild(urlInput);
+    sourceContainer.appendChild(selectFileBtn);
+    dialogContent.appendChild(sourceContainer);
+    
+    // Alt text section
+    const altLabel = document.createElement('label');
+    altLabel.textContent = 'Alt Text:';
+    altLabel.style.cssText = 'display: block; margin-bottom: 8px; font-weight: bold;';
+    dialogContent.appendChild(altLabel);
+    
+    const altInput = document.createElement('input');
+    altInput.type = 'text';
+    altInput.value = 'image';
+    altInput.placeholder = 'Description of the image';
+    altInput.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
+    dialogContent.appendChild(altInput);
+    
+    // Button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'display: flex; justify-content: flex-end; gap: 10px;';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = 'padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;';
+    
+    const okBtn = document.createElement('button');
+    okBtn.textContent = 'Insert Image';
+    okBtn.style.cssText = 'padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;';
+    
+    buttonContainer.appendChild(cancelBtn);
+    buttonContainer.appendChild(okBtn);
+    dialogContent.appendChild(buttonContainer);
+    
+    dialog.appendChild(dialogContent);
+    document.body.appendChild(dialog);
+    
+    // Event handlers
+    selectFileBtn.addEventListener('click', async () => {
+        try {
+            const result = await window.electronAPI.invoke('browse-for-image');
+            if (result.success) {
+                urlInput.value = result.relativePath || result.filePath;
+                // Auto-populate alt text with filename (without extension)
+                if (!altInput.value || altInput.value === 'image') {
+                    altInput.value = result.fileName.replace(/\.[^/.]+$/, '');
+                }
+                console.log('[Formatting] Image selected:', result.fileName);
+            }
+        } catch (error) {
+            console.error('[Formatting] Error selecting image:', error);
+        }
+    });
+    
+    cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+    });
+    
+    okBtn.addEventListener('click', async () => {
+        const url = urlInput.value.trim();
+        const alt = altInput.value.trim() || 'image';
         
-        const altText = values.alt || 'image';
-        const imageMarkdown = `![${altText}](${values.url})`;
+        if (!url) {
+            alert('Please enter an image URL or select an image file.');
+            return;
+        }
+        
+        const imageMarkdown = `![${alt}](${url})`;
         
         const position = window.editor.getPosition();
         window.editor.executeEdits('insert-image', [{
@@ -458,6 +578,28 @@ async function insertImage() {
         window.editor.focus();
         if (window.updatePreviewAndStructure) {
             await window.updatePreviewAndStructure(window.editor.getValue());
+        }
+        
+        document.body.removeChild(dialog);
+    });
+    
+    // Focus on URL input initially
+    setTimeout(() => urlInput.focus(), 100);
+    
+    // Close on Escape key
+    const keyHandler = (e) => {
+        if (e.key === 'Escape') {
+            document.body.removeChild(dialog);
+            document.removeEventListener('keydown', keyHandler);
+        }
+    };
+    document.addEventListener('keydown', keyHandler);
+    
+    // Close on overlay click
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+            document.body.removeChild(dialog);
+            document.removeEventListener('keydown', keyHandler);
         }
     });
 }

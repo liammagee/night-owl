@@ -87,8 +87,11 @@ function applyFormatting(type) {
       break;
       
     case 'image':
-      // Use file browser for image selection
-      handleImageInsertion();
+      // Image insertion is handled by the dialog in formatting.js
+      // Call the insertImage function from formatting.js
+      if (window.insertImage) {
+        window.insertImage();
+      }
       return;
       
     case 'heading1':

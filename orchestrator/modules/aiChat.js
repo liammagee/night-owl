@@ -642,7 +642,7 @@ function initializeChatFunctionality() {
         
         // Use keydown for better compatibility
         chatInput.addEventListener('keydown', (e) => {
-            console.log('[AI Chat] Key pressed:', e.key, 'KeyCode:', e.keyCode);
+            // console.log('[AI Chat] Key pressed:', e.key, 'KeyCode:', e.keyCode);
             // Send on Enter key
             if (e.key === 'Enter' || e.keyCode === 13) {
                 console.log('[AI Chat] Enter key detected, sending message...');
