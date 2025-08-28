@@ -1,5 +1,6 @@
 // AI Service - Abstracted interface for multiple AI providers
 const { OpenAI } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Check if fetch is available, if not use a fallback or require node-fetch
 let fetch;
@@ -107,6 +108,21 @@ class AIService {
       }
     } catch (error) {
       console.error('[AIService] Error initializing Local AI provider:', error);
+    }
+
+    // Google Gemini Provider
+    if (process.env.GOOGLE_API_KEY) {
+      try {
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+        this.providers.set('gemini', new GeminiProvider(genAI));
+        console.log('[AIService] Google Gemini provider initialized');
+        
+        if (preferredProvider === 'gemini' || (!this.defaultProvider && !preferredProvider)) {
+          this.defaultProvider = 'gemini';
+        }
+      } catch (error) {
+        console.error('[AIService] Error initializing Google Gemini provider:', error);
+      }
     }
 
     // Set default provider based on environment variable
@@ -376,6 +392,44 @@ class AIService {
       console.log(`[AIService] Trimmed conversation history to last ${maxMessages} messages`);
     }
   }
+
+  // Image generation method
+  async generateImage(prompt, options = {}) {
+    const provider = options.provider || this.defaultProvider;
+    
+    console.log(`[AIService] 🎨 Image generation requested`);
+    console.log(`[AIService] Provider: ${provider}`);
+    console.log(`[AIService] Prompt: ${prompt.substring(0, 100)}...`);
+    
+    if (!this.providers.has(provider)) {
+      throw new Error(`Provider ${provider} not available`);
+    }
+    
+    const providerInstance = this.providers.get(provider);
+    
+    // Check if provider supports image generation
+    if (!providerInstance.generateImage) {
+      throw new Error(`Provider ${provider} does not support image generation`);
+    }
+    
+    try {
+      const result = await providerInstance.generateImage(prompt, options);
+      console.log(`[AIService] ✅ Image generated successfully`);
+      return result;
+    } catch (error) {
+      console.error(`[AIService] ❌ Image generation failed:`, error);
+      throw error;
+    }
+  }
+
+  // Check if a provider supports image generation
+  supportsImageGeneration(provider) {
+    if (!this.providers.has(provider)) {
+      return false;
+    }
+    const providerInstance = this.providers.get(provider);
+    return providerInstance.imageGenerationSupport || false;
+  }
 }
 
 // Base Provider Interface
@@ -398,6 +452,7 @@ class OpenAIProvider extends BaseProvider {
   constructor(openaiClient) {
     super();
     this.client = openaiClient;
+    this.imageGenerationSupport = true; // OpenAI supports DALL-E image generation
   }
 
   async sendMessage(message, options) {
@@ -457,6 +512,48 @@ class OpenAIProvider extends BaseProvider {
         console.error(`[OpenAIProvider] API response data:`, error.response.data);
       }
       throw error;
+    }
+  }
+
+  async generateImage(prompt, options = {}) {
+    const {
+      model = 'dall-e-3', // or 'dall-e-2'
+      size = '1024x1024', // '1024x1024', '1792x1024', '1024x1792' for dall-e-3
+      quality = 'standard', // 'standard' or 'hd' for dall-e-3
+      n = 1,
+      style = 'vivid' // 'vivid' or 'natural' for dall-e-3
+    } = options;
+
+    console.log(`[OpenAIProvider] 🎨 Generating image with DALL-E`);
+    console.log(`[OpenAIProvider] Model: ${model}`);
+    console.log(`[OpenAIProvider] Size: ${size}`);
+    console.log(`[OpenAIProvider] Quality: ${quality}`);
+    
+    try {
+      const response = await this.client.images.generate({
+        model,
+        prompt,
+        n,
+        size,
+        quality,
+        style
+      });
+
+      console.log(`[OpenAIProvider] ✅ Image generated successfully`);
+      
+      // Return image data in a consistent format
+      return {
+        images: response.data.map(img => ({
+          url: img.url,
+          revised_prompt: img.revised_prompt, // DALL-E 3 returns this
+          base64: img.b64_json // If response_format was set to 'b64_json'
+        })),
+        provider: 'openai',
+        model
+      };
+    } catch (error) {
+      console.error('[OpenAIProvider] Image generation error:', error);
+      throw new Error(`OpenAI image generation failed: ${error.message}`);
     }
   }
 
@@ -873,6 +970,149 @@ class LocalAIProvider extends BaseProvider {
       'neural-chat',
       'vicuna',
       'alpaca'
+    ];
+  }
+}
+
+// Google Gemini Provider Implementation
+class GeminiProvider extends BaseProvider {
+  constructor(genAI) {
+    super();
+    this.genAI = genAI;
+    this.imageGenerationSupport = true; // Gemini supports image generation
+  }
+
+  async sendMessage(message, options) {
+    const {
+      model = process.env.GOOGLE_MODEL || 'gemini-1.5-flash',
+      systemMessage,
+      temperature = parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+      maxTokens = parseInt(process.env.AI_MAX_TOKENS) || 2000,
+      conversationHistory = [],
+      verboseLogging = false,
+      images = [] // Support for image inputs
+    } = options;
+
+    // Get the generative model
+    const genModel = this.genAI.getGenerativeModel({ 
+      model,
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+      }
+    });
+
+    // Build the conversation with proper formatting
+    const chat = genModel.startChat({
+      history: this.buildHistory(conversationHistory, systemMessage),
+    });
+
+    console.log(`[GeminiProvider] 📤 Sending to Google Gemini`);
+    console.log(`[GeminiProvider] Model: ${model}`);
+    console.log(`[GeminiProvider] Temperature: ${temperature}`);
+    console.log(`[GeminiProvider] Max Tokens: ${maxTokens}`);
+    if (images && images.length > 0) {
+      console.log(`[GeminiProvider] Images attached: ${images.length}`);
+    }
+
+    try {
+      // Prepare the message with images if provided
+      let prompt = message;
+      const parts = [{ text: message }];
+      
+      // Add images to the prompt if provided
+      if (images && images.length > 0) {
+        for (const image of images) {
+          if (image.base64) {
+            parts.push({
+              inlineData: {
+                mimeType: image.mimeType || 'image/jpeg',
+                data: image.base64
+              }
+            });
+          } else if (image.url) {
+            // For URLs, we'd need to fetch and convert to base64
+            console.warn('[GeminiProvider] URL images not yet supported, skipping');
+          }
+        }
+      }
+
+      // Send message and get response
+      const result = await chat.sendMessage(parts);
+      const response = await result.response;
+      const text = response.text();
+
+      console.log(`[GeminiProvider] 📥 Received response from Google Gemini`);
+      console.log(`[GeminiProvider] Response length: ${text.length} characters`);
+
+      return {
+        content: text,
+        provider: 'gemini',
+        model,
+        usage: {
+          promptTokens: response.usageMetadata?.promptTokenCount,
+          completionTokens: response.usageMetadata?.candidatesTokenCount,
+          totalTokens: response.usageMetadata?.totalTokenCount
+        }
+      };
+    } catch (error) {
+      console.error('[GeminiProvider] Error:', error);
+      throw new Error(`Gemini API request failed: ${error.message}`);
+    }
+  }
+
+  buildHistory(conversationHistory, systemMessage) {
+    const history = [];
+    
+    // Add system message as the first user message if provided
+    if (systemMessage) {
+      history.push({
+        role: 'user',
+        parts: [{ text: `System: ${systemMessage}` }]
+      });
+      history.push({
+        role: 'model',
+        parts: [{ text: 'Understood. I will follow these instructions.' }]
+      });
+    }
+
+    // Add conversation history
+    for (const msg of conversationHistory) {
+      history.push({
+        role: msg.role === 'assistant' ? 'model' : msg.role,
+        parts: [{ text: msg.content }]
+      });
+    }
+
+    return history;
+  }
+
+  async generateImage(prompt, options = {}) {
+    const {
+      model = 'imagen-3', // Google's image generation model
+      size = '1024x1024',
+      quality = 'standard',
+      n = 1
+    } = options;
+
+    console.log(`[GeminiProvider] 🎨 Generating image with Google Imagen`);
+    console.log(`[GeminiProvider] Prompt: ${prompt}`);
+    console.log(`[GeminiProvider] Size: ${size}`);
+    
+    // Note: Google's Imagen API is separate from Gemini and requires different setup
+    // For now, we'll use Gemini's ability to understand and describe images
+    // but actual image generation would require Imagen API access
+    
+    throw new Error('Image generation with Google Imagen not yet implemented. Please use OpenAI for image generation.');
+  }
+
+  getAvailableModels() {
+    return [
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-8b', 
+      'gemini-1.5-pro',
+      'gemini-1.0-pro',
+      'gemini-pro-vision' // For multimodal inputs
     ];
   }
 }

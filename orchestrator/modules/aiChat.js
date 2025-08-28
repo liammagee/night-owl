@@ -1,5 +1,8 @@
 // === AI Chat Module ===
 
+// Global variable to store attached images
+let attachedImages = [];
+
 // Utility function to clean AI responses
 function cleanAIResponse(response) {
     if (!response || typeof response !== 'string') return response;
@@ -65,7 +68,7 @@ function getProviderDisplayInfo() {
 }
 
 // --- Terminal-style Chat Message Management ---
-function addChatMessage(message, sender, isCommand = false, responseInfo = null) {
+function addChatMessage(message, sender, isCommand = false, responseInfo = null, images = null) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
     
@@ -98,6 +101,51 @@ function addChatMessage(message, sender, isCommand = false, responseInfo = null)
 
     messageDiv.appendChild(promptSpan);
     messageDiv.appendChild(contentSpan);
+
+    // Add images if provided
+    if (images && images.length > 0) {
+        const imagesContainer = document.createElement('div');
+        imagesContainer.classList.add('terminal-images');
+        imagesContainer.style.cssText = 'margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;';
+        
+        images.forEach(imageData => {
+            const imageWrapper = document.createElement('div');
+            imageWrapper.style.cssText = 'position: relative; display: inline-block;';
+            
+            const img = document.createElement('img');
+            if (imageData.url) {
+                img.src = imageData.url;
+            } else if (imageData.base64) {
+                img.src = `data:${imageData.mimeType || 'image/jpeg'};base64,${imageData.base64}`;
+            }
+            img.style.cssText = 'max-width: 200px; max-height: 200px; border-radius: 4px; cursor: pointer;';
+            img.title = 'Click to view full size';
+            
+            // Click to enlarge
+            img.addEventListener('click', () => {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+                    background: rgba(0,0,0,0.9); display: flex; justify-content: center; 
+                    align-items: center; z-index: 10000; cursor: pointer;
+                `;
+                
+                const fullImg = document.createElement('img');
+                fullImg.src = img.src;
+                fullImg.style.cssText = 'max-width: 90%; max-height: 90%; border-radius: 8px;';
+                
+                overlay.appendChild(fullImg);
+                overlay.addEventListener('click', () => overlay.remove());
+                document.body.appendChild(overlay);
+            });
+            
+            imageWrapper.appendChild(img);
+            imagesContainer.appendChild(imageWrapper);
+        });
+        
+        messageDiv.appendChild(imagesContainer);
+    }
+
     chatMessages.appendChild(messageDiv);
 
     // Scroll to the bottom
@@ -156,7 +204,14 @@ async function sendChatMessage() {
     }
 
     const userMessage = chatInput.value.trim();
-    addChatMessage(userMessage, 'User'); // Display user's message immediately
+    
+    // Display user message with image indicators if any
+    let displayMessage = userMessage;
+    if (attachedImages.length > 0) {
+        displayMessage += ` [${attachedImages.length} image${attachedImages.length > 1 ? 's' : ''} attached]`;
+    }
+    addChatMessage(displayMessage, 'User', false, null, attachedImages.length > 0 ? attachedImages : null);
+    
     chatInput.value = ''; // Clear the input field
     chatInput.disabled = true; // Disable input while waiting for AI
     if (chatSendBtn) chatSendBtn.disabled = true;
@@ -212,12 +267,17 @@ async function sendChatMessage() {
                 message: enhancedMessage,
                 fileContext: fileContext,
                 currentFile: currentFileName,
-                assistantConfig: chenConfig // Add assistant configuration
+                assistantConfig: chenConfig, // Add assistant configuration
+                images: attachedImages.length > 0 ? attachedImages : undefined // Include images if any
             });
         } catch (contextError) {
             // Fallback to basic handler if enhanced one isn't available
             console.warn('[AI Chat] Enhanced handler not available, using basic handler:', contextError.message);
-            result = await window.electronAPI.invoke('send-chat-message', enhancedMessage, chenConfig);
+            const basicOptions = {...chenConfig};
+            if (attachedImages.length > 0) {
+                basicOptions.images = attachedImages;
+            }
+            result = await window.electronAPI.invoke('send-chat-message', enhancedMessage, basicOptions);
         }
         
         // Stop typing animation and remove typing indicator
@@ -284,6 +344,13 @@ async function sendChatMessage() {
         chatInput.disabled = false; // Re-enable input
         if (chatSendBtn) chatSendBtn.disabled = false;
         chatInput.focus(); // Keep focus on input
+        
+        // Clear attached images after message is sent
+        attachedImages = [];
+        const previewContainer = document.getElementById('attached-images-preview');
+        if (previewContainer) {
+            previewContainer.innerHTML = '';
+        }
     }
 }
 
@@ -973,6 +1040,128 @@ async function refreshChatHeader() {
     await showChatContext();
 }
 
+// --- Image Handling Functions ---
+function handleAttachImage() {
+    const imageInput = document.getElementById('image-input');
+    if (imageInput) {
+        imageInput.click();
+    }
+}
+
+function handleImageInput(event) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const previewContainer = document.getElementById('attached-images-preview');
+    if (!previewContainer) return;
+
+    Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) {
+            console.warn('[AI Chat] File is not an image:', file.name);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64 = e.target.result.split(',')[1]; // Remove data:image/...;base64, prefix
+            
+            const imageData = {
+                base64: base64,
+                mimeType: file.type,
+                name: file.name,
+                size: file.size
+            };
+            
+            attachedImages.push(imageData);
+            
+            // Create preview
+            const previewWrapper = document.createElement('div');
+            previewWrapper.style.cssText = 'position: relative; display: inline-block;';
+            
+            const previewImg = document.createElement('img');
+            previewImg.src = e.target.result;
+            previewImg.style.cssText = 'width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;';
+            previewImg.title = file.name;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.innerHTML = '×';
+            removeBtn.style.cssText = `
+                position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; 
+                border-radius: 50%; background: #ff4444; color: white; border: none; 
+                cursor: pointer; font-size: 12px; line-height: 1;
+            `;
+            removeBtn.title = 'Remove image';
+            removeBtn.addEventListener('click', () => {
+                const index = attachedImages.findIndex(img => img.base64 === base64);
+                if (index > -1) {
+                    attachedImages.splice(index, 1);
+                }
+                previewWrapper.remove();
+            });
+            
+            previewWrapper.appendChild(previewImg);
+            previewWrapper.appendChild(removeBtn);
+            previewContainer.appendChild(previewWrapper);
+        };
+        
+        reader.readAsDataURL(file);
+    });
+}
+
+async function handleGenerateImage() {
+    const chatInput = document.getElementById('chat-input');
+    if (!chatInput || !chatInput.value.trim()) {
+        chatInput.placeholder = 'Enter a description for the image to generate...';
+        chatInput.focus();
+        return;
+    }
+
+    const prompt = chatInput.value.trim();
+    chatInput.value = '';
+    chatInput.disabled = true;
+
+    // Show user message
+    addChatMessage(`/image ${prompt}`, 'User');
+
+    // Show loading message
+    const loadingMessage = addChatMessage('Generating image...', 'AI');
+    const typingContent = loadingMessage.querySelector('.terminal-content');
+    if (typingContent) {
+        startTypingAnimation(typingContent);
+    }
+
+    try {
+        // Call image generation API
+        const result = await window.electronAPI.invoke('generate-image', {
+            prompt: prompt,
+            size: '1024x1024',
+            quality: 'standard'
+        });
+
+        // Stop loading animation
+        stopTypingAnimation();
+
+        if (result.error) {
+            // Update loading message with error
+            typingContent.textContent = `Error generating image: ${result.error}`;
+        } else {
+            // Update loading message with success
+            typingContent.textContent = `Generated image: "${result.revised_prompt || prompt}"`;
+            
+            // Add the generated images to the message
+            if (result.images && result.images.length > 0) {
+                addChatMessage('', 'AI', false, result, result.images);
+            }
+        }
+    } catch (error) {
+        stopTypingAnimation();
+        typingContent.textContent = `Error generating image: ${error.message}`;
+    } finally {
+        chatInput.disabled = false;
+        chatInput.focus();
+    }
+}
+
 // --- Export for Global Access ---
 // Make functions available globally for onclick handlers and other modules
 window.sendChatMessage = sendChatMessage;
@@ -983,3 +1172,6 @@ window.restartChat = restartChat;
 window.initializeChatFunctionality = initializeChatFunctionality;
 window.addChatMessage = addChatMessage;
 window.refreshChatHeader = refreshChatHeader;
+window.handleAttachImage = handleAttachImage;
+window.handleImageInput = handleImageInput;
+window.handleGenerateImage = handleGenerateImage;

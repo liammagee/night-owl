@@ -1267,10 +1267,14 @@
                                 </span>
                                 <input type="text" id="chat-input" class="terminal-input" placeholder="Ask Ash anything about your writing..." style="flex: 1;">
                                 <div class="terminal-buttons" style="display: flex; gap: 4px;">
+                                    <button id="attach-image-btn" class="btn btn-small" title="Attach image" onclick="window.handleAttachImage()">📷</button>
+                                    <button id="generate-image-btn" class="btn btn-small" title="Generate image with AI" onclick="window.handleGenerateImage()">🎨</button>
                                     <button id="restart-chat-btn" class="btn btn-small" title="Start new chat session">🔄</button>
                                     <button id="load-editor-to-chat-btn" class="btn btn-small" title="Load current editor content into chat">📝</button>
                                     <button id="copy-ai-response-btn" class="btn btn-small" title="Insert last AI response at cursor position">📋</button>
                                 </div>
+                                <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="window.handleImageInput(event)">
+                                <div id="attached-images-preview" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"></div>
                             </div>
                         </div>
                         

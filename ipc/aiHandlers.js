@@ -832,7 +832,29 @@ Generate the heading and bullet points only, nothing else.`;
     }
   });
 
-  console.log('[AIHandlers] Registered 18 AI service handlers');
+  // Image generation handler
+  ipcMain.handle('generate-image', async (event, options) => {
+    if (!aiService) {
+      return { error: 'AI Service not available' };
+    }
+    
+    console.log('[AIHandlers] 🎨 Image generation request:', {
+      prompt: options.prompt?.substring(0, 100) + '...',
+      size: options.size,
+      provider: options.provider
+    });
+    
+    try {
+      const result = await aiService.generateImage(options.prompt, options);
+      console.log('[AIHandlers] ✅ Image generated successfully');
+      return result;
+    } catch (error) {
+      console.error('[AIHandlers] ❌ Image generation failed:', error);
+      return { error: error.message };
+    }
+  });
+
+  console.log('[AIHandlers] Registered 19 AI service handlers');
 }
 
 module.exports = {
