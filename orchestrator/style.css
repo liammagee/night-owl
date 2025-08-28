@@ -193,7 +193,7 @@ body, html {
 #left-sidebar {
     width: 250px;
     min-width: 200px;
-    max-width: 400px;
+    max-width: 600px;
     border-right: 1px solid #ddd;
     display: flex;
     flex-direction: column;
@@ -327,6 +327,7 @@ h2 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-size: 13px;
 }
 #structure-list li:hover {
     background-color: #eee;
@@ -337,6 +338,31 @@ h2 {
 #structure-list li.level-4 { padding-left: 45px; }
 #structure-list li.level-5 { padding-left: 60px; }
 #structure-list li.level-6 { padding-left: 75px; }
+
+/* Structure List Drag and Drop Styles */
+#structure-list li[draggable="true"] {
+    cursor: move;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: all 0.2s ease;
+}
+
+#structure-list li[draggable="true"]:hover {
+    background-color: var(--hover-color, #f0f0f0);
+    transform: translateX(2px);
+}
+
+#structure-list li.dragging {
+    opacity: 0.5;
+    transform: scale(1.02);
+    background-color: var(--accent-color, #007acc);
+    color: white;
+}
+
+#structure-list li.drag-over {
+    border-top: 2px solid var(--accent-color, #007acc);
+    background-color: var(--highlight-color, #e6f3ff);
+}
 
 /* Basic Preview Styling */
 #preview-pane {

@@ -638,9 +638,20 @@ function createHeadingListElement(heading, index) {
 
     // Add heading text (strip anchor tags for display)
     const textSpan = document.createElement('span');
-    const cleanTitle = heading.title.replace(/<a name="[^"]*"><\/a>/g, '').trim();
-    textSpan.textContent = cleanTitle;
+    const cleanTitle = heading.title
+        .replace(/<a\s+(?:name|id)="[^"]*"><\/a>/g, '')  // Remove anchor tags
+        .replace(/\*\*(.*?)\*\*/g, '$1')                 // Remove bold markdown **text**
+        .replace(/\*(.*?)\*/g, '$1')                     // Remove italic markdown *text*
+        .replace(/__(.*?)__/g, '$1')                     // Remove bold markdown __text__
+        .replace(/_(.*?)_/g, '$1')                       // Remove italic markdown _text_
+        .trim();
+    
+    // Truncate very long headings over 50 characters
+    const displayTitle = cleanTitle.length > 50 ? cleanTitle.substring(0, 47) + '...' : cleanTitle;
+    
+    textSpan.textContent = displayTitle;
     textSpan.classList.add('structure-heading-text');
+    textSpan.title = cleanTitle; // Show full text on hover
     li.appendChild(textSpan);
 
     // Add structure action buttons
@@ -725,6 +736,8 @@ function setupHeadingElementHandlers(li, heading) {
     li.ondragstart = (event) => handleDragStart(event, heading);
     li.ondragover = (event) => handleDragOver(event);
     li.ondrop = (event) => handleDrop(event, heading);
+    li.ondragend = (event) => handleDragEnd(event);
+    li.ondragleave = (event) => handleDragLeave(event);
     li.oncontextmenu = (event) => handleContextMenu(event, heading);
     
     // Click handler for scrolling and selection
@@ -847,11 +860,17 @@ function toggleCollapse(listItem, level) {
 function handleDragStart(event, heading) {
     event.dataTransfer.setData('text/plain', JSON.stringify(heading)); // Pass heading data
     event.dataTransfer.effectAllowed = 'move';
+    
+    // Add visual feedback
+    event.target.classList.add('dragging');
 }
 
 function handleDragOver(event) {
     event.preventDefault(); // Necessary to allow dropping
     event.dataTransfer.dropEffect = 'move';
+    
+    // Add visual feedback to drop target
+    event.target.closest('li').classList.add('drag-over');
 }
 
 function handleDrop(event, targetHeading) {
@@ -935,6 +954,33 @@ function handleDrop(event, targetHeading) {
 
     } catch (e) {
         console.error("Error processing drop data:", e);
+    } finally {
+        // Clean up visual feedback classes
+        cleanupDragClasses();
+    }
+}
+
+function handleDragEnd(event) {
+    // Clean up visual feedback classes when drag ends
+    cleanupDragClasses();
+}
+
+function handleDragLeave(event) {
+    // Remove drag-over class when leaving a drop target
+    const target = event.target.closest('li');
+    if (target) {
+        target.classList.remove('drag-over');
+    }
+}
+
+function cleanupDragClasses() {
+    // Remove all drag-related classes from structure list items
+    const structureList = document.getElementById('structure-list');
+    if (structureList) {
+        const items = structureList.querySelectorAll('li');
+        items.forEach(item => {
+            item.classList.remove('dragging', 'drag-over');
+        });
     }
 }
 
