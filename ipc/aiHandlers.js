@@ -679,8 +679,8 @@ Generate the heading and bullet points only, nothing else.`;
         timeout: 15000
       };
       
-      // Truncate content if it's too long to avoid context overflow
-      const maxContentLength = 4000; // Conservative limit to leave room for prompts
+      // Truncate content aggressively to avoid context overflow with local models
+      const maxContentLength = 2500; // More conservative limit for local AI models
       const truncatedContent = content.length > maxContentLength 
         ? content.substring(0, maxContentLength) + "\n\n[Content truncated for summarization...]"
         : content;
@@ -720,19 +720,26 @@ Generate the heading and bullet points only, nothing else.`;
       console.error('[AIHandlers] Error generating document summaries:', error);
       
       // Check if it's a context length error and try with even shorter content
-      if (error.message && error.message.includes('context length')) {
+      const errorStr = JSON.stringify(error);
+      const isContextError = errorStr.includes('context length') || 
+                            errorStr.includes('context overflow') || 
+                            errorStr.includes('Reached context length') ||
+                            error.message?.includes('context length') ||
+                            error.message?.includes('context overflow');
+      
+      if (isContextError) {
         console.log('[AIHandlers] Context length error detected, trying with shorter content...');
         
         try {
-          const veryShortContent = content.substring(0, 2000) + "\n\n[Content heavily truncated for summarization...]";
+          const veryShortContent = content.substring(0, 1200) + "\n\n[Content heavily truncated for summarization...]";
           console.log(`[AIHandlers] Retrying with ${veryShortContent.length} chars`);
           
           const fallbackConfig = {
             provider: 'auto',
             model: 'auto',
             temperature: 0.3,
-            maxTokens: 300,
-            timeout: 10000
+            maxTokens: 200, // Very conservative
+            timeout: 8000
           };
           
           const shortPrompts = {
@@ -743,7 +750,7 @@ Generate the heading and bullet points only, nothing else.`;
           const paragraphResponse = await aiService.sendMessage(shortPrompts.paragraph, fallbackConfig);
           const sentenceResponse = await aiService.sendMessage(shortPrompts.sentence, {
             ...fallbackConfig,
-            maxTokens: 100
+            maxTokens: 50 // Very short for sentence summary
           });
           
           console.log('[AIHandlers] Fallback summaries generated successfully');
