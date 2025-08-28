@@ -670,33 +670,39 @@ Generate the heading and bullet points only, nothing else.`;
     console.log(`[AIHandlers] 🔍 Generating document summaries for content (${content.length} chars)`);
 
     try {
-      const aiSettings = appSettings.ai || {};
-      const provider = aiSettings.preferredProvider || 'auto';
-      const model = aiSettings.models?.[provider === 'auto' ? aiService.getDefaultProvider() : provider];
+      // Use Dr Chen assistant configuration for better summary quality
+      const chenConfig = {
+        provider: 'auto',
+        model: 'auto', 
+        temperature: 0.4, // Slightly higher for more nuanced summaries
+        maxTokens: 600,   // Reduced to handle context limits better
+        timeout: 15000
+      };
       
-      // Create prompts for different abstraction levels
+      // Truncate content if it's too long to avoid context overflow
+      const maxContentLength = 4000; // Conservative limit to leave room for prompts
+      const truncatedContent = content.length > maxContentLength 
+        ? content.substring(0, maxContentLength) + "\n\n[Content truncated for summarization...]"
+        : content;
+      
+      console.log(`[AIHandlers] Content length: ${content.length}, using: ${truncatedContent.length} chars`);
+      
+      // Create more concise prompts for different abstraction levels
       const prompts = {
-        paragraph: `Please provide a paragraph-level summary of the following document. Focus on the main ideas and key points, condensing the content while preserving the essential information:\n\n${content}`,
-        sentence: `Please provide a single-sentence summary that captures the core essence and main message of the following document:\n\n${content}`
+        paragraph: `Summarize the key points of this document in 2-3 paragraphs:\n\n${truncatedContent}`,
+        sentence: `Provide a single sentence that captures the main message of this document:\n\n${truncatedContent}`
       };
 
       const summaries = {};
       
-      // Generate paragraph summary
-      const paragraphResponse = await aiService.sendMessage(prompts.paragraph, {
-        provider,
-        model,
-        temperature: 0.3,
-        maxTokens: 800
-      });
+      // Generate paragraph summary with Dr Chen config
+      const paragraphResponse = await aiService.sendMessage(prompts.paragraph, chenConfig);
       summaries.paragraph = paragraphResponse.content;
 
-      // Generate sentence summary  
+      // Generate sentence summary with reduced token limit
       const sentenceResponse = await aiService.sendMessage(prompts.sentence, {
-        provider,
-        model,
-        temperature: 0.3,
-        maxTokens: 200
+        ...chenConfig,
+        maxTokens: 150 // Even more conservative for sentence summary
       });
       summaries.sentence = sentenceResponse.content;
 
@@ -712,6 +718,50 @@ Generate the heading and bullet points only, nothing else.`;
 
     } catch (error) {
       console.error('[AIHandlers] Error generating document summaries:', error);
+      
+      // Check if it's a context length error and try with even shorter content
+      if (error.message && error.message.includes('context length')) {
+        console.log('[AIHandlers] Context length error detected, trying with shorter content...');
+        
+        try {
+          const veryShortContent = content.substring(0, 2000) + "\n\n[Content heavily truncated for summarization...]";
+          console.log(`[AIHandlers] Retrying with ${veryShortContent.length} chars`);
+          
+          const fallbackConfig = {
+            provider: 'auto',
+            model: 'auto',
+            temperature: 0.3,
+            maxTokens: 300,
+            timeout: 10000
+          };
+          
+          const shortPrompts = {
+            paragraph: `Briefly summarize this text:\n\n${veryShortContent}`,
+            sentence: `One sentence summary:\n\n${veryShortContent}`
+          };
+          
+          const paragraphResponse = await aiService.sendMessage(shortPrompts.paragraph, fallbackConfig);
+          const sentenceResponse = await aiService.sendMessage(shortPrompts.sentence, {
+            ...fallbackConfig,
+            maxTokens: 100
+          });
+          
+          console.log('[AIHandlers] Fallback summaries generated successfully');
+          
+          return {
+            success: true,
+            paragraph: paragraphResponse.content,
+            sentence: sentenceResponse.content,
+            provider: paragraphResponse.provider,
+            model: paragraphResponse.model,
+            note: 'Content was truncated due to length constraints'
+          };
+        } catch (fallbackError) {
+          console.error('[AIHandlers] Fallback summary generation also failed:', fallbackError);
+          return { error: `Failed to generate summaries even with shorter content: ${fallbackError.message}` };
+        }
+      }
+      
       return { error: `Failed to generate summaries: ${error.message}` };
     }
   });
