@@ -2437,7 +2437,16 @@ async function initializeMonacoEditor() {
             // Trigger file restoration if we have restored content but didn't use it during initialization
             if (window.restoredFileContent && !initialContent) {
                 console.log('[renderer.js] Triggering delayed file restoration after Monaco initialization');
-                await openFileInEditor(window.restoredFileContent.path, window.restoredFileContent.content);
+                
+                if (window.restoredFileContent.isPDF) {
+                    // For PDFs, directly handle as PDF file instead of trying to load content
+                    console.log('[renderer.js] Restoring PDF file:', window.restoredFileContent.path);
+                    handlePDFFile(window.restoredFileContent.path);
+                } else {
+                    // For regular text files, load content into editor
+                    await openFileInEditor(window.restoredFileContent.path, window.restoredFileContent.content);
+                }
+                
                 // Clear the restored content flag
                 window.restoredFileContent = null;
             }
@@ -2655,30 +2664,43 @@ async function loadAppSettings() {
         // Load the last opened file if it exists
         if (window.currentFilePath) {
             console.log('[renderer.js] Restoring last opened file:', window.currentFilePath);
-            try {
-                const result = await window.electronAPI.invoke('open-file-path', window.currentFilePath);
-                if (result.success) {
-                    console.log('[renderer.js] Successfully restored last opened file');
-                    // Store the content to be loaded into editor after Monaco is initialized
-                    window.restoredFileContent = {
-                        path: window.currentFilePath,
-                        content: result.content
-                    };
-                } else {
-                    console.warn('[renderer.js] Could not reopen last file:', result.error);
+            
+            // Check if it's a PDF file - handle differently
+            const isPDF = window.currentFilePath.endsWith('.pdf');
+            
+            if (isPDF) {
+                console.log('[renderer.js] Last file was a PDF - handling PDF restoration');
+                // For PDFs, we don't need to restore content, just open the PDF viewer
+                window.restoredFileContent = {
+                    path: window.currentFilePath,
+                    isPDF: true
+                };
+            } else {
+                try {
+                    const result = await window.electronAPI.invoke('open-file-path', window.currentFilePath);
+                    if (result.success) {
+                        console.log('[renderer.js] Successfully restored last opened file');
+                        // Store the content to be loaded into editor after Monaco is initialized
+                        window.restoredFileContent = {
+                            path: window.currentFilePath,
+                            content: result.content
+                        };
+                    } else {
+                        console.warn('[renderer.js] Could not reopen last file:', result.error);
+                        // File restoration failed - mark for default content fallback
+                        window.currentFilePath = null;
+                        window.hasFileToRestore = false;
+                        window.useDefaultContentFallback = true;
+                        await window.electronAPI.invoke('set-current-file', null);
+                    }
+                } catch (error) {
+                    console.error('[renderer.js] Error restoring last opened file:', error);
                     // File restoration failed - mark for default content fallback
                     window.currentFilePath = null;
                     window.hasFileToRestore = false;
                     window.useDefaultContentFallback = true;
                     await window.electronAPI.invoke('set-current-file', null);
                 }
-            } catch (error) {
-                console.error('[renderer.js] Error restoring last opened file:', error);
-                // File restoration failed - mark for default content fallback
-                window.currentFilePath = null;
-                window.hasFileToRestore = false;
-                window.useDefaultContentFallback = true;
-                await window.electronAPI.invoke('set-current-file', null);
             }
         }
 
@@ -3022,6 +3044,13 @@ function enterPDFOnlyMode() {
 
 function exitPDFOnlyMode() {
     console.log('[Renderer] Exiting PDF-only mode');
+    
+    // Remove PDF keyboard navigation
+    if (window.pdfKeyboardListener) {
+        document.removeEventListener('keydown', window.pdfKeyboardListener);
+        window.pdfKeyboardListener = null;
+        console.log('[PDF] Removed keyboard navigation listeners');
+    }
     
     // Restore the editor pane
     const editorPane = document.getElementById('editor-pane');
@@ -3592,6 +3621,61 @@ function updatePageInfo() {
 
 // Set up event handlers for PDF viewer
 function setupPDFEventHandlers() {
+    // Global keyboard navigation for PDFs
+    const addPDFKeyboardNavigation = () => {
+        // Remove existing PDF keyboard listeners
+        if (window.pdfKeyboardListener) {
+            document.removeEventListener('keydown', window.pdfKeyboardListener);
+        }
+        
+        window.pdfKeyboardListener = (e) => {
+            // Only handle keyboard events when PDF is visible and no input is focused
+            const isPDFVisible = document.querySelector('.pdf-viewer') && 
+                                  document.querySelector('.pdf-viewer').style.display !== 'none';
+            const isInputFocused = document.activeElement && 
+                                   (document.activeElement.tagName === 'INPUT' || 
+                                    document.activeElement.tagName === 'TEXTAREA' ||
+                                    document.activeElement.isContentEditable);
+            
+            if (!isPDFVisible || isInputFocused) return;
+            
+            switch (e.key) {
+                case 'ArrowUp':
+                case 'PageUp':
+                    e.preventDefault();
+                    if (pdfViewerState.currentPage > 1) {
+                        renderPage(pdfViewerState.currentPage - 1);
+                    }
+                    break;
+                    
+                case 'ArrowDown':  
+                case 'PageDown':
+                case ' ': // Spacebar
+                    e.preventDefault();
+                    if (pdfViewerState.currentPage < pdfViewerState.totalPages) {
+                        renderPage(pdfViewerState.currentPage + 1);
+                    }
+                    break;
+                    
+                case 'Home':
+                    e.preventDefault();
+                    renderPage(1);
+                    break;
+                    
+                case 'End':
+                    e.preventDefault();
+                    renderPage(pdfViewerState.totalPages);
+                    break;
+            }
+        };
+        
+        document.addEventListener('keydown', window.pdfKeyboardListener);
+        console.log('[PDF] Added keyboard navigation listeners');
+    };
+    
+    // Add keyboard navigation
+    addPDFKeyboardNavigation();
+    
     // Search input
     const searchInput = document.getElementById('pdf-search-input');
     if (searchInput) {
@@ -3756,10 +3840,18 @@ async function createFallbackEditor() {
     
     // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
     if (window.restoredFileContent) {
-        textarea.value = window.restoredFileContent.content;
-        console.log('[renderer.js] Using restored file content for fallback editor');
-        // Clear the restored content flag
-        window.restoredFileContent = null;
+        if (window.restoredFileContent.isPDF) {
+            // For PDFs, don't try to load binary content into textarea, handle as PDF
+            console.log('[renderer.js] Restored file was a PDF - handling PDF restoration');
+            handlePDFFile(window.restoredFileContent.path);
+            window.restoredFileContent = null;
+            return; // Exit early, PDF doesn't need fallback editor
+        } else {
+            textarea.value = window.restoredFileContent.content;
+            console.log('[renderer.js] Using restored file content for fallback editor');
+            // Clear the restored content flag
+            window.restoredFileContent = null;
+        }
     } else if (!window.hasFileToRestore || window.useDefaultContentFallback) {
         textarea.value = '# Welcome!\n\nStart typing your Markdown here.';
         if (window.useDefaultContentFallback) {
