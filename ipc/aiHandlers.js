@@ -655,7 +655,67 @@ Generate the heading and bullet points only, nothing else.`;
     }
   });
 
-  console.log('[AIHandlers] Registered 17 AI service handlers');
+  // Document Summaries for Preview Zoom and Circle modules
+  ipcMain.handle('generate-document-summaries', async (event, { content, filePath }) => {
+    if (!aiService || aiService.getAvailableProviders().length === 0) {
+      console.error('[AIHandlers] AI Service not available. Cannot generate document summaries.');
+      return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
+    }
+
+    if (!content || typeof content !== 'string' || content.trim() === '') {
+      console.error('[AIHandlers] No content provided for document summaries.');
+      return { error: 'No content provided for summarization.' };
+    }
+
+    console.log(`[AIHandlers] 🔍 Generating document summaries for content (${content.length} chars)`);
+
+    try {
+      const aiSettings = appSettings.ai || {};
+      const provider = aiSettings.preferredProvider || 'auto';
+      const model = aiSettings.models?.[provider === 'auto' ? aiService.getDefaultProvider() : provider];
+      
+      // Create prompts for different abstraction levels
+      const prompts = {
+        paragraph: `Please provide a paragraph-level summary of the following document. Focus on the main ideas and key points, condensing the content while preserving the essential information:\n\n${content}`,
+        sentence: `Please provide a single-sentence summary that captures the core essence and main message of the following document:\n\n${content}`
+      };
+
+      const summaries = {};
+      
+      // Generate paragraph summary
+      const paragraphResponse = await aiService.sendMessage(prompts.paragraph, {
+        provider,
+        model,
+        temperature: 0.3,
+        maxTokens: 800
+      });
+      summaries.paragraph = paragraphResponse.content;
+
+      // Generate sentence summary  
+      const sentenceResponse = await aiService.sendMessage(prompts.sentence, {
+        provider,
+        model,
+        temperature: 0.3,
+        maxTokens: 200
+      });
+      summaries.sentence = sentenceResponse.content;
+
+      console.log(`[AIHandlers] Document summaries generated using ${paragraphResponse.provider}`);
+      
+      return {
+        success: true,
+        summaries,
+        provider: paragraphResponse.provider,
+        model: paragraphResponse.model
+      };
+
+    } catch (error) {
+      console.error('[AIHandlers] Error generating document summaries:', error);
+      return { error: `Failed to generate summaries: ${error.message}` };
+    }
+  });
+
+  console.log('[AIHandlers] Registered 18 AI service handlers');
 }
 
 module.exports = {
