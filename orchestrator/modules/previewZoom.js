@@ -9,7 +9,6 @@ class PreviewZoom {
         this.summarySentence = null;
         this.currentFilePath = null;
         this.summariesGenerated = false;
-        this.aiEnabled = true; // Will be configurable
         this.controls = null;
         this.isInitialized = false;
         this.updatingControls = false; // Prevent recursive updates
@@ -353,15 +352,7 @@ class PreviewZoom {
                 </div>
                 
                 ${this.isEnabled ? `
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: ${darkMode ? '#999' : '#666'};">
-                            <input type="checkbox" 
-                                   id="preview-ai-summaries" 
-                                   ${this.aiEnabled ? 'checked' : ''} 
-                                   onchange="window.previewZoom.toggleAI(this.checked)">
-                            <span>AI</span>
-                        </label>
-                        
+                    <div style="display: flex; align-items: center; gap: 12px;">
                         <button 
                             id="preview-regenerate-summaries" 
                             onclick="window.previewZoom.regenerateSummaries()" 
@@ -428,7 +419,7 @@ class PreviewZoom {
                 this.summarySentence = null;
                 
                 // Generate summaries in background if enabled
-                if (this.isEnabled && this.aiEnabled) {
+                if (this.isEnabled) {
                     this.generateSummaries(textContent);
                 }
             }
@@ -455,7 +446,6 @@ class PreviewZoom {
         
         console.log('[PreviewZoom] 🚀 Starting summary generation for preview...', {
             filePath: this.currentFilePath,
-            aiEnabled: this.aiEnabled,
             contentLength: this.originalContent?.length
         });
         
@@ -894,19 +884,6 @@ class PreviewZoom {
             console.log('[PreviewZoom] 🔄 Feature disabled, resetting to original');
             this.resetToOriginal();
         }
-    }
-    
-    toggleAI(enabled) {
-        console.log('[PreviewZoom] 🤖 AI toggle changed via inline handler:', enabled);
-        this.aiEnabled = enabled;
-        console.log('[PreviewZoom] AI summaries', this.aiEnabled ? 'enabled' : 'disabled');
-        
-        // Regenerate summaries if toggled on
-        if (this.aiEnabled && !this.summariesGenerated && this.originalContent) {
-            this.generateSummaries();
-        }
-        
-        this.updateControlsContent();
     }
     
     // Manual test function
