@@ -118,7 +118,7 @@ class PreviewZoom {
     }
 
     addControls() {
-        // Create zoom controls toolbar at the top of preview pane
+        // Create zoom controls toolbar at the bottom of preview pane
         const previewPane = document.getElementById('preview-pane');
         if (!previewPane) {
             console.warn('[PreviewZoom] Preview pane not found');
@@ -138,7 +138,7 @@ class PreviewZoom {
             position: relative;
             width: 100%;
             background: ${document.body.classList.contains('dark-mode') ? '#2d2d2d' : '#f8f9fa'};
-            border-bottom: 1px solid ${document.body.classList.contains('dark-mode') ? '#444' : '#e1e4e8'};
+            border-top: 1px solid ${document.body.classList.contains('dark-mode') ? '#444' : '#e1e4e8'};
             padding: 8px 12px;
             font-size: 12px;
             display: none;
@@ -146,9 +146,9 @@ class PreviewZoom {
             z-index: 100;
         `;
 
-        // Insert toolbar at the beginning of preview pane
+        // Insert toolbar at the end of preview pane
         this.updateControlsContent();
-        previewPane.insertBefore(this.controls, previewPane.firstChild);
+        previewPane.appendChild(this.controls);
         
         // Add scroll listener for scroll-based navigation
         this.addScrollNavigation();
