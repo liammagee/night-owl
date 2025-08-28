@@ -704,7 +704,8 @@ Generate the heading and bullet points only, nothing else.`;
       
       return {
         success: true,
-        summaries,
+        paragraph: summaries.paragraph,
+        sentence: summaries.sentence,
         provider: paragraphResponse.provider,
         model: paragraphResponse.model
       };
