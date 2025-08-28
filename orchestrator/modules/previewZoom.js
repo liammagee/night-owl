@@ -344,10 +344,6 @@ class PreviewZoom {
                                        style="width: 120px; height: 4px; background: #ddd; border-radius: 2px; outline: none; -webkit-appearance: none;">
                             </div>
                         </div>
-                        
-                        <div style="font-size: 10px; color: ${darkMode ? '#d4d4d4' : '#333'}; font-weight: 500;">
-                            ${this.getZoomLevelDescription()}
-                        </div>
                     ` : ''}
                 </div>
                 
@@ -813,14 +809,6 @@ class PreviewZoom {
         }, 150);
     }
 
-    getZoomLevelDescription() {
-        switch(this.currentZoomLevel) {
-            case 0: return 'Full Text - Complete Document';
-            case 1: return 'Summary - Key Points';
-            case 2: return 'Essence - Core Idea';
-            default: return 'Unknown Level';
-        }
-    }
 
     destroy() {
         if (this.controls) {
