@@ -513,12 +513,16 @@ Generate the heading and bullet points only, nothing else.`;
 
   // System Prompt File Browser
   ipcMain.handle('browse-system-prompt-file', async (event) => {
-    if (!mainWindow) {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    
+    if (!currentMainWindow) {
+      console.error('[AIHandlers] No main window available for prompt file dialog');
       return { success: false, error: 'No main window available' };
     }
 
     try {
-      const result = await dialog.showOpenDialog(mainWindow, {
+      const result = await dialog.showOpenDialog(currentMainWindow, {
         title: 'Select System Prompt File',
         properties: ['openFile'],
         filters: [

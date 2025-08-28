@@ -130,10 +130,16 @@ function register(deps) {
   });
 
   ipcMain.handle('change-working-directory', async () => {
-    if (!mainWindow) return { success: false, error: 'No main window available' };
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    
+    if (!currentMainWindow) {
+      console.error('[FileHandlers] No main window available for directory dialog');
+      return { success: false, error: 'No main window available' };
+    }
     
     try {
-      const result = await dialog.showOpenDialog(mainWindow, {
+      const result = await dialog.showOpenDialog(currentMainWindow, {
         properties: ['openDirectory'],
         title: 'Select Working Directory',
         defaultPath: appSettings.workingDirectory
@@ -403,7 +409,11 @@ function register(deps) {
   });
 
   ipcMain.handle('perform-save-as', async (event, options) => {
-    if (!mainWindow) {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    
+    if (!currentMainWindow) {
+      console.error('[FileHandlers] No main window available for save dialog');
       return { success: false, error: 'No main window available' };
     }
 
@@ -411,7 +421,7 @@ function register(deps) {
       const { content, suggestedName } = options;
       const workingDir = getWorkingDirectory();
       
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await dialog.showSaveDialog(currentMainWindow, {
         title: 'Save File As',
         defaultPath: path.join(workingDir, suggestedName || 'untitled.md'),
         filters: [
@@ -685,12 +695,16 @@ function register(deps) {
 
   // Confirmation Dialog
   ipcMain.handle('show-delete-confirm', async (event, { fileName, filePath }) => {
-    if (!mainWindow) {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    
+    if (!currentMainWindow) {
+      console.error('[FileHandlers] No main window available for delete dialog');
       return { success: false, error: 'No main window available' };
     }
 
     try {
-      const result = await dialog.showMessageBox(mainWindow, {
+      const result = await dialog.showMessageBox(currentMainWindow, {
         type: 'warning',
         title: 'Delete File',
         message: `Are you sure you want to delete "${fileName}"?`,
