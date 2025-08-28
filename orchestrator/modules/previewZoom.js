@@ -21,9 +21,10 @@ class PreviewZoom {
         // Summary caching system (shared between preview and circle views)
         if (!window.sharedSummaryCache) {
             window.sharedSummaryCache = new Map(); // filePath -> { contentHash, summaries, timestamp }
+            this.loadPersistentCache(); // Load cache from localStorage on first initialization
         }
         this.summaryCache = window.sharedSummaryCache;
-        this.cacheExpiryMs = 24 * 60 * 60 * 1000; // 24 hours
+        this.cacheExpiryMs = 7 * 24 * 60 * 60 * 1000; // 7 days (longer for persistent cache)
         this.changeThreshold = 0.15; // 15% content change triggers refresh
     }
 
@@ -73,26 +74,94 @@ class PreviewZoom {
         // Check expiry
         const now = Date.now();
         if (now - cached.timestamp > this.cacheExpiryMs) {
-            // console.log('[PreviewZoom] Cache expired for', filePath);
+            console.log(`[PreviewZoom] Cache expired for ${filePath} (${Math.round((now - cached.timestamp) / (24 * 60 * 60 * 1000))} days old)`);
+            this.summaryCache.delete(filePath); // Clean up expired cache
             return false;
         }
         
-        // Check content similarity
+        // For persistent cache entries without originalContent, do a simpler validation
+        if (!cached.originalContent) {
+            // Check if content length changed significantly (rough heuristic)
+            const lengthChange = Math.abs(currentContent.length - (cached.contentLength || 0));
+            const lengthChangeRatio = lengthChange / Math.max(currentContent.length, cached.contentLength || 1);
+            
+            if (lengthChangeRatio > this.changeThreshold) {
+                console.log(`[PreviewZoom] Content length changed significantly for ${filePath} (${lengthChangeRatio.toFixed(2)} ratio)`);
+                return false;
+            }
+            
+            // For persistent cache, be more lenient since we can't do full content comparison
+            console.log(`[PreviewZoom] Using persistent cached summaries for ${filePath}`);
+            return true;
+        }
+        
+        // Check content similarity for in-memory cache entries
         const similarity = this.calculateContentSimilarity(cached.originalContent, currentContent);
         const hasSignificantChange = similarity < (1 - this.changeThreshold);
         
         if (hasSignificantChange) {
-            // console.log(`[PreviewZoom] Significant content change detected for ${filePath}`);
+            console.log(`[PreviewZoom] Significant content change detected for ${filePath} (similarity: ${similarity.toFixed(2)})`);
             return false;
         }
         
-        // console.log(`[PreviewZoom] Using cached summaries for ${filePath}`);
+        console.log(`[PreviewZoom] Using cached summaries for ${filePath} (similarity: ${similarity.toFixed(2)})`);
         return true;
     }
 
-    // Save summaries to cache
+    // Load persistent cache from localStorage
+    loadPersistentCache() {
+        try {
+            const persistentCache = localStorage.getItem('hegel-summary-cache');
+            if (persistentCache) {
+                const cacheData = JSON.parse(persistentCache);
+                const now = Date.now();
+                
+                // Load non-expired entries into the in-memory cache
+                let loadedCount = 0;
+                Object.entries(cacheData).forEach(([filePath, data]) => {
+                    if (now - data.timestamp < this.cacheExpiryMs) {
+                        // For persistent cache entries, we don't have originalContent 
+                        // but we'll add it when the file is loaded
+                        const cacheEntry = {
+                            ...data,
+                            originalContent: null // Will be filled when content is loaded
+                        };
+                        window.sharedSummaryCache.set(filePath, cacheEntry);
+                        loadedCount++;
+                    }
+                });
+                
+                console.log(`[PreviewZoom] Loaded ${loadedCount} cached summaries from persistent storage`);
+            }
+        } catch (error) {
+            console.warn('[PreviewZoom] Failed to load persistent cache:', error);
+        }
+    }
+
+    // Save in-memory cache to localStorage
+    savePersistentCache() {
+        try {
+            const cacheObj = {};
+            this.summaryCache.forEach((value, key) => {
+                // Don't store the full originalContent in persistent cache to save space
+                cacheObj[key] = {
+                    contentHash: value.contentHash,
+                    summaries: value.summaries,
+                    timestamp: value.timestamp,
+                    // Store content length for validation
+                    contentLength: value.originalContent ? value.originalContent.length : 0
+                };
+            });
+            localStorage.setItem('hegel-summary-cache', JSON.stringify(cacheObj));
+            console.log(`[PreviewZoom] Saved ${Object.keys(cacheObj).length} summaries to persistent storage`);
+        } catch (error) {
+            console.warn('[PreviewZoom] Failed to save persistent cache:', error);
+        }
+    }
+
+    // Save summaries to cache (both in-memory and persistent)
     cacheSummaries(filePath, content, summaryParagraph, summarySentence) {
-        this.summaryCache.set(filePath, {
+        const cacheEntry = {
             contentHash: this.generateContentHash(content),
             originalContent: content,
             summaries: {
@@ -100,17 +169,33 @@ class PreviewZoom {
                 sentence: summarySentence
             },
             timestamp: Date.now()
-        });
-        // console.log(`[PreviewZoom] Cached summaries for ${filePath}`);
+        };
+        
+        this.summaryCache.set(filePath, cacheEntry);
+        
+        // Save to persistent storage (debounced to avoid excessive writes)
+        clearTimeout(this.persistentCacheTimeout);
+        this.persistentCacheTimeout = setTimeout(() => {
+            this.savePersistentCache();
+        }, 1000);
+        
+        console.log(`[PreviewZoom] Cached summaries for ${filePath} (${content.length} chars)`);
     }
 
     // Load summaries from cache
-    loadCachedSummaries(filePath) {
+    loadCachedSummaries(filePath, currentContent = null) {
         const cached = this.summaryCache.get(filePath);
         if (cached) {
             this.summaryParagraph = cached.summaries.paragraph;
             this.summarySentence = cached.summaries.sentence;
             this.summariesGenerated = true;
+            
+            // If we have current content and this is a persistent cache entry, update it with full content
+            if (currentContent && !cached.originalContent) {
+                cached.originalContent = currentContent;
+                cached.contentLength = currentContent.length;
+            }
+            
             return true;
         }
         return false;
@@ -406,8 +491,13 @@ class PreviewZoom {
             // Check if we have valid cached summaries
             if (this.areCachedSummariesValid(filePath, textContent)) {
                 // Load from cache
-                this.loadCachedSummaries(filePath);
+                this.loadCachedSummaries(filePath, textContent);
                 console.log('[PreviewZoom] Loaded summaries from cache');
+                
+                // Update preview content if we're currently showing summaries
+                if (this.isEnabled && this.currentZoomLevel > 0) {
+                    this.updatePreviewContent();
+                }
             } else {
                 // Need to regenerate summaries
                 this.summariesGenerated = false;
@@ -491,10 +581,25 @@ class PreviewZoom {
                     paragraphLength: this.summaryParagraph?.length,
                     sentenceLength: this.summarySentence?.length
                 });
+                
+                // Update UI to show the generated summaries
+                this.updateControlsContent();
+                
+                // Update preview content if we're currently showing summaries
+                if (this.isEnabled && this.currentZoomLevel > 0) {
+                    this.updatePreviewContent();
+                }
             } else {
                 console.warn('[PreviewZoom] ⚠️ AI summary generation failed, using fallback:', summaryResult?.error);
                 // Fallback to simple text truncation
                 this.generateFallbackSummaries(textContent);
+                // Update UI to show fallback summaries
+                this.updateControlsContent();
+                
+                // Update preview content if we're currently showing summaries
+                if (this.isEnabled && this.currentZoomLevel > 0) {
+                    this.updatePreviewContent();
+                }
             }
         } catch (error) {
             console.error('[PreviewZoom] ❌ Error generating summaries:', error);
@@ -505,10 +610,14 @@ class PreviewZoom {
                 textContent = tempDiv.textContent || tempDiv.innerText || '';
             }
             this.generateFallbackSummaries(textContent);
+            // Update UI to show fallback summaries  
+            this.updateControlsContent();
+            
+            // Update preview content if we're currently showing summaries
+            if (this.isEnabled && this.currentZoomLevel > 0) {
+                this.updatePreviewContent();
+            }
         }
-
-        // Update UI with final state
-        this.updateControlsContent();
     }
 
     generateFallbackSummaries(textContent) {

@@ -669,44 +669,92 @@ Generate the heading and bullet points only, nothing else.`;
 
     console.log(`[AIHandlers] 🔍 Generating document summaries for content (${content.length} chars)`);
 
-    try {
-      // Use Dr Chen assistant configuration for better summary quality
-      const chenConfig = {
-        provider: 'auto',
-        model: 'auto', 
-        temperature: 0.4, // Slightly higher for more nuanced summaries
-        maxTokens: 600,   // Reduced to handle context limits better
-        timeout: 15000
-      };
+    // Set up timeout wrapper for the entire operation (increased for local models)
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Summary generation timed out after 90 seconds')), 90000);
+    });
+
+    const generateSummaries = async () => {
+      try {
+        // Debug: Check what settings are available
+        console.log('[AIHandlers] Available AI settings:', JSON.stringify(appSettings.ai, null, 2));
+        
+        // Try to use Dr Chen's configured settings first
+        const chenSettings = appSettings.ai?.assistants?.chen?.aiSettings;
+        let provider, model, temperature, maxTokens, systemMessage;
+        
+        if (chenSettings) {
+          console.log('[AIHandlers] Found Dr Chen settings:', JSON.stringify(chenSettings, null, 2));
+          provider = chenSettings.provider !== 'auto' ? chenSettings.provider : undefined;
+          model = chenSettings.model !== 'auto' ? chenSettings.model : undefined;
+          temperature = chenSettings.temperature || 0.8;
+          maxTokens = Math.min(chenSettings.maxTokens || 1000, 800); // Cap for summaries
+          systemMessage = appSettings.ai?.assistants?.chen?.systemPrompt;
+        } else {
+          console.log('[AIHandlers] No Dr Chen settings found, using general AI settings');
+          const aiSettings = appSettings.ai || {};
+          provider = aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined;
+          model = aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined;
+          temperature = 0.3;
+          maxTokens = 800;
+        }
+        
+        console.log(`[AIHandlers] Using provider: ${provider || 'auto'}, model: ${model || 'auto'}, temperature: ${temperature}`);
       
-      // Truncate content aggressively to avoid context overflow with local models
-      const maxContentLength = 2500; // More conservative limit for local AI models
+      // Truncate content for local models to prevent context issues
+      const actualProvider = provider || aiService.getDefaultProvider();
+      const isLocalProvider = actualProvider === 'local' || actualProvider === 'lmstudio';
+      const maxContentLength = isLocalProvider ? 2000 : 8000; // Much shorter for local models
+      
       const truncatedContent = content.length > maxContentLength 
         ? content.substring(0, maxContentLength) + "\n\n[Content truncated for summarization...]"
         : content;
-      
-      console.log(`[AIHandlers] Content length: ${content.length}, using: ${truncatedContent.length} chars`);
-      
-      // Create more concise prompts for different abstraction levels
+        
+      console.log(`[AIHandlers] Content length: ${content.length}, using: ${truncatedContent.length} chars for ${actualProvider}`);
+
+      // Create prompts for different abstraction levels
       const prompts = {
-        paragraph: `Summarize the key points of this document in 2-3 paragraphs:\n\n${truncatedContent}`,
-        sentence: `Provide a single sentence that captures the main message of this document:\n\n${truncatedContent}`
+        paragraph: `Please provide a paragraph-level summary of the following document. Focus on the main ideas and key points, condensing the content while preserving the essential information:\n\n${truncatedContent}`,
+        sentence: `Please provide a single-sentence summary that captures the core essence and main message of the following document:\n\n${truncatedContent}`
       };
 
       const summaries = {};
       
-      // Generate paragraph summary with Dr Chen config
-      const paragraphResponse = await aiService.sendMessage(prompts.paragraph, chenConfig);
-      summaries.paragraph = paragraphResponse.content;
+      const requestOptions = {
+        provider,
+        model,
+        temperature,
+        maxTokens: isLocalProvider ? Math.min(maxTokens, 400) : maxTokens, // Reduce tokens for local
+        timeout: isLocalProvider ? 60000 : 20000, // Longer timeout for local models
+        newConversation: true // Force new conversation for each request
+      };
+      
+      // Add system message if available (for Dr Chen)
+      if (systemMessage) {
+        requestOptions.systemMessage = systemMessage;
+      }
+      
+      console.log('[AIHandlers] Request options:', requestOptions);
+      
+      // Generate paragraph summary
+      const paragraphResponse = await aiService.sendMessage(prompts.paragraph, requestOptions);
+      console.log('[AIHandlers] Paragraph response:', JSON.stringify(paragraphResponse, null, 2));
+      summaries.paragraph = paragraphResponse.content || paragraphResponse.response;
 
-      // Generate sentence summary with reduced token limit
+      // Generate sentence summary  
       const sentenceResponse = await aiService.sendMessage(prompts.sentence, {
-        ...chenConfig,
-        maxTokens: 150 // Even more conservative for sentence summary
+        ...requestOptions,
+        maxTokens: isLocalProvider ? 100 : 200 // Even smaller for sentence
       });
-      summaries.sentence = sentenceResponse.content;
+      console.log('[AIHandlers] Sentence response:', JSON.stringify(sentenceResponse, null, 2));
+      summaries.sentence = sentenceResponse.content || sentenceResponse.response;
 
-      console.log(`[AIHandlers] Document summaries generated using ${paragraphResponse.provider}`);
+      console.log(`[AIHandlers] Final summaries - paragraph: "${summaries.paragraph?.substring(0, 100)}...", sentence: "${summaries.sentence?.substring(0, 100)}..."`);
+      
+      if (!summaries.paragraph || !summaries.sentence) {
+        console.error('[AIHandlers] Missing summaries! paragraph:', !!summaries.paragraph, 'sentence:', !!summaries.sentence);
+        return { error: 'Failed to generate summaries - responses were empty' };
+      }
       
       return {
         success: true,
@@ -770,6 +818,17 @@ Generate the heading and bullet points only, nothing else.`;
       }
       
       return { error: `Failed to generate summaries: ${error.message}` };
+      }
+    };
+    
+    try {
+      return await Promise.race([generateSummaries(), timeoutPromise]);
+    } catch (error) {
+      if (error.message.includes('timed out')) {
+        console.error('[AIHandlers] Summary generation timed out');
+        return { error: 'Summary generation timed out. Please try again with shorter content.' };
+      }
+      throw error;
     }
   });
 
