@@ -243,12 +243,21 @@ class PreviewZoom {
     
     addScrollNavigation() {
         // Use a more resilient approach - wait for content to be available
+        let retryCount = 0;
+        const maxRetries = 50; // Maximum 5 seconds of retrying (50 * 100ms)
+        
         const tryAddListener = () => {
             const previewContent = document.getElementById('preview-content');
             if (!previewContent) {
-                console.log('[PreviewZoom] Preview content not found, retrying...');
-                setTimeout(tryAddListener, 100);
-                return;
+                if (retryCount < maxRetries) {
+                    console.log('[PreviewZoom] Preview content not found, retrying...', retryCount + 1);
+                    retryCount++;
+                    setTimeout(tryAddListener, 100);
+                    return;
+                } else {
+                    console.warn('[PreviewZoom] Max retries reached for scroll navigation setup');
+                    return;
+                }
             }
             
             console.log('[PreviewZoom] Adding scroll listener to preview content');
@@ -320,12 +329,21 @@ class PreviewZoom {
     
     addKeyboardNavigation() {
         // Use a similar resilient approach for keyboard events
+        let keyRetryCount = 0;
+        const maxKeyRetries = 50; // Maximum 5 seconds of retrying (50 * 100ms)
+        
         const tryAddKeyListener = () => {
             const previewContent = document.getElementById('preview-content');
             if (!previewContent) {
-                console.log('[PreviewZoom] Preview content not found for keyboard, retrying...');
-                setTimeout(tryAddKeyListener, 100);
-                return;
+                if (keyRetryCount < maxKeyRetries) {
+                    console.log('[PreviewZoom] Preview content not found for keyboard, retrying...', keyRetryCount + 1);
+                    keyRetryCount++;
+                    setTimeout(tryAddKeyListener, 100);
+                    return;
+                } else {
+                    console.warn('[PreviewZoom] Max retries reached for keyboard navigation setup');
+                    return;
+                }
             }
             
             console.log('[PreviewZoom] Adding keyboard listener to preview content');

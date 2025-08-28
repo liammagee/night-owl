@@ -692,7 +692,7 @@ window.exportVisualizationAsPNG = function(elementId, filename) {
 window.addExportButton = function(containerId, targetElementId, buttonText = '📸 Export as PNG') {
     const container = document.getElementById(containerId);
     if (!container) {
-        console.error(`Container "${containerId}" not found`);
+        console.warn(`[ExportVisualization] Container "${containerId}" not found - skipping export button`);
         return;
     }
     

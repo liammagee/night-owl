@@ -5,6 +5,17 @@
 
 ---
 
+## Readings
+
+
+--- 
+
+## Assignments
+
+
+
+---
+
 
 ## Some Notes on Hegel
 

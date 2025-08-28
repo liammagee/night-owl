@@ -1001,7 +1001,7 @@ class GeminiProvider extends BaseProvider {
   constructor(genAI) {
     super();
     this.genAI = genAI;
-    this.imageGenerationSupport = true; // Gemini supports image generation
+    this.imageGenerationSupport = true; // Most Gemini models don't support image generation yet
   }
 
   async sendMessage(message, options) {
@@ -1022,14 +1022,22 @@ class GeminiProvider extends BaseProvider {
       const ai = new GoogleGenAI({
         apiKey: process.env.GEMINI_API_KEY,
       });
+      
+      // Only request image generation for models that support it
+      // Currently, most Gemini models are text-only
+      let supportsImageGeneration = false;
+      if (model == "gemini-2.5-flash-image-preview")
+        supportsImageGeneration = true; // Disable image generation for now
+      
       const config = {
         temperature: temperature,
         maxOutputTokens: maxTokens,
-        responseModalities: [
-            'IMAGE',
-            'TEXT',
-        ],
       };
+      
+      // Only add responseModalities if image generation is supported
+      if (supportsImageGeneration) {
+        config.responseModalities = ['IMAGE', 'TEXT'];
+      }
 
       // Prepare the message with images if provided
       const parts = [{ text: message }];
