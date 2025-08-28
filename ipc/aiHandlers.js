@@ -64,11 +64,15 @@ function register(deps) {
       
       const response = await aiService.sendMessage(userMessage, options);
       console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      if (response.images && response.images.length > 0) {
+        console.log(`[AIHandlers] 🖼️ Response includes ${response.images.length} image(s)`);
+      }
       
       return {
         response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
+        images: response.images, // Include images in IPC response
         usage: response.usage
       };
     } catch (error) {
@@ -92,11 +96,15 @@ function register(deps) {
     try {
       const response = await aiService.sendMessage(userMessage, options);
       console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      if (response.images && response.images.length > 0) {
+        console.log(`[AIHandlers] 🖼️ Response includes ${response.images.length} image(s)`);
+      }
       
       return {
         response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
+        images: response.images, // Include images in IPC response
         usage: response.usage
       };
     } catch (error) {
@@ -214,11 +222,15 @@ function register(deps) {
       
       const response = await aiService.sendMessage(enhancedPrompt, options);
       console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      if (response.images && response.images.length > 0) {
+        console.log(`[AIHandlers] 🖼️ Response includes ${response.images.length} image(s)`);
+      }
       
       return {
         response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
+        images: response.images, // Include images in IPC response
         usage: response.usage
       };
     } catch (error) {

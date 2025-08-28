@@ -33,8 +33,11 @@ if (process.argv.includes('--dev')) {
       ignored: [
         /node_modules|[\/\\]\./,
         /lectures[\/\\]/, // Ignore the lectures directory
+        /generated-images[\/\\]/, // Ignore the generated-images directory
         /\.md$/, // Ignore markdown files anywhere
-        /settings\.json$/ // Ignore settings file changes
+        /settings\.json$/, // Ignore settings file changes
+        /generated_image_.*\.(png|jpg|jpeg|gif|webp)$/, // Ignore generated images anywhere
+        /ENTER_FILE_NAME_.*\.(png|jpg|jpeg|gif|webp)$/ // Ignore any generated image files anywhere
       ]
     });
     console.log('[main.js] Electron auto-reload enabled for development - app files only');

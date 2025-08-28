@@ -6,3 +6,6 @@ Attention features in several areas.
 
 
 
+![generated_image_0](../generated-images/generated_image_0.png)
+
+![generated_image_2025-08-28T04-43-47_0](../generated-images/generated_image_2025-08-28T04-43-47_0.png)

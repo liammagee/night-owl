@@ -87,12 +87,9 @@ function applyFormatting(type) {
       break;
       
     case 'image':
-      newText = '![alt text](image-url)';
-      newSelection = new monaco.Range(
-        selection.startLineNumber, selection.startColumn + 2,
-        selection.endLineNumber, selection.endColumn + 10
-      );
-      break;
+      // Use file browser for image selection
+      handleImageInsertion();
+      return;
       
     case 'heading1':
       insertAtLineStart('# ', 'Heading 1');
@@ -379,6 +376,48 @@ function setupEditorFormatting() {
   console.log('[Editor Utils] Formatting toolbar setup completed');
 }
 
+// Handle image insertion with file browser
+async function handleImageInsertion() {
+  console.log('[Editor] Opening image file browser');
+  
+  try {
+    // Call the IPC handler to browse for image
+    const result = await window.electronAPI.invoke('browse-for-image');
+    
+    if (!result.success) {
+      if (!result.canceled) {
+        console.error('[Editor] Error browsing for image:', result.error);
+      }
+      return;
+    }
+    
+    console.log('[Editor] Image selected:', result.fileName);
+    
+    // Create the image markdown with the selected file
+    const altText = result.fileName.replace(/\.[^/.]+$/, ''); // Remove extension for alt text
+    const imagePath = result.relativePath || result.filePath; // Use relative path if available
+    const imageMarkdown = `![${altText}](${imagePath})`;
+    
+    // Insert the image markdown at current cursor position
+    const position = window.editor.getPosition();
+    window.editor.executeEdits('insert-image', [{
+      range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+      text: imageMarkdown
+    }]);
+    
+    // Focus the editor
+    window.editor.focus();
+    
+    // Update preview if available
+    if (window.updatePreviewAndStructure) {
+      await window.updatePreviewAndStructure(window.editor.getValue());
+    }
+    
+  } catch (error) {
+    console.error('[Editor] Error in image insertion:', error);
+  }
+}
+
 // Export functions to global scope for backward compatibility
 window.handleFormatText = handleFormatText;
 window.applyFormatting = applyFormatting;
@@ -394,3 +433,4 @@ window.goToLine = goToLine;
 window.findInEditor = findInEditor;
 window.replaceInEditor = replaceInEditor;
 window.setupEditorFormatting = setupEditorFormatting;
+window.handleImageInsertion = handleImageInsertion;

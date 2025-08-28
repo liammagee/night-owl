@@ -103,7 +103,11 @@ function addChatMessage(message, sender, isCommand = false, responseInfo = null,
     messageDiv.appendChild(contentSpan);
 
     // Add images if provided
+    console.log('[addChatMessage] 🔍 DEBUG: Images parameter received:', images);
+    console.log('[addChatMessage] 🔍 DEBUG: Images type:', typeof images);
+    console.log('[addChatMessage] 🔍 DEBUG: Images length:', images?.length);
     if (images && images.length > 0) {
+        console.log('[addChatMessage] 🔍 DEBUG: Processing images for display - first image:', images[0]);
         const imagesContainer = document.createElement('div');
         imagesContainer.classList.add('terminal-images');
         imagesContainer.style.cssText = 'margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;';
@@ -311,7 +315,11 @@ async function sendChatMessage() {
             
             addChatMessage(userMessage, 'AI');
         } else if (result.response) {
-            addChatMessage(cleanAIResponse(result.response), 'AI', false, { provider: result.provider, model: result.model });
+            console.log('[AI Chat] 🔍 DEBUG: Full result object:', result);
+            console.log('[AI Chat] 🔍 DEBUG: result.images:', result.images);
+            console.log('[AI Chat] 🔍 DEBUG: images type:', typeof result.images);
+            console.log('[AI Chat] 🔍 DEBUG: images length:', result.images?.length);
+            addChatMessage(cleanAIResponse(result.response), 'AI', false, { provider: result.provider, model: result.model }, result.images);
         } else {
             addChatMessage('Received an empty response from the AI.', 'AI');
         }

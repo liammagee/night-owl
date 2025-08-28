@@ -521,6 +521,7 @@ function generateAISettings() {
                             <option value="auto" ${getAssistantProvider('ash') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
                             <option value="openai" ${getAssistantProvider('ash') === 'openai' ? 'selected' : ''}>OpenAI</option>
                             <option value="anthropic" ${getAssistantProvider('ash') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
+                            <option value="gemini" ${getAssistantProvider('ash') === 'gemini' ? 'selected' : ''}>Google Gemini</option>
                             <option value="groq" ${getAssistantProvider('ash') === 'groq' ? 'selected' : ''}>Groq</option>
                             <option value="openrouter" ${getAssistantProvider('ash') === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
                             <option value="local" ${getAssistantProvider('ash') === 'local' ? 'selected' : ''}>Local AI</option>
@@ -554,6 +555,7 @@ function generateAISettings() {
                             <option value="auto" ${getAssistantProvider('chen') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
                             <option value="openai" ${getAssistantProvider('chen') === 'openai' ? 'selected' : ''}>OpenAI</option>
                             <option value="anthropic" ${getAssistantProvider('chen') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
+                            <option value="gemini" ${getAssistantProvider('chen') === 'gemini' ? 'selected' : ''}>Google Gemini</option>
                             <option value="groq" ${getAssistantProvider('chen') === 'groq' ? 'selected' : ''}>Groq</option>
                             <option value="openrouter" ${getAssistantProvider('chen') === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
                             <option value="local" ${getAssistantProvider('chen') === 'local' ? 'selected' : ''}>Local AI</option>
@@ -1748,6 +1750,11 @@ function generateModelOptions(provider, selectedModel) {
             'claude-opus-4-1-20250805', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514',
             'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022',
             'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'
+        ],
+        gemini: [
+            'gemini-2.5-flash-image-preview', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 
+            'gemini-1.5-flash-8b', 'gemini-1.5-flash-002', 'gemini-1.5-pro', 'gemini-1.5-pro-002', 
+            'gemini-1.0-pro', 'gemini-pro-vision'
         ],
         groq: [
             'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-90b-text-preview',

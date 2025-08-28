@@ -804,6 +804,66 @@ function register(deps) {
       return [];
     }
   }
+
+  // Image File Browser Handler
+  ipcMain.handle('browse-for-image', async (event) => {
+    console.log('[FileHandlers] Browse for image dialog requested');
+    console.log('[FileHandlers] mainWindow available:', !!mainWindow);
+    
+    // Get current main window - try multiple approaches
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    
+    if (!currentMainWindow) {
+      console.error('[FileHandlers] No main window available - mainWindow:', !!mainWindow, 'focused:', !!BrowserWindow.getFocusedWindow(), 'total windows:', BrowserWindow.getAllWindows().length);
+      return { success: false, error: 'No main window available' };
+    }
+    
+    try {
+      // Default to generated-images directory
+      const generatedImagesDir = path.join(__dirname, '..', 'generated-images');
+      let defaultPath = getWorkingDirectory();
+      
+      // Check if generated-images directory exists and use it as default
+      try {
+        await fs.access(generatedImagesDir);
+        defaultPath = generatedImagesDir;
+        console.log('[FileHandlers] Using generated-images directory as default:', defaultPath);
+      } catch (error) {
+        console.log('[FileHandlers] Generated-images directory not found, using working directory');
+      }
+      
+      const result = await dialog.showOpenDialog(currentMainWindow, {
+        title: 'Select Image File',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'Image Files', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'] },
+          { name: 'All Files', extensions: ['*'] }
+        ],
+        properties: ['openFile']
+      });
+
+      if (result.canceled || !result.filePaths.length) {
+        return { success: false, canceled: true };
+      }
+
+      const selectedPath = result.filePaths[0];
+      const fileName = path.basename(selectedPath);
+      
+      console.log('[FileHandlers] Image selected:', selectedPath);
+      
+      return {
+        success: true,
+        filePath: selectedPath,
+        fileName: fileName,
+        relativePath: path.relative(getWorkingDirectory(), selectedPath)
+      };
+      
+    } catch (error) {
+      console.error('[FileHandlers] Error in browse-for-image:', error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 module.exports = {
