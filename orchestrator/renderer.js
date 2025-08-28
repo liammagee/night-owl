@@ -523,8 +523,9 @@ async function renderMarkdownContent(markdownContent) {
         htmlContent = await processInternalLinksHTML(htmlContent);
     }
     
-    // Apply preview zoom if available
-    if (window.previewZoom) {
+    // Apply preview zoom if available (but not for PDFs)
+    const isPDF = window.currentFilePath && window.currentFilePath.endsWith('.pdf');
+    if (window.previewZoom && !isPDF) {
         htmlContent = await window.previewZoom.onPreviewUpdate(window.currentFilePath, htmlContent);
     }
     
@@ -2884,11 +2885,26 @@ async function openFileInEditor(filePath, content, options = {}) {
         console.log('[openFileInEditor] Internal link preview mode');
     }
     
+    // Close image viewer if it's currently open
+    if (window.imageViewerOriginalContent) {
+        console.log('[openFileInEditor] Closing image viewer to show file content');
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            mainContent.innerHTML = window.imageViewerOriginalContent;
+            delete window.imageViewerOriginalContent;
+        }
+    }
+    
     // Detect file type
     const isPDF = filePath.endsWith('.pdf');
     const isHTML = filePath.endsWith('.html') || filePath.endsWith('.htm');
     const isBibTeX = filePath.endsWith('.bib');
     const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+    
+    // Exit PDF-only mode if we're opening a non-PDF file
+    if (!isPDF && !options.isInternalLinkPreview) {
+        exitPDFOnlyMode();
+    }
     
     // CRITICAL FIX: Only set current file path if this is NOT an internal link preview
     if (!options.isInternalLinkPreview) {
@@ -2947,21 +2963,39 @@ function enterPDFOnlyMode() {
     
     // Hide the editor pane
     const editorPane = document.getElementById('editor-pane');
-    const previewPane = document.getElementById('preview-pane');
+    const rightPane = document.getElementById('right-pane');
+    const resizer = document.getElementById('resizer');
     
     if (editorPane) {
         editorPane.style.display = 'none';
     }
     
-    // Expand preview pane to take the editor's space
-    if (previewPane) {
-        // Store original flex values for restoration
-        if (!previewPane.dataset.originalFlex) {
-            previewPane.dataset.originalFlex = previewPane.style.flex || '1';
+    // Hide the resizer between editor and preview
+    if (resizer) {
+        resizer.style.display = 'none';
+    }
+    
+    // Hide preview zoom controls (text abstraction feature)
+    const previewZoomControls = document.getElementById('preview-zoom-controls');
+    if (previewZoomControls) {
+        previewZoomControls.style.display = 'none';
+    }
+    
+    // Disable preview zoom functionality for PDFs
+    if (window.previewZoom) {
+        window.previewZoom.isEnabled = false;
+    }
+    
+    // Expand right pane (which contains preview) to take full width
+    if (rightPane) {
+        // Store original width for restoration
+        if (!rightPane.dataset.originalWidth) {
+            rightPane.dataset.originalWidth = rightPane.style.width || '';
+            rightPane.dataset.originalFlex = rightPane.style.flex || '';
         }
-        // Expand to take both editor and preview space
-        previewPane.style.flex = '2';
-        previewPane.style.minWidth = '60%';
+        // Make right pane take full width
+        rightPane.style.width = '100%';
+        rightPane.style.flex = '1';
     }
     
     // Add a visual indicator that we're in PDF-only mode
@@ -2991,17 +3025,30 @@ function exitPDFOnlyMode() {
     
     // Restore the editor pane
     const editorPane = document.getElementById('editor-pane');
-    const previewPane = document.getElementById('preview-pane');
+    const rightPane = document.getElementById('right-pane');
+    const resizer = document.getElementById('resizer');
     
     if (editorPane) {
         editorPane.style.display = '';
     }
     
-    // Restore preview pane to original size
-    if (previewPane && previewPane.dataset.originalFlex) {
-        previewPane.style.flex = previewPane.dataset.originalFlex;
-        previewPane.style.minWidth = '';
-        delete previewPane.dataset.originalFlex;
+    // Restore the resizer
+    if (resizer) {
+        resizer.style.display = '';
+    }
+    
+    // Restore preview zoom controls (text abstraction feature)
+    const previewZoomControls = document.getElementById('preview-zoom-controls');
+    if (previewZoomControls) {
+        previewZoomControls.style.display = '';
+    }
+    
+    // Restore right pane to original size
+    if (rightPane && rightPane.dataset.originalWidth !== undefined) {
+        rightPane.style.width = rightPane.dataset.originalWidth;
+        rightPane.style.flex = rightPane.dataset.originalFlex;
+        delete rightPane.dataset.originalWidth;
+        delete rightPane.dataset.originalFlex;
     }
     
     // Remove PDF-only indicator
@@ -3015,23 +3062,25 @@ function exitPDFOnlyMode() {
 function handlePDFFile(filePath) {
     console.log('[Renderer] Handling PDF file:', filePath);
     
+    // Enter PDF-only mode immediately to hide editor and text abstraction controls
+    enterPDFOnlyMode();
+    
     // Check for associated Markdown file
     const baseName = filePath.replace(/\.pdf$/i, '');
     const associatedMdFile = baseName + '.md';
     
     // Check if associated markdown file exists
     window.electronAPI.invoke('check-file-exists', associatedMdFile)
-        .then(exists => {
-            if (exists) {
+        .then(result => {
+            if (result.exists) {
                 console.log('[Renderer] Found associated markdown file:', associatedMdFile);
                 // Exit PDF-only mode and restore normal layout
                 exitPDFOnlyMode();
                 // Load the markdown file in the editor
                 return window.electronAPI.invoke('open-file-path', associatedMdFile);
             } else {
-                console.log('[Renderer] No associated markdown file found - entering PDF-only mode');
-                // Enter PDF-only mode (hide editor, expand preview)
-                enterPDFOnlyMode();
+                console.log('[Renderer] No associated markdown file found - staying in PDF-only mode');
+                // PDF-only mode already entered above
                 return null;
             }
         })

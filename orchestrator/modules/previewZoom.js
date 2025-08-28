@@ -487,11 +487,13 @@ class PreviewZoom {
             this.initialize();
         }
 
-        // Show controls only for markdown files
+        // Show controls only for markdown files, never for PDFs
         const isMarkdown = filePath && (filePath.endsWith('.md') || filePath.endsWith('.markdown'));
+        const isPDF = filePath && filePath.endsWith('.pdf');
         
         if (this.controls) {
-            this.controls.style.display = isMarkdown ? 'block' : 'none';
+            // Never show controls for PDFs, only for markdown files
+            this.controls.style.display = (isMarkdown && !isPDF) ? 'block' : 'none';
         }
 
         // Always store original content for markdown files, regardless of enabled state
