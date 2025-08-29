@@ -1090,7 +1090,7 @@ class GeminiProvider extends BaseProvider {
           continue;
         }
         
-        console.log('[GeminiProvider] 🔍 DEBUG: Chunk parts:', chunk.candidates[0].content.parts);
+        // console.log('[GeminiProvider] 🔍 DEBUG: Chunk parts:', chunk.candidates[0].content.parts);
         
         // Check all parts for images, not just the first one
         const parts = chunk.candidates[0].content.parts;

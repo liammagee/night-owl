@@ -247,6 +247,11 @@ async function renderMathInPresentation() {
 // All internal links functionality has been moved to modules/internalLinks.js
 // --- Update Function Definition ---
 async function updatePreviewAndStructure(markdownContent) {
+    // Ensure markdownContent is a string
+    if (typeof markdownContent !== 'string') {
+        markdownContent = markdownContent ? String(markdownContent) : '';
+    }
+    
     // Updating preview and structure
     
     // Check if we should suppress this preview update (for PDF/non-markdown files)
@@ -2278,7 +2283,8 @@ async function initializeMonacoEditor() {
                 addCommandPaletteAction();
             }, 100);
             
-            await updatePreviewAndStructure(editor.getValue());
+            const editorContent = editor.getValue() || '';
+            await updatePreviewAndStructure(editorContent);
             
             // Track previous content to detect changes
             let previousContent = editor.getValue();
@@ -3052,6 +3058,13 @@ function exitPDFOnlyMode() {
         console.log('[PDF] Removed keyboard navigation listeners');
     }
     
+    // Remove PDF wheel navigation
+    if (window.pdfWheelListener) {
+        document.removeEventListener('wheel', window.pdfWheelListener, { passive: false });
+        window.pdfWheelListener = null;
+        console.log('[PDF] Removed wheel navigation listeners');
+    }
+    
     // Restore the editor pane
     const editorPane = document.getElementById('editor-pane');
     const rightPane = document.getElementById('right-pane');
@@ -3463,8 +3476,8 @@ async function initializePDFViewer(filePath) {
     }
 }
 
-// Render a specific page
-async function renderPage(pageNum) {
+// Render a specific page with smooth transition
+async function renderPage(pageNum, smooth = true) {
     if (!pdfViewerState.doc) return;
     
     try {
@@ -3473,6 +3486,12 @@ async function renderPage(pageNum) {
         
         const canvas = pdfViewerState.canvas;
         const ctx = pdfViewerState.ctx;
+        
+        // Add smooth transition if enabled
+        if (smooth && pdfViewerState.currentPage !== pageNum) {
+            canvas.style.transition = 'opacity 0.2s ease-in-out';
+            canvas.style.opacity = '0.3';
+        }
         
         canvas.height = viewport.height;
         canvas.width = viewport.width;
@@ -3483,6 +3502,17 @@ async function renderPage(pageNum) {
         };
         
         await page.render(renderContext).promise;
+        
+        // Complete smooth transition
+        if (smooth && pdfViewerState.currentPage !== pageNum) {
+            setTimeout(() => {
+                canvas.style.opacity = '1';
+                // Remove transition after animation completes
+                setTimeout(() => {
+                    canvas.style.transition = '';
+                }, 200);
+            }, 50);
+        }
         
         pdfViewerState.currentPage = pageNum;
         updatePageInfo();
@@ -3630,8 +3660,8 @@ function setupPDFEventHandlers() {
         
         window.pdfKeyboardListener = (e) => {
             // Only handle keyboard events when PDF is visible and no input is focused
-            const isPDFVisible = document.querySelector('.pdf-viewer') && 
-                                  document.querySelector('.pdf-viewer').style.display !== 'none';
+            const pdfContainer = document.querySelector('.pdf-preview-container');
+            const isPDFVisible = pdfContainer && pdfContainer.style.display !== 'none';
             const isInputFocused = document.activeElement && 
                                    (document.activeElement.tagName === 'INPUT' || 
                                     document.activeElement.tagName === 'TEXTAREA' ||
@@ -3675,6 +3705,85 @@ function setupPDFEventHandlers() {
     
     // Add keyboard navigation
     addPDFKeyboardNavigation();
+    
+    // Add mouse wheel navigation for PDF pages
+    const addPDFWheelNavigation = () => {
+        // Remove existing PDF wheel listeners
+        if (window.pdfWheelListener) {
+            document.removeEventListener('wheel', window.pdfWheelListener, { passive: false });
+        }
+        
+        let wheelTimeout;
+        let wheelCooldown = false;
+        let accumulatedDelta = 0;
+        const DELTA_THRESHOLD = 100; // Require more significant scroll to change page
+        
+        window.pdfWheelListener = (e) => {
+            // Only handle wheel events when PDF is visible and over the PDF viewer
+            const pdfContainer = document.querySelector('.pdf-preview-container');
+            const pdfCanvas = document.getElementById('pdf-canvas');
+            
+            // Check if PDF is currently displayed
+            const isPDFVisible = pdfContainer && pdfCanvas && pdfCanvas.style.display !== 'none';
+            
+            // Check if wheel event is over the PDF viewer area (be more permissive)
+            const isOverPDFViewer = pdfContainer && (pdfContainer.contains(e.target) || e.target === pdfCanvas);
+            
+            if (!isPDFVisible || !isOverPDFViewer) {
+                return;
+            }
+            
+            // Prevent default scrolling behavior
+            e.preventDefault();
+            
+            // Skip if in cooldown
+            if (wheelCooldown) {
+                return;
+            }
+            
+            // Accumulate scroll delta
+            accumulatedDelta += e.deltaY;
+            
+            // Clear timeout for delta reset
+            clearTimeout(wheelTimeout);
+            wheelTimeout = setTimeout(() => {
+                accumulatedDelta = 0; // Reset accumulated delta after inactivity
+            }, 150);
+            
+            // Check if accumulated delta exceeds threshold
+            if (Math.abs(accumulatedDelta) >= DELTA_THRESHOLD) {
+                if (accumulatedDelta > 0) {
+                    // Scroll down - next page
+                    if (pdfViewerState.currentPage < pdfViewerState.totalPages) {
+                        renderPage(pdfViewerState.currentPage + 1);
+                        // Set cooldown after page change
+                        wheelCooldown = true;
+                        setTimeout(() => {
+                            wheelCooldown = false;
+                        }, 300); // Cooldown period after page change
+                    }
+                } else if (accumulatedDelta < 0) {
+                    // Scroll up - previous page
+                    if (pdfViewerState.currentPage > 1) {
+                        renderPage(pdfViewerState.currentPage - 1);
+                        // Set cooldown after page change
+                        wheelCooldown = true;
+                        setTimeout(() => {
+                            wheelCooldown = false;
+                        }, 300); // Cooldown period after page change
+                    }
+                }
+                // Reset accumulated delta after page change
+                accumulatedDelta = 0;
+            }
+        };
+        
+        document.addEventListener('wheel', window.pdfWheelListener, { passive: false });
+        console.log('[PDF] Added mouse wheel navigation listeners');
+    };
+    
+    // Add wheel navigation
+    addPDFWheelNavigation();
     
     // Search input
     const searchInput = document.getElementById('pdf-search-input');

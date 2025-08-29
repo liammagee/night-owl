@@ -1,5 +1,5 @@
 
-## Introducing Hegel and The Concept of Experience (`Ehfahrung')
+## Introducing Hegel and The Concept of Experience (`Erfahrung')
 
 
 
@@ -79,7 +79,7 @@ What about the other word, *Phenomenology*? Let's now this apart. What does the 
 
 ---
 
-But Hegel disputes this – in his account, all we ever have are phenomena. But things can also appear in different ways: we organize appearances differently, in particular as we learn, develop and grow. Our mind or spirit, in other words, puts phenomena together in different ways - partly because we realize the errors, inconsistencies or troubles involved in older ways. Experience (or Ehfahrung) is the living out of this unceasing process of realization. How does this all unfold? That is the story of the Phenomenology of Mind / Spirit - to study how phenomena present themselves to mind, or more accurately, how the mind moves through its various shapes to organize phenomena as it comes to know them. 
+But Hegel disputes this – in his account, all we ever have are phenomena. But things can also appear in different ways: we organize appearances differently, in particular as we learn, develop and grow. Our mind or spirit, in other words, puts phenomena together in different ways - partly because we realize the errors, inconsistencies or troubles involved in older ways. Experience (or Erfahrung) is the living out of this unceasing process of realization. How does this all unfold? That is the story of the Phenomenology of Mind / Spirit - to study how phenomena present themselves to mind, or more accurately, how the mind moves through its various shapes to organize phenomena as it comes to know them. 
 
 ---
 
