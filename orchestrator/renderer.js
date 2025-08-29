@@ -3041,11 +3041,7 @@ function enterPDFOnlyMode() {
         z-index: 1000;
         pointer-events: none;
     `;
-    indicator.textContent = 'PDF Only';
-    
-    if (previewPane && !document.getElementById('pdf-only-indicator')) {
-        previewPane.appendChild(indicator);
-    }
+    // PDF Only indicator removed - no longer needed
 }
 
 function exitPDFOnlyMode() {
@@ -3353,8 +3349,8 @@ function displayPDFInPreview(filePath) {
     if (previewContent) {
         // Create advanced PDF viewer with search
         const pdfViewer = `
-            <div class="pdf-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
-                <div class="pdf-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; font-size: 14px;">
+            <div class="pdf-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1;">
+                <div class="pdf-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; font-size: 14px; position: sticky; top: 0; z-index: 100; min-height: 40px;">
                     <div style="font-weight: bold;">
                         📄 ${filePath.split('/').pop()}
                     </div>
@@ -3376,13 +3372,15 @@ function displayPDFInPreview(filePath) {
                         Loading PDF...
                     </div>
                 </div>
-                <div class="pdf-controls" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-top: 1px solid var(--border-color, #e1e4e8); display: flex; align-items: center; justify-content: center; gap: 12px; flex-shrink: 0;">
+                <div class="pdf-controls" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-top: 1px solid var(--border-color, #e1e4e8); display: flex; align-items: center; justify-content: center; gap: 12px; flex-shrink: 0; position: sticky; bottom: 0; z-index: 100; min-height: 40px;">
                     <button id="pdf-prev-page" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer;">Previous</button>
                     <span id="pdf-page-info" style="font-size: 12px; color: var(--text-muted, #666);">Page 1 of 1</span>
                     <button id="pdf-next-page" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer;">Next</button>
                     <button id="pdf-zoom-out" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer; margin-left: 12px;">-</button>
                     <span id="pdf-zoom-level" style="font-size: 12px; color: var(--text-muted, #666);">100%</span>
                     <button id="pdf-zoom-in" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer;">+</button>
+                    <button id="pdf-highlight-mode" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer; margin-left: 12px;" title="Toggle Highlight Mode">🖍️</button>
+                    <button id="pdf-clear-highlights" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer;" title="Clear All Highlights">🗑️</button>
                 </div>
             </div>
         `;
@@ -3404,7 +3402,10 @@ let pdfViewerState = {
     ctx: null,
     searchMatches: [],
     currentMatch: -1,
-    textContent: []
+    textContent: [],
+    highlights: [],
+    highlightMode: false,
+    searchHighlights: []
 };
 
 // Initialize PDF.js viewer
@@ -3503,6 +3504,9 @@ async function renderPage(pageNum, smooth = true) {
         
         await page.render(renderContext).promise;
         
+        // Draw highlights on the current page
+        drawHighlights(ctx, pageNum);
+        
         // Complete smooth transition
         if (smooth && pdfViewerState.currentPage !== pageNum) {
             setTimeout(() => {
@@ -3524,6 +3528,56 @@ async function renderPage(pageNum, smooth = true) {
     }
 }
 
+// Draw highlights on the current page
+function drawHighlights(ctx, pageNum) {
+    // Draw permanent highlights for current page
+    const pageHighlights = pdfViewerState.highlights.filter(h => h.page === pageNum);
+    pageHighlights.forEach(highlight => {
+        ctx.save();
+        ctx.fillStyle = highlight.color;
+        ctx.fillRect(
+            highlight.startX,
+            highlight.startY,
+            highlight.endX - highlight.startX,
+            highlight.endY - highlight.startY
+        );
+        ctx.restore();
+    });
+    
+    // Draw search highlights for current page (scaled to current zoom)
+    const searchHighlights = pdfViewerState.searchHighlights.filter(h => h.page === pageNum);
+    searchHighlights.forEach(highlight => {
+        ctx.save();
+        ctx.fillStyle = highlight.color || 'rgba(255, 165, 0, 0.6)'; // Orange for search
+        
+        // Scale coordinates to current zoom level
+        const scaledX = highlight.startX * pdfViewerState.scale;
+        const scaledY = highlight.startY * pdfViewerState.scale;
+        const scaledWidth = (highlight.endX - highlight.startX) * pdfViewerState.scale;
+        const scaledHeight = (highlight.endY - highlight.startY) * pdfViewerState.scale;
+        
+        ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+        ctx.restore();
+    });
+    
+    // Draw search indicator if there are search matches on this page
+    if (pdfViewerState.searchMatches.length > 0) {
+        const matchesOnPage = pdfViewerState.searchMatches.filter(m => m.pageNum === pageNum);
+        if (matchesOnPage.length > 0) {
+            ctx.save();
+            // Draw a small indicator in top-right corner
+            const canvas = ctx.canvas;
+            ctx.fillStyle = 'rgba(255, 165, 0, 0.8)';
+            ctx.fillRect(canvas.width - 60, 10, 50, 20);
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${matchesOnPage.length}`, canvas.width - 35, 24);
+            ctx.restore();
+        }
+    }
+}
+
 // Extract text content from all pages for search
 async function extractAllTextContent() {
     if (!pdfViewerState.doc) return;
@@ -3535,11 +3589,27 @@ async function extractAllTextContent() {
         try {
             const page = await pdfViewerState.doc.getPage(i);
             const textContent = await page.getTextContent();
+            const viewport = page.getViewport({ scale: 1.0 });
             
             const pageText = textContent.items.map(item => item.str).join(' ');
+            const textItems = textContent.items.map(item => ({
+                str: item.str,
+                transform: item.transform,
+                width: item.width,
+                height: item.height,
+                bbox: [
+                    item.transform[4],
+                    viewport.height - item.transform[5] - item.height,
+                    item.transform[4] + item.width,
+                    viewport.height - item.transform[5]
+                ]
+            }));
+            
             pdfViewerState.textContent.push({
                 pageNum: i,
-                text: pageText
+                text: pageText,
+                items: textItems,
+                viewport: viewport
             });
             
         } catch (error) {
@@ -3554,12 +3624,50 @@ async function extractAllTextContent() {
     console.log('[PDF] Text extraction complete');
 }
 
+// Find text coordinates for highlighting
+function findTextCoordinates(pageContent, startIndex, length) {
+    if (!pageContent.items) return null;
+    
+    let currentIndex = 0;
+    let highlights = [];
+    
+    for (const item of pageContent.items) {
+        const itemLength = item.str.length;
+        const itemEnd = currentIndex + itemLength;
+        
+        // Check if search term overlaps with this text item
+        if (startIndex < itemEnd && startIndex + length > currentIndex) {
+            const overlapStart = Math.max(0, startIndex - currentIndex);
+            const overlapEnd = Math.min(itemLength, startIndex + length - currentIndex);
+            
+            if (overlapStart < overlapEnd) {
+                // Calculate character width for this item
+                const charWidth = item.width / itemLength;
+                
+                highlights.push({
+                    x: item.bbox[0] + (overlapStart * charWidth),
+                    y: item.bbox[1],
+                    width: (overlapEnd - overlapStart) * charWidth,
+                    height: item.bbox[3] - item.bbox[1]
+                });
+            }
+        }
+        
+        currentIndex = itemEnd + 1; // +1 for space between items
+        if (currentIndex > startIndex + length) break;
+    }
+    
+    return highlights.length > 0 ? highlights : null;
+}
+
 // Search functionality
 function searchPDF(query) {
     if (!query.trim()) {
         pdfViewerState.searchMatches = [];
         pdfViewerState.currentMatch = -1;
+        pdfViewerState.searchHighlights = [];
         updateSearchResults();
+        renderPage(pdfViewerState.currentPage, false);
         return;
     }
     
@@ -3573,10 +3681,14 @@ function searchPDF(query) {
         let index = pageText.indexOf(searchTerm);
         
         while (index !== -1) {
+            // Find the text coordinates for highlighting
+            const textHighlight = findTextCoordinates(pageContent, index, searchTerm.length);
+            
             matches.push({
                 pageNum: pageContent.pageNum,
                 index: index,
-                text: pageContent.text.substr(Math.max(0, index - 20), 60)
+                text: pageContent.text.substr(Math.max(0, index - 20), 60),
+                highlight: textHighlight
             });
             index = pageText.indexOf(searchTerm, index + 1);
         }
@@ -3585,12 +3697,34 @@ function searchPDF(query) {
     pdfViewerState.searchMatches = matches;
     pdfViewerState.currentMatch = matches.length > 0 ? 0 : -1;
     
-    console.log('[PDF] Found', matches.length, 'matches');
+    // Clear existing search highlights and create new ones
+    pdfViewerState.searchHighlights = [];
+    
+    // Create visual highlights for all matches
+    matches.forEach(match => {
+        if (match.highlight) {
+            match.highlight.forEach(rect => {
+                pdfViewerState.searchHighlights.push({
+                    page: match.pageNum,
+                    startX: rect.x,
+                    startY: rect.y,
+                    endX: rect.x + rect.width,
+                    endY: rect.y + rect.height,
+                    color: 'rgba(255, 165, 0, 0.6)' // Orange highlight
+                });
+            });
+        }
+    });
+    
+    console.log('[PDF] Found', matches.length, 'matches with', pdfViewerState.searchHighlights.length, 'highlights');
     updateSearchResults();
     
     // Go to first match
     if (matches.length > 0) {
         goToSearchMatch(0);
+    } else {
+        // Re-render to clear any existing highlights
+        renderPage(pdfViewerState.currentPage, false);
     }
 }
 
@@ -3604,6 +3738,9 @@ async function goToSearchMatch(matchIndex) {
     // Navigate to the page containing the match
     if (match.pageNum !== pdfViewerState.currentPage) {
         await renderPage(match.pageNum);
+    } else {
+        // Re-render to update search highlighting
+        await renderPage(pdfViewerState.currentPage, false);
     }
     
     updateSearchResults();
@@ -3863,6 +4000,83 @@ function setupPDFEventHandlers() {
         zoomOut.addEventListener('click', async () => {
             pdfViewerState.scale = Math.max(0.5, pdfViewerState.scale / 1.2);
             await renderPage(pdfViewerState.currentPage);
+        });
+    }
+    
+    // Highlight controls
+    const highlightMode = document.getElementById('pdf-highlight-mode');
+    const clearHighlights = document.getElementById('pdf-clear-highlights');
+    
+    if (highlightMode) {
+        highlightMode.addEventListener('click', () => {
+            pdfViewerState.highlightMode = !pdfViewerState.highlightMode;
+            highlightMode.style.background = pdfViewerState.highlightMode ? 
+                'var(--accent-color, #007acc)' : 'var(--button-bg, #fff)';
+            highlightMode.style.color = pdfViewerState.highlightMode ? 
+                '#fff' : 'var(--text-color, #000)';
+            
+            // Update cursor style when in highlight mode
+            const canvas = document.getElementById('pdf-canvas');
+            if (canvas) {
+                canvas.style.cursor = pdfViewerState.highlightMode ? 'crosshair' : 'default';
+            }
+        });
+    }
+    
+    if (clearHighlights) {
+        clearHighlights.addEventListener('click', async () => {
+            pdfViewerState.highlights = [];
+            pdfViewerState.searchHighlights = [];
+            await renderPage(pdfViewerState.currentPage);
+        });
+    }
+    
+    // Add canvas mouse events for highlighting
+    const canvas = document.getElementById('pdf-canvas');
+    if (canvas) {
+        let isSelecting = false;
+        let selectionStart = null;
+        
+        canvas.addEventListener('mousedown', (e) => {
+            if (pdfViewerState.highlightMode) {
+                isSelecting = true;
+                const rect = canvas.getBoundingClientRect();
+                selectionStart = {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+                e.preventDefault();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', async (e) => {
+            if (pdfViewerState.highlightMode && isSelecting && selectionStart) {
+                const rect = canvas.getBoundingClientRect();
+                const selectionEnd = {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+                
+                // Create highlight rectangle
+                const highlight = {
+                    page: pdfViewerState.currentPage,
+                    startX: Math.min(selectionStart.x, selectionEnd.x),
+                    startY: Math.min(selectionStart.y, selectionEnd.y),
+                    endX: Math.max(selectionStart.x, selectionEnd.x),
+                    endY: Math.max(selectionStart.y, selectionEnd.y),
+                    color: 'rgba(255, 255, 0, 0.3)'
+                };
+                
+                // Only add highlight if it has significant size
+                if (Math.abs(selectionEnd.x - selectionStart.x) > 5 && 
+                    Math.abs(selectionEnd.y - selectionStart.y) > 5) {
+                    pdfViewerState.highlights.push(highlight);
+                    await renderPage(pdfViewerState.currentPage);
+                }
+                
+                isSelecting = false;
+                selectionStart = null;
+            }
         });
     }
     

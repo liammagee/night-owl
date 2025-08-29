@@ -1,6 +1,6 @@
 # Machine & Human Learning
 
-
+https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activity_streams
 
 ---
 

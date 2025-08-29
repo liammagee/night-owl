@@ -8,6 +8,14 @@
 ## Readings
 
 
+ - https://www.gutenberg.org/files/1934/1934-h/1934-h.htm
+ - https://www.youtube.com/watch?v=jGMaTnZL-eM&list=RDjGMaTnZL-eM&start_radio=1
+
+This beginning of mental cultivation will, however, very soon make way for
+the earnestness of actual life in all its fullness, which leads to a living experience of the subject−matter itself;
+and when, in addition, conceptual thought strenuously penetrates to the very depths of its meaning, such
+knowledge and style of judgment will keep their clue place in everyday thought and conversation.
+
 --- 
 
 ## Assignments
