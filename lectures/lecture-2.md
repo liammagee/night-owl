@@ -8,13 +8,26 @@
 ## Readings
 
 
- - https://www.gutenberg.org/files/1934/1934-h/1934-h.htm
- - https://www.youtube.com/watch?v=jGMaTnZL-eM&list=RDjGMaTnZL-eM&start_radio=1
 
 This beginning of mental cultivation will, however, very soon make way for
 the earnestness of actual life in all its fullness, which leads to a living experience of the subject−matter itself;
 and when, in addition, conceptual thought strenuously penetrates to the very depths of its meaning, such
 knowledge and style of judgment will keep their clue place in everyday thought and conversation.
+
+
+The mind's immediate existence, conscious life, has two aspects−−cognition and objectivity which is opposed
+to or negative of the subjective function of knowing. Since it is in the medium of consciousness that mind is
+developed and brings out its various moments, this opposition between the factors of conscious life is found
+at each stage in the evolution of mind, and all the various moments appear as modes or forms (Gestalten) of
+consciousness. The scientific statement of the course of this development is a science of the experience
+through which consciousness passes; the substance and its process are considered as the object of
+consciousness. Consciousness knows and comprehends nothing but what falls within its experience; for what
+is found in experience is merely spiritual substance, and, moreover, object of its self. Mind, however,
+becomes object, for it consists in the process of becoming an other to itself, i.e. an object for its own self, and
+in transcending this otherness. And experience is called this very process by which the element that is
+immediate, unexperienced, i.e. abstract−whether it be in the form of sense or of a bare thought−−externalizes
+itself, and then comes back to itself from this state of estrangement, and by so doing is at length set forth in
+its concrete nature and real truth, and becomes too a possession of consciousness.
 
 --- 
 

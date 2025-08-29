@@ -3853,7 +3853,7 @@ function setupPDFEventHandlers() {
         let wheelTimeout;
         let wheelCooldown = false;
         let accumulatedDelta = 0;
-        const DELTA_THRESHOLD = 100; // Require more significant scroll to change page
+        const DELTA_THRESHOLD = 150; // Require more significant scroll to change page (increased from 100)
         
         window.pdfWheelListener = (e) => {
             // Only handle wheel events when PDF is visible and over the PDF viewer
@@ -3885,7 +3885,7 @@ function setupPDFEventHandlers() {
             clearTimeout(wheelTimeout);
             wheelTimeout = setTimeout(() => {
                 accumulatedDelta = 0; // Reset accumulated delta after inactivity
-            }, 150);
+            }, 200); // Increased from 150ms to 200ms
             
             // Check if accumulated delta exceeds threshold
             if (Math.abs(accumulatedDelta) >= DELTA_THRESHOLD) {
@@ -3897,7 +3897,7 @@ function setupPDFEventHandlers() {
                         wheelCooldown = true;
                         setTimeout(() => {
                             wheelCooldown = false;
-                        }, 300); // Cooldown period after page change
+                        }, 400); // Increased cooldown period from 300ms to 400ms
                     }
                 } else if (accumulatedDelta < 0) {
                     // Scroll up - previous page
@@ -3907,7 +3907,7 @@ function setupPDFEventHandlers() {
                         wheelCooldown = true;
                         setTimeout(() => {
                             wheelCooldown = false;
-                        }, 300); // Cooldown period after page change
+                        }, 400); // Increased cooldown period from 300ms to 400ms
                     }
                 }
                 // Reset accumulated delta after page change
