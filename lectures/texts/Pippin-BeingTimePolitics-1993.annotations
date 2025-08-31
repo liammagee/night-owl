@@ -1,0 +1,29 @@
+{
+  "highlights": [
+    {
+      "pageNumber": 3,
+      "bounds": {
+        "left": 25.296875,
+        "top": 122.5,
+        "right": 316.296875,
+        "bottom": 269.5
+      },
+      "text": "In two important passages, Strauss went so far as to assert that the dialogue's treatment of the issue makes clear by contrast the great poverty of the modern or social scientific understanding of political affairs.2 The modern attempt to understand political matters is a disaster; even tyranny cannot be recognized as such by \"our modern sciences.\" If this result is, as Strauss often implies it is, the \"inevitable result\" of modern philosophy itself, then we are \"forced\" to consider a \"restoration of classical social science\" (177). Strauss claimed that modern philosophy deliberately turned away from a principled distinction between kings and tyrants with Machiavelli (in a way itself informed by Xenophon's Education of Cyrus), and that a \"confrontation\" between the Prince and Hiero was a necessary first step in understanding \"modern political science\" (24-25; 184-185).",
+      "type": "annotation",
+      "timestamp": "2025-08-31T18:35:39.631Z"
+    }
+  ],
+  "annotations": [
+    {
+      "pageNumber": 3,
+      "text": "In two important passages, Strauss went so far as to assert that the dialogue's treatment of the issue makes clear by contrast the great poverty of the modern or social scientific understanding of political affairs.2 The modern attempt to understand political matters is a disaster; even tyranny cannot be recognized as such by \"our modern sciences.\" If this result is, as Strauss often implies it is, the \"inevitable result\" of modern philosophy itself, then we are \"forced\" to consider a \"restoration of classical social science\" (177). Strauss claimed that modern philosophy deliberately turned away from a principled distinction between kings and tyrants with Machiavelli (in a way itself informed by Xenophon's Education of Cyrus), and that a \"confrontation\" between the Prince and Hiero was a necessary first step in understanding \"modern political science\" (24-25; 184-185).",
+      "annotation": "test",
+      "timestamp": "2025-08-31T18:35:39.631Z",
+      "x": 25.296875,
+      "y": 122.5,
+      "width": 291,
+      "height": 147
+    }
+  ],
+  "lastModified": "2025-08-31T18:39:30.396Z"
+}

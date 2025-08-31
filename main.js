@@ -2581,6 +2581,23 @@ app.whenReady().then(() => {
       };
     }
   });
+
+  // Handle saving files
+  ipcMain.handle('save-file', async (event, { filePath, content }) => {
+    try {
+      await saveFile(filePath, content);
+      return { 
+        success: true, 
+        path: filePath 
+      };
+    } catch (error) {
+      console.error('Error saving file:', error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
   
   // Register modular IPC handlers
   ipcHandlers.registerAllHandlers({
