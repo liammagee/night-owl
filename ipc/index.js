@@ -11,6 +11,7 @@ const exportHandlers = require('./exportHandlers');
 const navigationHandlers = require('./navigationHandlers');
 const searchHandlers = require('./searchHandlers');
 const contextMenuHandlers = require('./contextMenuHandlers');
+const ttsHandlers = require('./ttsHandlers');
 
 /**
  * Register all IPC handlers
@@ -41,6 +42,9 @@ function registerAllHandlers(dependencies) {
     
     contextMenuHandlers.register(dependencies);
     console.log('[IPC] Context menu handlers registered');
+    
+    ttsHandlers.register(dependencies);
+    console.log('[IPC] TTS handlers registered');
     
     console.log('[IPC] All IPC handlers registered successfully');
   } catch (error) {

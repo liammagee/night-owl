@@ -5,14 +5,34 @@ class TTSService {
   constructor() {
     this.isSpeaking = false;
     this.currentUtterance = null;
+    this.currentAudio = null;
     this.voice = null;
     this.rate = 1.0;
     this.pitch = 1.0;
     this.volume = 1.0;
+    this.useLemonfox = false;
+    this.lemonfoxVoice = 'sarah';
+    
+    // Check if Lemonfox is available via Electron IPC
+    this.checkLemonfoxAvailability();
     
     // Initialize voices when available
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       this.initializeVoices();
+    }
+  }
+
+  async checkLemonfoxAvailability() {
+    if (window.electronAPI && window.electronAPI.invoke) {
+      try {
+        const result = await window.electronAPI.invoke('tts-check-availability');
+        if (result.success && result.available) {
+          this.useLemonfox = true;
+          console.log('[TTS] Lemonfox.ai TTS is available');
+        }
+      } catch (error) {
+        console.log('[TTS] Lemonfox.ai not available, using Web Speech API');
+      }
     }
   }
 
@@ -34,22 +54,95 @@ class TTSService {
     }
   }
 
-  speak(text, options = {}) {
+  async speak(text, options = {}) {
     // Stop any current speech
     this.stop();
 
-    if (!text || !window.speechSynthesis) {
-      console.warn('[TTS] Cannot speak - no text or speechSynthesis not available');
+    if (!text) {
+      console.warn('[TTS] Cannot speak - no text provided');
       return Promise.resolve();
     }
 
+    // Clean the text for better speech
+    const cleanText = this.cleanTextForSpeech(text);
+
+    // Use Lemonfox if available and in Electron
+    if (this.useLemonfox && window.electronAPI && window.electronAPI.invoke) {
+      return this.speakWithLemonfox(cleanText, options);
+    }
+    
+    // Fall back to Web Speech API
+    if (!window.speechSynthesis) {
+      console.warn('[TTS] speechSynthesis not available');
+      return Promise.resolve();
+    }
+
+    return this.speakWithWebSpeech(cleanText, options);
+  }
+
+  async speakWithLemonfox(text, options = {}) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        this.isSpeaking = true;
+        if (options.onStart) options.onStart();
+        
+        console.log('[TTS] Using Lemonfox.ai to speak text');
+        
+        // Get audio from Lemonfox API via IPC
+        const result = await window.electronAPI.invoke('tts-generate-speech', {
+          text: text,
+          voice: options.voice || this.lemonfoxVoice
+        });
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to generate speech');
+        }
+        
+        // Create audio element and play
+        const audioBlob = this.base64ToBlob(result.audioData, 'audio/mp3');
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        this.currentAudio = new Audio(audioUrl);
+        this.currentAudio.volume = options.volume || this.volume;
+        
+        this.currentAudio.onended = () => {
+          this.isSpeaking = false;
+          URL.revokeObjectURL(audioUrl);
+          this.currentAudio = null;
+          console.log('[TTS] Finished playing Lemonfox audio');
+          if (options.onEnd) options.onEnd();
+          resolve();
+        };
+        
+        this.currentAudio.onerror = (error) => {
+          this.isSpeaking = false;
+          URL.revokeObjectURL(audioUrl);
+          this.currentAudio = null;
+          console.error('[TTS] Audio playback error:', error);
+          if (options.onError) options.onError(error);
+          reject(error);
+        };
+        
+        await this.currentAudio.play();
+        console.log('[TTS] Started playing Lemonfox audio');
+        
+      } catch (error) {
+        this.isSpeaking = false;
+        console.error('[TTS] Error with Lemonfox TTS:', error);
+        if (options.onError) options.onError(error);
+        
+        // Fall back to Web Speech API if Lemonfox fails
+        console.log('[TTS] Falling back to Web Speech API');
+        return this.speakWithWebSpeech(text, options);
+      }
+    });
+  }
+
+  speakWithWebSpeech(text, options = {}) {
     return new Promise((resolve, reject) => {
       try {
-        // Clean the text for better speech
-        const cleanText = this.cleanTextForSpeech(text);
-        
         // Create utterance
-        this.currentUtterance = new SpeechSynthesisUtterance(cleanText);
+        this.currentUtterance = new SpeechSynthesisUtterance(text);
         
         // Set voice and parameters
         if (this.voice) {
@@ -62,20 +155,20 @@ class TTSService {
         // Set up event handlers
         this.currentUtterance.onstart = () => {
           this.isSpeaking = true;
-          console.log('[TTS] Started speaking');
+          console.log('[TTS] Started speaking with Web Speech API');
           if (options.onStart) options.onStart();
         };
         
         this.currentUtterance.onend = () => {
           this.isSpeaking = false;
-          console.log('[TTS] Finished speaking');
+          console.log('[TTS] Finished speaking with Web Speech API');
           if (options.onEnd) options.onEnd();
           resolve();
         };
         
         this.currentUtterance.onerror = (event) => {
           this.isSpeaking = false;
-          console.error('[TTS] Speech error:', event);
+          console.error('[TTS] Web Speech API error:', event);
           if (options.onError) options.onError(event);
           reject(event);
         };
@@ -84,19 +177,39 @@ class TTSService {
         window.speechSynthesis.speak(this.currentUtterance);
         
       } catch (error) {
-        console.error('[TTS] Error setting up speech:', error);
+        console.error('[TTS] Error setting up Web Speech:', error);
         reject(error);
       }
     });
   }
 
+  base64ToBlob(base64, mimeType) {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
+  }
+
   stop() {
+    // Stop Lemonfox audio if playing
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.currentTime = 0;
+      this.currentAudio = null;
+      console.log('[TTS] Stopped Lemonfox audio');
+    }
+    
+    // Stop Web Speech API if speaking
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      this.isSpeaking = false;
       this.currentUtterance = null;
-      console.log('[TTS] Stopped speaking');
+      console.log('[TTS] Stopped Web Speech API');
     }
+    
+    this.isSpeaking = false;
   }
 
   pause() {
@@ -145,11 +258,22 @@ class TTSService {
   }
 
   setVoice(voiceName) {
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => v.name === voiceName);
-    if (voice) {
-      this.voice = voice;
-      console.log('[TTS] Voice set to:', voice.name);
+    // Check if it's a Lemonfox voice
+    const lemonfoxVoices = ['sarah', 'john', 'emily', 'michael'];
+    if (lemonfoxVoices.includes(voiceName.toLowerCase())) {
+      this.lemonfoxVoice = voiceName.toLowerCase();
+      console.log('[TTS] Lemonfox voice set to:', this.lemonfoxVoice);
+      return;
+    }
+    
+    // Otherwise try to set Web Speech API voice
+    if (window.speechSynthesis) {
+      const voices = window.speechSynthesis.getVoices();
+      const voice = voices.find(v => v.name === voiceName);
+      if (voice) {
+        this.voice = voice;
+        console.log('[TTS] Web Speech voice set to:', voice.name);
+      }
     }
   }
 
