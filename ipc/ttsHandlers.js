@@ -133,10 +133,16 @@ function register(deps) {
     };
   });
 
+  // Add a simple test handler to verify registration works
+  ipcMain.handle('tts-test', async (event) => {
+    return { success: true, message: 'TTS handlers are working' };
+  });
+
   console.log('[TTS] All TTS handlers registered successfully:');
   console.log('  - tts-generate-speech');
   console.log('  - tts-get-voices'); 
   console.log('  - tts-check-availability');
+  console.log('  - tts-test');
 }
 
 module.exports = {

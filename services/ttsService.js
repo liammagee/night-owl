@@ -31,6 +31,11 @@ class TTSService {
     
     if (window.electronAPI && window.electronAPI.invoke) {
       try {
+        // First test if any IPC is working
+        console.log('[TTS] Testing IPC connection...');
+        const testResult = await window.electronAPI.invoke('tts-test');
+        console.log('[TTS] Test result:', testResult);
+        
         const result = await window.electronAPI.invoke('tts-check-availability');
         console.log('[TTS] Availability check result:', result);
         if (result.success && result.available) {
