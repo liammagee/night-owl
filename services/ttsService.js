@@ -26,13 +26,19 @@ class TTSService {
     if (window.electronAPI && window.electronAPI.invoke) {
       try {
         const result = await window.electronAPI.invoke('tts-check-availability');
+        console.log('[TTS] Availability check result:', result);
         if (result.success && result.available) {
           this.useLemonfox = true;
-          console.log('[TTS] Lemonfox.ai TTS is available');
+          console.log('[TTS] Lemonfox.ai TTS is available and will be used');
+        } else {
+          console.log('[TTS] Lemonfox.ai not configured, using Web Speech API');
         }
       } catch (error) {
-        console.log('[TTS] Lemonfox.ai not available, using Web Speech API');
+        console.error('[TTS] Error checking Lemonfox availability:', error);
+        console.log('[TTS] Will use Web Speech API as fallback');
       }
+    } else {
+      console.log('[TTS] Not in Electron environment, using Web Speech API');
     }
   }
 

@@ -7,6 +7,16 @@ const path = require('path');
 const { Readable } = require('stream');
 const { finished } = require('stream/promises');
 
+// Use node-fetch for Node.js environment
+let fetch;
+try {
+  // Try to use native fetch if available (Node 18+)
+  fetch = globalThis.fetch;
+} catch (e) {
+  // Fall back to node-fetch
+  fetch = require('node-fetch');
+}
+
 /**
  * Register all TTS IPC handlers
  * @param {Object} deps - Dependencies from main.js
@@ -19,6 +29,8 @@ function register(deps) {
   
   if (!LEMONFOX_API_KEY) {
     console.warn('[TTS] LEMONFOX_API_KEY not found in environment variables');
+  } else {
+    console.log('[TTS] LEMONFOX_API_KEY found, length:', LEMONFOX_API_KEY.length);
   }
 
   // Generate speech from text using Lemonfox.ai
@@ -63,8 +75,9 @@ function register(deps) {
       const audioFilePath = path.join(tempDir, audioFileName);
       
       // Save audio to file
-      const fileStream = fs.createWriteStream(audioFilePath);
-      await finished(Readable.fromWeb(response.body).pipe(fileStream));
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      fs.writeFileSync(audioFilePath, buffer);
       
       console.log(`[TTS] Audio saved to: ${audioFilePath}`);
 

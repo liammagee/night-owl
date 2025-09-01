@@ -1086,7 +1086,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   };
 
   // Speak text using TTS
-  const speakText = (text) => {
+  const speakText = async (text) => {
     if (!text) return;
     
     console.log('[TTS] Speaking text:', text.substring(0, 100) + '...');
@@ -1094,6 +1094,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     
     // Use the TTS service if available
     if (window.ttsService) {
+      // Ensure Lemonfox availability has been checked
+      await window.ttsService.checkLemonfoxAvailability();
+      
       window.ttsService.speak(text, {
         onStart: () => {
           console.log('[TTS] Started speaking slide notes');
