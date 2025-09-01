@@ -15,6 +15,11 @@ class TTSService {
     this.availabilityChecked = false;
     this.settings = null; // Will be loaded from settings
     
+    // Synchronous queue system - only allow one speech operation at a time
+    this.speechQueue = [];
+    this.isProcessingQueue = false;
+    this.currentSpeechController = null; // AbortController for current speech
+    
     // Initialize settings and voices when available
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       this.initializeVoices();
@@ -154,33 +159,125 @@ class TTSService {
   }
 
   async speak(text, options = {}) {
-    // Stop any current speech
-    this.stop();
-
     if (!text) {
       console.warn('[TTS] Cannot speak - no text provided');
       return Promise.resolve();
     }
 
+    console.log('[TTS] Speech requested, clearing queue and stopping current speech');
+    
+    // IMMEDIATELY stop everything and clear the queue
+    this.clearQueue();
+    await this.forceStopImmediate();
+    
     // Clean the text for better speech
     const cleanText = this.cleanTextForSpeech(text);
-
-    // Use Lemonfox if available and in Electron
-    if (this.useLemonfox && window.electronAPI && window.electronAPI.invoke) {
-      return this.speakWithLemonfox(cleanText, options);
+    
+    // Check availability first (but only once)
+    if (!this.availabilityChecked) {
+      await this.checkLemonfoxAvailability();
     }
     
-    // Fall back to Web Speech API
-    if (!window.speechSynthesis) {
-      console.warn('[TTS] speechSynthesis not available');
-      return Promise.resolve();
+    console.log('[TTS] Starting immediate speech');
+    return this.performImmediateSpeech(cleanText, options);
+  }
+  
+  clearQueue() {
+    console.log('[TTS] Clearing speech queue');
+    this.speechQueue = [];
+    this.isProcessingQueue = false;
+    
+    // Cancel current speech controller if exists
+    if (this.currentSpeechController) {
+      this.currentSpeechController.abort();
+      this.currentSpeechController = null;
     }
+  }
+  
+  async forceStopImmediate() {
+    console.log('[TTS] Immediate force stop');
+    this.isSpeaking = false;
+    
+    // Stop all audio sources synchronously
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+        if (this.currentAudio.src && this.currentAudio.src.startsWith('blob:')) {
+          URL.revokeObjectURL(this.currentAudio.src);
+        }
+      } catch (e) {}
+      this.currentAudio = null;
+    }
+    
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+      this.currentUtterance = null;
+    }
+    
+    // Small delay to ensure cleanup
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
+  async performImmediateSpeech(text, options) {
+    // Create abort controller for this speech operation
+    this.currentSpeechController = new AbortController();
+    const signal = this.currentSpeechController.signal;
+    
+    try {
+      // Use Lemonfox if available and in Electron
+      if (this.useLemonfox && window.electronAPI && window.electronAPI.invoke) {
+        console.log('[TTS] Using Lemonfox.ai provider');
+        return await this.speakWithLemonfoxImmediate(text, options, signal);
+      }
+      
+      // Fall back to Web Speech API
+      if (!window.speechSynthesis) {
+        console.warn('[TTS] speechSynthesis not available');
+        return Promise.resolve();
+      }
 
-    return this.speakWithWebSpeech(cleanText, options);
+      console.log('[TTS] Using Web Speech API provider');
+      return await this.speakWithWebSpeechImmediate(text, options, signal);
+      
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('[TTS] Speech was aborted');
+        return Promise.resolve();
+      }
+      throw error;
+    } finally {
+      this.currentSpeechController = null;
+    }
   }
 
-  async speakWithLemonfox(text, options = {}) {
+  async speakWithLemonfoxImmediate(text, options = {}, signal) {
     return new Promise(async (resolve, reject) => {
+      let audioUrl = null;
+      
+      // Set up abort listener
+      const abortListener = () => {
+        console.log('[TTS] Lemonfox speech aborted');
+        this.isSpeaking = false;
+        if (this.currentAudio) {
+          this.currentAudio.pause();
+          this.currentAudio = null;
+        }
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+        }
+        resolve(); // Resolve, don't reject, for graceful cancellation
+      };
+      
+      if (signal.aborted) {
+        abortListener();
+        return;
+      }
+      
+      signal.addEventListener('abort', abortListener);
+      
       try {
         this.isSpeaking = true;
         if (options.onStart) options.onStart();
@@ -198,13 +295,18 @@ class TTSService {
           word_timestamps: options.word_timestamps !== undefined ? options.word_timestamps : lemonfoxSettings.word_timestamps
         });
         
+        if (signal.aborted) {
+          abortListener();
+          return;
+        }
+        
         if (!result.success) {
           throw new Error(result.error || 'Failed to generate speech');
         }
         
         // Create audio element and play
         const audioBlob = this.base64ToBlob(result.audioData, 'audio/mp3');
-        const audioUrl = URL.createObjectURL(audioBlob);
+        audioUrl = URL.createObjectURL(audioBlob);
         
         this.currentAudio = new Audio(audioUrl);
         this.currentAudio.volume = options.volume || this.volume;
@@ -215,6 +317,7 @@ class TTSService {
           this.currentAudio = null;
           console.log('[TTS] Finished playing Lemonfox audio');
           if (options.onEnd) options.onEnd();
+          signal.removeEventListener('abort', abortListener);
           resolve();
         };
         
@@ -224,31 +327,50 @@ class TTSService {
           this.currentAudio = null;
           console.error('[TTS] Audio playback error:', error);
           if (options.onError) options.onError(error);
+          signal.removeEventListener('abort', abortListener);
           reject(error);
         };
+        
+        if (signal.aborted) {
+          abortListener();
+          return;
+        }
         
         await this.currentAudio.play();
         console.log('[TTS] Started playing Lemonfox audio');
         
       } catch (error) {
         this.isSpeaking = false;
+        if (this.currentAudio) this.currentAudio = null;
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
         console.error('[TTS] Error with Lemonfox TTS:', error);
         if (options.onError) options.onError(error);
-        
-        // Only fall back to Web Speech API if this is an actual failure, not a configuration issue
-        if (error.message && !error.message.includes('LEMONFOX_API_KEY')) {
-          console.log('[TTS] Falling back to Web Speech API due to API error');
-          return this.speakWithWebSpeech(text, options);
-        } else {
-          console.log('[TTS] Lemonfox not configured, skipping fallback to prevent conflicts');
-          reject(error);
-        }
+        signal.removeEventListener('abort', abortListener);
+        reject(error);
       }
     });
   }
 
-  speakWithWebSpeech(text, options = {}) {
+  async speakWithWebSpeechImmediate(text, options = {}, signal) {
     return new Promise((resolve, reject) => {
+      // Set up abort listener
+      const abortListener = () => {
+        console.log('[TTS] Web Speech aborted');
+        this.isSpeaking = false;
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+        this.currentUtterance = null;
+        resolve(); // Resolve, don't reject, for graceful cancellation
+      };
+      
+      if (signal.aborted) {
+        abortListener();
+        return;
+      }
+      
+      signal.addEventListener('abort', abortListener);
+      
       try {
         // Create utterance
         this.currentUtterance = new SpeechSynthesisUtterance(text);
@@ -270,23 +392,43 @@ class TTSService {
         
         this.currentUtterance.onend = () => {
           this.isSpeaking = false;
+          this.currentUtterance = null;
           console.log('[TTS] Finished speaking with Web Speech API');
           if (options.onEnd) options.onEnd();
+          signal.removeEventListener('abort', abortListener);
           resolve();
         };
         
         this.currentUtterance.onerror = (event) => {
           this.isSpeaking = false;
+          this.currentUtterance = null;
           console.error('[TTS] Web Speech API error:', event);
           if (options.onError) options.onError(event);
-          reject(event);
+          signal.removeEventListener('abort', abortListener);
+          
+          // Only reject if it's not an interruption error
+          if (event.error !== 'interrupted') {
+            reject(event);
+          } else {
+            console.log('[TTS] Web Speech was interrupted, resolving normally');
+            resolve();
+          }
         };
         
+        if (signal.aborted) {
+          abortListener();
+          return;
+        }
+        
         // Start speaking
+        console.log('[TTS] Starting Web Speech synthesis');
         window.speechSynthesis.speak(this.currentUtterance);
         
       } catch (error) {
+        this.isSpeaking = false;
+        this.currentUtterance = null;
         console.error('[TTS] Error setting up Web Speech:', error);
+        signal.removeEventListener('abort', abortListener);
         reject(error);
       }
     });
@@ -303,22 +445,15 @@ class TTSService {
   }
 
   stop() {
-    // Stop Lemonfox audio if playing
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio.currentTime = 0;
-      this.currentAudio = null;
-      console.log('[TTS] Stopped Lemonfox audio');
-    }
-    
-    // Stop Web Speech API if speaking
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      this.currentUtterance = null;
-      console.log('[TTS] Stopped Web Speech API');
-    }
-    
-    this.isSpeaking = false;
+    console.log('[TTS] Stop requested - clearing all operations');
+    this.clearQueue();
+    this.forceStopImmediate();
+  }
+
+  async forceStop() {
+    console.log('[TTS] Legacy force stop - using immediate stop');
+    this.clearQueue();
+    await this.forceStopImmediate();
   }
 
   pause() {

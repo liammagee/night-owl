@@ -53,7 +53,7 @@
 - Highlights continuity between human, machinic, and other subjects in the process.
 
 ```notes
-The key text we'll be examining here is Hegel's *Phenomenology of Mind* (1807). For this course I will be using this text as a sort of *avant la lettre* account of how a *subject* – an entity that for the moment we will assume can exist in human, in machinic and perhaps in other situations – forms itself as a subject. In perhaps less obscure terms, how something like us learns to be as a conscious self. This text by Hegel occupies an important place in Western philosophy, and in some ways – as I hope to make clear – can be seen as one of the historical pivots around which questions of learning can be responded to. 
+The key text we'll be examining here is Hegel's *Phenomenology of Mind* (1807). For this course I will be describing this text as an account of how a *subject* – an entity that for the moment we will assume can exist in human, in machinic and perhaps in other situations – forms or creates itself, *as* a subject. In perhaps less obscure terms, how something like us learns to be as a conscious self. This text by Hegel occupies an important place in Western philosophy, and in some ways – as I hope to make clear – can be seen as one of the historical pivots around which questions of learning can be responded to. 
 ```
 
 ---
@@ -67,7 +67,9 @@ The key text we'll be examining here is Hegel's *Phenomenology of Mind* (1807). 
 - Some argue the work encompasses all these perspectives simultaneously, even intentionally.
 
 ```notes
-Let's start with the title: in German, *Phänomenologie des Geistes*, translated as either *The Phenomenology of Spirit*  or *The Phenomenology of Mind*. The word "Geist" can in other words be translated as "Spirit" or "Mind" – the cause of a lot of confusion. Think of what word in English sounds closest to *Geist*: "ghost" (but also "guest" and "host"). What is this text about? Something vague, religious, metaphysical: spirit? Or concrete, psychological, scientific: mind? Are we talking about something collective – like a world spirit, or spirit of the times – what we mean when we say *Zeitgeist*? Or something particular and individual – what is happening in *my* mind, right now? Can it be all these things (people have argued this).
+Let's start with the title: in German, *Phänomenologie des Geistes*, translated as either *The Phenomenology of Spirit*  or *The Phenomenology of Mind*. The word "Geist" can in other words be translated as either "Spirit" or "Mind" – a choice that is itself the cause of a lot of confusion. 
+
+Now think of what word in English sounds closest to *Geist*: "ghost" (but also "guest" and "host"). What is this text about? Something vague, religious, metaphysical: a spirit? Or instead something concrete, psychological, scientific: a mind? Are we talking about something collective – like a world spirit, or spirit of the times – what we mean when we say *Zeitgeist*? Or something particular and individual – what is happening in *my* mind, right now? Can it be all these things (people have argued this)?
 ```
 
 
@@ -82,7 +84,8 @@ Let's start with the title: in German, *Phänomenologie des Geistes*, translated
 - The study contrasts how reality appears versus its true, unknowable nature.
 
 ```notes
-What about the other word, *Phenomenology*? Let's now this apart. What does the -ology mean - the *logos*? Its "the study of". But the study of what? The study of phenomena, which sounds like the study of everything (*all* phenomena). But what exactly are phenomena? The word comes from the Greek term *phanomenai*, "to appear". So, phenomena are appearances, and for Kant, who preceded Hegel, phenomena were opposed to noumena, which meant things in themselves. Reality, in other words, as opposed to how things appear to us, the phenomena.
+What about the other word, *Phenomenology*? Let's now pull this apart. What does the -ology mean - the *logos*? Its "the study of". But the study of what? The study of phenomena, which sounds like the study of everything (*all* phenomena). But what exactly are phenomena? The word comes from the Greek term *phanomenai*, "to appear". So, phenomena are appearances, and for Kant, an important German philosopher who preceded Hegel, phenomena were opposed to noumena, which meant things in themselves. Noumena make up the reality, in other words, as opposed to how things appear to us, the phenomena. For Kant, all we have access to are appearances - the things-in-themselves are completely hidden from us.
+
 ```
 
 
@@ -96,7 +99,7 @@ What about the other word, *Phenomenology*? Let's now this apart. What does the 
 - The work traces how mind shapes and knows phenomena over time.
 
 ```notes
-But Hegel disputes this – in his account, all we ever have are phenomena. But things can also appear in different ways: we organize appearances differently, in particular as we learn, develop and grow. Our mind or spirit, in other words, puts phenomena together in different ways - partly because we realize the errors, inconsistencies or troubles involved in older ways. Experience (or Erfahrung) is the living out of this unceasing process of realization. How does this all unfold? That is the story of the Phenomenology of Mind / Spirit - to study how phenomena present themselves to mind, or more accurately, how the mind moves through its various shapes to organize phenomena as it comes to know them. 
+But Hegel disputes Kant's account, and specifically the separation between appearances and things-in-themselves. In his account, all we ever have are phenomena. But things can also appear in different ways: we organize appearances differently, in particular as we learn, develop and grow. Our mind or spirit, in other words, puts phenomena together as we learn - partly because we realize the errors, inconsistencies or troubles involved in our earlier or older ways of understanding. Experience (or *Erfahrung*) is the living out of this unceasing process of realization. How does this all unfold? That is the story of the Phenomenology of Mind / Spirit - to study how phenomena present themselves to the mind, or more accurately, how the mind moves through its various forms or shapes (the German word Hegel uses is *Gestalt*) to organize phenomena as it comes to know them. 
 ```
 
 ---
@@ -108,7 +111,12 @@ But Hegel disputes this – in his account, all we ever have are phenomena. But 
 - Our ability to create experience is limited by these external structures.
 
 ```notes
-With this last point we also begin to see a fundamental difference between Hegel and what precedes him under the name of empiricism. Whereas empiricism – and perhaps our raw intuition – is that experience *happens to us*. We are, in other words, passive recipients of experience. We will want to pause here, and take stock of this alternative intuition: for Hegel, we are always *constituting* our experience, if for the most part unconsciously. We *make* our experience – even though we are not free to simply make any experience at all. As we will see the structure of experience is past down to us by history, society, language and norms. 
+With this last point we also begin to see a fundamental difference between Hegel and what precedes him under the name of empiricism. For empiricism – and perhaps also for our raw intuition – experience is a *happening*, something that *happens to us*. We are, in other words, passive recipients of experiential data. 
+
+For Hegel, instead, we are always *constituting* our experience, if for the most part unconsciously. We *make* our experience – even though we are not free to simply make any experience at all. As we will see the structure of experience is past down to us by history, society, language, and norms. 
+
+We will want to pause here, and take stock of this alternative intuition - Hegel was in fact arguing against a *mechanistic* interpretation of human learning. In Hegel's account, we *construct* – and some of you may have come across constructivism, Hegel is one of the first *constructivists* in this sense – the world as we experience it. Experience *is* this construction, even when experience seems to work against us, or fails us, or leads us into confusion. There is a world, a reality out there which we can know – unlike for Kant. But also unlike empiricism, this is a world we understand only via the architecture of our concepts – and that architecture has to be ready to be revised, when we *experience* – in a 'meta' sense – a contradiction between what we expect and how the world is.
+
 ```
 
 
@@ -121,13 +129,15 @@ With this last point we also begin to see a fundamental difference between Hegel
 - Understanding refines concepts, enabling meaningful interpretation and knowledge.
 
 ```notes
-The first part of the Phenomenology itself deals with three phases of Consciousness (everything in Hegel comes in threes):
+
+What are the shapes or forms that our consciousness takes? The first part of the Phenomenology itself deals with three phases, or types of experience, for Consciousness (everything in Hegel comes in threes):
 
  - Sense-certainty
  - Perception
  - Understanding
  
-These form a kind of progression, but not in the usual sense of, for example, layers of consciousness or childhood development. Instead these are more like *ideas* of consciousness that need to get progressively more refined before we arrive at what it means to understand something. 
+These form a kind of progression, but not in the usual sense of, for example, layers of consciousness or childhood development. Instead these are more like moments consciousness needs to pass through, that need also to be refuted and then integrated back into our experience, in order for us to be able to be conscious of something.
+
 ```
 
 
@@ -148,11 +158,12 @@ These form a kind of progression, but not in the usual sense of, for example, la
 - Language reduces to pointing; no recording or learning occurs.
 
 ```notes
-Hegel begins with the idea of sense-certainty. What does it mean to experience certainty of your senses? His description of this is like a limited stream-of-consciousness. Things happens: I notice them but only in the sense of a "here" and a "now". There is not "there" and "then" – there is no way to connect each instant of sensation with any other. Moreover nothing can be distinguished in this state, because there is not basis for comparison. What philosophers call qualia, or the qualities that make one thing distinct from another, don't exist at this stage.
+Hegel begins with the idea of sense-certainty. What does it mean to experience certainty of your senses? His description of this is like a limited stream-of-consciousness. Things happens: I notice them but only in the sense of a "here" and a "now". There is no "there" and "then" – there is no way to connect each instant of sensation with any other. Moreover nothing can be distinguished in this state, because there is not basis for comparison. What philosophers call qualia, or the qualities that make one thing distinct from another, don't exist at this stage.
 
-In language terms, we have only basic phenomenal description: there is a "this" that is "here" and "now". It is like a pointing or what is called a deictic language: when I say words, all I do is point or indicate.
+In language terms, we have only basic phenomenal description: there is a "this" that is "here" and "now". It is like a pointing or what is called a deictic language: when I say words, all I do is point or indicate to something immediately before me. 
 
-If we were to imagine this as a machine, it could be like a simple sensor, reading off data but not going anywhere with it. This is not machine *learning* in any sense - nothing is recorded or memorized. 
+If we were to imagine this experience of consciousness as a machine, it might be like a simple sensor: reading off data but not going anywhere with it. This is not machine *learning* in any sense - nothing is recorded or memorized. 
+
 ```
 
 
@@ -163,18 +174,25 @@ If we were to imagine this as a machine, it could be like a simple sensor, readi
 
 ![image](images/consciousness-perception.png)
 
-- Language reduces to descriptive adjectives, lacking nouns for classification.
-- System detects shades of color, shapes, and other attributes in real time.
-- No ability to classify or label entities; only attribute registration.
-- Machine registers qualities like color and shape but cannot identify objects.
 
+### Perception versus Understanding in Consciousness
+
+- Perception registers attributes (color, shape) but lacks relational understanding of how objects connect across contexts.
+- Hegel argues perception is trapped by concrete material and shifting attention.
+- Machine learning excels at pattern recognition yet misses underlying laws.
+- Without laws, perception cannot generalize beyond specific data points in new contexts.
+ - "This here: orange, round, solid!"
 
 ```notes
-The next "shape" of consciousness is more developed. Now things can be perceived; that is, the specific attributes or qualities can be registered. I see this thing here is orange, round and so on.
+The next "shape" of consciousness is more developed. Now things can be perceived; that is, the specific attributes or qualities can be registered. I see that this thing here is orange, round, textured, and so on.
 
-If we wanted to imagine this in linguistic terms, it is as though our language had now only adjectives. All we could ever say about this or that is descriptive: "orange", "round", and so on.
+If we wanted to imagine this in linguistic terms, it is as though our language now added adjectives to our existing store of demonstratives. All we could ever say about this or that is descriptive: "orange", "round", and so on. In our repertoire, we have things, objects, with properties, but each thing is just this one thing, even if we know there are also other things that also have similar properties. We *perceive* things, but do not understand how these things relate to other things – even that they are the same *kind* of thing.
 
-It is as though our machine now can identify attributes – not however objects. Instead of just indicating on/off, this machine registers these qualities: shades of colour, shapes, and so on. But it cannot classify anything – we have no nouns yet.
+Though perception improves upon sense-certainty in this way: it is entirely *descriptive*. But Hegel claims it becomes lost in errors of its own: precisely because perception is so committed to what is before it, the concrete material on the ground: to quote (para 131): "it always supposes that it is dealing with entirely solid material and content". However this "common-sense" is, just like sense-certainty, constantly lead by whatever engages it at this particular moment – like, as we will see, with "attention" – and so is led to believe first one thing and then another. There are, for perception, no laws which bring to consciousness proper *understanding* of what it perceives.
+
+To extend our computational metaphor, our machine now can identify attributes. Instead of just indicating on/off, this machine registers these qualities: shades of colour, shapes, and so on. But with each new "perception", or data point, it has to reconcile this point with every other point in its prior experience. So it is led to believe one thing, then another thing, as the patterns of this perceived data continuously change. 
+
+We could say that this is where we are at with machine learning today. They are great pattern recognizers - "perceivers" – but do not yet have a sense of "laws" pertaining to those patterns.
 ```
 
 ---
@@ -191,12 +209,18 @@ It is as though our machine now can identify attributes – not however objects.
 - LLM analogy: knows external world but lacks self-awareness and consciousness.
 
 ```notes
-Hegel here has a strange heading title: "Force and the Understanding". Why *force*? Here Hegel is drawing, also strangely for us, upon Newtonian physics. What he is getting at is that a key turn in this shape of consciousness is the arrival of laws explaining cause and effect. When certain qualities occur regularly we start to say they cohere in something we call a thing or object. And the repetition of these qualities means more than one object, and from that we build up the idea of classes or categories. Our limited world now has nouns, descriptions of things in space. And these nouns do things; they act in time, and hence we develop verbs. 
+Hegel here has a strange heading title: "Force and the Understanding". Why *force*? Here Hegel is drawing, also strangely for us, upon Newtonian physics. What he is getting at is that a key turn in this shape of consciousness is the arrival of laws explaining cause and effect. 
 
-At this stage we have something close to a rudimentary idea of consciousness. We are able to sense things, name them and talk about their relationship to other things.
+This fills the essential gap left by sense-certainty and perception. Now our consciousness is able to reconcile its experiences of things by indentifying laws that regulate their interaction. Hence the discussion of "force": whereas perception remains limited to each thing as a self-contained object, understanding sees that thing as connected to all other things. Force is "the disappearance of the self-sufficient matters", because it connects the one thing with another it impacts; at the same time, this expression of force also define the thing, and therefore returns back as part of what we call its definition. Understanding the force of a thing – its energy, movement, momentum, charge and so on – is connected to the use of the "Concept". When we have the concept of a thing, we understand both it and its connection to other things. 
 
-In our mechnical analogy, what do we have here? A LLM? Something that is consciousness – that knows there are things in the world – but has no sense of itself, and therefore no self-consciousness?
+This understanding involves a sense of the laws which are "supersensible" – not immediately obvious to perception – that govern the "sensible". Newton's laws of motion and gravity, and the calculus needed to describe them, are good examples. If we are to think of this in language terms, our limited linguistic world now has nouns, descriptions of things in space. When certain qualities occur regularly we start to say they cohere in something we call a thing or object. And the repetition of these qualities means more than *one* object of the same kind, and from that we build up the idea of classes or categories. Behind the changing nature of appearances we see continuity, commonality, consistency: this same orangeness, roundness, solidity, in the same place, means  And these nouns do things; they act in time, and hence we develop verbs. 
+
+At this stage we have something close to a rudimentary idea of consciousness. We are able to sense things, name them and talk about their relationship to other things. In our mechnical analogy, what do we have here? A LLM? Or something more than any machine today: something that has a sense of how things are connected, what is sometimes referred to as a "world model"? 
+
 ```
+
+
+---
 
 
 ---
@@ -208,6 +232,8 @@ In our mechnical analogy, what do we have here? A LLM? Something that is conscio
 
  - What does it mean to be a subject? 
  - What is our experience of experience?
+ - A more contemporary phenomenological experiment...
+
 
 ```notes
 What does it mean to be a subject? 

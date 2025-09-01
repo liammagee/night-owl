@@ -558,6 +558,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
       window.electronAPI.onExitPresentation(() => {
         setIsPresenting(false);
+        // Stop any TTS when exiting presentation mode
+        stopSpeaking();
       });
 
       window.electronAPI.onTogglePresentationMode(() => {
@@ -805,6 +807,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         goToSlide(0);
       } else if (e.key === 'Escape') {
         setIsPresenting(false);
+        // Stop any TTS when escaping presentation mode
+        stopSpeaking();
       }
     };
 
@@ -918,6 +922,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   useEffect(() => {
     const handleExitPresenting = () => {
       setIsPresenting(false);
+      // Stop any TTS when exiting presentation mode externally
+      stopSpeaking();
     };
     
     window.addEventListener('exitPresenting', handleExitPresenting);
