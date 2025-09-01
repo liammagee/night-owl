@@ -5,6 +5,73 @@
 // --- Electron Remote (for context menu) ---
 // Context menu items (Menu, MenuItem) are now handled in the main process
 
+// --- PDF Annotations Module ---
+// Load PDF annotations using Electron's file system API
+async function loadPDFAnnotationsModule() {
+    try {
+        console.log('[renderer.js] Loading PDF annotations module via Electron API...');
+        
+        // Use Electron's file system to read the pdfAnnotations.js file
+        const filePath = './orchestrator/pdfAnnotations.js';
+        const response = await window.electronAPI.invoke('read-file', filePath);
+        
+        if (response.success) {
+            console.log('[renderer.js] Successfully read pdfAnnotations.js via Electron API');
+            
+            // Create a script element instead of using eval() to avoid CSP issues
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.textContent = response.content;
+            
+            // Add event handlers
+            script.onload = script.onreadystatechange = function() {
+                console.log('[renderer.js] PDF annotations module loaded successfully');
+                
+                // Initialize CanvasTextSelector after module loads
+                if (typeof initializeCanvasTextSelector === 'function') {
+                    initializeCanvasTextSelector();
+                }
+            };
+            
+            script.onerror = function(error) {
+                console.error('[renderer.js] Error executing PDF annotations script:', error);
+                throw new Error('Failed to execute pdfAnnotations.js content');
+            };
+            
+            // Append to head to execute
+            document.head.appendChild(script);
+            
+        } else {
+            throw new Error(`Failed to read pdfAnnotations.js: ${response.error}`);
+        }
+        
+    } catch (error) {
+        console.error('[renderer.js] Error loading PDF annotations via Electron API:', error);
+        console.error('[renderer.js] Falling back to minimal implementation');
+        
+        // Fallback to minimal implementation
+        class CanvasTextSelector {
+            constructor() {
+                console.log('[renderer.js] Fallback CanvasTextSelector created');
+            }
+        }
+        
+        window.CanvasTextSelector = CanvasTextSelector;
+        window.clearAllHighlights = function() { console.log('[PDF] Clear highlights (fallback)'); };
+        window.savePDFAnnotations = function() { console.log('[PDF] Save annotations (fallback)'); };
+        window.loadPDFAnnotations = function() { console.log('[PDF] Load annotations (fallback)'); };
+        
+        console.log('[renderer.js] Fallback PDF annotations initialized');
+    }
+}
+
+// Load the module when DOM content is loaded or immediately if already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadPDFAnnotationsModule);
+} else {
+    loadPDFAnnotationsModule();
+}
+
 // --- Global Variables ---
 try {
     // Startup debug logging removed
@@ -1877,7 +1944,7 @@ let bibEntries = [];
 // Parse BibTeX entries from content
 function parseBibTeX(content) {
     const entries = [];
-    const entryRegex = /@(\w+)\s*\{\s*([^,\s}]+)\s*,([^}]*)\}/g;
+    const entryRegex = /@(\w+)\s*\{\s*([^,\s\}]+)\s*,([^\}]*)\}/g;
     let match;
     
     while ((match = entryRegex.exec(content)) !== null) {
@@ -1886,9 +1953,9 @@ function parseBibTeX(content) {
         const fields = match[3];
         
         // Extract title and author for better display
-        const titleMatch = fields.match(/title\s*=\s*[{"']([^}"']*)[}"']/i);
-        const authorMatch = fields.match(/author\s*=\s*[{"']([^}"']*)[}"']/i);
-        const yearMatch = fields.match(/year\s*=\s*[{"']?(\d{4})[}"']?/i);
+        const titleMatch = fields.match(/title\s*=\s*[{"']([^\}"']*)[\\}"']/i);
+        const authorMatch = fields.match(/author\s*=\s*[{"']([^\}"']*)[\\}"']/i);
+        const yearMatch = fields.match(/year\s*=\s*[{"']?(\d{4})[\\}"']?/i);
         
         const title = titleMatch ? titleMatch[1] : '';
         const author = authorMatch ? authorMatch[1] : '';
@@ -3553,10 +3620,18 @@ async function renderPage(pageNum, smooth = true) {
             
             // Initialize canvas text selector
             console.log('[PDF] Initializing canvas text selector with canvas:', pdfViewerState.canvas);
-            canvasTextSelector.initialize(pdfViewerState.canvas, page, viewport, textContent);
+            if (!canvasTextSelector && typeof window.createCanvasTextSelector === 'function') {
+                canvasTextSelector = window.createCanvasTextSelector();
+                console.log('[PDF] Created canvasTextSelector instance');
+            }
+            if (canvasTextSelector) {
+                canvasTextSelector.initialize(pdfViewerState.canvas, page, viewport, textContent);
+            } else {
+                console.error('[PDF] canvasTextSelector is null, cannot initialize');
+            }
             
             // Restore any existing selection highlight after page render
-            if (canvasTextSelector.currentSelection) {
+            if (canvasTextSelector && canvasTextSelector.currentSelection) {
                 setTimeout(() => canvasTextSelector.drawSelectedTextHighlight(), 50);
             }
         } else {
@@ -3568,7 +3643,9 @@ async function renderPage(pageNum, smooth = true) {
         drawHighlights(ctx, pageNum);
         
         // Draw any stored selection highlight
-        canvasTextSelector.drawStoredSelection();
+        if (canvasTextSelector && typeof canvasTextSelector.drawSelectedTextHighlight === 'function') {
+            canvasTextSelector.drawSelectedTextHighlight();
+        }
         
         // Complete smooth transition
         if (smooth && oldPage !== pageNum) {
@@ -3595,164 +3672,122 @@ async function renderPage(pageNum, smooth = true) {
     }
 }
 
-// Canvas-based text selection system
-class CanvasTextSelector {
-    constructor() {
-        this.isSelecting = false;
-        this.startPoint = null;
-        this.endPoint = null;
-        this.currentSelection = null;
-        this.textItems = [];
-        this.canvas = null;
-        this.ctx = null;
-        this.page = null;
-        this.viewport = null;
-        this.pageImage = null; // Store the page image for redrawing
-    }
+// Canvas-based text selection system is now handled by pdfAnnotations.js module
 
-    initialize(canvas, page, viewport, textContent) {
-        console.log('[CanvasTextSelector] Initializing with canvas:', canvas);
-        console.log('[CanvasTextSelector] Text items count:', textContent.items ? textContent.items.length : 0);
+// All PDF annotation functionality is now loaded from pdfAnnotations.js module
+
+// PDF annotation functions will be available after module loads:
+// - window.createCanvasTextSelector() - creates CanvasTextSelector instance
+// - window.savePDFAnnotations() - saves annotations
+// - window.loadPDFAnnotations() - loads annotations
+// - window.clearAllHighlights() - clears all highlights
+
+// The CanvasTextSelector class and all PDF annotation functions have been moved to pdfAnnotations.js
+// They will be available as global functions after the module loads
+
+// All PDF functions have been moved to pdfAnnotations.js module
+
+// Display HTML in preview panel
+function displayHTMLInPreview(htmlContent, filePath) {
+    console.log('[Renderer] Displaying HTML in preview:', filePath);
+    const previewContent = document.getElementById('preview-content');
+    
+    if (previewContent) {
+        // Create HTML preview with safety measures
+        const htmlViewer = `
+            <div class="html-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
+                <div class="html-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); font-weight: bold; flex-shrink: 0; font-size: 14px;">
+                    🌐 ${filePath.split('/').pop()}
+                </div>
+                <div style="flex: 1; overflow: hidden; position: relative; min-height: 0;">
+                    <iframe srcdoc="${htmlContent.replace(/"/g, '&quot;')}" 
+                            style="width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;"
+                            sandbox="allow-scripts allow-same-origin">
+                    </iframe>
+                </div>
+            </div>
+        `;
         
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
-        this.page = page;
-        this.viewport = viewport;
-        this.textItems = textContent.items || [];
-        
-        // Clear any current selection when initializing new page
-        this.currentSelection = null;
-        console.log('[CanvasTextSelector] Cleared current selection for new page');
-        
-        // Use global permanent highlights and annotations
-        this.permanentHighlights = globalPermanentHighlights;
-        this.permanentAnnotations = globalPermanentAnnotations;
-        
-        // Capture the current page as an image for redrawing
-        this.capturePageImage();
-        
-        // Add mouse event listeners
-        this.addEventListeners();
-        
-        // Redraw with any existing highlights for this page
-        console.log(`[CanvasTextSelector] About to redraw highlights, currentPage should be: ${window.pdfViewerState?.currentPage}`);
-        setTimeout(() => this.redrawWithHighlights(), 100);
-        
-        console.log('[CanvasTextSelector] Initialization complete');
+        previewContent.innerHTML = htmlViewer;
+    }
+}
+
+// Update cursor position for fallback textarea editor
+function updateFallbackCursorPosition() {
+    const textarea = document.getElementById('fallback-editor');
+    const cursorPosEl = document.getElementById('cursor-position');
+    
+    if (!textarea || !cursorPosEl) return;
+    
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+    const lines = textBeforeCursor.split('\n');
+    const lineNumber = lines.length;
+    const columnNumber = lines[lines.length - 1].length + 1;
+    
+    cursorPosEl.textContent = `Ln ${lineNumber}, Col ${columnNumber}`;
+}
+
+// Fallback editor in case Monaco fails to load
+async function createFallbackEditor() {
+    console.log('[renderer.js] Creating fallback textarea editor...');
+    const textarea = document.createElement('textarea');
+    fallbackEditor = textarea;
+    window.fallbackEditor = textarea; // Make available globally for debugging
+    
+    // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
+    if (window.restoredFileContent) {
+        if (window.restoredFileContent.isPDF) {
+            // For PDFs, don't try to load binary content into textarea, handle as PDF
+            console.log('[renderer.js] Restored file was a PDF - handling PDF restoration');
+            handlePDFFile(window.restoredFileContent.path);
+            window.restoredFileContent = null;
+            return; // Exit early, PDF doesn't need fallback editor
+        } else {
+            textarea.value = window.restoredFileContent.content;
+            console.log('[renderer.js] Fallback editor populated with restored content:', window.restoredFileContent.path);
+            window.restoredFileContent = null;
+        }
     }
     
-    capturePageImage() {
-        // Create an off-screen canvas to store the page image
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvas.width;
-        tempCanvas.height = this.canvas.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        // Copy the current canvas content
-        tempCtx.drawImage(this.canvas, 0, 0);
-        this.pageImage = tempCanvas;
-        
-        console.log('[CanvasTextSelector] Page image captured');
-    }
+    // Complete fallback editor setup
+    textarea.id = 'fallback-editor';
+    textarea.className = 'fallback-editor';
+    textarea.addEventListener('input', updateFallbackCursorPosition);
+    textarea.addEventListener('selectionchange', updateFallbackCursorPosition);
+    textarea.addEventListener('keyup', updateFallbackCursorPosition);
+    textarea.addEventListener('click', updateFallbackCursorPosition);
     
+    editorContainer.innerHTML = '';
+    editorContainer.appendChild(textarea);
+}
 
-    addEventListeners() {
-        if (!this.canvas) {
-            console.error('[CanvasTextSelector] No canvas to add event listeners to');
-            return;
-        }
+// Global text selector instance and permanent highlights
+let canvasTextSelector = null;
+let globalPermanentHighlights = [];
+let globalPermanentAnnotations = [];
 
-        console.log('[CanvasTextSelector] Adding event listeners to canvas:', this.canvas);
-
-        // Remove existing listeners to avoid duplicates
-        this.removeEventListeners();
-
-        // Bind methods to preserve context
-        this.boundMouseDown = this.onMouseDown.bind(this);
-        this.boundMouseMove = this.onMouseMove.bind(this);
-        this.boundMouseUp = this.onMouseUp.bind(this);
-        this.boundContextMenu = this.onContextMenu.bind(this);
-        this.boundDocumentClick = this.onDocumentClick.bind(this);
-
-        this.canvas.addEventListener('mousedown', this.boundMouseDown);
-        this.canvas.addEventListener('mousemove', this.boundMouseMove);
-        this.canvas.addEventListener('mouseup', this.boundMouseUp);
-        this.canvas.addEventListener('mouseout', this.boundMouseUp);
-        this.canvas.addEventListener('contextmenu', this.boundContextMenu);
-        
-        // Listen for clicks outside to hide context menu
-        document.addEventListener('click', this.boundDocumentClick);
-        
-        console.log('[CanvasTextSelector] Event listeners added successfully');
+// Initialize CanvasTextSelector when the module is loaded
+function initializeCanvasTextSelector() {
+    if (typeof window.createCanvasTextSelector === 'function') {
+        canvasTextSelector = window.createCanvasTextSelector();
+        console.log('[renderer.js] CanvasTextSelector initialized');
+    } else {
+        console.warn('[renderer.js] createCanvasTextSelector function not yet available');
     }
+}
 
-    removeEventListeners() {
-        if (!this.canvas || !this.boundMouseDown) return;
+// PDF annotation functions are now handled by pdfAnnotations.js module
 
-        this.canvas.removeEventListener('mousedown', this.boundMouseDown);
-        this.canvas.removeEventListener('mousemove', this.boundMouseMove);
-        this.canvas.removeEventListener('mouseup', this.boundMouseUp);
-        this.canvas.removeEventListener('mouseout', this.boundMouseUp);
-        this.canvas.removeEventListener('contextmenu', this.boundContextMenu);
-        
-        if (this.boundDocumentClick) {
-            document.removeEventListener('click', this.boundDocumentClick);
-        }
+// --- PDF Display and Management Functions ---
+async function displayPDF(filePath) {
+    console.log('[PDF] Displaying PDF:', filePath);
+    
+    if (typeof window.pdfjsLib === 'undefined') {
+        console.error('[PDF] PDF.js not loaded');
+        previewContent.innerHTML = '<p>Error: PDF.js library not loaded.</p>';
+        return;
     }
-
-    onMouseDown(event) {
-        console.log('[CanvasTextSelector] Mouse down event, button:', event.button);
-        
-        // Don't start new selection on right click
-        if (event.button === 2) return;
-        
-        const rect = this.canvas.getBoundingClientRect();
-        const x = (event.clientX - rect.left) * (this.canvas.width / rect.width);
-        const y = (event.clientY - rect.top) * (this.canvas.height / rect.height);
-        
-        console.log('[CanvasTextSelector] Start selection at:', x, y);
-        console.log('[CanvasTextSelector] Current selection before clearing:', this.currentSelection);
-        
-        this.isSelecting = true;
-        this.startPoint = { x, y };
-        this.endPoint = { x, y };
-        
-        // Clear any existing current selection (but keep permanent highlights)
-        this.clearSelection();
-        
-        // Prevent default to avoid text selection on the page
-        event.preventDefault();
-    }
-
-    onMouseMove(event) {
-        if (!this.isSelecting) return;
-        
-        const rect = this.canvas.getBoundingClientRect();
-        const x = (event.clientX - rect.left) * (this.canvas.width / rect.width);
-        const y = (event.clientY - rect.top) * (this.canvas.height / rect.height);
-        
-        this.endPoint = { x, y };
-        console.log('[CanvasTextSelector] Mouse move to:', x, y);
-        
-        // Update selection highlight
-        this.updateSelection();
-    }
-
-    onMouseUp(event) {
-        console.log('[CanvasTextSelector] Mouse up event');
-        if (!this.isSelecting) return;
-        
-        this.isSelecting = false;
-        
-        if (this.startPoint && this.endPoint) {
-            console.log('[CanvasTextSelector] Finalizing selection');
-            // Finalize selection and extract text
-            this.finalizeSelection();
-        }
-    }
-
-    onContextMenu(event) {
-        event.preventDefault();
         
         // Get click position relative to canvas
         const rect = this.canvas.getBoundingClientRect();
@@ -3772,1369 +3807,110 @@ class CanvasTextSelector {
         } else {
             console.log('[CanvasTextSelector] No selection or existing item at click position');
         }
-    }
-
-    onDocumentClick(event) {
-        // Hide context menu when clicking elsewhere
-        this.hideContextMenu();
-    }
-
-    showContextMenu(x, y, clickPoint = null) {
-        // Remove existing context menu
-        this.hideContextMenu();
         
-        // Create context menu
-        const contextMenu = document.createElement('div');
-        contextMenu.id = 'pdf-text-context-menu';
-        contextMenu.style.cssText = `
-            position: fixed;
-            left: ${x}px;
-            top: ${y}px;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 10000;
-            padding: 4px 0;
-            min-width: 150px;
-            font-family: system-ui, -apple-system, sans-serif;
-            font-size: 14px;
-        `;
-        
-        // Check if clicking on existing highlight/annotation
-        // First try to find items at click point, then fall back to selection
-        let existingHighlight = clickPoint ? this.findHighlightAtPoint(clickPoint.x, clickPoint.y) : null;
-        let existingAnnotation = clickPoint ? this.findAnnotationAtPoint(clickPoint.x, clickPoint.y) : null;
-        
-        // If nothing found at click point, check current selection
-        if (!existingHighlight && !existingAnnotation) {
-            existingHighlight = this.findHighlightAtSelection();
-            existingAnnotation = this.findAnnotationAtSelection();
-        }
-        
-        console.log('[CanvasTextSelector] Context menu - existing highlight:', existingHighlight);
-        console.log('[CanvasTextSelector] Context menu - existing annotation:', existingAnnotation);
-        
-        // Create menu items based on what's being clicked
-        const menuItems = [];
-        
-        // Always show copy option
-        menuItems.push({ label: 'Copy', action: () => this.handleCopy() });
-        
-        if (existingHighlight || existingAnnotation) {
-            // Options for existing highlights/annotations
-            if (existingHighlight && existingHighlight.type !== 'annotation') {
-                menuItems.push({ label: 'Remove Highlight', action: () => this.removeHighlight(existingHighlight) });
-            }
-            if (existingAnnotation) {
-                menuItems.push({ label: 'Edit Annotation', action: () => this.editAnnotation(existingAnnotation) });
-                menuItems.push({ label: 'Remove Annotation', action: () => this.removeAnnotation(existingAnnotation) });
-            }
-            if (existingHighlight && existingHighlight.type === 'annotation') {
-                menuItems.push({ label: 'Remove Annotated Text', action: () => this.removeAnnotatedHighlight(existingHighlight) });
-            }
-        } else {
-            // Options for new selection
-            menuItems.push({ label: 'Highlight', action: () => this.handleHighlight() });
-            menuItems.push({ label: 'Add Annotation', action: () => this.handleAnnotation() });
-        }
-        
-        menuItems.forEach(item => {
-            const menuItem = document.createElement('div');
-            menuItem.style.cssText = `
-                padding: 8px 16px;
-                cursor: pointer;
-                user-select: none;
-            `;
-            menuItem.textContent = item.label;
-            
-            menuItem.addEventListener('mouseenter', () => {
-                menuItem.style.background = '#f0f0f0';
-            });
-            
-            menuItem.addEventListener('mouseleave', () => {
-                menuItem.style.background = 'transparent';
-            });
-            
-            menuItem.addEventListener('click', (e) => {
-                e.stopPropagation();
-                item.action();
-                this.hideContextMenu();
-            });
-            
-            contextMenu.appendChild(menuItem);
-        });
-        
-        // Add to document
-        document.body.appendChild(contextMenu);
-        
-        // Adjust position if menu goes off screen
-        const rect = contextMenu.getBoundingClientRect();
-        if (rect.right > window.innerWidth) {
-            contextMenu.style.left = (x - rect.width) + 'px';
-        }
-        if (rect.bottom > window.innerHeight) {
-            contextMenu.style.top = (y - rect.height) + 'px';
-        }
-        
-        console.log('[CanvasTextSelector] Context menu shown');
-    }
-
-    hideContextMenu() {
-        const existingMenu = document.getElementById('pdf-text-context-menu');
-        if (existingMenu) {
-            existingMenu.remove();
-        }
-    }
+    // Clear and load PDF
+    clearAllHighlights();
+    loadPDFAnnotations();
     
-    // Show context menu specifically for annotation cards
-    showAnnotationCardContextMenu(x, y, annotationData) {
-        // Remove any existing context menu
-        this.hideContextMenu();
-        
-        console.log('[CanvasTextSelector] Showing annotation card context menu for:', annotationData);
-        
-        // Create context menu
-        const contextMenu = document.createElement('div');
-        contextMenu.id = 'pdf-text-context-menu';
-        contextMenu.style.cssText = `
-            position: fixed;
-            left: ${x}px;
-            top: ${y}px;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 10001;
-            padding: 4px 0;
-            min-width: 150px;
-            font-family: system-ui, -apple-system, sans-serif;
-            font-size: 14px;
-        `;
-        
-        // Menu items for annotation card
-        const menuItems = [
-            { label: 'Edit Annotation', action: () => this.editAnnotation(annotationData) },
-            { label: 'Remove Annotation', action: () => this.removeAnnotation(annotationData) },
-            { label: 'Copy Annotation Text', action: () => this.copyToClipboard(annotationData.annotation) },
-            { label: 'Copy Selected Text', action: () => this.copyToClipboard(annotationData.text) }
-        ];
-        
-        // Find associated highlight to enable removing it too
-        const associatedHighlight = this.permanentHighlights?.find(h => 
-            h.pageNumber === annotationData.pageNumber && 
-            h.type === 'annotation' && 
-            Math.abs(h.bounds.left - annotationData.x) < 1 && // Use small tolerance for floating point comparison
-            Math.abs(h.bounds.top - annotationData.y) < 1
-        );
-        
-        if (associatedHighlight) {
-            menuItems.push({ label: 'Remove Highlighted Text', action: () => this.removeAnnotatedHighlight(associatedHighlight) });
-        }
-        
-        // Create menu items
-        menuItems.forEach(item => {
-            const menuItem = document.createElement('div');
-            menuItem.style.cssText = `
-                padding: 8px 16px;
-                cursor: pointer;
-                user-select: none;
-            `;
-            menuItem.textContent = item.label;
-            
-            menuItem.addEventListener('mouseenter', () => {
-                menuItem.style.background = '#f0f0f0';
-            });
-            
-            menuItem.addEventListener('mouseleave', () => {
-                menuItem.style.background = 'transparent';
-            });
-            
-            menuItem.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.hideContextMenu();
-                item.action();
-            });
-            
-            contextMenu.appendChild(menuItem);
-        });
-        
-        document.body.appendChild(contextMenu);
-        
-        // Adjust position if menu goes off screen
-        const rect = contextMenu.getBoundingClientRect();
-        if (rect.right > window.innerWidth) {
-            contextMenu.style.left = (x - rect.width) + 'px';
-        }
-        if (rect.bottom > window.innerHeight) {
-            contextMenu.style.top = (y - rect.height) + 'px';
-        }
-        
-        console.log('[CanvasTextSelector] Annotation card context menu shown');
-    }
-
-    // Helper method to find highlight at a specific point
-    findHighlightAtPoint(x, y) {
-        if (!this.permanentHighlights) return null;
-        
-        const currentPage = window.pdfViewerState?.currentPage || 1;
-        
-        console.log('[CanvasTextSelector] Finding highlight at point:', { x, y }, 'on page:', currentPage);
-        
-        return this.permanentHighlights.find(highlight => {
-            if (highlight.pageNumber !== currentPage) return false;
-            
-            const bounds = highlight.bounds;
-            // Check if point is within highlight bounds
-            const inBounds = x >= bounds.left && x <= bounds.right && 
-                           y >= bounds.top && y <= bounds.bottom;
-            
-            if (inBounds) {
-                console.log('[CanvasTextSelector] Found highlight at point:', highlight);
-            }
-            
-            return inBounds;
-        });
-    }
-    
-    // Helper method to find annotation at a specific point
-    findAnnotationAtPoint(x, y) {
-        if (!this.permanentAnnotations) return null;
-        
-        const currentPage = window.pdfViewerState?.currentPage || 1;
-        
-        console.log('[CanvasTextSelector] Finding annotation at point:', { x, y }, 'on page:', currentPage);
-        
-        return this.permanentAnnotations.find(annotation => {
-            if (annotation.pageNumber !== currentPage) return false;
-            
-            // Check if point is within annotation bounds
-            const inBounds = x >= annotation.x && x <= (annotation.x + annotation.width) && 
-                           y >= annotation.y && y <= (annotation.y + annotation.height);
-            
-            if (inBounds) {
-                console.log('[CanvasTextSelector] Found annotation at point:', annotation);
-            }
-            
-            return inBounds;
-        });
-    }
-    
-    // Helper method to find highlight at current selection
-    findHighlightAtSelection() {
-        if (!this.currentSelection || !this.permanentHighlights) {
-            console.log('[CanvasTextSelector] findHighlightAtSelection: no selection or highlights');
-            return null;
-        }
-        
-        const currentPage = window.pdfViewerState?.currentPage || 1;
-        const selection = this.currentSelection;
-        
-        console.log('[CanvasTextSelector] Finding highlight at selection on page:', currentPage);
-        console.log('[CanvasTextSelector] Selection bounds:', selection.bounds);
-        console.log('[CanvasTextSelector] Available highlights:', this.permanentHighlights.length);
-        
-        const found = this.permanentHighlights.find(highlight => {
-            if (highlight.pageNumber !== currentPage) return false;
-            
-            const bounds = highlight.bounds;
-            // Check if selection overlaps with highlight bounds using selection.bounds
-            const overlaps = !(selection.bounds.right < bounds.left || 
-                             selection.bounds.left > bounds.right ||
-                             selection.bounds.bottom < bounds.top ||
-                             selection.bounds.top > bounds.bottom);
-            
-            if (overlaps) {
-                console.log('[CanvasTextSelector] Found overlapping highlight:', highlight);
-            }
-            
-            return overlaps;
-        });
-        
-        console.log('[CanvasTextSelector] findHighlightAtSelection result:', found);
-        return found;
-    }
-
-    // Helper method to find annotation at current selection
-    findAnnotationAtSelection() {
-        if (!this.currentSelection || !this.permanentAnnotations) {
-            console.log('[CanvasTextSelector] findAnnotationAtSelection: no selection or annotations');
-            return null;
-        }
-        
-        const currentPage = window.pdfViewerState?.currentPage || 1;
-        const selection = this.currentSelection;
-        
-        console.log('[CanvasTextSelector] Finding annotation at selection on page:', currentPage);
-        console.log('[CanvasTextSelector] Selection bounds:', selection.bounds);
-        console.log('[CanvasTextSelector] Available annotations:', this.permanentAnnotations.length);
-        
-        const found = this.permanentAnnotations.find(annotation => {
-            if (annotation.pageNumber !== currentPage) return false;
-            
-            // Check if selection overlaps with annotation coordinates using selection.bounds
-            const overlaps = !(selection.bounds.right < annotation.x || 
-                             selection.bounds.left > (annotation.x + annotation.width) ||
-                             selection.bounds.bottom < annotation.y ||
-                             selection.bounds.top > (annotation.y + annotation.height));
-            
-            if (overlaps) {
-                console.log('[CanvasTextSelector] Found overlapping annotation:', annotation);
-            }
-            
-            return overlaps;
-        });
-        
-        console.log('[CanvasTextSelector] findAnnotationAtSelection result:', found);
-        return found;
-    }
-
-    // Remove a regular highlight
-    removeHighlight(highlight) {
-        console.log('[CanvasTextSelector] Removing highlight:', highlight);
-        
-        // Remove from global array
-        const index = globalPermanentHighlights.indexOf(highlight);
-        if (index > -1) {
-            globalPermanentHighlights.splice(index, 1);
-        }
-        
-        // Update local reference
-        this.permanentHighlights = globalPermanentHighlights;
-        
-        // Redraw page
-        this.redrawWithHighlights();
-        
-        // Save annotations to PDF-specific file
-        savePDFAnnotations();
-        
-        console.log('[CanvasTextSelector] Highlight removed successfully');
-    }
-
-    // Remove annotation and its associated highlight
-    removeAnnotation(annotation) {
-        console.log('[CanvasTextSelector] Removing annotation:', annotation);
-        
-        // Remove annotation from global array
-        const annotationIndex = globalPermanentAnnotations.indexOf(annotation);
-        if (annotationIndex > -1) {
-            globalPermanentAnnotations.splice(annotationIndex, 1);
-        }
-        
-        // Remove associated highlight (annotation type)
-        const associatedHighlight = globalPermanentHighlights.find(h => 
-            h.pageNumber === annotation.pageNumber && 
-            h.type === 'annotation' && 
-            h.bounds.left === annotation.x &&
-            h.bounds.top === annotation.y
-        );
-        
-        if (associatedHighlight) {
-            const highlightIndex = globalPermanentHighlights.indexOf(associatedHighlight);
-            if (highlightIndex > -1) {
-                globalPermanentHighlights.splice(highlightIndex, 1);
-            }
-        }
-        
-        // Update local references
-        this.permanentAnnotations = globalPermanentAnnotations;
-        this.permanentHighlights = globalPermanentHighlights;
-        
-        // Redraw page and annotations
-        this.redrawWithHighlights();
-        
-        // Save annotations to PDF-specific file
-        savePDFAnnotations();
-        
-        console.log('[CanvasTextSelector] Annotation and associated highlight removed successfully');
-    }
-
-    // Remove annotated highlight (when user right-clicks on orange highlight)
-    removeAnnotatedHighlight(highlight) {
-        console.log('[CanvasTextSelector] Removing annotated highlight:', highlight);
-        
-        // Find and remove associated annotation
-        const associatedAnnotation = globalPermanentAnnotations.find(annotation => 
-            annotation.pageNumber === highlight.pageNumber && 
-            annotation.x === highlight.bounds.left &&
-            annotation.y === highlight.bounds.top
-        );
-        
-        if (associatedAnnotation) {
-            this.removeAnnotation(associatedAnnotation);
-        } else {
-            // Just remove the highlight if no annotation found
-            this.removeHighlight(highlight);
-        }
-    }
-
-    // Edit existing annotation
-    async editAnnotation(annotation) {
-        console.log('[CanvasTextSelector] Editing annotation:', annotation);
-        
-        try {
-            // Show annotation modal with existing text, passing the selected text for display
-            const newAnnotationText = await this.showAnnotationModal(annotation.annotation, annotation.text);
-            
-            if (!newAnnotationText) {
-                console.log('[CanvasTextSelector] No new annotation text provided, cancelling edit');
-                return;
-            }
-            
-            // Update annotation text
-            annotation.annotation = newAnnotationText;
-            annotation.timestamp = new Date().toISOString();
-            
-            // Redraw annotations to reflect changes
-            this.displayAnnotationsForCurrentPage();
-            
-            // TODO: Update annotations.md file with edited content
-            
-            console.log('[CanvasTextSelector] Annotation edited successfully');
-        } catch (error) {
-            console.error('[CanvasTextSelector] Error editing annotation:', error);
-        }
-    }
-
-    handleCopy() {
-        if (this.currentSelection && this.currentSelection.text) {
-            this.copyToClipboard(this.currentSelection.text);
-            console.log('[CanvasTextSelector] Text copied to clipboard');
-        }
-    }
-
-    handleHighlight() {
-        if (this.currentSelection) {
-            // Store permanent highlight
-            this.addPermanentHighlight(this.currentSelection);
-            console.log('[CanvasTextSelector] Added permanent highlight');
-        }
-    }
-
-    async handleAnnotation() {
-        if (!this.currentSelection) return;
-        
-        console.log('[CanvasTextSelector] Starting annotation process');
-        console.log('[CanvasTextSelector] Current selection:', this.currentSelection);
-        
-        try {
-            // Create a custom modal for annotation input
-            const annotation = await this.showAnnotationModal();
-            console.log('[CanvasTextSelector] Modal returned annotation:', annotation);
-            
-            if (!annotation) {
-                console.log('[CanvasTextSelector] No annotation provided, cancelling');
-                return;
-            }
-            
-            // Save annotation to file
-            await this.saveAnnotation(this.currentSelection, annotation);
-            console.log('[CanvasTextSelector] Annotation saved successfully');
-        } catch (error) {
-            console.error('[CanvasTextSelector] Error in annotation process:', error);
-        }
-    }
-
-    showAnnotationModal(defaultText = '', selectedText = null) {
-        console.log('[CanvasTextSelector] Creating annotation modal');
-        return new Promise((resolve) => {
-            try {
-                // Create modal overlay
-                const overlay = document.createElement('div');
-            overlay.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.5);
-                z-index: 20000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            `;
-
-            // Create modal content
-            const modal = document.createElement('div');
-            modal.style.cssText = `
-                background: white;
-                border-radius: 8px;
-                padding: 24px;
-                max-width: 500px;
-                width: 90%;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-                font-family: system-ui, -apple-system, sans-serif;
-            `;
-
-            // Add title
-            const title = document.createElement('h3');
-            title.textContent = defaultText ? 'Edit Annotation' : 'Add Annotation';
-            title.style.cssText = `
-                margin: 0 0 16px 0;
-                font-size: 18px;
-                font-weight: 600;
-            `;
-
-            // Show selected text (if available)
-            const textToDisplay = selectedText || (this.currentSelection ? this.currentSelection.text : null);
-            let selectedTextDiv = null;
-            
-            if (textToDisplay) {
-                selectedTextDiv = document.createElement('div');
-                selectedTextDiv.style.cssText = `
-                    background: #f5f5f5;
-                    padding: 12px;
-                    border-radius: 4px;
-                    margin-bottom: 16px;
-                    font-style: italic;
-                    border-left: 3px solid #007acc;
-                `;
-                selectedTextDiv.textContent = `"${textToDisplay}"`;
-            }
-
-            // Create textarea
-            const textarea = document.createElement('textarea');
-            textarea.placeholder = 'Enter your annotation...';
-            textarea.value = defaultText; // Set default text for editing
-            textarea.style.cssText = `
-                width: 100%;
-                height: 100px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                padding: 8px;
-                font-family: system-ui, -apple-system, sans-serif;
-                font-size: 14px;
-                resize: vertical;
-                margin-bottom: 16px;
-                box-sizing: border-box;
-            `;
-
-            // Create buttons
-            const buttonContainer = document.createElement('div');
-            buttonContainer.style.cssText = `
-                display: flex;
-                gap: 8px;
-                justify-content: flex-end;
-            `;
-
-            const cancelButton = document.createElement('button');
-            cancelButton.textContent = 'Cancel';
-            cancelButton.style.cssText = `
-                padding: 8px 16px;
-                border: 1px solid #ccc;
-                background: white;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-            `;
-
-            const saveButton = document.createElement('button');
-            saveButton.textContent = 'Save Annotation';
-            saveButton.style.cssText = `
-                padding: 8px 16px;
-                border: none;
-                background: #007acc;
-                color: white;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-            `;
-
-            // Add event listeners
-            const cleanup = () => {
-                document.body.removeChild(overlay);
-            };
-
-            cancelButton.addEventListener('click', () => {
-                cleanup();
-                resolve(null);
-            });
-
-            saveButton.addEventListener('click', () => {
-                const annotation = textarea.value.trim();
-                cleanup();
-                resolve(annotation || null);
-            });
-
-            // ESC key to cancel
-            const handleKeyDown = (e) => {
-                if (e.key === 'Escape') {
-                    cleanup();
-                    resolve(null);
-                    document.removeEventListener('keydown', handleKeyDown);
-                }
-            };
-            document.addEventListener('keydown', handleKeyDown);
-
-            // Click overlay to cancel
-            overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) {
-                    cleanup();
-                    resolve(null);
-                }
-            });
-
-            // Build modal
-            buttonContainer.appendChild(cancelButton);
-            buttonContainer.appendChild(saveButton);
-            modal.appendChild(title);
-            if (selectedTextDiv) {
-                modal.appendChild(selectedTextDiv);
-            }
-            modal.appendChild(textarea);
-            modal.appendChild(buttonContainer);
-            overlay.appendChild(modal);
-
-            // Add to document and focus textarea
-            document.body.appendChild(overlay);
-            textarea.focus();
-            console.log('[CanvasTextSelector] Modal created and added to DOM');
-            
-            } catch (error) {
-                console.error('[CanvasTextSelector] Error creating modal:', error);
-                resolve(null);
-            }
-        });
-    }
-
-    addPermanentHighlight(selection) {
-        const currentPage = window.pdfViewerState?.currentPage || 1;
-        
-        // Add current selection as permanent highlight to global array
-        const highlight = {
-            bounds: selection.bounds,
-            text: selection.text,
-            pageNumber: currentPage
-        };
-        
-        globalPermanentHighlights.push(highlight);
-        
-        // Update local reference
-        this.permanentHighlights = globalPermanentHighlights;
-        
-        // Redraw with permanent highlights
-        this.redrawWithHighlights();
-        
-        // Save annotations to PDF-specific file
-        savePDFAnnotations();
-        
-        console.log(`[CanvasTextSelector] Added permanent highlight on page ${currentPage}`);
-        console.log('[CanvasTextSelector] Highlight details:', highlight);
-        console.log(`[CanvasTextSelector] Total permanent highlights: ${globalPermanentHighlights.length}`);
-        console.log('[CanvasTextSelector] All highlights:', globalPermanentHighlights);
-    }
-
-    redrawWithHighlights() {
-        if (!this.pageImage || !this.ctx) return;
-        
-        // Restore original page
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.pageImage, 0, 0);
-        
-        // Draw all permanent highlights for current page
-        if (this.permanentHighlights) {
-            const currentPage = window.pdfViewerState?.currentPage || 1;
-            console.log(`[CanvasTextSelector] Redrawing highlights for page ${currentPage}`);
-            console.log(`[CanvasTextSelector] Total highlights in array: ${this.permanentHighlights.length}`);
-            console.log('[CanvasTextSelector] All highlights with page numbers:', 
-                this.permanentHighlights.map(h => ({ page: h.pageNumber, text: h.text.substring(0, 20) + '...' })));
-            
-            const pageHighlights = this.permanentHighlights.filter(highlight => {
-                console.log(`[CanvasTextSelector] Checking highlight: page ${highlight.pageNumber} vs current ${currentPage}`);
-                return highlight.pageNumber === currentPage;
-            });
-            console.log(`[CanvasTextSelector] Highlights for current page: ${pageHighlights.length}`);
-            
-            if (pageHighlights.length > 0) {
-                this.ctx.save();
-                
-                pageHighlights.forEach((highlight, index) => {
-                    console.log(`[CanvasTextSelector] Drawing highlight ${index + 1} on page ${currentPage}:`, highlight);
-                    
-                    // Use different colors based on highlight type
-                    if (highlight.type === 'annotation') {
-                        // Orange/amber color for annotated text
-                        this.ctx.fillStyle = 'rgba(255, 165, 0, 0.5)'; // Orange with transparency
-                        console.log(`[CanvasTextSelector] Using annotation color for highlight ${index + 1}`);
-                    } else {
-                        // Regular yellow for normal highlights
-                        this.ctx.fillStyle = 'rgba(255, 255, 0, 0.4)';
-                        console.log(`[CanvasTextSelector] Using regular color for highlight ${index + 1}`);
-                    }
-                    
-                    const bounds = highlight.bounds;
-                    this.ctx.fillRect(bounds.left, bounds.top, 
-                                     bounds.right - bounds.left,
-                                     bounds.bottom - bounds.top);
-                });
-                
-                this.ctx.restore();
-            }
-        }
-        
-        // Draw current selection if exists
-        this.drawSelectedTextHighlight();
-        
-        // Display annotations for current page
-        this.displayAnnotationsForCurrentPage();
-    }
-    
-    displayAnnotationsForCurrentPage() {
-        // Clear existing annotation elements first
-        this.clearExistingAnnotations();
-        
-        if (this.permanentAnnotations && this.permanentAnnotations.length > 0) {
-            const currentPage = window.pdfViewerState?.currentPage || 1;
-            console.log(`[CanvasTextSelector] Displaying annotations for page ${currentPage}`);
-            
-            const pageAnnotations = this.permanentAnnotations.filter(annotation => {
-                return annotation.pageNumber === currentPage;
-            });
-            
-            console.log(`[CanvasTextSelector] Found ${pageAnnotations.length} annotations for page ${currentPage}`);
-            
-            pageAnnotations.forEach(annotation => {
-                this.createVisualAnnotation(annotation);
-            });
-        }
-    }
-    
-    clearExistingAnnotations() {
-        // Remove all existing annotation elements
-        const existingAnnotations = document.querySelectorAll('.pdf-annotation-marker');
-        existingAnnotations.forEach(element => {
-            element.remove();
-        });
-    }
-
-    async saveAnnotation(selection, annotation) {
-        try {
-            const currentPage = window.pdfViewerState?.currentPage || 1;
-            const fileName = window.currentFilePath ? window.currentFilePath.split('/').pop() : 'Unknown PDF';
-            
-            const annotationEntry = {
-                source: fileName,
-                page: currentPage,
-                selectedText: selection.text,
-                annotation: annotation,
-                timestamp: new Date().toISOString()
-            };
-            
-            // Format for markdown file
-            const markdownEntry = `## ${fileName} - Page ${currentPage}
-**Selected Text:** ${selection.text}
-**Annotation:** ${annotation}
-**Date:** ${new Date().toLocaleDateString()}
-
----
-
-`;
-            
-            // Get working directory for annotations.md - use app working directory, not current file directory
-            let workingDirectory = null;
-            try {
-                workingDirectory = await window.electronAPI.invoke('get-working-directory');
-            } catch (error) {
-                console.log('[CanvasTextSelector] Could not get working directory, using current file directory');
-                workingDirectory = window.currentFileDirectory;
-            }
-            
-            const annotationsPath = workingDirectory ? 
-                `${workingDirectory}/annotations.md` : 
-                'annotations.md';
-            
-            // Read existing annotations file or create new content
-            let existingContent = '';
-            try {
-                const response = await window.electronAPI.invoke('read-file', annotationsPath);
-                if (response.success) {
-                    existingContent = response.content;
-                }
-            } catch (error) {
-                console.log('[CanvasTextSelector] Creating new annotations file');
-            }
-            
-            // Add header if this is a new file
-            const header = existingContent ? '' : '# PDF Annotations\n\n';
-            const newContent = header + markdownEntry + existingContent;
-            
-            // Save to file
-            const saveResponse = await window.electronAPI.invoke('save-file', {
-                filePath: annotationsPath,
-                content: newContent
-            });
-            
-            if (saveResponse.success) {
-                console.log('[CanvasTextSelector] Annotation saved to:', annotationsPath);
-                
-                // Store annotation for visual display
-                const annotationData = {
-                    pageNumber: currentPage,
-                    text: selection.text,
-                    annotation: annotation,
-                    timestamp: new Date().toISOString(),
-                    x: selection.bounds.left,
-                    y: selection.bounds.top,
-                    width: selection.bounds.right - selection.bounds.left,
-                    height: selection.bounds.bottom - selection.bounds.top
-                };
-                
-                // Add to global annotations array
-                globalPermanentAnnotations.push(annotationData);
-                this.permanentAnnotations = globalPermanentAnnotations;
-                
-                // Create a special highlight for annotated text (different color than regular highlights)
-                const annotatedHighlight = {
-                    pageNumber: currentPage,
-                    bounds: {
-                        left: selection.bounds.left,
-                        top: selection.bounds.top,
-                        right: selection.bounds.right,
-                        bottom: selection.bounds.bottom
-                    },
-                    text: selection.text,
-                    type: 'annotation', // Mark as annotation highlight
-                    timestamp: new Date().toISOString()
-                };
-                
-                // Add annotation highlight to global highlights array
-                globalPermanentHighlights.push(annotatedHighlight);
-                this.permanentHighlights = globalPermanentHighlights;
-                
-                // Create visual annotation in margin
-                this.createVisualAnnotation(annotationData);
-                
-                // Save annotations to PDF-specific file
-                await savePDFAnnotations();
-                
-                console.log('[CanvasTextSelector] Annotation stored and displayed');
-            } else {
-                console.error('[CanvasTextSelector] Failed to save annotation:', saveResponse.error);
-            }
-            
-        } catch (error) {
-            console.error('[CanvasTextSelector] Error saving annotation:', error);
-        }
-    }
-
-    createVisualAnnotation(annotationData) {
-        try {
-            console.log('[CanvasTextSelector] Creating visual annotation in margin');
-            
-            // Get the preview container to position the annotation relative to
-            const canvas = this.canvas;
-            if (!canvas) return;
-            
-            const previewContainer = document.getElementById('preview-content');
-            if (!previewContainer) {
-                console.error('[CanvasTextSelector] Preview container not found');
-                return;
-            }
-            
-            // Create annotation element
-            const annotationElement = document.createElement('div');
-            annotationElement.className = 'pdf-annotation-marker';
-            
-            // Calculate position - place to the right of the canvas within the preview container
-            const canvasRect = canvas.getBoundingClientRect();
-            const containerRect = previewContainer.getBoundingClientRect();
-            
-            // Position to the right of the canvas, accounting for scrolling
-            const leftPosition = canvasRect.width + 20; // 20px margin from canvas edge
-            
-            // Convert PDF coordinates to screen coordinates using current scale
-            const currentScale = window.pdfViewerState?.scale || 1.0;
-            const screenY = annotationData.y * currentScale;
-            const screenHeight = annotationData.height * currentScale;
-            
-            // Position annotation at the middle of the text selection vertically
-            const topPosition = Math.max(0, screenY + (screenHeight / 2) - 30); // Center annotation on text selection
-            
-            console.log(`[CanvasTextSelector] PDF coordinates: x=${annotationData.x}, y=${annotationData.y}, w=${annotationData.width}, h=${annotationData.height}`);
-            console.log(`[CanvasTextSelector] Current scale: ${currentScale}`);
-            console.log(`[CanvasTextSelector] Screen coordinates: left=${leftPosition}px, top=${topPosition}px (centered on selection)`);
-            console.log(`[CanvasTextSelector] Canvas dimensions: ${canvasRect.width} x ${canvas.height || canvas.clientHeight}`);
-            
-            annotationElement.style.cssText = `
-                position: absolute;
-                left: ${leftPosition}px;
-                top: ${topPosition}px;
-                background: #fff3cd;
-                border: 2px solid #ffc107;
-                border-radius: 8px;
-                padding: 12px;
-                max-width: 200px;
-                font-size: 12px;
-                font-family: system-ui, -apple-system, sans-serif;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                z-index: 1000;
-                cursor: pointer;
-            `;
-            
-            // Add tooltip
-            annotationElement.title = 'Right-click for options | Double-click to edit';
-            
-            // Create annotation content
-            const selectedTextDiv = document.createElement('div');
-            selectedTextDiv.style.cssText = `
-                font-style: italic;
-                color: #666;
-                font-size: 11px;
-                margin-bottom: 8px;
-                border-left: 2px solid #ffc107;
-                padding-left: 6px;
-            `;
-            const displayText = annotationData.text || annotationData.selectedText || 'No text selected';
-            selectedTextDiv.textContent = `"${displayText.substring(0, 40)}${displayText.length > 40 ? '...' : ''}"`;
-            
-            const annotationTextDiv = document.createElement('div');
-            annotationTextDiv.style.cssText = `
-                color: #333;
-                line-height: 1.4;
-            `;
-            annotationTextDiv.textContent = annotationData.annotation;
-            
-            // Create connection line to highlight
-            const connectionLine = document.createElement('div');
-            connectionLine.style.cssText = `
-                position: absolute;
-                left: -20px;
-                top: 50%;
-                width: 18px;
-                height: 2px;
-                background: #ffc107;
-                transform: translateY(-50%);
-            `;
-            
-            // Add hover effects
-            annotationElement.addEventListener('mouseenter', () => {
-                annotationElement.style.background = '#fff8e1';
-                annotationElement.style.transform = 'scale(1.02)';
-                annotationElement.style.transition = 'all 0.2s ease';
-            });
-            
-            annotationElement.addEventListener('mouseleave', () => {
-                annotationElement.style.background = '#fff3cd';
-                annotationElement.style.transform = 'scale(1)';
-            });
-            
-            // Add right-click context menu functionality
-            annotationElement.addEventListener('contextmenu', (event) => {
-                event.preventDefault();
-                event.stopPropagation(); // Prevent canvas context menu from also appearing
-                
-                console.log('[CanvasTextSelector] Right-click on annotation card');
-                
-                // Show context menu for annotation card
-                this.showAnnotationCardContextMenu(event.clientX, event.clientY, annotationData);
-            });
-            
-            // Add double-click to edit functionality
-            annotationElement.addEventListener('dblclick', () => {
-                console.log('[CanvasTextSelector] Annotation double-clicked - editing');
-                this.editAnnotation(annotationData);
-            });
-            
-            // Build the annotation
-            annotationElement.appendChild(selectedTextDiv);
-            annotationElement.appendChild(annotationTextDiv);
-            annotationElement.appendChild(connectionLine);
-            
-            // Find the PDF container to append the annotation
-            const pdfContainer = canvas.parentElement;
-            console.log('[CanvasTextSelector] PDF container found:', !!pdfContainer);
-            if (pdfContainer) {
-                // Ensure container is positioned and has enough width for annotations
-                pdfContainer.style.position = 'relative'; 
-                pdfContainer.style.overflow = 'visible'; // Allow annotations to show outside canvas
-                pdfContainer.style.minWidth = `${canvasRect.width + 250}px`; // Ensure space for annotations
-                
-                pdfContainer.appendChild(annotationElement);
-                console.log('[CanvasTextSelector] Visual annotation added to DOM');
-                console.log('[CanvasTextSelector] Container style:', pdfContainer.style.cssText);
-                console.log('[CanvasTextSelector] Annotation element:', annotationElement);
-            } else {
-                console.error('[CanvasTextSelector] No PDF container found - annotation cannot be displayed');
-            }
-            
-        } catch (error) {
-            console.error('[CanvasTextSelector] Error creating visual annotation:', error);
-        }
-    }
-
-    updateSelection() {
-        if (!this.pageImage || !this.ctx) return;
-        
-        // Restore the original page image
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.pageImage, 0, 0);
-        
-        // Draw selection rectangle on top
-        this.drawSelectionRect();
-    }
-
-    drawSelectionRect() {
-        if (!this.startPoint || !this.endPoint || !this.ctx) {
-            console.log('[CanvasTextSelector] Cannot draw selection - missing required elements');
-            return;
-        }
-        
-        const ctx = this.ctx;
-        ctx.save();
-        
-        // Calculate selection rectangle
-        const x = Math.min(this.startPoint.x, this.endPoint.x);
-        const y = Math.min(this.startPoint.y, this.endPoint.y);
-        const width = Math.abs(this.endPoint.x - this.startPoint.x);
-        const height = Math.abs(this.endPoint.y - this.startPoint.y);
-        
-        console.log('[CanvasTextSelector] Drawing selection rect:', {x, y, width, height});
-        
-        // Draw semi-transparent selection rectangle
-        ctx.fillStyle = 'rgba(0, 123, 255, 0.3)'; // Blue selection
-        ctx.fillRect(x, y, width, height);
-        
-        // Draw selection border
-        ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)'; // Blue border
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, width, height);
-        
-        ctx.restore();
-        
-        console.log('[CanvasTextSelector] Selection drawn on main canvas');
-    }
-
-    finalizeSelection() {
-        if (!this.startPoint || !this.endPoint) return;
-        
-        // Calculate selection bounds
-        const selectionBounds = {
-            left: Math.min(this.startPoint.x, this.endPoint.x),
-            top: Math.min(this.startPoint.y, this.endPoint.y),
-            right: Math.max(this.startPoint.x, this.endPoint.x),
-            bottom: Math.max(this.startPoint.y, this.endPoint.y)
-        };
-        
-        // Extract text within selection bounds
-        const selectedText = this.extractTextFromBounds(selectionBounds);
-        
-        if (selectedText.trim()) {
-            // Copy to clipboard
-            this.copyToClipboard(selectedText);
-            
-            // Store selection for highlighting
-            this.currentSelection = {
-                bounds: selectionBounds,
-                text: selectedText
-            };
-            
-            console.log('[CanvasTextSelector] Final selected text:', selectedText);
-            console.log('[CanvasTextSelector] Selection bounds:', selectionBounds);
-            
-            // Keep the selection highlighted permanently until user clicks elsewhere
-            this.drawSelectedTextHighlight();
-        } else {
-            console.log('[CanvasTextSelector] No text selected');
-            this.clearSelection();
-        }
-    }
-
-    extractTextFromBounds(bounds) {
-        const selectedItems = [];
-        
-        console.log('[CanvasTextSelector] Extracting text from bounds:', bounds);
-        console.log('[CanvasTextSelector] Viewport:', this.viewport);
-        
-        // Use PDF.js's own coordinate transformation
-        // The viewport.convertToViewportPoint method properly handles all transformations
-        
-        for (const item of this.textItems) {
-            if (!item.str || item.str.trim() === '') continue;
-            
-            // Get the text item's transform matrix
-            const tx = item.transform[4]; // X position in PDF space
-            const ty = item.transform[5]; // Y position (baseline) in PDF space
-            const fontSize = Math.abs(item.transform[0] || item.transform[3]);
-            const itemWidth = item.width || 0;
-            
-            // Use PDF.js viewport to convert PDF coordinates to canvas coordinates
-            // This handles all scaling, rotation, and translation properly
-            const [canvasX, canvasY] = this.viewport.convertToViewportPoint(tx, ty);
-            
-            // Calculate text bounding box in canvas coordinates
-            // PDF text baseline is at Y position, text extends upward
-            const textHeight = fontSize;
-            const [textEndX, textTopY] = this.viewport.convertToViewportPoint(tx + itemWidth, ty + textHeight);
-            
-            // Text bounding box in canvas coordinates
-            const textLeft = canvasX;
-            const textRight = textEndX;
-            const textTop = Math.min(canvasY, textTopY); // Top of text (smaller Y in canvas)
-            const textBottom = Math.max(canvasY, textTopY); // Bottom of text (larger Y in canvas)
-            
-            // Check if text intersects with selection
-            const intersects = !(
-                textRight < bounds.left ||
-                textLeft > bounds.right ||
-                textBottom < bounds.top ||
-                textTop > bounds.bottom
-            );
-            
-            if (intersects) {
-                selectedItems.push({
-                    text: item.str,
-                    x: tx,
-                    y: ty,
-                    canvasX: canvasX,
-                    canvasY: canvasY,
-                    transform: item.transform,
-                    left: textLeft,
-                    right: textRight,
-                    top: textTop,
-                    bottom: textBottom
-                });
-                
-                console.log('[CanvasTextSelector] Selected:', item.str);
-                console.log('  PDF pos:', tx, ty);
-                console.log('  Canvas pos:', canvasX, canvasY);
-                console.log('  Text box:', textLeft, textTop, textRight, textBottom);
-                console.log('  Selection:', bounds.left, bounds.top, bounds.right, bounds.bottom);
-            }
-        }
-        
-        // Sort by position (top to bottom, left to right)
-        selectedItems.sort((a, b) => {
-            const yDiff = b.y - a.y; // Higher Y first (top to bottom in PDF coordinates)
-            if (Math.abs(yDiff) > 5) return yDiff; // Different lines
-            return a.x - b.x; // Same line, left to right
-        });
-        
-        // Group items by lines and intelligently join text
-        const lines = this.groupItemsByLines(selectedItems);
-        const smartText = this.smartTextJoin(lines);
-        
-        return smartText;
-    }
-
-    groupItemsByLines(items) {
-        if (items.length === 0) return [];
-        
-        const lines = [];
-        let currentLine = [items[0]];
-        
-        for (let i = 1; i < items.length; i++) {
-            const currentItem = items[i];
-            const prevItem = items[i - 1];
-            
-            // Check if items are on the same line (within 5 pixel tolerance)
-            const yDiff = Math.abs(currentItem.canvasY - prevItem.canvasY);
-            if (yDiff < 5) {
-                currentLine.push(currentItem);
-            } else {
-                lines.push(currentLine);
-                currentLine = [currentItem];
-            }
-        }
-        lines.push(currentLine);
-        
-        return lines;
-    }
-
-    smartTextJoin(lines) {
-        const processedLines = lines.map(line => {
-            let text = '';
-            for (let i = 0; i < line.length; i++) {
-                const item = line[i];
-                const nextItem = line[i + 1];
-                
-                text += item.text;
-                
-                // Add space if needed between words
-                if (nextItem) {
-                    const gap = nextItem.left - item.right;
-                    // Add space if there's a significant gap between words
-                    if (gap > 2) {
-                        text += ' ';
-                    }
-                }
-            }
-            return text.trim();
-        });
-        
-        // Join lines with spaces, handling word wrapping intelligently
-        let result = '';
-        for (let i = 0; i < processedLines.length; i++) {
-            const line = processedLines[i];
-            const nextLine = processedLines[i + 1];
-            
-            result += line;
-            
-            if (nextLine) {
-                // Check if current line ends with a hyphen (word continues on next line)
-                if (line.endsWith('-')) {
-                    // Remove hyphen and join without space for hyphenated words
-                    result = result.slice(0, -1);
-                } else if (this.lineEndsWithWordBreak(line)) {
-                    // Add space if line ends with complete word
-                    result += ' ';
-                } else {
-                    // Default: add space between lines
-                    result += ' ';
-                }
-            }
-        }
-        
-        return this.cleanupText(result);
-    }
-
-    lineEndsWithWordBreak(line) {
-        // Check if line ends with punctuation or appears to be a complete word
-        return /[.!?:;,]$/.test(line.trim()) || 
-               /\w+$/.test(line.trim()) && line.length > 20; // Longer lines likely end with complete words
-    }
-
-    cleanupText(text) {
-        return text
-            .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
-            .replace(/\s*([.!?:;,])/g, '$1')  // Remove space before punctuation
-            .replace(/([.!?])\s*([A-Z])/g, '$1 $2')  // Ensure space after sentence endings
-            .trim();
-    }
-
-    async copyToClipboard(text) {
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-            }
-        } catch (err) {
-            console.warn('Failed to copy text to clipboard:', err);
-        }
-    }
-
-    drawSelectedTextHighlight() {
-        if (!this.currentSelection || !this.currentSelection.bounds) {
-            console.log('[CanvasTextSelector] No current selection to draw');
-            return;
-        }
-        
-        console.log('[CanvasTextSelector] Drawing current selection highlight:', this.currentSelection.bounds);
-        
-        // Draw the current selection highlight (lighter yellow)
-        this.ctx.save();
-        this.ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'; // Yellow highlight for current selection
-        const bounds = this.currentSelection.bounds;
-        this.ctx.fillRect(bounds.left, bounds.top, 
-                         bounds.right - bounds.left,
-                         bounds.bottom - bounds.top);
-        this.ctx.restore();
-    }
-
-    clearSelection() {
-        console.log('[CanvasTextSelector] Clearing current selection');
-        this.currentSelection = null;
-        // Redraw with permanent highlights (if any)
-        this.redrawWithHighlights();
-    }
-
-    redrawPage() {
-        // No longer needed - we use overlay canvas instead
-    }
-
-    drawStoredSelection() {
-        if (this.currentSelection) {
-            const bounds = this.currentSelection.bounds;
-            const ctx = this.ctx;
-            
-            ctx.save();
-            ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'; // Yellow highlight
-            ctx.fillRect(bounds.left, bounds.top, 
-                        bounds.right - bounds.left, 
-                        bounds.bottom - bounds.top);
-            ctx.restore();
-        }
-    }
-}
-
-// Global text selector instance and permanent highlights
-let canvasTextSelector = new CanvasTextSelector();
-let globalPermanentHighlights = [];
-let globalPermanentAnnotations = [];
-
-// Function to clear all highlights and annotations when switching PDFs
-function clearAllHighlights() {
-    console.log('[PDF] Clearing all highlights and annotations for new document');
-    globalPermanentHighlights.length = 0; // Clear array
-    globalPermanentAnnotations.length = 0; // Clear annotations array
-    if (canvasTextSelector) {
-        canvasTextSelector.currentSelection = null;
-        canvasTextSelector.permanentHighlights = [];
-        canvasTextSelector.permanentAnnotations = [];
-    }
-}
-
-// Save highlights and annotations to PDF-specific file
-async function savePDFAnnotations() {
     try {
-        if (!window.currentFilePath || !window.currentFilePath.endsWith('.pdf')) return;
+        // Set worker source
+        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = './node_modules/pdfjs-dist/build/pdf.worker.js';
+        }
         
-        const annotationsFile = window.currentFilePath.replace('.pdf', '.annotations');
-        const data = {
-            highlights: globalPermanentHighlights,
-            annotations: globalPermanentAnnotations,
-            lastModified: new Date().toISOString()
+        // Loading task setup
+        const loadingTask = pdfjsLib.getDocument(filePath);
+        const pdf = await loadingTask.promise;
+        
+        console.log(`[PDF] PDF loaded: ${pdf.numPages} pages`);
+        
+        // Initialize PDF viewer state
+        window.pdfViewerState = {
+            pdf: pdf,
+            currentPage: 1,
+            totalPages: pdf.numPages,
+            currentRenderTask: null,
+            highlightMode: false,
+            searchMatches: [],
+            currentMatch: 0
         };
         
-        await window.electronAPI.invoke('save-file', {
-            filePath: annotationsFile,
-            content: JSON.stringify(data, null, 2)
-        });
+        // Render first page
+        await renderPDFPage(pdf, 1);
         
-        console.log('[PDF] Saved annotations to:', annotationsFile);
     } catch (error) {
-        console.error('[PDF] Error saving annotations:', error);
+        console.error('[PDF] Error loading PDF:', error);
+        previewContent.innerHTML = '<p>Error loading PDF file.</p>';
     }
 }
 
-// Load highlights and annotations from PDF-specific file
-async function loadPDFAnnotations() {
+// --- PDF Page Rendering ---
+async function renderPDFPage(pdf, pageNumber, smooth = false) {
+    if (pageNumber < 1 || pageNumber > pdf.numPages) return;
+    
+    const oldPage = window.pdfViewerState.currentPage;
+    window.pdfViewerState.currentPage = pageNumber;
+    
     try {
-        if (!window.currentFilePath || !window.currentFilePath.endsWith('.pdf')) return;
-        
-        const annotationsFile = window.currentFilePath.replace('.pdf', '.annotations');
-        const response = await window.electronAPI.invoke('read-file', annotationsFile);
-        
-        if (response.success) {
-            const data = JSON.parse(response.content);
-            globalPermanentHighlights.length = 0;
-            globalPermanentAnnotations.length = 0;
-            
-            if (data.highlights) {
-                globalPermanentHighlights.push(...data.highlights);
-            }
-            if (data.annotations) {
-                globalPermanentAnnotations.push(...data.annotations);
-            }
-            
-            // Update text selector references
-            if (canvasTextSelector) {
-                canvasTextSelector.permanentHighlights = globalPermanentHighlights;
-                canvasTextSelector.permanentAnnotations = globalPermanentAnnotations;
-            }
-            
-            console.log(`[PDF] Loaded ${globalPermanentHighlights.length} highlights and ${globalPermanentAnnotations.length} annotations from:`, annotationsFile);
+        // Cancel existing render task
+        if (window.pdfViewerState.currentRenderTask) {
+            window.pdfViewerState.currentRenderTask.cancel();
         }
+        
+        const page = await pdf.getPage(pageNumber);
+        const scale = 1.5;
+        const viewport = page.getViewport({scale: scale});
+        
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        // Render page
+        const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+        };
+        
+        const renderTask = page.render(renderContext);
+        window.pdfViewerState.currentRenderTask = renderTask;
+        
+        await renderTask.promise;
+        
+        // Display canvas
+        previewContent.innerHTML = '';
+        previewContent.appendChild(canvas);
+        
+        console.log(`[PDF] Page ${pageNumber} rendered`);
+        
     } catch (error) {
-        console.log('[PDF] No existing annotations file found (this is normal for new PDFs)');
+        if (error.name === 'RenderingCancelledException') {
+            console.log('[PDF] Rendering cancelled');
+        } else {
+            console.error('[PDF] Error rendering page:', error);
+        }
     }
 }
+
+// All PDF annotation functionality has been moved to pdfAnnotations.js module
+
+// Update cursor position for fallback textarea editor
+function updateFallbackCursorPosition() {
+    const textarea = document.getElementById('fallback-editor');
+    const cursorPosEl = document.getElementById('cursor-position');
+    
+    if (!textarea || !cursorPosEl) return;
+    
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+    const lines = textBeforeCursor.split('\n');
+    const lineNumber = lines.length;
+    const columnNumber = lines[lines.length - 1].length + 1;
+    
+    cursorPosEl.textContent = `Ln ${lineNumber}, Col ${columnNumber}`;
+}
+
 
 // Calculate dynamic positioning for text layer based on PDF layout
 async function calculateDynamicTextLayerPositioning(page, viewport, canvasRect, currentScale) {

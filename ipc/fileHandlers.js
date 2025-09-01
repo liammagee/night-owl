@@ -878,6 +878,225 @@ function register(deps) {
       return { success: false, error: error.message };
     }
   });
+
+  // Embed annotations into PDF file
+  ipcMain.handle('embed-pdf-annotations', async (event, { highlights, annotations, filePath }) => {
+    try {
+      console.log(`[FileHandlers] Embedding annotations into PDF: ${filePath}`);
+      
+      const PDFLib = require('pdf-lib');
+      const { PDFDocument, rgb } = PDFLib;
+      
+      // Read the original PDF
+      const pdfBuffer = await fs.readFile(filePath);
+      
+      // Load the PDF document
+      const pdfDoc = await PDFDocument.load(pdfBuffer);
+      const pages = pdfDoc.getPages();
+      
+      // Add highlights as annotations
+      console.log(`[FileHandlers] Processing ${highlights.length} highlights`);
+      for (const highlight of highlights) {
+        console.log(`[FileHandlers] Adding highlight:`, highlight);
+        
+        // Handle different highlight data structures
+        const pageNum = highlight.pageNumber || highlight.pageNum;
+        const bounds = highlight.bounds;
+        
+        if (!bounds || !pageNum) {
+          console.log(`[FileHandlers] Skipping highlight - missing bounds or pageNum:`, highlight);
+          continue;
+        }
+        
+        const pageIndex = pageNum - 1;
+        if (pageIndex >= 0 && pageIndex < pages.length) {
+          const page = pages[pageIndex];
+          const { width, height } = page.getSize();
+          
+          console.log(`[FileHandlers] Page ${pageNum} size: ${width}x${height}`);
+          console.log(`[FileHandlers] Bounds:`, bounds);
+          
+          // Convert canvas coordinates to PDF coordinates
+          // Canvas coordinates are relative to the canvas, PDF coordinates are absolute page coordinates
+          const x = bounds.x || bounds.left || 0;
+          const y = bounds.y || bounds.top || 0;
+          const w = bounds.width || (bounds.right - bounds.left) || 50;
+          const h = bounds.height || (bounds.bottom - bounds.top) || 20;
+          
+          // PDF coordinates are bottom-up, canvas coordinates are top-down
+          // Add offset adjustment - highlights are appearing ~3 lines too high
+          const lineOffset = 60; // Approximate offset for 3 lines
+          const pdfY = height - y - h - lineOffset;
+          
+          console.log(`[FileHandlers] Canvas coords: x=${x}, y=${y}, w=${w}, h=${h}`);
+          console.log(`[FileHandlers] PDF coords: x=${x}, y=${pdfY}, w=${w}, h=${h}`);
+          
+          // Draw a highlight rectangle
+          page.drawRectangle({
+            x: Math.max(0, x),
+            y: Math.max(0, pdfY),
+            width: Math.max(1, w),
+            height: Math.max(1, h),
+            color: rgb(1, 1, 0), // Yellow highlight
+            opacity: 0.3,
+          });
+          
+          // Also add a more visible red border for testing
+          page.drawRectangle({
+            x: Math.max(0, x),
+            y: Math.max(0, pdfY),
+            width: Math.max(1, w),
+            height: Math.max(1, h),
+            borderColor: rgb(1, 0, 0),
+            borderWidth: 2,
+          });
+        }
+      }
+      
+      // Add text annotations in right margin
+      console.log(`[FileHandlers] Processing ${annotations.length} text annotations`);
+      for (const annotation of annotations) {
+        console.log(`[FileHandlers] Adding annotation:`, annotation);
+        
+        const pageNum = annotation.pageNumber || annotation.pageNum;
+        if (!pageNum) {
+          console.log(`[FileHandlers] Skipping annotation - missing pageNumber:`, annotation);
+          continue;
+        }
+        
+        const pageIndex = pageNum - 1;
+        if (pageIndex >= 0 && pageIndex < pages.length) {
+          const page = pages[pageIndex];
+          const { width, height } = page.getSize();
+          
+          const annotationText = annotation.annotation || annotation.text || 'Annotation';
+          const originalY = annotation.y || 50;
+          
+          // Position annotation in right margin
+          const marginWidth = 150; // Width of right margin for annotations
+          const marginX = width - marginWidth + 10; // Start 10px into the margin
+          const maxTextWidth = marginWidth - 20; // Leave some padding
+          
+          // Apply the same offset adjustment as highlights for Y position
+          const lineOffset = 60;
+          const pdfY = height - originalY - lineOffset;
+          
+          console.log(`[FileHandlers] Adding annotation "${annotationText}" in right margin at: x=${marginX}, y=${pdfY}`);
+          
+          // Split long annotation text to fit in margin
+          const words = annotationText.split(' ');
+          const fontSize = 10;
+          const lineHeight = 12;
+          let lines = [];
+          let currentLine = '';
+          
+          for (const word of words) {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            // Rough calculation: 6px per character
+            if (testLine.length * 6 > maxTextWidth) {
+              if (currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+              } else {
+                lines.push(word); // Very long single word
+              }
+            } else {
+              currentLine = testLine;
+            }
+          }
+          if (currentLine) lines.push(currentLine);
+          
+          // Add background rectangle for the annotation
+          const totalHeight = lines.length * lineHeight + 8;
+          page.drawRectangle({
+            x: marginX - 5,
+            y: Math.max(0, pdfY - 4),
+            width: marginWidth - 10,
+            height: totalHeight,
+            color: rgb(1, 1, 0.9), // Very light yellow background
+            opacity: 0.8,
+            borderColor: rgb(0.8, 0.8, 0.8),
+            borderWidth: 1,
+          });
+          
+          // Add each line of annotation text
+          lines.forEach((line, index) => {
+            page.drawText(line, {
+              x: marginX,
+              y: Math.max(0, pdfY - (index * lineHeight)),
+              size: fontSize,
+              color: rgb(0.6, 0, 0), // Dark red text
+            });
+          });
+          
+          // Add a small connecting line from highlight to annotation
+          const highlightX = annotation.x || 0;
+          page.drawLine({
+            start: { x: highlightX + (annotation.width || 100), y: pdfY + 6 },
+            end: { x: marginX - 5, y: pdfY + 6 },
+            color: rgb(0.8, 0.8, 0.8),
+            thickness: 1,
+            dashArray: [3, 2], // Dashed line
+          });
+        }
+      }
+      
+      // Add a test annotation to verify the process is working
+      if (pages.length > 0) {
+        const firstPage = pages[0];
+        const { width, height } = firstPage.getSize();
+        
+        // Add a test rectangle
+        firstPage.drawRectangle({
+          x: 50,
+          y: height - 100,
+          width: 100,
+          height: 50,
+          color: rgb(0, 0, 1), // Blue rectangle
+          opacity: 0.5,
+        });
+        
+        // Add test text
+        firstPage.drawText('PDF MODIFIED BY NIGHTOWL', {
+          x: 60,
+          y: height - 80,
+          size: 12,
+          color: rgb(1, 1, 1), // White text
+        });
+        
+        console.log(`[FileHandlers] Added test annotation at top of first page`);
+      }
+      
+      // Save the modified PDF
+      const pdfBytes = await pdfDoc.save();
+      
+      // Create a backup of the original file
+      const backupPath = filePath.replace('.pdf', '.backup.pdf');
+      await fs.copyFile(filePath, backupPath);
+      
+      // Save the modified PDF
+      await fs.writeFile(filePath, pdfBytes);
+      
+      console.log(`[FileHandlers] PDF annotations embedded successfully, backup created at: ${backupPath}`);
+      return { success: true, backupPath };
+      
+    } catch (error) {
+      console.error('[FileHandlers] Error embedding PDF annotations:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Copy file handler for backups
+  ipcMain.handle('copy-file', async (event, { source, destination }) => {
+    try {
+      console.log(`[FileHandlers] Copying file from ${source} to ${destination}`);
+      await fs.copyFile(source, destination);
+      return { success: true };
+    } catch (error) {
+      console.error('[FileHandlers] Error copying file:', error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 module.exports = {
