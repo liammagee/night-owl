@@ -124,6 +124,35 @@ const defaultSettings = {
         showSpeakerNotes: true
     },
     
+    // === Text-to-Speech Settings ===
+    tts: {
+        enabled: false, // Auto-enable TTS when entering presentation mode
+        provider: 'auto', // 'auto', 'lemonfox', 'webspeech'
+        
+        // Lemonfox.ai Settings
+        lemonfox: {
+            voice: 'sarah', // Default voice: 'sarah', 'michael', 'alice', etc.
+            language: 'en-us', // 'en-us', 'en-gb', 'ja', 'zh', 'es', 'fr', 'hi', 'it', 'pt-br'
+            speed: 1.0, // 0.5 to 4.0
+            response_format: 'mp3', // 'mp3', 'opus', 'aac', 'flac', 'pcm', 'ogg', 'wav'
+            word_timestamps: false // Currently only supported in English
+        },
+        
+        // Web Speech API Settings (fallback)
+        webSpeech: {
+            rate: 1.0, // 0.1 to 10
+            pitch: 1.0, // 0 to 2
+            volume: 1.0, // 0 to 1
+            voice: null // Will auto-select best English voice
+        },
+        
+        // Behavior Settings
+        autoSpeak: true, // Automatically speak when slide changes
+        stopOnSlideChange: true, // Stop current speech when changing slides
+        cleanMarkdown: true, // Remove markdown formatting before speaking
+        speakSpeakerNotes: true // Speak speaker notes instead of slide content
+    },
+    
     // === Editor Configuration ===
     editor: {
         fontSize: 14,

@@ -36,10 +36,39 @@ try {
  */
 function register(deps) {
   console.log('[TTS] TTS handlers register function called');
-  const { mainWindow } = deps;
+  const { mainWindow, appSettings, defaultSettings } = deps;
   
   // Get API key from environment
   const LEMONFOX_API_KEY = process.env.LEMONFOX_API_KEY;
+  
+  // Helper function to get TTS settings
+  function getTTSSettings() {
+    try {
+      const defaults = defaultSettings?.tts || {};
+      const current = appSettings?.tts || {};
+      const merged = {
+        ...defaults,
+        ...current
+      };
+      console.log('[TTS] getTTSSettings - defaults:', defaults);
+      console.log('[TTS] getTTSSettings - current:', current);
+      console.log('[TTS] getTTSSettings - merged:', merged);
+      return merged;
+    } catch (error) {
+      console.error('[TTS] Error in getTTSSettings:', error);
+      // Return minimal defaults if there's an error
+      return {
+        enabled: false,
+        provider: 'auto',
+        lemonfox: { voice: 'sarah', language: 'en-us', speed: 1.0, response_format: 'mp3', word_timestamps: false },
+        webSpeech: { rate: 1.0, pitch: 1.0, volume: 1.0, voice: null },
+        autoSpeak: true,
+        stopOnSlideChange: true,
+        cleanMarkdown: true,
+        speakSpeakerNotes: true
+      };
+    }
+  }
   
   if (!LEMONFOX_API_KEY) {
     console.warn('[TTS] LEMONFOX_API_KEY not found in environment variables');
@@ -48,7 +77,7 @@ function register(deps) {
   }
 
   // Generate speech from text using Lemonfox.ai
-  ipcMain.handle('tts-generate-speech', async (event, { text, voice = 'sarah' }) => {
+  ipcMain.handle('tts-generate-speech', async (event, { text, voice, language, speed, response_format, word_timestamps }) => {
     try {
       if (!LEMONFOX_API_KEY) {
         throw new Error('LEMONFOX_API_KEY not configured');
@@ -58,7 +87,20 @@ function register(deps) {
         throw new Error('No text provided for TTS');
       }
 
-      console.log(`[TTS] Generating speech for text (${text.length} chars) with voice: ${voice}`);
+      const ttsSettings = getTTSSettings();
+      const lemonfoxSettings = ttsSettings.lemonfox;
+
+      // Use provided settings or fall back to configured defaults
+      const requestParams = {
+        input: text,
+        voice: voice || lemonfoxSettings.voice,
+        language: language || lemonfoxSettings.language,
+        speed: speed || lemonfoxSettings.speed,
+        response_format: response_format || lemonfoxSettings.response_format,
+        word_timestamps: word_timestamps !== undefined ? word_timestamps : lemonfoxSettings.word_timestamps
+      };
+
+      console.log(`[TTS] Generating speech for text (${text.length} chars) with settings:`, requestParams);
 
       // Make request to Lemonfox.ai API
       const response = await fetch("https://api.lemonfox.ai/v1/audio/speech", {
@@ -67,11 +109,7 @@ function register(deps) {
           "Authorization": `Bearer ${LEMONFOX_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          input: text,
-          voice: voice,
-          response_format: "mp3"
-        })
+        body: JSON.stringify(requestParams)
       });
 
       if (!response.ok) {
@@ -133,10 +171,34 @@ function register(deps) {
         { id: 'sarah', name: 'Sarah', lang: 'en-US', gender: 'female' },
         { id: 'john', name: 'John', lang: 'en-US', gender: 'male' },
         { id: 'emily', name: 'Emily', lang: 'en-US', gender: 'female' },
-        { id: 'michael', name: 'Michael', lang: 'en-US', gender: 'male' }
+        { id: 'michael', name: 'Michael', lang: 'en-US', gender: 'male' },
+        { id: 'alice', name: 'Alice', lang: 'en-US', gender: 'female' }
       ]
     };
   });
+
+  // Get TTS settings
+  try {
+    ipcMain.handle('tts-get-settings', async (event) => {
+      try {
+        const settings = getTTSSettings();
+        console.log('[TTS] Returning settings:', settings);
+        return {
+          success: true,
+          settings: settings
+        };
+      } catch (error) {
+        console.error('[TTS] Error getting TTS settings:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    });
+    console.log('[TTS] tts-get-settings handler registered successfully');
+  } catch (error) {
+    console.error('[TTS] Failed to register tts-get-settings handler:', error);
+  }
 
   // Check if TTS is available
   ipcMain.handle('tts-check-availability', async (event) => {
@@ -155,6 +217,7 @@ function register(deps) {
   console.log('[TTS] All TTS handlers registered successfully:');
   console.log('  - tts-generate-speech');
   console.log('  - tts-get-voices'); 
+  console.log('  - tts-get-settings');
   console.log('  - tts-check-availability');
   console.log('  - tts-test');
 }

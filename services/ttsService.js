@@ -13,13 +13,89 @@ class TTSService {
     this.useLemonfox = false;
     this.lemonfoxVoice = 'sarah';
     this.availabilityChecked = false;
+    this.settings = null; // Will be loaded from settings
     
-    // Lemonfox availability will be checked when needed
-    
-    // Initialize voices when available
+    // Initialize settings and voices when available
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       this.initializeVoices();
     }
+    
+    // Delay TTS settings loading to ensure handlers are ready
+    setTimeout(() => {
+      this.loadSettings();
+    }, 1000);
+  }
+
+  async loadSettings(retryCount = 0) {
+    if (window.electronAPI && window.electronAPI.invoke) {
+      try {
+        // First check if the handler is available by testing a simple TTS handler
+        await window.electronAPI.invoke('tts-test');
+        
+        const result = await window.electronAPI.invoke('tts-get-settings');
+        if (result.success) {
+          this.settings = result.settings;
+          this.applySettings();
+          console.log('[TTS] Settings loaded:', this.settings);
+          return;
+        }
+      } catch (error) {
+        // If it's a "no handler registered" error and we haven't retried too many times, wait and retry
+        if (error.message.includes('No handler registered') && retryCount < 3) {
+          console.log(`[TTS] Handlers not ready yet, retrying in ${(retryCount + 1) * 500}ms... (attempt ${retryCount + 1}/3)`);
+          setTimeout(() => {
+            this.loadSettings(retryCount + 1);
+          }, (retryCount + 1) * 500);
+          
+          // Use defaults temporarily
+          this.setDefaults();
+          return;
+        }
+        
+        console.warn('[TTS] Could not load TTS settings, using defaults:', error.message);
+      }
+    }
+    
+    // Use defaults if settings can't be loaded
+    this.setDefaults();
+  }
+  
+  setDefaults() {
+    this.settings = {
+      enabled: false,
+      provider: 'auto',
+      lemonfox: {
+        voice: 'sarah',
+        language: 'en-us',
+        speed: 1.0,
+        response_format: 'mp3',
+        word_timestamps: false
+      },
+      webSpeech: {
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0,
+        voice: null
+      },
+      autoSpeak: true,
+      stopOnSlideChange: true,
+      cleanMarkdown: true,
+      speakSpeakerNotes: true
+    };
+    
+    this.applySettings();
+  }
+
+  applySettings() {
+    if (!this.settings) return;
+    
+    // Apply Lemonfox settings
+    this.lemonfoxVoice = this.settings.lemonfox.voice;
+    
+    // Apply Web Speech settings
+    this.rate = this.settings.webSpeech.rate;
+    this.pitch = this.settings.webSpeech.pitch;
+    this.volume = this.settings.webSpeech.volume;
   }
 
   async checkLemonfoxAvailability() {
@@ -35,6 +111,12 @@ class TTSService {
         console.log('[TTS] Testing IPC connection...');
         const testResult = await window.electronAPI.invoke('tts-test');
         console.log('[TTS] Test result:', testResult);
+        
+        // If TTS test works but settings weren't loaded, try to load them now
+        if (!this.settings || !this.settings.lemonfox) {
+          console.log('[TTS] TTS handlers available, retrying settings load...');
+          await this.loadSettings();
+        }
         
         const result = await window.electronAPI.invoke('tts-check-availability');
         console.log('[TTS] Availability check result:', result);
@@ -105,10 +187,15 @@ class TTSService {
         
         console.log('[TTS] Using Lemonfox.ai to speak text');
         
-        // Get audio from Lemonfox API via IPC
+        // Get audio from Lemonfox API via IPC using configured settings
+        const lemonfoxSettings = this.settings?.lemonfox || {};
         const result = await window.electronAPI.invoke('tts-generate-speech', {
           text: text,
-          voice: options.voice || this.lemonfoxVoice
+          voice: options.voice || lemonfoxSettings.voice || this.lemonfoxVoice,
+          language: options.language || lemonfoxSettings.language,
+          speed: options.speed || lemonfoxSettings.speed,
+          response_format: options.response_format || lemonfoxSettings.response_format,
+          word_timestamps: options.word_timestamps !== undefined ? options.word_timestamps : lemonfoxSettings.word_timestamps
         });
         
         if (!result.success) {
@@ -148,9 +235,14 @@ class TTSService {
         console.error('[TTS] Error with Lemonfox TTS:', error);
         if (options.onError) options.onError(error);
         
-        // Fall back to Web Speech API if Lemonfox fails
-        console.log('[TTS] Falling back to Web Speech API');
-        return this.speakWithWebSpeech(text, options);
+        // Only fall back to Web Speech API if this is an actual failure, not a configuration issue
+        if (error.message && !error.message.includes('LEMONFOX_API_KEY')) {
+          console.log('[TTS] Falling back to Web Speech API due to API error');
+          return this.speakWithWebSpeech(text, options);
+        } else {
+          console.log('[TTS] Lemonfox not configured, skipping fallback to prevent conflicts');
+          reject(error);
+        }
       }
     });
   }
@@ -311,6 +403,73 @@ class TTSService {
       return window.speechSynthesis.getVoices();
     }
     return [];
+  }
+
+  // Settings management
+  getSettings() {
+    return this.settings;
+  }
+
+  async updateSettings(newSettings) {
+    if (this.settings) {
+      this.settings = { ...this.settings, ...newSettings };
+      this.applySettings();
+      
+      // Save to backend if available
+      if (window.electronAPI && window.electronAPI.invoke) {
+        try {
+          await window.electronAPI.invoke('update-settings-category', 'tts', newSettings);
+          console.log('[TTS] Settings updated and saved');
+        } catch (error) {
+          console.warn('[TTS] Could not save TTS settings:', error);
+        }
+      }
+    }
+  }
+
+  // Convenience methods for common settings
+  async setLemonfoxVoice(voice) {
+    await this.updateSettings({
+      lemonfox: { ...this.settings.lemonfox, voice }
+    });
+  }
+
+  async setLemonfoxSpeed(speed) {
+    await this.updateSettings({
+      lemonfox: { ...this.settings.lemonfox, speed }
+    });
+  }
+
+  async setLemonfoxLanguage(language) {
+    await this.updateSettings({
+      lemonfox: { ...this.settings.lemonfox, language }
+    });
+  }
+
+  async setWebSpeechRate(rate) {
+    await this.updateSettings({
+      webSpeech: { ...this.settings.webSpeech, rate }
+    });
+  }
+
+  async setWebSpeechPitch(pitch) {
+    await this.updateSettings({
+      webSpeech: { ...this.settings.webSpeech, pitch }
+    });
+  }
+
+  async setWebSpeechVolume(volume) {
+    await this.updateSettings({
+      webSpeech: { ...this.settings.webSpeech, volume }
+    });
+  }
+
+  async setAutoSpeak(enabled) {
+    await this.updateSettings({ autoSpeak: enabled });
+  }
+
+  async setProvider(provider) {
+    await this.updateSettings({ provider });
   }
 }
 
