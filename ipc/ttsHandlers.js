@@ -1,6 +1,8 @@
 // === TTS (Text-to-Speech) IPC Handlers ===
 // Handles TTS operations using Lemonfox.ai API
 
+console.log('[TTS] Loading ttsHandlers.js module');
+
 const { ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -12,9 +14,20 @@ let fetch;
 try {
   // Try to use native fetch if available (Node 18+)
   fetch = globalThis.fetch;
+  if (!fetch) {
+    console.log('[TTS] Native fetch not available, trying node-fetch');
+    fetch = require('node-fetch');
+  }
+  console.log('[TTS] Fetch loaded successfully');
 } catch (e) {
+  console.error('[TTS] Error loading fetch:', e.message);
   // Fall back to node-fetch
-  fetch = require('node-fetch');
+  try {
+    fetch = require('node-fetch');
+    console.log('[TTS] Successfully loaded node-fetch as fallback');
+  } catch (e2) {
+    console.error('[TTS] Could not load node-fetch either:', e2.message);
+  }
 }
 
 /**
@@ -22,6 +35,7 @@ try {
  * @param {Object} deps - Dependencies from main.js
  */
 function register(deps) {
+  console.log('[TTS] TTS handlers register function called');
   const { mainWindow } = deps;
   
   // Get API key from environment
