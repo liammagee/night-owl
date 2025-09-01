@@ -133,7 +133,10 @@ function register(deps) {
     };
   });
 
-  console.log('[TTS] TTS handlers registered');
+  console.log('[TTS] All TTS handlers registered successfully:');
+  console.log('  - tts-generate-speech');
+  console.log('  - tts-get-voices'); 
+  console.log('  - tts-check-availability');
 }
 
 module.exports = {

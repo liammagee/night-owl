@@ -12,9 +12,9 @@ class TTSService {
     this.volume = 1.0;
     this.useLemonfox = false;
     this.lemonfoxVoice = 'sarah';
+    this.availabilityChecked = false;
     
-    // Check if Lemonfox is available via Electron IPC
-    this.checkLemonfoxAvailability();
+    // Lemonfox availability will be checked when needed
     
     // Initialize voices when available
     if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -23,6 +23,12 @@ class TTSService {
   }
 
   async checkLemonfoxAvailability() {
+    if (this.availabilityChecked) {
+      return;
+    }
+    
+    this.availabilityChecked = true;
+    
     if (window.electronAPI && window.electronAPI.invoke) {
       try {
         const result = await window.electronAPI.invoke('tts-check-availability');
