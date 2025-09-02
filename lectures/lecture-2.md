@@ -7,7 +7,7 @@
 ---
 
 
-## Some Notes on Hegel
+### Some Notes on Hegel
 
  - German philosopher of the early 19th century
  - Comes *after* Immanuel Kant, and the Critique of Pure Reason / Practical Reason / Judgment (late 1700s)
@@ -23,7 +23,7 @@
 
 ---
 
-## Hegel's influence
+### Hegel's influence
 
  - Died in 1831 - most famous philosopher in Germany at the time
  - Influenced "radical" thinkers of the 1830s/40s - the "Young Hegelians"
@@ -78,9 +78,9 @@ Now think of what word in English sounds closest to *Geist*: "ghost" (but also "
 
 ### Phenomenology: Study of Appearances
 
-- Phenomenology derives from Greek 'phainomenai', meaning 'to appear' and studies appearances.
+- Phenomenology derives from Greek 'phainomenai', meaning 'to appear', and studies appearances.
 - It focuses on phenomena, the appearances we experience in everyday life.
-- Kant distinguished phenomena (appearances) from noumena (things-in-themselves), highlighting epistemic limits.
+- Kant distinguished phenomena (appearances) from noumena (things-in-themselves), highlighting epistemic limits (we can't know noumena).
 - The study contrasts how reality appears versus its true, unknowable nature.
 
 ```notes
@@ -119,8 +119,16 @@ We will want to pause here, and take stock of this alternative intuition - Hegel
 
 ```
 
+---
+
+### Break: Discussion about readings
+
+ - Reactions? Responses? Discuss!
 
 ---
+
+## "Science of the Experience of Consciousness"
+
 
 ### Consciousness in Three Phases
 
@@ -174,11 +182,8 @@ If we were to imagine this experience of consciousness as a machine, it might be
 
 ![image](images/consciousness-perception.png)
 
-
-### Perception versus Understanding in Consciousness
-
 - Perception registers attributes (color, shape) but lacks relational understanding of how objects connect across contexts.
-- Hegel argues perception is trapped by concrete material and shifting attention.
+- Perception is trapped by concrete material and shifting attention ("common sense").
 - Machine learning excels at pattern recognition yet misses underlying laws.
 - Without laws, perception cannot generalize beyond specific data points in new contexts.
  - "This here: orange, round, solid!"
@@ -202,11 +207,14 @@ We could say that this is where we are at with machine learning today. They are 
 
 ![image](images/consciousness-understanding.png)
 
-- Hegel links Newtonian force to causal laws in forming objects.
-- Repeated qualities create categories, enabling nouns describing spatial entities in our world.
-- Verbs arise from recognizing actions of these nouns over time.
-- This stage yields rudimentary consciousness: sensing, naming, relating things to others.
-- LLM analogy: knows external world but lacks self-awareness and consciousness.
+
+
+### Hegel on Force and Understanding
+
+- Consciousness shifts from isolated perception to law-based understanding of cause and effect.
+- Newtonian physics exemplifies how force connects objects, revealing underlying universal laws.
+- Recognizing forces enables concepts that define objects and their interrelations.
+- This development marks a rudimentary form of consciousness with a world model.
 
 ```notes
 Hegel here has a strange heading title: "Force and the Understanding". Why *force*? Here Hegel is drawing, also strangely for us, upon Newtonian physics. What he is getting at is that a key turn in this shape of consciousness is the arrival of laws explaining cause and effect. 
@@ -219,14 +227,19 @@ At this stage we have something close to a rudimentary idea of consciousness. We
 
 ```
 
+---
+
+### Break: Discussion about Experience
+
+ - What do we make of all this? 
+ - How does Hegel's treatment relate to other, everyday senses of "experience"? What about Blake? Hendrix? What other connotations does the word "experience" have for us? 
+ - How much "experience" can a machine have?
+
 
 ---
 
 
----
-
-
-### Sequgeway: What is Our Experience of Experience?
+## Sequgeway: What is Our Experience of Experience?
 
 ![experience of experience](images/experience-of-experience.jpeg)
 
@@ -256,21 +269,23 @@ So here we have a sentiment of consciousness as not merely locked up in a skull 
 
 Now what would an entirely *mechanical* experience of consciousness be? We can imagine a stepping stone: for example, the experience of an animal. Non human, but with a brain and body. We all know of examples of literature, film, television that literalise this experiment.
 
-And in certain forms, we can also elaborate this to humanoid or anthropomorphic experience. Being in a human's body but with only an algorithmic simulation of consciousness. C-3PO in Star Wars for example: think about how this *droid* differs from R2D2, which has no human body,  
+And in certain forms, we can also elaborate this to humanoid or anthropomorphic experience. Being in a human's body but with only an algorithmic simulation of consciousness. C-3PO in Star Wars for example: think about how this *droid* differs from R2D2, which has no human body.
 ```
 
-
 ---
 
-### Let's see how your favourite LLM describes its experience...
+## The Limits of Mechanical Experience
 
-https://chatgpt.com/share/68b5b22e-5084-8007-ad4d-e206eeb92aa2
+### Continuous Learning in AI Systems
 
----
+- Course explores philosophical foundations of machine learning.
+- Focuses on open research problem: continuous learning.
+- Examines how AI agents adapt over time with personalization features.
+- Highlights challenges of maintaining knowledge across conversations.
 
-### The Limits of Mechanical Experience
-
-How does this connect with machine learning? Part of this course will examine the technical process by which machines learn – though I devote more time to the sibling course, *Introduction to Generative AI for Education*, for this work. In this course we are spending more time thinking about the philosophical underpinnings of machine learning, and focus on one specific area that so far remains an open area of research in computer science: the problem of *continuous learning*. What is this problem? Let's imagine I sit down to *talk* to an AI agent such as ChatGPT. I notice that I am usually initiating a new conversation – though of course I can also choose to resume a prior conversation too. If I have paid for the subscription service and turned on the personalization feature, I notice also that the agent seems to know some details about me. Indeed, over time – if I connect the agent to my files and data – I also notice that this personalization seems to become more sophisticated and knowledgeable too.
+```notes
+However we know in practical terms today machines at best only simulate our experience *of* experience. One area of active research highlights the difference: the problem of *continuous learning*. What is this problem? Let's imagine I sit down to *talk* to an AI agent such as ChatGPT. I notice that I am usually initiating a new conversation – though of course I can also choose to resume a prior conversation too. If I have paid for the subscription service and turned on the personalization feature, I notice also that the agent seems to know some details about me. Indeed, over time – if I connect the agent to my files and data – I also notice that this personalization seems to become more sophisticated and knowledgeable too.
+```
 
 ---
 
@@ -299,6 +314,15 @@ However in another sense the system remains the same system it was at the point 
 There are efforts to develop continuous learning systems, though none are yet deployed in the major AI systems available to us. And this points immediately to one of the key fissures between human and machine learning. Try as we might, as human subjects we are unable to stop *experiencing* the world. In the same thought experiment, even if I was locked in a stimulus-free chamber for a period of time, if you asked me a question about what had happened in the world in the meantime I could not answer. But I would have experienced *something*. The machine does not – yet – do this. Its experience is at most that of an object woken up to interact with us, but otherwise entirely dormant, nonconscious.
 ```
 
+
+---
+
+## Practicing Computational "Experience"
+
+### Let's see how your favourite LLM describes its experience...
+
+[https://chatgpt.com/share/68b5b22e-5084-8007-ad4d-e206eeb92aa2]([url](https://chatgpt.com/share/68b5b22e-5084-8007-ad4d-e206eeb92aa2))
+
 ---
 
 ### The Experience of Service...
@@ -321,6 +345,10 @@ On the other hand, can we imagine what its experience might be like, if it exper
 ---
 
 ### Machine Prompting and Hegelian Dynamics
+
+
+![image](concept-relations.png)
+
 
 - Machines continually ask if more Hegel is desired, mirroring human curiosity.
 - This prompts a simulated subjective experience of anticipating others' desires.
