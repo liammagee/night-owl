@@ -134,6 +134,7 @@ function createSettingsSidebar() {
         { id: 'editor', label: 'Editor', icon: '📝' },
         { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
+        { id: 'tts', label: 'Text-to-Speech', icon: '🔊' },
         { id: 'export', label: 'Export', icon: '📤' },
         { id: 'kanban', label: 'Kanban', icon: '📋' },
         { id: 'visualization', label: 'Visualizations', icon: '🕸️' },
@@ -184,6 +185,7 @@ function showSettingsCategory(category) {
             editor: 'Editor Settings',
             gamification: 'Gamification Settings',
             ai: 'AI Configuration',
+            tts: 'Text-to-Speech Settings',
             export: 'Export Preferences',
             kanban: 'Kanban Settings',
             visualization: 'Visualization Filters',
@@ -213,6 +215,8 @@ function generateSettingsContent(category) {
             return generateGamificationSettings();
         case 'ai':
             return generateAISettings();
+        case 'tts':
+            return generateTTSSettings();
         case 'export':
             return generateExportSettings();
         case 'kanban':
@@ -718,6 +722,128 @@ function generateAISettings() {
     `;
 }
 
+function generateTTSSettings() {
+    const ttsSettings = currentSettings.tts || {};
+    const lemonfoxSettings = ttsSettings.lemonfox || {};
+    const webSpeechSettings = ttsSettings.webSpeech || {};
+    
+    return `
+        <div class="settings-section">
+            <h3>General TTS Settings</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="tts-enabled" ${ttsSettings.enabled ? 'checked' : ''}>
+                    <span>Enable TTS in Presentation Mode</span>
+                </label>
+                <label>
+                    <select id="tts-provider">
+                        <option value="auto" ${ttsSettings.provider === 'auto' ? 'selected' : ''}>Auto (Prefer Lemonfox.ai)</option>
+                        <option value="lemonfox" ${ttsSettings.provider === 'lemonfox' ? 'selected' : ''}>Lemonfox.ai Only</option>
+                        <option value="webspeech" ${ttsSettings.provider === 'webspeech' ? 'selected' : ''}>Web Speech API Only</option>
+                    </select>
+                    <span>TTS Provider</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Behavior Settings</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="tts-auto-speak" ${ttsSettings.autoSpeak !== false ? 'checked' : ''}>
+                    <span>Auto-speak when slide changes</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="tts-stop-on-slide-change" ${ttsSettings.stopOnSlideChange !== false ? 'checked' : ''}>
+                    <span>Stop current speech when changing slides</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="tts-clean-markdown" ${ttsSettings.cleanMarkdown !== false ? 'checked' : ''}>
+                    <span>Clean markdown formatting before speaking</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="tts-speak-speaker-notes" ${ttsSettings.speakSpeakerNotes !== false ? 'checked' : ''}>
+                    <span>Speak speaker notes instead of slide content</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Lemonfox.ai Settings</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                High-quality neural voices powered by Lemonfox.ai. Requires LEMONFOX_API_KEY environment variable.
+            </p>
+            <div class="settings-group">
+                <label>
+                    <select id="tts-lemonfox-voice">
+                        <option value="sarah" ${lemonfoxSettings.voice === 'sarah' ? 'selected' : ''}>Sarah (Female)</option>
+                        <option value="michael" ${lemonfoxSettings.voice === 'michael' ? 'selected' : ''}>Michael (Male)</option>
+                        <option value="alice" ${lemonfoxSettings.voice === 'alice' ? 'selected' : ''}>Alice (Female)</option>
+                        <option value="john" ${lemonfoxSettings.voice === 'john' ? 'selected' : ''}>John (Male)</option>
+                        <option value="emily" ${lemonfoxSettings.voice === 'emily' ? 'selected' : ''}>Emily (Female)</option>
+                    </select>
+                    <span>Voice</span>
+                </label>
+                <label>
+                    <select id="tts-lemonfox-language">
+                        <option value="en-us" ${lemonfoxSettings.language === 'en-us' ? 'selected' : ''}>English (US)</option>
+                        <option value="en-gb" ${lemonfoxSettings.language === 'en-gb' ? 'selected' : ''}>English (UK)</option>
+                        <option value="es" ${lemonfoxSettings.language === 'es' ? 'selected' : ''}>Spanish</option>
+                        <option value="fr" ${lemonfoxSettings.language === 'fr' ? 'selected' : ''}>French</option>
+                        <option value="it" ${lemonfoxSettings.language === 'it' ? 'selected' : ''}>Italian</option>
+                        <option value="pt-br" ${lemonfoxSettings.language === 'pt-br' ? 'selected' : ''}>Portuguese (Brazil)</option>
+                        <option value="ja" ${lemonfoxSettings.language === 'ja' ? 'selected' : ''}>Japanese</option>
+                        <option value="zh" ${lemonfoxSettings.language === 'zh' ? 'selected' : ''}>Chinese</option>
+                        <option value="hi" ${lemonfoxSettings.language === 'hi' ? 'selected' : ''}>Hindi</option>
+                    </select>
+                    <span>Language</span>
+                </label>
+                <label>
+                    <input type="range" id="tts-lemonfox-speed" min="0.5" max="4.0" step="0.1" value="${lemonfoxSettings.speed || 1.0}">
+                    <span>Speech Speed (${lemonfoxSettings.speed || 1.0}x)</span>
+                </label>
+                <label>
+                    <select id="tts-lemonfox-format">
+                        <option value="mp3" ${lemonfoxSettings.response_format === 'mp3' ? 'selected' : ''}>MP3</option>
+                        <option value="opus" ${lemonfoxSettings.response_format === 'opus' ? 'selected' : ''}>Opus</option>
+                        <option value="aac" ${lemonfoxSettings.response_format === 'aac' ? 'selected' : ''}>AAC</option>
+                        <option value="flac" ${lemonfoxSettings.response_format === 'flac' ? 'selected' : ''}>FLAC</option>
+                        <option value="wav" ${lemonfoxSettings.response_format === 'wav' ? 'selected' : ''}>WAV</option>
+                        <option value="ogg" ${lemonfoxSettings.response_format === 'ogg' ? 'selected' : ''}>OGG</option>
+                        <option value="pcm" ${lemonfoxSettings.response_format === 'pcm' ? 'selected' : ''}>PCM</option>
+                    </select>
+                    <span>Audio Format</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="tts-lemonfox-timestamps" ${lemonfoxSettings.word_timestamps ? 'checked' : ''}>
+                    <span>Include word timestamps (English only)</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Web Speech API Settings</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Fallback to browser's built-in text-to-speech when Lemonfox.ai is not available.
+            </p>
+            <div class="settings-group">
+                <label>
+                    <input type="range" id="tts-webspeech-rate" min="0.1" max="10" step="0.1" value="${webSpeechSettings.rate || 1.0}">
+                    <span>Speech Rate (${webSpeechSettings.rate || 1.0}x)</span>
+                </label>
+                <label>
+                    <input type="range" id="tts-webspeech-pitch" min="0" max="2" step="0.1" value="${webSpeechSettings.pitch || 1.0}">
+                    <span>Speech Pitch (${webSpeechSettings.pitch || 1.0})</span>
+                </label>
+                <label>
+                    <input type="range" id="tts-webspeech-volume" min="0" max="1" step="0.1" value="${webSpeechSettings.volume || 1.0}">
+                    <span>Speech Volume (${Math.round((webSpeechSettings.volume || 1.0) * 100)}%)</span>
+                </label>
+            </div>
+        </div>
+    `;
+}
+
 function generateExportSettings() {
     return `
         <div class="settings-section">
@@ -1068,6 +1194,162 @@ function addSettingsEventListeners(category) {
     if (category === 'ai') {
         // Add assistant tab styles
         injectAssistantTabStyles();
+    }
+    
+    // TTS settings event listeners
+    if (category === 'tts') {
+        setupTTSEventListeners();
+    }
+}
+
+function setupTTSEventListeners() {
+    // General TTS settings
+    const ttsEnabled = document.getElementById('tts-enabled');
+    const ttsProvider = document.getElementById('tts-provider');
+    
+    // Behavior settings
+    const autoSpeak = document.getElementById('tts-auto-speak');
+    const stopOnSlideChange = document.getElementById('tts-stop-on-slide-change');
+    const cleanMarkdown = document.getElementById('tts-clean-markdown');
+    const speakSpeakerNotes = document.getElementById('tts-speak-speaker-notes');
+    
+    // Lemonfox settings
+    const lemonfoxVoice = document.getElementById('tts-lemonfox-voice');
+    const lemonfoxLanguage = document.getElementById('tts-lemonfox-language');
+    const lemonfoxSpeed = document.getElementById('tts-lemonfox-speed');
+    const lemonfoxFormat = document.getElementById('tts-lemonfox-format');
+    const lemonfoxTimestamps = document.getElementById('tts-lemonfox-timestamps');
+    
+    // Web Speech settings
+    const webSpeechRate = document.getElementById('tts-webspeech-rate');
+    const webSpeechPitch = document.getElementById('tts-webspeech-pitch');
+    const webSpeechVolume = document.getElementById('tts-webspeech-volume');
+    
+    // Helper function to save TTS settings
+    async function saveTTSSettings(updates) {
+        try {
+            await window.electronAPI.invoke('update-settings-category', 'tts', updates);
+            console.log('[Settings] TTS settings saved:', updates);
+            
+            // Update current settings to reflect changes
+            if (!currentSettings.tts) currentSettings.tts = {};
+            Object.keys(updates).forEach(key => {
+                if (typeof updates[key] === 'object' && !Array.isArray(updates[key])) {
+                    currentSettings.tts[key] = { ...currentSettings.tts[key], ...updates[key] };
+                } else {
+                    currentSettings.tts[key] = updates[key];
+                }
+            });
+            
+            // Notify TTS service of settings change
+            if (window.ttsService && typeof window.ttsService.loadSettings === 'function') {
+                await window.ttsService.loadSettings();
+            }
+            
+        } catch (error) {
+            console.error('[Settings] Failed to save TTS settings:', error);
+            window.showNotification('Failed to save TTS settings', 'error');
+        }
+    }
+    
+    // General settings
+    if (ttsEnabled) {
+        ttsEnabled.addEventListener('change', (e) => {
+            saveTTSSettings({ enabled: e.target.checked });
+        });
+    }
+    
+    if (ttsProvider) {
+        ttsProvider.addEventListener('change', (e) => {
+            saveTTSSettings({ provider: e.target.value });
+        });
+    }
+    
+    // Behavior settings
+    if (autoSpeak) {
+        autoSpeak.addEventListener('change', (e) => {
+            saveTTSSettings({ autoSpeak: e.target.checked });
+        });
+    }
+    
+    if (stopOnSlideChange) {
+        stopOnSlideChange.addEventListener('change', (e) => {
+            saveTTSSettings({ stopOnSlideChange: e.target.checked });
+        });
+    }
+    
+    if (cleanMarkdown) {
+        cleanMarkdown.addEventListener('change', (e) => {
+            saveTTSSettings({ cleanMarkdown: e.target.checked });
+        });
+    }
+    
+    if (speakSpeakerNotes) {
+        speakSpeakerNotes.addEventListener('change', (e) => {
+            saveTTSSettings({ speakSpeakerNotes: e.target.checked });
+        });
+    }
+    
+    // Lemonfox settings
+    if (lemonfoxVoice) {
+        lemonfoxVoice.addEventListener('change', (e) => {
+            saveTTSSettings({ lemonfox: { voice: e.target.value } });
+        });
+    }
+    
+    if (lemonfoxLanguage) {
+        lemonfoxLanguage.addEventListener('change', (e) => {
+            saveTTSSettings({ lemonfox: { language: e.target.value } });
+        });
+    }
+    
+    if (lemonfoxSpeed) {
+        lemonfoxSpeed.addEventListener('input', (e) => {
+            const speed = parseFloat(e.target.value);
+            const label = e.target.nextElementSibling;
+            if (label) label.textContent = `Speech Speed (${speed}x)`;
+            saveTTSSettings({ lemonfox: { speed } });
+        });
+    }
+    
+    if (lemonfoxFormat) {
+        lemonfoxFormat.addEventListener('change', (e) => {
+            saveTTSSettings({ lemonfox: { response_format: e.target.value } });
+        });
+    }
+    
+    if (lemonfoxTimestamps) {
+        lemonfoxTimestamps.addEventListener('change', (e) => {
+            saveTTSSettings({ lemonfox: { word_timestamps: e.target.checked } });
+        });
+    }
+    
+    // Web Speech settings
+    if (webSpeechRate) {
+        webSpeechRate.addEventListener('input', (e) => {
+            const rate = parseFloat(e.target.value);
+            const label = e.target.nextElementSibling;
+            if (label) label.textContent = `Speech Rate (${rate}x)`;
+            saveTTSSettings({ webSpeech: { rate } });
+        });
+    }
+    
+    if (webSpeechPitch) {
+        webSpeechPitch.addEventListener('input', (e) => {
+            const pitch = parseFloat(e.target.value);
+            const label = e.target.nextElementSibling;
+            if (label) label.textContent = `Speech Pitch (${pitch})`;
+            saveTTSSettings({ webSpeech: { pitch } });
+        });
+    }
+    
+    if (webSpeechVolume) {
+        webSpeechVolume.addEventListener('input', (e) => {
+            const volume = parseFloat(e.target.value);
+            const label = e.target.nextElementSibling;
+            if (label) label.textContent = `Speech Volume (${Math.round(volume * 100)}%)`;
+            saveTTSSettings({ webSpeech: { volume } });
+        });
     }
 }
 

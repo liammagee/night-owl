@@ -80,6 +80,20 @@ const EyeOff = () => (
   </svg>
 );
 
+const Speaker = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+  </svg>
+);
+
+const SpeakerOff = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <line x1="23" y1="1" x2="1" y2="23"></line>
+  </svg>
+);
+
 const MarkdownPreziApp = () => {
   // Check if running in Electron
   const isElectron = window.electronAPI && window.electronAPI.isElectron;
@@ -97,6 +111,8 @@ const MarkdownPreziApp = () => {
   const [focusedSlide, setFocusedSlide] = useState(null);
   const [speakerNotesVisible, setSpeakerNotesVisible] = useState(true);
   const [speakerNotesWindowVisible, setSpeakerNotesWindowVisible] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
   // Current slides and slide index state
   const canvasRef = useRef(null);
@@ -542,6 +558,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
       window.electronAPI.onExitPresentation(() => {
         setIsPresenting(false);
+        // Stop any TTS when exiting presentation mode
+        stopSpeaking();
       });
 
       window.electronAPI.onTogglePresentationMode(() => {
@@ -789,6 +807,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         goToSlide(0);
       } else if (e.key === 'Escape') {
         setIsPresenting(false);
+        // Stop any TTS when escaping presentation mode
+        stopSpeaking();
       }
     };
 
@@ -902,6 +922,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   useEffect(() => {
     const handleExitPresenting = () => {
       setIsPresenting(false);
+      // Stop any TTS when exiting presentation mode externally
+      stopSpeaking();
     };
     
     window.addEventListener('exitPresenting', handleExitPresenting);
@@ -937,6 +959,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       }
     }
   }, [isElectron]);
+
+  // Speak notes when slide changes if TTS is enabled
+  useEffect(() => {
+    if (ttsEnabled && slides[currentSlide]?.speakerNotes) {
+      speakText(slides[currentSlide].speakerNotes);
+    }
+  }, [currentSlide, ttsEnabled]);
 
   // Update speaker notes display when current slide changes
   useEffect(() => {
@@ -1049,6 +1078,63 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   }, [isPresenting]);
 
   // Toggle between separate speaker notes window and inline panel
+  // Handle TTS toggle
+  const handleTtsToggle = () => {
+    setTtsEnabled(prev => !prev);
+    
+    // If turning on TTS, speak the current slide's speaker notes
+    if (!ttsEnabled && slides[currentSlide]?.speakerNotes) {
+      speakText(slides[currentSlide].speakerNotes);
+    } else if (ttsEnabled) {
+      // If turning off TTS, stop any current speech
+      stopSpeaking();
+    }
+  };
+
+  // Speak text using TTS
+  const speakText = async (text) => {
+    if (!text) return;
+    
+    console.log('[TTS] Speaking text:', text.substring(0, 100) + '...');
+    setIsSpeaking(true);
+    
+    // Use the TTS service if available
+    if (window.ttsService) {
+      // Ensure Lemonfox availability has been checked
+      await window.ttsService.checkLemonfoxAvailability();
+      
+      window.ttsService.speak(text, {
+        onStart: () => {
+          console.log('[TTS] Started speaking slide notes');
+          setIsSpeaking(true);
+        },
+        onEnd: () => {
+          console.log('[TTS] Finished speaking slide notes');
+          setIsSpeaking(false);
+        },
+        onError: (error) => {
+          console.error('[TTS] Error speaking:', error);
+          setIsSpeaking(false);
+        }
+      });
+    } else {
+      console.warn('[TTS] TTS service not available');
+      // Fallback: simulate speaking completion after 3 seconds
+      setTimeout(() => {
+        setIsSpeaking(false);
+      }, 3000);
+    }
+  };
+
+  // Stop speaking
+  const stopSpeaking = () => {
+    console.log('[TTS] Stopping speech');
+    if (window.ttsService) {
+      window.ttsService.stop();
+    }
+    setIsSpeaking(false);
+  };
+
   const toggleSpeakerNotesWindow = async () => {
     console.log('[TOGGLE DEBUG] Starting toggle - speakerNotesWindowVisible:', speakerNotesWindowVisible);
     if (!isPresenting || !window.electronAPI) {
@@ -1430,6 +1516,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           >
             {speakerNotesWindowVisible ? <StickyNote /> : <Eye />}
             <span style={{fontSize: '8px', marginLeft: '2px'}}>{speakerNotesWindowVisible ? 'T' : 'F'}</span>
+          </button>
+          <button
+            onClick={() => handleTtsToggle()}
+            className={`p-2 rounded-lg transition-colors shadow-lg border ${
+              ttsEnabled 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-700' 
+                : 'bg-cream hover:bg-gray-100 text-gray-900'
+            }`}
+            title={ttsEnabled ? "Disable Text-to-Speech" : "Enable Text-to-Speech"}
+          >
+            {ttsEnabled ? <Speaker /> : <SpeakerOff />}
           </button>
           <button
             onClick={() => setIsPresenting(false)}
