@@ -78,12 +78,18 @@ function register(deps) {
 
   // Generate speech from text using Lemonfox.ai
   ipcMain.handle('tts-generate-speech', async (event, { text, voice, language, speed, response_format, word_timestamps }) => {
+    console.log('[TTS-IPC] === tts-generate-speech handler called ===');
+    console.log('[TTS-IPC] Text length:', text?.length || 0);
+    console.log('[TTS-IPC] Text preview:', text?.substring(0, 50) + '...');
+    
     try {
       if (!LEMONFOX_API_KEY) {
+        console.error('[TTS-IPC] LEMONFOX_API_KEY not configured!');
         throw new Error('LEMONFOX_API_KEY not configured');
       }
 
       if (!text || text.trim().length === 0) {
+        console.error('[TTS-IPC] No text provided for TTS');
         throw new Error('No text provided for TTS');
       }
 
@@ -100,7 +106,8 @@ function register(deps) {
         word_timestamps: word_timestamps !== undefined ? word_timestamps : lemonfoxSettings.word_timestamps
       };
 
-      console.log(`[TTS] Generating speech for text (${text.length} chars) with settings:`, requestParams);
+      console.log(`[TTS-IPC] Request parameters:`, JSON.stringify(requestParams, null, 2));
+      console.log('[TTS-IPC] Making request to Lemonfox API...');
 
       // Make request to Lemonfox.ai API
       const response = await fetch("https://api.lemonfox.ai/v1/audio/speech", {
@@ -112,10 +119,16 @@ function register(deps) {
         body: JSON.stringify(requestParams)
       });
 
+      console.log('[TTS-IPC] Response status:', response.status);
+      console.log('[TTS-IPC] Response headers:', Object.fromEntries(response.headers));
+
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('[TTS-IPC] Lemonfox API error:', errorText);
         throw new Error(`Lemonfox API error: ${response.status} - ${errorText}`);
       }
+
+      console.log('[TTS-IPC] Response OK, processing audio data...');
 
       // Create temp file for audio
       const tempDir = path.join(require('os').tmpdir(), 'nightowl-tts');
@@ -128,25 +141,29 @@ function register(deps) {
       
       // Save audio to file
       const arrayBuffer = await response.arrayBuffer();
+      console.log('[TTS-IPC] Audio array buffer size:', arrayBuffer.byteLength, 'bytes');
+      
       const buffer = Buffer.from(arrayBuffer);
       fs.writeFileSync(audioFilePath, buffer);
       
-      console.log(`[TTS] Audio saved to: ${audioFilePath}`);
+      console.log(`[TTS-IPC] Audio saved to: ${audioFilePath}`);
 
       // Read file as base64 for sending to renderer
       const audioBuffer = fs.readFileSync(audioFilePath);
       const audioBase64 = audioBuffer.toString('base64');
+      console.log('[TTS-IPC] Base64 audio length:', audioBase64.length);
       
       // Clean up temp file after a delay
       setTimeout(() => {
         try {
           fs.unlinkSync(audioFilePath);
-          console.log(`[TTS] Cleaned up temp file: ${audioFilePath}`);
+          console.log(`[TTS-IPC] Cleaned up temp file: ${audioFilePath}`);
         } catch (err) {
-          console.warn(`[TTS] Could not clean up temp file: ${err.message}`);
+          console.warn(`[TTS-IPC] Could not clean up temp file: ${err.message}`);
         }
       }, 60000); // Clean up after 1 minute
 
+      console.log('[TTS-IPC] Returning success with audio data');
       return {
         success: true,
         audioData: audioBase64,
@@ -154,7 +171,8 @@ function register(deps) {
       };
 
     } catch (error) {
-      console.error('[TTS] Error generating speech:', error);
+      console.error('[TTS-IPC] Error generating speech:', error);
+      console.error('[TTS-IPC] Error stack:', error.stack);
       return {
         success: false,
         error: error.message

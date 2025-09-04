@@ -1080,45 +1080,68 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   // Toggle between separate speaker notes window and inline panel
   // Handle TTS toggle
   const handleTtsToggle = () => {
+    console.log('[PRESENTATION-TTS] === TTS Toggle Clicked ===');
+    console.log('[PRESENTATION-TTS] Current ttsEnabled:', ttsEnabled);
+    console.log('[PRESENTATION-TTS] Current slide:', currentSlide);
+    console.log('[PRESENTATION-TTS] Has speaker notes:', !!slides[currentSlide]?.speakerNotes);
+    
     setTtsEnabled(prev => !prev);
     
     // If turning on TTS, speak the current slide's speaker notes
     if (!ttsEnabled && slides[currentSlide]?.speakerNotes) {
+      console.log('[PRESENTATION-TTS] Enabling TTS and starting speech');
       speakText(slides[currentSlide].speakerNotes);
     } else if (ttsEnabled) {
       // If turning off TTS, stop any current speech
+      console.log('[PRESENTATION-TTS] Disabling TTS and stopping speech');
       stopSpeaking();
     }
   };
 
   // Speak text using TTS
   const speakText = async (text) => {
-    if (!text) return;
+    console.log('[PRESENTATION-TTS] === speakText called ===');
+    console.log('[PRESENTATION-TTS] Text length:', text?.length || 0);
+    console.log('[PRESENTATION-TTS] window.ttsService available:', !!window.ttsService);
     
-    console.log('[TTS] Speaking text:', text.substring(0, 100) + '...');
+    if (!text) {
+      console.warn('[PRESENTATION-TTS] No text to speak');
+      return;
+    }
+    
+    console.log('[PRESENTATION-TTS] Text preview:', text.substring(0, 100) + '...');
     setIsSpeaking(true);
     
     // Use the TTS service if available
     if (window.ttsService) {
-      // Ensure Lemonfox availability has been checked
-      await window.ttsService.checkLemonfoxAvailability();
-      
-      window.ttsService.speak(text, {
-        onStart: () => {
-          console.log('[TTS] Started speaking slide notes');
-          setIsSpeaking(true);
-        },
-        onEnd: () => {
-          console.log('[TTS] Finished speaking slide notes');
-          setIsSpeaking(false);
-        },
-        onError: (error) => {
-          console.error('[TTS] Error speaking:', error);
-          setIsSpeaking(false);
-        }
-      });
+      try {
+        // Ensure Lemonfox availability has been checked
+        console.log('[PRESENTATION-TTS] Checking Lemonfox availability...');
+        await window.ttsService.checkLemonfoxAvailability();
+        
+        console.log('[PRESENTATION-TTS] Calling ttsService.speak()...');
+        await window.ttsService.speak(text, {
+          onStart: () => {
+            console.log('[PRESENTATION-TTS] Speech started (onStart callback)');
+            setIsSpeaking(true);
+          },
+          onEnd: () => {
+            console.log('[PRESENTATION-TTS] Speech ended (onEnd callback)');
+            setIsSpeaking(false);
+          },
+          onError: (error) => {
+            console.error('[PRESENTATION-TTS] Speech error (onError callback):', error);
+            setIsSpeaking(false);
+          }
+        });
+        console.log('[PRESENTATION-TTS] ttsService.speak() promise resolved');
+      } catch (error) {
+        console.error('[PRESENTATION-TTS] Exception in speakText:', error);
+        console.error('[PRESENTATION-TTS] Error stack:', error.stack);
+        setIsSpeaking(false);
+      }
     } else {
-      console.warn('[TTS] TTS service not available');
+      console.error('[PRESENTATION-TTS] TTS service not available on window object!');
       // Fallback: simulate speaking completion after 3 seconds
       setTimeout(() => {
         setIsSpeaking(false);
@@ -1128,9 +1151,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Stop speaking
   const stopSpeaking = () => {
-    console.log('[TTS] Stopping speech');
+    console.log('[PRESENTATION-TTS] === stopSpeaking called ===');
+    console.log('[PRESENTATION-TTS] window.ttsService available:', !!window.ttsService);
+    
     if (window.ttsService) {
+      console.log('[PRESENTATION-TTS] Calling ttsService.stop()');
       window.ttsService.stop();
+    } else {
+      console.warn('[PRESENTATION-TTS] TTS service not available for stopping');
     }
     setIsSpeaking(false);
   };

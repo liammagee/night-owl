@@ -159,6 +159,11 @@ class TTSService {
   }
 
   async speak(text, options = {}) {
+    console.log('[TTS] === SPEAK CALLED ===');
+    console.log('[TTS] Text length:', text?.length || 0);
+    console.log('[TTS] Options:', options);
+    console.log('[TTS] Current settings:', this.settings);
+    
     if (!text) {
       console.warn('[TTS] Cannot speak - no text provided');
       return Promise.resolve();
@@ -172,12 +177,15 @@ class TTSService {
     
     // Clean the text for better speech
     const cleanText = this.cleanTextForSpeech(text);
+    console.log('[TTS] Cleaned text (first 100 chars):', cleanText.substring(0, 100));
     
     // Check availability first (but only once)
     if (!this.availabilityChecked) {
+      console.log('[TTS] Checking Lemonfox availability...');
       await this.checkLemonfoxAvailability();
     }
     
+    console.log('[TTS] Provider status - useLemonfox:', this.useLemonfox);
     console.log('[TTS] Starting immediate speech');
     return this.performImmediateSpeech(cleanText, options);
   }
@@ -254,12 +262,15 @@ class TTSService {
   }
 
   async speakWithLemonfoxImmediate(text, options = {}, signal) {
+    console.log('[TTS-LEMONFOX] === Starting Lemonfox speech ===');
+    console.log('[TTS-LEMONFOX] Text preview:', text.substring(0, 50) + '...');
+    
     return new Promise(async (resolve, reject) => {
       let audioUrl = null;
       
       // Set up abort listener
       const abortListener = () => {
-        console.log('[TTS] Lemonfox speech aborted');
+        console.log('[TTS-LEMONFOX] Speech aborted via signal');
         this.isSpeaking = false;
         if (this.currentAudio) {
           this.currentAudio.pause();
@@ -272,6 +283,7 @@ class TTSService {
       };
       
       if (signal.aborted) {
+        console.log('[TTS-LEMONFOX] Signal already aborted, exiting');
         abortListener();
         return;
       }
@@ -280,22 +292,38 @@ class TTSService {
       
       try {
         this.isSpeaking = true;
-        if (options.onStart) options.onStart();
+        if (options.onStart) {
+          console.log('[TTS-LEMONFOX] Calling onStart callback');
+          options.onStart();
+        }
         
-        console.log('[TTS] Using Lemonfox.ai to speak text');
+        console.log('[TTS-LEMONFOX] Preparing API request');
         
         // Get audio from Lemonfox API via IPC using configured settings
         const lemonfoxSettings = this.settings?.lemonfox || {};
-        const result = await window.electronAPI.invoke('tts-generate-speech', {
+        const requestParams = {
           text: text,
           voice: options.voice || lemonfoxSettings.voice || this.lemonfoxVoice,
           language: options.language || lemonfoxSettings.language,
           speed: options.speed || lemonfoxSettings.speed,
           response_format: options.response_format || lemonfoxSettings.response_format,
           word_timestamps: options.word_timestamps !== undefined ? options.word_timestamps : lemonfoxSettings.word_timestamps
+        };
+        
+        console.log('[TTS-LEMONFOX] Request params:', requestParams);
+        console.log('[TTS-LEMONFOX] Invoking IPC handler tts-generate-speech...');
+        
+        const result = await window.electronAPI.invoke('tts-generate-speech', requestParams);
+        
+        console.log('[TTS-LEMONFOX] IPC result received:', {
+          success: result.success,
+          hasAudioData: !!result.audioData,
+          audioDataLength: result.audioData?.length || 0,
+          error: result.error
         });
         
         if (signal.aborted) {
+          console.log('[TTS-LEMONFOX] Signal aborted after API call');
           abortListener();
           return;
         }
@@ -304,47 +332,65 @@ class TTSService {
           throw new Error(result.error || 'Failed to generate speech');
         }
         
+        if (!result.audioData) {
+          throw new Error('No audio data received from Lemonfox API');
+        }
+        
+        console.log('[TTS-LEMONFOX] Creating audio blob...');
         // Create audio element and play
         const audioBlob = this.base64ToBlob(result.audioData, 'audio/mp3');
         audioUrl = URL.createObjectURL(audioBlob);
+        console.log('[TTS-LEMONFOX] Audio URL created:', audioUrl);
         
         this.currentAudio = new Audio(audioUrl);
         this.currentAudio.volume = options.volume || this.volume;
+        console.log('[TTS-LEMONFOX] Audio element created with volume:', this.currentAudio.volume);
         
         this.currentAudio.onended = () => {
+          console.log('[TTS-LEMONFOX] Audio playback ended normally');
           this.isSpeaking = false;
           URL.revokeObjectURL(audioUrl);
           this.currentAudio = null;
-          console.log('[TTS] Finished playing Lemonfox audio');
-          if (options.onEnd) options.onEnd();
+          if (options.onEnd) {
+            console.log('[TTS-LEMONFOX] Calling onEnd callback');
+            options.onEnd();
+          }
           signal.removeEventListener('abort', abortListener);
           resolve();
         };
         
         this.currentAudio.onerror = (error) => {
+          console.error('[TTS-LEMONFOX] Audio playback error:', error);
           this.isSpeaking = false;
           URL.revokeObjectURL(audioUrl);
           this.currentAudio = null;
-          console.error('[TTS] Audio playback error:', error);
-          if (options.onError) options.onError(error);
+          if (options.onError) {
+            console.log('[TTS-LEMONFOX] Calling onError callback');
+            options.onError(error);
+          }
           signal.removeEventListener('abort', abortListener);
           reject(error);
         };
         
         if (signal.aborted) {
+          console.log('[TTS-LEMONFOX] Signal aborted before play');
           abortListener();
           return;
         }
         
+        console.log('[TTS-LEMONFOX] Attempting to play audio...');
         await this.currentAudio.play();
-        console.log('[TTS] Started playing Lemonfox audio');
+        console.log('[TTS-LEMONFOX] Audio playback started successfully');
         
       } catch (error) {
+        console.error('[TTS-LEMONFOX] Exception in speakWithLemonfoxImmediate:', error);
         this.isSpeaking = false;
         if (this.currentAudio) this.currentAudio = null;
         if (audioUrl) URL.revokeObjectURL(audioUrl);
-        console.error('[TTS] Error with Lemonfox TTS:', error);
-        if (options.onError) options.onError(error);
+        if (options.onError) {
+          console.log('[TTS-LEMONFOX] Calling onError callback due to exception');
+          options.onError(error);
+        }
         signal.removeEventListener('abort', abortListener);
         reject(error);
       }
