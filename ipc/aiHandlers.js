@@ -41,7 +41,16 @@ function register(deps) {
       console.error('[AIHandlers] Invalid user message received.');
       return { error: 'Invalid message format.' };
     }
-    console.log(`[AIHandlers] 🤖 Received chat message of ${userMessage.length} characters`);
+    
+    // Check for bypass flags
+    const isExplicitRequest = assistantConfig?.explicitRequest || assistantConfig?.bypassFlowDetection;
+    const requestSource = assistantConfig?.source || 'unknown';
+    
+    if (isExplicitRequest) {
+      console.log(`[AIHandlers] 🚀 Explicit AI request from ${requestSource} - bypassing flow detection`);
+    } else {
+      console.log(`[AIHandlers] 🤖 Received chat message of ${userMessage.length} characters`);
+    }
     
     try {
       // Apply AI assistant configuration or fallback to saved AI settings

@@ -205,8 +205,14 @@ class AIFlowDetectionManager {
     }
 
     // Perform comprehensive analysis with insights
-    async performFullAnalysis() {
+    async performFullAnalysis(options = {}) {
         if (!this.initialized) return;
+        
+        // Check if flow detection is temporarily disabled
+        if (this._temporarilyDisabled) {
+            console.log('[AIFlowDetectionManager] ⏸️ Temporarily disabled - skipping analysis');
+            return;
+        }
         
         try {
             this.lastFullAnalysis = Date.now();
@@ -219,8 +225,15 @@ class AIFlowDetectionManager {
             const currentContentHash = this.hashString(currentContent);
             const contentChanged = currentContentHash !== this.lastContentHash;
             
-            if (contentChanged) {
-                console.log('[AIFlowDetectionManager] ✅ Content change detected - proceeding with AI analysis');
+            // Allow bypass for explicit requests (like statistics panel)
+            const isExplicitRequest = options.explicitRequest || options.bypassFlowDetection;
+            
+            if (contentChanged || isExplicitRequest) {
+                if (isExplicitRequest) {
+                    console.log('[AIFlowDetectionManager] ✅ Explicit request detected - bypassing content change detection');
+                } else {
+                    console.log('[AIFlowDetectionManager] ✅ Content change detected - proceeding with AI analysis');
+                }
                 this.lastContentHash = currentContentHash;
             } else {
                 console.log('[AIFlowDetectionManager] ⏸️ No content changes - skipping AI insights generation');
@@ -240,9 +253,9 @@ class AIFlowDetectionManager {
                 flowScore: this.flowStateEngine.flowEngine.currentFlowScore
             };
             
-            // Generate AI insights only if content changed and AI companion is available
+            // Generate AI insights if content changed OR explicit request, and AI companion is available
             let insights = null;
-            if (contentChanged && this.aiCompanion && typeof this.aiCompanion.callAIService === 'function') {
+            if ((contentChanged || isExplicitRequest) && this.aiCompanion && typeof this.aiCompanion.callAIService === 'function') {
                 // Check if the AI companion's auto-invocation is enabled
                 if (this.aiCompanion.isAutoInvocationEnabled && !this.aiCompanion.isAutoInvocationEnabled()) {
                     console.log('[AIFlowDetectionManager] ⏸️ AI companion auto-invocation disabled - skipping AI insights');

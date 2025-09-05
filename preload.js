@@ -65,6 +65,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('toggle-presentation-mode', callback);
   },
 
+  onShowPresentationStatistics: (callback) => {
+    ipcRenderer.on('show-presentation-statistics', callback);
+  },
+
   onLoadPresentationContent: (callback) => {
     ipcRenderer.on('load-presentation-content', (_, content) => {
       callback(content);

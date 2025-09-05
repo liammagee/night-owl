@@ -1097,6 +1097,52 @@ function register(deps) {
       return { success: false, error: error.message };
     }
   });
+
+  // Get all markdown files in the project
+  ipcMain.handle('get-markdown-files', async (event) => {
+    try {
+      const workingDir = getWorkingDirectory();
+      console.log(`[FileHandlers] Getting markdown files from: ${workingDir}`);
+      
+      const markdownFiles = [];
+      
+      // Recursive function to find markdown files
+      async function findMarkdownFiles(dir) {
+        try {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            
+            if (entry.isDirectory()) {
+              // Skip common non-content directories
+              if (!['node_modules', '.git', '.vscode', 'dist', 'build', '.next', 'coverage'].includes(entry.name)) {
+                await findMarkdownFiles(fullPath);
+              }
+            } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.markdown'))) {
+              markdownFiles.push(fullPath);
+            }
+          }
+        } catch (dirError) {
+          console.warn(`[FileHandlers] Error reading directory ${dir}:`, dirError);
+        }
+      }
+      
+      await findMarkdownFiles(workingDir);
+      
+      console.log(`[FileHandlers] Found ${markdownFiles.length} markdown files`);
+      return { 
+        success: true, 
+        files: markdownFiles.sort() // Sort alphabetically
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error getting markdown files:', error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
 }
 
 module.exports = {

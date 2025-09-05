@@ -146,9 +146,9 @@
                     }
                 }
 
-                async generateAIInsight() {
+                async generateAIInsight(options = {}) {
                     if (this.manager) {
-                        return await this.manager.performFullAnalysis();
+                        return await this.manager.performFullAnalysis(options);
                     }
                     return null;
                 }
@@ -220,9 +220,9 @@
                 },
 
                 // Generate AI insight on demand
-                insight: async () => {
+                insight: async (options = {}) => {
                     if (window.aiFlowDetection) {
-                        await window.aiFlowDetection.performFullAnalysis();
+                        await window.aiFlowDetection.generateAIInsight(options);
                         const insights = window.aiFlowDetection.getDisplayInsights();
                         console.log('[Flow Debug] Generated insights:', insights);
                         return insights;

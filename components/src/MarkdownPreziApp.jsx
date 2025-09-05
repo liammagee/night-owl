@@ -140,6 +140,7 @@ const MarkdownPreziApp = () => {
   // Video recording state
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef(null);
   
@@ -658,6 +659,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       window.electronAPI.onTogglePresentationMode(() => {
         // Switch to presentation mode
         switchToMode('presentation');
+      });
+
+      // Auto-generate and show statistics
+      window.electronAPI.onShowPresentationStatistics(() => {
+        console.log('[PRESENTATION] Auto-generating and showing statistics');
+        // Auto-switch to statistics view and display immediately
+        if (window.switchStructureView) {
+          window.switchStructureView('statistics');
+        }
       });
 
       // Zoom controls
@@ -1500,6 +1510,83 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Statistics calculation functions
+  const calculateStatistics = () => {
+    const stats = {
+      slideCount: slides.length,
+      slideContent: {
+        totalWords: 0,
+        totalQuotes: 0,
+        totalImages: 0,
+        totalCodeBlocks: 0
+      },
+      speakerNotes: {
+        totalWords: 0,
+        totalQuotes: 0,
+        slidesWithNotes: 0
+      },
+      estimatedTalkingTime: {
+        notesOnly: 0,
+        withExtemporization: 0
+      }
+    };
+
+    slides.forEach(slide => {
+      // Count slide content
+      const slideText = slide.content || '';
+      const slideWords = slideText.match(/\b\w+\b/g) || [];
+      stats.slideContent.totalWords += slideWords.length;
+      
+      // Count quotes in slide content (text within quotation marks)
+      const slideQuotes = slideText.match(/["']([^"']*?)["']/g) || [];
+      stats.slideContent.totalQuotes += slideQuotes.length;
+      
+      // Count images
+      const imageMatches = slideText.match(/!\[[^\]]*\]\([^)]*\)/g) || [];
+      stats.slideContent.totalImages += imageMatches.length;
+      
+      // Count code blocks
+      const codeBlocks = slideText.match(/```[\s\S]*?```/g) || [];
+      const inlineCode = slideText.match(/`[^`]+`/g) || [];
+      stats.slideContent.totalCodeBlocks += codeBlocks.length + inlineCode.length;
+      
+      // Count speaker notes
+      if (slide.speakerNotes && slide.speakerNotes.trim()) {
+        stats.speakerNotes.slidesWithNotes++;
+        const notesWords = slide.speakerNotes.match(/\b\w+\b/g) || [];
+        stats.speakerNotes.totalWords += notesWords.length;
+        
+        // Count quotes in speaker notes
+        const notesQuotes = slide.speakerNotes.match(/["']([^"']*?)["']/g) || [];
+        stats.speakerNotes.totalQuotes += notesQuotes.length;
+      }
+    });
+
+    // Calculate talking time estimates
+    // Average speaking rate: 150-160 words per minute, we'll use 150
+    const wordsPerMinute = 150;
+    stats.estimatedTalkingTime.notesOnly = Math.ceil(stats.speakerNotes.totalWords / wordsPerMinute);
+    
+    // Add 50% for extemporization, pauses, and slide transitions
+    stats.estimatedTalkingTime.withExtemporization = Math.ceil(stats.estimatedTalkingTime.notesOnly * 1.5);
+    
+    // Add additional time for slides without notes (assume 30 seconds per slide)
+    const slidesWithoutNotes = stats.slideCount - stats.speakerNotes.slidesWithNotes;
+    const timeForSlidesWithoutNotes = Math.ceil(slidesWithoutNotes * 0.5); // 0.5 minutes per slide
+    stats.estimatedTalkingTime.withExtemporization += timeForSlidesWithoutNotes;
+
+    return stats;
+  };
+
+  const formatTime = (minutes) => {
+    if (minutes < 60) {
+      return `${minutes}m`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  };
+
   const toggleSpeakerNotesWindow = async () => {
     console.log('[TOGGLE DEBUG] Starting toggle - speakerNotesWindowVisible:', speakerNotesWindowVisible);
     if (!isPresenting || !window.electronAPI) {
@@ -1718,6 +1805,16 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   const handleMouseUp = () => {
     setIsDragging(false);
   };
+
+  // Expose statistics functions to window object for sidebar access
+  useEffect(() => {
+    window.calculateStatistics = calculateStatistics;
+    window.formatTime = formatTime;
+    return () => {
+      window.calculateStatistics = null;
+      window.formatTime = null;
+    };
+  }, []);
 
   return (
     <div 
@@ -1948,6 +2045,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         </div>
       )}
 
+
       {/* Canvas */}
       <div
         ref={canvasRef}
@@ -2023,3 +2121,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
 // Make component available globally
 window.MarkdownPreziApp = MarkdownPreziApp;
+
+// Expose statistics functions to window object for sidebar access
+window.calculateStatistics = null;
+window.formatTime = null;

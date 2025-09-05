@@ -1029,6 +1029,7 @@
                     <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
                     <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
                     <button id="show-search-btn" class="btn pane-toggle-button" title="Global Search">Search</button>
+                    <button id="show-stats-btn" class="btn pane-toggle-button" title="Presentation Statistics">Stats</button>
                 </div>
                 <!-- Tag search interface (only visible in Files view) -->
                 <div id="tag-search-section" style="display: none; margin-top: 4px;">
@@ -1084,6 +1085,28 @@
                         <button id="clear-search-results" class="btn" style="padding: 2px 6px; font-size: 11px;" title="Clear Results">Clear</button>
                     </div>
                     <div id="search-results" style="flex: 1; overflow-y: auto; font-size: 13px; min-height: 200px;"></div>
+                </div>
+                <div id="statistics-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
+                    <!-- Statistics Panel -->
+                    <div class="statistics-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #007bff;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <h3 style="margin: 0; color: #007bff; font-size: 16px;">📊 Statistics</h3>
+                            <div style="display: flex; gap: 4px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; padding: 2px;">
+                                <button id="stats-scope-document" class="stats-scope-btn active" style="padding: 4px 8px; border: none; background: #007bff; color: white; border-radius: 4px; cursor: pointer; font-size: 11px;">Document</button>
+                                <button id="stats-scope-project" class="stats-scope-btn" style="padding: 4px 8px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 11px;">Project</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button id="refresh-statistics-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Refresh Statistics">🔄 Refresh</button>
+                            <button id="ai-analysis-btn" class="btn" style="padding: 4px 8px; font-size: 11px; background: #6f42c1; color: white;" title="AI Analysis with Ash">🤖 AI Analysis</button>
+                        </div>
+                    </div>
+                    <div id="statistics-content" style="flex: 1; overflow-y: auto;">
+                        <!-- Statistics will be populated here -->
+                        <p style="color: #666; text-align: center; padding: 20px;">
+                            Load a presentation to see statistics.
+                        </p>
+                    </div>
                 </div>
                 <!-- TEMP DEBUG: Test button -->
             </div>

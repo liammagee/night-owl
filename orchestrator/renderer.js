@@ -5397,6 +5397,51 @@ if (searchBtn) {
     });
 }
 
+// Statistics button event listener
+const showStatsBtn = document.getElementById('show-stats-btn');
+if (showStatsBtn) {
+    showStatsBtn.addEventListener('click', () => {
+        if (currentStructureView !== 'statistics') {
+            switchStructureView('statistics');
+        }
+    });
+}
+
+// Refresh statistics button event listener
+const refreshStatsBtn = document.getElementById('refresh-statistics-btn');
+if (refreshStatsBtn) {
+    refreshStatsBtn.addEventListener('click', () => {
+        console.log('[Statistics] Refreshing statistics');
+        updateStatisticsPane();
+    });
+}
+
+// AI Analysis button event listener
+const aiAnalysisBtn = document.getElementById('ai-analysis-btn');
+if (aiAnalysisBtn) {
+    aiAnalysisBtn.addEventListener('click', async () => {
+        console.log('[Statistics] Running AI analysis');
+        await runAIAnalysis();
+    });
+}
+
+// Statistics scope switcher event listeners
+const statsScopeDocument = document.getElementById('stats-scope-document');
+const statsScopeProject = document.getElementById('stats-scope-project');
+
+if (statsScopeDocument && statsScopeProject) {
+    statsScopeDocument.addEventListener('click', () => {
+        switchStatsScope('document');
+    });
+    
+    statsScopeProject.addEventListener('click', () => {
+        switchStatsScope('project');
+    });
+}
+
+// Global variable to track current stats scope
+let currentStatsScope = 'document';
+
 // --- New Folder Button Listener ---
 newFolderBtn.addEventListener('click', async () => {
     console.log('[Renderer] New Folder button clicked');
@@ -5698,10 +5743,13 @@ function switchStructureView(view) {
     showStructureBtn.classList.remove('active');
     showFilesBtn.classList.remove('active');
     if (searchBtn) searchBtn.classList.remove('active');
+    if (showStatsBtn) showStatsBtn.classList.remove('active');
     
     structureList.style.display = 'none';
     if (fileTreeView) fileTreeView.style.display = 'none';
     if (searchPane) searchPane.style.display = 'none';
+    const statisticsPane = document.getElementById('statistics-pane');
+    if (statisticsPane) statisticsPane.style.display = 'none';
     if (tagSearchSection) tagSearchSection.style.display = 'none';
     newFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
@@ -5732,6 +5780,566 @@ function switchStructureView(view) {
         structurePaneTitle.textContent = 'Search';
         if (searchBtn) searchBtn.classList.add('active');
         if (searchPane) searchPane.style.display = 'block'; // Show search pane
+    } else if (view === 'statistics') {
+        structurePaneTitle.textContent = 'Statistics';
+        if (showStatsBtn) showStatsBtn.classList.add('active');
+        if (statisticsPane) {
+            statisticsPane.style.display = 'block';
+            // Update statistics content when showing the pane
+            updateStatisticsPane();
+        }
+    }
+}
+
+// Expose switchStructureView to window object for external access
+window.switchStructureView = switchStructureView;
+
+// Function to switch between document and project stats
+function switchStatsScope(scope) {
+    const documentBtn = document.getElementById('stats-scope-document');
+    const projectBtn = document.getElementById('stats-scope-project');
+    
+    if (!documentBtn || !projectBtn) return;
+    
+    currentStatsScope = scope;
+    
+    // Update button states
+    if (scope === 'document') {
+        documentBtn.classList.add('active');
+        documentBtn.style.background = '#007bff';
+        documentBtn.style.color = 'white';
+        projectBtn.classList.remove('active');
+        projectBtn.style.background = 'transparent';
+        projectBtn.style.color = '#666';
+    } else {
+        projectBtn.classList.add('active');
+        projectBtn.style.background = '#007bff';
+        projectBtn.style.color = 'white';
+        documentBtn.classList.remove('active');
+        documentBtn.style.background = 'transparent';
+        documentBtn.style.color = '#666';
+    }
+    
+    // Hide AI analysis section when switching
+    const aiAnalysisSection = document.getElementById('ai-analysis-section');
+    if (aiAnalysisSection) {
+        aiAnalysisSection.style.display = 'none';
+    }
+    
+    // Update statistics
+    updateStatisticsPane();
+}
+
+// --- Statistics Functions ---
+async function updateStatisticsPane() {
+    const statisticsContent = document.getElementById('statistics-content');
+    if (!statisticsContent) return;
+    
+    try {
+        let stats;
+        
+        if (currentStatsScope === 'project') {
+            // Calculate project-wide statistics
+            statisticsContent.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">📊 Analyzing project files...</p>';
+            stats = await calculateProjectStatistics();
+        } else {
+            // Calculate current document statistics
+            let content = '';
+            if (editor && typeof editor.getValue === 'function') {
+                content = editor.getValue();
+            } else if (fallbackEditor) {
+                content = fallbackEditor.value;
+            }
+            
+            if (!content.trim()) {
+                statisticsContent.innerHTML = `
+                    <p style="color: #666; text-align: center; padding: 20px;">
+                        No document content to analyze.<br>
+                        <small>Open or create a markdown file to see statistics.</small>
+                    </p>
+                `;
+                return;
+            }
+            
+            stats = calculateBasicStatistics(content);
+        }
+        
+        const formatTime = (minutes) => {
+            if (minutes < 60) return `${minutes}m`;
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours}h ${remainingMinutes}m`;
+        };
+        
+        const scopeTitle = currentStatsScope === 'project' ? 'Project Overview' : 'Document Overview';
+        const scopeIcon = currentStatsScope === 'project' ? '📁' : '📄';
+        
+        statisticsContent.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <!-- Overview -->
+                <div style="background: #f8f9ff; border-radius: 8px; padding: 12px; border-left: 4px solid #007bff;">
+                    <h4 style="margin: 0 0 8px 0; color: #007bff; font-size: 14px;">${scopeIcon} ${scopeTitle}</h4>
+                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+                        ${currentStatsScope === 'project' ? `
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Markdown Files:</span>
+                            <span style="font-weight: bold;">${stats.fileCount}</span>
+                        </div>
+                        ` : ''}
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Total Words:</span>
+                            <span style="font-weight: bold;">${stats.wordCount.toLocaleString()}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Characters:</span>
+                            <span style="font-weight: bold;">${stats.charCount.toLocaleString()}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Paragraphs:</span>
+                            <span style="font-weight: bold;">${stats.paragraphCount}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Headings:</span>
+                            <span style="font-weight: bold;">${stats.headingCount}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Presentation Stats -->
+                <div style="background: #f8fff8; border-radius: 8px; padding: 12px; border-left: 4px solid #28a745;">
+                    <h4 style="margin: 0 0 8px 0; color: #28a745; font-size: 14px;">🎯 ${currentStatsScope === 'project' ? 'Project' : 'Presentation'} Analysis</h4>
+                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Slide Markers:</span>
+                            <span style="font-weight: bold;">${stats.slideCount}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Speaker Notes:</span>
+                            <span style="font-weight: bold;">${stats.notesCount}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Est. Reading Time:</span>
+                            <span style="font-weight: bold;">${formatTime(stats.readingTime)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Est. Presentation:</span>
+                            <span style="font-weight: bold;">${formatTime(stats.presentationTime)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Readability Analysis -->
+                <div style="background: #fff0f5; border-radius: 8px; padding: 12px; border-left: 4px solid #e91e63;">
+                    <h4 style="margin: 0 0 8px 0; color: #e91e63; font-size: 14px;">📖 Readability</h4>
+                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Sentences:</span>
+                            <span style="font-weight: bold;">${stats.sentenceCount}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Avg Sentence Length:</span>
+                            <span style="font-weight: bold;">${stats.averageSentenceLength} words</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Avg Word Length:</span>
+                            <span style="font-weight: bold;">${stats.averageWordLength} chars</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Analysis -->
+                <div style="background: #fffaf0; border-radius: 8px; padding: 12px; border-left: 4px solid #ffc107;">
+                    <h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">📊 Content Breakdown</h4>
+                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Lists:</span>
+                            <span style="font-weight: bold;">${stats.listCount}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Links:</span>
+                            <span style="font-weight: bold;">${stats.linkCount}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Code Blocks:</span>
+                            <span style="font-weight: bold;">${stats.codeBlockCount}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Images:</span>
+                            <span style="font-weight: bold;">${stats.imageCount}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Section (will be populated by AI) -->
+                <div id="ai-analysis-section" style="display: none; background: #f0f8ff; border-radius: 8px; padding: 12px; border-left: 4px solid #6f42c1;">
+                    <h4 style="margin: 0 0 8px 0; color: #6f42c1; font-size: 14px;">🤖 AI Analysis</h4>
+                    <div id="ai-analysis-content" style="font-size: 12px; line-height: 1.4;">
+                        <!-- AI analysis results will be populated here -->
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Error calculating statistics:', error);
+        statisticsContent.innerHTML = `
+            <p style="color: #dc3545; text-align: center; padding: 20px;">
+                Error calculating statistics: ${error.message}
+            </p>
+        `;
+    }
+}
+
+// Function to calculate basic statistics from markdown content
+function calculateBasicStatistics(content) {
+    const lines = content.split('\n');
+    
+    // Clean text content (remove markdown syntax for readability analysis)
+    const cleanText = content
+        .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+        .replace(/`[^`]+`/g, '') // Remove inline code
+        .replace(/\[[^\]]*\]\([^)]*\)/g, '') // Remove links
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Remove images
+        .replace(/[#*_`\[\]()]/g, ' ') // Remove markdown symbols
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+    
+    // Word count
+    const wordCount = cleanText ? cleanText.split(' ').length : 0;
+    
+    // Character count
+    const charCount = content.length;
+    
+    // Sentence count and average sentence length
+    const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const sentenceCount = sentences.length;
+    const averageSentenceLength = sentenceCount > 0 ? Math.round(wordCount / sentenceCount) : 0;
+    
+    // Paragraph count (non-empty lines that aren't headings or list items)
+    const paragraphCount = lines.filter(line => 
+        line.trim() && 
+        !line.startsWith('#') && 
+        !line.startsWith('*') && 
+        !line.startsWith('-') && 
+        !line.startsWith('+') &&
+        !line.match(/^\d+\./) &&
+        !line.match(/^```/)
+    ).length;
+    
+    // Heading count
+    const headingCount = lines.filter(line => line.startsWith('#')).length;
+    
+    // Slide markers (---SLIDE--- or similar)
+    const slideCount = (content.match(/---SLIDE---|^\s*---\s*$/gm) || []).length;
+    
+    // Speaker notes blocks
+    const notesCount = (content.match(/```notes/g) || []).length;
+    
+    // Lists
+    const listCount = lines.filter(line => 
+        line.match(/^\s*[-*+]\s+/) || line.match(/^\s*\d+\.\s+/)
+    ).length;
+    
+    // Links
+    const linkCount = (content.match(/\[.*?\]\(.*?\)/g) || []).length;
+    
+    // Code blocks
+    const codeBlockCount = (content.match(/```/g) || []).length / 2;
+    
+    // Images
+    const imageCount = (content.match(/!\[.*?\]\(.*?\)/g) || []).length;
+    
+    // Estimated reading time (200 words per minute)
+    const readingTime = Math.ceil(wordCount / 200);
+    
+    // Estimated presentation time (slower than reading, ~150 words per minute)
+    const presentationTime = Math.ceil(wordCount / 150);
+    
+    // Basic readability metrics
+    const averageWordLength = wordCount > 0 ? Math.round((cleanText.replace(/\s/g, '').length) / wordCount * 10) / 10 : 0;
+    
+    return {
+        wordCount,
+        charCount,
+        sentenceCount,
+        averageSentenceLength,
+        averageWordLength,
+        paragraphCount,
+        headingCount,
+        slideCount: slideCount || Math.ceil(headingCount / 2), // Fallback estimate
+        notesCount,
+        listCount,
+        linkCount,
+        codeBlockCount: Math.floor(codeBlockCount),
+        imageCount,
+        readingTime,
+        presentationTime,
+        cleanText // For AI analysis
+    };
+}
+
+// Function to calculate project-wide statistics
+async function calculateProjectStatistics() {
+    try {
+        console.log('[Statistics] Calculating project statistics');
+        
+        // Get all markdown files in the project
+        const fileResponse = await window.electronAPI.invoke('get-markdown-files');
+        
+        if (!fileResponse.success) {
+            throw new Error(fileResponse.error || 'Failed to get markdown files');
+        }
+        
+        const markdownFiles = fileResponse.files;
+        console.log(`[Statistics] Found ${markdownFiles.length} markdown files`);
+        
+        // Initialize aggregate statistics
+        let aggregatedStats = {
+            fileCount: markdownFiles.length,
+            wordCount: 0,
+            charCount: 0,
+            sentenceCount: 0,
+            paragraphCount: 0,
+            headingCount: 0,
+            slideCount: 0,
+            notesCount: 0,
+            listCount: 0,
+            linkCount: 0,
+            codeBlockCount: 0,
+            imageCount: 0,
+            totalCharacters: 0,
+            totalWords: 0
+        };
+        
+        // Process each markdown file
+        for (const filePath of markdownFiles) {
+            try {
+                const contentResponse = await window.electronAPI.invoke('read-file', filePath);
+                if (contentResponse.success && contentResponse.content) {
+                    const fileStats = calculateBasicStatistics(contentResponse.content);
+                    
+                    // Aggregate the statistics
+                    aggregatedStats.wordCount += fileStats.wordCount;
+                    aggregatedStats.charCount += fileStats.charCount;
+                    aggregatedStats.sentenceCount += fileStats.sentenceCount;
+                    aggregatedStats.paragraphCount += fileStats.paragraphCount;
+                    aggregatedStats.headingCount += fileStats.headingCount;
+                    aggregatedStats.slideCount += fileStats.slideCount;
+                    aggregatedStats.notesCount += fileStats.notesCount;
+                    aggregatedStats.listCount += fileStats.listCount;
+                    aggregatedStats.linkCount += fileStats.linkCount;
+                    aggregatedStats.codeBlockCount += fileStats.codeBlockCount;
+                    aggregatedStats.imageCount += fileStats.imageCount;
+                    
+                    // For averaging calculations
+                    aggregatedStats.totalCharacters += contentResponse.content.replace(/\s/g, '').length;
+                    aggregatedStats.totalWords += fileStats.wordCount;
+                }
+            } catch (fileError) {
+                console.warn(`[Statistics] Error processing file ${filePath}:`, fileError);
+            }
+        }
+        
+        // Calculate averages
+        aggregatedStats.averageSentenceLength = aggregatedStats.sentenceCount > 0 
+            ? Math.round(aggregatedStats.wordCount / aggregatedStats.sentenceCount) 
+            : 0;
+        
+        aggregatedStats.averageWordLength = aggregatedStats.totalWords > 0
+            ? Math.round((aggregatedStats.totalCharacters / aggregatedStats.totalWords) * 10) / 10
+            : 0;
+        
+        // Estimated reading/presentation times
+        aggregatedStats.readingTime = Math.ceil(aggregatedStats.wordCount / 200);
+        aggregatedStats.presentationTime = Math.ceil(aggregatedStats.wordCount / 150);
+        
+        console.log('[Statistics] Project statistics calculated:', aggregatedStats);
+        return aggregatedStats;
+        
+    } catch (error) {
+        console.error('[Statistics] Error calculating project statistics:', error);
+        throw error;
+    }
+}
+
+// AI Analysis function using Ash
+async function runAIAnalysis() {
+    const aiAnalysisBtn = document.getElementById('ai-analysis-btn');
+    const aiAnalysisSection = document.getElementById('ai-analysis-section');
+    const aiAnalysisContent = document.getElementById('ai-analysis-content');
+    
+    if (!aiAnalysisSection || !aiAnalysisContent) return;
+    
+    // Get content based on current scope
+    let content = '';
+    let contentSource = 'document';
+    
+    if (currentStatsScope === 'project') {
+        // For project scope, get aggregated content from all files
+        try {
+            const fileResponse = await window.electronAPI.invoke('get-markdown-files');
+            if (fileResponse.success && fileResponse.files.length > 0) {
+                const fileContents = [];
+                for (const filePath of fileResponse.files.slice(0, 10)) { // Limit to first 10 files for analysis
+                    const contentResponse = await window.electronAPI.invoke('read-file', filePath);
+                    if (contentResponse.success && contentResponse.content) {
+                        const stats = calculateBasicStatistics(contentResponse.content);
+                        const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
+                        fileContents.push(`File: ${fileName}\n${stats.cleanText.substring(0, 500)}...`);
+                    }
+                }
+                content = fileContents.join('\n\n---\n\n');
+                contentSource = 'project';
+            }
+        } catch (error) {
+            console.warn('[Statistics] Error getting project content for AI analysis:', error);
+        }
+    } else {
+        // Get current document content
+        if (editor && typeof editor.getValue === 'function') {
+            content = editor.getValue();
+        } else if (fallbackEditor) {
+            content = fallbackEditor.value;
+        }
+    }
+    
+    if (!content.trim()) {
+        aiAnalysisContent.innerHTML = `<p style="color: #dc3545;">No ${contentSource} content to analyze.</p>`;
+        aiAnalysisSection.style.display = 'block';
+        return;
+    }
+    
+    // Show loading state
+    if (aiAnalysisBtn) {
+        aiAnalysisBtn.textContent = '🔄 Analyzing...';
+        aiAnalysisBtn.disabled = true;
+    }
+    
+    aiAnalysisSection.style.display = 'block';
+    aiAnalysisContent.innerHTML = '<p style="color: #666;">🤖 Ash is analyzing your document... Please wait.</p>';
+    
+    try {
+        // Get basic statistics for context
+        const stats = calculateBasicStatistics(content);
+        
+        // Prepare prompt for AI analysis
+        const scopeDescription = currentStatsScope === 'project' ? 'project (multiple markdown files)' : 'document';
+        const analysisPrompt = `Please analyze this ${scopeDescription} and provide:
+1. **Readability Assessment**: Rate the readability on a scale of 1-10 and explain why
+2. **Key Themes**: Identify the 3-5 main themes or topics
+3. **Writing Style**: Describe the writing style (academic, casual, technical, etc.)
+4. **Suggestions**: Provide 2-3 specific suggestions to improve clarity or engagement
+5. **Word Cloud Keywords**: List the 10 most important/frequent keywords for a word cloud
+
+${scopeDescription === 'project' ? 'Project' : 'Document'} statistics for context:
+- Words: ${stats.wordCount}
+- Sentences: ${stats.sentenceCount}
+- Avg sentence length: ${stats.averageSentenceLength} words
+- Avg word length: ${stats.averageWordLength} characters
+${currentStatsScope === 'project' ? `- Files analyzed: ${stats.fileCount}` : ''}
+
+Content to analyze:
+${content.substring(0, 3000)}${content.length > 3000 ? '...' : ''}`;
+
+        // Temporarily disable flow detection for this request
+        console.log('[Statistics] Sending AI analysis request to Ash (bypassing flow detection)');
+        
+        // Store original flow detection state
+        const originalFlowDetection = window.aiFlowDetection;
+        
+        try {
+            // Temporarily disable flow detection
+            if (window.aiFlowDetection) {
+                window.aiFlowDetection._temporarilyDisabled = true;
+            }
+            
+            console.log('[Statistics] Flow detection disabled, calling AI service...');
+            const aiResponse = await window.electronAPI.invoke('send-chat-message', analysisPrompt, {
+                explicitRequest: true,
+                bypassFlowDetection: true,
+                source: 'statistics',
+                newConversation: true
+            });
+            console.log('[Statistics] AI response received:', aiResponse);
+            
+            if (aiResponse.success !== false) {
+                // Process and display AI response
+                displayAIAnalysis(aiResponse.content || aiResponse.response || aiResponse);
+            } else {
+                throw new Error(aiResponse.error || 'AI analysis failed');
+            }
+            
+        } finally {
+            // Re-enable flow detection
+            if (window.aiFlowDetection) {
+                delete window.aiFlowDetection._temporarilyDisabled;
+            }
+        }
+        
+    } catch (error) {
+        console.error('[Statistics] AI analysis error:', error);
+        aiAnalysisContent.innerHTML = `
+            <p style="color: #dc3545;">AI analysis failed: ${error.message}</p>
+            <p style="color: #666; font-size: 11px;">Make sure Ash (AI Chat) is properly configured.</p>
+        `;
+    } finally {
+        // Restore button state
+        if (aiAnalysisBtn) {
+            aiAnalysisBtn.textContent = '🤖 AI Analysis';
+            aiAnalysisBtn.disabled = false;
+        }
+    }
+}
+
+// Function to display AI analysis results
+function displayAIAnalysis(aiResponse) {
+    const aiAnalysisContent = document.getElementById('ai-analysis-content');
+    if (!aiAnalysisContent) return;
+    
+    try {
+        // Clean and format the AI response
+        const cleanResponse = aiResponse.replace(/```[\s\S]*?```/g, '').trim();
+        
+        // Create word cloud data if keywords were extracted
+        const keywordsMatch = cleanResponse.match(/(?:Word Cloud|Keywords)[:]*\s*(.*?)(?:\n|$)/i);
+        let wordCloudHTML = '';
+        
+        if (keywordsMatch) {
+            const keywords = keywordsMatch[1].split(/[,\n]/).map(k => k.trim()).filter(k => k);
+            if (keywords.length > 0) {
+                wordCloudHTML = `
+                    <div style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                        <strong>Key Terms:</strong><br>
+                        <div style="margin-top: 4px;">
+                            ${keywords.slice(0, 10).map(keyword => 
+                                `<span style="display: inline-block; background: #6f42c1; color: white; padding: 2px 6px; margin: 2px; border-radius: 3px; font-size: 10px;">${keyword}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        aiAnalysisContent.innerHTML = `
+            <div style="white-space: pre-wrap; line-height: 1.5;">
+                ${cleanResponse}
+            </div>
+            ${wordCloudHTML}
+            <div style="margin-top: 8px; padding: 6px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404;">
+                💡 Analysis provided by Ash AI • ${new Date().toLocaleTimeString()}
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('[Statistics] Error displaying AI analysis:', error);
+        aiAnalysisContent.innerHTML = `
+            <div style="white-space: pre-wrap; line-height: 1.5;">
+                ${aiResponse}
+            </div>
+            <div style="margin-top: 8px; padding: 6px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404;">
+                💡 Analysis provided by Ash AI • ${new Date().toLocaleTimeString()}
+            </div>
+        `;
     }
 }
 
