@@ -94,6 +94,25 @@ const SpeakerOff = () => (
   </svg>
 );
 
+const RecordIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"></circle>
+  </svg>
+);
+
+const StopIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+    <rect x="6" y="6" width="12" height="12"></rect>
+  </svg>
+);
+
+const PauseIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="6" y="4" width="4" height="16"></rect>
+    <rect x="14" y="4" width="4" height="16"></rect>
+  </svg>
+);
+
 const MarkdownPreziApp = () => {
   // Check if running in Electron
   const isElectron = window.electronAPI && window.electronAPI.isElectron;
@@ -113,6 +132,16 @@ const MarkdownPreziApp = () => {
   const [speakerNotesWindowVisible, setSpeakerNotesWindowVisible] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const ttsStateRef = useRef({ 
+    isAdvancing: false,
+    currentSpeakingSlide: -1 
+  });
+  
+  // Video recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingTimerRef = useRef(null);
   
   // Current slides and slide index state
   const canvasRef = useRef(null);
@@ -451,6 +480,61 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     return () => clearTimeout(initTimeout);
   }, []);
 
+  // Navigate to specific slide with smooth transition
+  const goToSlide = useCallback((slideIndex) => {
+    if (slideIndex < 0 || slideIndex >= slides.length) return;
+    
+    const slide = slides[slideIndex];
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.warn('[Presentation] Canvas not ready for goToSlide, retrying...');
+      setTimeout(() => goToSlide(slideIndex), 50);
+      return;
+    }
+
+    // Ensure canvas has proper dimensions
+    if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+      console.warn('[Presentation] Canvas dimensions not ready, retrying...');
+      setTimeout(() => goToSlide(slideIndex), 50);
+      return;
+    }
+
+    const targetZoom = 1.2;
+    const viewportCenterX = canvas.clientWidth / 2;
+    const viewportCenterY = canvas.clientHeight / 2;
+    const slideCenterX = slide.position.x;
+    const slideCenterY = slide.position.y;
+    
+    const targetPan = {
+      x: viewportCenterX - (slideCenterX * targetZoom),
+      y: viewportCenterY - (slideCenterY * targetZoom)
+    };
+
+    console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
+    
+    setCurrentSlide(slideIndex);
+    setFocusedSlide(null);
+    setZoom(targetZoom);
+    setPan(targetPan);
+    
+    // Mark slide transition in recording if recording is active
+    if (isRecording && window.videoRecordingService) {
+      const slideTitle = slides[slideIndex]?.content.split('\n')[0] || `Slide ${slideIndex + 1}`;
+      window.videoRecordingService.markSlideTransition(slideIndex + 1, slideTitle);
+      console.log('[VIDEO] Marked slide transition:', slideIndex + 1, slideTitle);
+    }
+    
+    // Ensure speaker notes are updated immediately when slide changes
+    // This is especially important on second presentation load
+    if (isPresenting && window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function' && slides.length > 0) {
+      const currentContent = slides.map(slide => slide.content).join('\n\n---\n\n');
+      // Use setTimeout to ensure state update completes first
+      setTimeout(() => {
+        window.updateSpeakerNotes(slideIndex, currentContent);
+      }, 50);
+    }
+  }, [slides, isPresenting, isRecording]);
+
   // Center on first slide when presentation view becomes active
   useEffect(() => {
     const checkIfPresentationActive = () => {
@@ -557,9 +641,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       });
 
       window.electronAPI.onExitPresentation(() => {
-        setIsPresenting(false);
-        // Stop any TTS when exiting presentation mode
+        console.log('[PRESENTATION] External exit presentation triggered...');
+        
+        // Stop TTS audio
         stopSpeaking();
+        
+        // Stop video recording if active
+        if (isRecording && window.videoRecordingService) {
+          console.log('[VIDEO] Stopping recording on external exit');
+          stopRecording();
+        }
+        
+        setIsPresenting(false);
       });
 
       window.electronAPI.onTogglePresentationMode(() => {
@@ -649,53 +742,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   }, [slides]);
 
 
-  // Navigate to specific slide with smooth transition
-  const goToSlide = useCallback((slideIndex) => {
-    if (slideIndex < 0 || slideIndex >= slides.length) return;
-    
-    const slide = slides[slideIndex];
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      console.warn('[Presentation] Canvas not ready for goToSlide, retrying...');
-      setTimeout(() => goToSlide(slideIndex), 50);
-      return;
-    }
-
-    // Ensure canvas has proper dimensions
-    if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
-      console.warn('[Presentation] Canvas dimensions not ready, retrying...');
-      setTimeout(() => goToSlide(slideIndex), 50);
-      return;
-    }
-
-    const targetZoom = 1.2;
-    const viewportCenterX = canvas.clientWidth / 2;
-    const viewportCenterY = canvas.clientHeight / 2;
-    const slideCenterX = slide.position.x;
-    const slideCenterY = slide.position.y;
-    
-    const targetPan = {
-      x: viewportCenterX - (slideCenterX * targetZoom),
-      y: viewportCenterY - (slideCenterY * targetZoom)
-    };
-
-    console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
-    
-    setCurrentSlide(slideIndex);
-    setFocusedSlide(null);
-    setZoom(targetZoom);
-    setPan(targetPan);
-    
-    // Ensure speaker notes are updated immediately when slide changes
-    // This is especially important on second presentation load
-    if (isPresenting && window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function' && slides.length > 0) {
-      const currentContent = slides.map(slide => slide.content).join('\n\n---\n\n');
-      // Use setTimeout to ensure state update completes first
-      setTimeout(() => {
-        window.updateSpeakerNotes(slideIndex, currentContent);
-      }, 50);
-    }
-  }, [slides, isPresenting]);
 
   // Handle double click on slide to zoom in and focus
   const handleSlideDoubleClick = (slideIndex) => {
@@ -806,9 +852,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         e.preventDefault();
         goToSlide(0);
       } else if (e.key === 'Escape') {
-        setIsPresenting(false);
-        // Stop any TTS when escaping presentation mode
+        console.log('[PRESENTATION] Escaping presentation mode...');
+        
+        // Stop TTS audio
         stopSpeaking();
+        
+        // Stop video recording if active
+        if (isRecording && window.videoRecordingService) {
+          console.log('[VIDEO] Stopping recording on escape');
+          stopRecording();
+        }
+        
+        setIsPresenting(false);
       }
     };
 
@@ -921,9 +976,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   // Listen for external exit presentation events
   useEffect(() => {
     const handleExitPresenting = () => {
-      setIsPresenting(false);
-      // Stop any TTS when exiting presentation mode externally
+      console.log('[PRESENTATION] External exit presenting event...');
+      
+      // Stop TTS audio
       stopSpeaking();
+      
+      // Stop video recording if active
+      if (isRecording && window.videoRecordingService) {
+        console.log('[VIDEO] Stopping recording on external exit event');
+        stopRecording();
+      }
+      
+      setIsPresenting(false);
     };
     
     window.addEventListener('exitPresenting', handleExitPresenting);
@@ -962,10 +1026,70 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Speak notes when slide changes if TTS is enabled
   useEffect(() => {
+    console.log('[PRESENTATION-TTS] ⚡ useEffect triggered - currentSlide:', currentSlide, 'ttsEnabled:', ttsEnabled, 'isSpeaking:', isSpeaking, 'isAdvancing:', ttsStateRef.current.isAdvancing);
+    
+    // Only trigger TTS on slide changes, not on isSpeaking state changes
     if (ttsEnabled && slides[currentSlide]?.speakerNotes) {
-      speakText(slides[currentSlide].speakerNotes);
+      // Stop any current speech before starting new one
+      if (window.ttsService && window.ttsService.isSpeaking) {
+        console.log('[PRESENTATION-TTS] 🛑 Stopping previous TTS before starting new slide');
+        window.ttsService.stop();
+        setIsSpeaking(false);
+      }
+      
+      // Start TTS for new slide after a brief delay to ensure state is clean
+      setTimeout(() => {
+        const currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined 
+          ? ttsStateRef.current.ttsEnabled 
+          : ttsEnabled;
+        
+        console.log('[PRESENTATION-TTS] 🔍 Checking TTS start conditions:', {
+          currentTtsEnabled,
+          ttsEnabled,
+          hasNotes: !!slides[currentSlide]?.speakerNotes,
+          isAdvancing: ttsStateRef.current.isAdvancing,
+          currentSlide,
+          noteLength: slides[currentSlide]?.speakerNotes?.length
+        });
+        
+        if (currentTtsEnabled && slides[currentSlide]?.speakerNotes && !ttsStateRef.current.isAdvancing) {
+          console.log('[PRESENTATION-TTS] 📢 Starting TTS for slide:', currentSlide);
+          speakText(slides[currentSlide].speakerNotes, currentSlide);
+        } else {
+          console.log('[PRESENTATION-TTS] ❌ TTS start blocked - conditions not met');
+        }
+      }, 100);
+      
+    } else if (ttsEnabled && !slides[currentSlide]?.speakerNotes && !ttsStateRef.current.isAdvancing) {
+      console.log('[PRESENTATION-TTS] 📝 Slide', currentSlide, 'has no speaker notes, scheduling 10-second auto-advance');
+      // If current slide has no notes but TTS is enabled, auto-advance after 10 seconds
+      if (currentSlide < slides.length - 1) {
+        ttsStateRef.current.isAdvancing = true;
+        setTimeout(() => {
+          // Get current ttsEnabled state to avoid closure issues
+          const currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined 
+            ? ttsStateRef.current.ttsEnabled 
+            : ttsEnabled;
+            
+          if (currentTtsEnabled) {
+            console.log('[PRESENTATION-TTS] ⏩ Auto-advancing past slide with no notes:', currentSlide, '→', currentSlide + 1);
+            goToSlide(currentSlide + 1);
+            ttsStateRef.current.isAdvancing = false;
+          } else {
+            console.log('[PRESENTATION-TTS] ❌ Auto-advance canceled - TTS disabled');
+            ttsStateRef.current.isAdvancing = false;
+          }
+        }, 10000); // 10 seconds
+      }
+    } else {
+      console.log('[PRESENTATION-TTS] ⏸️ Conditions not met for TTS:', {
+        ttsEnabled,
+        hasNotes: !!slides[currentSlide]?.speakerNotes,
+        isSpeaking,
+        isAdvancing: ttsStateRef.current.isAdvancing
+      });
     }
-  }, [currentSlide, ttsEnabled]);
+  }, [currentSlide, ttsEnabled]); // Removed isSpeaking from dependency array to prevent loops
 
   // Update speaker notes display when current slide changes
   useEffect(() => {
@@ -1085,82 +1209,295 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     console.log('[PRESENTATION-TTS] Current slide:', currentSlide);
     console.log('[PRESENTATION-TTS] Has speaker notes:', !!slides[currentSlide]?.speakerNotes);
     
-    setTtsEnabled(prev => !prev);
+    const newTtsEnabled = !ttsEnabled;
+    setTtsEnabled(newTtsEnabled);
+    // Also store in ref to avoid closure issues in completion callbacks
+    ttsStateRef.current.ttsEnabled = newTtsEnabled;
     
     // If turning on TTS, speak the current slide's speaker notes
     if (!ttsEnabled && slides[currentSlide]?.speakerNotes) {
       console.log('[PRESENTATION-TTS] Enabling TTS and starting speech');
-      speakText(slides[currentSlide].speakerNotes);
+      ttsStateRef.current.isAdvancing = false; // Reset state
+      speakText(slides[currentSlide].speakerNotes, currentSlide);
     } else if (ttsEnabled) {
       // If turning off TTS, stop any current speech
       console.log('[PRESENTATION-TTS] Disabling TTS and stopping speech');
       stopSpeaking();
+      ttsStateRef.current.isAdvancing = false; // Reset state
     }
   };
 
-  // Speak text using TTS
-  const speakText = async (text) => {
+  // Speak text using TTS with auto-advance
+  const speakText = async (text, slideIndex) => {
     console.log('[PRESENTATION-TTS] === speakText called ===');
     console.log('[PRESENTATION-TTS] Text length:', text?.length || 0);
-    console.log('[PRESENTATION-TTS] window.ttsService available:', !!window.ttsService);
+    console.log('[PRESENTATION-TTS] Slide index:', slideIndex);
+    console.log('[PRESENTATION-TTS] Current isSpeaking:', isSpeaking);
+    console.log('[PRESENTATION-TTS] Is advancing:', ttsStateRef.current.isAdvancing);
     
     if (!text) {
       console.warn('[PRESENTATION-TTS] No text to speak');
       return;
     }
     
+    // Only block if already speaking the SAME slide to prevent loops
+    if (isSpeaking && ttsStateRef.current.currentSpeakingSlide === slideIndex) {
+      console.log('[PRESENTATION-TTS] Already speaking this slide, ignoring duplicate request');
+      return;
+    }
+    
+    // Stop any current speech before starting new one
+    if (window.ttsService && window.ttsService.isSpeaking) {
+      console.log('[PRESENTATION-TTS] 🛑 Stopping current TTS before starting new slide');
+      window.ttsService.stop();
+    }
+    
     console.log('[PRESENTATION-TTS] Text preview:', text.substring(0, 100) + '...');
     setIsSpeaking(true);
+    ttsStateRef.current.currentSpeakingSlide = slideIndex;
     
     // Use the TTS service if available
     if (window.ttsService) {
       try {
-        // Ensure Lemonfox availability has been checked
-        console.log('[PRESENTATION-TTS] Checking Lemonfox availability...');
-        await window.ttsService.checkLemonfoxAvailability();
+        console.log('[PRESENTATION-TTS] 🎬 Starting TTS for slide', slideIndex);
         
-        console.log('[PRESENTATION-TTS] Calling ttsService.speak()...');
-        await window.ttsService.speak(text, {
-          onStart: () => {
-            console.log('[PRESENTATION-TTS] Speech started (onStart callback)');
-            setIsSpeaking(true);
-          },
-          onEnd: () => {
-            console.log('[PRESENTATION-TTS] Speech ended (onEnd callback)');
-            setIsSpeaking(false);
-          },
-          onError: (error) => {
-            console.error('[PRESENTATION-TTS] Speech error (onError callback):', error);
-            setIsSpeaking(false);
+        // Try to use TTS service with callback if available
+        let completionHandled = false;
+        const handleCompletion = () => {
+          if (completionHandled) return; // Prevent duplicate calls
+          completionHandled = true;
+          
+          console.log('[PRESENTATION-TTS] ✅ TTS completed via callback for slide:', slideIndex);
+          setIsSpeaking(false);
+          ttsStateRef.current.currentSpeakingSlide = -1;
+          
+          // Schedule auto-advance - get current ttsEnabled state to avoid closure issues
+          const currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined 
+            ? ttsStateRef.current.ttsEnabled 
+            : true; // Assume true if not set, since we're in a completion callback
+            
+          console.log('[PRESENTATION-TTS] 🔍 Auto-advance condition check:', {
+            ttsEnabledFromClosure: ttsEnabled,
+            currentTtsEnabled: currentTtsEnabled,
+            slideIndex: slideIndex, 
+            slidesLength: slides.length,
+            slideIndexLessThanLength: slideIndex < slides.length - 1,
+            finalCondition: currentTtsEnabled && slideIndex < slides.length - 1
+          });
+          
+          if (currentTtsEnabled && slideIndex < slides.length - 1) {
+            console.log('[PRESENTATION-TTS] ⏭️ Scheduling advance to slide:', slideIndex + 1);
+            ttsStateRef.current.isAdvancing = true;
+            
+            setTimeout(() => {
+              // Get current ttsEnabled state to avoid closure issues
+              const currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined 
+                ? ttsStateRef.current.ttsEnabled 
+                : ttsEnabled; // fallback to state if ref not set
+                
+              if (currentTtsEnabled) {
+                console.log('[PRESENTATION-TTS] 🚀 ADVANCING to slide:', slideIndex + 1);
+                goToSlide(slideIndex + 1);
+                // Clear isAdvancing flag immediately so TTS can start on the new slide
+                ttsStateRef.current.isAdvancing = false;
+                console.log('[PRESENTATION-TTS] ✅ Cleared isAdvancing flag');
+              } else {
+                console.log('[PRESENTATION-TTS] ❌ TTS disabled, canceling advance');
+                ttsStateRef.current.isAdvancing = false;
+              }
+            }, 1000);
+          } else {
+            console.log('[PRESENTATION-TTS] 🏁 Reached end or TTS disabled - slideIndex:', slideIndex, 'slides.length:', slides.length, 'ttsEnabled:', ttsEnabled);
           }
-        });
-        console.log('[PRESENTATION-TTS] ttsService.speak() promise resolved');
+        };
+        
+        // Start the TTS - try with callback first, fallback to polling
+        let ttsPromise;
+        if (window.ttsService.speak.length > 1) {
+          // TTS service supports callbacks
+          console.log('[PRESENTATION-TTS] 📞 Using callback-based TTS');
+          ttsPromise = window.ttsService.speak(text, handleCompletion);
+        } else {
+          // No callback support, use polling method
+          console.log('[PRESENTATION-TTS] 📊 Using polling-based TTS');
+          ttsPromise = window.ttsService.speak(text);
+        }
+        
+        // Only use polling if no callback support
+        if (window.ttsService.speak.length <= 1) {
+          // Poll the TTS service to check when it's done speaking (fallback method)
+          let pollCount = 0;
+          const maxPollCount = 120; // 120 * 500ms = 60 seconds max
+          const checkCompletion = () => {
+            pollCount++;
+            console.log('[PRESENTATION-TTS] 🔍 Polling completion - count:', pollCount, 'isSpeaking:', window.ttsService.isSpeaking);
+            
+            if (!window.ttsService.isSpeaking || pollCount >= maxPollCount) {
+              if (completionHandled) return; // Callback already handled it
+              handleCompletion(); // Use the same completion handler
+            } else {
+              // Still speaking, check again in 500ms
+              setTimeout(checkCompletion, 500);
+            }
+          };
+          
+          // Start checking for completion after a brief delay
+          setTimeout(checkCompletion, 1000);
+        }
+        
+        // Also set a maximum timeout fallback
+        setTimeout(() => {
+          if (isSpeaking) {
+            console.log('[PRESENTATION-TTS] 🚨 Maximum timeout reached, forcing completion');
+            setIsSpeaking(false);
+            ttsStateRef.current.isAdvancing = false;
+            ttsStateRef.current.currentSpeakingSlide = -1;
+          }
+        }, 30000); // 30 second max timeout
+        
       } catch (error) {
-        console.error('[PRESENTATION-TTS] Exception in speakText:', error);
-        console.error('[PRESENTATION-TTS] Error stack:', error.stack);
+        console.error('[PRESENTATION-TTS] ❌ Exception:', error);
         setIsSpeaking(false);
+        ttsStateRef.current.isAdvancing = false;
+        ttsStateRef.current.currentSpeakingSlide = -1;
       }
     } else {
-      console.error('[PRESENTATION-TTS] TTS service not available on window object!');
-      // Fallback: simulate speaking completion after 3 seconds
-      setTimeout(() => {
-        setIsSpeaking(false);
-      }, 3000);
+      console.error('[PRESENTATION-TTS] TTS service not available!');
+      setIsSpeaking(false);
+      ttsStateRef.current.currentSpeakingSlide = -1;
     }
   };
 
   // Stop speaking
   const stopSpeaking = () => {
     console.log('[PRESENTATION-TTS] === stopSpeaking called ===');
-    console.log('[PRESENTATION-TTS] window.ttsService available:', !!window.ttsService);
     
     if (window.ttsService) {
       console.log('[PRESENTATION-TTS] Calling ttsService.stop()');
       window.ttsService.stop();
-    } else {
-      console.warn('[PRESENTATION-TTS] TTS service not available for stopping');
     }
+    
     setIsSpeaking(false);
+    ttsStateRef.current.isAdvancing = false;
+    ttsStateRef.current.currentSpeakingSlide = -1;
+  };
+
+  // Video Recording Functions
+  const startRecording = async () => {
+    console.log('[VIDEO] Starting recording...');
+    
+    if (!window.videoRecordingService) {
+      console.error('[VIDEO] Video recording service not available');
+      alert('Recording service not available. Please ensure you are using a supported browser.');
+      return;
+    }
+
+    try {
+      // Configure recording options
+      const options = {
+        video: true,
+        audio: false, // Start with no audio to simplify
+        audioSource: 'none', // Disable audio initially
+        videoQuality: 'high',
+        frameRate: 30
+      };
+      
+      // Ask user if they want to include audio
+      const includeAudio = confirm('Do you want to include audio in the recording? (Microphone permission will be requested)');
+      
+      if (includeAudio) {
+        options.audio = true;
+        options.audioSource = ttsEnabled ? 'tts' : 'microphone';
+      }
+
+      // Initialize and start recording
+      await window.videoRecordingService.initializeRecording(options);
+      await window.videoRecordingService.startRecording(options);
+      
+      setIsRecording(true);
+      setIsPaused(false);
+      setRecordingDuration(0);
+      
+      // Start duration timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      
+      // Mark the first slide
+      if (slides[currentSlide]) {
+        window.videoRecordingService.markSlideTransition(
+          currentSlide + 1,
+          slides[currentSlide].content.split('\n')[0]
+        );
+      }
+      
+      console.log('[VIDEO] Recording started successfully');
+    } catch (error) {
+      console.error('[VIDEO] Failed to start recording:', error);
+      
+      // Provide more specific error messages
+      if (error.message.includes('NotAllowedError')) {
+        alert('Screen recording permission denied. Please allow screen recording and try again.');
+      } else if (error.message.includes('NotSupportedError')) {
+        alert('Screen recording is not supported in this browser. Please try Chrome or Edge.');
+      } else {
+        alert(`Failed to start recording: ${error.message}\n\nPlease check browser permissions and try again.`);
+      }
+    }
+  };
+
+  const stopRecording = () => {
+    console.log('[VIDEO] Stopping recording...');
+    
+    if (!window.videoRecordingService || !isRecording) {
+      return;
+    }
+
+    // Stop the timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    // Stop recording
+    window.videoRecordingService.stopRecording();
+    
+    setIsRecording(false);
+    setIsPaused(false);
+    setRecordingDuration(0);
+    
+    console.log('[VIDEO] Recording stopped');
+  };
+
+  const togglePauseRecording = () => {
+    if (!window.videoRecordingService || !isRecording) {
+      return;
+    }
+
+    if (isPaused) {
+      window.videoRecordingService.resumeRecording();
+      // Resume timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      setIsPaused(false);
+      console.log('[VIDEO] Recording resumed');
+    } else {
+      window.videoRecordingService.pauseRecording();
+      // Pause timer
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setIsPaused(true);
+      console.log('[VIDEO] Recording paused');
+    }
+  };
+
+  const formatRecordingTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const toggleSpeakerNotesWindow = async () => {
@@ -1556,8 +1893,54 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           >
             {ttsEnabled ? <Speaker /> : <SpeakerOff />}
           </button>
+          
+          {/* Recording Controls */}
+          {!isRecording ? (
+            <button
+              onClick={startRecording}
+              className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg border border-red-700"
+              title="Start Recording"
+            >
+              <RecordIcon />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={togglePauseRecording}
+                className="p-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors shadow-lg border border-yellow-700"
+                title={isPaused ? "Resume Recording" : "Pause Recording"}
+              >
+                {isPaused ? <RecordIcon /> : <PauseIcon />}
+              </button>
+              <button
+                onClick={stopRecording}
+                className="p-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors shadow-lg border border-gray-700"
+                title="Stop Recording"
+              >
+                <StopIcon />
+              </button>
+              <span className="px-2 py-1 bg-red-600 text-white rounded text-sm">
+                {formatRecordingTime(recordingDuration)}
+              </span>
+            </div>
+          )}
+          
           <button
-            onClick={() => setIsPresenting(false)}
+            onClick={() => {
+              console.log('[PRESENTATION] Exiting presentation mode...');
+              
+              // Stop TTS audio
+              stopSpeaking();
+              
+              // Stop video recording if active
+              if (isRecording && window.videoRecordingService) {
+                console.log('[VIDEO] Stopping recording on presentation exit');
+                stopRecording();
+              }
+              
+              // Exit presentation mode
+              setIsPresenting(false);
+            }}
             className="px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
           >
             Exit Presentation

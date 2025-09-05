@@ -20,6 +20,15 @@ class TTSService {
     this.isProcessingQueue = false;
     this.currentSpeechController = null; // AbortController for current speech
     
+    // Mutex lock to prevent concurrent audio operations
+    this.audioMutex = {
+      locked: false,
+      queue: []
+    };
+    
+    // Track all audio elements for cleanup
+    this.activeAudioElements = new Set();
+    
     // Initialize settings and voices when available
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       this.initializeVoices();
@@ -161,15 +170,25 @@ class TTSService {
   async speak(text, options = {}) {
     console.log('[TTS] === SPEAK CALLED ===');
     console.log('[TTS] Text length:', text?.length || 0);
-    console.log('[TTS] Options:', options);
-    console.log('[TTS] Current settings:', this.settings);
+    console.log('[TTS] Mutex locked:', this.audioMutex.locked);
+    console.log('[TTS] Active audio elements:', this.activeAudioElements.size);
     
     if (!text) {
       console.warn('[TTS] Cannot speak - no text provided');
       return Promise.resolve();
     }
 
-    console.log('[TTS] Speech requested, clearing queue and stopping current speech');
+    // Wait for mutex if locked
+    if (this.audioMutex.locked) {
+      console.log('[TTS] Mutex is locked, waiting...');
+      await new Promise(resolve => {
+        this.audioMutex.queue.push(resolve);
+      });
+    }
+
+    // Lock the mutex
+    this.audioMutex.locked = true;
+    console.log('[TTS] Mutex acquired, stopping all existing audio');
     
     // IMMEDIATELY stop everything and clear the queue
     this.clearQueue();
@@ -187,7 +206,26 @@ class TTSService {
     
     console.log('[TTS] Provider status - useLemonfox:', this.useLemonfox);
     console.log('[TTS] Starting immediate speech');
-    return this.performImmediateSpeech(cleanText, options);
+    
+    try {
+      const result = await this.performImmediateSpeech(cleanText, options);
+      return result;
+    } finally {
+      // Release mutex and process queue
+      this.releaseMutex();
+    }
+  }
+  
+  releaseMutex() {
+    console.log('[TTS] Releasing mutex');
+    this.audioMutex.locked = false;
+    
+    // Process next in queue if any
+    if (this.audioMutex.queue.length > 0) {
+      const next = this.audioMutex.queue.shift();
+      console.log('[TTS] Processing next in mutex queue');
+      next();
+    }
   }
   
   clearQueue() {
@@ -204,9 +242,25 @@ class TTSService {
   
   async forceStopImmediate() {
     console.log('[TTS] Immediate force stop');
+    console.log('[TTS] Active audio elements to clean:', this.activeAudioElements.size);
     this.isSpeaking = false;
     
-    // Stop all audio sources synchronously
+    // Stop ALL tracked audio elements
+    for (const audio of this.activeAudioElements) {
+      try {
+        console.log('[TTS] Stopping audio element');
+        audio.pause();
+        audio.currentTime = 0;
+        // Don't revoke blob URLs here - let them be cleaned up in onended/onerror
+        // Just remove the src to stop loading
+        audio.src = '';
+      } catch (e) {
+        console.warn('[TTS] Error stopping audio element:', e);
+      }
+    }
+    this.activeAudioElements.clear();
+    
+    // Stop current audio if exists
     if (this.currentAudio) {
       try {
         this.currentAudio.pause();
@@ -214,10 +268,12 @@ class TTSService {
         if (this.currentAudio.src && this.currentAudio.src.startsWith('blob:')) {
           URL.revokeObjectURL(this.currentAudio.src);
         }
+        this.currentAudio.src = '';
       } catch (e) {}
       this.currentAudio = null;
     }
     
+    // Cancel Web Speech API
     if (window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
@@ -225,8 +281,14 @@ class TTSService {
       this.currentUtterance = null;
     }
     
+    // Cancel any pending AbortControllers
+    if (this.currentSpeechController) {
+      this.currentSpeechController.abort();
+      this.currentSpeechController = null;
+    }
+    
     // Small delay to ensure cleanup
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   
   async performImmediateSpeech(text, options) {
@@ -272,10 +334,15 @@ class TTSService {
       const abortListener = () => {
         console.log('[TTS-LEMONFOX] Speech aborted via signal');
         this.isSpeaking = false;
+        
+        // Remove from active audio elements
         if (this.currentAudio) {
+          this.activeAudioElements.delete(this.currentAudio);
           this.currentAudio.pause();
+          this.currentAudio.src = '';
           this.currentAudio = null;
         }
+        
         if (audioUrl) {
           URL.revokeObjectURL(audioUrl);
         }
@@ -342,34 +409,98 @@ class TTSService {
         audioUrl = URL.createObjectURL(audioBlob);
         console.log('[TTS-LEMONFOX] Audio URL created:', audioUrl);
         
+        // Don't call forceStopImmediate here - it's already been called in speak()
+        // Just create the new audio element
         this.currentAudio = new Audio(audioUrl);
         this.currentAudio.volume = options.volume || this.volume;
-        console.log('[TTS-LEMONFOX] Audio element created with volume:', this.currentAudio.volume);
+        
+        // Track this audio element
+        this.activeAudioElements.add(this.currentAudio);
+        console.log('[TTS-LEMONFOX] Audio element created and tracked with volume:', this.currentAudio.volume);
+        console.log('[TTS-LEMONFOX] Total active audio elements:', this.activeAudioElements.size);
         
         this.currentAudio.onended = () => {
+          // Check if this was an intentional stop
+          if (!this.currentAudio || signal.aborted) {
+            console.log('[TTS-LEMONFOX] Audio ended after intentional stop');
+            return;
+          }
+          
           console.log('[TTS-LEMONFOX] Audio playback ended normally');
           this.isSpeaking = false;
-          URL.revokeObjectURL(audioUrl);
+          
+          // Store reference before cleanup
+          const audioElement = this.currentAudio;
+          
+          // Remove from active audio elements
+          if (audioElement) {
+            this.activeAudioElements.delete(audioElement);
+          }
+          
+          if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+          }
+          
           this.currentAudio = null;
+          
           if (options.onEnd) {
             console.log('[TTS-LEMONFOX] Calling onEnd callback');
             options.onEnd();
           }
+          
           signal.removeEventListener('abort', abortListener);
           resolve();
         };
         
         this.currentAudio.onerror = (error) => {
+          // Check if this is an intentional stop (audio element was cleared)
+          if (!this.currentAudio || signal.aborted) {
+            console.log('[TTS-LEMONFOX] Audio error after intentional stop, ignoring');
+            return;
+          }
+          
+          // Store reference before potential cleanup
+          const audioElement = this.currentAudio;
+          
           console.error('[TTS-LEMONFOX] Audio playback error:', error);
+          console.error('[TTS-LEMONFOX] Audio element state:', {
+            src: audioElement?.src?.substring(0, 100),
+            readyState: audioElement?.readyState,
+            networkState: audioElement?.networkState,
+            error: audioElement?.error,
+            paused: audioElement?.paused
+          });
+          
           this.isSpeaking = false;
-          URL.revokeObjectURL(audioUrl);
+          
+          // Remove from active audio elements
+          if (audioElement) {
+            this.activeAudioElements.delete(audioElement);
+          }
+          
+          if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+          }
+          
           this.currentAudio = null;
-          if (options.onError) {
+          
+          // Only call error callback if not aborted
+          if (!signal.aborted && options.onError) {
             console.log('[TTS-LEMONFOX] Calling onError callback');
             options.onError(error);
           }
+          
           signal.removeEventListener('abort', abortListener);
-          reject(error);
+          
+          // Try to provide more specific error message
+          const errorMsg = audioElement?.error?.message || 'Audio playback failed';
+          
+          // Only reject if not aborted
+          if (!signal.aborted) {
+            reject(new Error(errorMsg));
+          } else {
+            resolve(); // Resolve normally if aborted
+          }
         };
         
         if (signal.aborted) {
@@ -378,9 +509,50 @@ class TTSService {
           return;
         }
         
-        console.log('[TTS-LEMONFOX] Attempting to play audio...');
-        await this.currentAudio.play();
-        console.log('[TTS-LEMONFOX] Audio playback started successfully');
+        // Wait for audio to be ready
+        await new Promise((resolvePlay, rejectPlay) => {
+          const playTimeout = setTimeout(() => {
+            if (!signal.aborted) {
+              console.error('[TTS-LEMONFOX] Audio play timeout');
+              rejectPlay(new Error('Audio play timeout'));
+            } else {
+              resolvePlay(); // Resolve normally if aborted
+            }
+          }, 5000);
+          
+          this.currentAudio.oncanplay = async () => {
+            // Check if aborted while waiting
+            if (signal.aborted || !this.currentAudio) {
+              console.log('[TTS-LEMONFOX] Aborted while waiting for canplay');
+              clearTimeout(playTimeout);
+              resolvePlay(); // Resolve normally
+              return;
+            }
+            
+            console.log('[TTS-LEMONFOX] Audio can play, attempting to play...');
+            clearTimeout(playTimeout);
+            
+            try {
+              await this.currentAudio.play();
+              console.log('[TTS-LEMONFOX] Audio playback started successfully');
+              resolvePlay();
+            } catch (playError) {
+              // Check if this was due to abort
+              if (signal.aborted || !this.currentAudio) {
+                console.log('[TTS-LEMONFOX] Play aborted');
+                resolvePlay(); // Resolve normally
+              } else {
+                console.error('[TTS-LEMONFOX] Play error:', playError);
+                rejectPlay(playError);
+              }
+            }
+          };
+          
+          // If already ready, trigger canplay
+          if (this.currentAudio.readyState >= 3) {
+            this.currentAudio.oncanplay();
+          }
+        });
         
       } catch (error) {
         console.error('[TTS-LEMONFOX] Exception in speakWithLemonfoxImmediate:', error);
@@ -492,8 +664,18 @@ class TTSService {
 
   stop() {
     console.log('[TTS] Stop requested - clearing all operations');
+    console.log('[TTS] Active audio elements:', this.activeAudioElements.size);
+    
+    // Cancel mutex queue
+    this.audioMutex.queue = [];
+    
     this.clearQueue();
     this.forceStopImmediate();
+    
+    // Release mutex if locked
+    if (this.audioMutex.locked) {
+      this.releaseMutex();
+    }
   }
 
   async forceStop() {

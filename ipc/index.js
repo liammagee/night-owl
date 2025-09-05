@@ -12,6 +12,7 @@ const navigationHandlers = require('./navigationHandlers');
 const searchHandlers = require('./searchHandlers');
 const contextMenuHandlers = require('./contextMenuHandlers');
 const ttsHandlers = require('./ttsHandlers');
+const videoHandlers = require('./videoHandlers');
 
 /**
  * Register all IPC handlers
@@ -48,6 +49,13 @@ function registerAllHandlers(dependencies) {
       console.log('[IPC] TTS handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering TTS handlers:', error);
+    }
+    
+    try {
+      videoHandlers.register(dependencies);
+      console.log('[IPC] Video recording handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering video handlers:', error);
     }
     
     console.log('[IPC] All IPC handlers registered successfully');

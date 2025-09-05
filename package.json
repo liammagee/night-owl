@@ -33,6 +33,9 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@babel/cli": "^7.28.3",
+    "@babel/core": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
     "@playwright/test": "^1.55.0",
     "@types/jest": "^29.5.8",
     "@types/react": "^19.1.8",
