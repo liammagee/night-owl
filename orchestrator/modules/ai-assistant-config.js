@@ -89,6 +89,13 @@ Your style is scholarly, patient, and intellectually rigorous while remaining ac
         }
     }
 
+    // Reload configuration after settings changes
+    async reloadConfiguration() {
+        console.log('[AIAssistantConfig] Reloading assistant configuration...');
+        await this.loadAssistantSettings();
+        console.log('[AIAssistantConfig] Assistant configuration reloaded successfully');
+    }
+
     mergeCustomSettings(customSettings) {
         Object.keys(customSettings).forEach(assistantKey => {
             if (this.assistants[assistantKey]) {

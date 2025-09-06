@@ -710,19 +710,11 @@ async function processChatCommand(message) {
             return true;
             
         case '/help':
-            addChatMessage(`Available commands:
-/clear - Clear all chat messages and conversation history
-/restart - Start a new chat session
-/save - Save chat history to file
-/settings - Show current AI configuration
-/context - Toggle including other files in AI context (currently: ${includeOtherFiles ? 'ON' : 'OFF'})
-/history - Show AI conversation history
-/help - Show this help message  
-/load - Load editor content to chat input
-/ls - List files in current directory
-/cat <filename> - Display file contents
-/pwd - Show current working directory
-/files - Show all text files with content summary`, 'AI');
+            await showChatHelp();
+            return true;
+            
+        case '/commands':
+            await showAvailableCommands();
             return true;
             
         case '/settings':
@@ -773,6 +765,21 @@ async function processChatCommand(message) {
                     return true;
                 }
             }
+            
+            // Check for configurable slash commands
+            try {
+                const settings = await window.electronAPI.invoke('get-settings', 'ai');
+                const slashCommands = settings.slashCommands || {};
+                const commandName = command.split(' ')[0].toLowerCase();
+                
+                if (slashCommands[commandName]) {
+                    await executeSlashCommand(commandName, slashCommands[commandName], command);
+                    return true;
+                }
+            } catch (error) {
+                console.error('[AI Chat] Error loading slash commands:', error);
+            }
+            
             return false; // Not a command
     }
 }
@@ -1170,6 +1177,226 @@ async function handleGenerateImage() {
     }
 }
 
+// --- Slash Command Functions ---
+async function executeSlashCommand(commandName, commandConfig, fullCommand) {
+    try {
+        console.log(`[AI Chat] Executing slash command: ${commandName}`);
+        
+        // Get current content for analysis
+        let content = '';
+        let contentSource = 'document';
+        
+        // Check if user provided specific content after command
+        const parts = fullCommand.split(' ');
+        if (parts.length > 1) {
+            // User provided specific text after command
+            content = parts.slice(1).join(' ');
+            contentSource = 'user input';
+        } else {
+            // Get content from editor or current selection
+            if (window.editor && typeof window.editor.getValue === 'function') {
+                // Try to get selected text first
+                let selection = '';
+                try {
+                    if (typeof window.editor.getSelection === 'function') {
+                        selection = window.editor.getSelection();
+                    } else if (typeof window.editor.getSelectedText === 'function') {
+                        selection = window.editor.getSelectedText();
+                    }
+                } catch (err) {
+                    console.log('[AI Chat] Could not get selection:', err.message);
+                }
+                
+                if (selection && typeof selection === 'string' && selection.trim()) {
+                    content = selection.trim();
+                    contentSource = 'selected text';
+                } else {
+                    content = window.editor.getValue();
+                    contentSource = 'current document';
+                }
+            } else if (window.fallbackEditor) {
+                // Check for selected text in textarea
+                const start = window.fallbackEditor.selectionStart;
+                const end = window.fallbackEditor.selectionEnd;
+                if (start !== end) {
+                    content = window.fallbackEditor.value.substring(start, end);
+                    contentSource = 'selected text';
+                } else {
+                    content = window.fallbackEditor.value;
+                    contentSource = 'current document';
+                }
+            }
+        }
+        
+        if (!content.trim()) {
+            addChatMessage(`❌ No content to ${commandConfig.name.toLowerCase()}. Please:
+• Select text in the editor, or
+• Open a document, or  
+• Type content after the command: ${commandName} <your text>`, 'AI');
+            return;
+        }
+        
+        // Calculate basic statistics if needed
+        let statistics = '';
+        if (commandConfig.prompt.includes('{statistics}')) {
+            const stats = calculateBasicStatistics(content);
+            statistics = `\nDocument Statistics:
+- Words: ${stats.wordCount.toLocaleString()}
+- Sentences: ${stats.sentenceCount}
+- Avg sentence length: ${stats.averageSentenceLength} words
+- Avg word length: ${stats.averageWordLength} chars
+- Paragraphs: ${stats.paragraphCount}
+- Headings: ${stats.headingCount}`;
+        }
+        
+        // Replace placeholders in prompt
+        let prompt = commandConfig.prompt
+            .replace(/{content}/g, content)
+            .replace(/{statistics}/g, statistics);
+        
+        // Show what we're analyzing
+        addChatMessage(`🔍 ${commandConfig.name} (${contentSource})`, 'User');
+        
+        // Send to AI
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+            chatInput.value = prompt;
+            await sendChatMessage();
+        }
+        
+    } catch (error) {
+        console.error(`[AI Chat] Error executing slash command ${commandName}:`, error);
+        addChatMessage(`❌ Error executing ${commandName}: ${error.message}`, 'AI');
+    }
+}
+
+function calculateBasicStatistics(content) {
+    const lines = content.split('\n');
+    
+    // Clean text content
+    const cleanText = content
+        .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+        .replace(/`[^`]+`/g, '') // Remove inline code
+        .replace(/\[[^\]]*\]\([^)]*\)/g, '') // Remove links
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Remove images
+        .replace(/[#*_`\[\]()]/g, ' ') // Remove markdown symbols
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+    
+    // Word count
+    const wordCount = cleanText ? cleanText.split(' ').length : 0;
+    
+    // Sentence count and average sentence length
+    const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const sentenceCount = sentences.length;
+    const averageSentenceLength = sentenceCount > 0 ? Math.round(wordCount / sentenceCount) : 0;
+    
+    // Paragraph count
+    const paragraphCount = lines.filter(line => 
+        line.trim() && 
+        !line.startsWith('#') && 
+        !line.startsWith('*') && 
+        !line.startsWith('-') && 
+        !line.startsWith('+') &&
+        !line.match(/^\d+\./) &&
+        !line.match(/^```/)
+    ).length;
+    
+    // Heading count
+    const headingCount = lines.filter(line => line.startsWith('#')).length;
+    
+    // Basic readability metrics
+    const averageWordLength = wordCount > 0 ? Math.round((cleanText.replace(/\s/g, '').length) / wordCount * 10) / 10 : 0;
+    
+    return {
+        wordCount,
+        sentenceCount,
+        averageSentenceLength,
+        averageWordLength,
+        paragraphCount,
+        headingCount
+    };
+}
+
+async function showChatHelp() {
+    const helpMessage = `🤖 **AI Chat Help**
+
+**System Commands:**
+• \`/clear\` - Clear all messages and conversation history
+• \`/restart\` - Start a new chat session  
+• \`/save\` - Save chat history to file
+• \`/settings\` - Show current AI configuration
+• \`/context\` - Toggle file context (currently: ${includeOtherFiles ? 'ON' : 'OFF'})
+• \`/help\` - Show this help message
+• \`/commands\` - List all available slash commands
+
+**File Commands:**
+• \`/load\` - Load editor content to chat input
+• \`/ls\` - List files in current directory  
+• \`/pwd\` - Show current working directory
+• \`/cat <filename>\` - Display file contents
+
+**Smart Commands:**
+Type \`/commands\` to see available analysis and writing commands.
+
+💡 **Tip:** Most commands work with selected text, current document, or text you type after the command.`;
+    
+    addChatMessage(helpMessage, 'AI');
+}
+
+async function showAvailableCommands() {
+    try {
+        const settings = await window.electronAPI.invoke('get-settings', 'ai');
+        const slashCommands = settings.slashCommands || {};
+        
+        if (Object.keys(slashCommands).length === 0) {
+            addChatMessage('No custom slash commands configured. You can add them in Settings → AI → Slash Commands.', 'AI');
+            return;
+        }
+        
+        let commandsList = '🔧 **Available Slash Commands:**\n\n';
+        
+        for (const [command, config] of Object.entries(slashCommands)) {
+            commandsList += `• **\`${command}\`** - ${config.description}\n`;
+        }
+        
+        commandsList += '\n💡 **Usage:** Type the command to analyze current document/selection, or add text: `/analyze This is my text`';
+        
+        addChatMessage(commandsList, 'AI');
+        
+    } catch (error) {
+        console.error('[AI Chat] Error loading slash commands for help:', error);
+        addChatMessage('Error loading slash commands. Please check your settings.', 'AI');
+    }
+}
+
+// --- Settings Refresh Functions ---
+function clearAICache() {
+    console.log('[AI Chat] Clearing AI cache');
+    // Clear any cached provider/model information
+    if (window.currentProvider) delete window.currentProvider;
+    if (window.currentModel) delete window.currentModel;
+    // Clear any cached assistant configurations
+    if (window.cachedAssistantSettings) delete window.cachedAssistantSettings;
+}
+
+async function refreshAISystem() {
+    console.log('[AI Chat] Refreshing AI system');
+    
+    // Clear cache first
+    clearAICache();
+    
+    // Reload assistant configurations
+    if (window.aiAssistantConfig) {
+        await window.aiAssistantConfig.reloadConfiguration();
+    }
+    
+    // Refresh chat context to pick up any changes
+    await showChatContext();
+    
+    console.log('[AI Chat] AI system refresh complete');
+}
+
 // --- Export for Global Access ---
 // Make functions available globally for onclick handlers and other modules
 window.sendChatMessage = sendChatMessage;
@@ -1183,3 +1410,5 @@ window.refreshChatHeader = refreshChatHeader;
 window.handleAttachImage = handleAttachImage;
 window.handleImageInput = handleImageInput;
 window.handleGenerateImage = handleGenerateImage;
+window.clearAICache = clearAICache;
+window.refreshAISystem = refreshAISystem;

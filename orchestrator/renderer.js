@@ -5416,14 +5416,6 @@ if (refreshStatsBtn) {
     });
 }
 
-// AI Analysis button event listener
-const aiAnalysisBtn = document.getElementById('ai-analysis-btn');
-if (aiAnalysisBtn) {
-    aiAnalysisBtn.addEventListener('click', async () => {
-        console.log('[Statistics] Running AI analysis');
-        await runAIAnalysis();
-    });
-}
 
 // Statistics scope switcher event listeners
 const statsScopeDocument = document.getElementById('stats-scope-document');
@@ -5820,11 +5812,6 @@ function switchStatsScope(scope) {
         documentBtn.style.color = '#666';
     }
     
-    // Hide AI analysis section when switching
-    const aiAnalysisSection = document.getElementById('ai-analysis-section');
-    if (aiAnalysisSection) {
-        aiAnalysisSection.style.display = 'none';
-    }
     
     // Update statistics
     updateStatisticsPane();
@@ -5970,13 +5957,6 @@ async function updateStatisticsPane() {
                     </div>
                 </div>
 
-                <!-- AI Analysis Section (will be populated by AI) -->
-                <div id="ai-analysis-section" style="display: none; background: #f0f8ff; border-radius: 8px; padding: 12px; border-left: 4px solid #6f42c1;">
-                    <h4 style="margin: 0 0 8px 0; color: #6f42c1; font-size: 14px;">🤖 AI Analysis</h4>
-                    <div id="ai-analysis-content" style="font-size: 12px; line-height: 1.4;">
-                        <!-- AI analysis results will be populated here -->
-                    </div>
-                </div>
             </div>
         `;
         
@@ -6162,186 +6142,6 @@ async function calculateProjectStatistics() {
     }
 }
 
-// AI Analysis function using Ash
-async function runAIAnalysis() {
-    const aiAnalysisBtn = document.getElementById('ai-analysis-btn');
-    const aiAnalysisSection = document.getElementById('ai-analysis-section');
-    const aiAnalysisContent = document.getElementById('ai-analysis-content');
-    
-    if (!aiAnalysisSection || !aiAnalysisContent) return;
-    
-    // Get content based on current scope
-    let content = '';
-    let contentSource = 'document';
-    
-    if (currentStatsScope === 'project') {
-        // For project scope, get aggregated content from all files
-        try {
-            const fileResponse = await window.electronAPI.invoke('get-markdown-files');
-            if (fileResponse.success && fileResponse.files.length > 0) {
-                const fileContents = [];
-                for (const filePath of fileResponse.files.slice(0, 10)) { // Limit to first 10 files for analysis
-                    const contentResponse = await window.electronAPI.invoke('read-file', filePath);
-                    if (contentResponse.success && contentResponse.content) {
-                        const stats = calculateBasicStatistics(contentResponse.content);
-                        const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
-                        fileContents.push(`File: ${fileName}\n${stats.cleanText.substring(0, 500)}...`);
-                    }
-                }
-                content = fileContents.join('\n\n---\n\n');
-                contentSource = 'project';
-            }
-        } catch (error) {
-            console.warn('[Statistics] Error getting project content for AI analysis:', error);
-        }
-    } else {
-        // Get current document content
-        if (editor && typeof editor.getValue === 'function') {
-            content = editor.getValue();
-        } else if (fallbackEditor) {
-            content = fallbackEditor.value;
-        }
-    }
-    
-    if (!content.trim()) {
-        aiAnalysisContent.innerHTML = `<p style="color: #dc3545;">No ${contentSource} content to analyze.</p>`;
-        aiAnalysisSection.style.display = 'block';
-        return;
-    }
-    
-    // Show loading state
-    if (aiAnalysisBtn) {
-        aiAnalysisBtn.textContent = '🔄 Analyzing...';
-        aiAnalysisBtn.disabled = true;
-    }
-    
-    aiAnalysisSection.style.display = 'block';
-    aiAnalysisContent.innerHTML = '<p style="color: #666;">🤖 Ash is analyzing your document... Please wait.</p>';
-    
-    try {
-        // Get basic statistics for context
-        const stats = calculateBasicStatistics(content);
-        
-        // Prepare prompt for AI analysis
-        const scopeDescription = currentStatsScope === 'project' ? 'project (multiple markdown files)' : 'document';
-        const analysisPrompt = `Please analyze this ${scopeDescription} and provide:
-1. **Readability Assessment**: Rate the readability on a scale of 1-10 and explain why
-2. **Key Themes**: Identify the 3-5 main themes or topics
-3. **Writing Style**: Describe the writing style (academic, casual, technical, etc.)
-4. **Suggestions**: Provide 2-3 specific suggestions to improve clarity or engagement
-5. **Word Cloud Keywords**: List the 10 most important/frequent keywords for a word cloud
-
-${scopeDescription === 'project' ? 'Project' : 'Document'} statistics for context:
-- Words: ${stats.wordCount}
-- Sentences: ${stats.sentenceCount}
-- Avg sentence length: ${stats.averageSentenceLength} words
-- Avg word length: ${stats.averageWordLength} characters
-${currentStatsScope === 'project' ? `- Files analyzed: ${stats.fileCount}` : ''}
-
-Content to analyze:
-${content.substring(0, 3000)}${content.length > 3000 ? '...' : ''}`;
-
-        // Temporarily disable flow detection for this request
-        console.log('[Statistics] Sending AI analysis request to Ash (bypassing flow detection)');
-        
-        // Store original flow detection state
-        const originalFlowDetection = window.aiFlowDetection;
-        
-        try {
-            // Temporarily disable flow detection
-            if (window.aiFlowDetection) {
-                window.aiFlowDetection._temporarilyDisabled = true;
-            }
-            
-            console.log('[Statistics] Flow detection disabled, calling AI service...');
-            const aiResponse = await window.electronAPI.invoke('send-chat-message', analysisPrompt, {
-                explicitRequest: true,
-                bypassFlowDetection: true,
-                source: 'statistics',
-                newConversation: true
-            });
-            console.log('[Statistics] AI response received:', aiResponse);
-            
-            if (aiResponse.success !== false) {
-                // Process and display AI response
-                displayAIAnalysis(aiResponse.content || aiResponse.response || aiResponse);
-            } else {
-                throw new Error(aiResponse.error || 'AI analysis failed');
-            }
-            
-        } finally {
-            // Re-enable flow detection
-            if (window.aiFlowDetection) {
-                delete window.aiFlowDetection._temporarilyDisabled;
-            }
-        }
-        
-    } catch (error) {
-        console.error('[Statistics] AI analysis error:', error);
-        aiAnalysisContent.innerHTML = `
-            <p style="color: #dc3545;">AI analysis failed: ${error.message}</p>
-            <p style="color: #666; font-size: 11px;">Make sure Ash (AI Chat) is properly configured.</p>
-        `;
-    } finally {
-        // Restore button state
-        if (aiAnalysisBtn) {
-            aiAnalysisBtn.textContent = '🤖 AI Analysis';
-            aiAnalysisBtn.disabled = false;
-        }
-    }
-}
-
-// Function to display AI analysis results
-function displayAIAnalysis(aiResponse) {
-    const aiAnalysisContent = document.getElementById('ai-analysis-content');
-    if (!aiAnalysisContent) return;
-    
-    try {
-        // Clean and format the AI response
-        const cleanResponse = aiResponse.replace(/```[\s\S]*?```/g, '').trim();
-        
-        // Create word cloud data if keywords were extracted
-        const keywordsMatch = cleanResponse.match(/(?:Word Cloud|Keywords)[:]*\s*(.*?)(?:\n|$)/i);
-        let wordCloudHTML = '';
-        
-        if (keywordsMatch) {
-            const keywords = keywordsMatch[1].split(/[,\n]/).map(k => k.trim()).filter(k => k);
-            if (keywords.length > 0) {
-                wordCloudHTML = `
-                    <div style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
-                        <strong>Key Terms:</strong><br>
-                        <div style="margin-top: 4px;">
-                            ${keywords.slice(0, 10).map(keyword => 
-                                `<span style="display: inline-block; background: #6f42c1; color: white; padding: 2px 6px; margin: 2px; border-radius: 3px; font-size: 10px;">${keyword}</span>`
-                            ).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        
-        aiAnalysisContent.innerHTML = `
-            <div style="white-space: pre-wrap; line-height: 1.5;">
-                ${cleanResponse}
-            </div>
-            ${wordCloudHTML}
-            <div style="margin-top: 8px; padding: 6px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404;">
-                💡 Analysis provided by Ash AI • ${new Date().toLocaleTimeString()}
-            </div>
-        `;
-        
-    } catch (error) {
-        console.error('[Statistics] Error displaying AI analysis:', error);
-        aiAnalysisContent.innerHTML = `
-            <div style="white-space: pre-wrap; line-height: 1.5;">
-                ${aiResponse}
-            </div>
-            <div style="margin-top: 8px; padding: 6px; background: #fff3cd; border-radius: 4px; font-size: 11px; color: #856404;">
-                💡 Analysis provided by Ash AI • ${new Date().toLocaleTimeString()}
-            </div>
-        `;
-    }
-}
 
 // --- File Tree Functions ---
 // Global state for tracking expanded folders

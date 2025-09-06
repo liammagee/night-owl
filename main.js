@@ -192,6 +192,39 @@ const defaultSettings = {
             autoSave: true
         },
         responseFormat: 'markdown', // 'plain', 'markdown', 'html'
+        // Slash Commands Configuration
+        slashCommands: {
+            '/analyze': {
+                name: 'Document Analysis',
+                prompt: `Please analyze this content and provide:
+1. **Readability Assessment**: Rate the readability on a scale of 1-10 and explain why
+2. **Key Themes**: Identify the 3-5 main themes or topics  
+3. **Writing Style**: Describe the writing style (academic, casual, technical, etc.)
+4. **Suggestions**: Provide 2-3 specific suggestions to improve clarity or engagement
+5. **Word Cloud Keywords**: List the 10 most important/frequent keywords
+
+Content to analyze:
+{content}
+
+{statistics}`,
+                description: 'Analyzes document readability, themes, style, and provides improvement suggestions'
+            },
+            '/summarize': {
+                name: 'Summarize Content',
+                prompt: 'Please provide a concise summary of the following content, highlighting the main points and key takeaways:\n\n{content}',
+                description: 'Creates a concise summary of the current document or selection'
+            },
+            '/improve': {
+                name: 'Improve Writing',
+                prompt: 'Please review this text and suggest specific improvements for clarity, flow, and engagement. Provide rewritten versions of problematic sentences:\n\n{content}',
+                description: 'Suggests improvements for writing clarity and engagement'
+            },
+            '/explain': {
+                name: 'Explain Complex Terms',
+                prompt: 'Please explain any complex terms, concepts, or jargon in this content. Make it accessible to a general audience:\n\n{content}',
+                description: 'Explains complex terms and concepts in simple language'
+            }
+        },
         // Assistant configurations
         assistants: {
             ash: {

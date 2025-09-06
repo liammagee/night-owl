@@ -717,9 +717,150 @@ function generateAISettings() {
         </div>
         
         <div class="settings-section">
+            <h3>Slash Commands</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Configure custom slash commands for AI Chat. Use <code>{content}</code> to insert selected text or document content, and <code>{statistics}</code> for document statistics.
+            </p>
+            
+            <div id="slash-commands-container">
+                <!-- Slash commands will be populated here -->
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <button type="button" onclick="addSlashCommand()" style="padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    + Add New Command
+                </button>
+            </div>
+        </div>
+        
+        <div class="settings-section">
             <p><strong>Note:</strong> API keys are configured via environment variables (.env file). See the .env.example file for details.</p>
         </div>
     `;
+}
+
+// Populate slash commands in AI settings
+function populateSlashCommands() {
+    const container = document.getElementById('slash-commands-container');
+    if (!container) return;
+    
+    const slashCommands = currentSettings.ai?.slashCommands || {};
+    container.innerHTML = '';
+    
+    if (Object.keys(slashCommands).length === 0) {
+        container.innerHTML = '<p style="color: #666; font-style: italic;">No slash commands configured. Click "Add New Command" to create one.</p>';
+        return;
+    }
+    
+    Object.entries(slashCommands).forEach(([command, config]) => {
+        const commandDiv = document.createElement('div');
+        commandDiv.className = 'slash-command-item';
+        commandDiv.style.cssText = `
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+            position: relative;
+        `;
+        
+        commandDiv.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                <h4 style="margin: 0; color: #007acc; font-size: 14px;">${command}</h4>
+                <button type="button" onclick="removeSlashCommand('${command}')" 
+                        style="background: #dc3545; color: white; border: none; border-radius: 3px; padding: 4px 8px; cursor: pointer; font-size: 12px;">
+                    Delete
+                </button>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 12px;">Command Name:</label>
+                <input type="text" value="${command}" onchange="updateSlashCommand('${command}', 'command', this.value)"
+                       style="width: 30%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 12px;">Display Name:</label>
+                <input type="text" value="${config.name || ''}" onchange="updateSlashCommand('${command}', 'name', this.value)"
+                       style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 12px;">Description:</label>
+                <input type="text" value="${config.description || ''}" onchange="updateSlashCommand('${command}', 'description', this.value)"
+                       style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+            </div>
+            
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-weight: bold; font-size: 12px;">Prompt Template:</label>
+                <div style="font-size: 11px; color: #666; margin-bottom: 5px;">
+                    Use <code>{content}</code> for selected text/document content, <code>{statistics}</code> for document statistics.
+                </div>
+                <textarea onchange="updateSlashCommand('${command}', 'prompt', this.value)"
+                          style="width: 100%; height: 120px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 11px; resize: vertical;">${config.prompt || ''}</textarea>
+            </div>
+        `;
+        
+        container.appendChild(commandDiv);
+    });
+}
+
+// Add new slash command
+function addSlashCommand() {
+    const command = prompt('Enter command name (including /):', '/newcommand');
+    if (!command || !command.startsWith('/')) {
+        alert('Command must start with /');
+        return;
+    }
+    
+    if (!currentSettings.ai) currentSettings.ai = {};
+    if (!currentSettings.ai.slashCommands) currentSettings.ai.slashCommands = {};
+    
+    currentSettings.ai.slashCommands[command] = {
+        name: 'New Command',
+        description: 'Description of what this command does',
+        prompt: 'Your prompt template here. Use {content} to insert the content to analyze.'
+    };
+    
+    populateSlashCommands();
+}
+
+// Update slash command property
+function updateSlashCommand(oldCommand, property, newValue) {
+    if (!currentSettings.ai?.slashCommands?.[oldCommand]) return;
+    
+    if (property === 'command') {
+        // Renaming command
+        if (!newValue.startsWith('/')) {
+            alert('Command must start with /');
+            populateSlashCommands(); // Reset the UI
+            return;
+        }
+        
+        if (newValue !== oldCommand && currentSettings.ai.slashCommands[newValue]) {
+            alert('Command already exists!');
+            populateSlashCommands(); // Reset the UI
+            return;
+        }
+        
+        // Move to new key
+        currentSettings.ai.slashCommands[newValue] = currentSettings.ai.slashCommands[oldCommand];
+        delete currentSettings.ai.slashCommands[oldCommand];
+        populateSlashCommands(); // Refresh UI
+    } else {
+        // Updating other properties
+        currentSettings.ai.slashCommands[oldCommand][property] = newValue;
+    }
+}
+
+// Remove slash command
+function removeSlashCommand(command) {
+    if (confirm(`Delete command ${command}?`)) {
+        if (currentSettings.ai?.slashCommands) {
+            delete currentSettings.ai.slashCommands[command];
+            populateSlashCommands();
+        }
+    }
 }
 
 function generateTTSSettings() {
@@ -1194,6 +1335,9 @@ function addSettingsEventListeners(category) {
     if (category === 'ai') {
         // Add assistant tab styles
         injectAssistantTabStyles();
+        
+        // Populate slash commands
+        setTimeout(() => populateSlashCommands(), 100); // Small delay to ensure DOM is ready
     }
     
     // TTS settings event listeners
@@ -1428,12 +1572,45 @@ async function saveSettingsDialog() {
             window.applyEditorSettings(updatedSettings);
         }
         
-        // Refresh chat header if AI settings were changed
-        if (updatedSettings.ai && window.refreshChatHeader) {
-            try {
-                await window.refreshChatHeader();
-            } catch (error) {
-                console.warn('[Settings] Could not refresh chat header:', error);
+        // Refresh AI systems if AI settings were changed
+        if (updatedSettings.ai) {
+            // Refresh chat header
+            if (window.refreshChatHeader) {
+                try {
+                    await window.refreshChatHeader();
+                } catch (error) {
+                    console.warn('[Settings] Could not refresh chat header:', error);
+                }
+            }
+            
+            // Refresh AI assistant configuration
+            if (window.aiAssistantConfig && typeof window.aiAssistantConfig.reloadConfiguration === 'function') {
+                try {
+                    await window.aiAssistantConfig.reloadConfiguration();
+                    console.log('[Settings] AI assistant configuration reloaded');
+                } catch (error) {
+                    console.warn('[Settings] Could not reload AI assistant configuration:', error);
+                }
+            }
+            
+            // Clear any cached AI provider/model info
+            if (window.clearAICache) {
+                try {
+                    window.clearAICache();
+                    console.log('[Settings] AI cache cleared');
+                } catch (error) {
+                    console.warn('[Settings] Could not clear AI cache:', error);
+                }
+            }
+            
+            // Force refresh of AI Chat system
+            if (window.refreshAISystem) {
+                try {
+                    await window.refreshAISystem();
+                    console.log('[Settings] AI system refreshed');
+                } catch (error) {
+                    console.warn('[Settings] Could not refresh AI system:', error);
+                }
             }
         }
         

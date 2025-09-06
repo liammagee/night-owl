@@ -18,7 +18,7 @@ Hegel's account of recognition and the associated story of the Master-Servant re
 
 It serves as inspiration to Marx's (still more) famous account of the relationship between capitalist and worker. It describes, in a different way, the relationship between the Super-ego and the Ego (and perhaps also the Id and the Ego) in Freud's psychoanalytic treatment. And of course it is the inspiration for a million stories of the downtrodden overcoming of oppression and adversity. 
 
-In our discussion we will consider it as a useful background to thinking about the relationship between human and machine. One clue to the importance of Hegel's account for technology lies in the origin of the word 'robot': a Czech word meaning 'slave', coined in Karel Capek's 1922 play, "Rossum's Universal Robots".
+In our discussion we will consider it as a useful background to thinking about the relationship between human and machine. One clue to the importance of Hegel's account for technology lies in the origin of the word 'robot': a Czech word meaning 'slave', coined in Karel Capek's 1920 play, "Rossum's Universal Robots".
 
 ```
 
@@ -265,7 +265,7 @@ Quickly following is Hegel's dramatic and existential characterization of this e
 - Literary examples illustrate this pure confrontation of identity.
 
 ```notes
-Another side note: people may be familiar with the American novellist Cormac McCarthy: *Blood Meridian* (The Judge) or *No Country for Old Men* (Javier Bardem)? These are (murderous) examples of this pure confrontation: you or me, an existential struggle, the only struggle worth having, etc:
+Another side note: people may be familiar with the American novelist Cormac McCarthy: *Blood Meridian* (The Judge) or *No Country for Old Men* (Javier Bardem)? These are (murderous) examples of this pure confrontation: you or me, an existential struggle, the only struggle worth having, etc:
 
 > The individual who has not risked his life may admittedly be recognized as a *person*, but he has not achieved the truth of being recognized as a self-sufficient self-consciousness. As each risks his own life, each must likewise aim at the death of the other, for that other no longer counts in his eyes as himself. (para 187)
 ```
@@ -316,7 +316,7 @@ The master is the one who wins the struggle, and shows itself to be "being-for-i
 - The struggle highlights limits of self-realization through external validation.
 
 ```notes
-But there is in this stuation, for Hegel, a problem. What the master really wants, more than things to consume, is after all the recognition that will bring him to finally understand himself. But the servant, because he *is* a servant, an "inessential being", is no longer capable of providing this recognition. Here we can think of kings, presidents, CEOs, billionaires or anyone who have ascended to the pinnacle of their field - its lonely, there's no longer anyone whose recognition they crave, or would respect when it is granted. This is the master's dilemma – and Hegel has no solution for it.
+But there is in this situation, for Hegel, a problem. What the master really wants, more than things to consume, is after all the recognition that will bring him to finally understand himself. But the servant, because he *is* a servant, an "inessential being", is no longer capable of providing this recognition. Here we can think of kings, presidents, CEOs, billionaires or anyone who have ascended to the pinnacle of their field - its lonely, there's no longer anyone whose recognition they crave, or would respect when it is granted. This is the master's dilemma – and Hegel has no solution for it.
 
 > However, what prevents this from being genuine recognition is the moment where what the master does with regard to the other, he also does with regard to himself, and where what the servant does with regard to himself, he also is supposed to do with regard to the other. As a result, a form of recognition has arisen that is one-sided and unequal.
 ```
@@ -370,7 +370,7 @@ What follows is Hegel's most important statement:
 - Fear and service jointly enable acquisition of self‑mind via labor.
 
 ```notes
-The Miller translation has this last phrase as "labour shapes and fashions the thing", whereas Pinkard has "bildet" relating back to the servant; it is the servant who is cultivated and educated by work. On the one hand we are reminded of an phrase made obnoxious by history: Work Sets You Free (*Arbeit Macht Frie*), a slogan appearing above Nazi concentration camps. On the other, work or labour involves a different relationship to the world – a deferral, as Hegel puts it, of the satisfaction of desire; a process that also lends to human life a "durable existence", a holding off of inevitable vanishing. This process is, for Hegel, education. 
+The Miller translation has this last phrase as "labour shapes and fashions the thing", whereas Pinkard has "bildet" relating back to the servant; it is the servant who is cultivated and educated by work. On the one hand we are reminded of an phrase made obnoxious by history: Work Sets You Free (*Arbeit macht frie*), a slogan appearing above Nazi concentration camps. On the other, work or labour involves a different relationship to the world – a deferral, as Hegel puts it, of the satisfaction of desire; a process that also lends to human life a "durable existence", a holding off of inevitable vanishing. This process is, for Hegel, education. 
 
 
 > However, what the formative activity means is not only that the serving consciousness as pure *being-for-itself* becomes in its own eyes an *existing being* within that formative activity  [in dem Bilden]. It also has the negative meaning of the first moment, that of fear. For in forming the thing, his own negativity, that is, his being-for-itself, only becomes an object in his own eyes in that he sublates the opposed existing *form*. However, this objective *negative* is precisely the alien essence before which he trembled, but now he destroys this alien negative and posits *himself* as such a negative within the element of continuance. He thereby becomes *for himself* an *existing-being-for-itself*. Being-for-itself in the master is to the servant *an other*, that is, it is only *for him*; in fear, being-for-itself exists *in itself within him*; in culturally formative activity [in dem Bilden], being-for-itself becomes for him *his own* being-for-itself, and he attains the consciousness that he himself exists in and for himself.  (para 196)
