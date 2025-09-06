@@ -560,24 +560,166 @@ async function restartChat() {
 // --- Get Current Chat History ---
 function getChatHistory() {
     const chatMessages = document.getElementById('chat-messages');
-    if (!chatMessages) return [];
+    if (!chatMessages) {
+        console.log('[AI Chat] No chat-messages element found');
+        return [];
+    }
     
-    const messages = Array.from(chatMessages.querySelectorAll('.chat-message'));
-    return messages.map(message => {
-        const sender = message.querySelector('.chat-sender').textContent.replace(':', '').trim();
-        const content = message.querySelector('.chat-content').textContent;
+    // Debug: log the entire chat container content
+    console.log('[AI Chat] Chat container HTML:', chatMessages.innerHTML);
+    
+    const messages = Array.from(chatMessages.querySelectorAll('.terminal-message'));
+    console.log(`[AI Chat] Found ${messages.length} terminal messages`);
+    
+    // Debug: log each message element
+    messages.forEach((msg, i) => {
+        console.log(`[AI Chat] Message ${i} classes:`, msg.className);
+        console.log(`[AI Chat] Message ${i} HTML:`, msg.outerHTML);
+    });
+    
+    // Filter out typing indicators and other non-message elements
+    const realMessages = messages.filter(message => {
+        // Skip typing indicators or loading messages
+        return !message.classList.contains('typing-indicator') && 
+               !message.classList.contains('loading') &&
+               !message.textContent.includes('•••') &&
+               !message.textContent.includes('typing...');
+    });
+    
+    console.log(`[AI Chat] After filtering: ${realMessages.length} real messages`);
+    
+    return realMessages.map((message, index) => {
+        // Get sender from the terminal-prompt
+        const promptElement = message.querySelector('.terminal-prompt');
+        let sender = 'Unknown';
+        if (promptElement) {
+            const userElement = promptElement.querySelector('.terminal-user');
+            const assistantElement = promptElement.querySelector('.terminal-assistant');
+            if (userElement) {
+                sender = 'User';
+            } else if (assistantElement) {
+                sender = 'Dr. Chen';
+            }
+        }
+        
+        // Get content from terminal-content
+        const contentElement = message.querySelector('.terminal-content');
+        let content = '';
+        if (contentElement) {
+            // For AI messages with formatting, use textContent to get clean text
+            // For user messages, textContent should work fine too
+            content = contentElement.textContent || contentElement.innerText || '';
+        } else {
+            // Fallback: try to get content from the entire message, excluding the prompt
+            const messageText = message.textContent || message.innerText || '';
+            const promptText = promptElement ? (promptElement.textContent || '') : '';
+            content = messageText.replace(promptText, '').trim();
+        }
+        
+        // Skip empty messages
+        if (!content.trim()) {
+            console.log(`[AI Chat] Skipping empty message ${index}`);
+            return null;
+        }
+        
+        console.log(`[AI Chat] Message ${index}: sender="${sender}", content="${content.substring(0, 50)}..."`);
+        
         return {
-            sender: sender === 'You' ? 'User' : sender,
-            content: content,
+            sender: sender,
+            content: content.trim(),
             timestamp: new Date().toISOString()
         };
+    }).filter(message => message !== null); // Remove null entries (empty messages)
+}
+
+// --- Format Chat as Markdown ---
+async function formatChatAsMarkdown(history) {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString();
+    const timeStr = now.toLocaleTimeString();
+    
+    // Get current document info
+    let currentFile = window.currentFilePath;
+    let currentFileName = 'Unknown';
+    let documentLink = '';
+    
+    // Check if we have a current file
+    if (currentFile) {
+        currentFileName = currentFile.split('/').pop() || currentFile.split('\\').pop() || currentFile;
+        // Create relative path if possible
+        try {
+            const settings = await window.electronAPI.invoke('get-settings');
+            const workingDir = settings?.workingDirectory;
+            if (workingDir && currentFile.startsWith(workingDir)) {
+                const relativePath = currentFile.substring(workingDir.length).replace(/^[\/\\]/, '');
+                documentLink = `[${currentFileName}](./${relativePath})`;
+            } else {
+                documentLink = `[${currentFileName}](${currentFile})`;
+            }
+        } catch (error) {
+            console.warn('[AI Chat] Could not get working directory for relative path:', error);
+            documentLink = `[${currentFileName}](${currentFile})`;
+        }
+    } else if (window.editor && window.editorFileName) {
+        currentFileName = window.editorFileName;
+        documentLink = `**${currentFileName}** *(unsaved document)*`;
+    } else {
+        documentLink = '*No document open*';
+    }
+    
+    // Build markdown content
+    let markdown = `# AI Chat Session\n\n`;
+    markdown += `**Date:** ${dateStr}  \n`;
+    markdown += `**Time:** ${timeStr}  \n`;
+    markdown += `**Document:** ${documentLink}  \n`;
+    markdown += `**Messages:** ${history.length}\n\n`;
+    markdown += `---\n\n`;
+    
+    // Add chat messages
+    history.forEach((msg, index) => {
+        const isUser = msg.sender === 'User' || msg.sender === 'You';
+        const senderIcon = isUser ? '👤' : '🤖';
+        const senderName = isUser ? 'User' : (msg.sender || 'AI Assistant');
+        
+        markdown += `## ${senderIcon} ${senderName}\n\n`;
+        
+        // Clean and format the content
+        let content = msg.content;
+        
+        // Handle code blocks and ensure proper markdown formatting
+        if (content.includes('```')) {
+            // Content already has code blocks, use as-is
+            markdown += `${content}\n\n`;
+        } else if (content.includes('`') && content.split('`').length > 2) {
+            // Has inline code, use as-is
+            markdown += `${content}\n\n`;
+        } else {
+            // Regular text, make sure it's properly formatted
+            markdown += `${content}\n\n`;
+        }
+        
+        // Add separator between messages (except for last message)
+        if (index < history.length - 1) {
+            markdown += `---\n\n`;
+        }
     });
+    
+    // Add footer
+    markdown += `\n---\n\n`;
+    markdown += `*Chat session saved from [Hegel Pedagogy AI](https://github.com/anthropics/hegel-pedagogy-ai)*  \n`;
+    markdown += `*Generated on ${dateStr} at ${timeStr}*\n`;
+    
+    return markdown;
 }
 
 // --- Save Chat History ---
 async function saveChatHistory() {
+    console.log('[AI Chat] Starting saveChatHistory...');
     const history = getChatHistory();
+    console.log('[AI Chat] Retrieved history:', history);
+    
     if (history.length === 0) {
+        console.log('[AI Chat] No history found, showing warning');
         if (window.showNotification) {
             window.showNotification('No chat history to save.', 'warning');
         }
@@ -585,9 +727,8 @@ async function saveChatHistory() {
     }
     
     try {
-        const chatHistoryText = history.map(msg => 
-            `${msg.sender}: ${msg.content}`
-        ).join('\n\n');
+        // Create markdown formatted chat history
+        const chatHistoryMarkdown = await formatChatAsMarkdown(history);
         
         if (window.electronAPI) {
             // Get default directory
@@ -601,14 +742,21 @@ async function saveChatHistory() {
                 }
             }
             
+            // Generate suggested filename with timestamp
+            const now = new Date();
+            const timestamp = now.toISOString().split('T')[0] + '_' + now.toTimeString().split(' ')[0].replace(/:/g, '-');
+            const suggestedName = `chat-${timestamp}.md`;
+            
             const result = await window.electronAPI.invoke('perform-save-as', {
-                content: chatHistoryText,
-                defaultDirectory: defaultDirectory
+                content: chatHistoryMarkdown,
+                defaultDirectory: defaultDirectory,
+                suggestedName: suggestedName
             });
+            
             if (result.success) {
-                console.log('[AI Chat] Chat history saved:', result.filePath);
+                console.log('[AI Chat] Chat history saved as markdown:', result.filePath);
                 if (window.showNotification) {
-                    window.showNotification('Chat history saved.', 'success');
+                    window.showNotification('Chat saved as markdown file.', 'success');
                 }
             }
         }
@@ -628,21 +776,30 @@ function initializeChatFunctionality() {
     const restartChatBtn = document.getElementById('restart-chat-btn');
     const loadEditorToChatBtn = document.getElementById('load-editor-to-chat-btn');
     const copyAIResponseBtn = document.getElementById('copy-ai-response-btn');
+    const saveChatBtn = document.getElementById('save-chat-btn');
     
     console.log('[AI Chat] Found elements:', {
         chatInput: !!chatInput,
         restartBtn: !!restartChatBtn,
         loadEditorBtn: !!loadEditorToChatBtn,
-        copyBtn: !!copyAIResponseBtn
+        copyBtn: !!copyAIResponseBtn,
+        saveBtn: !!saveChatBtn
     });
     
     // Enter key event listener for chat input
     if (chatInput) {
         console.log('[AI Chat] Setting up Enter key listener for chat input');
         
+        // Initialize autocomplete
+        initializeCommandAutocomplete(chatInput);
+        
         // Use keydown for better compatibility
         chatInput.addEventListener('keydown', (e) => {
-            // console.log('[AI Chat] Key pressed:', e.key, 'KeyCode:', e.keyCode);
+            // Handle autocomplete navigation first
+            if (handleAutocompleteKeydown(e)) {
+                return; // If autocomplete handled the key, don't process further
+            }
+            
             // Send on Enter key
             if (e.key === 'Enter' || e.keyCode === 13) {
                 console.log('[AI Chat] Enter key detected, sending message...');
@@ -691,6 +848,15 @@ function initializeChatFunctionality() {
         copyAIResponseBtn.addEventListener('click', copyAIResponseToEditor);
     } else {
         console.warn('[AI Chat] Could not find Copy AI Response button.');
+    }
+    
+    // Save chat as markdown button
+    if (saveChatBtn) {
+        saveChatBtn.addEventListener('click', () => {
+            saveChatHistory();
+        });
+    } else {
+        console.warn('[AI Chat] Could not find Save Chat button.');
     }
     
     console.log('[AI Chat] Chat functionality initialized.');
@@ -1319,7 +1485,47 @@ function calculateBasicStatistics(content) {
 }
 
 async function showChatHelp() {
-    const helpMessage = `🤖 **AI Chat Help**
+    try {
+        // Get custom slash commands from settings
+        const settings = await window.electronAPI.invoke('get-settings', 'ai');
+        const slashCommands = settings.slashCommands || {};
+        
+        let helpMessage = `🤖 **AI Chat Help**
+
+**System Commands:**
+• \`/clear\` - Clear all messages and conversation history
+• \`/restart\` - Start a new chat session  
+• \`/save\` - Save chat history to file
+• \`/settings\` - Show current AI configuration
+• \`/context\` - Toggle file context (currently: ${includeOtherFiles ? 'ON' : 'OFF'})
+• \`/help\` - Show this help message
+• \`/commands\` - List all available slash commands
+
+**File Commands:**
+• \`/load\` - Load editor content to chat input
+• \`/ls\` - List files in current directory  
+• \`/pwd\` - Show current working directory
+• \`/cat <filename>\` - Display file contents`;
+
+        // Add custom commands if they exist
+        if (Object.keys(slashCommands).length > 0) {
+            helpMessage += '\n\n**Custom Commands:**';
+            for (const [command, config] of Object.entries(slashCommands)) {
+                helpMessage += `\n• \`${command}\` - ${config.description}`;
+            }
+        } else {
+            helpMessage += '\n\n**Custom Commands:**';
+            helpMessage += '\nNo custom commands configured. Add them in Settings → AI Custom Prompts.';
+        }
+
+        helpMessage += '\n\n💡 **Tip:** Most commands work with selected text, current document, or text you type after the command.';
+        
+        addChatMessage(helpMessage, 'AI');
+        
+    } catch (error) {
+        console.error('[AI Chat] Error loading custom commands for help:', error);
+        // Fallback to basic help message
+        const fallbackMessage = `🤖 **AI Chat Help**
 
 **System Commands:**
 • \`/clear\` - Clear all messages and conversation history
@@ -1336,12 +1542,10 @@ async function showChatHelp() {
 • \`/pwd\` - Show current working directory
 • \`/cat <filename>\` - Display file contents
 
-**Smart Commands:**
-Type \`/commands\` to see available analysis and writing commands.
-
 💡 **Tip:** Most commands work with selected text, current document, or text you type after the command.`;
-    
-    addChatMessage(helpMessage, 'AI');
+        
+        addChatMessage(fallbackMessage, 'AI');
+    }
 }
 
 async function showAvailableCommands() {
@@ -1395,6 +1599,215 @@ async function refreshAISystem() {
     await showChatContext();
     
     console.log('[AI Chat] AI system refresh complete');
+}
+
+// --- Command Autocomplete System ---
+let autocompleteState = {
+    isVisible: false,
+    selectedIndex: -1,
+    filteredCommands: [],
+    allCommands: []
+};
+
+async function initializeCommandAutocomplete(inputElement) {
+    const autocompleteContainer = document.getElementById('command-autocomplete');
+    if (!autocompleteContainer) return;
+
+    // Load all available commands
+    await loadAllCommands();
+
+    // Input event listener for showing/hiding autocomplete
+    inputElement.addEventListener('input', (e) => {
+        const value = e.target.value;
+        if (value.startsWith('/')) {
+            showAutocomplete(value);
+        } else {
+            hideAutocomplete();
+        }
+    });
+
+    // Click outside to hide autocomplete
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#chat-input') && !e.target.closest('#command-autocomplete')) {
+            hideAutocomplete();
+        }
+    });
+
+    // Blur event to hide autocomplete (with slight delay for clicks)
+    inputElement.addEventListener('blur', () => {
+        setTimeout(() => hideAutocomplete(), 150);
+    });
+}
+
+async function loadAllCommands() {
+    try {
+        // System commands
+        const systemCommands = [
+            { command: '/help', description: 'Show all available commands' },
+            { command: '/commands', description: 'List custom slash commands' },
+            { command: '/clear', description: 'Clear all messages and conversation history' },
+            { command: '/restart', description: 'Start a new chat session' },
+            { command: '/save', description: 'Save chat history to file' },
+            { command: '/settings', description: 'Show current AI configuration' },
+            { command: '/context', description: 'Toggle file context inclusion' },
+            { command: '/load', description: 'Load editor content to chat input' },
+            { command: '/ls', description: 'List files in current directory' },
+            { command: '/pwd', description: 'Show current working directory' },
+            { command: '/cat', description: 'Display file contents' }
+        ];
+
+        // Custom commands from settings
+        const settings = await window.electronAPI.invoke('get-settings', 'ai');
+        const customCommands = settings.slashCommands || {};
+        
+        const customCommandsList = Object.entries(customCommands).map(([command, config]) => ({
+            command: command,
+            description: config.description || 'Custom command'
+        }));
+
+        autocompleteState.allCommands = [...systemCommands, ...customCommandsList];
+        
+    } catch (error) {
+        console.error('[AI Chat] Error loading commands for autocomplete:', error);
+        // Fallback to system commands only
+        autocompleteState.allCommands = [
+            { command: '/help', description: 'Show all available commands' },
+            { command: '/clear', description: 'Clear all messages and conversation history' },
+            { command: '/restart', description: 'Start a new chat session' }
+        ];
+    }
+}
+
+function showAutocomplete(inputValue) {
+    const autocompleteContainer = document.getElementById('command-autocomplete');
+    if (!autocompleteContainer) return;
+
+    const query = inputValue.toLowerCase();
+    
+    // Filter commands based on input
+    autocompleteState.filteredCommands = autocompleteState.allCommands.filter(cmd => 
+        cmd.command.toLowerCase().includes(query)
+    );
+
+    if (autocompleteState.filteredCommands.length === 0) {
+        hideAutocomplete();
+        return;
+    }
+
+    // Build HTML for filtered commands
+    let html = '';
+    autocompleteState.filteredCommands.forEach((cmd, index) => {
+        const isSelected = index === autocompleteState.selectedIndex;
+        html += `
+            <div class="command-option${isSelected ? ' selected' : ''}" data-index="${index}">
+                <span class="command-name">${cmd.command}</span>
+                <span class="command-description">${cmd.description}</span>
+            </div>
+        `;
+    });
+
+    autocompleteContainer.innerHTML = html;
+    
+    // Add click listeners
+    autocompleteContainer.querySelectorAll('.command-option').forEach((option, index) => {
+        option.addEventListener('click', () => {
+            selectCommand(index);
+        });
+    });
+
+    autocompleteContainer.style.display = 'block';
+    autocompleteState.isVisible = true;
+    autocompleteState.selectedIndex = -1;
+}
+
+function hideAutocomplete() {
+    const autocompleteContainer = document.getElementById('command-autocomplete');
+    if (autocompleteContainer) {
+        autocompleteContainer.style.display = 'none';
+    }
+    autocompleteState.isVisible = false;
+    autocompleteState.selectedIndex = -1;
+}
+
+function handleAutocompleteKeydown(e) {
+    if (!autocompleteState.isVisible) return false;
+
+    const autocompleteContainer = document.getElementById('command-autocomplete');
+    if (!autocompleteContainer) return false;
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            autocompleteState.selectedIndex = Math.min(
+                autocompleteState.selectedIndex + 1, 
+                autocompleteState.filteredCommands.length - 1
+            );
+            updateSelectedOption();
+            return true;
+
+        case 'ArrowUp':
+            e.preventDefault();
+            autocompleteState.selectedIndex = Math.max(
+                autocompleteState.selectedIndex - 1, 
+                0
+            );
+            updateSelectedOption();
+            return true;
+
+        case 'Tab':
+            e.preventDefault();
+            if (autocompleteState.selectedIndex >= 0) {
+                selectCommand(autocompleteState.selectedIndex);
+            } else if (autocompleteState.filteredCommands.length > 0) {
+                // Auto-complete with the best match (first command)
+                selectCommand(0);
+            }
+            return true;
+            
+        case 'Enter':
+            if (autocompleteState.selectedIndex >= 0) {
+                e.preventDefault();
+                selectCommand(autocompleteState.selectedIndex);
+                return true;
+            }
+            break;
+
+        case 'Escape':
+            e.preventDefault();
+            hideAutocomplete();
+            return true;
+    }
+
+    return false;
+}
+
+function updateSelectedOption() {
+    const autocompleteContainer = document.getElementById('command-autocomplete');
+    if (!autocompleteContainer) return;
+
+    const options = autocompleteContainer.querySelectorAll('.command-option');
+    options.forEach((option, index) => {
+        if (index === autocompleteState.selectedIndex) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
+}
+
+function selectCommand(index) {
+    const chatInput = document.getElementById('chat-input');
+    if (!chatInput || index < 0 || index >= autocompleteState.filteredCommands.length) return;
+
+    const selectedCommand = autocompleteState.filteredCommands[index];
+    chatInput.value = selectedCommand.command + ' ';
+    chatInput.focus();
+    
+    // Move cursor to end
+    const length = chatInput.value.length;
+    chatInput.setSelectionRange(length, length);
+    
+    hideAutocomplete();
 }
 
 // --- Export for Global Access ---

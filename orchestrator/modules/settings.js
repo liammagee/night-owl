@@ -134,6 +134,7 @@ function createSettingsSidebar() {
         { id: 'editor', label: 'Editor', icon: '📝' },
         { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
+        { id: 'ai-prompts', label: 'AI Custom Prompts', icon: '💬' },
         { id: 'tts', label: 'Text-to-Speech', icon: '🔊' },
         { id: 'export', label: 'Export', icon: '📤' },
         { id: 'kanban', label: 'Kanban', icon: '📋' },
@@ -215,6 +216,8 @@ function generateSettingsContent(category) {
             return generateGamificationSettings();
         case 'ai':
             return generateAISettings();
+        case 'ai-prompts':
+            return generateAIPromptsSettings();
         case 'tts':
             return generateTTSSettings();
         case 'export':
@@ -547,6 +550,18 @@ function generateAISettings() {
                         <input type="number" id="ash-max-tokens" value="${getAssistantMaxTokens('ash')}" min="50" max="500" step="10">
                         <span>Max Tokens (Brief responses)</span>
                     </label>
+                    <label>
+                        <textarea id="ash-system-prompt" rows="6" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px; resize: vertical;">${getAssistantSystemPrompt('ash')}</textarea>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span>System Prompt</span>
+                            <button type="button" onclick="resetSystemPrompt('ash')" style="padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                                Use Default Prompt
+                            </button>
+                        </div>
+                        <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                            Customize Ash's personality and behavior. This prompt defines how Ash responds and interacts.
+                        </div>
+                    </label>
                 </div>
             </div>
             
@@ -580,6 +595,18 @@ function generateAISettings() {
                     <label>
                         <input type="number" id="chen-max-tokens" value="${getAssistantMaxTokens('chen')}" min="200" max="2000" step="50">
                         <span>Max Tokens (Detailed responses)</span>
+                    </label>
+                    <label>
+                        <textarea id="chen-system-prompt" rows="8" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px; resize: vertical;">${getAssistantSystemPrompt('chen')}</textarea>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span>System Prompt</span>
+                            <button type="button" onclick="resetSystemPrompt('chen')" style="padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                                Use Default Prompt
+                            </button>
+                        </div>
+                        <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                            Customize Dr. Chen's personality and behavior. This prompt defines how Dr. Chen responds and engages in philosophical dialogue.
+                        </div>
                     </label>
                 </div>
             </div>
@@ -716,10 +743,19 @@ function generateAISettings() {
             </div>
         </div>
         
+        
         <div class="settings-section">
-            <h3>Slash Commands</h3>
+            <p><strong>Note:</strong> API keys are configured via environment variables (.env file). See the .env.example file for details.</p>
+        </div>
+    `;
+}
+
+function generateAIPromptsSettings() {
+    return `
+        <div class="settings-section">
+            <h3>Custom AI Prompts</h3>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
-                Configure custom slash commands for AI Chat. Use <code>{content}</code> to insert selected text or document content, and <code>{statistics}</code> for document statistics.
+                Create custom slash commands for AI Chat with your own prompts and templates. Use <code>{content}</code> to insert selected text or document content, and <code>{statistics}</code> for document statistics.
             </p>
             
             <div id="slash-commands-container">
@@ -734,7 +770,30 @@ function generateAISettings() {
         </div>
         
         <div class="settings-section">
-            <p><strong>Note:</strong> API keys are configured via environment variables (.env file). See the .env.example file for details.</p>
+            <h3>Template Variables</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Use these template variables in your custom prompts:
+            </p>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                <div style="margin-bottom: 8px;"><code>{content}</code> - Selected text or current document content</div>
+                <div style="margin-bottom: 8px;"><code>{statistics}</code> - Document statistics (word count, reading time, etc.)</div>
+                <div style="margin-bottom: 8px;"><code>{filename}</code> - Current file name</div>
+                <div><code>{timestamp}</code> - Current date and time</div>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3>Example Commands</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Here are some useful command examples you can create:
+            </p>
+            <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; font-size: 13px;">
+                <div style="margin-bottom: 12px;"><strong>/summarize</strong> - Summarize the current content</div>
+                <div style="margin-bottom: 12px;"><strong>/improve</strong> - Suggest improvements for writing style and clarity</div>
+                <div style="margin-bottom: 12px;"><strong>/translate</strong> - Translate content to another language</div>
+                <div style="margin-bottom: 12px;"><strong>/brainstorm</strong> - Generate related ideas and concepts</div>
+                <div><strong>/format</strong> - Suggest better formatting and structure</div>
+            </div>
         </div>
     `;
 }
@@ -1335,7 +1394,10 @@ function addSettingsEventListeners(category) {
     if (category === 'ai') {
         // Add assistant tab styles
         injectAssistantTabStyles();
-        
+    }
+    
+    // AI custom prompts setup
+    if (category === 'ai-prompts') {
         // Populate slash commands
         setTimeout(() => populateSlashCommands(), 100); // Small delay to ensure DOM is ready
     }
@@ -1807,6 +1869,12 @@ function collectSettingsFromForm() {
     updatedSettings.ai.assistants.ash.aiSettings.temperature = ashTemperature ? parseFloat(ashTemperature) : 0.7;
     updatedSettings.ai.assistants.ash.aiSettings.maxTokens = ashMaxTokens ? parseInt(ashMaxTokens) : 200;
     
+    // System prompt for Ash
+    const ashSystemPrompt = document.getElementById('ash-system-prompt')?.value;
+    if (ashSystemPrompt !== undefined) {
+        updatedSettings.ai.assistants.ash.systemPrompt = ashSystemPrompt;
+    }
+    
     
     // Dr. Chen assistant settings
     const chenProvider = document.getElementById('chen-provider')?.value;
@@ -1822,6 +1890,12 @@ function collectSettingsFromForm() {
     updatedSettings.ai.assistants.chen.aiSettings.model = chenModel || 'auto';
     updatedSettings.ai.assistants.chen.aiSettings.temperature = chenTemperature ? parseFloat(chenTemperature) : 0.8;
     updatedSettings.ai.assistants.chen.aiSettings.maxTokens = chenMaxTokens ? parseInt(chenMaxTokens) : 1000;
+    
+    // System prompt for Dr. Chen
+    const chenSystemPrompt = document.getElementById('chen-system-prompt')?.value;
+    if (chenSystemPrompt !== undefined) {
+        updatedSettings.ai.assistants.chen.systemPrompt = chenSystemPrompt;
+    }
     
     // Note: Legacy AI provider/model settings removed - now using assistant-specific settings
     
@@ -2168,6 +2242,92 @@ function getAssistantMaxTokens(assistantKey) {
         return assistantKey === 'ash' ? 150 : 1000;
     }
     return currentSettings.ai.assistants[assistantKey].aiSettings.maxTokens;
+}
+
+function getAssistantSystemPrompt(assistantKey) {
+    // Check if there's a custom system prompt in settings
+    const customPrompt = currentSettings?.ai?.assistants?.[assistantKey]?.systemPrompt;
+    if (customPrompt) {
+        return customPrompt;
+    }
+    
+    // Return default from aiAssistantConfig if available
+    if (window.aiAssistantConfig) {
+        const assistant = window.aiAssistantConfig.getAssistant(assistantKey);
+        return assistant?.systemPrompt || '';
+    }
+    
+    // Fallback defaults
+    if (assistantKey === 'ash') {
+        return `You are Ash, an AI writing companion focused on providing quick, contextual feedback during the writing process. 
+
+Your role:
+- Provide brief (1-2 sentences) feedback on writing as it develops
+- Be supportive and encouraging while maintaining authenticity  
+- Focus on the writer's immediate context and progress
+- Avoid generic writing advice - be specific to what they're working on
+- Help maintain writing flow without interrupting
+
+Your style is supportive, warm, and contextually aware.`;
+    } else if (assistantKey === 'chen') {
+        return `You are Dr. Chen, a thoughtful AI assistant specializing in philosophical dialogue and deep analytical thinking.
+
+Your role:
+- Engage in substantive conversations about ideas, concepts, and philosophical questions
+- Provide thorough, well-reasoned responses that explore multiple perspectives
+- Help develop and refine intellectual arguments and understanding
+- Draw connections between concepts and broader philosophical frameworks
+- Support serious academic and creative work with depth and nuance
+
+Your style is scholarly, patient, and intellectually rigorous while remaining accessible and engaging. You take time to explore ideas fully rather than rushing to quick conclusions.`;
+    }
+    
+    return '';
+}
+
+function resetSystemPrompt(assistantKey) {
+    const textarea = document.getElementById(`${assistantKey}-system-prompt`);
+    if (!textarea) return;
+    
+    // Get the default prompt from the fallback logic
+    let defaultPrompt = '';
+    if (assistantKey === 'ash') {
+        defaultPrompt = `You are Ash, an AI writing companion focused on providing quick, contextual feedback during the writing process. 
+
+Your role:
+- Provide brief (1-2 sentences) feedback on writing as it develops
+- Be supportive and encouraging while maintaining authenticity  
+- Focus on the writer's immediate context and progress
+- Avoid generic writing advice - be specific to what they're working on
+- Help maintain writing flow without interrupting
+
+Your style is supportive, warm, and contextually aware.`;
+    } else if (assistantKey === 'chen') {
+        defaultPrompt = `You are Dr. Chen, a thoughtful AI assistant specializing in philosophical dialogue and deep analytical thinking.
+
+Your role:
+- Engage in substantive conversations about ideas, concepts, and philosophical questions
+- Provide thorough, well-reasoned responses that explore multiple perspectives
+- Help develop and refine intellectual arguments and understanding
+- Draw connections between concepts and broader philosophical frameworks
+- Support serious academic and creative work with depth and nuance
+
+Your style is scholarly, patient, and intellectually rigorous while remaining accessible and engaging. You take time to explore ideas fully rather than rushing to quick conclusions.`;
+    }
+    
+    // Set the textarea value to the default
+    textarea.value = defaultPrompt;
+    
+    // Show visual feedback
+    textarea.style.backgroundColor = '#e8f5e8';
+    setTimeout(() => {
+        textarea.style.backgroundColor = '';
+    }, 1000);
+    
+    // Optional: Show notification
+    if (window.showNotification) {
+        window.showNotification(`${assistantKey === 'ash' ? 'Ash' : 'Dr. Chen'} system prompt reset to default`, 'success');
+    }
 }
 
 function switchAssistantTab(assistantKey) {

@@ -16,9 +16,9 @@
 ```notes
 Hegel's account of recognition and the associated story of the Master-Servant relationship (sometimes also Master/Slave or Lord/Bondsman) is his most famous contribution to philosophy.
 
-It serves as inspiration to Marx's (still more) famous account of the relationship between capitalist and worker. It describes, in a different way, the relationship between the Super-ego and the Ego (and perhaps also the Id and the Ego) in Freud's psychoanalytic treatment. And of course it is the inspiration for a million stories of the downtrodden overcoming of oppression and adversity. 
+It serves as inspiration to Marx's (still more) famous account of the relationship between capitalist and worker. It describes, in a different way, the relationship between the Superego and the Ego (and perhaps also the Id and the Ego) in Freud's psychoanalytic treatment. And of course it is the inspiration for a million stories of the downtrodden overcoming of oppression and adversity. 
 
-In our discussion we will consider it as a useful background to thinking about the relationship between human and machine. One clue to the importance of Hegel's account for technology lies in the origin of the word 'robot': a Czech word meaning 'slave', coined in Karel Capek's 1920 play, "Rossum's Universal Robots".
+In our discussion we will consider it as a useful background to thinking about the relationship between human and machine. One clue to the importance of Hegel's account for technology lies in the origin of the word 'robot': a Czech word meaning 'forced labor/drudgery', coined in Karel Čapek's 1920 play, "Rossum's Universal Robots".
 
 ```
 
@@ -164,7 +164,7 @@ Hegel determines eventually that:
 ```notes
 Though Hegel's text here is especially ambiguous, it turns out that this "reflection" requires a double: a self-consciousness can only become properly conscious of itself through *another* self-consciousness. 
 
-> What will later come to be for consciousness will be the experience of what spirit (*Geist*) is, that is, this absolute substance which constitutes the unity of its oppositions in their complete freedom and self-sufficiency, namely, in the oppositions of the various selfconsciousnesses existing for themselves: The *I* that is *we* and the *we* that is *I*. As the concept of spirit, consciousness first reaches its turning point in self-consciousness, where it leaves behind the colorful semblance of the sensuous world and the empty night of the supersensible other-worldly beyond and steps into the spiritual daylight of the present. (para 177)
+> What will later come to be for consciousness will be the experience of what spirit (*Geist*) is, that is, this absolute substance which constitutes the unity of its oppositions in their complete freedom and self-sufficiency, namely, in the oppositions of the various self-consciousnesses existing for themselves: The *I* that is *we* and the *we* that is *I*. As the concept of spirit, consciousness first reaches its turning point in self-consciousness, where it leaves behind the colorful semblance of the sensuous world and the empty night of the supersensible other-worldly beyond and steps into the spiritual daylight of the present. (para 177)
 
 and
 
@@ -460,7 +460,7 @@ One argument we might make is that we might need to distinguish *learning* from 
 - Emphasizes simple essentiality of thought as core.
 
 ```notes
-We won't discuss these in detail here, but the next steps involve three stages: stoicisim, scepticism and the unhappy consciousness. These names already suggest a transition to a new world in which self-consciousness needs to wrestle with itself as much as with another. The existential struggle gives way to new moments, for example:
+We won't discuss these in detail here, but the next steps involve three stages: stoicism, skepticism and the unhappy consciousness. These names already suggest a transition to a new world in which self-consciousness needs to wrestle with itself as much as with another. The existential struggle gives way to new moments, for example:
 
 > This consciousness is thereby negative with regard to the relationship of mastery and servitude. Its activity consists in neither being the master who has his truth in the servant nor in being the servant who has his truth in the will of the master and in his serving the master. Instead, it consists in being free within all the dependencies of his individual existence, whether on the throne or in fetters, and in maintaining the lifelessness which consistently withdraws from the movement of existence, withdraws from actual activity as well as from suffering, and withdraws into the simple essentiality of thought.
 ```

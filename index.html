@@ -1002,6 +1002,71 @@
             background-color: var(--primary-900);
             border-left: 3px solid var(--primary-400);
         }
+
+        /* Command Autocomplete Styles */
+        .command-autocomplete {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-primary, #1a1a1a);
+            border: 1px solid var(--border-color, #333);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+        }
+
+        .command-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color, #333);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .command-option:last-child {
+            border-bottom: none;
+        }
+
+        .command-option:hover,
+        .command-option.selected {
+            background: var(--selection-bg, #2d3748);
+        }
+
+        .command-name {
+            color: var(--primary-400, #22c55e);
+            font-weight: 600;
+        }
+
+        .command-description {
+            color: var(--text-secondary, #888);
+            font-size: 11px;
+            flex: 1;
+            margin-left: 12px;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        /* Dark mode adjustments */
+        body.dark-mode .command-autocomplete {
+            background: #1a1a1a;
+            border-color: #333;
+        }
+
+        body.dark-mode .command-option {
+            border-bottom-color: #333;
+        }
+
+        body.dark-mode .command-option:hover,
+        body.dark-mode .command-option.selected {
+            background: #2d3748;
+        }
     </style>
 </head>
 <body>
@@ -1295,13 +1360,19 @@
                                 <span class="terminal-prompt-line">
                                     <span class="terminal-user">you</span><span class="terminal-separator">:</span> 
                                 </span>
-                                <input type="text" id="chat-input" class="terminal-input" placeholder="Ask Dr Chen anything about your writing..." style="flex: 1;">
+                                <div style="position: relative; flex: 1;">
+                                    <input type="text" id="chat-input" class="terminal-input" placeholder="Ask Dr Chen anything about your writing..." style="width: 100%;">
+                                    <div id="command-autocomplete" class="command-autocomplete" style="display: none;">
+                                        <!-- Autocomplete suggestions will be populated here -->
+                                    </div>
+                                </div>
                                 <div class="terminal-buttons" style="display: flex; gap: 4px;">
                                     <button id="attach-image-btn" class="btn btn-small" title="Attach image" onclick="window.handleAttachImage()">📷</button>
                                     <button id="generate-image-btn" class="btn btn-small" title="Generate image with AI" onclick="window.handleGenerateImage()">🎨</button>
                                     <button id="restart-chat-btn" class="btn btn-small" title="Start new chat session">🔄</button>
                                     <button id="load-editor-to-chat-btn" class="btn btn-small" title="Load current editor content into chat">📝</button>
                                     <button id="copy-ai-response-btn" class="btn btn-small" title="Insert last AI response at cursor position">📋</button>
+                                    <button id="save-chat-btn" class="btn btn-small" title="Save chat as markdown file">💾</button>
                                 </div>
                                 <input type="file" id="image-input" accept="image/*" multiple style="display: none;" onchange="window.handleImageInput(event)">
                                 <div id="attached-images-preview" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"></div>
