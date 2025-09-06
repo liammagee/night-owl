@@ -22,9 +22,6 @@ In our discussion we will consider it as a useful background to thinking about t
 
 ```
 
-<!--
-
--->
 
 ---
 

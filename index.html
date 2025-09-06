@@ -1067,6 +1067,110 @@
         body.dark-mode .command-option.selected {
             background: #2d3748;
         }
+
+        /* Citation Modal Styles */
+        .citation-modal .modal-body {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            flex: 1;
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #007acc;
+            box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .import-option {
+            padding: 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .import-option h4 {
+            margin: 0 0 8px 0;
+            color: #007acc;
+            font-size: 14px;
+        }
+
+        .import-option p {
+            margin: 0 0 12px 0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Dark mode for citation forms */
+        body.dark-mode .form-group label {
+            color: #e0e0e0;
+        }
+
+        body.dark-mode .form-group input,
+        body.dark-mode .form-group select,
+        body.dark-mode .form-group textarea {
+            background: #333;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-mode .form-group input:focus,
+        body.dark-mode .form-group select:focus,
+        body.dark-mode .form-group textarea:focus {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+        }
+
+        body.dark-mode .import-option {
+            background: #2a2a2a;
+            border-color: #444;
+        }
+
+        body.dark-mode .import-option h4 {
+            color: #22c55e;
+        }
     </style>
 </head>
 <body>
@@ -1084,6 +1188,243 @@
 
     <!-- Custom Title Bar -->
     <!-- Custom titlebar removed - using native window controls -->
+    
+    <!-- Citation Modal Dialogs -->
+    <div id="citation-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog citation-modal" style="width: 600px; max-height: 80vh;">
+            <div class="modal-header">
+                <h3 id="citation-modal-title">Add Citation</h3>
+                <button class="modal-close" onclick="citationManager.closeCitationModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="citation-form">
+                    <!-- Citation Type Selection -->
+                    <div class="form-group">
+                        <label for="citation-type">Citation Type *</label>
+                        <select id="citation-type" required>
+                            <option value="article">Journal Article</option>
+                            <option value="book">Book</option>
+                            <option value="webpage">Web Page</option>
+                            <option value="report">Report</option>
+                            <option value="thesis">Thesis/Dissertation</option>
+                            <option value="conference">Conference Paper</option>
+                            <option value="chapter">Book Chapter</option>
+                        </select>
+                    </div>
+
+                    <!-- Basic Information -->
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label for="citation-title">Title *</label>
+                            <input type="text" id="citation-title" required placeholder="Enter the title">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label for="citation-authors">Authors</label>
+                            <input type="text" id="citation-authors" placeholder="Smith, J., & Doe, A.">
+                        </div>
+                        <div class="form-group">
+                            <label for="citation-year">Year</label>
+                            <input type="number" id="citation-year" min="1000" max="2100" placeholder="2024">
+                        </div>
+                    </div>
+
+                    <!-- Publication Information -->
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label for="citation-journal">Journal/Publisher</label>
+                            <input type="text" id="citation-journal" placeholder="Journal name or publisher">
+                        </div>
+                        <div class="form-group">
+                            <label for="citation-volume">Volume</label>
+                            <input type="text" id="citation-volume" placeholder="Vol">
+                        </div>
+                        <div class="form-group">
+                            <label for="citation-issue">Issue</label>
+                            <input type="text" id="citation-issue" placeholder="No">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="citation-pages">Pages</label>
+                            <input type="text" id="citation-pages" placeholder="1-10">
+                        </div>
+                        <div class="form-group" style="flex: 2;">
+                            <label for="citation-doi">DOI</label>
+                            <input type="text" id="citation-doi" placeholder="10.1000/example">
+                        </div>
+                    </div>
+
+                    <!-- URLs and Files -->
+                    <div class="form-group">
+                        <label for="citation-url">URL</label>
+                        <input type="url" id="citation-url" placeholder="https://example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="citation-file-path">Local File Path</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="citation-file-path" placeholder="Path to local file" style="flex: 1;">
+                            <button type="button" onclick="citationManager.selectFile()" class="btn">Browse</button>
+                        </div>
+                    </div>
+
+                    <!-- Abstract and Notes -->
+                    <div class="form-group">
+                        <label for="citation-abstract">Abstract</label>
+                        <textarea id="citation-abstract" rows="3" placeholder="Enter abstract (optional)"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="citation-notes">Personal Notes</label>
+                        <textarea id="citation-notes" rows="3" placeholder="Your notes about this citation"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="citation-tags">Tags</label>
+                        <input type="text" id="citation-tags" placeholder="philosophy, AI, technology (comma-separated)">
+                    </div>
+
+                    <!-- Projects -->
+                    <div class="form-group">
+                        <label for="citation-projects">Projects</label>
+                        <select id="citation-projects" multiple size="3">
+                            <!-- Projects will be populated dynamically -->
+                        </select>
+                        <small style="color: #666;">Hold Ctrl/Cmd to select multiple projects</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="citationManager.closeCitationModal()" class="btn">Cancel</button>
+                <button type="button" onclick="citationManager.saveCitation()" class="btn btn-primary" id="save-citation-btn">Save Citation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Citation Modal -->
+    <div id="import-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog" style="width: 500px;">
+            <div class="modal-header">
+                <h3>Import Citation</h3>
+                <button class="modal-close" onclick="citationManager.closeImportModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="import-options">
+                    <div class="import-option">
+                        <h4>From URL</h4>
+                        <p>Automatically extract citation data from a web page</p>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="url" id="import-url" placeholder="https://example.com/article" style="flex: 1;">
+                            <button onclick="citationManager.importFromURL()" class="btn btn-primary">Import</button>
+                        </div>
+                    </div>
+
+                    <div class="import-option" style="margin-top: 20px;">
+                        <h4>From DOI</h4>
+                        <p>Import citation using Digital Object Identifier</p>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="import-doi" placeholder="10.1000/example" style="flex: 1;">
+                            <button onclick="citationManager.importFromDOI()" class="btn btn-primary">Import</button>
+                        </div>
+                    </div>
+
+                    <div class="import-option" style="margin-top: 20px;">
+                        <h4>From Zotero</h4>
+                        <p>Sync citations from your Zotero library</p>
+                        <button onclick="citationManager.showZoteroSync()" class="btn btn-primary">Configure Zotero</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zotero Configuration Modal -->
+    <div id="zotero-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog" style="width: 500px;">
+            <div class="modal-header">
+                <h3>Zotero Configuration</h3>
+                <button class="modal-close" onclick="citationManager.closeZoteroModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="zotero-api-key">Zotero API Key</label>
+                    <input type="password" id="zotero-api-key" placeholder="Your Zotero API key">
+                    <small style="color: #666;">Get your API key from <a href="https://www.zotero.org/settings/keys" target="_blank">Zotero Settings</a></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="zotero-user-id">User ID</label>
+                    <input type="text" id="zotero-user-id" placeholder="Your Zotero user ID">
+                </div>
+
+                <div class="form-group">
+                    <label for="zotero-collection">Collection ID (optional)</label>
+                    <input type="text" id="zotero-collection" placeholder="Specific collection ID">
+                    <small style="color: #666;">Leave empty to sync entire library</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="citationManager.closeZoteroModal()" class="btn">Cancel</button>
+                <button type="button" onclick="citationManager.syncZotero()" class="btn btn-primary">Sync Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Citations Modal -->
+    <div id="export-modal" class="modal" style="display: none;">
+        <div class="modal-dialog" style="width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Export Citations</h3>
+                <button type="button" class="modal-close" onclick="citationManager.hideModal('export-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Export Format</label>
+                    <select id="export-format" class="form-control">
+                        <option value="bibtex">BibTeX (.bib)</option>
+                        <option value="ris">RIS (.ris)</option>
+                        <option value="csv">CSV (.csv)</option>
+                        <option value="json">JSON (.json)</option>
+                        <option value="apa">APA Format (.txt)</option>
+                        <option value="mla">MLA Format (.txt)</option>
+                        <option value="chicago">Chicago Format (.txt)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Export Selection</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="radio" name="export-selection" value="all" checked> Export All Citations
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="radio" name="export-selection" value="filtered"> Export Current Filter Results
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="radio" name="export-selection" value="selected"> Export Selected Citations Only
+                        </label>
+                    </div>
+                    <small style="color: #666; margin-top: 4px; display: block;">
+                        Note: "Selected citations" feature coming soon. Currently exports all or filtered citations.
+                    </small>
+                </div>
+
+                <div id="export-preview" class="form-group" style="display: none;">
+                    <label>Preview (first 3 citations)</label>
+                    <textarea id="export-preview-content" readonly style="height: 150px; font-family: monospace; font-size: 11px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="preview-export-btn" class="btn" onclick="citationManager.previewExport()">Preview</button>
+                <button type="button" id="cancel-export-btn" class="btn" onclick="citationManager.hideModal('export-modal')">Cancel</button>
+                <button type="button" id="download-export-btn" class="btn btn-primary" onclick="citationManager.downloadExport()">Download</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Main Application Container -->
     <div id="app-container">
@@ -1185,6 +1526,7 @@
                         <div style="display: flex; gap: 6px; align-items: center;">
                             <button id="add-citation-btn" class="btn" style="padding: 4px 8px; font-size: 11px; background: #28a745; color: white;" title="Add New Citation">+ Add</button>
                             <button id="import-citation-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Import Citation">📥 Import</button>
+                            <button id="export-citations-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Export Citations">📤 Export</button>
                             <button id="refresh-citations-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Refresh Citations">🔄</button>
                         </div>
                     </div>

@@ -394,10 +394,144 @@ class CitationService {
     // ===== ZOTERO INTEGRATION =====
 
     async syncWithZotero(zoteroAPIKey, userID, collectionID = null) {
-        // TODO: Implement Zotero API integration
-        // This will fetch citations from Zotero and sync with local database
-        console.log('[Citation Service] Zotero sync not yet implemented');
-        return { message: 'Zotero integration coming soon' };
+        try {
+            console.log('[Citation Service] Starting Zotero sync...');
+            
+            const axios = require('axios');
+            let apiUrl = `https://api.zotero.org/users/${userID}/items`;
+            
+            // If collection ID is provided, sync specific collection
+            if (collectionID) {
+                apiUrl = `https://api.zotero.org/users/${userID}/collections/${collectionID}/items`;
+            }
+
+            // Add query parameters
+            apiUrl += '?format=json&itemType=-attachment&itemType=-note';
+
+            const response = await axios.get(apiUrl, {
+                headers: {
+                    'Authorization': `Bearer ${zoteroAPIKey}`,
+                    'Zotero-API-Version': '3'
+                },
+                timeout: 30000
+            });
+
+            const zoteroItems = response.data;
+            let syncedCount = 0;
+            let updatedCount = 0;
+
+            for (const item of zoteroItems) {
+                const data = item.data;
+                
+                // Skip items without titles
+                if (!data.title) continue;
+
+                // Map Zotero item to our citation format
+                const citationData = {
+                    title: data.title,
+                    authors: this.formatZoteroAuthors(data.creators),
+                    publication_year: data.date ? this.extractYearFromDate(data.date) : null,
+                    publication_date: data.date || null,
+                    journal: data.publicationTitle || data.journalAbbreviation || null,
+                    volume: data.volume || null,
+                    issue: data.issue || null,
+                    pages: data.pages || null,
+                    publisher: data.publisher || null,
+                    doi: data.DOI || null,
+                    url: data.url || null,
+                    citation_type: this.mapZoteroItemType(data.itemType),
+                    abstract: data.abstractNote || null,
+                    notes: data.extra || null,
+                    tags: data.tags ? data.tags.map(tag => tag.tag).join(', ') : null,
+                    zotero_key: item.key
+                };
+
+                // Check if citation already exists
+                const existing = await this.getCitationByZoteroKey(item.key);
+                
+                if (existing) {
+                    // Update existing citation
+                    await this.updateCitation(existing.id, citationData);
+                    updatedCount++;
+                } else {
+                    // Add new citation
+                    await this.addCitation(citationData);
+                    syncedCount++;
+                }
+            }
+
+            console.log(`[Citation Service] Zotero sync completed: ${syncedCount} new, ${updatedCount} updated`);
+            return { 
+                success: true, 
+                synced: syncedCount, 
+                updated: updatedCount, 
+                total: zoteroItems.length 
+            };
+
+        } catch (error) {
+            console.error('[Citation Service] Zotero sync failed:', error);
+            throw new Error(`Zotero sync failed: ${error.message}`);
+        }
+    }
+
+    // Get citation by Zotero key
+    async getCitationByZoteroKey(zoteroKey) {
+        return new Promise((resolve, reject) => {
+            this.db.get('SELECT * FROM citations WHERE zotero_key = ?', [zoteroKey], (err, row) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(row);
+                }
+            });
+        });
+    }
+
+    // Format Zotero authors array to string
+    formatZoteroAuthors(creators) {
+        if (!creators || !Array.isArray(creators)) return '';
+        
+        const authors = creators
+            .filter(creator => creator.creatorType === 'author' || creator.creatorType === 'editor')
+            .map(creator => {
+                if (creator.firstName && creator.lastName) {
+                    return `${creator.firstName} ${creator.lastName}`;
+                } else if (creator.lastName) {
+                    return creator.lastName;
+                } else if (creator.name) {
+                    return creator.name;
+                }
+                return '';
+            })
+            .filter(name => name);
+            
+        return authors.join(', ');
+    }
+
+    // Extract year from various date formats
+    extractYearFromDate(dateString) {
+        if (!dateString) return null;
+        
+        const yearMatch = dateString.match(/\b(\d{4})\b/);
+        return yearMatch ? parseInt(yearMatch[1]) : null;
+    }
+
+    // Map Zotero item types to our citation types
+    mapZoteroItemType(zoteroType) {
+        const typeMap = {
+            'journalArticle': 'article',
+            'book': 'book',
+            'bookSection': 'book',
+            'conferencePaper': 'conference',
+            'webpage': 'webpage',
+            'report': 'report',
+            'thesis': 'thesis',
+            'manuscript': 'article',
+            'magazineArticle': 'article',
+            'newspaperArticle': 'article'
+        };
+        
+        return typeMap[zoteroType] || 'article';
     }
 
     // ===== UTILITY METHODS =====

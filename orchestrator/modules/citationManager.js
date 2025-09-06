@@ -50,10 +50,12 @@ class CitationManager {
         // Action buttons
         const addBtn = document.getElementById('add-citation-btn');
         const importBtn = document.getElementById('import-citation-btn');
+        const exportBtn = document.getElementById('export-citations-btn');
         const refreshBtn = document.getElementById('refresh-citations-btn');
         
         if (addBtn) addBtn.addEventListener('click', () => this.showAddCitationModal());
         if (importBtn) importBtn.addEventListener('click', () => this.showImportModal());
+        if (exportBtn) exportBtn.addEventListener('click', () => this.showExportModal());
         if (refreshBtn) refreshBtn.addEventListener('click', () => this.refreshCitations());
 
         // Search and filters
@@ -68,6 +70,75 @@ class CitationManager {
         if (typeFilter) typeFilter.addEventListener('change', () => this.applyFilters());
         if (projectFilter) projectFilter.addEventListener('change', () => this.applyFilters());
         if (clearFilters) clearFilters.addEventListener('click', () => this.clearFilters());
+
+        // Modal event listeners
+        this.setupModalEventListeners();
+    }
+
+    // Set up modal event listeners
+    setupModalEventListeners() {
+        // Citation modal events
+        const citationModal = document.getElementById('citation-modal');
+        const saveCitationBtn = document.getElementById('save-citation-btn');
+        const cancelCitationBtn = document.getElementById('cancel-citation-btn');
+        const browseFileBtn = document.getElementById('browse-file-btn');
+
+        if (saveCitationBtn) saveCitationBtn.addEventListener('click', () => this.saveCitation());
+        if (cancelCitationBtn) cancelCitationBtn.addEventListener('click', () => this.hideModal('citation-modal'));
+        if (browseFileBtn) browseFileBtn.addEventListener('click', () => this.browseFile());
+
+        // Import modal events
+        const importModal = document.getElementById('import-modal');
+        const importUrlBtn = document.getElementById('import-url-btn');
+        const importDoiBtn = document.getElementById('import-doi-btn');
+        const importZoteroBtn = document.getElementById('import-zotero-btn');
+        const cancelImportBtn = document.getElementById('cancel-import-btn');
+
+        if (importUrlBtn) importUrlBtn.addEventListener('click', () => this.importFromURL());
+        if (importDoiBtn) importDoiBtn.addEventListener('click', () => this.importFromDOI());
+        if (importZoteroBtn) importZoteroBtn.addEventListener('click', () => this.syncWithZotero());
+        if (cancelImportBtn) cancelImportBtn.addEventListener('click', () => this.hideModal('import-modal'));
+
+        // Zotero modal events
+        const zoteroModal = document.getElementById('zotero-modal');
+        const saveZoteroBtn = document.getElementById('save-zotero-btn');
+        const cancelZoteroBtn = document.getElementById('cancel-zotero-btn');
+        const configZoteroBtn = document.getElementById('config-zotero-btn');
+
+        if (saveZoteroBtn) saveZoteroBtn.addEventListener('click', () => this.saveZoteroConfig());
+        if (cancelZoteroBtn) cancelZoteroBtn.addEventListener('click', () => this.hideModal('zotero-modal'));
+        if (configZoteroBtn) configZoteroBtn.addEventListener('click', () => this.showZoteroConfig());
+
+        // Export modal events
+        const exportModal = document.getElementById('export-modal');
+        const previewExportBtn = document.getElementById('preview-export-btn');
+        const downloadExportBtn = document.getElementById('download-export-btn');
+        const cancelExportBtn = document.getElementById('cancel-export-btn');
+
+        if (previewExportBtn) previewExportBtn.addEventListener('click', () => this.previewExport());
+        if (downloadExportBtn) downloadExportBtn.addEventListener('click', () => this.downloadExport());
+        if (cancelExportBtn) cancelExportBtn.addEventListener('click', () => this.hideModal('export-modal'));
+
+        // Close modal when clicking backdrop
+        [citationModal, importModal, zoteroModal, exportModal].forEach(modal => {
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        this.hideModal(modal.id);
+                    }
+                });
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const visibleModal = document.querySelector('.modal[style*="display: flex"]');
+                if (visibleModal) {
+                    this.hideModal(visibleModal.id);
+                }
+            }
+        });
     }
 
     // Show the citations panel
@@ -343,30 +414,36 @@ class CitationManager {
 
     // Show add citation modal
     showAddCitationModal() {
-        // TODO: Implement add citation modal
-        console.log('[Citation Manager] Add citation modal not yet implemented');
-        this.showError('Add citation modal not yet implemented. Coming soon!');
+        this.currentEditingId = null;
+        this.populateCitationForm();
+        this.showModal('citation-modal');
     }
 
     // Show import modal
     showImportModal() {
-        // TODO: Implement import modal
-        console.log('[Citation Manager] Import modal not yet implemented');
-        this.showError('Import modal not yet implemented. Coming soon!');
+        this.showModal('import-modal');
     }
 
     // View citation details
-    viewCitation(id) {
-        // TODO: Implement citation detail view
-        console.log('[Citation Manager] View citation:', id);
-        this.showError('Citation detail view not yet implemented. Coming soon!');
+    async viewCitation(id) {
+        try {
+            const result = await window.electronAPI.invoke('citations-get-by-id', id);
+            if (result.success) {
+                this.currentEditingId = id;
+                this.populateCitationForm(result.citation);
+                this.showModal('citation-modal');
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error viewing citation:', error);
+            this.showError('Failed to load citation: ' + error.message);
+        }
     }
 
     // Edit citation
     editCitation(id) {
-        // TODO: Implement edit citation
-        console.log('[Citation Manager] Edit citation:', id);
-        this.showError('Edit citation not yet implemented. Coming soon!');
+        this.viewCitation(id);
     }
 
     // Copy citation to clipboard
@@ -416,6 +493,374 @@ class CitationManager {
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
         };
+    }
+
+    // ===== MODAL MANAGEMENT =====
+
+    // Show modal dialog
+    showModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            
+            // Focus first input if it exists
+            const firstInput = modal.querySelector('input, textarea, select');
+            if (firstInput) {
+                setTimeout(() => firstInput.focus(), 100);
+            }
+        }
+    }
+
+    // Hide modal dialog
+    hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+    }
+
+    // Populate citation form with data (or clear for new citation)
+    populateCitationForm(citation = null) {
+        const form = document.getElementById('citation-form');
+        if (!form) return;
+
+        // Update modal title
+        const modalTitle = document.querySelector('#citation-modal .modal-title');
+        if (modalTitle) {
+            modalTitle.textContent = citation ? 'Edit Citation' : 'Add Citation';
+        }
+
+        // Update save button text
+        const saveBtn = document.getElementById('save-citation-btn');
+        if (saveBtn) {
+            saveBtn.textContent = citation ? 'Update Citation' : 'Save Citation';
+        }
+
+        // Populate form fields
+        const fields = {
+            'citation-title': citation?.title || '',
+            'citation-authors': citation?.authors || '',
+            'citation-year': citation?.publication_year || '',
+            'citation-date': citation?.publication_date || '',
+            'citation-journal': citation?.journal || '',
+            'citation-volume': citation?.volume || '',
+            'citation-issue': citation?.issue || '',
+            'citation-pages': citation?.pages || '',
+            'citation-publisher': citation?.publisher || '',
+            'citation-doi': citation?.doi || '',
+            'citation-url': citation?.url || '',
+            'citation-file-path': citation?.file_path || '',
+            'citation-type': citation?.citation_type || 'article',
+            'citation-abstract': citation?.abstract || '',
+            'citation-notes': citation?.notes || '',
+            'citation-tags': citation?.tags || ''
+        };
+
+        Object.entries(fields).forEach(([fieldId, value]) => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.value = value;
+            }
+        });
+
+        // Handle favorites checkbox
+        const favoriteCheckbox = document.getElementById('citation-favorite');
+        if (favoriteCheckbox) {
+            favoriteCheckbox.checked = citation?.is_favorite || false;
+        }
+    }
+
+    // Save citation from form
+    async saveCitation() {
+        const form = document.getElementById('citation-form');
+        if (!form) return;
+
+        try {
+            // Collect form data
+            const formData = new FormData(form);
+            const citationData = {
+                title: formData.get('title'),
+                authors: formData.get('authors'),
+                publication_year: formData.get('year') ? parseInt(formData.get('year')) : null,
+                publication_date: formData.get('date') || null,
+                journal: formData.get('journal') || null,
+                volume: formData.get('volume') || null,
+                issue: formData.get('issue') || null,
+                pages: formData.get('pages') || null,
+                publisher: formData.get('publisher') || null,
+                doi: formData.get('doi') || null,
+                url: formData.get('url') || null,
+                file_path: formData.get('file_path') || null,
+                citation_type: formData.get('type') || 'article',
+                abstract: formData.get('abstract') || null,
+                notes: formData.get('notes') || null,
+                tags: formData.get('tags') || null,
+                is_favorite: formData.get('favorite') === 'on'
+            };
+
+            // Validate required fields
+            if (!citationData.title?.trim()) {
+                throw new Error('Title is required');
+            }
+
+            let result;
+            if (this.currentEditingId) {
+                // Update existing citation
+                result = await window.electronAPI.invoke('citations-update', this.currentEditingId, citationData);
+            } else {
+                // Add new citation
+                result = await window.electronAPI.invoke('citations-add', citationData);
+            }
+
+            if (result.success) {
+                this.hideModal('citation-modal');
+                this.showSuccess(this.currentEditingId ? 'Citation updated successfully' : 'Citation added successfully');
+                await this.refreshCitations();
+            } else {
+                throw new Error(result.error);
+            }
+
+        } catch (error) {
+            console.error('[Citation Manager] Error saving citation:', error);
+            this.showError('Failed to save citation: ' + error.message);
+        }
+    }
+
+    // Browse for file
+    async browseFile() {
+        try {
+            const result = await window.electronAPI.invoke('dialog-open-file', {
+                title: 'Select Citation File',
+                filters: [
+                    { name: 'All Files', extensions: ['*'] },
+                    { name: 'PDF Files', extensions: ['pdf'] },
+                    { name: 'Documents', extensions: ['doc', 'docx', 'txt', 'rtf'] }
+                ]
+            });
+
+            if (result.success && result.filePath) {
+                const filePathField = document.getElementById('citation-file-path');
+                if (filePathField) {
+                    filePathField.value = result.filePath;
+                }
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error browsing file:', error);
+            this.showError('Failed to browse file: ' + error.message);
+        }
+    }
+
+    // ===== IMPORT FUNCTIONALITY =====
+
+    // Import from URL
+    async importFromURL() {
+        const urlInput = document.getElementById('import-url');
+        if (!urlInput?.value?.trim()) {
+            this.showError('Please enter a URL');
+            return;
+        }
+
+        try {
+            const result = await window.electronAPI.invoke('citations-import-url', urlInput.value.trim());
+            if (result.success) {
+                this.hideModal('import-modal');
+                this.showSuccess('Citation imported from URL successfully');
+                await this.refreshCitations();
+                urlInput.value = '';
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error importing from URL:', error);
+            this.showError('Failed to import from URL: ' + error.message);
+        }
+    }
+
+    // Import from DOI
+    async importFromDOI() {
+        const doiInput = document.getElementById('import-doi');
+        if (!doiInput?.value?.trim()) {
+            this.showError('Please enter a DOI');
+            return;
+        }
+
+        try {
+            const result = await window.electronAPI.invoke('citations-import-doi', doiInput.value.trim());
+            if (result.success) {
+                this.hideModal('import-modal');
+                this.showSuccess('Citation imported from DOI successfully');
+                await this.refreshCitations();
+                doiInput.value = '';
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error importing from DOI:', error);
+            this.showError('Failed to import from DOI: ' + error.message);
+        }
+    }
+
+    // Show Zotero config modal
+    showZoteroConfig() {
+        this.hideModal('import-modal');
+        this.showModal('zotero-modal');
+    }
+
+    // Save Zotero configuration
+    async saveZoteroConfig() {
+        const apiKeyField = document.getElementById('zotero-api-key');
+        const userIdField = document.getElementById('zotero-user-id');
+
+        if (!apiKeyField?.value?.trim() || !userIdField?.value?.trim()) {
+            this.showError('Please enter both API key and User ID');
+            return;
+        }
+
+        try {
+            // Store Zotero configuration (you might want to use electron-store or similar)
+            localStorage.setItem('zotero-api-key', apiKeyField.value.trim());
+            localStorage.setItem('zotero-user-id', userIdField.value.trim());
+
+            this.hideModal('zotero-modal');
+            this.showSuccess('Zotero configuration saved');
+        } catch (error) {
+            console.error('[Citation Manager] Error saving Zotero config:', error);
+            this.showError('Failed to save Zotero configuration: ' + error.message);
+        }
+    }
+
+    // Sync with Zotero
+    async syncWithZotero() {
+        try {
+            const apiKey = localStorage.getItem('zotero-api-key');
+            const userId = localStorage.getItem('zotero-user-id');
+
+            if (!apiKey || !userId) {
+                this.showZoteroConfig();
+                return;
+            }
+
+            const result = await window.electronAPI.invoke('citations-zotero-sync', apiKey, userId);
+            if (result.success) {
+                this.hideModal('import-modal');
+                this.showSuccess('Zotero sync completed successfully');
+                await this.refreshCitations();
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error syncing with Zotero:', error);
+            this.showError('Failed to sync with Zotero: ' + error.message);
+        }
+    }
+
+    // ===== EXPORT FUNCTIONALITY =====
+
+    // Show export modal
+    showExportModal() {
+        this.showModal('export-modal');
+    }
+
+    // Preview export
+    async previewExport() {
+        try {
+            const format = document.getElementById('export-format').value;
+            const selection = document.querySelector('input[name="export-selection"]:checked').value;
+            
+            // Get citation IDs based on selection
+            let citationIds = [];
+            if (selection === 'all') {
+                const allCitations = await window.electronAPI.invoke('citations-get', {});
+                if (allCitations.success) {
+                    citationIds = allCitations.citations.map(c => c.id);
+                }
+            } else if (selection === 'filtered') {
+                citationIds = this.citations.map(c => c.id);
+            } else {
+                // Selected citations - not implemented yet
+                this.showError('Selected citations export not yet implemented');
+                return;
+            }
+
+            if (citationIds.length === 0) {
+                this.showError('No citations to export');
+                return;
+            }
+
+            // Get preview (first 3 citations)
+            const previewIds = citationIds.slice(0, 3);
+            const result = await window.electronAPI.invoke('citations-export', previewIds, format);
+            
+            if (result.success) {
+                const previewDiv = document.getElementById('export-preview');
+                const previewContent = document.getElementById('export-preview-content');
+                previewContent.value = result.content;
+                previewDiv.style.display = 'block';
+                
+                // Update button text
+                const downloadBtn = document.getElementById('download-export-btn');
+                downloadBtn.textContent = `Download (${citationIds.length} citations)`;
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error previewing export:', error);
+            this.showError('Failed to preview export: ' + error.message);
+        }
+    }
+
+    // Download export
+    async downloadExport() {
+        try {
+            const format = document.getElementById('export-format').value;
+            const selection = document.querySelector('input[name="export-selection"]:checked').value;
+            
+            // Get citation IDs based on selection
+            let citationIds = [];
+            if (selection === 'all') {
+                const allCitations = await window.electronAPI.invoke('citations-get', {});
+                if (allCitations.success) {
+                    citationIds = allCitations.citations.map(c => c.id);
+                }
+            } else if (selection === 'filtered') {
+                citationIds = this.citations.map(c => c.id);
+            } else {
+                // Selected citations - not implemented yet
+                this.showError('Selected citations export not yet implemented');
+                return;
+            }
+
+            if (citationIds.length === 0) {
+                this.showError('No citations to export');
+                return;
+            }
+
+            // Export citations
+            const result = await window.electronAPI.invoke('citations-export', citationIds, format);
+            
+            if (result.success) {
+                // Create download
+                const blob = new Blob([result.content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = result.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                this.hideModal('export-modal');
+                this.showSuccess(`Successfully exported ${citationIds.length} citations`);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error downloading export:', error);
+            this.showError('Failed to download export: ' + error.message);
+        }
     }
 }
 

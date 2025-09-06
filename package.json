@@ -21,6 +21,8 @@
   "dependencies": {
     "@electron/remote": "^2.1.2",
     "@google/genai": "^1.16.0",
+    "axios": "^1.11.0",
+    "cheerio": "^1.1.2",
     "dotenv": "^16.4.5",
     "lucide-react": "^0.523.0",
     "marked": "^16.2.0",

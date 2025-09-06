@@ -3,8 +3,343 @@
 
 const { ipcMain } = require('electron');
 const CitationService = require('../services/citationService');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
 let citationService = null;
+
+// Extract metadata from URL
+async function extractUrlMetadata(url) {
+    try {
+        const response = await axios.get(url, {
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+
+        const $ = cheerio.load(response.data);
+        const metadata = {};
+
+        // Extract title
+        metadata.title = $('title').first().text().trim() ||
+                        $('meta[property="og:title"]').attr('content') ||
+                        $('meta[name="title"]').attr('content') ||
+                        $('h1').first().text().trim();
+
+        // Extract description
+        metadata.description = $('meta[property="og:description"]').attr('content') ||
+                              $('meta[name="description"]').attr('content') ||
+                              $('meta[name="abstract"]').attr('content');
+
+        // Extract author
+        metadata.author = $('meta[name="author"]').attr('content') ||
+                         $('meta[property="article:author"]').attr('content') ||
+                         $('meta[name="citation_author"]').attr('content');
+
+        // Extract site name
+        metadata.site_name = $('meta[property="og:site_name"]').attr('content') ||
+                            $('meta[name="application-name"]').attr('content');
+
+        // Extract publication date
+        metadata.published_time = $('meta[property="article:published_time"]').attr('content') ||
+                                 $('meta[name="citation_publication_date"]').attr('content') ||
+                                 $('meta[name="pubdate"]').attr('content') ||
+                                 $('time[datetime]').attr('datetime');
+
+        // Extract DOI if present
+        metadata.doi = $('meta[name="citation_doi"]').attr('content') ||
+                      $('meta[name="doi"]').attr('content');
+
+        // Extract journal information
+        metadata.journal = $('meta[name="citation_journal_title"]').attr('content') ||
+                          $('meta[name="citation_conference_title"]').attr('content');
+
+        // Clean up the title
+        if (metadata.title) {
+            metadata.title = metadata.title.replace(/\s+/g, ' ').trim();
+            // Remove site name from title if it's at the end
+            if (metadata.site_name && metadata.title.endsWith(' - ' + metadata.site_name)) {
+                metadata.title = metadata.title.replace(' - ' + metadata.site_name, '');
+            }
+        }
+
+        console.log('[Citation Handlers] Extracted metadata:', metadata);
+        return metadata;
+
+    } catch (error) {
+        console.error('[Citation Handlers] Error extracting URL metadata:', error.message);
+        return {
+            title: url,
+            description: 'Failed to extract metadata from URL'
+        };
+    }
+}
+
+// Fetch metadata from DOI using CrossRef API
+async function fetchDOIMetadata(doi) {
+    try {
+        console.log('[Citation Handlers] Fetching DOI metadata for:', doi);
+        
+        const response = await axios.get(`https://api.crossref.org/works/${doi}`, {
+            timeout: 10000,
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        const work = response.data.message;
+        const metadata = {};
+
+        // Extract title
+        if (work.title && work.title.length > 0) {
+            metadata.title = work.title[0];
+        }
+
+        // Extract authors
+        if (work.author && work.author.length > 0) {
+            const authors = work.author.map(author => {
+                if (author.given && author.family) {
+                    return `${author.given} ${author.family}`;
+                } else if (author.family) {
+                    return author.family;
+                } else if (author.name) {
+                    return author.name;
+                }
+                return '';
+            }).filter(name => name).join(', ');
+            metadata.authors = authors;
+        }
+
+        // Extract publication date
+        if (work.published && work.published['date-parts'] && work.published['date-parts'][0]) {
+            const dateParts = work.published['date-parts'][0];
+            if (dateParts.length >= 1) {
+                metadata.year = dateParts[0];
+                if (dateParts.length >= 2 && dateParts.length >= 3) {
+                    const month = dateParts[1].toString().padStart(2, '0');
+                    const day = dateParts[2].toString().padStart(2, '0');
+                    metadata.date = `${dateParts[0]}-${month}-${day}`;
+                } else if (dateParts.length >= 2) {
+                    const month = dateParts[1].toString().padStart(2, '0');
+                    metadata.date = `${dateParts[0]}-${month}-01`;
+                } else {
+                    metadata.date = `${dateParts[0]}-01-01`;
+                }
+            }
+        }
+
+        // Extract journal information
+        if (work['container-title'] && work['container-title'].length > 0) {
+            metadata.journal = work['container-title'][0];
+        }
+
+        // Extract volume and issue
+        if (work.volume) metadata.volume = work.volume;
+        if (work.issue) metadata.issue = work.issue;
+
+        // Extract pages
+        if (work.page) {
+            metadata.pages = work.page;
+        } else if (work['article-number']) {
+            metadata.pages = work['article-number'];
+        }
+
+        // Extract publisher
+        if (work.publisher) {
+            metadata.publisher = work.publisher;
+        }
+
+        // Extract abstract (if available)
+        if (work.abstract) {
+            metadata.abstract = work.abstract;
+        }
+
+        // Determine citation type based on work type
+        const typeMap = {
+            'journal-article': 'article',
+            'book': 'book',
+            'book-chapter': 'book',
+            'proceedings-article': 'conference',
+            'report': 'report',
+            'thesis': 'thesis'
+        };
+        metadata.type = typeMap[work.type] || 'article';
+
+        console.log('[Citation Handlers] Extracted DOI metadata:', metadata);
+        return metadata;
+
+    } catch (error) {
+        console.error('[Citation Handlers] Error fetching DOI metadata:', error.message);
+        throw new Error(`Failed to fetch DOI metadata: ${error.response?.status === 404 ? 'DOI not found' : error.message}`);
+    }
+}
+
+// ===== EXPORT UTILITY FUNCTIONS =====
+
+// Export to BibTeX format
+function exportToBibTeX(citations) {
+    return citations.map(citation => {
+        const type = mapToBibTeXType(citation.citation_type);
+        const key = generateCitationKey(citation);
+        
+        const fields = [];
+        if (citation.title) fields.push(`  title = {${citation.title}}`);
+        if (citation.authors) fields.push(`  author = {${citation.authors}}`);
+        if (citation.publication_year) fields.push(`  year = {${citation.publication_year}}`);
+        if (citation.journal) fields.push(`  journal = {${citation.journal}}`);
+        if (citation.volume) fields.push(`  volume = {${citation.volume}}`);
+        if (citation.issue) fields.push(`  number = {${citation.issue}}`);
+        if (citation.pages) fields.push(`  pages = {${citation.pages}}`);
+        if (citation.publisher) fields.push(`  publisher = {${citation.publisher}}`);
+        if (citation.doi) fields.push(`  doi = {${citation.doi}}`);
+        if (citation.url) fields.push(`  url = {${citation.url}}`);
+        if (citation.abstract) fields.push(`  abstract = {${citation.abstract}}`);
+        
+        return `@${type}{${key},\n${fields.join(',\n')}\n}`;
+    }).join('\n\n');
+}
+
+// Export to RIS format
+function exportToRIS(citations) {
+    return citations.map(citation => {
+        const lines = [];
+        lines.push(`TY  - ${mapToRISType(citation.citation_type)}`);
+        if (citation.title) lines.push(`TI  - ${citation.title}`);
+        if (citation.authors) {
+            citation.authors.split(', ').forEach(author => {
+                lines.push(`AU  - ${author}`);
+            });
+        }
+        if (citation.publication_year) lines.push(`PY  - ${citation.publication_year}`);
+        if (citation.journal) lines.push(`JO  - ${citation.journal}`);
+        if (citation.volume) lines.push(`VL  - ${citation.volume}`);
+        if (citation.issue) lines.push(`IS  - ${citation.issue}`);
+        if (citation.pages) lines.push(`SP  - ${citation.pages.split('-')[0]}`);
+        if (citation.pages && citation.pages.includes('-')) {
+            lines.push(`EP  - ${citation.pages.split('-')[1]}`);
+        }
+        if (citation.publisher) lines.push(`PB  - ${citation.publisher}`);
+        if (citation.doi) lines.push(`DO  - ${citation.doi}`);
+        if (citation.url) lines.push(`UR  - ${citation.url}`);
+        if (citation.abstract) lines.push(`AB  - ${citation.abstract}`);
+        lines.push('ER  - ');
+        
+        return lines.join('\n');
+    }).join('\n\n');
+}
+
+// Export to CSV format
+function exportToCSV(citations) {
+    const headers = [
+        'Title', 'Authors', 'Year', 'Journal', 'Volume', 'Issue', 'Pages', 
+        'Publisher', 'DOI', 'URL', 'Type', 'Abstract', 'Notes', 'Tags'
+    ];
+    
+    const csvRows = [headers.join(',')];
+    
+    citations.forEach(citation => {
+        const row = [
+            escapeCSV(citation.title || ''),
+            escapeCSV(citation.authors || ''),
+            citation.publication_year || '',
+            escapeCSV(citation.journal || ''),
+            citation.volume || '',
+            citation.issue || '',
+            citation.pages || '',
+            escapeCSV(citation.publisher || ''),
+            citation.doi || '',
+            citation.url || '',
+            citation.citation_type || '',
+            escapeCSV(citation.abstract || ''),
+            escapeCSV(citation.notes || ''),
+            escapeCSV(citation.tags || '')
+        ];
+        csvRows.push(row.join(','));
+    });
+    
+    return csvRows.join('\n');
+}
+
+// Export to formatted text using citation styles
+async function exportToFormattedText(citations, styleName, citationService) {
+    const formattedCitations = [];
+    
+    for (const citation of citations) {
+        try {
+            const formatted = await citationService.formatCitation(citation.id, styleName);
+            formattedCitations.push(formatted);
+        } catch (error) {
+            console.error(`Error formatting citation ${citation.id}:`, error);
+            formattedCitations.push(`Error formatting: ${citation.title}`);
+        }
+    }
+    
+    return formattedCitations.join('\n\n');
+}
+
+// Utility functions
+function mapToBibTeXType(citationType) {
+    const typeMap = {
+        'article': 'article',
+        'book': 'book',
+        'webpage': 'misc',
+        'conference': 'inproceedings',
+        'report': 'techreport',
+        'thesis': 'phdthesis'
+    };
+    return typeMap[citationType] || 'misc';
+}
+
+function mapToRISType(citationType) {
+    const typeMap = {
+        'article': 'JOUR',
+        'book': 'BOOK',
+        'webpage': 'ELEC',
+        'conference': 'CONF',
+        'report': 'RPRT',
+        'thesis': 'THES'
+    };
+    return typeMap[citationType] || 'GEN';
+}
+
+function generateCitationKey(citation) {
+    let key = '';
+    
+    // Add first author's last name
+    if (citation.authors) {
+        const firstAuthor = citation.authors.split(',')[0].trim();
+        const lastName = firstAuthor.split(' ').pop();
+        key += lastName.replace(/[^a-zA-Z]/g, '');
+    }
+    
+    // Add year
+    if (citation.publication_year) {
+        key += citation.publication_year;
+    }
+    
+    // Add title words
+    if (citation.title) {
+        const titleWords = citation.title.split(' ')
+            .filter(word => word.length > 3)
+            .slice(0, 2)
+            .map(word => word.replace(/[^a-zA-Z]/g, ''))
+            .join('');
+        key += titleWords;
+    }
+    
+    return key || 'Citation' + Date.now();
+}
+
+function escapeCSV(value) {
+    if (typeof value !== 'string') return value;
+    
+    // If the value contains comma, quote, or newline, wrap it in quotes and escape quotes
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+}
 
 // Initialize citation service
 async function initializeCitationService(userDataPath) {
@@ -141,13 +476,19 @@ function registerCitationHandlers(userDataPath) {
     // Import from URL (web scraping)
     ipcMain.handle('citations-import-url', async (event, url) => {
         try {
-            // TODO: Implement URL metadata extraction
-            // For now, return basic URL citation
+            console.log('[Citation Handlers] Importing from URL:', url);
+            
+            // Extract metadata from URL
+            const metadata = await extractUrlMetadata(url);
+            
             const citationData = {
-                title: 'Web Page', // Will be extracted from URL
+                title: metadata.title || 'Web Page',
+                authors: metadata.author || metadata.site_name || '',
                 url: url,
                 citation_type: 'webpage',
-                publication_date: new Date().toISOString().split('T')[0]
+                publication_date: metadata.published_time || new Date().toISOString().split('T')[0],
+                abstract: metadata.description || '',
+                journal: metadata.site_name || ''
             };
             
             if (!citationService) await initializeCitationService(userDataPath);
@@ -162,9 +503,32 @@ function registerCitationHandlers(userDataPath) {
     // Import from DOI
     ipcMain.handle('citations-import-doi', async (event, doi) => {
         try {
-            // TODO: Implement DOI lookup using CrossRef API
-            console.log('[Citation Handlers] DOI import not yet implemented:', doi);
-            return { success: false, error: 'DOI import not yet implemented' };
+            console.log('[Citation Handlers] Importing from DOI:', doi);
+            
+            // Clean DOI (remove URL prefix if present)
+            const cleanDoi = doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '');
+            
+            // Fetch metadata from CrossRef
+            const metadata = await fetchDOIMetadata(cleanDoi);
+            
+            const citationData = {
+                title: metadata.title,
+                authors: metadata.authors,
+                publication_year: metadata.year,
+                publication_date: metadata.date,
+                journal: metadata.journal,
+                volume: metadata.volume,
+                issue: metadata.issue,
+                pages: metadata.pages,
+                publisher: metadata.publisher,
+                doi: cleanDoi,
+                citation_type: metadata.type || 'article',
+                abstract: metadata.abstract || ''
+            };
+            
+            if (!citationService) await initializeCitationService(userDataPath);
+            const result = await citationService.addCitation(citationData);
+            return { success: true, citation: result };
         } catch (error) {
             console.error('[Citation Handlers] Error importing from DOI:', error);
             return { success: false, error: error.message };
@@ -183,29 +547,54 @@ function registerCitationHandlers(userDataPath) {
                 if (citation) citations.push(citation);
             }
 
-            // TODO: Implement various export formats
-            if (format === 'bibtex') {
-                const bibtex = citations.map(citation => {
-                    const type = citation.citation_type === 'article' ? 'article' : 'misc';
-                    const key = citation.title.replace(/\s+/g, '').substring(0, 20) + citation.publication_year;
-                    
-                    return `@${type}{${key},
-  title = {${citation.title}},
-  author = {${citation.authors || 'Unknown'}},
-  year = {${citation.publication_year || 'n.d.'}},
-  journal = {${citation.journal || ''}},
-  volume = {${citation.volume || ''}},
-  number = {${citation.issue || ''}},
-  pages = {${citation.pages || ''}},
-  doi = {${citation.doi || ''}},
-  url = {${citation.url || ''}}
-}`;
-                }).join('\n\n');
+            if (citations.length === 0) {
+                return { success: false, error: 'No citations found to export' };
+            }
+
+            let content = '';
+            let filename = '';
+
+            switch (format.toLowerCase()) {
+                case 'bibtex':
+                    content = exportToBibTeX(citations);
+                    filename = 'citations.bib';
+                    break;
                 
-                return { success: true, content: bibtex, format: 'bibtex' };
+                case 'ris':
+                    content = exportToRIS(citations);
+                    filename = 'citations.ris';
+                    break;
+                
+                case 'csv':
+                    content = exportToCSV(citations);
+                    filename = 'citations.csv';
+                    break;
+                
+                case 'json':
+                    content = JSON.stringify(citations, null, 2);
+                    filename = 'citations.json';
+                    break;
+                
+                case 'apa':
+                    content = await exportToFormattedText(citations, 'APA', citationService);
+                    filename = 'citations_apa.txt';
+                    break;
+                
+                case 'mla':
+                    content = await exportToFormattedText(citations, 'MLA', citationService);
+                    filename = 'citations_mla.txt';
+                    break;
+                
+                case 'chicago':
+                    content = await exportToFormattedText(citations, 'Chicago', citationService);
+                    filename = 'citations_chicago.txt';
+                    break;
+                
+                default:
+                    return { success: false, error: `Export format '${format}' not supported` };
             }
             
-            return { success: false, error: 'Export format not supported yet' };
+            return { success: true, content, format, filename };
         } catch (error) {
             console.error('[Citation Handlers] Error exporting citations:', error);
             return { success: false, error: error.message };
