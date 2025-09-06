@@ -1194,7 +1194,7 @@
         <div class="modal-dialog citation-modal" style="width: 600px; max-height: 80vh;">
             <div class="modal-header">
                 <h3 id="citation-modal-title">Add Citation</h3>
-                <button class="modal-close" onclick="citationManager.closeCitationModal()">×</button>
+                <button class="modal-close" onclick="citationManager.hideModal('citation-modal-overlay')">×</button>
             </div>
             <div class="modal-body">
                 <form id="citation-form">
@@ -1299,7 +1299,7 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" onclick="citationManager.closeCitationModal()" class="btn">Cancel</button>
+                <button type="button" onclick="citationManager.hideModal('citation-modal-overlay')" class="btn">Cancel</button>
                 <button type="button" onclick="citationManager.saveCitation()" class="btn btn-primary" id="save-citation-btn">Save Citation</button>
             </div>
         </div>
