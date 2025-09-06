@@ -1,6 +1,8 @@
 // === Citation Manager ===
 // Frontend citation management system
 
+console.log('[Citation Manager] Script loading...');
+
 class CitationManager {
     constructor() {
         this.citations = [];
@@ -8,6 +10,8 @@ class CitationManager {
         this.currentFilters = {};
         this.isInitialized = false;
         this.currentEditingId = null;
+        this.eventListenersSet = false;
+        this.actionListenersSet = false;
     }
 
     // Initialize the citation manager
@@ -21,8 +25,7 @@ class CitationManager {
                 throw new Error(result.error);
             }
 
-            // Set up event listeners
-            this.setupEventListeners();
+            // Event listeners will be set up when DOM is ready
             
             // Load initial data
             await this.refreshCitations();
@@ -39,24 +42,32 @@ class CitationManager {
 
     // Set up event listeners for citation UI
     setupEventListeners() {
+        console.log('[Citation Manager] Setting up event listeners...');
+        
+        // Prevent duplicate listener registration
+        if (this.eventListenersSet) {
+            console.log('[Citation Manager] Event listeners already set, skipping');
+            return;
+        }
+        
         // Tab button
         const showCitationsBtn = document.getElementById('show-citations-btn');
+        console.log('[Citation Manager] Show Citations Button found:', !!showCitationsBtn);
+        
         if (showCitationsBtn) {
-            showCitationsBtn.addEventListener('click', () => {
+            console.log('[Citation Manager] Adding click listener to Citations button');
+            showCitationsBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Citations button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
                 this.showCitationsPanel();
             });
         }
-
-        // Action buttons
-        const addBtn = document.getElementById('add-citation-btn');
-        const importBtn = document.getElementById('import-citation-btn');
-        const exportBtn = document.getElementById('export-citations-btn');
-        const refreshBtn = document.getElementById('refresh-citations-btn');
         
-        if (addBtn) addBtn.addEventListener('click', () => this.showAddCitationModal());
-        if (importBtn) importBtn.addEventListener('click', () => this.showImportModal());
-        if (exportBtn) exportBtn.addEventListener('click', () => this.showExportModal());
-        if (refreshBtn) refreshBtn.addEventListener('click', () => this.refreshCitations());
+        this.eventListenersSet = true;
+        console.log('[Citation Manager] Event listeners set up successfully');
+
+        // Action buttons will be set up when panel is shown
 
         // Search and filters
         const searchInput = document.getElementById('citations-search-input');
@@ -75,16 +86,75 @@ class CitationManager {
         this.setupModalEventListeners();
     }
 
+    // Set up action button event listeners (called when panel becomes visible)
+    setupActionButtonListeners() {
+        console.log('[Citation Manager] Setting up action button listeners...');
+        
+        // Prevent duplicate listener registration
+        if (this.actionListenersSet) {
+            console.log('[Citation Manager] Action listeners already set, skipping');
+            return;
+        }
+        
+        const addBtn = document.getElementById('add-citation-btn');
+        const importBtn = document.getElementById('import-citation-btn');
+        const exportBtn = document.getElementById('export-citations-btn');
+        const refreshBtn = document.getElementById('refresh-citations-btn');
+        
+        console.log('[Citation Manager] Add button found:', !!addBtn);
+        console.log('[Citation Manager] Import button found:', !!importBtn);
+        console.log('[Citation Manager] Export button found:', !!exportBtn);
+        console.log('[Citation Manager] Refresh button found:', !!refreshBtn);
+        
+        if (addBtn) {
+            console.log('[Citation Manager] Adding click listener to Add button');
+            addBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Add button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.showAddCitationModal();
+            });
+        }
+        if (importBtn) {
+            console.log('[Citation Manager] Adding click listener to Import button');
+            importBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Import button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.showImportModal();
+            });
+        }
+        if (exportBtn) {
+            exportBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Export button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.showExportModal();
+            });
+        }
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Refresh button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.refreshCitations();
+            });
+        }
+        
+        this.actionListenersSet = true;
+        console.log('[Citation Manager] Action button listeners set up successfully');
+    }
+
     // Set up modal event listeners
     setupModalEventListeners() {
         // Citation modal events
-        const citationModal = document.getElementById('citation-modal');
+        const citationModal = document.getElementById('citation-modal-overlay');
         const saveCitationBtn = document.getElementById('save-citation-btn');
         const cancelCitationBtn = document.getElementById('cancel-citation-btn');
         const browseFileBtn = document.getElementById('browse-file-btn');
 
         if (saveCitationBtn) saveCitationBtn.addEventListener('click', () => this.saveCitation());
-        if (cancelCitationBtn) cancelCitationBtn.addEventListener('click', () => this.hideModal('citation-modal'));
+        if (cancelCitationBtn) cancelCitationBtn.addEventListener('click', () => this.hideModal('citation-modal-overlay'));
         if (browseFileBtn) browseFileBtn.addEventListener('click', () => this.browseFile());
 
         // Import modal events
@@ -143,6 +213,8 @@ class CitationManager {
 
     // Show the citations panel
     showCitationsPanel() {
+        console.log('[Citation Manager] showCitationsPanel called');
+        
         // Hide other panels
         const panels = ['file-tree-view', 'search-pane', 'statistics-pane', 'citations-pane'];
         panels.forEach(panelId => {
@@ -155,6 +227,9 @@ class CitationManager {
         const structureList = document.getElementById('structure-list');
         if (citationsPane) citationsPane.style.display = 'flex';
         if (structureList) structureList.style.display = 'none';
+
+        // Set up action button event listeners now that panel is visible
+        this.setupActionButtonListeners();
 
         // Update button states
         document.querySelectorAll('.pane-toggle-button').forEach(btn => {
@@ -414,9 +489,10 @@ class CitationManager {
 
     // Show add citation modal
     showAddCitationModal() {
+        console.log('[Citation Manager] showAddCitationModal called');
         this.currentEditingId = null;
         this.populateCitationForm();
-        this.showModal('citation-modal');
+        this.showModal('citation-modal-overlay');
     }
 
     // Show import modal
@@ -431,7 +507,7 @@ class CitationManager {
             if (result.success) {
                 this.currentEditingId = id;
                 this.populateCitationForm(result.citation);
-                this.showModal('citation-modal');
+                this.showModal('citation-modal-overlay');
             } else {
                 throw new Error(result.error);
             }
@@ -499,8 +575,11 @@ class CitationManager {
 
     // Show modal dialog
     showModal(modalId) {
+        console.log('[Citation Manager] showModal called with modalId:', modalId);
         const modal = document.getElementById(modalId);
+        console.log('[Citation Manager] Modal element found:', !!modal);
         if (modal) {
+            console.log('[Citation Manager] Making modal visible');
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
             
@@ -527,7 +606,7 @@ class CitationManager {
         if (!form) return;
 
         // Update modal title
-        const modalTitle = document.querySelector('#citation-modal .modal-title');
+        const modalTitle = document.querySelector('#citation-modal-overlay .modal-title');
         if (modalTitle) {
             modalTitle.textContent = citation ? 'Edit Citation' : 'Add Citation';
         }
@@ -615,7 +694,7 @@ class CitationManager {
             }
 
             if (result.success) {
-                this.hideModal('citation-modal');
+                this.hideModal('citation-modal-overlay');
                 this.showSuccess(this.currentEditingId ? 'Citation updated successfully' : 'Citation added successfully');
                 await this.refreshCitations();
             } else {
@@ -816,6 +895,7 @@ class CitationManager {
         try {
             const format = document.getElementById('export-format').value;
             const selection = document.querySelector('input[name="export-selection"]:checked').value;
+            const destination = document.querySelector('input[name="export-destination"]:checked').value;
             
             // Get citation IDs based on selection
             let citationIds = [];
@@ -837,23 +917,36 @@ class CitationManager {
                 return;
             }
 
-            // Export citations
-            const result = await window.electronAPI.invoke('citations-export', citationIds, format);
+            // Export citations based on destination
+            let result;
+            if (destination === 'project') {
+                // Save to project directory
+                result = await window.electronAPI.invoke('citations-export-to-file', citationIds, format);
+            } else {
+                // Download to browser
+                result = await window.electronAPI.invoke('citations-export', citationIds, format);
+            }
             
             if (result.success) {
-                // Create download
-                const blob = new Blob([result.content], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = result.filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                if (destination === 'project') {
+                    // File saved to project directory
+                    this.hideModal('export-modal');
+                    this.showSuccess(`Successfully saved ${citationIds.length} citations to ${result.filePath}`);
+                } else {
+                    // Create download
+                    const blob = new Blob([result.content], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = result.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
 
-                this.hideModal('export-modal');
-                this.showSuccess(`Successfully exported ${citationIds.length} citations`);
+                    this.hideModal('export-modal');
+                    this.showSuccess(`Successfully exported ${citationIds.length} citations`);
+                }
             } else {
                 throw new Error(result.error);
             }
@@ -873,8 +966,12 @@ window.citationManager = citationManager;
 // Auto-initialize when DOM is loaded
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('[Citation Manager] DOM loaded, ready to initialize');
+        console.log('[Citation Manager] DOM loaded, setting up event listeners');
+        citationManager.setupEventListeners();
     });
 } else {
-    console.log('[Citation Manager] DOM already loaded, ready to initialize');
+    console.log('[Citation Manager] DOM already loaded, setting up event listeners');
+    setTimeout(() => {
+        citationManager.setupEventListeners();
+    }, 100);
 }

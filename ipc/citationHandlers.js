@@ -601,6 +601,80 @@ function registerCitationHandlers(userDataPath) {
         }
     });
 
+    // Export citations to file in working directory
+    ipcMain.handle('citations-export-to-file', async (event, citationIds, format = 'bibtex') => {
+        try {
+            const fs = require('fs').promises;
+            const path = require('path');
+            
+            if (!citationService) await initializeCitationService(userDataPath);
+            
+            // Get citations
+            const citations = [];
+            for (const id of citationIds) {
+                const citation = await citationService.getCitationById(id);
+                if (citation) citations.push(citation);
+            }
+
+            if (citations.length === 0) {
+                return { success: false, error: 'No citations found to export' };
+            }
+
+            let content = '';
+            let filename = '';
+
+            switch (format.toLowerCase()) {
+                case 'bibtex':
+                    content = exportToBibTeX(citations);
+                    filename = 'citations.bib';
+                    break;
+                
+                case 'ris':
+                    content = exportToRIS(citations);
+                    filename = 'citations.ris';
+                    break;
+                
+                case 'csv':
+                    content = exportToCSV(citations);
+                    filename = 'citations.csv';
+                    break;
+                
+                case 'json':
+                    content = JSON.stringify(citations, null, 2);
+                    filename = 'citations.json';
+                    break;
+                
+                case 'apa':
+                    content = await exportToFormattedText(citations, 'APA', citationService);
+                    filename = 'citations_apa.txt';
+                    break;
+                
+                case 'mla':
+                    content = await exportToFormattedText(citations, 'MLA', citationService);
+                    filename = 'citations_mla.txt';
+                    break;
+                
+                case 'chicago':
+                    content = await exportToFormattedText(citations, 'Chicago', citationService);
+                    filename = 'citations_chicago.txt';
+                    break;
+                
+                default:
+                    return { success: false, error: `Export format '${format}' not supported` };
+            }
+            
+            // Save to current working directory
+            const filePath = path.join(process.cwd(), filename);
+            await fs.writeFile(filePath, content, 'utf8');
+            
+            console.log(`[Citation Handlers] Citations exported to ${filePath}`);
+            return { success: true, format, filename, filePath };
+        } catch (error) {
+            console.error('[Citation Handlers] Error exporting citations to file:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     // ===== STATISTICS =====
 
     // Get citation statistics

@@ -56,15 +56,26 @@ class ScholarSupport {
     }
 
     handleTextSelection(event) {
-        // Skip if click is in the sidebar or Citations panel
+        // Skip if click is in the sidebar, Citations panel, or any interactive elements
         if (event && event.target) {
             const clickedElement = event.target;
             const sidebar = document.getElementById('left-sidebar');
             const citationsPane = document.getElementById('citations-pane');
             
+            // Also check for specific interactive elements that should be ignored
+            const isButton = clickedElement.tagName === 'BUTTON' || clickedElement.closest('button');
+            const isInput = clickedElement.tagName === 'INPUT' || clickedElement.closest('input');
+            const isModal = clickedElement.closest('.modal-overlay');
+            
             if ((sidebar && sidebar.contains(clickedElement)) || 
-                (citationsPane && citationsPane.contains(clickedElement))) {
-                console.log('[Scholar Support] Click in sidebar/citations - skipping');
+                (citationsPane && citationsPane.contains(clickedElement)) ||
+                isButton || isInput || isModal) {
+                // Don't log for citation buttons to reduce console noise
+                if (citationsPane && citationsPane.contains(clickedElement)) {
+                    // Silent skip for citations area
+                } else {
+                    console.log('[Scholar Support] Click in sidebar/UI element - skipping');
+                }
                 this.hideHeadingButton();
                 return;
             }

@@ -1216,18 +1216,18 @@
                     <div class="form-row">
                         <div class="form-group" style="flex: 2;">
                             <label for="citation-title">Title *</label>
-                            <input type="text" id="citation-title" required placeholder="Enter the title">
+                            <input type="text" id="citation-title" name="title" required placeholder="Enter the title">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group" style="flex: 2;">
                             <label for="citation-authors">Authors</label>
-                            <input type="text" id="citation-authors" placeholder="Smith, J., & Doe, A.">
+                            <input type="text" id="citation-authors" name="authors" placeholder="Smith, J., & Doe, A.">
                         </div>
                         <div class="form-group">
                             <label for="citation-year">Year</label>
-                            <input type="number" id="citation-year" min="1000" max="2100" placeholder="2024">
+                            <input type="number" id="citation-year" name="year" min="1000" max="2100" placeholder="2024">
                         </div>
                     </div>
 
@@ -1235,39 +1235,39 @@
                     <div class="form-row">
                         <div class="form-group" style="flex: 2;">
                             <label for="citation-journal">Journal/Publisher</label>
-                            <input type="text" id="citation-journal" placeholder="Journal name or publisher">
+                            <input type="text" id="citation-journal" name="journal" placeholder="Journal name or publisher">
                         </div>
                         <div class="form-group">
                             <label for="citation-volume">Volume</label>
-                            <input type="text" id="citation-volume" placeholder="Vol">
+                            <input type="text" id="citation-volume" name="volume" placeholder="Vol">
                         </div>
                         <div class="form-group">
                             <label for="citation-issue">Issue</label>
-                            <input type="text" id="citation-issue" placeholder="No">
+                            <input type="text" id="citation-issue" name="issue" placeholder="No">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="citation-pages">Pages</label>
-                            <input type="text" id="citation-pages" placeholder="1-10">
+                            <input type="text" id="citation-pages" name="pages" placeholder="1-10">
                         </div>
                         <div class="form-group" style="flex: 2;">
                             <label for="citation-doi">DOI</label>
-                            <input type="text" id="citation-doi" placeholder="10.1000/example">
+                            <input type="text" id="citation-doi" name="doi" placeholder="10.1000/example">
                         </div>
                     </div>
 
                     <!-- URLs and Files -->
                     <div class="form-group">
                         <label for="citation-url">URL</label>
-                        <input type="url" id="citation-url" placeholder="https://example.com">
+                        <input type="url" id="citation-url" name="url" placeholder="https://example.com">
                     </div>
 
                     <div class="form-group">
                         <label for="citation-file-path">Local File Path</label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="citation-file-path" placeholder="Path to local file" style="flex: 1;">
+                            <input type="text" id="citation-file-path" name="file_path" placeholder="Path to local file" style="flex: 1;">
                             <button type="button" onclick="citationManager.selectFile()" class="btn">Browse</button>
                         </div>
                     </div>
@@ -1275,17 +1275,17 @@
                     <!-- Abstract and Notes -->
                     <div class="form-group">
                         <label for="citation-abstract">Abstract</label>
-                        <textarea id="citation-abstract" rows="3" placeholder="Enter abstract (optional)"></textarea>
+                        <textarea id="citation-abstract" name="abstract" rows="3" placeholder="Enter abstract (optional)"></textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="citation-notes">Personal Notes</label>
-                        <textarea id="citation-notes" rows="3" placeholder="Your notes about this citation"></textarea>
+                        <textarea id="citation-notes" name="notes" rows="3" placeholder="Your notes about this citation"></textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="citation-tags">Tags</label>
-                        <input type="text" id="citation-tags" placeholder="philosophy, AI, technology (comma-separated)">
+                        <input type="text" id="citation-tags" name="tags" placeholder="philosophy, AI, technology (comma-separated)">
                     </div>
 
                     <!-- Projects -->
@@ -1410,6 +1410,21 @@
                     </div>
                     <small style="color: #666; margin-top: 4px; display: block;">
                         Note: "Selected citations" feature coming soon. Currently exports all or filtered citations.
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label>Export Destination</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="radio" name="export-destination" value="download" checked> Download to Browser
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="radio" name="export-destination" value="project"> Save to Project Directory
+                        </label>
+                    </div>
+                    <small style="color: #666; margin-top: 4px; display: block;">
+                        Project directory saves will be placed in your current working directory.
                     </small>
                 </div>
 

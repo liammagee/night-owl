@@ -2670,6 +2670,7 @@ app.whenReady().then(() => {
     aiService,
     getCurrentFilePath: () => currentFilePath,
     currentWorkingDirectory,
+    userDataPath: app.getPath('userData'),
     setCurrentFilePath: (path) => { 
       currentFilePath = path; 
       appSettings.currentFile = path; 
