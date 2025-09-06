@@ -56,11 +56,22 @@ class ScholarSupport {
     }
 
     handleTextSelection(event) {
-        console.log('[Scholar Support] Text selection event triggered');
+        // Skip if click is in the sidebar or Citations panel
+        if (event && event.target) {
+            const clickedElement = event.target;
+            const sidebar = document.getElementById('left-sidebar');
+            const citationsPane = document.getElementById('citations-pane');
+            
+            if ((sidebar && sidebar.contains(clickedElement)) || 
+                (citationsPane && citationsPane.contains(clickedElement))) {
+                console.log('[Scholar Support] Click in sidebar/citations - skipping');
+                this.hideHeadingButton();
+                return;
+            }
+        }
         
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed) {
-            console.log('[Scholar Support] No selection or collapsed selection');
             this.hideHeadingButton();
             return;
         }
