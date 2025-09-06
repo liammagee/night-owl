@@ -1095,6 +1095,7 @@
                     <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
                     <button id="show-search-btn" class="btn pane-toggle-button" title="Global Search">Search</button>
                     <button id="show-stats-btn" class="btn pane-toggle-button" title="Presentation Statistics">Stats</button>
+                    <button id="show-citations-btn" class="btn pane-toggle-button" title="Citation Manager">📚 Citations</button>
                 </div>
                 <!-- Tag search interface (only visible in Files view) -->
                 <div id="tag-search-section" style="display: none; margin-top: 4px;">
@@ -1170,6 +1171,58 @@
                         <p style="color: #666; text-align: center; padding: 20px;">
                             Load a presentation to see statistics.
                         </p>
+                    </div>
+                </div>
+                <div id="citations-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
+                    <!-- Citations Panel -->
+                    <div class="citations-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #007bff;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <h3 style="margin: 0; color: #007bff; font-size: 16px;">📚 Citations</h3>
+                            <div id="citations-stats" style="font-size: 11px; color: #666; padding: 2px 6px; background: #f8f9fa; border-radius: 4px;">
+                                <!-- Citation count will be shown here -->
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button id="add-citation-btn" class="btn" style="padding: 4px 8px; font-size: 11px; background: #28a745; color: white;" title="Add New Citation">+ Add</button>
+                            <button id="import-citation-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Import Citation">📥 Import</button>
+                            <button id="refresh-citations-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Refresh Citations">🔄</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Search and Filter -->
+                    <div class="citations-search" style="margin-bottom: 12px;">
+                        <input type="text" id="citations-search-input" placeholder="Search citations by title, author, or tags..." 
+                               style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                        <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+                            <select id="citations-type-filter" style="padding: 2px 4px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px;">
+                                <option value="">All Types</option>
+                                <option value="article">Articles</option>
+                                <option value="book">Books</option>
+                                <option value="webpage">Web Pages</option>
+                                <option value="report">Reports</option>
+                                <option value="thesis">Thesis</option>
+                            </select>
+                            <select id="citations-project-filter" style="padding: 2px 4px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px;">
+                                <option value="">All Projects</option>
+                                <!-- Projects will be populated here -->
+                            </select>
+                            <button id="clear-citation-filters" class="btn" style="padding: 2px 6px; font-size: 10px;" title="Clear Filters">✕</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Citations List -->
+                    <div id="citations-content" style="flex: 1; overflow-y: auto;">
+                        <div id="citations-loading" style="text-align: center; padding: 20px; color: #666; display: none;">
+                            Loading citations...
+                        </div>
+                        <div id="citations-empty" style="text-align: center; padding: 20px; color: #666;">
+                            <div style="font-size: 24px; margin-bottom: 8px;">📚</div>
+                            <div>No citations yet</div>
+                            <div style="font-size: 11px; margin-top: 4px;">Click "Add" to create your first citation</div>
+                        </div>
+                        <div id="citations-list" style="display: none;">
+                            <!-- Citations will be populated here -->
+                        </div>
                     </div>
                 </div>
                 <!-- TEMP DEBUG: Test button -->
@@ -1683,6 +1736,7 @@
     <!-- Load JavaScript modules -->
     <script src="services/ttsService.js" defer></script>
     <script src="services/videoRecordingService.js" defer></script>
+    <script src="orchestrator/modules/citationManager.js" defer></script>
     <script src="js/speaker-notes.js" defer></script>
     <script src="js/mode-switcher.js" defer></script>  
     <script src="js/network-visualization.js" defer></script>

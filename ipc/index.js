@@ -13,6 +13,7 @@ const searchHandlers = require('./searchHandlers');
 const contextMenuHandlers = require('./contextMenuHandlers');
 const ttsHandlers = require('./ttsHandlers');
 const videoHandlers = require('./videoHandlers');
+const citationHandlers = require('./citationHandlers');
 
 /**
  * Register all IPC handlers
@@ -58,6 +59,13 @@ function registerAllHandlers(dependencies) {
       console.error('[IPC] Error registering video handlers:', error);
     }
     
+    try {
+      citationHandlers.registerCitationHandlers(dependencies.userDataPath);
+      console.log('[IPC] Citation handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering citation handlers:', error);
+    }
+    
     console.log('[IPC] All IPC handlers registered successfully');
   } catch (error) {
     console.error('[IPC] Error registering handlers:', error);
@@ -74,7 +82,20 @@ function getHandlerCount() {
   return eventNames.length;
 }
 
+/**
+ * Cleanup handlers on app quit
+ */
+function cleanupHandlers() {
+  try {
+    citationHandlers.cleanupCitationService();
+    console.log('[IPC] Handlers cleaned up successfully');
+  } catch (error) {
+    console.error('[IPC] Error cleaning up handlers:', error);
+  }
+}
+
 module.exports = {
   registerAllHandlers,
-  getHandlerCount
+  getHandlerCount,
+  cleanupHandlers
 };
