@@ -703,6 +703,47 @@ function registerCitationHandlers(userDataPath) {
         }
     });
 
+    // Export citations to Zotero
+    ipcMain.handle('citations-export-to-zotero', async (event, citationIds, apiKey, userID, collectionID = null) => {
+        try {
+            if (!citationService) await initializeCitationService(userDataPath);
+            const result = await citationService.exportToZotero(citationIds, apiKey, userID, collectionID);
+            return result;
+        } catch (error) {
+            console.error('[Citation Handlers] Error exporting to Zotero:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Live sync with Zotero (bidirectional)
+    ipcMain.handle('citations-zotero-live-sync', async (event, apiKey, userID, collectionID = null) => {
+        try {
+            if (!citationService) await initializeCitationService(userDataPath);
+            
+            // Get last sync time
+            const lastSyncTime = await citationService.getLastSyncTime();
+            
+            // Perform live sync
+            const result = await citationService.liveSyncWithZotero(apiKey, userID, collectionID, lastSyncTime);
+            return result;
+        } catch (error) {
+            console.error('[Citation Handlers] Error with live sync:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Get last sync time
+    ipcMain.handle('citations-get-last-sync-time', async (event) => {
+        try {
+            if (!citationService) await initializeCitationService(userDataPath);
+            const lastSyncTime = await citationService.getLastSyncTime();
+            return { success: true, lastSyncTime };
+        } catch (error) {
+            console.error('[Citation Handlers] Error getting last sync time:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     console.log('[Citation Handlers] Citation IPC handlers registered successfully');
 }
 

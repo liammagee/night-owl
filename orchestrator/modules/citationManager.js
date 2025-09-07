@@ -31,6 +31,9 @@ class CitationManager {
             await this.refreshCitations();
             await this.loadProjects();
             
+            // Set up responsive button monitoring
+            this.setupResponsiveButtons();
+            
             this.isInitialized = true;
             console.log('[Citation Manager] Initialized successfully');
             
@@ -101,11 +104,16 @@ class CitationManager {
         const addBtn = document.getElementById('add-citation-btn');
         const importBtn = document.getElementById('import-citation-btn');
         const exportBtn = document.getElementById('export-citations-btn');
+        const selectAllBtn = document.getElementById('select-all-citations-btn');
+        const exportToZoteroBtn = document.getElementById('export-to-zotero-btn');
+        const liveSyncZoteroBtn = document.getElementById('live-sync-zotero-btn');
         const refreshBtn = document.getElementById('refresh-citations-btn');
         
         console.log('[Citation Manager] Add button found:', !!addBtn);
         console.log('[Citation Manager] Import button found:', !!importBtn);
         console.log('[Citation Manager] Export button found:', !!exportBtn);
+        console.log('[Citation Manager] Export to Zotero button found:', !!exportToZoteroBtn);
+        console.log('[Citation Manager] Live Sync Zotero button found:', !!liveSyncZoteroBtn);
         console.log('[Citation Manager] Refresh button found:', !!refreshBtn);
         
         if (addBtn) {
@@ -132,6 +140,30 @@ class CitationManager {
                 e.preventDefault();
                 e.stopPropagation();
                 this.showExportModal();
+            });
+        }
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Select All button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleSelectAll();
+            });
+        }
+        if (exportToZoteroBtn) {
+            exportToZoteroBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Export to Zotero button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.exportToZotero();
+            });
+        }
+        if (liveSyncZoteroBtn) {
+            liveSyncZoteroBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Live Sync Zotero button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.liveSyncWithZotero();
             });
         }
         if (refreshBtn) {
@@ -261,6 +293,12 @@ class CitationManager {
         // Update title
         const title = document.getElementById('structure-pane-title');
         if (title) title.textContent = 'Citations';
+
+        // Hide file tree specific buttons
+        const changeDirBtn = document.getElementById('change-directory-btn');
+        const newFolderBtn = document.getElementById('new-folder-btn');
+        if (changeDirBtn) changeDirBtn.style.display = 'none';
+        if (newFolderBtn) newFolderBtn.style.display = 'none';
 
         // Initialize if not already done
         if (!this.isInitialized) {
@@ -398,6 +436,9 @@ class CitationManager {
         
         div.innerHTML = `
             <div style="display: flex; justify-content: between; align-items: flex-start; gap: 8px;">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                    <input type="checkbox" class="citation-checkbox" value="${citation.id}" style="margin-top: 2px;">
+                </div>
                 <div style="flex: 1;">
                     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
                         <span style="font-size: 14px;">${typeIcon}</span>
@@ -479,14 +520,37 @@ class CitationManager {
     }
 
     // Show loading state
-    showLoading() {
+    showLoading(message = 'Loading...') {
         const loadingState = document.getElementById('citations-loading');
         const emptyState = document.getElementById('citations-empty');
         const listState = document.getElementById('citations-list');
         
-        if (loadingState) loadingState.style.display = 'block';
+        if (loadingState) {
+            loadingState.style.display = 'block';
+            // Update loading message if provided
+            const loadingText = loadingState.querySelector('div');
+            if (loadingText && message) {
+                loadingText.textContent = message;
+            }
+        }
         if (emptyState) emptyState.style.display = 'none';
         if (listState) listState.style.display = 'none';
+    }
+
+    // Hide loading state
+    hideLoading() {
+        const loadingState = document.getElementById('citations-loading');
+        const emptyState = document.getElementById('citations-empty');
+        const listState = document.getElementById('citations-list');
+        
+        if (loadingState) loadingState.style.display = 'none';
+        
+        // Restore appropriate state based on data
+        if (this.citations && this.citations.length > 0) {
+            if (listState) listState.style.display = 'block';
+        } else {
+            if (emptyState) emptyState.style.display = 'block';
+        }
     }
 
     // Show error message
@@ -858,6 +922,121 @@ class CitationManager {
         }
     }
 
+    // Export selected citations to Zotero
+    async exportToZotero() {
+        try {
+            // Get selected citations
+            const selectedIds = this.getSelectedCitationIds();
+            if (selectedIds.length === 0) {
+                this.showError('Please select citations to export to Zotero');
+                return;
+            }
+
+            // Get Zotero credentials
+            const apiKey = localStorage.getItem('zotero-api-key');
+            const userId = localStorage.getItem('zotero-user-id');
+            const collectionId = localStorage.getItem('zotero-collection-id');
+
+            if (!apiKey || !userId) {
+                this.showError('Please configure your Zotero API credentials first');
+                this.showZoteroConfig();
+                return;
+            }
+
+            this.showLoading(`Exporting ${selectedIds.length} citations to Zotero...`);
+
+            const result = await window.electronAPI.invoke('citations-export-to-zotero', selectedIds, apiKey, userId, collectionId);
+            
+            if (result.success) {
+                this.hideLoading();
+                const message = `Successfully exported ${result.exportedCount} of ${result.totalRequested} citations to Zotero`;
+                if (result.errors && result.errors.length > 0) {
+                    console.warn('[Citation Manager] Export errors:', result.errors);
+                    this.showSuccess(message + ` (${result.errors.length} failed)`);
+                } else {
+                    this.showSuccess(message);
+                }
+            } else {
+                this.hideLoading();
+                this.showError('Export to Zotero failed: ' + result.error);
+            }
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('[Citation Manager] Error exporting to Zotero:', error);
+            this.showError('Export to Zotero failed: ' + error.message);
+        }
+    }
+
+    // Live sync with Zotero (bidirectional)
+    async liveSyncWithZotero() {
+        try {
+            // Get Zotero credentials
+            const apiKey = localStorage.getItem('zotero-api-key');
+            const userId = localStorage.getItem('zotero-user-id');
+            const collectionId = localStorage.getItem('zotero-collection-id');
+
+            if (!apiKey || !userId) {
+                this.showError('Please configure your Zotero API credentials first');
+                this.showZoteroConfig();
+                return;
+            }
+
+            this.showLoading('Performing live sync with Zotero...');
+
+            const result = await window.electronAPI.invoke('citations-zotero-live-sync', apiKey, userId, collectionId);
+            
+            if (result.success) {
+                this.hideLoading();
+                const messages = [];
+                if (result.importedFromZotero > 0) {
+                    messages.push(`Imported ${result.importedFromZotero} citations from Zotero`);
+                }
+                if (result.exportedToZotero > 0) {
+                    messages.push(`Exported ${result.exportedToZotero} citations to Zotero`);
+                }
+                
+                if (messages.length === 0) {
+                    this.showSuccess('Live sync completed - no changes detected');
+                } else {
+                    this.showSuccess('Live sync completed: ' + messages.join(', '));
+                }
+                
+                // Refresh citations to show any imported items
+                await this.refreshCitations();
+            } else {
+                this.hideLoading();
+                this.showError('Live sync failed: ' + result.error);
+            }
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('[Citation Manager] Error with live sync:', error);
+            this.showError('Live sync failed: ' + error.message);
+        }
+    }
+
+    // Get IDs of selected citations
+    getSelectedCitationIds() {
+        const checkboxes = document.querySelectorAll('.citation-checkbox:checked');
+        return Array.from(checkboxes).map(cb => parseInt(cb.value));
+    }
+
+    // Toggle select/deselect all citations
+    toggleSelectAll() {
+        const checkboxes = document.querySelectorAll('.citation-checkbox');
+        const checkedBoxes = document.querySelectorAll('.citation-checkbox:checked');
+        
+        // If all are selected, deselect all; otherwise select all
+        const shouldSelectAll = checkedBoxes.length !== checkboxes.length;
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = shouldSelectAll;
+        });
+        
+        console.log(`[Citation Manager] ${shouldSelectAll ? 'Selected' : 'Deselected'} all citations`);
+    }
+
     // Sync with Zotero
     async syncWithZotero() {
         try {
@@ -1028,6 +1207,53 @@ class CitationManager {
         } catch (error) {
             console.error('[Citation Manager] Error downloading export:', error);
             this.showError('Failed to download export: ' + error.message);
+        }
+    }
+
+    // ===== RESPONSIVE BUTTON FUNCTIONALITY =====
+
+    // Set up responsive button behavior - only show labels when sidebar is wide
+    setupResponsiveButtons() {
+        console.log('[Citation Manager] Setting up responsive button monitoring...');
+        
+        const citationsPanel = document.getElementById('citations-pane');
+        const leftSidebar = document.getElementById('left-sidebar');
+        
+        if (!citationsPanel || !leftSidebar) {
+            console.log('[Citation Manager] Required elements not found for responsive buttons');
+            return;
+        }
+
+        // Function to update button style - only add labels when significantly wider
+        const updateButtonStyle = () => {
+            const sidebarWidth = leftSidebar.offsetWidth;
+            
+            // Only show labels when sidebar is widened beyond 350px
+            if (sidebarWidth > 350) {
+                if (!citationsPanel.classList.contains('sidebar-wide')) {
+                    citationsPanel.classList.add('sidebar-wide');
+                    console.log('[Citation Manager] Sidebar widened - showing button labels');
+                }
+            } else {
+                if (citationsPanel.classList.contains('sidebar-wide')) {
+                    citationsPanel.classList.remove('sidebar-wide');
+                    console.log('[Citation Manager] Sidebar narrowed - hiding button labels');
+                }
+            }
+        };
+
+        // Initial check
+        updateButtonStyle();
+
+        // Monitor for sidebar resize using ResizeObserver
+        if (window.ResizeObserver) {
+            const resizeObserver = new ResizeObserver(() => {
+                updateButtonStyle();
+            });
+            resizeObserver.observe(leftSidebar);
+        } else {
+            // Fallback for older browsers
+            setInterval(updateButtonStyle, 1000);
         }
     }
 }

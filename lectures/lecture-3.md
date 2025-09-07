@@ -16,7 +16,7 @@
 ```notes
 Hegel's account of recognition and the associated story of the Master-Servant relationship (sometimes also Master/Slave or Lord/Bondsman) is his most famous contribution to philosophy.
 
-It serves as inspiration to Marx's (still more) famous account of the relationship between capitalist and worker. It describes, in a different way, the relationship between the Superego and the Ego (and perhaps also the Id and the Ego) in Freud's psychoanalytic treatment. And of course it is the inspiration for a million stories of the downtrodden overcoming of oppression and adversity. 
+It serves as inspiration to Marx's (still more) famous account of the relationship between capitalist and worker. It describes, in a different way, the relationship between the *Superego* and the *Ego* (and perhaps also the Id and the Ego) in Freud's psychoanalytic treatment. And of course it is the inspiration for a million stories of the downtrodden overcoming of oppression and adversity. 
 
 In our discussion we will consider it as a useful background to thinking about the relationship between human and machine. One clue to the importance of Hegel's account for technology lies in the origin of the word 'robot': a Czech word meaning 'forced labor/drudgery', coined in Karel Čapek's 1920 play, "Rossum's Universal Robots".
 

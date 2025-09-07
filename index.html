@@ -1171,6 +1171,43 @@
         body.dark-mode .import-option h4 {
             color: #22c55e;
         }
+
+        /* Citation Buttons - Default compact layout */
+        .citation-btn-container {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .citation-btn {
+            padding: 3px 6px;
+            font-size: 12px;
+            min-width: 28px;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+        
+        .citation-btn .btn-label {
+            display: none;
+            margin-left: 4px;
+        }
+        
+        /* Show labels only when sidebar is wide enough */
+        .citations-panel.sidebar-wide .citation-btn {
+            padding: 4px 8px;
+            min-width: auto;
+        }
+        
+        .citations-panel.sidebar-wide .citation-btn .btn-label {
+            display: inline;
+        }
+        
+        .citation-separator {
+            border-left: 1px solid #ddd;
+            height: 18px;
+            margin: 0 3px;
+        }
     </style>
 </head>
 <body>
@@ -1446,12 +1483,12 @@
         <!-- Left Sidebar (Always visible) -->
         <div id="left-sidebar">
             <div id="structure-pane-header">
-                <div class="toggle-buttons structure-toggle-buttons">
-                    <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree">Files</button>
-                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure">Structure</button>
-                    <button id="show-search-btn" class="btn pane-toggle-button" title="Global Search">Search</button>
-                    <button id="show-stats-btn" class="btn pane-toggle-button" title="Presentation Statistics">Stats</button>
-                    <button id="show-citations-btn" class="btn pane-toggle-button" title="Citation Manager">📚 Citations</button>
+                <div class="toggle-buttons structure-toggle-buttons" style="display: flex; gap: 2px; overflow: hidden;">
+                    <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📁</button>
+                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">🏗️</button>
+                    <button id="show-search-btn" class="btn pane-toggle-button" title="Global Search" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">🔍</button>
+                    <button id="show-stats-btn" class="btn pane-toggle-button" title="Presentation Statistics" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📊</button>
+                    <button id="show-citations-btn" class="btn pane-toggle-button" title="Citation Manager" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📚</button>
                 </div>
                 <!-- Tag search interface (only visible in Files view) -->
                 <div id="tag-search-section" style="display: none; margin-top: 4px;">
@@ -1529,7 +1566,7 @@
                         </p>
                     </div>
                 </div>
-                <div id="citations-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
+                <div id="citations-pane" class="content-pane citations-panel" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
                     <!-- Citations Panel -->
                     <div class="citations-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #007bff;">
                         <div style="display: flex; align-items: center; gap: 12px;">
@@ -1538,11 +1575,34 @@
                                 <!-- Citation count will be shown here -->
                             </div>
                         </div>
-                        <div style="display: flex; gap: 6px; align-items: center;">
-                            <button id="add-citation-btn" class="btn" style="padding: 4px 8px; font-size: 11px; background: #28a745; color: white;" title="Add New Citation">+ Add</button>
-                            <button id="import-citation-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Import Citation">📥 Import</button>
-                            <button id="export-citations-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Export Citations">📤 Export</button>
-                            <button id="refresh-citations-btn" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Refresh Citations">🔄</button>
+                        <div class="citation-btn-container">
+                            <!-- Primary Actions -->
+                            <button id="add-citation-btn" class="btn citation-btn" style="background: #28a745; color: white;" title="Add New Citation">
+                                <span class="btn-icon">➕</span><span class="btn-label">Add</span>
+                            </button>
+                            <button id="import-citation-btn" class="btn citation-btn" title="Import Citation">
+                                <span class="btn-icon">📥</span><span class="btn-label">Import</span>
+                            </button>
+                            <button id="export-citations-btn" class="btn citation-btn" title="Export Citations">
+                                <span class="btn-icon">📤</span><span class="btn-label">Export</span>
+                            </button>
+                            <div class="citation-separator"></div>
+                            <!-- Selection -->
+                            <button id="select-all-citations-btn" class="btn citation-btn" title="Select/Deselect All">
+                                <span class="btn-icon">☑️</span><span class="btn-label">Select All</span>
+                            </button>
+                            <!-- Zotero Actions -->
+                            <button id="export-to-zotero-btn" class="btn citation-btn" style="background: #dc3545; color: white;" title="Export Selected to Zotero">
+                                <span class="btn-icon">📚</span><span class="btn-label">To Zotero</span>
+                            </button>
+                            <button id="live-sync-zotero-btn" class="btn citation-btn" style="background: #17a2b8; color: white;" title="Live Sync with Zotero">
+                                <span class="btn-icon">🔄</span><span class="btn-label">Live Sync</span>
+                            </button>
+                            <div class="citation-separator"></div>
+                            <!-- Utility -->
+                            <button id="refresh-citations-btn" class="btn citation-btn" title="Refresh Citations">
+                                <span class="btn-icon">🔃</span><span class="btn-label">Refresh</span>
+                            </button>
                         </div>
                     </div>
                     

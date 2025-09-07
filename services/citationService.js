@@ -600,6 +600,273 @@ class CitationService {
         });
     }
 
+    // Export citations to Zotero
+    async exportToZotero(citationIds, zoteroAPIKey, userID, collectionID = null) {
+        console.log('[Citation Service] Starting export to Zotero...', { citationIds, collectionID });
+        
+        try {
+            const axios = require('axios');
+            const citations = await this.getCitations({ ids: citationIds });
+            
+            if (!citations || citations.length === 0) {
+                throw new Error('No citations found to export');
+            }
+
+            let exportedCount = 0;
+            const errors = [];
+
+            for (const citation of citations) {
+                try {
+                    const zoteroItem = this.convertToZoteroFormat(citation);
+                    
+                    // Create item in Zotero
+                    let apiUrl = `https://api.zotero.org/users/${userID}/items`;
+                    const response = await axios.post(apiUrl, [zoteroItem], {
+                        headers: {
+                            'Authorization': `Bearer ${zoteroAPIKey}`,
+                            'Content-Type': 'application/json',
+                            'Zotero-API-Version': '3'
+                        },
+                        timeout: 30000
+                    });
+
+                    // If successful and collection specified, add to collection
+                    if (response.status === 200 && collectionID) {
+                        const createdItemKey = response.data.successful[0].key;
+                        await this.addItemToZoteroCollection(createdItemKey, collectionID, zoteroAPIKey, userID);
+                    }
+
+                    exportedCount++;
+                    console.log(`[Citation Service] Exported citation: ${citation.title}`);
+
+                } catch (error) {
+                    console.error(`[Citation Service] Failed to export citation "${citation.title}":`, error.message);
+                    errors.push({ title: citation.title, error: error.message });
+                }
+            }
+
+            return {
+                success: true,
+                exportedCount,
+                totalRequested: citations.length,
+                errors
+            };
+
+        } catch (error) {
+            console.error('[Citation Service] Export to Zotero failed:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    // Add item to Zotero collection
+    async addItemToZoteroCollection(itemKey, collectionID, zoteroAPIKey, userID) {
+        const axios = require('axios');
+        const apiUrl = `https://api.zotero.org/users/${userID}/collections/${collectionID}/items`;
+        
+        await axios.patch(apiUrl, {
+            items: [itemKey]
+        }, {
+            headers: {
+                'Authorization': `Bearer ${zoteroAPIKey}`,
+                'Content-Type': 'application/json',
+                'Zotero-API-Version': '3'
+            }
+        });
+    }
+
+    // Convert our citation format to Zotero item format
+    convertToZoteroFormat(citation) {
+        const creators = [];
+        
+        // Parse authors
+        if (citation.authors) {
+            const authorList = citation.authors.split(',').map(a => a.trim());
+            authorList.forEach(author => {
+                const parts = author.split(' ');
+                if (parts.length >= 2) {
+                    creators.push({
+                        creatorType: 'author',
+                        firstName: parts.slice(0, -1).join(' '),
+                        lastName: parts[parts.length - 1]
+                    });
+                } else {
+                    creators.push({
+                        creatorType: 'author',
+                        name: author
+                    });
+                }
+            });
+        }
+
+        const zoteroItem = {
+            itemType: this.mapCitationTypeToZotero(citation.citation_type) || 'journalArticle',
+            title: citation.title || '',
+            creators,
+            abstractNote: citation.abstract || '',
+            publicationTitle: citation.journal || '',
+            volume: citation.volume || '',
+            issue: citation.issue || '',
+            pages: citation.pages || '',
+            date: citation.publication_date || citation.publication_year || '',
+            DOI: citation.doi || '',
+            url: citation.url || '',
+            extra: citation.notes || '',
+            publisher: citation.publisher || ''
+        };
+
+        // Remove empty fields
+        Object.keys(zoteroItem).forEach(key => {
+            if (zoteroItem[key] === '' || zoteroItem[key] === null) {
+                delete zoteroItem[key];
+            }
+        });
+
+        return zoteroItem;
+    }
+
+    // Map our citation types to Zotero item types
+    mapCitationTypeToZotero(citationType) {
+        const typeMap = {
+            'journal': 'journalArticle',
+            'book': 'book',
+            'chapter': 'bookSection',
+            'conference': 'conferencePaper',
+            'thesis': 'thesis',
+            'website': 'webpage',
+            'report': 'report',
+            'other': 'document'
+        };
+        return typeMap[citationType] || 'journalArticle';
+    }
+
+    // Live sync with Zotero - compare timestamps and sync changes both ways
+    async liveSyncWithZotero(zoteroAPIKey, userID, collectionID = null, lastSyncTime = null) {
+        console.log('[Citation Service] Starting live sync with Zotero...');
+        
+        try {
+            const syncResults = {
+                importedFromZotero: 0,
+                exportedToZotero: 0,
+                conflicts: [],
+                errors: []
+            };
+
+            // Step 1: Import from Zotero (items modified since last sync)
+            const zoteroSyncResult = await this.syncWithZotero(zoteroAPIKey, userID, collectionID, lastSyncTime);
+            if (zoteroSyncResult.success) {
+                syncResults.importedFromZotero = zoteroSyncResult.syncedCount || 0;
+            }
+
+            // Step 2: Export local changes to Zotero
+            const localChanges = await this.getLocalChangesAfter(lastSyncTime);
+            if (localChanges.length > 0) {
+                const exportResult = await this.exportToZotero(
+                    localChanges.map(c => c.id), 
+                    zoteroAPIKey, 
+                    userID, 
+                    collectionID
+                );
+                if (exportResult.success) {
+                    syncResults.exportedToZotero = exportResult.exportedCount;
+                    syncResults.errors = exportResult.errors;
+                }
+            }
+
+            // Update last sync timestamp
+            const currentTime = new Date().toISOString();
+            await this.updateLastSyncTime(currentTime);
+
+            return {
+                success: true,
+                ...syncResults,
+                lastSyncTime: currentTime
+            };
+
+        } catch (error) {
+            console.error('[Citation Service] Live sync failed:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    // Get local changes after a specific timestamp
+    async getLocalChangesAfter(timestamp) {
+        return new Promise((resolve, reject) => {
+            if (!timestamp) {
+                // If no timestamp, return empty (don't export everything on first sync)
+                resolve([]);
+                return;
+            }
+
+            const sql = `
+                SELECT * FROM citations 
+                WHERE updated_at > ? 
+                ORDER BY updated_at DESC
+            `;
+            
+            this.db.all(sql, [timestamp], (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+    }
+
+    // Update last sync timestamp in database
+    async updateLastSyncTime(timestamp) {
+        return new Promise((resolve, reject) => {
+            // Create a simple key-value table for storing sync metadata
+            const createSyncTable = `
+                CREATE TABLE IF NOT EXISTS sync_metadata (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            `;
+            
+            this.db.run(createSyncTable, (err) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                
+                const updateSql = `
+                    INSERT OR REPLACE INTO sync_metadata (key, value, updated_at) 
+                    VALUES (?, ?, datetime('now'))
+                `;
+                
+                this.db.run(updateSql, ['last_zotero_sync', timestamp], (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        });
+    }
+
+    // Get last sync timestamp
+    async getLastSyncTime() {
+        return new Promise((resolve) => {
+            const sql = `SELECT value FROM sync_metadata WHERE key = ?`;
+            this.db.get(sql, ['last_zotero_sync'], (err, row) => {
+                if (err || !row) {
+                    resolve(null);
+                } else {
+                    resolve(row.value);
+                }
+            });
+        });
+    }
+
     // Close database connection
     close() {
         if (this.db) {
