@@ -1310,7 +1310,7 @@
         <div class="modal-dialog" style="width: 500px;">
             <div class="modal-header">
                 <h3>Import Citation</h3>
-                <button class="modal-close" onclick="citationManager.closeImportModal()">×</button>
+                <button class="modal-close" onclick="citationManager.hideModal('import-modal-overlay')">×</button>
             </div>
             <div class="modal-body">
                 <div class="import-options">
@@ -1335,7 +1335,7 @@
                     <div class="import-option" style="margin-top: 20px;">
                         <h4>From Zotero</h4>
                         <p>Sync citations from your Zotero library</p>
-                        <button onclick="citationManager.showZoteroSync()" class="btn btn-primary">Configure Zotero</button>
+                        <button onclick="citationManager.showZoteroConfig()" class="btn btn-primary">Configure Zotero</button>
                     </div>
                 </div>
             </div>
@@ -1347,7 +1347,7 @@
         <div class="modal-dialog" style="width: 500px;">
             <div class="modal-header">
                 <h3>Zotero Configuration</h3>
-                <button class="modal-close" onclick="citationManager.closeZoteroModal()">×</button>
+                <button class="modal-close" onclick="citationManager.hideModal('zotero-modal-overlay')">×</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -1368,8 +1368,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" onclick="citationManager.closeZoteroModal()" class="btn">Cancel</button>
-                <button type="button" onclick="citationManager.syncZotero()" class="btn btn-primary">Sync Now</button>
+                <button type="button" onclick="citationManager.hideModal('zotero-modal-overlay')" class="btn">Cancel</button>
+                <button type="button" onclick="citationManager.syncWithZotero()" class="btn btn-primary">Sync Now</button>
             </div>
         </div>
     </div>

@@ -44,17 +44,12 @@ class CitationManager {
     setupEventListeners() {
         console.log('[Citation Manager] Setting up event listeners...');
         
-        // Prevent duplicate listener registration
-        if (this.eventListenersSet) {
-            console.log('[Citation Manager] Event listeners already set, skipping');
-            return;
-        }
-        
         // Tab button
         const showCitationsBtn = document.getElementById('show-citations-btn');
         console.log('[Citation Manager] Show Citations Button found:', !!showCitationsBtn);
         
-        if (showCitationsBtn) {
+        // Only set up the main Citations button if it exists and doesn't already have our listener
+        if (showCitationsBtn && !showCitationsBtn.hasAttribute('data-citation-listener')) {
             console.log('[Citation Manager] Adding click listener to Citations button');
             showCitationsBtn.addEventListener('click', (e) => {
                 console.log('[Citation Manager] Citations button clicked!');
@@ -62,6 +57,13 @@ class CitationManager {
                 e.stopPropagation();
                 this.showCitationsPanel();
             });
+            showCitationsBtn.setAttribute('data-citation-listener', 'true');
+        }
+        
+        // Prevent duplicate listener registration for other elements
+        if (this.eventListenersSet) {
+            console.log('[Citation Manager] Other event listeners already set, skipping');
+            return;
         }
         
         this.eventListenersSet = true;
@@ -158,7 +160,7 @@ class CitationManager {
         if (browseFileBtn) browseFileBtn.addEventListener('click', () => this.browseFile());
 
         // Import modal events
-        const importModal = document.getElementById('import-modal');
+        const importModal = document.getElementById('import-modal-overlay');
         const importUrlBtn = document.getElementById('import-url-btn');
         const importDoiBtn = document.getElementById('import-doi-btn');
         const importZoteroBtn = document.getElementById('import-zotero-btn');
@@ -167,16 +169,16 @@ class CitationManager {
         if (importUrlBtn) importUrlBtn.addEventListener('click', () => this.importFromURL());
         if (importDoiBtn) importDoiBtn.addEventListener('click', () => this.importFromDOI());
         if (importZoteroBtn) importZoteroBtn.addEventListener('click', () => this.syncWithZotero());
-        if (cancelImportBtn) cancelImportBtn.addEventListener('click', () => this.hideModal('import-modal'));
+        if (cancelImportBtn) cancelImportBtn.addEventListener('click', () => this.hideModal('import-modal-overlay'));
 
         // Zotero modal events
-        const zoteroModal = document.getElementById('zotero-modal');
+        const zoteroModal = document.getElementById('zotero-modal-overlay');
         const saveZoteroBtn = document.getElementById('save-zotero-btn');
         const cancelZoteroBtn = document.getElementById('cancel-zotero-btn');
         const configZoteroBtn = document.getElementById('config-zotero-btn');
 
         if (saveZoteroBtn) saveZoteroBtn.addEventListener('click', () => this.saveZoteroConfig());
-        if (cancelZoteroBtn) cancelZoteroBtn.addEventListener('click', () => this.hideModal('zotero-modal'));
+        if (cancelZoteroBtn) cancelZoteroBtn.addEventListener('click', () => this.hideModal('zotero-modal-overlay'));
         if (configZoteroBtn) configZoteroBtn.addEventListener('click', () => this.showZoteroConfig());
 
         // Export modal events
@@ -212,8 +214,26 @@ class CitationManager {
     }
 
     // Show the citations panel
+    // Retry setting up Citations button if it wasn't available initially
+    ensureCitationsButtonListener() {
+        const showCitationsBtn = document.getElementById('show-citations-btn');
+        if (showCitationsBtn && !showCitationsBtn.hasAttribute('data-citation-listener')) {
+            console.log('[Citation Manager] Retrying Citations button listener setup');
+            showCitationsBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Citations button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.showCitationsPanel();
+            });
+            showCitationsBtn.setAttribute('data-citation-listener', 'true');
+        }
+    }
+
     showCitationsPanel() {
         console.log('[Citation Manager] showCitationsPanel called');
+        
+        // Ensure button listener is set up (in case button wasn't available during initial setup)
+        this.ensureCitationsButtonListener();
         
         // Hide other panels
         const panels = ['file-tree-view', 'search-pane', 'statistics-pane', 'citations-pane'];
@@ -497,7 +517,7 @@ class CitationManager {
 
     // Show import modal
     showImportModal() {
-        this.showModal('import-modal');
+        this.showModal('import-modal-overlay');
     }
 
     // View citation details
@@ -744,7 +764,7 @@ class CitationManager {
         try {
             const result = await window.electronAPI.invoke('citations-import-url', urlInput.value.trim());
             if (result.success) {
-                this.hideModal('import-modal');
+                this.hideModal('import-modal-overlay');
                 this.showSuccess('Citation imported from URL successfully');
                 await this.refreshCitations();
                 urlInput.value = '';
@@ -768,7 +788,7 @@ class CitationManager {
         try {
             const result = await window.electronAPI.invoke('citations-import-doi', doiInput.value.trim());
             if (result.success) {
-                this.hideModal('import-modal');
+                this.hideModal('import-modal-overlay');
                 this.showSuccess('Citation imported from DOI successfully');
                 await this.refreshCitations();
                 doiInput.value = '';
@@ -783,8 +803,36 @@ class CitationManager {
 
     // Show Zotero config modal
     showZoteroConfig() {
-        this.hideModal('import-modal');
-        this.showModal('zotero-modal');
+        this.hideModal('import-modal-overlay');
+        this.showModal('zotero-modal-overlay');
+        
+        // Load saved credentials into the form
+        this.loadZoteroCredentials();
+    }
+    
+    // Load saved Zotero credentials into form fields
+    loadZoteroCredentials() {
+        const savedApiKey = localStorage.getItem('zotero-api-key');
+        const savedUserId = localStorage.getItem('zotero-user-id');
+        const savedCollectionId = localStorage.getItem('zotero-collection-id');
+        
+        const apiKeyField = document.getElementById('zotero-api-key');
+        const userIdField = document.getElementById('zotero-user-id');
+        const collectionField = document.getElementById('zotero-collection');
+        
+        if (apiKeyField && savedApiKey) {
+            apiKeyField.value = savedApiKey;
+        }
+        
+        if (userIdField && savedUserId) {
+            userIdField.value = savedUserId;
+        }
+        
+        if (collectionField && savedCollectionId) {
+            collectionField.value = savedCollectionId;
+        }
+        
+        console.log('[Citation Manager] Loaded saved Zotero credentials');
     }
 
     // Save Zotero configuration
@@ -802,7 +850,7 @@ class CitationManager {
             localStorage.setItem('zotero-api-key', apiKeyField.value.trim());
             localStorage.setItem('zotero-user-id', userIdField.value.trim());
 
-            this.hideModal('zotero-modal');
+            this.hideModal('zotero-modal-overlay');
             this.showSuccess('Zotero configuration saved');
         } catch (error) {
             console.error('[Citation Manager] Error saving Zotero config:', error);
@@ -813,17 +861,44 @@ class CitationManager {
     // Sync with Zotero
     async syncWithZotero() {
         try {
+            // First, try to save the current form values
+            const apiKeyField = document.getElementById('zotero-api-key');
+            const userIdField = document.getElementById('zotero-user-id');
+            
+            // If form fields exist and have values, save them first
+            if (apiKeyField?.value?.trim() && userIdField?.value?.trim()) {
+                localStorage.setItem('zotero-api-key', apiKeyField.value.trim());
+                localStorage.setItem('zotero-user-id', userIdField.value.trim());
+            }
+            
+            // Also save collection ID if provided
+            const collectionFieldForSave = document.getElementById('zotero-collection');
+            if (collectionFieldForSave?.value?.trim()) {
+                localStorage.setItem('zotero-collection-id', collectionFieldForSave.value.trim());
+            }
+            
+            // Now get the credentials from localStorage
             const apiKey = localStorage.getItem('zotero-api-key');
             const userId = localStorage.getItem('zotero-user-id');
 
             if (!apiKey || !userId) {
-                this.showZoteroConfig();
+                this.showError('Please enter your Zotero API Key and User ID first');
+                return;
+            }
+            
+            // Basic validation
+            if (!userId.match(/^\d+$/)) {
+                this.showError('User ID should be a number (found in your Zotero profile URL)');
                 return;
             }
 
-            const result = await window.electronAPI.invoke('citations-zotero-sync', apiKey, userId);
+            // Get collection ID if specified
+            const collectionField = document.getElementById('zotero-collection');
+            const collectionId = collectionField?.value?.trim() || null;
+            
+            const result = await window.electronAPI.invoke('citations-zotero-sync', apiKey, userId, collectionId);
             if (result.success) {
-                this.hideModal('import-modal');
+                this.hideModal('zotero-modal-overlay');
                 this.showSuccess('Zotero sync completed successfully');
                 await this.refreshCitations();
             } else {

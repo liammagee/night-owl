@@ -396,6 +396,8 @@ class CitationService {
     async syncWithZotero(zoteroAPIKey, userID, collectionID = null) {
         try {
             console.log('[Citation Service] Starting Zotero sync...');
+            console.log('[Citation Service] User ID:', userID);
+            console.log('[Citation Service] Collection ID:', collectionID || 'None (syncing entire library)');
             
             const axios = require('axios');
             let apiUrl = `https://api.zotero.org/users/${userID}/items`;
@@ -405,8 +407,11 @@ class CitationService {
                 apiUrl = `https://api.zotero.org/users/${userID}/collections/${collectionID}/items`;
             }
 
-            // Add query parameters
-            apiUrl += '?format=json&itemType=-attachment&itemType=-note';
+            // Add query parameters - exclude attachments and notes
+            // Use separate requests or remove itemType filters for now
+            apiUrl += '?format=json';
+
+            console.log('[Citation Service] API URL:', apiUrl);
 
             const response = await axios.get(apiUrl, {
                 headers: {
@@ -470,7 +475,37 @@ class CitationService {
 
         } catch (error) {
             console.error('[Citation Service] Zotero sync failed:', error);
-            throw new Error(`Zotero sync failed: ${error.message}`);
+            
+            let errorMessage = 'Zotero sync failed: ';
+            
+            if (error.response) {
+                // HTTP error response from Zotero API
+                const status = error.response.status;
+                const data = error.response.data;
+                
+                console.error('[Citation Service] HTTP Status:', status);
+                console.error('[Citation Service] Response data:', data);
+                
+                switch (status) {
+                    case 400:
+                        errorMessage += 'Invalid request. Please check your User ID and Collection ID (if specified).';
+                        break;
+                    case 403:
+                        errorMessage += 'Access forbidden. Please check your API key permissions.';
+                        break;
+                    case 404:
+                        errorMessage += 'User or collection not found. Please verify your User ID and Collection ID.';
+                        break;
+                    default:
+                        errorMessage += `HTTP ${status} error from Zotero API.`;
+                }
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage += 'Request timeout. Please check your internet connection.';
+            } else {
+                errorMessage += error.message;
+            }
+            
+            throw new Error(errorMessage);
         }
     }
 
