@@ -393,15 +393,51 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
     html = html.replace(/(<li>.*<\/li>\s*)+/gs, '<ul>$&</ul>');
     
-    // Blockquotes
-    html = html.replace(/^>\s+(.+)$/gm, '<blockquote>$1</blockquote>');
+    // Blockquotes - handle multi-line blockquotes properly
+    // First, collect all blockquote lines and group them
+    const lines = html.split('\n');
+    let inBlockquote = false;
+    let blockquoteLines = [];
+    const processedLines = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const blockquoteMatch = line.match(/^>\s*(.*)/);
+      
+      if (blockquoteMatch) {
+        // This is a blockquote line
+        if (!inBlockquote) {
+          inBlockquote = true;
+          blockquoteLines = [];
+        }
+        blockquoteLines.push(blockquoteMatch[1]); // Content after '> '
+      } else {
+        // Not a blockquote line
+        if (inBlockquote) {
+          // End of blockquote, process accumulated lines
+          const blockquoteContent = blockquoteLines.join('<br>').trim();
+          processedLines.push(`<blockquote class="presentation-blockquote">${blockquoteContent}</blockquote>`);
+          inBlockquote = false;
+          blockquoteLines = [];
+        }
+        processedLines.push(line);
+      }
+    }
+    
+    // Handle case where blockquote is at the end of content
+    if (inBlockquote && blockquoteLines.length > 0) {
+      const blockquoteContent = blockquoteLines.join('<br>').trim();
+      processedLines.push(`<blockquote class="presentation-blockquote">${blockquoteContent}</blockquote>`);
+    }
+    
+    html = processedLines.join('\n');
     
     // Horizontal rules
     html = html.replace(/^---\s*$/gm, '<hr>');
     
     // Convert remaining text to paragraphs
-    const lines = html.split('\n');
-    const processedLines = lines.map(line => {
+    const paragraphLines = html.split('\n');
+    const finalProcessedLines = paragraphLines.map(line => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.match(/^<(h[1-6]|ul|ol|li|blockquote|pre|hr|div)/)) {
         return line;
@@ -409,7 +445,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       return trimmed ? `<p>${trimmed}</p>` : '';
     });
     
-    html = processedLines.join('\n');
+    html = finalProcessedLines.join('\n');
     html = html.replace(/\n+/g, '\n');
     html = html.replace(/<p>\s*<\/p>/g, '');
     

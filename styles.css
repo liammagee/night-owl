@@ -1104,6 +1104,69 @@ body {
     color: #555;
 }
 
+/* Enhanced presentation blockquotes */
+.slide-content blockquote.presentation-blockquote {
+    border-left: 5px solid #22c55e; /* Green theme color */
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.05) 0%, rgba(34, 197, 94, 0.02) 100%);
+    padding: 16px 20px;
+    margin: 24px 0;
+    font-style: italic;
+    color: #374151;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.slide-content blockquote.presentation-blockquote::before {
+    content: '"';
+    position: absolute;
+    top: -10px;
+    left: 10px;
+    font-size: 60px;
+    color: rgba(34, 197, 94, 0.2);
+    font-family: Georgia, serif;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.slide-content blockquote.presentation-blockquote::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(to bottom, #22c55e, #16a34a);
+    border-radius: 0 8px 8px 0;
+}
+
+/* Blockquote typography improvements */
+.slide-content blockquote.presentation-blockquote p {
+    margin-bottom: 12px;
+    line-height: 1.6;
+    position: relative;
+    z-index: 1;
+}
+
+.slide-content blockquote.presentation-blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* Responsive sizing for smaller slides */
+@media (max-width: 768px) {
+    .slide-content blockquote.presentation-blockquote {
+        padding: 12px 16px;
+        margin: 16px 0;
+    }
+    
+    .slide-content blockquote.presentation-blockquote::before {
+        font-size: 40px;
+        top: -5px;
+        left: 8px;
+    }
+}
+
 #controls-help {
     position: absolute;
     bottom: 20px;
