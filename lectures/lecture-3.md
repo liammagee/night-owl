@@ -598,11 +598,9 @@ And finally – do we find in the existential struggles described by Hegel, a li
 
 ### Attention: Bridging Machine and Human Learning
 
-- Attention links artificial neural networks with human cognitive processes.
-- It allows selective focus on relevant information in both domains.
-- Enables efficient learning by prioritizing important features over noise.
-- Forms the basis of modern models such as transformers and attention mechanisms.
-- Improves interpretability and performance across diverse AI tasks.
+- **Machine Learning**: Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł. & Polosukhin, I. (2017). Attention is all you need. Advances in neural information processing systems, 30.
+- **Human Learning: **Posner, M. I., & Petersen, S. E. (1989). The attention system of the human brain.
+- **The Attention Economy**: Social . Terranova, T. (2012). Attention, economy and the brain. Culture Machine, 13.
 
 ```notes
 We turn our attention to... a term that bridged the fields of machine and human learning in a fundamental way: the concept of attention itself.
