@@ -8,8 +8,8 @@
 
 ### Hegel’s Master‑Servant Theory in Tech  
 
-- Core idea: recognition drives self‑consciousness through dominance and subordination.  
-- Influenced Marx, Freud, and modern narratives of oppression and liberation.  
+- Core idea: recognition drives self‑consciousness.  
+- Influenced Marx, Freud, critical theory, Girard's account of mimicry, contemporary theory (Zizek, Butler).
 - Provides a framework for analyzing human–machine power dynamics.  
 - Origin of “robot” linked to Hegelian themes of servitude and autonomy.
 
@@ -30,27 +30,21 @@ In our discussion we will consider it as a useful background to thinking about t
 
 ![image](images/self-consciousness.png)
 
-
-### Consciousness Development and Infinity Theory
-
 - Consciousness evolves via **sense‑certainty**, **perception**, and **understanding**.
 - Appearances and supersensible laws form a mutually dependent unity called "infinity".
 - Paragraph 161 shows law becomes necessity, incorporating all appearances internally.
 - Paragraph 162 names this simple infinity as the soul of the world, universal bloodstream.
 - This essence is omnipresent, unbroken by distinctions, yet embodies them all.
 
-Paragraph 161 states:
-
-> By virtue of infinity, we see that the law has been perfected in itself into necessity, and we see all moments of appearance incorporated into the inner. (para 161)
-
-Paragraph 162 starts with:
-
-> This simple infinity, that is, the absolute concept, is to be called the simple essence of life, the soul of the world, the
-universal bloodstream, which is omnipresent, neither dulled nor interrupted by any distinction, which is to a greater degree itself both every distinction as well as their sublatedness. (para 162)
-
 
 ```notes
 Let's now work through the text. Last week we explored the development of *Consciousness*, a process that moved through moments of *sense-certainty*, *perception* and *understanding*. At the last of these stages, we arrive at a point of understanding the world around us as composed of sensible appearances which are determined by "supersensible" laws. However both appearance and law belong together in a "unity", locked in a relationship that is mutually dependent, and which Hegel describes as an "infinity".
+```
+
+---
+
+### Self-Consciousness (Quotes)
+
 
 Paragraph 161 states:
 
@@ -60,7 +54,8 @@ Paragraph 162 starts with:
 
 > This simple infinity, that is, the absolute concept, is to be called the simple essence of life, the soul of the world, the
 universal bloodstream, which is omnipresent, neither dulled nor interrupted by any distinction, which is to a greater degree itself both every distinction as well as their sublatedness. (para 162)
-```
+
+
 
 
 ---
@@ -75,8 +70,14 @@ universal bloodstream, which is omnipresent, neither dulled nor interrupted by a
 ```notes
 What does this mean? Not that we live in a world marked by simply a distinction between appearance and reality, but that reality is the folding together of the two into a higher "unity" – "moments of appearance incorporated into the inner". "Distinction" is itself both essential but also is "sublatedness" (Aufgehobensein - lifted up, but also cancellation, preservation). It is when we understand that appearance and the laws that produce appearances belong together in this unity of infinite back-and-forth that we are led, for Hegel, from simply consciousness of an object to a further stage: 
 
-> When infinity is finally an object for consciousness, and consciousness is aware of it *as what it is*, then consciousness is *self-consciousness*. (para 163)
+
 ```
+
+--- 
+
+### Para 163
+
+> When infinity is finally an object for consciousness, and consciousness is aware of it *as what it is*, then consciousness is *self-consciousness*. (para 163)
 
 ---
 

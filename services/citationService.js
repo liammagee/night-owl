@@ -621,6 +621,8 @@ class CitationService {
                     
                     // Create item in Zotero
                     let apiUrl = `https://api.zotero.org/users/${userID}/items`;
+                    console.log(`[Citation Service] Sending to Zotero:`, JSON.stringify(zoteroItem, null, 2));
+                    
                     const response = await axios.post(apiUrl, [zoteroItem], {
                         headers: {
                             'Authorization': `Bearer ${zoteroAPIKey}`,
@@ -630,14 +632,28 @@ class CitationService {
                         timeout: 30000
                     });
 
-                    // If successful and collection specified, add to collection
-                    if (response.status === 200 && collectionID) {
-                        const createdItemKey = response.data.successful[0].key;
-                        await this.addItemToZoteroCollection(createdItemKey, collectionID, zoteroAPIKey, userID);
-                    }
+                    console.log(`[Citation Service] Zotero response status: ${response.status}`, response.data);
 
-                    exportedCount++;
-                    console.log(`[Citation Service] Exported citation: ${citation.title}`);
+                    // Check for successful creation (201 for created, 200 for modified)
+                    if ((response.status === 200 || response.status === 201) && response.data && response.data.successful && response.data.successful.length > 0) {
+                        const createdItemKey = response.data.successful[0].key;
+                        console.log(`[Citation Service] Created Zotero item with key: ${createdItemKey}`);
+                        
+                        // If collection specified, add to collection
+                        if (collectionID) {
+                            try {
+                                await this.addItemToZoteroCollection(createdItemKey, collectionID, zoteroAPIKey, userID);
+                                console.log(`[Citation Service] Added item to collection ${collectionID}`);
+                            } catch (collectionError) {
+                                console.error(`[Citation Service] Failed to add item to collection:`, collectionError.message);
+                            }
+                        }
+                        
+                        exportedCount++;
+                        console.log(`[Citation Service] Successfully exported citation: ${citation.title}`);
+                    } else {
+                        throw new Error(`Unexpected response: ${response.status} - ${JSON.stringify(response.data)}`);
+                    }
 
                 } catch (error) {
                     console.error(`[Citation Service] Failed to export citation "${citation.title}":`, error.message);
@@ -664,17 +680,41 @@ class CitationService {
     // Add item to Zotero collection
     async addItemToZoteroCollection(itemKey, collectionID, zoteroAPIKey, userID) {
         const axios = require('axios');
-        const apiUrl = `https://api.zotero.org/users/${userID}/collections/${collectionID}/items`;
+        console.log(`[Citation Service] Adding item ${itemKey} to collection ${collectionID}`);
         
-        await axios.patch(apiUrl, {
-            items: [itemKey]
-        }, {
+        // Get the current item to update its collections
+        const getItemUrl = `https://api.zotero.org/users/${userID}/items/${itemKey}`;
+        const getResponse = await axios.get(getItemUrl, {
             headers: {
                 'Authorization': `Bearer ${zoteroAPIKey}`,
-                'Content-Type': 'application/json',
                 'Zotero-API-Version': '3'
             }
         });
+        
+        const item = getResponse.data;
+        if (!item.data.collections) {
+            item.data.collections = [];
+        }
+        
+        // Add collection if not already present
+        if (!item.data.collections.includes(collectionID)) {
+            item.data.collections.push(collectionID);
+            
+            // Update the item with the new collections
+            const updateUrl = `https://api.zotero.org/users/${userID}/items/${itemKey}`;
+            await axios.put(updateUrl, item, {
+                headers: {
+                    'Authorization': `Bearer ${zoteroAPIKey}`,
+                    'Content-Type': 'application/json',
+                    'Zotero-API-Version': '3',
+                    'If-Unmodified-Since-Version': item.version.toString()
+                }
+            });
+            
+            console.log(`[Citation Service] Successfully added item to collection`);
+        } else {
+            console.log(`[Citation Service] Item already in collection`);
+        }
     }
 
     // Convert our citation format to Zotero item format

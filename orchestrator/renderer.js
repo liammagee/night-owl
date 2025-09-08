@@ -5373,17 +5373,21 @@ let appSettings = {};
 
 
 // --- Structure/File Pane Toggle Listeners ---
-let currentStructureView = 'file'; // 'structure' or 'file' - default to files
+window.window.currentStructureView = 'file'; // 'structure' or 'file' - default to files - make it global so other modules can access
 
 showStructureBtn.addEventListener('click', () => {
-    if (currentStructureView !== 'structure') {
+    if (window.currentStructureView !== 'structure') {
         switchStructureView('structure');
     }
 });
 
 showFilesBtn.addEventListener('click', () => {
-    if (currentStructureView !== 'file') {
+    console.log('[DEBUG] File button clicked! Current view:', window.currentStructureView);
+    if (window.currentStructureView !== 'file') {
+        console.log('[DEBUG] Switching to file view...');
         switchStructureView('file');
+    } else {
+        console.log('[DEBUG] Already in file view, no action needed');
     }
 });
 
@@ -5391,7 +5395,7 @@ showFilesBtn.addEventListener('click', () => {
 const searchBtn = document.getElementById('show-search-btn');
 if (searchBtn) {
     searchBtn.addEventListener('click', () => {
-        if (currentStructureView !== 'search') {
+        if (window.currentStructureView !== 'search') {
             switchStructureView('search');
         }
     });
@@ -5401,7 +5405,7 @@ if (searchBtn) {
 const showStatsBtn = document.getElementById('show-stats-btn');
 if (showStatsBtn) {
     showStatsBtn.addEventListener('click', () => {
-        if (currentStructureView !== 'statistics') {
+        if (window.currentStructureView !== 'statistics') {
             switchStructureView('statistics');
         }
     });
@@ -5725,7 +5729,7 @@ function showRightPane(paneType) {
  * @param {'structure' | 'file' | 'search'} view - The view to switch to.
  */
 function switchStructureView(view) {
-    currentStructureView = view;
+    window.currentStructureView = view;
     
     // Get elements
     const fileTreeView = document.getElementById('file-tree-view');
@@ -7398,7 +7402,7 @@ if (window.electronAPI) {
         }
         
         // Ensure structure view is active (optional, good UX)
-        if (currentStructureView !== 'structure') {
+        if (window.currentStructureView !== 'structure') {
             switchStructureView('structure');
         }
         
@@ -7411,13 +7415,13 @@ if (window.electronAPI) {
     console.log('[Renderer] Setting up refresh-file-tree signal handler');
     window.electronAPI.on('refresh-file-tree', () => {
         console.log('[Renderer] Received refresh-file-tree signal.');
-        console.log('[Renderer] Current structure view:', currentStructureView);
+        console.log('[Renderer] Current structure view:', window.currentStructureView);
         
         // Reset the rendered flag to force a refresh
         fileTreeRendered = false;
         
         // Switch to file view (which will trigger renderFileTree if needed)
-        if (currentStructureView !== 'files') {
+        if (window.currentStructureView !== 'files') {
             console.log('[Renderer] Switching to file view');
             switchStructureView('file');
         } else {

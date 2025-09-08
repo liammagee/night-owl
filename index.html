@@ -1208,6 +1208,58 @@
             height: 18px;
             margin: 0 3px;
         }
+
+        /* Enhanced Citation Modal Styling */
+        .citation-modal .modal-body {
+            padding: 24px;
+            max-height: calc(85vh - 120px);
+            overflow-y: auto;
+        }
+
+        .citation-modal .form-row {
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .citation-modal .form-group {
+            margin-bottom: 18px;
+        }
+
+        .citation-modal .form-group label {
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .citation-modal .form-group input,
+        .citation-modal .form-group select,
+        .citation-modal .form-group textarea {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* Section organization */
+        .form-section {
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .form-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .form-section h4 {
+            margin: 0 0 16px 0;
+            font-size: 15px;
+            color: #555;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
     </style>
 </head>
 <body>
@@ -1228,7 +1280,7 @@
     
     <!-- Citation Modal Dialogs -->
     <div id="citation-modal-overlay" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog citation-modal" style="width: 600px; max-height: 80vh;">
+        <div class="modal-dialog citation-modal" style="width: 700px; max-height: 85vh;">
             <div class="modal-header">
                 <h3 id="citation-modal-title">Add Citation</h3>
                 <button class="modal-close" onclick="citationManager.hideModal('citation-modal-overlay')">×</button>
@@ -1236,102 +1288,114 @@
             <div class="modal-body">
                 <form id="citation-form">
                     <!-- Citation Type Selection -->
-                    <div class="form-group">
-                        <label for="citation-type">Citation Type *</label>
-                        <select id="citation-type" required>
-                            <option value="article">Journal Article</option>
-                            <option value="book">Book</option>
-                            <option value="webpage">Web Page</option>
-                            <option value="report">Report</option>
-                            <option value="thesis">Thesis/Dissertation</option>
-                            <option value="conference">Conference Paper</option>
-                            <option value="chapter">Book Chapter</option>
-                        </select>
+                    <div class="form-section">
+                        <div class="form-group">
+                            <label for="citation-type">Citation Type *</label>
+                            <select id="citation-type" required>
+                                <option value="article">Journal Article</option>
+                                <option value="book">Book</option>
+                                <option value="webpage">Web Page</option>
+                                <option value="report">Report</option>
+                                <option value="thesis">Thesis/Dissertation</option>
+                                <option value="conference">Conference Paper</option>
+                                <option value="chapter">Book Chapter</option>
+                            </select>
+                        </div>
                     </div>
 
                     <!-- Basic Information -->
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 2;">
+                    <div class="form-section">
+                        <h4>Basic Information</h4>
+                        <div class="form-group">
                             <label for="citation-title">Title *</label>
                             <input type="text" id="citation-title" name="title" required placeholder="Enter the title">
                         </div>
-                    </div>
 
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 2;">
-                            <label for="citation-authors">Authors</label>
-                            <input type="text" id="citation-authors" name="authors" placeholder="Smith, J., & Doe, A.">
-                        </div>
-                        <div class="form-group">
-                            <label for="citation-year">Year</label>
-                            <input type="number" id="citation-year" name="year" min="1000" max="2100" placeholder="2024">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="citation-authors">Authors</label>
+                                <input type="text" id="citation-authors" name="authors" placeholder="Smith, J., & Doe, A.">
+                            </div>
+                            <div class="form-group">
+                                <label for="citation-year">Year</label>
+                                <input type="number" id="citation-year" name="year" min="1000" max="2100" placeholder="2024">
+                            </div>
                         </div>
                     </div>
 
                     <!-- Publication Information -->
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 2;">
-                            <label for="citation-journal">Journal/Publisher</label>
-                            <input type="text" id="citation-journal" name="journal" placeholder="Journal name or publisher">
+                    <div class="form-section">
+                        <h4>Publication Details</h4>
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="citation-journal">Journal/Publisher</label>
+                                <input type="text" id="citation-journal" name="journal" placeholder="Journal name or publisher">
+                            </div>
+                            <div class="form-group">
+                                <label for="citation-volume">Volume</label>
+                                <input type="text" id="citation-volume" name="volume" placeholder="Vol">
+                            </div>
+                            <div class="form-group">
+                                <label for="citation-issue">Issue</label>
+                                <input type="text" id="citation-issue" name="issue" placeholder="No">
+                            </div>
                         </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="citation-pages">Pages</label>
+                                <input type="text" id="citation-pages" name="pages" placeholder="1-10">
+                            </div>
+                            <div class="form-group" style="flex: 2;">
+                                <label for="citation-doi">DOI</label>
+                                <input type="text" id="citation-doi" name="doi" placeholder="10.1000/example">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Links and Files -->
+                    <div class="form-section">
+                        <h4>Links & Files</h4>
                         <div class="form-group">
-                            <label for="citation-volume">Volume</label>
-                            <input type="text" id="citation-volume" name="volume" placeholder="Vol">
+                            <label for="citation-url">URL</label>
+                            <input type="url" id="citation-url" name="url" placeholder="https://example.com">
                         </div>
+
                         <div class="form-group">
-                            <label for="citation-issue">Issue</label>
-                            <input type="text" id="citation-issue" name="issue" placeholder="No">
+                            <label for="citation-file-path">Local File Path</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="citation-file-path" name="file_path" placeholder="Path to local file" style="flex: 1;">
+                                <button type="button" onclick="citationManager.selectFile()" class="btn">Browse</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="form-row">
+                    <!-- Notes and Organization -->
+                    <div class="form-section">
+                        <h4>Notes & Organization</h4>
                         <div class="form-group">
-                            <label for="citation-pages">Pages</label>
-                            <input type="text" id="citation-pages" name="pages" placeholder="1-10">
+                            <label for="citation-abstract">Abstract</label>
+                            <textarea id="citation-abstract" name="abstract" rows="3" placeholder="Enter abstract (optional)"></textarea>
                         </div>
-                        <div class="form-group" style="flex: 2;">
-                            <label for="citation-doi">DOI</label>
-                            <input type="text" id="citation-doi" name="doi" placeholder="10.1000/example">
+
+                        <div class="form-group">
+                            <label for="citation-notes">Personal Notes</label>
+                            <textarea id="citation-notes" name="notes" rows="3" placeholder="Your notes about this citation"></textarea>
                         </div>
-                    </div>
 
-                    <!-- URLs and Files -->
-                    <div class="form-group">
-                        <label for="citation-url">URL</label>
-                        <input type="url" id="citation-url" name="url" placeholder="https://example.com">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="citation-file-path">Local File Path</label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="citation-file-path" name="file_path" placeholder="Path to local file" style="flex: 1;">
-                            <button type="button" onclick="citationManager.selectFile()" class="btn">Browse</button>
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="citation-tags">Tags</label>
+                                <input type="text" id="citation-tags" name="tags" placeholder="philosophy, AI, technology (comma-separated)">
+                            </div>
+                            <div class="form-group">
+                                <label for="citation-projects">Projects</label>
+                                <select id="citation-projects" multiple size="3">
+                                    <!-- Projects will be populated dynamically -->
+                                </select>
+                                <small style="color: #666;">Hold Ctrl/Cmd to select multiple projects</small>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Abstract and Notes -->
-                    <div class="form-group">
-                        <label for="citation-abstract">Abstract</label>
-                        <textarea id="citation-abstract" name="abstract" rows="3" placeholder="Enter abstract (optional)"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="citation-notes">Personal Notes</label>
-                        <textarea id="citation-notes" name="notes" rows="3" placeholder="Your notes about this citation"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="citation-tags">Tags</label>
-                        <input type="text" id="citation-tags" name="tags" placeholder="philosophy, AI, technology (comma-separated)">
-                    </div>
-
-                    <!-- Projects -->
-                    <div class="form-group">
-                        <label for="citation-projects">Projects</label>
-                        <select id="citation-projects" multiple size="3">
-                            <!-- Projects will be populated dynamically -->
-                        </select>
-                        <small style="color: #666;">Hold Ctrl/Cmd to select multiple projects</small>
                     </div>
                 </form>
             </div>
@@ -1608,9 +1672,12 @@
                     
                     <!-- Search and Filter -->
                     <div class="citations-search" style="margin-bottom: 12px;">
-                        <input type="text" id="citations-search-input" placeholder="Search citations by title, author, or tags..." 
+                        <input type="text" id="citations-search-input" placeholder="Search citations by title, author, tags, DOI..." 
                                style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
-                        <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+                        
+                        <!-- Filter and Sort Row -->
+                        <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center;">
+                            <!-- Filter Controls -->
                             <select id="citations-type-filter" style="padding: 2px 4px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px;">
                                 <option value="">All Types</option>
                                 <option value="article">Articles</option>
@@ -1618,12 +1685,34 @@
                                 <option value="webpage">Web Pages</option>
                                 <option value="report">Reports</option>
                                 <option value="thesis">Thesis</option>
+                                <option value="conference">Conference</option>
+                                <option value="chapter">Chapters</option>
                             </select>
                             <select id="citations-project-filter" style="padding: 2px 4px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px;">
                                 <option value="">All Projects</option>
                                 <!-- Projects will be populated here -->
                             </select>
-                            <button id="clear-citation-filters" class="btn" style="padding: 2px 6px; font-size: 10px;" title="Clear Filters">✕</button>
+                            <select id="citations-year-filter" style="padding: 2px 4px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px;">
+                                <option value="">All Years</option>
+                                <!-- Years will be populated dynamically -->
+                            </select>
+                            
+                            <!-- Separator -->
+                            <div style="border-left: 1px solid #ddd; height: 16px; margin: 0 4px;"></div>
+                            
+                            <!-- Sort Controls -->
+                            <select id="citations-sort-by" style="padding: 2px 4px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px;">
+                                <option value="created_at_desc">Recently Added</option>
+                                <option value="title_asc">Title A-Z</option>
+                                <option value="title_desc">Title Z-A</option>
+                                <option value="authors_asc">Author A-Z</option>
+                                <option value="authors_desc">Author Z-A</option>
+                                <option value="year_desc">Year (Newest)</option>
+                                <option value="year_asc">Year (Oldest)</option>
+                                <option value="citation_type_asc">Type A-Z</option>
+                            </select>
+                            
+                            <button id="clear-citation-filters" class="btn" style="padding: 2px 6px; font-size: 10px;" title="Clear All Filters">✕</button>
                         </div>
                     </div>
                     

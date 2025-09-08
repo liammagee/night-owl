@@ -67,15 +67,26 @@ class ScholarSupport {
             const isInput = clickedElement.tagName === 'INPUT' || clickedElement.closest('input');
             const isModal = clickedElement.closest('.modal-overlay');
             
+            // Special check for navigation buttons - these should never be blocked
+            const isNavButton = clickedElement.classList && (
+                clickedElement.classList.contains('pane-toggle-button') ||
+                clickedElement.id === 'show-files-btn' ||
+                clickedElement.id === 'show-structure-btn' ||
+                clickedElement.id === 'show-search-btn' ||
+                clickedElement.id === 'show-stats-btn' ||
+                clickedElement.id === 'show-citations-btn'
+            );
+            
+            if (isNavButton) {
+                // For navigation buttons, just hide heading button and allow normal click processing
+                this.hideHeadingButton();
+                return;
+            }
+            
             if ((sidebar && sidebar.contains(clickedElement)) || 
                 (citationsPane && citationsPane.contains(clickedElement)) ||
                 isButton || isInput || isModal) {
-                // Don't log for citation buttons to reduce console noise
-                if (citationsPane && citationsPane.contains(clickedElement)) {
-                    // Silent skip for citations area
-                } else {
-                    console.log('[Scholar Support] Click in sidebar/UI element - skipping');
-                }
+                // Silently skip processing for UI elements, but don't interfere with their functionality
                 this.hideHeadingButton();
                 return;
             }

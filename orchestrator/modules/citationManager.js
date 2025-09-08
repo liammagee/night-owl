@@ -12,6 +12,7 @@ class CitationManager {
         this.currentEditingId = null;
         this.eventListenersSet = false;
         this.actionListenersSet = false;
+        this.lastNightowlSync = 0; // Timestamp to throttle sync
     }
 
     // Initialize the citation manager
@@ -78,6 +79,8 @@ class CitationManager {
         const searchInput = document.getElementById('citations-search-input');
         const typeFilter = document.getElementById('citations-type-filter');
         const projectFilter = document.getElementById('citations-project-filter');
+        const yearFilter = document.getElementById('citations-year-filter');
+        const sortBy = document.getElementById('citations-sort-by');
         const clearFilters = document.getElementById('clear-citation-filters');
 
         if (searchInput) {
@@ -85,6 +88,8 @@ class CitationManager {
         }
         if (typeFilter) typeFilter.addEventListener('change', () => this.applyFilters());
         if (projectFilter) projectFilter.addEventListener('change', () => this.applyFilters());
+        if (yearFilter) yearFilter.addEventListener('change', () => this.applyFilters());
+        if (sortBy) sortBy.addEventListener('change', () => this.applyFilters());
         if (clearFilters) clearFilters.addEventListener('click', () => this.clearFilters());
 
         // Modal event listeners
@@ -183,11 +188,10 @@ class CitationManager {
     setupModalEventListeners() {
         // Citation modal events
         const citationModal = document.getElementById('citation-modal-overlay');
-        const saveCitationBtn = document.getElementById('save-citation-btn');
         const cancelCitationBtn = document.getElementById('cancel-citation-btn');
         const browseFileBtn = document.getElementById('browse-file-btn');
 
-        if (saveCitationBtn) saveCitationBtn.addEventListener('click', () => this.saveCitation());
+        // Note: save button uses onclick handler in HTML to avoid duplicate event listeners
         if (cancelCitationBtn) cancelCitationBtn.addEventListener('click', () => this.hideModal('citation-modal-overlay'));
         if (browseFileBtn) browseFileBtn.addEventListener('click', () => this.browseFile());
 
@@ -264,6 +268,12 @@ class CitationManager {
     showCitationsPanel() {
         console.log('[Citation Manager] showCitationsPanel called');
         
+        // Update the main structure view state to prevent conflicts with other navigation buttons
+        if (window.currentStructureView !== undefined) {
+            window.currentStructureView = 'citations';
+            console.log('[Citation Manager] Updated currentStructureView to citations');
+        }
+        
         // Ensure button listener is set up (in case button wasn't available during initial setup)
         this.ensureCitationsButtonListener();
         
@@ -319,9 +329,14 @@ class CitationManager {
             this.citations = result.citations;
             this.renderCitations();
             this.updateStatistics();
+            this.hideLoading();
+            
+            // Only update year filter and sync to nightowl.bib for certain operations (not during panel switching)
+            // Removed automatic sync to prevent refresh loops
             
         } catch (error) {
             console.error('[Citation Manager] Error refreshing citations:', error);
+            this.hideLoading();
             this.showError('Failed to load citations: ' + error.message);
         }
     }
@@ -360,6 +375,8 @@ class CitationManager {
         const searchInput = document.getElementById('citations-search-input');
         const typeFilter = document.getElementById('citations-type-filter');
         const projectFilter = document.getElementById('citations-project-filter');
+        const yearFilter = document.getElementById('citations-year-filter');
+        const sortBy = document.getElementById('citations-sort-by');
 
         this.currentFilters = {};
         
@@ -372,6 +389,12 @@ class CitationManager {
         if (projectFilter && projectFilter.value) {
             this.currentFilters.project_id = projectFilter.value;
         }
+        if (yearFilter && yearFilter.value) {
+            this.currentFilters.year = yearFilter.value;
+        }
+        if (sortBy && sortBy.value) {
+            this.currentFilters.sortBy = sortBy.value;
+        }
 
         await this.refreshCitations();
     }
@@ -381,13 +404,110 @@ class CitationManager {
         const searchInput = document.getElementById('citations-search-input');
         const typeFilter = document.getElementById('citations-type-filter');
         const projectFilter = document.getElementById('citations-project-filter');
+        const yearFilter = document.getElementById('citations-year-filter');
+        const sortBy = document.getElementById('citations-sort-by');
 
         if (searchInput) searchInput.value = '';
         if (typeFilter) typeFilter.value = '';
         if (projectFilter) projectFilter.value = '';
+        if (yearFilter) yearFilter.value = '';
+        if (sortBy) sortBy.value = 'created_at_desc'; // Reset to default sort
 
         this.currentFilters = {};
         this.refreshCitations();
+    }
+
+    // Populate year filter with available years from citations
+    async populateYearFilter() {
+        try {
+            const yearFilter = document.getElementById('citations-year-filter');
+            if (!yearFilter) return;
+
+            // Get all citations to extract years (use fresh API call for accurate data)
+            const result = await window.electronAPI.invoke('citations-get', {});
+            if (!result.success) return;
+
+            const years = new Set();
+            result.citations.forEach(citation => {
+                if (citation.publication_year) {
+                    years.add(citation.publication_year);
+                }
+            });
+
+            // Clear existing options (keep "All Years")  
+            const currentValue = yearFilter.value;
+            yearFilter.innerHTML = '<option value="">All Years</option>';
+
+            // Add year options sorted descending
+            [...years].sort((a, b) => b - a).forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearFilter.appendChild(option);
+            });
+            
+            // Restore previous selection if it still exists
+            if (currentValue && [...years].includes(parseInt(currentValue))) {
+                yearFilter.value = currentValue;
+            }
+
+        } catch (error) {
+            console.error('[Citation Manager] Error populating year filter:', error);
+        }
+    }
+
+    // Refresh citations after modifications (with sync)
+    async refreshCitationsWithSync(skipNightowlSync = false) {
+        await this.refreshCitations();
+        await this.populateYearFilter();
+        if (!skipNightowlSync) {
+            await this.syncToNightowlBib();
+        }
+    }
+
+    // Sync all citations to nightowl.bib in working directory (throttled)
+    async syncToNightowlBib() {
+        try {
+            // Throttle to prevent excessive syncing (max once every 5 seconds)
+            const now = Date.now();
+            if (now - this.lastNightowlSync < 5000) {
+                console.log('[Citation Manager] Skipping nightowl.bib sync - too recent');
+                return;
+            }
+            this.lastNightowlSync = now;
+            
+            console.log('[Citation Manager] Syncing to nightowl.bib...');
+            
+            // Get all citations (no filters for complete sync) - but only if we don't have current citations
+            let citationsToSync;
+            if (!this.citations || this.citations.length === 0) {
+                const result = await window.electronAPI.invoke('citations-get', {});
+                if (!result.success || !result.citations.length) {
+                    console.log('[Citation Manager] No citations to sync to nightowl.bib');
+                    return;
+                }
+                citationsToSync = result.citations;
+            } else {
+                // Use existing citations data to avoid additional database call
+                citationsToSync = this.citations;
+            }
+
+            // Export to nightowl.bib in working directory
+            const exportResult = await window.electronAPI.invoke('citations-export-to-file', 
+                citationsToSync.map(c => c.id), 
+                'bibtex', 
+                'nightowl.bib'
+            );
+
+            if (exportResult.success) {
+                console.log(`[Citation Manager] Synced ${citationsToSync.length} citations to nightowl.bib`);
+            } else {
+                console.error('[Citation Manager] Failed to sync to nightowl.bib:', exportResult.error);
+            }
+
+        } catch (error) {
+            console.error('[Citation Manager] Error syncing to nightowl.bib:', error);
+        }
     }
 
     // Render citations list
@@ -630,7 +750,7 @@ class CitationManager {
             const result = await window.electronAPI.invoke('citations-delete', id);
             if (result.success) {
                 this.showSuccess('Citation deleted');
-                await this.refreshCitations();
+                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
             } else {
                 throw new Error(result.error);
             }
@@ -780,7 +900,7 @@ class CitationManager {
             if (result.success) {
                 this.hideModal('citation-modal-overlay');
                 this.showSuccess(this.currentEditingId ? 'Citation updated successfully' : 'Citation added successfully');
-                await this.refreshCitations();
+                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
             } else {
                 throw new Error(result.error);
             }
@@ -830,7 +950,7 @@ class CitationManager {
             if (result.success) {
                 this.hideModal('import-modal-overlay');
                 this.showSuccess('Citation imported from URL successfully');
-                await this.refreshCitations();
+                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
                 urlInput.value = '';
             } else {
                 throw new Error(result.error);
@@ -854,7 +974,7 @@ class CitationManager {
             if (result.success) {
                 this.hideModal('import-modal-overlay');
                 this.showSuccess('Citation imported from DOI successfully');
-                await this.refreshCitations();
+                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
                 doiInput.value = '';
             } else {
                 throw new Error(result.error);
@@ -1003,7 +1123,7 @@ class CitationManager {
                 }
                 
                 // Refresh citations to show any imported items
-                await this.refreshCitations();
+                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
             } else {
                 this.hideLoading();
                 this.showError('Live sync failed: ' + result.error);
@@ -1079,7 +1199,7 @@ class CitationManager {
             if (result.success) {
                 this.hideModal('zotero-modal-overlay');
                 this.showSuccess('Zotero sync completed successfully');
-                await this.refreshCitations();
+                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
             } else {
                 throw new Error(result.error);
             }
