@@ -1655,6 +1655,9 @@
                             <button id="select-all-citations-btn" class="btn citation-btn" title="Select/Deselect All">
                                 <span class="btn-icon">☑️</span><span class="btn-label">Select All</span>
                             </button>
+                            <button id="delete-selected-citations-btn" class="btn citation-btn" style="background: #dc3545; color: white;" title="Delete Selected Citations">
+                                <span class="btn-icon">🗑️</span><span class="btn-label">Delete Selected</span>
+                            </button>
                             <!-- Zotero Actions -->
                             <button id="export-to-zotero-btn" class="btn citation-btn" style="background: #dc3545; color: white;" title="Export Selected to Zotero">
                                 <span class="btn-icon">📚</span><span class="btn-label">To Zotero</span>
@@ -1697,6 +1700,11 @@
                                 <!-- Years will be populated dynamically -->
                             </select>
                             
+                            <!-- Advanced SQL Toggle -->
+                            <button id="citations-advanced-toggle" title="Toggle Advanced SQL Query" style="padding: 2px 6px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; background: #f5f5f5; cursor: pointer;">
+                                SQL
+                            </button>
+                            
                             <!-- Separator -->
                             <div style="border-left: 1px solid #ddd; height: 16px; margin: 0 4px;"></div>
                             
@@ -1713,6 +1721,19 @@
                             </select>
                             
                             <button id="clear-citation-filters" class="btn" style="padding: 2px 6px; font-size: 10px;" title="Clear All Filters">✕</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced SQL Query Panel (hidden by default) -->
+                    <div id="citations-sql-panel" style="display: none; margin: 6px 0; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+                        <div style="margin-bottom: 4px; font-size: 11px; color: #666; display: flex; justify-content: space-between; align-items: center;">
+                            <span>🔍 Advanced SQL Query (SELECT only)</span>
+                            <button id="citations-sql-examples" style="padding: 1px 4px; font-size: 10px; border: 1px solid #ccc; background: #fff; border-radius: 2px; cursor: pointer;">Examples</button>
+                        </div>
+                        <div style="display: flex; gap: 4px;">
+                            <textarea id="citations-sql-input" placeholder="SELECT * FROM citations WHERE title LIKE '%search%'" 
+                                      style="flex: 1; padding: 4px; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; font-size: 11px; min-height: 40px; resize: vertical;"></textarea>
+                            <button id="citations-sql-execute" style="padding: 4px 8px; font-size: 11px; border: 1px solid #007acc; background: #007acc; color: white; border-radius: 3px; cursor: pointer; white-space: nowrap;">Execute</button>
                         </div>
                     </div>
                     

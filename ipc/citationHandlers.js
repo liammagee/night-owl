@@ -488,7 +488,8 @@ function registerCitationHandlers(userDataPath) {
                 citation_type: 'webpage',
                 publication_date: metadata.published_time || new Date().toISOString().split('T')[0],
                 abstract: metadata.description || '',
-                journal: metadata.site_name || ''
+                journal: metadata.site_name || '',
+                source: 'url'
             };
             
             if (!citationService) await initializeCitationService(userDataPath);
@@ -523,7 +524,8 @@ function registerCitationHandlers(userDataPath) {
                 publisher: metadata.publisher,
                 doi: cleanDoi,
                 citation_type: metadata.type || 'article',
-                abstract: metadata.abstract || ''
+                abstract: metadata.abstract || '',
+                source: 'doi'
             };
             
             if (!citationService) await initializeCitationService(userDataPath);
@@ -718,13 +720,16 @@ function registerCitationHandlers(userDataPath) {
     // Live sync with Zotero (bidirectional)
     ipcMain.handle('citations-zotero-live-sync', async (event, apiKey, userID, collectionID = null) => {
         try {
+            console.log(`[Citation Handlers] Live sync requested with userID=${userID}, collectionID=${collectionID}`);
             if (!citationService) await initializeCitationService(userDataPath);
             
             // Get last sync time
             const lastSyncTime = await citationService.getLastSyncTime();
+            console.log(`[Citation Handlers] Last sync time: ${lastSyncTime}`);
             
             // Perform live sync
             const result = await citationService.liveSyncWithZotero(apiKey, userID, collectionID, lastSyncTime);
+            console.log(`[Citation Handlers] Live sync completed:`, result);
             return result;
         } catch (error) {
             console.error('[Citation Handlers] Error with live sync:', error);
@@ -740,6 +745,22 @@ function registerCitationHandlers(userDataPath) {
             return { success: true, lastSyncTime };
         } catch (error) {
             console.error('[Citation Handlers] Error getting last sync time:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // ===== ADVANCED/DEBUG FEATURES =====
+
+    // Execute raw SQL query (for advanced users/debugging)
+    ipcMain.handle('citations-execute-sql', async (event, sqlQuery) => {
+        try {
+            console.log(`[Citation Handlers] Executing raw SQL query: ${sqlQuery}`);
+            if (!citationService) await initializeCitationService(userDataPath);
+            
+            const result = await citationService.executeRawSQL(sqlQuery);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('[Citation Handlers] Error executing SQL:', error);
             return { success: false, error: error.message };
         }
     });

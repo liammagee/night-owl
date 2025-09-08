@@ -63,6 +63,10 @@ class CitationService {
                     zotero_key TEXT UNIQUE,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_modified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_sync_at DATETIME,
+                    source TEXT NOT NULL DEFAULT 'manual',
+                    sync_version INTEGER DEFAULT 1,
                     tags TEXT,
                     is_favorite BOOLEAN DEFAULT FALSE,
                     read_status TEXT DEFAULT 'unread'
@@ -117,13 +121,74 @@ class CitationService {
                     }
                     completed++;
                     if (completed === tables.length) {
-                        this.insertDefaultStyles().then(() => {
-                            resolve();
+                        // Run migrations for existing databases
+                        this.runMigrations().then(() => {
+                            this.insertDefaultStyles().then(() => {
+                                resolve();
+                            }).catch(reject);
                         }).catch(reject);
                     }
                 });
             });
         });
+    }
+
+    // Run database migrations for new fields
+    async runMigrations() {
+        try {
+            console.log('[Citation Service] Running database migrations...');
+            
+            // Migration 1: Add source tracking fields
+            const migrations = [
+                'ALTER TABLE citations ADD COLUMN last_modified_at DATETIME',
+                'ALTER TABLE citations ADD COLUMN last_sync_at DATETIME',
+                'ALTER TABLE citations ADD COLUMN source TEXT DEFAULT "manual"',
+                'ALTER TABLE citations ADD COLUMN sync_version INTEGER DEFAULT 1'
+            ];
+
+            for (const migration of migrations) {
+                await new Promise((resolve, reject) => {
+                    this.db.run(migration, (err) => {
+                        if (err) {
+                            // Ignore "duplicate column" errors for existing databases
+                            if (err.message.includes('duplicate column name')) {
+                                console.log(`[Citation Service] Migration skipped (column exists): ${migration}`);
+                                resolve();
+                            } else {
+                                console.error('[Citation Service] Migration error:', err);
+                                reject(err);
+                            }
+                        } else {
+                            console.log(`[Citation Service] Migration completed: ${migration}`);
+                            resolve();
+                        }
+                    });
+                });
+            }
+
+            // Set default values for existing citations
+            await new Promise((resolve, reject) => {
+                this.db.run(`UPDATE citations SET 
+                    source = COALESCE(source, 'manual'),
+                    last_modified_at = COALESCE(last_modified_at, updated_at, CURRENT_TIMESTAMP),
+                    sync_version = COALESCE(sync_version, 1)
+                    WHERE source IS NULL OR source = '' OR last_modified_at IS NULL`, (err) => {
+                    if (err) {
+                        console.error('[Citation Service] Error setting default values:', err);
+                        reject(err);
+                    } else {
+                        console.log('[Citation Service] Set default values for existing citations');
+                        resolve();
+                    }
+                });
+            });
+
+            console.log('[Citation Service] All migrations completed successfully');
+            
+        } catch (error) {
+            console.error('[Citation Service] Migration failed:', error);
+            throw error;
+        }
     }
 
     // Insert default citation styles
@@ -158,36 +223,56 @@ class CitationService {
 
     // Add a new citation
     async addCitation(citationData) {
-        return new Promise((resolve, reject) => {
+        try {
+            console.log('[Citation Service] Adding citation:', citationData);
+            
+            // Check for existing citation to prevent duplicates
+            const existing = await this.findExistingCitation(citationData);
+            if (existing) {
+                console.log(`[Citation Service] Citation already exists: ${citationData.title}`);
+                return existing; // Return existing instead of creating duplicate
+            }
+
             const {
                 title, authors, publication_year, publication_date, journal,
                 volume, issue, pages, publisher, doi, url, file_path,
-                citation_type = 'article', abstract, notes, tags, zotero_key
+                citation_type = 'article', abstract, notes, tags, zotero_key,
+                source = 'manual'
             } = citationData;
 
-            const sql = `
-                INSERT INTO citations (
+            // Wrap the database operation in a Promise
+            return new Promise((resolve, reject) => {
+                const sql = `
+                    INSERT INTO citations (
+                        title, authors, publication_year, publication_date, journal,
+                        volume, issue, pages, publisher, doi, url, file_path,
+                        citation_type, abstract, notes, tags, zotero_key,
+                        source, last_modified_at, sync_version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+                `;
+
+                const params = [
                     title, authors, publication_year, publication_date, journal,
                     volume, issue, pages, publisher, doi, url, file_path,
-                    citation_type, abstract, notes, tags, zotero_key
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `;
+                    citation_type, abstract, notes, tags, zotero_key, source
+                ];
 
-            const params = [
-                title, authors, publication_year, publication_date, journal,
-                volume, issue, pages, publisher, doi, url, file_path,
-                citation_type, abstract, notes, tags, zotero_key
-            ];
+                console.log('[Citation Service] Executing SQL with params:', params);
 
-            this.db.run(sql, params, function(err) {
-                if (err) {
-                    console.error('[Citation Service] Error adding citation:', err);
-                    reject(err);
-                } else {
-                    resolve({ id: this.lastID, ...citationData });
-                }
+                this.db.run(sql, params, function(err) {
+                    if (err) {
+                        console.error('[Citation Service] Error adding citation:', err);
+                        reject(err);
+                    } else {
+                        console.log('[Citation Service] Citation added with ID:', this.lastID);
+                        resolve({ id: this.lastID, ...citationData });
+                    }
+                });
             });
-        });
+        } catch (err) {
+            console.error('[Citation Service] Error in addCitation:', err);
+            throw err;
+        }
     }
 
     // Get all citations with optional filtering
@@ -260,7 +345,7 @@ class CitationService {
             const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
             const params = [...Object.values(updates), id];
             
-            const sql = `UPDATE citations SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+            const sql = `UPDATE citations SET ${setClause}, updated_at = CURRENT_TIMESTAMP, last_modified_at = CURRENT_TIMESTAMP, sync_version = sync_version + 1 WHERE id = ?`;
 
             this.db.run(sql, params, function(err) {
                 if (err) {
@@ -391,13 +476,212 @@ class CitationService {
         });
     }
 
+    // ===== SYNC CONFLICT RESOLUTION =====
+
+    /**
+     * Resolve sync conflicts between local and external sources
+     * Strategy: Most recent modification wins (last-write-wins)
+     */
+    async resolveSyncConflict(localCitation, externalCitation, externalSource) {
+        console.log(`[Citation Service] Resolving sync conflict for citation "${localCitation.title}"`);
+        
+        const localModTime = new Date(localCitation.last_modified_at || localCitation.updated_at);
+        const externalModTime = new Date(externalCitation.dateModified || externalCitation.updated_at || new Date());
+        
+        console.log(`[Citation Service] Local modified: ${localModTime}, External modified: ${externalModTime}`);
+        
+        // Determine which version wins
+        if (externalModTime > localModTime) {
+            console.log(`[Citation Service] External version is newer - updating local citation`);
+            return {
+                action: 'update_local',
+                winner: 'external',
+                data: {
+                    ...externalCitation,
+                    source: externalSource,
+                    last_sync_at: new Date().toISOString(),
+                    sync_version: (localCitation.sync_version || 1) + 1
+                }
+            };
+        } else {
+            console.log(`[Citation Service] Local version is newer - will push to external`);
+            return {
+                action: 'update_external', 
+                winner: 'local',
+                data: localCitation
+            };
+        }
+    }
+
+    /**
+     * Smart sync method that handles conflicts
+     */
+    async smartSync(citations, externalSource = 'zotero') {
+        const results = {
+            conflicts_resolved: 0,
+            local_updated: 0,
+            external_updated: 0,
+            added_to_local: 0,
+            added_to_external: 0,
+            errors: []
+        };
+
+        for (const externalCitation of citations) {
+            try {
+                // Find existing citation by zotero_key or DOI/title match
+                const existing = await this.findExistingCitation(externalCitation);
+                
+                if (existing) {
+                    // Conflict resolution needed
+                    const resolution = await this.resolveSyncConflict(existing, externalCitation, externalSource);
+                    results.conflicts_resolved++;
+                    
+                    if (resolution.action === 'update_local') {
+                        await this.updateCitation(existing.id, resolution.data);
+                        results.local_updated++;
+                        console.log(`[Citation Service] Updated local citation: ${existing.title}`);
+                    } else if (resolution.action === 'update_external') {
+                        // Mark for external update (caller handles this)
+                        results.external_updated++;
+                        console.log(`[Citation Service] Local version newer, external should be updated: ${existing.title}`);
+                    }
+                } else {
+                    // Add new citation from external source
+                    await this.addCitation({
+                        ...externalCitation,
+                        source: externalSource,
+                        last_sync_at: new Date().toISOString()
+                    });
+                    results.added_to_local++;
+                    console.log(`[Citation Service] Added new citation from ${externalSource}: ${externalCitation.title}`);
+                }
+            } catch (error) {
+                console.error(`[Citation Service] Error processing citation:`, error);
+                results.errors.push({
+                    citation: externalCitation.title || 'Unknown',
+                    error: error.message
+                });
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Find existing citation by multiple matching strategies
+     */
+    async findExistingCitation(externalCitation) {
+        // Strategy 1: Match by zotero_key
+        if (externalCitation.zotero_key) {
+            const byZoteroKey = await this.getCitationByField('zotero_key', externalCitation.zotero_key);
+            if (byZoteroKey) return byZoteroKey;
+        }
+
+        // Strategy 2: Match by DOI
+        if (externalCitation.doi) {
+            const byDOI = await this.getCitationByField('doi', externalCitation.doi);
+            if (byDOI) return byDOI;
+        }
+
+        // Strategy 3: Match by title + authors (fuzzy)
+        if (externalCitation.title) {
+            const byTitle = await this.getCitationByTitleAndAuthors(
+                externalCitation.title, 
+                externalCitation.authors
+            );
+            if (byTitle) return byTitle;
+        }
+
+        return null;
+    }
+
+    /**
+     * Get citation by field value
+     */
+    async getCitationByField(field, value) {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                `SELECT * FROM citations WHERE ${field} = ? LIMIT 1`,
+                [value],
+                (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row || null);
+                }
+            );
+        });
+    }
+
+    /**
+     * Get citation by title and authors (fuzzy matching)
+     */
+    async getCitationByTitleAndAuthors(title, authors) {
+        return new Promise((resolve, reject) => {
+            // First try exact title match
+            this.db.get(
+                'SELECT * FROM citations WHERE LOWER(TRIM(title)) = LOWER(TRIM(?)) LIMIT 1',
+                [title],
+                (err, exactMatch) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    
+                    if (exactMatch) {
+                        resolve(exactMatch);
+                        return;
+                    }
+                    
+                    // If no exact match, try fuzzy matching with higher threshold
+                    const normalizedTitle = title.toLowerCase().trim();
+                    
+                    this.db.all(
+                        'SELECT * FROM citations WHERE LOWER(title) LIKE ?',
+                        [`%${normalizedTitle.substring(0, 50)}%`],
+                        (err, rows) => {
+                            if (err) {
+                                reject(err);
+                                return;
+                            }
+                            
+                            // Find best match with stricter criteria
+                            let bestMatch = null;
+                            let bestScore = 0;
+                            
+                            for (const row of rows) {
+                                const score = this.calculateSimilarity(normalizedTitle, row.title.toLowerCase());
+                                if (score > 0.85 && score > bestScore) { // Increased threshold to 85%
+                                    bestMatch = row;
+                                    bestScore = score;
+                                }
+                            }
+                            
+                            resolve(bestMatch);
+                        }
+                    );
+                }
+            );
+        });
+    }
+
+    /**
+     * Calculate string similarity (simple Jaccard similarity)
+     */
+    calculateSimilarity(str1, str2) {
+        const words1 = new Set(str1.split(/\s+/));
+        const words2 = new Set(str2.split(/\s+/));
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        const union = new Set([...words1, ...words2]);
+        return intersection.size / union.size;
+    }
+
     // ===== ZOTERO INTEGRATION =====
 
-    async syncWithZotero(zoteroAPIKey, userID, collectionID = null) {
+    async syncWithZotero(zoteroAPIKey, userID, collectionID = null, lastSyncTime = null) {
         try {
             console.log('[Citation Service] Starting Zotero sync...');
             console.log('[Citation Service] User ID:', userID);
             console.log('[Citation Service] Collection ID:', collectionID || 'None (syncing entire library)');
+            console.log('[Citation Service] Last sync time:', lastSyncTime || 'None (full sync)');
             
             const axios = require('axios');
             let apiUrl = `https://api.zotero.org/users/${userID}/items`;
@@ -407,10 +691,19 @@ class CitationService {
                 apiUrl = `https://api.zotero.org/users/${userID}/collections/${collectionID}/items`;
             }
 
-            // Add query parameters - exclude attachments and notes
-            // Use separate requests or remove itemType filters for now
-            apiUrl += '?format=json';
-
+            // Add query parameters
+            const params = new URLSearchParams();
+            params.append('format', 'json');
+            
+            // If we have a last sync time, only get items modified since then
+            if (lastSyncTime) {
+                // Convert ISO timestamp to Zotero API format (Unix timestamp)
+                const sinceTimestamp = Math.floor(new Date(lastSyncTime).getTime() / 1000);
+                params.append('since', sinceTimestamp.toString());
+                console.log('[Citation Service] Using since parameter:', sinceTimestamp, 'for timestamp:', lastSyncTime);
+            }
+            
+            apiUrl += '?' + params.toString();
             console.log('[Citation Service] API URL:', apiUrl);
 
             const response = await axios.get(apiUrl, {
@@ -448,7 +741,8 @@ class CitationService {
                     abstract: data.abstractNote || null,
                     notes: data.extra || null,
                     tags: data.tags ? data.tags.map(tag => tag.tag).join(', ') : null,
-                    zotero_key: item.key
+                    zotero_key: item.key,
+                    source: 'zotero'
                 };
 
                 // Check if citation already exists
@@ -635,22 +929,35 @@ class CitationService {
                     console.log(`[Citation Service] Zotero response status: ${response.status}`, response.data);
 
                     // Check for successful creation (201 for created, 200 for modified)
-                    if ((response.status === 200 || response.status === 201) && response.data && response.data.successful && response.data.successful.length > 0) {
-                        const createdItemKey = response.data.successful[0].key;
-                        console.log(`[Citation Service] Created Zotero item with key: ${createdItemKey}`);
-                        
-                        // If collection specified, add to collection
-                        if (collectionID) {
-                            try {
-                                await this.addItemToZoteroCollection(createdItemKey, collectionID, zoteroAPIKey, userID);
-                                console.log(`[Citation Service] Added item to collection ${collectionID}`);
-                            } catch (collectionError) {
-                                console.error(`[Citation Service] Failed to add item to collection:`, collectionError.message);
+                    if ((response.status === 200 || response.status === 201) && response.data && response.data.successful) {
+                        // Get the first successful item - Zotero returns an object with numeric keys
+                        const successfulKeys = Object.keys(response.data.successful);
+                        if (successfulKeys.length > 0) {
+                            const firstSuccessKey = successfulKeys[0];
+                            const createdItemKey = response.data.success[firstSuccessKey]; // Use the success object for the key
+                            console.log(`[Citation Service] Created Zotero item with key: ${createdItemKey}`);
+                            
+                            // If collection specified, add to collection
+                            if (collectionID) {
+                                try {
+                                    await this.addItemToZoteroCollection(createdItemKey, collectionID, zoteroAPIKey, userID);
+                                    console.log(`[Citation Service] Added item to collection ${collectionID}`);
+                                } catch (collectionError) {
+                                    console.error(`[Citation Service] Failed to add item to collection:`, collectionError.message);
+                                }
                             }
+                            
+                            // Update local citation with Zotero key and sync info
+                            await this.updateCitation(citation.id, {
+                                zotero_key: createdItemKey,
+                                last_sync_at: new Date().toISOString()
+                            });
+                            
+                            exportedCount++;
+                            console.log(`[Citation Service] Successfully exported citation: ${citation.title}`);
+                        } else {
+                            throw new Error(`No successful items in response: ${JSON.stringify(response.data)}`);
                         }
-                        
-                        exportedCount++;
-                        console.log(`[Citation Service] Successfully exported citation: ${citation.title}`);
                     } else {
                         throw new Error(`Unexpected response: ${response.status} - ${JSON.stringify(response.data)}`);
                     }
@@ -785,6 +1092,7 @@ class CitationService {
     // Live sync with Zotero - compare timestamps and sync changes both ways
     async liveSyncWithZotero(zoteroAPIKey, userID, collectionID = null, lastSyncTime = null) {
         console.log('[Citation Service] Starting live sync with Zotero...');
+        console.log(`[Citation Service] Parameters: userID=${userID}, collectionID=${collectionID}, lastSyncTime=${lastSyncTime}`);
         
         try {
             const syncResults = {
@@ -795,14 +1103,20 @@ class CitationService {
             };
 
             // Step 1: Import from Zotero (items modified since last sync)
+            console.log('[Citation Service] Step 1: Importing from Zotero...');
             const zoteroSyncResult = await this.syncWithZotero(zoteroAPIKey, userID, collectionID, lastSyncTime);
             if (zoteroSyncResult.success) {
                 syncResults.importedFromZotero = zoteroSyncResult.syncedCount || 0;
+                console.log(`[Citation Service] Imported ${syncResults.importedFromZotero} items from Zotero`);
             }
 
-            // Step 2: Export local changes to Zotero
+            // Step 2: Export local changes to Zotero (BEFORE updating sync time)
+            console.log('[Citation Service] Step 2: Getting local changes...');
             const localChanges = await this.getLocalChangesAfter(lastSyncTime);
+            console.log(`[Citation Service] Found ${localChanges.length} local changes to export`);
+            
             if (localChanges.length > 0) {
+                console.log('[Citation Service] Step 3: Exporting to Zotero...');
                 const exportResult = await this.exportToZotero(
                     localChanges.map(c => c.id), 
                     zoteroAPIKey, 
@@ -812,10 +1126,16 @@ class CitationService {
                 if (exportResult.success) {
                     syncResults.exportedToZotero = exportResult.exportedCount;
                     syncResults.errors = exportResult.errors;
+                    console.log(`[Citation Service] Successfully exported ${exportResult.exportedCount} citations to Zotero`);
+                } else {
+                    console.error('[Citation Service] Failed to export to Zotero:', exportResult.error);
+                    syncResults.errors.push(exportResult.error);
                 }
+            } else {
+                console.log('[Citation Service] No local changes to export');
             }
 
-            // Update last sync timestamp
+            // Update last sync timestamp AFTER both import and export are complete
             const currentTime = new Date().toISOString();
             await this.updateLastSyncTime(currentTime);
 
@@ -837,22 +1157,59 @@ class CitationService {
     // Get local changes after a specific timestamp
     async getLocalChangesAfter(timestamp) {
         return new Promise((resolve, reject) => {
-            if (!timestamp) {
-                // If no timestamp, return empty (don't export everything on first sync)
-                resolve([]);
-                return;
-            }
+            let sql, params;
 
-            const sql = `
-                SELECT * FROM citations 
-                WHERE updated_at > ? 
-                ORDER BY updated_at DESC
-            `;
+            if (!timestamp) {
+                // If no timestamp, return citations that haven't been synced yet
+                // (citations without zotero_key or with source != 'zotero')
+                sql = `
+                    SELECT * FROM citations 
+                    WHERE (zotero_key IS NULL OR zotero_key = '') 
+                    AND (source IS NULL OR source != 'zotero')
+                    ORDER BY COALESCE(last_modified_at, updated_at) DESC
+                `;
+                params = [];
+                console.log(`[Citation Service] Searching for unsynced citations with SQL: ${sql}`);
+            } else {
+                // Return citations modified after the timestamp
+                sql = `
+                    SELECT * FROM citations 
+                    WHERE COALESCE(last_modified_at, updated_at) > ? 
+                    AND (source IS NULL OR source != 'zotero')
+                    ORDER BY COALESCE(last_modified_at, updated_at) DESC
+                `;
+                params = [timestamp];
+                console.log(`[Citation Service] Searching for changes after ${timestamp} with SQL: ${sql}`);
+            }
             
-            this.db.all(sql, [timestamp], (err, rows) => {
+            // First, let's see all citations for debugging
+            this.db.all('SELECT id, title, source, zotero_key, last_modified_at, updated_at FROM citations LIMIT 10', [], (err, allRows) => {
+                if (!err) {
+                    console.log(`[Citation Service] DEBUG: Sample of all citations in database:`, allRows.map(r => ({
+                        id: r.id,
+                        title: r.title?.substring(0, 50) + '...',
+                        source: r.source,
+                        zotero_key: r.zotero_key,
+                        last_modified_at: r.last_modified_at,
+                        updated_at: r.updated_at
+                    })));
+                }
+            });
+            
+            this.db.all(sql, params, (err, rows) => {
                 if (err) {
+                    console.error('[Citation Service] Error getting local changes:', err);
                     reject(err);
                 } else {
+                    console.log(`[Citation Service] Found ${rows.length} local changes after ${timestamp || 'never'}`);
+                    if (rows.length > 0) {
+                        console.log(`[Citation Service] Sample local changes:`, rows.slice(0, 3).map(r => ({
+                            id: r.id,
+                            title: r.title?.substring(0, 50) + '...',
+                            source: r.source,
+                            zotero_key: r.zotero_key
+                        })));
+                    }
                     resolve(rows);
                 }
             });
@@ -902,6 +1259,30 @@ class CitationService {
                     resolve(null);
                 } else {
                     resolve(row.value);
+                }
+            });
+        });
+    }
+
+    // Execute raw SQL query (for advanced users/debugging)
+    async executeRawSQL(sqlQuery) {
+        return new Promise((resolve, reject) => {
+            console.log(`[Citation Service] Executing raw SQL: ${sqlQuery}`);
+            
+            // Safety check - only allow SELECT statements for now
+            const trimmedQuery = sqlQuery.trim().toLowerCase();
+            if (!trimmedQuery.startsWith('select')) {
+                reject(new Error('Only SELECT queries are allowed for security reasons'));
+                return;
+            }
+            
+            this.db.all(sqlQuery, [], (err, rows) => {
+                if (err) {
+                    console.error('[Citation Service] SQL execution error:', err);
+                    reject(err);
+                } else {
+                    console.log(`[Citation Service] SQL query returned ${rows.length} rows`);
+                    resolve(rows);
                 }
             });
         });

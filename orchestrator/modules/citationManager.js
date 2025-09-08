@@ -13,6 +13,7 @@ class CitationManager {
         this.eventListenersSet = false;
         this.actionListenersSet = false;
         this.lastNightowlSync = 0; // Timestamp to throttle sync
+        this.currentCitationSource = 'manual'; // Track the source of the current citation being created/edited
     }
 
     // Initialize the citation manager
@@ -92,6 +93,27 @@ class CitationManager {
         if (sortBy) sortBy.addEventListener('change', () => this.applyFilters());
         if (clearFilters) clearFilters.addEventListener('click', () => this.clearFilters());
 
+        // Advanced SQL controls
+        const sqlToggle = document.getElementById('citations-advanced-toggle');
+        const sqlExecute = document.getElementById('citations-sql-execute');
+        const sqlInput = document.getElementById('citations-sql-input');
+
+        if (sqlToggle) {
+            sqlToggle.addEventListener('click', () => this.toggleSqlPanel());
+        }
+        if (sqlExecute) {
+            sqlExecute.addEventListener('click', () => this.executeSqlQuery());
+        }
+        if (sqlInput) {
+            // Support Ctrl+Enter to execute query
+            sqlInput.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    this.executeSqlQuery();
+                }
+            });
+        }
+
         // Modal event listeners
         this.setupModalEventListeners();
     }
@@ -110,6 +132,7 @@ class CitationManager {
         const importBtn = document.getElementById('import-citation-btn');
         const exportBtn = document.getElementById('export-citations-btn');
         const selectAllBtn = document.getElementById('select-all-citations-btn');
+        const deleteSelectedBtn = document.getElementById('delete-selected-citations-btn');
         const exportToZoteroBtn = document.getElementById('export-to-zotero-btn');
         const liveSyncZoteroBtn = document.getElementById('live-sync-zotero-btn');
         const refreshBtn = document.getElementById('refresh-citations-btn');
@@ -117,6 +140,7 @@ class CitationManager {
         console.log('[Citation Manager] Add button found:', !!addBtn);
         console.log('[Citation Manager] Import button found:', !!importBtn);
         console.log('[Citation Manager] Export button found:', !!exportBtn);
+        console.log('[Citation Manager] Delete Selected button found:', !!deleteSelectedBtn);
         console.log('[Citation Manager] Export to Zotero button found:', !!exportToZoteroBtn);
         console.log('[Citation Manager] Live Sync Zotero button found:', !!liveSyncZoteroBtn);
         console.log('[Citation Manager] Refresh button found:', !!refreshBtn);
@@ -153,6 +177,14 @@ class CitationManager {
                 e.preventDefault();
                 e.stopPropagation();
                 this.toggleSelectAll();
+            });
+        }
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Delete Selected button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.deleteSelectedCitations();
             });
         }
         if (exportToZoteroBtn) {
@@ -695,6 +727,7 @@ class CitationManager {
     showAddCitationModal() {
         console.log('[Citation Manager] showAddCitationModal called');
         this.currentEditingId = null;
+        this.currentCitationSource = 'manual'; // New citation created manually
         this.populateCitationForm();
         this.showModal('citation-modal-overlay');
     }
@@ -710,6 +743,8 @@ class CitationManager {
             const result = await window.electronAPI.invoke('citations-get-by-id', id);
             if (result.success) {
                 this.currentEditingId = id;
+                // Preserve the existing source when editing
+                this.currentCitationSource = result.citation.source || 'manual';
                 this.populateCitationForm(result.citation);
                 this.showModal('citation-modal-overlay');
             } else {
@@ -880,7 +915,8 @@ class CitationManager {
                 abstract: formData.get('abstract') || null,
                 notes: formData.get('notes') || null,
                 tags: formData.get('tags') || null,
-                is_favorite: formData.get('favorite') === 'on'
+                is_favorite: formData.get('favorite') === 'on',
+                source: this.currentCitationSource
             };
 
             // Validate required fields
@@ -1157,6 +1193,67 @@ class CitationManager {
         console.log(`[Citation Manager] ${shouldSelectAll ? 'Selected' : 'Deselected'} all citations`);
     }
 
+    // Delete all selected citations
+    async deleteSelectedCitations() {
+        try {
+            // Get selected citation IDs
+            const selectedIds = this.getSelectedCitationIds();
+            
+            if (selectedIds.length === 0) {
+                this.showError('Please select citations to delete');
+                return;
+            }
+
+            // Confirm deletion
+            const confirmMessage = `Are you sure you want to delete ${selectedIds.length} selected citation${selectedIds.length > 1 ? 's' : ''}? This action cannot be undone.`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            this.showLoading(`Deleting ${selectedIds.length} citations...`);
+
+            // Delete each citation
+            let successCount = 0;
+            let errorCount = 0;
+            const errors = [];
+
+            for (const id of selectedIds) {
+                try {
+                    const result = await window.electronAPI.invoke('citations-delete', id);
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                        errors.push(`Citation ${id}: ${result.error}`);
+                    }
+                } catch (error) {
+                    errorCount++;
+                    errors.push(`Citation ${id}: ${error.message}`);
+                }
+            }
+
+            this.hideLoading();
+
+            // Show results
+            if (errorCount === 0) {
+                this.showSuccess(`Successfully deleted ${successCount} citations`);
+            } else if (successCount === 0) {
+                this.showError(`Failed to delete all citations. First error: ${errors[0]}`);
+            } else {
+                this.showSuccess(`Deleted ${successCount} citations, ${errorCount} failed`);
+                console.warn('[Citation Manager] Delete errors:', errors);
+            }
+
+            // Refresh the citations list
+            await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('[Citation Manager] Error deleting selected citations:', error);
+            this.showError('Failed to delete citations: ' + error.message);
+        }
+    }
+
     // Sync with Zotero
     async syncWithZotero() {
         try {
@@ -1195,7 +1292,7 @@ class CitationManager {
             const collectionField = document.getElementById('zotero-collection');
             const collectionId = collectionField?.value?.trim() || null;
             
-            const result = await window.electronAPI.invoke('citations-zotero-sync', apiKey, userId, collectionId);
+            const result = await window.electronAPI.invoke('citations-zotero-live-sync', apiKey, userId, collectionId);
             if (result.success) {
                 this.hideModal('zotero-modal-overlay');
                 this.showSuccess('Zotero sync completed successfully');
@@ -1327,6 +1424,182 @@ class CitationManager {
         } catch (error) {
             console.error('[Citation Manager] Error downloading export:', error);
             this.showError('Failed to download export: ' + error.message);
+        }
+    }
+
+    // ===== ADVANCED SQL FUNCTIONALITY =====
+
+    // Toggle the SQL query panel
+    toggleSqlPanel() {
+        const sqlPanel = document.getElementById('citations-sql-panel');
+        if (!sqlPanel) return;
+
+        const isVisible = sqlPanel.style.display !== 'none';
+        sqlPanel.style.display = isVisible ? 'none' : 'block';
+        
+        // Focus the input if showing
+        if (!isVisible) {
+            const sqlInput = document.getElementById('citations-sql-input');
+            if (sqlInput) {
+                setTimeout(() => sqlInput.focus(), 100);
+            }
+        }
+        
+        console.log(`[Citation Manager] SQL panel ${isVisible ? 'hidden' : 'shown'}`);
+    }
+
+    // Execute the SQL query
+    async executeSqlQuery() {
+        const sqlInput = document.getElementById('citations-sql-input');
+        if (!sqlInput) return;
+
+        const query = sqlInput.value.trim();
+        if (!query) {
+            this.showError('Please enter a SQL query');
+            return;
+        }
+
+        try {
+            this.showLoading('Executing SQL query...');
+            
+            const result = await window.electronAPI.invoke('citations-execute-sql', query);
+            
+            this.hideLoading();
+            
+            if (result.success) {
+                // Display results in the citations list area
+                this.displaySqlResults(result.data, query);
+                this.showSuccess(`Query executed successfully - ${result.data.length} rows returned`);
+            } else {
+                this.showError('SQL query failed: ' + result.error);
+            }
+        } catch (error) {
+            this.hideLoading();
+            console.error('[Citation Manager] Error executing SQL:', error);
+            this.showError('Failed to execute query: ' + error.message);
+        }
+    }
+
+    // Display SQL query results
+    displaySqlResults(data, query) {
+        const citationsContainer = document.getElementById('citations-list');
+        const emptyState = document.getElementById('citations-empty');
+        
+        if (!citationsContainer) return;
+
+        emptyState.style.display = 'none';
+        citationsContainer.style.display = 'block';
+        citationsContainer.innerHTML = '';
+
+        if (data.length === 0) {
+            citationsContainer.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    <div style="font-size: 14px; margin-bottom: 8px;">Query executed successfully</div>
+                    <div style="font-size: 12px;">No rows returned</div>
+                    <div style="font-size: 11px; font-family: monospace; background: #f5f5f5; padding: 8px; margin-top: 8px; border-radius: 4px; word-break: break-all;">
+                        ${query}
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        // Create a table-like display for the results
+        const tableDiv = document.createElement('div');
+        tableDiv.style.cssText = `
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            overflow-x: auto;
+        `;
+
+        // Add query info header
+        const headerDiv = document.createElement('div');
+        headerDiv.style.cssText = `
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-bottom: 1px solid #ddd;
+            font-size: 11px;
+            font-family: monospace;
+            word-break: break-all;
+        `;
+        headerDiv.innerHTML = `
+            <div style="color: #666; margin-bottom: 4px;">SQL Query Results (${data.length} rows):</div>
+            <div style="color: #333;">${query}</div>
+        `;
+        tableDiv.appendChild(headerDiv);
+
+        // Create table
+        const table = document.createElement('table');
+        table.style.cssText = `
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        `;
+
+        // Add table header
+        if (data.length > 0) {
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headerRow.style.backgroundColor = '#f8f9fa';
+
+            Object.keys(data[0]).forEach(column => {
+                const th = document.createElement('th');
+                th.textContent = column;
+                th.style.cssText = `
+                    padding: 8px 12px;
+                    border-bottom: 1px solid #ddd;
+                    text-align: left;
+                    font-weight: 600;
+                    color: #333;
+                `;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+        }
+
+        // Add table body
+        const tbody = document.createElement('tbody');
+        data.forEach((row, index) => {
+            const tr = document.createElement('tr');
+            if (index % 2 === 1) {
+                tr.style.backgroundColor = '#f9f9f9';
+            }
+
+            Object.values(row).forEach(value => {
+                const td = document.createElement('td');
+                td.style.cssText = `
+                    padding: 8px 12px;
+                    border-bottom: 1px solid #eee;
+                    vertical-align: top;
+                    max-width: 200px;
+                    word-break: break-word;
+                `;
+                
+                // Handle different data types
+                if (value === null) {
+                    td.innerHTML = '<span style="color: #999; font-style: italic;">NULL</span>';
+                } else if (typeof value === 'object') {
+                    td.textContent = JSON.stringify(value);
+                } else {
+                    td.textContent = String(value);
+                }
+                
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        tableDiv.appendChild(table);
+
+        citationsContainer.appendChild(tableDiv);
+
+        // Update stats
+        const statsDiv = document.getElementById('citations-stats');
+        if (statsDiv) {
+            statsDiv.textContent = `${data.length} rows from SQL query`;
         }
     }
 
