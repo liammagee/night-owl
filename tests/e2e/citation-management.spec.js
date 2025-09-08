@@ -1,4 +1,4 @@
-const { test, expect, _electron: electron } => require('@playwright/test');
+const { test, expect, _electron: electron } = require('@playwright/test');
 
 test.describe('Citation Management System', () => {
   let electronApp;

@@ -1,24 +1,24 @@
 const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
+  // Point directly to the E2E test directory. This is the most crucial change.
   testDir: './tests/e2e',
-  timeout: 30 * 1000,
+  timeout: 60 * 1000, // Increased timeout for potentially slow Electron startup
   expect: {
-    timeout: 5000
+    timeout: 10000 // Increased expect timeout
   },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Electron tests should run serially.
+  workers: 1,
   reporter: 'html',
   use: {
     trace: 'on-first-retry',
-    screenshot: 'only-on-failure'
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure'
   },
-  projects: [
-    {
-      name: 'simple-e2e',
-      testMatch: '**/simple-functionality.spec.js'
-    }
-  ]
+  // No need for a separate 'projects' configuration for a single Electron setup.
+  // The testDir and testMatch at the top level are sufficient.
+  testMatch: /.*.(spec|e2e)\.js/,
 });

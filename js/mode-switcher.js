@@ -53,6 +53,72 @@ function jumpToSlideInEditor(slideIndex) {
   }
 }
 
+function calculateSlideFromCursor() {
+  console.log('[Mode Switching] Calculating slide from cursor position');
+  
+  if (!window.editor) {
+    console.warn('[Mode Switching] Editor not available');
+    return 0;
+  }
+  
+  try {
+    // Get current cursor position
+    const position = window.editor.getPosition();
+    if (!position) {
+      console.warn('[Mode Switching] Could not get cursor position');
+      return 0;
+    }
+    
+    const currentLine = position.lineNumber;
+    console.log('[Mode Switching] Current cursor line:', currentLine);
+    
+    // Get the current editor content
+    const content = window.editor.getValue();
+    if (!content) {
+      console.warn('[Mode Switching] No content available in editor');
+      return 0;
+    }
+    
+    // Split content by slide separators (---)
+    const slides = content.split('---');
+    console.log('[Mode Switching] Found', slides.length, 'slides');
+    
+    // Calculate which slide the cursor is in by counting lines
+    let accumulatedLines = 0;
+    
+    for (let i = 0; i < slides.length; i++) {
+      const slideLines = slides[i].split('\n').length;
+      
+      // Add separator line count (except for first slide)
+      if (i > 0) {
+        accumulatedLines += 1; // separator line
+      }
+      
+      // Check if current line falls within this slide
+      const slideStart = accumulatedLines + 1;
+      const slideEnd = accumulatedLines + slideLines;
+      
+      console.log('[Mode Switching] Slide', i, 'lines:', slideStart, 'to', slideEnd);
+      
+      if (currentLine >= slideStart && currentLine <= slideEnd) {
+        console.log('[Mode Switching] Cursor is in slide', i);
+        return i;
+      }
+      
+      accumulatedLines += slideLines;
+    }
+    
+    // If we didn't find a match, assume last slide
+    const lastSlide = Math.max(0, slides.length - 1);
+    console.log('[Mode Switching] Cursor beyond all slides, using last slide:', lastSlide);
+    return lastSlide;
+    
+  } catch (error) {
+    console.error('[Mode Switching] Error calculating slide from cursor:', error);
+    return 0;
+  }
+}
+
 function restoreUIElementsAfterPresentation() {
   console.log('[Mode Switching] Restoring UI elements after presentation mode');
   
@@ -128,6 +194,20 @@ function switchToMode(modeName) {
   // Handle mode-specific logic
   if (modeName === 'presentation') {
     document.body.classList.add('presentation-mode');
+    
+    // Calculate which slide to jump to based on cursor position if coming from editor
+    let targetSlide = 0;
+    if (currentMode === 'editor') {
+      targetSlide = calculateSlideFromCursor();
+      console.log('[Mode Switching] Calculated target slide from cursor:', targetSlide);
+      console.log('[Mode Switching] Current mode was:', currentMode, ', switching to presentation with target slide:', targetSlide);
+    }
+    
+    // Store target slide for React component to pick up
+    if (targetSlide > 0) {
+      window.targetPresentationSlide = targetSlide;
+      console.log('[Mode Switching] Set window.targetPresentationSlide to:', targetSlide);
+    }
     
     // Ensure React component is rendered
     const presentationRoot = document.getElementById('presentation-root');

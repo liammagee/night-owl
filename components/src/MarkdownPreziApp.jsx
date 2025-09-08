@@ -1230,6 +1230,27 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     window.currentPresentationSlide = currentSlide;
   }, [currentSlide]);
 
+  // Jump to target slide when entering presentation mode from editor
+  useEffect(() => {
+    if (slides.length > 0 && typeof window.targetPresentationSlide === 'number') {
+      const targetSlide = window.targetPresentationSlide;
+      console.log('[Presentation] Target slide from editor detected:', targetSlide);
+      
+      // Clear the target slide to avoid jumping again
+      window.targetPresentationSlide = undefined;
+      
+      // Jump to the target slide if it's valid and different from current
+      if (targetSlide >= 0 && targetSlide < slides.length) {
+        console.log('[Presentation] Navigating to target slide:', targetSlide, 'current:', currentSlide);
+        // Use a longer delay to avoid conflicts with initial centering
+        setTimeout(() => {
+          console.log('[Presentation] Executing goToSlide for target:', targetSlide);
+          goToSlide(targetSlide);
+        }, 300);
+      }
+    }
+  }, [slides, goToSlide]);
+
   // Hide speaker notes panel when exiting presentation mode
   useEffect(() => {
     if (!isPresenting) {
