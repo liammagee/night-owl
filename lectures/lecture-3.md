@@ -14,9 +14,9 @@
 - Origin of “robot” linked to Hegelian themes of servitude and autonomy.
 
 ```notes
-Hegel's account of recognition and the associated story of the Master-Servant relationship (sometimes also Master/Slave or Lord/Bondsman) is his most famous contribution to philosophy.
+Hegel's account of recognition and the associated story of the Master-Servant relationship (sometimes also Master/Slave or Lord/Bondsman) is likely his most famous contribution to philosophy.
 
-It serves as inspiration to Marx's (still more) famous account of the relationship between capitalist and worker. It describes, in a different way, the relationship between the *Superego* and the *Ego* (and perhaps also the Id and the Ego) in Freud's psychoanalytic treatment. And of course it is the inspiration for a million stories of the downtrodden overcoming of oppression and adversity. 
+It serves as inspiration to Marx's (still more) famous account of the relationship between capitalist and worker. It describes, in a different way, the relationship between the *Superego* and the *Ego* (and perhaps also the *Id* and the *Ego*) in Freud's psychoanalytic treatment. And of course it is the inspiration for a million sci fi stories of robots and machines overcoming human oppression. 
 
 In our discussion we will consider it as a useful background to thinking about the relationship between human and machine. One clue to the importance of Hegel's account for technology lies in the origin of the word 'robot': a Czech word meaning 'forced labor/drudgery', coined in Karel Čapek's 1920 play, "Rossum's Universal Robots".
 
@@ -46,13 +46,13 @@ Let's now work through the text. Last week we explored the development of *Consc
 
 Paragraph 161 states:
 
-> By virtue of infinity, we see that the law has been perfected in itself into necessity, and we see all moments of appearance incorporated into the inner. (para 161)
+> By virtue of infinity, we see that the law has been perfected in itself into necessity, and we see all moments of appearance incorporated into the **inner** [my emphasis]. (para 161) *
 
 Paragraph 162 starts with:
 
-> This simple infinity, that is, the absolute concept, is to be called the simple essence of life, the soul of the world, the universal bloodstream, which is omnipresent, neither dulled nor interrupted by any distinction, which is to a greater degree itself both every distinction as well as their sublatedness. (para 162)
+> This simple infinity, that is, the absolute concept, is to be called the simple essence of life, the soul of the world, the universal bloodstream, which is omnipresent, neither dulled nor interrupted by any distinction, which is to a greater degree itself both **every distinction** as well as their **sublatedness**. (para 162)
 
-
+* Note: all quotes from the Pinkard (2018) translation.
 
 
 ---
@@ -64,7 +64,7 @@ Paragraph 162 starts with:
 - This process moves from object perception to deeper self‑awareness.
 
 ```notes
-What does this mean? Not that we live in a world marked by simply a distinction between appearance and reality, but that reality is the folding together of the two into a higher "unity" – "moments of appearance incorporated into the inner". "Distinction" is itself both essential but also is "sublatedness" (Aufgehobensein - lifted up, but also cancellation, preservation). It is when we understand that appearance and the laws that produce appearances belong together in this unity of infinite back-and-forth that we are led, for Hegel, from simply consciousness of an object to a further stage: 
+What does this mean? Not that we live in a world marked by simply a distinction between appearance and reality, but that reality is the folding together of the two into a higher "unity" – "moments of appearance incorporated into the inner". "Distinction" is itself both essential but also is "sublatedness" (*Aufgehobensein* - lifted up, but also cancellation, preservation). It is when we understand that appearance and the laws that produce appearances belong together in this unity of infinite back-and-forth that we are led, for Hegel, from simply consciousness of an object to a further stage: 
 
 
 ```

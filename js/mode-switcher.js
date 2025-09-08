@@ -5,6 +5,54 @@
 let currentMode = 'editor';
 let presentationEditorContent = '';
 
+function jumpToSlideInEditor(slideIndex) {
+  console.log('[Mode Switching] Jumping to slide', slideIndex, 'in editor');
+  
+  if (!window.editor || !window.goToLine) {
+    console.warn('[Mode Switching] Editor or goToLine function not available');
+    return;
+  }
+  
+  try {
+    // Get the current editor content
+    const content = window.editor.getValue();
+    if (!content) {
+      console.warn('[Mode Switching] No content available in editor');
+      return;
+    }
+    
+    // Split content by slide separators (---)
+    const slides = content.split('---');
+    
+    if (slideIndex >= slides.length) {
+      console.warn('[Mode Switching] Slide index', slideIndex, 'exceeds available slides', slides.length);
+      return;
+    }
+    
+    // Calculate line number by counting lines before the target slide
+    let lineNumber = 1;
+    for (let i = 0; i < slideIndex; i++) {
+      // Count lines in this slide plus the separator line
+      const slideLines = slides[i].split('\n').length;
+      lineNumber += slideLines;
+      if (i > 0) lineNumber += 1; // Add separator line (--- takes 1 line)
+    }
+    
+    // Add a few lines to account for any extra whitespace after separators
+    if (slideIndex > 0) {
+      lineNumber += 1;
+    }
+    
+    console.log('[Mode Switching] Calculated line number:', lineNumber, 'for slide', slideIndex);
+    
+    // Jump to the calculated line
+    window.goToLine(lineNumber);
+    
+  } catch (error) {
+    console.error('[Mode Switching] Error jumping to slide in editor:', error);
+  }
+}
+
 function restoreUIElementsAfterPresentation() {
   console.log('[Mode Switching] Restoring UI elements after presentation mode');
   
@@ -185,6 +233,11 @@ function switchToMode(modeName) {
     document.body.classList.remove('presentation-mode');
     hideSpeakerNotesPanel();
     restoreUIElementsAfterPresentation();
+    
+    // Jump to current slide position in editor if coming from presentation
+    if (currentMode === 'presentation' && typeof window.currentPresentationSlide === 'number') {
+      jumpToSlideInEditor(window.currentPresentationSlide);
+    }
   }
 
   // Update current mode

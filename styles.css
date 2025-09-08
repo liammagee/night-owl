@@ -1153,6 +1153,13 @@ body {
     margin-bottom: 0;
 }
 
+/* Make italics appear as bold within blockquotes since the whole blockquote is already italic */
+.slide-content blockquote.presentation-blockquote em {
+    font-style: normal;
+    font-weight: bold;
+    color: #1f2937;
+}
+
 /* Responsive sizing for smaller slides */
 @media (max-width: 768px) {
     .slide-content blockquote.presentation-blockquote {

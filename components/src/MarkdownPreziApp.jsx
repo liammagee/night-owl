@@ -1225,6 +1225,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     updateSpeakerNotes();
   }, [currentSlide, slides, speakerNotesVisible, isPresenting, speakerNotesWindowVisible]);
 
+  // Expose current slide index to global scope for navigation
+  useEffect(() => {
+    window.currentPresentationSlide = currentSlide;
+  }, [currentSlide]);
+
   // Hide speaker notes panel when exiting presentation mode
   useEffect(() => {
     if (!isPresenting) {
