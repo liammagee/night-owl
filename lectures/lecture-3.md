@@ -625,6 +625,7 @@ And finally – do we find in the existential struggles described by Hegel, a li
 
 ## Next week
 
+
 ### Attention: Bridging Machine and Human Learning
 
 - **Machine Learning**: Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł. & Polosukhin, I. (2017). Attention is all you need. Advances in neural information processing systems, 30.
@@ -638,4 +639,17 @@ We turn our attention to... a term that bridged the fields of machine and human 
 
 ---
 
+### Overall progress...
+
+![image](concept-relations.png)
+
+
+
+---
+
 ### Discuss...
+
+What does it mean
+
+ - to recognize?
+ - to be recognized?
