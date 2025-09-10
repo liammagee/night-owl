@@ -114,14 +114,15 @@ function register(deps) {
       
       // Filter and map files (excluding directories)
       const files = items
-        .filter(item => item.isFile() && (item.name.endsWith('.md') || item.name.endsWith('.markdown')))
+        .filter(item => item.isFile() && (item.name.endsWith('.md') || item.name.endsWith('.markdown') || item.name.endsWith('.bib')))
         .map(item => ({
           name: item.name,
           path: path.join(targetDir, item.name),
-          relativePath: path.relative(workingDir, path.join(targetDir, item.name))
+          relativePath: path.relative(workingDir, path.join(targetDir, item.name)),
+          isFile: true  // Add isFile property for BibTeX loading compatibility
         }));
       
-      console.log(`[FileHandlers] Found ${files.length} markdown files`);
+      console.log(`[FileHandlers] Found ${files.length} files (markdown and bib)`);
       return files;
     } catch (error) {
       console.error('[FileHandlers] Error listing directory files:', error);

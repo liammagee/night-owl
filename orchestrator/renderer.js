@@ -1975,37 +1975,58 @@ function parseBibTeX(content) {
 
 // Load BibTeX files from the lectures directory
 async function loadBibTeXFiles() {
+    console.log('[loadBibTeX] *** FUNCTION CALLED - Starting BibTeX file loading process ***');
     try {
+        console.log('[loadBibTeX] Inside try block...');
         // Look for .bib files specifically in the lectures subdirectory
         const bibFiles = [];
         
         try {
             // First, get the current working directory to understand the context
             const workingDir = await window.electronAPI.invoke('get-working-directory');
+            console.log('[loadBibTeX] Current working directory:', workingDir);
             
             // Try multiple possible locations for BibTeX files
             const possiblePaths = [
                 '.',                  // current working directory
-                'lectures',           // lectures subdirectory (fallback)
-                '../lectures',        // lectures in parent directory (fallback)
+                // Since working directory is already /lectures, we don't need other paths
             ];
+            
+            console.log('[loadBibTeX] Will try paths:', possiblePaths);
             
             for (const relativePath of possiblePaths) {
                 try {
                     console.log(`[renderer.js] Trying to list files in: ${relativePath}`);
                     const lecturesFiles = await window.electronAPI.invoke('list-directory-files', relativePath);
+                    console.log(`[loadBibTeX] Files found in ${relativePath}:`, lecturesFiles?.length || 0);
                     
                     if (lecturesFiles && Array.isArray(lecturesFiles)) {
+                        // Debug: show all files first
+                        console.log(`[loadBibTeX] All files in ${relativePath}:`, lecturesFiles.map(f => `${f.name} (isFile: ${f.isFile})`));
                         // Filter for .bib files
+                        const bibFiles = lecturesFiles.filter(file => file.isFile && file.name.endsWith('.bib'));
+                        console.log(`[loadBibTeX] .bib files found in ${relativePath}:`, bibFiles.map(f => f.name));
+                        
                         for (const file of lecturesFiles) {
                             if (file.isFile && file.name.endsWith('.bib')) {
-                                // Construct the full path for reading
-                                const fullBibPath = `${relativePath}/${file.name}`;
+                                // Use the absolute path from the file listing
+                                const fullBibPath = file.path || `${workingDir}/${relativePath === '.' ? '' : relativePath + '/'}${file.name}`;
                                 
                                 // Try to read the file directly
                                 try {
-                                    const content = await window.electronAPI.invoke('read-file', fullBibPath);
+                                    console.log(`[loadBibTeX] Attempting to read: ${fullBibPath}`);
+                                    const response = await window.electronAPI.invoke('read-file', fullBibPath);
+                                    console.log(`[loadBibTeX] Response from read-file:`, response);
+                                    
+                                    if (!response.success) {
+                                        console.error(`[loadBibTeX] Failed to read ${fullBibPath}:`, response.error);
+                                        continue;
+                                    }
+                                    
+                                    const content = response.content;
+                                    console.log(`[loadBibTeX] Successfully read ${fullBibPath}, content length:`, content?.length || 0);
                                     const entries = parseBibTeX(content);
+                                    console.log(`[loadBibTeX] Parsed ${entries.length} entries from ${file.name}`);
                                     if (entries.length > 0) {
                                         bibEntries.push(...entries);
                                         
@@ -2024,8 +2045,14 @@ async function loadBibTeXFiles() {
                                         // If relative path failed, try with just the filename in lectures
                                         const altPath = `lectures/${file.name}`;
                                         console.log(`[renderer.js] Trying alternative path: ${altPath}`);
-                                        const content = await window.electronAPI.invoke('read-file', altPath);
+                                        const response = await window.electronAPI.invoke('read-file', altPath);
                                         
+                                        if (!response.success) {
+                                            console.error(`[loadBibTeX] Alternative path failed ${altPath}:`, response.error);
+                                            continue;
+                                        }
+                                        
+                                        const content = response.content;
                                         const entries = parseBibTeX(content);
                                         console.log(`[renderer.js] Successfully parsed ${entries.length} entries from ${altPath}`);
                                         if (entries.length > 0) {
@@ -2081,15 +2108,35 @@ function registerCitationAutocomplete() {
         triggerCharacters: ['@'],
         // Also support manual triggering (Ctrl+Space)
         provideCompletionItems: function(model, position, context, token) {
+            console.log('[Citation Autocomplete] Provider triggered!');
+            console.log('[Citation Autocomplete] Context:', context);
+            console.log('[Citation Autocomplete] Position:', position);
+            
             // Get current line text
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
             
+            console.log('[Citation Autocomplete] Current line:', currentLine);
+            console.log('[Citation Autocomplete] Text before pointer:', textBeforePointer);
+            
             // Look for citation pattern: [@...] where we're after the @
-            const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
+            // Also try simpler patterns in case the trigger isn't working as expected
+            const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/) || 
+                                 textBeforePointer.match(/@([^\s\]]*)?$/) ||
+                                 (textBeforePointer.endsWith('@') ? ['@', ''] : null);
+            
+            console.log('[Citation Autocomplete] Citation match:', citationMatch);
+            console.log('[Citation Autocomplete] Available bibEntries count:', bibEntries.length);
             
             if (!citationMatch) {
-                return { suggestions: [] };
+                console.log('[Citation Autocomplete] No citation match found, trying fallback...');
+                // Fallback: if the trigger was "@", provide all suggestions
+                if (context?.triggerCharacter === '@' || textBeforePointer.includes('@')) {
+                    console.log('[Citation Autocomplete] Using fallback - providing all suggestions');
+                } else {
+                    console.log('[Citation Autocomplete] No fallback match, returning empty suggestions');
+                    return { suggestions: [] };
+                }
             }
             
             const searchTerm = citationMatch[1] || '';
@@ -2449,7 +2496,7 @@ async function initializeMonacoEditor() {
                     citationOptions.autoClosingBrackets = 'never'; // Disable auto-closing brackets for citation autocomplete
                     
                     // Load BibTeX files and register citation autocomplete
-                    console.log('[renderer.js] Starting BibTeX loading process...');
+                    console.log('[renderer.js] *** ABOUT TO CALL loadBibTeXFiles() ***');
                     loadBibTeXFiles().then(() => {
                         console.log('[renderer.js] BibTeX loading completed, registering autocomplete...');
                         console.log(`[renderer.js] Final bibEntries count: ${bibEntries.length}`);
@@ -2475,6 +2522,7 @@ async function initializeMonacoEditor() {
                 console.error('[renderer.js] Error loading settings:', error);
                 // Fallback: enable citation autocomplete by default
                 console.log('[renderer.js] Fallback citation loading (settings failed)...');
+                console.log('[renderer.js] *** FALLBACK ABOUT TO CALL loadBibTeXFiles() ***');
                 editor.updateOptions({
                     autoClosingBrackets: 'never'
                 });
