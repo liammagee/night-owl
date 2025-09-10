@@ -701,6 +701,9 @@ class CitationService {
                 const sinceTimestamp = Math.floor(new Date(lastSyncTime).getTime() / 1000);
                 params.append('since', sinceTimestamp.toString());
                 console.log('[Citation Service] Using since parameter:', sinceTimestamp, 'for timestamp:', lastSyncTime);
+                console.log('[Citation Service] Current time:', Math.floor(Date.now() / 1000), 'vs since:', sinceTimestamp);
+            } else {
+                console.log('[Citation Service] No lastSyncTime provided, doing full sync');
             }
             
             apiUrl += '?' + params.toString();
@@ -715,6 +718,7 @@ class CitationService {
             });
 
             const zoteroItems = response.data;
+            console.log(`[Citation Service] Retrieved ${zoteroItems.length} items from Zotero API`);
             let syncedCount = 0;
             let updatedCount = 0;
 
@@ -722,7 +726,12 @@ class CitationService {
                 const data = item.data;
                 
                 // Skip items without titles
-                if (!data.title) continue;
+                if (!data.title) {
+                    console.log(`[Citation Service] Skipping item without title: ${item.key}`);
+                    continue;
+                }
+                
+                console.log(`[Citation Service] Processing item: ${data.title} (${item.key})`);
 
                 // Map Zotero item to our citation format
                 const citationData = {
@@ -750,10 +759,12 @@ class CitationService {
                 
                 if (existing) {
                     // Update existing citation
+                    console.log(`[Citation Service] Updating existing citation: ${data.title}`);
                     await this.updateCitation(existing.id, citationData);
                     updatedCount++;
                 } else {
                     // Add new citation
+                    console.log(`[Citation Service] Adding new citation: ${data.title}`);
                     await this.addCitation(citationData);
                     syncedCount++;
                 }
@@ -861,6 +872,58 @@ class CitationService {
         };
         
         return typeMap[zoteroType] || 'article';
+    }
+
+    // Fetch collections from Zotero
+    async fetchZoteroCollections(zoteroAPIKey, userID) {
+        console.log('[Citation Service] Fetching Zotero collections...');
+        
+        try {
+            const axios = require('axios');
+            const apiUrl = `https://api.zotero.org/users/${userID}/collections`;
+            
+            const response = await axios.get(apiUrl, {
+                headers: {
+                    'Authorization': `Bearer ${zoteroAPIKey}`,
+                    'Zotero-API-Version': '3'
+                },
+                timeout: 15000
+            });
+
+            const collections = response.data.map(collection => ({
+                key: collection.key,
+                name: collection.data.name,
+                parentCollection: collection.data.parentCollection || null,
+                itemCount: collection.meta.numItems || 0
+            }));
+
+            console.log(`[Citation Service] Found ${collections.length} collections`);
+            return { success: true, collections };
+            
+        } catch (error) {
+            console.error('[Citation Service] Failed to fetch Zotero collections:', error);
+            
+            let errorMessage = 'Failed to fetch Zotero collections: ';
+            if (error.response) {
+                const status = error.response.status;
+                switch (status) {
+                    case 403:
+                        errorMessage += 'Access denied. Please check your API key permissions.';
+                        break;
+                    case 404:
+                        errorMessage += 'User not found. Please verify your User ID.';
+                        break;
+                    default:
+                        errorMessage += `HTTP ${status} error from Zotero API.`;
+                }
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage += 'Request timeout. Please check your internet connection.';
+            } else {
+                errorMessage += error.message;
+            }
+            
+            return { success: false, error: errorMessage };
+        }
     }
 
     // ===== UTILITY METHODS =====
@@ -1102,11 +1165,21 @@ class CitationService {
                 errors: []
             };
 
+            // Check if database is empty - if so, force full sync
+            const allCitations = await this.getCitations({});
+            console.log(`[Citation Service] Current database has ${allCitations.length} citations`);
+            
+            let effectiveLastSyncTime = lastSyncTime;
+            if (allCitations.length === 0) {
+                console.log('[Citation Service] Database is empty, forcing full sync (ignoring lastSyncTime)');
+                effectiveLastSyncTime = null;
+            }
+
             // Step 1: Import from Zotero (items modified since last sync)
             console.log('[Citation Service] Step 1: Importing from Zotero...');
-            const zoteroSyncResult = await this.syncWithZotero(zoteroAPIKey, userID, collectionID, lastSyncTime);
+            const zoteroSyncResult = await this.syncWithZotero(zoteroAPIKey, userID, collectionID, effectiveLastSyncTime);
             if (zoteroSyncResult.success) {
-                syncResults.importedFromZotero = zoteroSyncResult.syncedCount || 0;
+                syncResults.importedFromZotero = zoteroSyncResult.synced || 0;
                 console.log(`[Citation Service] Imported ${syncResults.importedFromZotero} items from Zotero`);
             }
 

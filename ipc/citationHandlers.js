@@ -749,6 +749,20 @@ function registerCitationHandlers(userDataPath) {
         }
     });
 
+    // Fetch Zotero collections
+    ipcMain.handle('citations-fetch-zotero-collections', async (event, apiKey, userID) => {
+        try {
+            console.log(`[Citation Handlers] Fetching Zotero collections for user ${userID}`);
+            if (!citationService) await initializeCitationService(userDataPath);
+            
+            const result = await citationService.fetchZoteroCollections(apiKey, userID);
+            return result;
+        } catch (error) {
+            console.error('[Citation Handlers] Error fetching Zotero collections:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     // ===== ADVANCED/DEBUG FEATURES =====
 
     // Execute raw SQL query (for advanced users/debugging)

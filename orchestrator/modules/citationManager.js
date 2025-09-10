@@ -249,6 +249,17 @@ class CitationManager {
         if (cancelZoteroBtn) cancelZoteroBtn.addEventListener('click', () => this.hideModal('zotero-modal-overlay'));
         if (configZoteroBtn) configZoteroBtn.addEventListener('click', () => this.showZoteroConfig());
 
+        // Browse collections button
+        const browseCollectionsBtn = document.getElementById('browse-collections-btn');
+        if (browseCollectionsBtn) browseCollectionsBtn.addEventListener('click', () => this.browseZoteroCollections());
+
+        // Quick collection switcher
+        const quickCollectionSelector = document.getElementById('quick-collection-selector');
+        const refreshCollectionsBtn = document.getElementById('refresh-collections-btn');
+        
+        if (quickCollectionSelector) quickCollectionSelector.addEventListener('change', (e) => this.onQuickCollectionChange(e));
+        if (refreshCollectionsBtn) refreshCollectionsBtn.addEventListener('click', () => this.refreshQuickCollections());
+
         // Export modal events
         const exportModal = document.getElementById('export-modal');
         const previewExportBtn = document.getElementById('preview-export-btn');
@@ -346,6 +357,9 @@ class CitationManager {
         if (!this.isInitialized) {
             this.initialize();
         }
+
+        // Initialize quick collection switcher
+        this.initializeQuickCollectionSwitcher();
     }
 
     // Load citations with filters
@@ -1055,6 +1069,317 @@ class CitationManager {
         console.log('[Citation Manager] Loaded saved Zotero credentials');
     }
 
+    // Browse Zotero collections
+    async browseZoteroCollections() {
+        try {
+            const apiKey = localStorage.getItem('zotero-api-key');
+            const userId = localStorage.getItem('zotero-user-id');
+            
+            if (!apiKey || !userId) {
+                this.showError('Please enter your Zotero API credentials first');
+                return;
+            }
+
+            // Show collections browser modal
+            this.showModal('collections-browser-modal-overlay');
+            this.showCollectionsLoading(true);
+
+            // Fetch collections from Zotero
+            const result = await window.electronAPI.invoke('citations-fetch-zotero-collections', apiKey, userId);
+            
+            this.showCollectionsLoading(false);
+
+            if (result.success) {
+                this.displayCollections(result.collections);
+            } else {
+                this.showCollectionsError(result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error browsing collections:', error);
+            this.showCollectionsLoading(false);
+            this.showCollectionsError('Failed to browse collections: ' + error.message);
+        }
+    }
+
+    // Show/hide collections loading state
+    showCollectionsLoading(show) {
+        const loadingEl = document.getElementById('collections-loading');
+        const listEl = document.getElementById('collections-list');
+        const errorEl = document.getElementById('collections-error');
+        
+        if (loadingEl) loadingEl.style.display = show ? 'block' : 'none';
+        if (listEl) listEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
+    }
+
+    // Show collections error
+    showCollectionsError(message) {
+        const loadingEl = document.getElementById('collections-loading');
+        const listEl = document.getElementById('collections-list');
+        const errorEl = document.getElementById('collections-error');
+        
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (listEl) listEl.style.display = 'none';
+        if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.innerHTML = `<p>Failed to load collections: ${message}</p>`;
+        }
+    }
+
+    // Display collections in the browser
+    displayCollections(collections) {
+        const loadingEl = document.getElementById('collections-loading');
+        const listEl = document.getElementById('collections-list');
+        const errorEl = document.getElementById('collections-error');
+        const containerEl = document.getElementById('collections-container');
+        
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
+        if (listEl) listEl.style.display = 'block';
+
+        if (!containerEl) return;
+
+        // Set up entire library button
+        const entireLibraryBtn = document.getElementById('select-entire-library-btn');
+        if (entireLibraryBtn) {
+            entireLibraryBtn.addEventListener('click', () => this.selectCollection(null, 'Entire Library'));
+        }
+
+        // Display collections
+        containerEl.innerHTML = '';
+        
+        if (collections.length === 0) {
+            containerEl.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No collections found</p>';
+            return;
+        }
+
+        collections.forEach(collection => {
+            const collectionBtn = document.createElement('button');
+            collectionBtn.type = 'button';
+            collectionBtn.className = 'btn';
+            collectionBtn.style.cssText = 'width: 100%; text-align: left; padding: 10px; margin-bottom: 8px; border: 1px solid #ddd;';
+            
+            collectionBtn.innerHTML = `
+                <div>📁 <strong>${this.escapeHtml(collection.name)}</strong></div>
+                <div style="font-size: 12px; color: #666; margin-top: 4px;">${collection.itemCount} items</div>
+            `;
+            
+            collectionBtn.addEventListener('click', () => {
+                this.selectCollection(collection.key, collection.name);
+            });
+            
+            containerEl.appendChild(collectionBtn);
+        });
+    }
+
+    // Select a collection
+    selectCollection(collectionKey, collectionName) {
+        // Update the collection field in the Zotero modal
+        const collectionField = document.getElementById('zotero-collection');
+        const collectionInfoEl = document.getElementById('selected-collection-info');
+        const collectionNameEl = document.getElementById('selected-collection-name');
+        const collectionItemsEl = document.getElementById('selected-collection-items');
+        
+        if (collectionField) {
+            collectionField.value = collectionKey || '';
+        }
+
+        // Show collection info
+        if (collectionInfoEl && collectionNameEl) {
+            if (collectionKey) {
+                collectionNameEl.textContent = collectionName;
+                if (collectionItemsEl) {
+                    collectionItemsEl.textContent = `Collection ID: ${collectionKey}`;
+                }
+                collectionInfoEl.style.display = 'block';
+            } else {
+                collectionNameEl.textContent = collectionName;
+                if (collectionItemsEl) {
+                    collectionItemsEl.textContent = 'All items in your library will be synced';
+                }
+                collectionInfoEl.style.display = 'block';
+            }
+        }
+
+        // Save to localStorage for persistence
+        if (collectionKey) {
+            localStorage.setItem('zotero-collection-id', collectionKey);
+        } else {
+            localStorage.removeItem('zotero-collection-id');
+        }
+
+        // Close collections browser
+        this.hideModal('collections-browser-modal-overlay');
+        
+        this.showSuccess(`Selected: ${collectionName}`);
+    }
+
+    // Utility method to escape HTML
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Initialize quick collection switcher
+    async initializeQuickCollectionSwitcher() {
+        const apiKey = localStorage.getItem('zotero-api-key');
+        const userId = localStorage.getItem('zotero-user-id');
+        
+        if (!apiKey || !userId) {
+            this.hideQuickCollectionSwitcher();
+            return;
+        }
+
+        this.showQuickCollectionSwitcher();
+        await this.loadQuickCollections();
+    }
+
+    // Show/hide quick collection switcher
+    showQuickCollectionSwitcher() {
+        const selector = document.getElementById('quick-collection-selector');
+        const refreshBtn = document.getElementById('refresh-collections-btn');
+        
+        if (selector) selector.style.display = 'block';
+        if (refreshBtn) refreshBtn.style.display = 'block';
+    }
+
+    hideQuickCollectionSwitcher() {
+        const selector = document.getElementById('quick-collection-selector');
+        const refreshBtn = document.getElementById('refresh-collections-btn');
+        
+        if (selector) selector.style.display = 'none';
+        if (refreshBtn) refreshBtn.style.display = 'none';
+    }
+
+    // Load collections for quick switcher
+    async loadQuickCollections() {
+        const apiKey = localStorage.getItem('zotero-api-key');
+        const userId = localStorage.getItem('zotero-user-id');
+        
+        if (!apiKey || !userId) return;
+
+        try {
+            const result = await window.electronAPI.invoke('citations-fetch-zotero-collections', apiKey, userId);
+            
+            if (result.success) {
+                this.populateQuickCollectionSelector(result.collections);
+            } else {
+                console.warn('[Citation Manager] Failed to load quick collections:', result.error);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error loading quick collections:', error);
+        }
+    }
+
+    // Populate the quick collection selector dropdown
+    populateQuickCollectionSelector(collections) {
+        const selector = document.getElementById('quick-collection-selector');
+        if (!selector) return;
+
+        // Get currently selected collection
+        const savedCollectionId = localStorage.getItem('zotero-collection-id');
+
+        // Clear existing options except first one
+        selector.innerHTML = '<option value="">Entire Library</option>';
+
+        // Add collections
+        collections.forEach(collection => {
+            const option = document.createElement('option');
+            option.value = collection.key;
+            option.textContent = `${collection.name} (${collection.itemCount})`;
+            
+            if (collection.key === savedCollectionId) {
+                option.selected = true;
+            }
+            
+            selector.appendChild(option);
+        });
+
+        // If no saved collection or not found, select "Entire Library"
+        if (!savedCollectionId || !collections.find(c => c.key === savedCollectionId)) {
+            selector.value = '';
+        }
+    }
+
+    // Handle quick collection change
+    async onQuickCollectionChange(event) {
+        const selectedValue = event.target.value;
+        const selectedOption = event.target.options[event.target.selectedIndex];
+        const collectionName = selectedOption.textContent;
+
+        // Update localStorage
+        if (selectedValue) {
+            localStorage.setItem('zotero-collection-id', selectedValue);
+        } else {
+            localStorage.removeItem('zotero-collection-id');
+        }
+
+        // Update the main Zotero modal field too
+        const collectionField = document.getElementById('zotero-collection');
+        if (collectionField) {
+            collectionField.value = selectedValue;
+        }
+
+        // Update collection info display
+        const collectionInfoEl = document.getElementById('selected-collection-info');
+        const collectionNameEl = document.getElementById('selected-collection-name');
+        const collectionItemsEl = document.getElementById('selected-collection-items');
+        
+        if (collectionInfoEl && collectionNameEl) {
+            if (selectedValue) {
+                collectionNameEl.textContent = collectionName.split(' (')[0]; // Remove item count
+                if (collectionItemsEl) {
+                    collectionItemsEl.textContent = `Collection ID: ${selectedValue}`;
+                }
+                collectionInfoEl.style.display = 'block';
+            } else {
+                collectionNameEl.textContent = 'Entire Library';
+                if (collectionItemsEl) {
+                    collectionItemsEl.textContent = 'All items in your library will be synced';
+                }
+                collectionInfoEl.style.display = 'block';
+            }
+        }
+
+        console.log(`[Citation Manager] Quick collection changed to: ${collectionName}`);
+        
+        // Show a feedback message about the collection switch
+        const feedbackMsg = selectedValue ? 
+            `Switched to collection: ${collectionName.split(' (')[0]}. New imports will use this collection.` :
+            'Switched to entire library. New imports will use the entire library.';
+        this.showSuccess(feedbackMsg);
+        
+        // Note: Collection filtering will apply to new Zotero syncs/imports
+        // For now, refresh to show current state
+        await this.refreshCitations();
+    }
+
+    // Refresh quick collections
+    async refreshQuickCollections() {
+        const refreshBtn = document.getElementById('refresh-collections-btn');
+        if (refreshBtn) {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '⟳';
+        }
+
+        try {
+            await this.loadQuickCollections();
+            if (refreshBtn) {
+                setTimeout(() => {
+                    refreshBtn.textContent = '🔄';
+                    refreshBtn.disabled = false;
+                }, 500);
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error refreshing collections:', error);
+            if (refreshBtn) {
+                refreshBtn.textContent = '🔄';
+                refreshBtn.disabled = false;
+            }
+        }
+    }
+
     // Save Zotero configuration
     async saveZoteroConfig() {
         const apiKeyField = document.getElementById('zotero-api-key');
@@ -1072,6 +1397,9 @@ class CitationManager {
 
             this.hideModal('zotero-modal-overlay');
             this.showSuccess('Zotero configuration saved');
+            
+            // Initialize quick collection switcher now that credentials are saved
+            this.initializeQuickCollectionSwitcher();
         } catch (error) {
             console.error('[Citation Manager] Error saving Zotero config:', error);
             this.showError('Failed to save Zotero configuration: ' + error.message);
