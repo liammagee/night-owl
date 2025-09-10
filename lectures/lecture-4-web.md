@@ -2,9 +2,9 @@
 
 
 
-The past two weeks we wrestled with Hegel's discussion of concepts of Experience and Recognition. This week we change pace – and century – to look at a concept that has more direct relevance to both machine and human learning: the concept of attention.
+The past two weeks we wrestled with Hegel's discussion of concepts of *Experience* and *Recognition*. This week we change pace – and century – to look at a concept that has more direct relevance to both machine and human learning: the concept of attention. 
 
-In particular we look at the three papers which discuss attention in different ways.
+We look at the three papers which discuss attention in different ways.
 
 The first, "The Attention System of the Human Brain" (Petersen & Posner, 2012), revisits their 1989 paper of the same name. This initial paper has had a significant influence on neuroscience, psychology and by extension pedagogy, laying foundations for understanding the diverse neural contributors to attention, and hence, also to learning.
 
@@ -16,6 +16,27 @@ In this week's third paper, we look at attention from yet another lens. "The att
 
 Finally, though we won't discuss it in class, 
 for those seeking some further references on the attention economy: Hansen's recent (2024) article is a useful pivot on the concept in light of AI. For Hansen, the subscription-based model of ChatGPT, Claude, Gemini and other services is aimed less at profiting from the sale of advertising and more at building a cognitive dependency on a a given platform. 
+
+
+
+### Overall Development
+
+Let's also take stock of what we've covered so far:
+
+ - Week 1: Synthesis
+ - Week 2: Experience
+ - Week 3: Recognition
+ - Week 4: Attention
+
+With *Synthesis* we opened our account of machine and human learning with the idea that these are becoming synthesized. We also introduced the 19th century German philosopher Hegel, a thinker I claimed might help us make some sense of aspects of machine learning, though he lived long before its arrival.
+
+We then worked through Hegel's account of Consciousness and Self-Consciousness, via the associated concepts of *Experience* and *Recognition*. These helped us see – perhaps – how machine learning might be similar to human learning. Your own responses on the question of whether machines *experience* seem roughly split. But I think we can say on the topic of *recognition*, at least for now Hegel's account makes it seem difficult for us to believe true recognition take place.
+
+Though in one sense we are moving forward, we are also moving back, to Hegel's earlier account of *Perception*, the second "moment" of *Experience*. Of course we do with the benefit of two more centuries of science and technology, and particularly, with the instruments of brain scanners and GPUs. We can wonder then whether these instruments make redundant Hegel's philosophy - and whether, in the end, scientific investigation ultimately always trumps philosophical speculation. But we might find as we move further into the course, even on the question of the history of science, Hegel has a few surprises left for us...
+
+
+
+
 
 ### References:
 

@@ -1975,6 +1975,7 @@ function parseBibTeX(content) {
 
 // Load BibTeX files from the lectures directory
 async function loadBibTeXFiles() {
+    console.log('[loadBibTeXFiles] Function called');
     try {
         // Look for .bib files specifically in the lectures subdirectory
         const bibFiles = [];
@@ -1982,11 +1983,12 @@ async function loadBibTeXFiles() {
         try {
             // First, get the current working directory to understand the context
             const workingDir = await window.electronAPI.invoke('get-working-directory');
-            console.log('[renderer.js] Current working directory:', workingDir);
+            console.log('[loadBibTeXFiles] Current working directory:', workingDir);
             
             // Try multiple possible locations for the lectures directory
             const possiblePaths = [
-                'lectures',           // lectures in current directory (should work now)
+                '.',                  // current directory (since working dir is lectures)
+                'lectures',           // lectures in current directory (fallback)
                 '../lectures',        // lectures in parent directory (fallback)
             ];
             
@@ -2004,14 +2006,16 @@ async function loadBibTeXFiles() {
                                 
                                 // Try to read the file directly
                                 try {
-                                    console.log(`[renderer.js] Attempting to read: ${fullBibPath}`);
+                                    console.log(`[loadBibTeXFiles] Attempting to read: ${fullBibPath}`);
                                     const content = await window.electronAPI.invoke('read-file', fullBibPath);
+                                    console.log(`[loadBibTeXFiles] File content length: ${content.length}`);
                                     
                                     const entries = parseBibTeX(content);
-                                    console.log(`[renderer.js] Successfully parsed ${entries.length} entries from ${fullBibPath}`);
+                                    console.log(`[loadBibTeXFiles] Successfully parsed ${entries.length} entries from ${fullBibPath}`);
                                     if (entries.length > 0) {
-                                        console.log('[renderer.js] Sample parsed entry:', entries[0]);
+                                        console.log('[loadBibTeXFiles] Sample parsed entry:', entries[0]);
                                         bibEntries.push(...entries);
+                                        console.log(`[loadBibTeXFiles] Total bibEntries now: ${bibEntries.length}`);
                                     }
                                 } catch (readError) {
                                     console.log(`[renderer.js] Could not read ${fullBibPath}:`, readError.message);
@@ -2069,24 +2073,39 @@ async function loadBibTeXFiles() {
 function registerCitationAutocomplete() {
     console.log('[renderer.js] Registering citation autocomplete provider...');
     console.log('[renderer.js] Current bibEntries count:', bibEntries.length);
+    
+    // TEMPORARY: If no entries loaded, add some test entries for debugging
+    if (bibEntries.length === 0) {
+        console.log('[renderer.js] No entries loaded, adding test entries...');
+        bibEntries = [
+            { key: 'kojeve1980introduction', type: 'book', title: 'Introduction to the Reading of Hegel', author: 'Kojève, Alexandre', year: '1980' },
+            { key: 'hegel2025phenomenology', type: 'book', title: 'The phenomenology of spirit', author: 'Hegel, Georg WF', year: '2025' },
+            { key: 'test', type: 'article', title: 'Test Entry', author: 'Test Author', year: '2024' }
+        ];
+        console.log('[renderer.js] Added', bibEntries.length, 'test entries');
+    }
+    
     if (bibEntries.length > 0) {
         console.log('[renderer.js] Sample entry:', bibEntries[0]);
     }
     
     monaco.languages.registerCompletionItemProvider('markdown', {
         triggerCharacters: ['@'],
-        provideCompletionItems: function(model, position) {
-            console.log('[renderer.js] Citation autocomplete triggered');
+        // Also support manual triggering (Ctrl+Space)
+        provideCompletionItems: function(model, position, context, token) {
+            console.log('[renderer.js] Citation autocomplete triggered, context:', context);
             
             // Get current line text
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
             
-            console.log('[renderer.js] Text before pointer:', textBeforePointer);
+            console.log('[renderer.js] Text before pointer:', JSON.stringify(textBeforePointer));
             console.log('[renderer.js] Available bibEntries:', bibEntries.length);
+            console.log('[renderer.js] Position:', position);
             
             // Look for citation pattern: [@...] where we're after the @
             const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
+            console.log('[renderer.js] Citation match result:', citationMatch);
             
             if (!citationMatch) {
                 console.log('[renderer.js] Not in citation context');
@@ -2094,7 +2113,7 @@ function registerCitationAutocomplete() {
             }
             
             const searchTerm = citationMatch[1] || '';
-            console.log('[renderer.js] Search term:', searchTerm);
+            console.log('[renderer.js] Search term:', JSON.stringify(searchTerm));
             
             // Filter entries based on search term
             const suggestions = bibEntries
@@ -2451,7 +2470,14 @@ async function initializeMonacoEditor() {
                     citationOptions.autoClosingBrackets = 'never'; // Disable auto-closing brackets for citation autocomplete
                     
                     // Load BibTeX files and register citation autocomplete
+                    console.log('[renderer.js] Starting BibTeX loading process...');
                     loadBibTeXFiles().then(() => {
+                        console.log('[renderer.js] BibTeX loading completed, registering autocomplete...');
+                        console.log(`[renderer.js] Final bibEntries count: ${bibEntries.length}`);
+                        registerCitationAutocomplete();
+                    }).catch(error => {
+                        console.error('[renderer.js] Error loading BibTeX files:', error);
+                        // Still try to register autocomplete even if loading fails
                         registerCitationAutocomplete();
                     });
                 } else {
@@ -2469,10 +2495,15 @@ async function initializeMonacoEditor() {
             }).catch(error => {
                 console.error('[renderer.js] Error loading settings:', error);
                 // Fallback: enable citation autocomplete by default
+                console.log('[renderer.js] Fallback citation loading (settings failed)...');
                 editor.updateOptions({
                     autoClosingBrackets: 'never'
                 });
                 loadBibTeXFiles().then(() => {
+                    console.log('[renderer.js] Fallback BibTeX loading completed...');
+                    registerCitationAutocomplete();
+                }).catch(error => {
+                    console.error('[renderer.js] Fallback BibTeX loading error:', error);
                     registerCitationAutocomplete();
                 });
                 
