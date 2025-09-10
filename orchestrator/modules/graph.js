@@ -1,5 +1,5 @@
 // Graph visualization module for conceptual relationships
-import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
+// D3 is loaded globally from lib/d3.min.js
 
 class GraphView {
     constructor() {

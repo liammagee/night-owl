@@ -10,5 +10,15 @@
     "fontSize": 14,
     "fontFamily": "Monaco, 'Courier New', monospace",
     "enableCitationAutocomplete": true
+  },
+  "preview": {
+    "style": "latex",
+    "fontSize": "12pt",
+    "fontFamily": "Times New Roman",
+    "lineHeight": 1.5,
+    "maxWidth": "210mm",
+    "margins": "25mm 20mm",
+    "textAlign": "justify",
+    "showPageShadow": true
   }
 }

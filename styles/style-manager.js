@@ -7,7 +7,7 @@ class StyleManager {
         this.previewStyles = new Map();
         this.exportStyles = new Map();
         this.currentPresentationTemplate = 'minimal';
-        this.currentPreviewStyle = 'minimal-preview';
+        this.currentPreviewStyle = 'latex';
         this.currentExportStyle = 'academic-export';
         this.customStyles = new Map();
         
@@ -40,6 +40,13 @@ class StyleManager {
         });
 
         // Preview styles
+        this.previewStyles.set('latex', {
+            name: 'LaTeX Document',
+            description: 'Academic document style inspired by LaTeX typography',
+            cssFile: './css/latex-style.css',
+            className: 'latex-style'
+        });
+
         this.previewStyles.set('academic-preview', {
             name: 'Academic Preview',
             description: 'Professional styling for preview pane',
@@ -192,10 +199,19 @@ class StyleManager {
 
             // Remove existing preview styles
             this.removeStyleElement('preview-style');
+            this.removePreviewStyleClasses();
 
             // Load and apply new style
             const css = await this.loadCSSFile(style.cssFile || style.css);
             this.injectStyle(css, 'preview-style');
+
+            // Apply CSS class if specified
+            if (style.className) {
+                const previewPane = document.getElementById('preview-pane');
+                if (previewPane) {
+                    previewPane.classList.add(style.className);
+                }
+            }
 
             this.currentPreviewStyle = styleId;
             
@@ -343,6 +359,14 @@ class StyleManager {
         const existing = document.getElementById(id);
         if (existing) {
             existing.remove();
+        }
+    }
+
+    removePreviewStyleClasses() {
+        const previewPane = document.getElementById('preview-pane');
+        if (previewPane) {
+            // Remove known style classes
+            previewPane.classList.remove('latex-style', 'academic-style', 'minimal-style');
         }
     }
 

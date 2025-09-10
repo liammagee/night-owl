@@ -1,0 +1,263 @@
+/* LaTeX-style Academic Document Theme */
+/* Inspired by academic papers and LaTeX documents */
+
+/* LaTeX Typography Variables */
+:root {
+    --latex-font-serif: 'Times New Roman', 'Liberation Serif', 'DejaVu Serif', serif;
+    --latex-font-sans: 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif;
+    --latex-font-mono: 'Courier New', 'Liberation Mono', 'DejaVu Sans Mono', monospace;
+    
+    /* LaTeX colors */
+    --latex-text: #2e3440;
+    --latex-bg: #fefefe;
+    --latex-accent: #d08770;
+    --latex-emphasis: #bf616a;
+    --latex-code-bg: #f8f8f8;
+    --latex-border: #e5e5e5;
+    --latex-quote-border: #d08770;
+    
+    /* Typography scale */
+    --latex-base-size: 12pt;
+    --latex-large-size: 14pt;
+    --latex-small-size: 10pt;
+    --latex-tiny-size: 9pt;
+    
+    /* Spacing */
+    --latex-line-height: 1.5;
+    --latex-paragraph-spacing: 1em;
+    --latex-section-spacing: 1.5em;
+}
+
+/* LaTeX Document Style */
+.latex-style #preview-content {
+    font-family: var(--latex-font-serif) !important;
+    font-size: var(--latex-base-size) !important;
+    line-height: var(--latex-line-height) !important;
+    color: var(--latex-text) !important;
+    background: var(--latex-bg) !important;
+    max-width: 210mm !important; /* A4 width */
+    margin: 0 auto !important;
+    padding: 25mm 20mm !important; /* LaTeX margins */
+    box-shadow: 0 0 20px rgba(0,0,0,0.1) !important;
+    text-align: justify !important;
+}
+
+/* Headings - LaTeX style */
+.latex-style #preview-content h1 {
+    font-family: var(--latex-font-sans) !important;
+    font-size: 18pt !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    margin: 0 0 var(--latex-section-spacing) 0 !important;
+    padding: 0 !important;
+    line-height: 1.2 !important;
+    color: var(--latex-text) !important;
+}
+
+.latex-style #preview-content h2 {
+    font-family: var(--latex-font-sans) !important;
+    font-size: var(--latex-large-size) !important;
+    font-weight: bold !important;
+    margin: var(--latex-section-spacing) 0 0.8em 0 !important;
+    padding: 0 !important;
+    line-height: 1.3 !important;
+    color: var(--latex-text) !important;
+    counter-increment: section;
+}
+
+.latex-style #preview-content h3 {
+    font-family: var(--latex-font-sans) !important;
+    font-size: var(--latex-base-size) !important;
+    font-weight: bold !important;
+    margin: 1.2em 0 0.6em 0 !important;
+    padding: 0 !important;
+    line-height: 1.3 !important;
+    color: var(--latex-text) !important;
+}
+
+.latex-style #preview-content h4,
+.latex-style #preview-content h5,
+.latex-style #preview-content h6 {
+    font-family: var(--latex-font-sans) !important;
+    font-size: var(--latex-base-size) !important;
+    font-weight: bold !important;
+    margin: 1em 0 0.5em 0 !important;
+    padding: 0 !important;
+    line-height: 1.3 !important;
+    color: var(--latex-text) !important;
+}
+
+/* Paragraphs - LaTeX spacing */
+.latex-style #preview-content p {
+    margin: 0 0 var(--latex-paragraph-spacing) 0 !important;
+    text-indent: 1.5em !important;
+    text-align: justify !important;
+    orphans: 2;
+    widows: 2;
+}
+
+/* First paragraph after headings - no indent */
+.latex-style #preview-content h1 + p,
+.latex-style #preview-content h2 + p,
+.latex-style #preview-content h3 + p,
+.latex-style #preview-content h4 + p,
+.latex-style #preview-content h5 + p,
+.latex-style #preview-content h6 + p {
+    text-indent: 0 !important;
+}
+
+/* Lists - LaTeX style */
+.latex-style #preview-content ul,
+.latex-style #preview-content ol {
+    margin: var(--latex-paragraph-spacing) 0 !important;
+    padding-left: 2em !important;
+}
+
+.latex-style #preview-content li {
+    margin: 0.3em 0 !important;
+    text-align: justify !important;
+}
+
+/* Emphasis and Strong */
+.latex-style #preview-content em {
+    font-style: italic !important;
+    color: var(--latex-emphasis) !important;
+}
+
+.latex-style #preview-content strong {
+    font-weight: bold !important;
+    color: var(--latex-text) !important;
+}
+
+/* Code - LaTeX style */
+.latex-style #preview-content code {
+    font-family: var(--latex-font-mono) !important;
+    font-size: var(--latex-small-size) !important;
+    background: var(--latex-code-bg) !important;
+    padding: 2px 4px !important;
+    border-radius: 2px !important;
+    border: 1px solid var(--latex-border) !important;
+}
+
+.latex-style #preview-content pre {
+    font-family: var(--latex-font-mono) !important;
+    font-size: var(--latex-small-size) !important;
+    background: var(--latex-code-bg) !important;
+    border: 1px solid var(--latex-border) !important;
+    border-radius: 4px !important;
+    padding: 1em !important;
+    margin: var(--latex-paragraph-spacing) 0 !important;
+    overflow-x: auto !important;
+    line-height: 1.4 !important;
+}
+
+.latex-style #preview-content pre code {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* Blockquotes - LaTeX style */
+.latex-style #preview-content blockquote {
+    margin: var(--latex-paragraph-spacing) 0 !important;
+    padding: 0.5em 0 0.5em 1.5em !important;
+    border-left: 4px solid var(--latex-quote-border) !important;
+    font-style: italic !important;
+    color: #555 !important;
+    background: #fafafa !important;
+}
+
+.latex-style #preview-content blockquote p {
+    text-indent: 0 !important;
+    margin: 0.5em 0 !important;
+}
+
+/* Tables - LaTeX booktabs style */
+.latex-style #preview-content table {
+    border-collapse: collapse !important;
+    margin: var(--latex-paragraph-spacing) auto !important;
+    border-top: 2px solid var(--latex-text) !important;
+    border-bottom: 2px solid var(--latex-text) !important;
+    font-size: var(--latex-small-size) !important;
+}
+
+.latex-style #preview-content th {
+    border-bottom: 1px solid var(--latex-text) !important;
+    padding: 8px 12px !important;
+    text-align: left !important;
+    font-weight: bold !important;
+}
+
+.latex-style #preview-content td {
+    padding: 6px 12px !important;
+    text-align: left !important;
+}
+
+.latex-style #preview-content tr:last-child td {
+    border-bottom: none !important;
+}
+
+/* Links - subtle LaTeX style */
+.latex-style #preview-content a {
+    color: var(--latex-accent) !important;
+    text-decoration: none !important;
+}
+
+.latex-style #preview-content a:hover {
+    text-decoration: underline !important;
+}
+
+/* Math equations - ensure good spacing */
+.latex-style #preview-content .MathJax {
+    font-size: var(--latex-base-size) !important;
+}
+
+.latex-style #preview-content mjx-container[jax="SVG"] {
+    margin: 0.5em 0 !important;
+}
+
+/* Footnotes style */
+.latex-style #preview-content sup {
+    font-size: 0.8em !important;
+    vertical-align: super !important;
+    color: var(--latex-accent) !important;
+}
+
+/* Images - LaTeX figure style */
+.latex-style #preview-content img {
+    display: block !important;
+    margin: var(--latex-paragraph-spacing) auto !important;
+    max-width: 100% !important;
+    height: auto !important;
+    border: 1px solid var(--latex-border) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+/* Horizontal rules */
+.latex-style #preview-content hr {
+    border: none !important;
+    border-top: 1px solid var(--latex-border) !important;
+    margin: 2em 0 !important;
+}
+
+/* Dark mode adjustments for LaTeX style */
+body.dark-mode .latex-style {
+    --latex-text: #eceff4;
+    --latex-bg: #2e3440;
+    --latex-code-bg: #3b4252;
+    --latex-border: #4c566a;
+    --latex-quote-border: #88c0d0;
+    --latex-accent: #88c0d0;
+    --latex-emphasis: #bf616a;
+}
+
+body.dark-mode .latex-style #preview-content {
+    background: var(--latex-bg) !important;
+    color: var(--latex-text) !important;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3) !important;
+}
+
+body.dark-mode .latex-style #preview-content blockquote {
+    background: #3b4252 !important;
+    color: #d8dee9 !important;
+}

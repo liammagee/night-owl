@@ -5,6 +5,8 @@ const { ipcMain } = require('electron');
 const CitationService = require('../services/citationService');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const fs = require('fs').promises;
+const path = require('path');
 
 let citationService = null;
 
@@ -775,6 +777,77 @@ function registerCitationHandlers(userDataPath) {
             return { success: true, data: result };
         } catch (error) {
             console.error('[Citation Handlers] Error executing SQL:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Import citations from Zotero BibTeX export
+    ipcMain.handle('import-zotero-bibtex', async (event, bibTexContent, workingDirectory) => {
+        try {
+            console.log('[Citation Handlers] Importing Zotero BibTeX...');
+            
+            // Determine the citations file path in the working directory
+            const citationsPath = path.join(workingDirectory, 'citations.bib');
+            
+            // Check if citations.bib already exists
+            let existingContent = '';
+            try {
+                existingContent = await fs.readFile(citationsPath, 'utf8');
+            } catch (error) {
+                // File doesn't exist yet, that's fine
+                console.log('[Citation Handlers] citations.bib does not exist, creating new file');
+            }
+            
+            // Parse existing entries to avoid duplicates
+            const existingKeys = new Set();
+            if (existingContent) {
+                const keyMatches = existingContent.match(/@\w+\s*\{\s*([^,\s\}]+)/g);
+                if (keyMatches) {
+                    keyMatches.forEach(match => {
+                        const key = match.match(/\{\s*([^,\s\}]+)/)[1];
+                        existingKeys.add(key);
+                    });
+                }
+            }
+            
+            // Parse new entries and filter out duplicates
+            const newEntries = [];
+            const entryRegex = /@(\w+)\s*\{([^}]+)\}/g;
+            let match;
+            while ((match = entryRegex.exec(bibTexContent)) !== null) {
+                const fullEntry = match[0] + '}';
+                const keyMatch = fullEntry.match(/@\w+\s*\{\s*([^,\s\}]+)/);
+                if (keyMatch) {
+                    const key = keyMatch[1];
+                    if (!existingKeys.has(key)) {
+                        newEntries.push(fullEntry);
+                    }
+                }
+            }
+            
+            // Append new entries to the file
+            let updatedContent = existingContent;
+            if (newEntries.length > 0) {
+                if (existingContent && !existingContent.endsWith('\n')) {
+                    updatedContent += '\n';
+                }
+                updatedContent += '\n' + newEntries.join('\n\n') + '\n';
+                
+                await fs.writeFile(citationsPath, updatedContent, 'utf8');
+                console.log(`[Citation Handlers] Added ${newEntries.length} new citations to ${citationsPath}`);
+            } else {
+                console.log('[Citation Handlers] No new citations to add (all entries already exist)');
+            }
+            
+            return { 
+                success: true, 
+                added: newEntries.length,
+                path: citationsPath,
+                message: `Successfully imported ${newEntries.length} citations`
+            };
+            
+        } catch (error) {
+            console.error('[Citation Handlers] Error importing Zotero BibTeX:', error);
             return { success: false, error: error.message };
         }
     });

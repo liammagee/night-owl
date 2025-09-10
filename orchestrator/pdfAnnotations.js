@@ -12,7 +12,7 @@ async function loadPdfLib() {
         }
         
         const script = document.createElement('script');
-        script.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        script.src = 'lib/pdf-lib.min.js';
         script.onload = () => {
             console.log('[PDF] pdf-lib loaded successfully');
             resolve();

@@ -38,20 +38,6 @@ Though in one sense we are moving forward, we are also moving back, to Hegel's e
 
 
 
-### References:
-
-https://i-share-uiu.primo.exlibrisgroup.com/discovery/fulldisplay?docid=cdi_proquest_journals_2076493815&context=PC&vid=01CARLI_UIU:CARLI_UIU&search_scope=CentralIndex&tab=CentralIndex&lang=en
-
-
-https://i-share-uiu.primo.exlibrisgroup.com/discovery/fulldisplay?docid=cdi_pubmedcentral_primary_oai_pubmedcentral_nih_gov_3413263&context=PC&vid=01CARLI_UIU:CARLI_UIU&search_scope=CentralIndex&tab=CentralIndex&lang=en
-
-
-https://culturemachine.net/wp-content/uploads/2019/01/465-973-1-PB.pdf
-
-
-Hansen
-https://i-share-uiu.primo.exlibrisgroup.com/discovery/fulldisplay?docid=cdi_doaj_primary_oai_doaj_org_article_7639632bcd50404a92edbb18b06cb553&context=PC&vid=01CARLI_UIU:CARLI_UIU&lang=en&search_scope=CentralIndex&adaptor=Primo%20Central&tab=CentralIndex&query=any,contains,%22From%20attention%20economy%20to%20cognitive%20lock-ins%22&offset=0
-
 ### This Week's Questions
 
 Feel free to response to any or all of the following for this week:
@@ -61,3 +47,21 @@ Feel free to response to any or all of the following for this week:
  - Does AI mark a shift from the attention economy (where, to quote a common saying, if the product is free then the real product is *you*), marked by search engines and social media? Or is it the case that attention has simply shifted, to a more sustained and focussed engagement with the chatbot in front of me? 
  
  - From what we learn about attention this week – and thinking ahead to the end-of-semester activity – how do we design machines to better address the challenges of human attention (attracting it, sustaining it, eventually easing it off as a subject is mastered)? And where might we need to go if we want to simulate higher-order attention in machines – attention to us for example? Can Hegelian recognition play a role – in both human and machine learning – in developing and maintaining attention?
+
+
+### References:
+
+
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, L. & Polosukhin, I. (2017). [Attention is all you need](https://i-share-uiu.primo.exlibrisgroup.com/discovery/fulldisplay?docid=cdi_proquest_journals_2076493815&context=PC&vid=01CARLI_UIU:CARLI_UIU&search_scope=CentralIndex&tab=CentralIndex&lang=en). *Advances in Neural Information Processing Systems*, 30.
+
+Petersen, S. E., & Posner, M. I. (2012). [The attention system of the human brain: 20 years after]([url](https://i-share-uiu.primo.exlibrisgroup.com/discovery/fulldisplay?docid=cdi_pubmedcentral_primary_oai_pubmedcentral_nih_gov_3413263&context=PC&vid=01CARLI_UIU:CARLI_UIU&search_scope=CentralIndex&tab=CentralIndex&lang=en)). *Annual Review of Neuroscience*, 35(1), 73-89.
+
+Terranova, T. (2012). [Attention, economy and the brain]([url](https://culturemachine.net/wp-content/uploads/2019/01/465-973-1-PB.pdf)). *Culture Machine*, 13.
+
+
+
+Hansen, M. (2024). [From attention economy to cognitive lock-ins]([url](https://i-share-uiu.primo.exlibrisgroup.com/discovery/fulldisplay?docid=cdi_doaj_primary_oai_doaj_org_article_7639632bcd50404a92edbb18b06cb553&context=PC&vid=01CARLI_UIU:CARLI_UIU&lang=en&search_scope=CentralIndex&adaptor=Primo%20Central&tab=CentralIndex&query=any,contains,%22From%20attention%20economy%20to%20cognitive%20lock-ins%22&offset=0)). *Big Data & Society*, 11(3), 20539517241275878.
+
+
+
+
