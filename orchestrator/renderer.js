@@ -1,4 +1,6 @@
 
+console.error('*** RENDERER.JS IS LOADING - THIS SHOULD BE VISIBLE ***');
+
 // --- Electron IPC (for theme) ---
 // Access IPC functions exposed by preload.js via window.electronAPI
 
@@ -1973,9 +1975,62 @@ function parseBibTeX(content) {
     return entries;
 }
 
+// Load database citations and convert to BibTeX-like format
+async function loadDatabaseCitations() {
+    try {
+        console.log('[loadDB] Loading citations from database...');
+        const response = await window.electronAPI.invoke('citations-get', {});
+        console.log('[loadDB] Raw response:', response);
+        
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to load database citations');
+        }
+        
+        const citations = response.citations || [];
+        console.log(`[loadDB] Found ${citations.length} database citations`);
+        
+        // Convert database citations to BibTeX-like format
+        const dbEntries = citations.map(citation => {
+            // Generate a citation key from title and author
+            const firstAuthor = citation.authors ? citation.authors.split(',')[0].trim().replace(/\s+/g, '').toLowerCase() : 'unknown';
+            const year = citation.publication_year || new Date().getFullYear();
+            const titleWords = citation.title ? citation.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).slice(0, 2).join('') : 'untitled';
+            const key = `${firstAuthor}${year}${titleWords}`;
+            
+            return {
+                key: key,
+                type: citation.citation_type || 'article',
+                title: citation.title || 'Untitled',
+                author: citation.authors || 'Unknown',
+                year: citation.publication_year ? citation.publication_year.toString() : '',
+                journal: citation.journal || '',
+                doi: citation.doi || '',
+                url: citation.url || '',
+                source: 'database'  // Mark as database entry
+            };
+        });
+        
+        console.log(`[loadDB] Converted ${dbEntries.length} database citations to BibTeX format`);
+        if (dbEntries.length > 0) {
+            console.log('[loadDB] Sample database entry:', dbEntries[0]);
+        }
+        
+        return dbEntries;
+    } catch (error) {
+        console.error('[loadDB] Error loading database citations:', error);
+        return [];
+    }
+}
+
 // Load BibTeX files from the lectures directory
 async function loadBibTeXFiles() {
+    console.error('*** LOADBIBTEX FUNCTION CALLED - THIS SHOULD BE VISIBLE ***');
     console.log('[loadBibTeX] *** FUNCTION CALLED - Starting BibTeX file loading process ***');
+    
+    // Clear existing entries to prevent duplicates
+    bibEntries.length = 0;
+    console.log('[loadBibTeX] Cleared existing entries to prevent duplicates');
+    
     try {
         console.log('[loadBibTeX] Inside try block...');
         // Look for .bib files specifically in the lectures subdirectory
@@ -2087,7 +2142,14 @@ async function loadBibTeXFiles() {
             console.log('[renderer.js] Error during BibTeX file loading:', error.message);
         }
         
-        console.log(`[renderer.js] Total BibTeX entries loaded: ${bibEntries.length}`);
+        // Also load database citations
+        console.log('[renderer.js] Now loading database citations...');
+        const dbEntries = await loadDatabaseCitations();
+        
+        // Combine BibTeX and database entries into the global bibEntries array
+        bibEntries.push(...dbEntries);
+        console.log(`[renderer.js] Total entries: ${bibEntries.length} (${bibEntries.length - dbEntries.length} from BibTeX + ${dbEntries.length} from database)`);
+        
         return bibEntries;
     } catch (error) {
         console.error('[renderer.js] Error loading BibTeX files:', error);
@@ -2105,7 +2167,7 @@ function registerCitationAutocomplete() {
     }
     
     monaco.languages.registerCompletionItemProvider('markdown', {
-        triggerCharacters: ['@'],
+        triggerCharacters: ['@', '['],
         // Also support manual triggering (Ctrl+Space)
         provideCompletionItems: function(model, position, context, token) {
             console.log('[Citation Autocomplete] Provider triggered!');
@@ -2119,27 +2181,19 @@ function registerCitationAutocomplete() {
             console.log('[Citation Autocomplete] Current line:', currentLine);
             console.log('[Citation Autocomplete] Text before pointer:', textBeforePointer);
             
-            // Look for citation pattern: [@...] where we're after the @
-            // Also try simpler patterns in case the trigger isn't working as expected
-            const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/) || 
-                                 textBeforePointer.match(/@([^\s\]]*)?$/) ||
-                                 (textBeforePointer.endsWith('@') ? ['@', ''] : null);
+            // Look for citation pattern: [@...] where we're after the [@
+            const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
             
             console.log('[Citation Autocomplete] Citation match:', citationMatch);
             console.log('[Citation Autocomplete] Available bibEntries count:', bibEntries.length);
             
             if (!citationMatch) {
-                console.log('[Citation Autocomplete] No citation match found, trying fallback...');
-                // Fallback: if the trigger was "@", provide all suggestions
-                if (context?.triggerCharacter === '@' || textBeforePointer.includes('@')) {
-                    console.log('[Citation Autocomplete] Using fallback - providing all suggestions');
-                } else {
-                    console.log('[Citation Autocomplete] No fallback match, returning empty suggestions');
-                    return { suggestions: [] };
-                }
+                console.log('[Citation Autocomplete] No citation pattern [@... found');
+                return { suggestions: [] };
             }
             
             const searchTerm = citationMatch[1] || '';
+            console.log('[Citation Autocomplete] Search term:', searchTerm);
             
             // Filter entries based on search term
             const suggestions = bibEntries
@@ -2155,14 +2209,26 @@ function registerCitationAutocomplete() {
                     const description = [
                         entry.author && `Author: ${entry.author}`,
                         entry.year && `Year: ${entry.year}`,
-                        entry.title && `Title: ${entry.title}`
+                        entry.title && `Title: ${entry.title}`,
+                        entry.journal && `Journal: ${entry.journal}`,
+                        entry.source && `Source: ${entry.source === 'database' ? 'Database' : 'BibTeX file'}`
                     ].filter(Boolean).join('\n');
+                    
+                    // Use different icons for different sources
+                    const kind = entry.source === 'database' 
+                        ? monaco.languages.CompletionItemKind.Database
+                        : monaco.languages.CompletionItemKind.Reference;
+                    
+                    // Show source in detail
+                    const detail = entry.source === 'database' 
+                        ? `@${entry.type} (from database)`
+                        : `@${entry.type} (from BibTeX)`;
                     
                     return {
                         label: entry.key,
-                        kind: monaco.languages.CompletionItemKind.Reference,
+                        kind: kind,
                         insertText: entry.key + ']',
-                        detail: `@${entry.type}`,
+                        detail: detail,
                         documentation: description,
                         range: {
                             startLineNumber: position.lineNumber,
@@ -2348,6 +2414,7 @@ async function initializeMonacoEditor() {
             }
             
             
+            console.log('[renderer.js] *** CREATING MONACO EDITOR ***');
             editor = monaco.editor.create(editorContainer, {
                 value: initialContent,
                 language: 'markdown',
@@ -2491,6 +2558,11 @@ async function initializeMonacoEditor() {
                 applyEditorSettings(settings);
                 
                 // Citation autocomplete setting (separate from general editor settings)
+                console.log('[renderer.js] *** MONACO EDITOR CITATION SETUP ***');
+                console.log('[renderer.js] Settings available:', !!settings);
+                console.log('[renderer.js] Editor settings:', settings?.editor);
+                console.log('[renderer.js] enableCitationAutocomplete:', settings?.editor?.enableCitationAutocomplete);
+                
                 const citationOptions = {};
                 if (settings?.editor?.enableCitationAutocomplete !== false) {
                     citationOptions.autoClosingBrackets = 'never'; // Disable auto-closing brackets for citation autocomplete
@@ -5158,6 +5230,16 @@ async function performAppInitialization() {
     console.log('[renderer.js] window.marked available:', !!window.marked);
     // Load settings before initializing the rest of the app
     await loadAppSettings();
+    
+    // Load citation data early for autocomplete
+    console.log('[renderer.js] *** EARLY CITATION LOADING ***');
+    try {
+        const allEntries = await loadBibTeXFiles();
+        console.log(`[renderer.js] Loaded ${allEntries.length} citation entries early`);
+    } catch (error) {
+        console.error('[renderer.js] Error in early citation loading:', error);
+    }
+    
     // Since Marked script has 'defer', it should be loaded and executed before DOMContentLoaded.
     // Let's check if window.marked exists now.
     if (window.marked) {
@@ -7556,93 +7638,7 @@ if (window.electronAPI) {
 
 // Handle HTML export signal from main process
 if (window.electronAPI) {
-    window.electronAPI.on('trigger-export-html', async () => {
-        console.log('[Renderer] Received trigger-export-html.');
-        const content = getCurrentEditorContent();
-        try {
-            // Show initial notification
-            showNotification('Preparing HTML export...', 'info');
-            
-            // Generate HTML from markdown
-            const htmlContent = await generateHTMLFromMarkdown(content);
-            
-            // Export options for enhanced pandoc support
-            const exportOptions = {
-                usePandoc: true,
-                pandocArgs: [
-                    '--mathjax', // Enable math rendering
-                    '--highlight-style=github', // Code syntax highlighting
-                    '--css=pandoc.css' // Add custom styling if available
-                ]
-            };
-            
-            const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent, exportOptions);
-            if (result.success) {
-                console.log(`[Renderer] HTML exported successfully to: ${result.filePath}`);
-                
-                // Enhanced success message
-                let message = 'HTML exported successfully';
-                if (result.usedPandoc) {
-                    message += ' (with Pandoc)';
-                    if (result.bibFilesFound > 0) {
-                        message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
-                    }
-                }
-                showNotification(message, 'success');
-            } else if (!result.cancelled) {
-                console.error(`[Renderer] HTML export failed: ${result.error}`);
-                showNotification(result.error || 'HTML export failed', 'error');
-            }
-        } catch (error) {
-            console.error('[Renderer] Error during HTML export:', error);
-            showNotification('Error during HTML export', 'error');
-        }
-    });
 
-    // Handle HTML export with references signal from main process
-    window.electronAPI.on('trigger-export-html-pandoc', async () => {
-        console.log('[Renderer] Received trigger-export-html-pandoc.');
-        const content = getCurrentEditorContent();
-        try {
-            // Show initial notification
-            showNotification('Preparing HTML export with references...', 'info');
-            
-            // Generate HTML from markdown
-            const htmlContent = await generateHTMLFromMarkdown(content);
-            
-            // Export options for pandoc with bibliography support
-            const exportOptions = {
-                usePandoc: true,
-                pandocArgs: [
-                    '--mathjax', // Enable math rendering
-                    '--highlight-style=pygments' // Code syntax highlighting
-                ]
-            };
-            
-            // Ensure only serializable data is passed through IPC
-            const serializableHtmlContent = typeof htmlContent === 'string' ? htmlContent : String(htmlContent);
-            
-            const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, serializableHtmlContent, exportOptions);
-            if (result.success) {
-                console.log(`[Renderer] HTML with references exported successfully to: ${result.filePath}`);
-                
-                // Enhanced success message
-                let message = 'HTML with references exported successfully';
-                if (result.bibFilesFound > 0) {
-                    message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
-                } else {
-                    message += ' (no bibliography files found)';
-                }
-                showNotification(message, 'success');
-            } else if (!result.cancelled) {
-                console.error(`[Renderer] HTML with references export failed: ${result.error}`);
-                showNotification(result.error || 'HTML with references export failed', 'error');
-            }
-        } catch (error) {
-            console.error('[Renderer] Error during HTML with references export:', error);
-            showNotification('Error during HTML with references export', 'error');
-        }
-    });
 
     window.electronAPI.on('trigger-export-pdf', async () => {
         console.log('[Renderer] Received trigger-export-pdf.');

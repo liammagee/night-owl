@@ -387,9 +387,11 @@ function registerCitationHandlers(userDataPath) {
 
     // Get citations with optional filtering
     ipcMain.handle('citations-get', async (event, filters = {}) => {
+        console.log('[Citation Handlers] *** CITATIONS-GET CALLED FROM RENDERER ***');
         try {
             if (!citationService) await initializeCitationService(userDataPath);
             const citations = await citationService.getCitations(filters);
+            console.log(`[Citation Handlers] Returning ${citations.length} citations to renderer`);
             return { success: true, citations };
         } catch (error) {
             console.error('[Citation Handlers] Error getting citations:', error);

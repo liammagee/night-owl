@@ -6,6 +6,14 @@ const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 
+// Import citation service for database citations
+let CitationService;
+try {
+  CitationService = require('../services/citationService.js');
+} catch (error) {
+  console.warn('[ExportHandlers] Could not load CitationService:', error.message);
+}
+
 /**
  * Register all export IPC handlers
  * @param {Object} deps - Dependencies from main.js
@@ -18,6 +26,115 @@ function register(deps) {
   } = deps;
 
   // Utility functions
+  
+  // Convert database citation to BibTeX format
+  function citationToBibTeX(citation) {
+    // Generate citation key (similar to renderer.js logic)
+    const firstAuthor = citation.authors ? citation.authors.split(',')[0].trim().replace(/\s+/g, '').toLowerCase() : 'unknown';
+    const year = citation.publication_year || new Date().getFullYear();
+    const titleWords = citation.title ? citation.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).slice(0, 2).join('') : 'untitled';
+    const key = `${firstAuthor}${year}${titleWords}`;
+    
+    // Convert to BibTeX format
+    const type = citation.citation_type || 'article';
+    let bibEntry = `@${type}{${key},\n`;
+    
+    if (citation.title) {
+      bibEntry += `  title={${citation.title}},\n`;
+    }
+    if (citation.authors) {
+      bibEntry += `  author={${citation.authors}},\n`;
+    }
+    if (citation.publication_year) {
+      bibEntry += `  year={${citation.publication_year}},\n`;
+    }
+    if (citation.journal) {
+      bibEntry += `  journal={${citation.journal}},\n`;
+    }
+    if (citation.volume) {
+      bibEntry += `  volume={${citation.volume}},\n`;
+    }
+    if (citation.issue) {
+      bibEntry += `  number={${citation.issue}},\n`;
+    }
+    if (citation.pages) {
+      bibEntry += `  pages={${citation.pages}},\n`;
+    }
+    if (citation.publisher) {
+      bibEntry += `  publisher={${citation.publisher}},\n`;
+    }
+    if (citation.doi) {
+      bibEntry += `  doi={${citation.doi}},\n`;
+    }
+    if (citation.url) {
+      bibEntry += `  url={${citation.url}},\n`;
+    }
+    
+    // Remove trailing comma and close entry
+    bibEntry = bibEntry.replace(/,\n$/, '\n');
+    bibEntry += '}\n\n';
+    
+    return bibEntry;
+  }
+  
+  // Generate temporary .bib file from database citations
+  async function generateDatabaseBibFile() {
+    try {
+      if (!CitationService) {
+        console.log('[ExportHandlers] CitationService not available, skipping database citations');
+        return null;
+      }
+      
+      // Initialize citation service
+      const citationService = new CitationService();
+      const userDataPath = app.getPath('userData');
+      await citationService.initialize(userDataPath);
+      
+      // Get all citations from database
+      const citations = await citationService.getCitations({});
+      
+      if (citations.length === 0) {
+        console.log('[ExportHandlers] No database citations found');
+        return null;
+      }
+      
+      console.log(`[ExportHandlers] Converting ${citations.length} database citations to BibTeX format`);
+      
+      // Convert citations to BibTeX format
+      let bibContent = '% Database Citations\n% Generated automatically from citation database\n\n';
+      citations.forEach(citation => {
+        bibContent += citationToBibTeX(citation);
+      });
+      
+      // Write to temporary file
+      const tempDir = os.tmpdir();
+      const tempBibFile = path.join(tempDir, `database-citations-${Date.now()}.bib`);
+      await fs.writeFile(tempBibFile, bibContent, 'utf8');
+      
+      console.log(`[ExportHandlers] Generated database citations file: ${tempBibFile}`);
+      console.log(`[ExportHandlers] Database citations file contains ${citations.length} entries`);
+      
+      return tempBibFile;
+    } catch (error) {
+      console.error('[ExportHandlers] Error generating database citations file:', error);
+      return null;
+    }
+  }
+  
+  // Clean up temporary database .bib files
+  async function cleanupDatabaseBibFiles(bibFiles) {
+    try {
+      for (const bibFile of bibFiles) {
+        if (bibFile.includes('database-citations-') && bibFile.includes(os.tmpdir())) {
+          await fs.unlink(bibFile);
+          console.log(`[ExportHandlers] Cleaned up temporary database citations file: ${path.basename(bibFile)}`);
+        }
+      }
+    } catch (error) {
+      console.warn('[ExportHandlers] Error cleaning up temporary files:', error.message);
+    }
+  }
+
   async function checkPandocAvailability() {
     return new Promise((resolve) => {
       const { spawn } = require('child_process');
@@ -85,9 +202,17 @@ function register(deps) {
       
       console.log(`[ExportHandlers] Directory contains ${allFiles.length} files total:`);
       console.log('[ExportHandlers] All files:', allFiles.slice(0, 10).join(', '), allFiles.length > 10 ? '...' : '');
+      // Generate database citations .bib file
+      const databaseBibFile = await generateDatabaseBibFile();
+      if (databaseBibFile) {
+        bibFiles.push(databaseBibFile);
+        console.log('[ExportHandlers] Added database citations file to bibliography list');
+      }
+      
       console.log(`[ExportHandlers] Bibliography files found: ${bibFiles.length}`);
       bibFiles.forEach((file, index) => {
-        console.log(`  [${index + 1}]: ${path.basename(file)}`);
+        const isDatabase = file.includes('database-citations-');
+        console.log(`  [${index + 1}]: ${path.basename(file)} ${isDatabase ? '(from database)' : '(static file)'}`);
       });
       console.log('=== END BIBLIOGRAPHY DETECTION ===\n');
       
@@ -108,6 +233,10 @@ function register(deps) {
   async function runPandoc(args) {
     return new Promise((resolve, reject) => {
       const { spawn } = require('child_process');
+      
+      // Log the full pandoc command
+      console.log('[ExportHandlers] Full pandoc command:');
+      console.log(`pandoc ${args.map(arg => arg.includes(' ') ? `"${arg}"` : arg).join(' ')}`);
       
       const pandoc = spawn('pandoc', args);
       let output = '';
@@ -140,6 +269,7 @@ function register(deps) {
 
   // Export handlers
   ipcMain.handle('perform-export-html', async (event, content, htmlContent, exportOptions) => {
+    console.log('[ExportHandlers] *** REGULAR HTML EXPORT HANDLER CALLED ***');
     console.log('[ExportHandlers] Received perform-export-html with options:', exportOptions);
     try {
       const currentFilePath = getCurrentFilePath();
@@ -237,6 +367,7 @@ function register(deps) {
   });
 
   ipcMain.handle('perform-export-html-pandoc', async (event, content, htmlContent, exportOptions) => {
+    console.log('[ExportHandlers] *** PANDOC HTML EXPORT HANDLER CALLED ***');
     console.log('[ExportHandlers] Received perform-export-html-pandoc with options:', exportOptions);
     try {
       const currentFilePath = getCurrentFilePath();

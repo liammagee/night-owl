@@ -247,7 +247,14 @@ function initializeExportHandlers() {
     }
 
     // HTML export handler
+    let htmlExportInProgress = false;
     window.electronAPI.on('trigger-export-html', async () => {
+        if (htmlExportInProgress) {
+            console.log('[Export] HTML export already in progress, ignoring duplicate call');
+            return;
+        }
+        htmlExportInProgress = true;
+        
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -292,6 +299,8 @@ function initializeExportHandlers() {
             if (window.showNotification) {
                 window.showNotification('Error during HTML export', 'error');
             }
+        } finally {
+            htmlExportInProgress = false;
         }
     });
 
