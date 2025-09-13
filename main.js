@@ -2661,7 +2661,9 @@ app.whenReady().then(() => {
     }
   });
   
-  // Register modular IPC handlers
+  createWindow();
+  
+  // Register modular IPC handlers after window is created
   ipcHandlers.registerAllHandlers({
     appSettings,
     defaultSettings,
@@ -2680,8 +2682,6 @@ app.whenReady().then(() => {
     buildSystemMessage,
     cleanAIResponse
   });
-
-  createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

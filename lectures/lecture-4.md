@@ -26,17 +26,35 @@ Now while this is not a course diving into neuroscientific research, we can note
 
 ![alt text](images/attention-pedagogy-studies.png)
 
+
+These recent studies show, for example, that the hierarchy of attention mechanisms - from 
+
+
 And of course GPT can help us 
 
 ![alt text](images/executive-models.png)
 
 
+And to keep concordance with Hegel, we might also note his own strong distrust with the neuroscience of his day – a now outdated field called "phrenology", which involved measuring skulls to determinine cognitive aptitudess.
+
+
 ### Machine Attention
 
-Vaswani et al.'s 2017 paper is a landmark in machine learning. Perhaps 
+Vaswani et al.'s 2017 paper is a landmark in machine learning. Perhaps the most cited paper this century, this work by Google scholars was first actually implemented, not by Google, but by a young start-up company
 
 
 ### Synthesizing Human and Machine Attention?
 
 When we return to the topic of consciousness next week, we'll see how some scholars, like Nancy Katherine-Hayles, have sought to combine neuroscience research into attention mechanisms with more traditional philosophical concerns about the nature of consciousness.  
+
+---
+
+
+### Thought Experiment
+
+Let's start with the following thought experiment. We will imagine we have the following unfinished sentence:
+
+> The Cat sat on the...
+
+
 

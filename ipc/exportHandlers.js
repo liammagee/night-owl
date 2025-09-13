@@ -354,6 +354,17 @@ function register(deps) {
 
       await fs.writeFile(result.filePath, finalHtml, 'utf8');
       console.log(`[ExportHandlers] HTML exported successfully to: ${result.filePath}`);
+      
+      // Check if the exported HTML file is currently being viewed in preview and refresh it
+      console.log('[ExportHandlers] About to send IPC message, mainWindow exists:', !!mainWindow);
+      if (mainWindow) {
+        console.log('[ExportHandlers] Sending html-export-completed IPC message for:', result.filePath);
+        mainWindow.webContents.send('html-export-completed', result.filePath);
+        console.log('[ExportHandlers] IPC message sent successfully');
+      } else {
+        console.warn('[ExportHandlers] mainWindow is null/undefined, cannot send IPC message');
+      }
+      
       return { 
         success: true, 
         filePath: result.filePath, 
@@ -453,6 +464,15 @@ function register(deps) {
         };
         
       } finally {
+        // Check if the exported HTML file is currently being viewed in preview and refresh it
+        console.log('[ExportHandlers] (Pandoc) About to send IPC message, mainWindow exists:', !!mainWindow);
+        if (mainWindow && result && result.filePath) {
+          console.log('[ExportHandlers] (Pandoc) Sending html-export-completed IPC message for:', result.filePath);
+          mainWindow.webContents.send('html-export-completed', result.filePath);
+          console.log('[ExportHandlers] (Pandoc) IPC message sent successfully');
+        } else {
+          console.warn('[ExportHandlers] (Pandoc) mainWindow is null/undefined or no result, cannot send IPC message');
+        }
         // Restore original working directory
         if (currentWorkingDirectory && currentWorkingDirectory !== originalCwd) {
           console.log('[ExportHandlers] Restoring working directory to', originalCwd);

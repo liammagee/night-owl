@@ -3370,11 +3370,12 @@ async function handleHTMLFile(filePath, content) {
                 window.suppressPreviewUpdateCount = 2;
                 await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
             } else {
-                // No associated markdown, load the HTML content in the editor
-                console.log('[Renderer] No associated markdown found, loading HTML content in editor');
-                // Suppress preview updates so HTML file content shows in preview, not markdown rendering
-                window.suppressPreviewUpdateCount = 2;
-                await handleEditableFile(filePath, content, { isHTML: true });
+                // No associated markdown, just show HTML in preview only
+                console.log('[Renderer] No associated markdown found, showing HTML in preview only');
+                // Clear the editor since HTML files are not editable
+                if (editor) {
+                    editor.setValue('');
+                }
             }
             
             // Display HTML in preview panel (should not be overridden by markdown rendering)
@@ -3382,9 +3383,11 @@ async function handleHTMLFile(filePath, content) {
         })
         .catch(async error => {
             console.error('[Renderer] Error checking for associated markdown:', error);
-            // Fallback to loading HTML content in editor
-            window.suppressPreviewUpdateCount = 2;
-            await handleEditableFile(filePath, content, { isHTML: true });
+            // Fallback to showing HTML in preview only
+            console.log('[Renderer] Fallback: showing HTML in preview only');
+            if (editor) {
+                editor.setValue('');
+            }
             displayHTMLInPreview(content, filePath);
         });
 }
@@ -3823,6 +3826,36 @@ function displayHTMLInPreview(htmlContent, filePath) {
     const previewContent = document.getElementById('preview-content');
     
     if (previewContent) {
+        // Fix relative paths in HTML content to absolute file:// URLs
+        const htmlDir = filePath.replace(/[^\/]+$/, ''); // Get directory of HTML file
+        let fixedHtmlContent = htmlContent;
+        
+        // Fix relative image paths (src="images/..." -> src="file:///absolute/path/images/...")
+        fixedHtmlContent = fixedHtmlContent.replace(
+            /src="([^"]+)"/g,
+            (match, src) => {
+                if (!src.startsWith('http') && !src.startsWith('file://') && !src.startsWith('/')) {
+                    // Convert relative path to absolute file:// URL
+                    const absolutePath = htmlDir + src;
+                    return `src="file://${absolutePath}"`;
+                }
+                return match;
+            }
+        );
+        
+        // Fix relative href paths for links
+        fixedHtmlContent = fixedHtmlContent.replace(
+            /href="([^"]+)"/g,
+            (match, href) => {
+                if (!href.startsWith('http') && !href.startsWith('file://') && !href.startsWith('/') && !href.startsWith('#')) {
+                    // Convert relative path to absolute file:// URL
+                    const absolutePath = htmlDir + href;
+                    return `href="file://${absolutePath}"`;
+                }
+                return match;
+            }
+        );
+        
         // Create HTML preview with safety measures
         const htmlViewer = `
             <div class="html-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
@@ -3830,7 +3863,7 @@ function displayHTMLInPreview(htmlContent, filePath) {
                     🌐 ${filePath.split('/').pop()}
                 </div>
                 <div style="flex: 1; overflow: hidden; position: relative; min-height: 0;">
-                    <iframe srcdoc="${htmlContent.replace(/"/g, '&quot;')}" 
+                    <iframe srcdoc="${fixedHtmlContent.replace(/"/g, '&quot;')}" 
                             style="width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;"
                             sandbox="allow-scripts allow-same-origin">
                     </iframe>
@@ -4838,6 +4871,36 @@ function displayHTMLInPreview(htmlContent, filePath) {
     const previewContent = document.getElementById('preview-content');
     
     if (previewContent) {
+        // Fix relative paths in HTML content to absolute file:// URLs
+        const htmlDir = filePath.replace(/[^\/]+$/, ''); // Get directory of HTML file
+        let fixedHtmlContent = htmlContent;
+        
+        // Fix relative image paths (src="images/..." -> src="file:///absolute/path/images/...")
+        fixedHtmlContent = fixedHtmlContent.replace(
+            /src="([^"]+)"/g,
+            (match, src) => {
+                if (!src.startsWith('http') && !src.startsWith('file://') && !src.startsWith('/')) {
+                    // Convert relative path to absolute file:// URL
+                    const absolutePath = htmlDir + src;
+                    return `src="file://${absolutePath}"`;
+                }
+                return match;
+            }
+        );
+        
+        // Fix relative href paths for links
+        fixedHtmlContent = fixedHtmlContent.replace(
+            /href="([^"]+)"/g,
+            (match, href) => {
+                if (!href.startsWith('http') && !href.startsWith('file://') && !href.startsWith('/') && !href.startsWith('#')) {
+                    // Convert relative path to absolute file:// URL
+                    const absolutePath = htmlDir + href;
+                    return `href="file://${absolutePath}"`;
+                }
+                return match;
+            }
+        );
+        
         // Create HTML preview with safety measures
         const htmlViewer = `
             <div class="html-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
@@ -4845,7 +4908,7 @@ function displayHTMLInPreview(htmlContent, filePath) {
                     🌐 ${filePath.split('/').pop()}
                 </div>
                 <div style="flex: 1; overflow: hidden; position: relative; min-height: 0;">
-                    <iframe srcdoc="${htmlContent.replace(/"/g, '&quot;')}" 
+                    <iframe srcdoc="${fixedHtmlContent.replace(/"/g, '&quot;')}" 
                             style="width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;"
                             sandbox="allow-scripts allow-same-origin">
                     </iframe>
@@ -7776,6 +7839,58 @@ if (window.electronAPI) {
 
     window.electronAPI.on('open-export-settings-dialog', () => {
         openSettingsDialog('export');
+    });
+    
+    // Listen for HTML export completion to refresh preview if needed
+    window.electronAPI.on('html-export-completed', async (exportedFilePath) => {
+        console.log('[Renderer] ***** HTML EXPORT IPC MESSAGE RECEIVED *****');
+        console.log('[renderer.js] HTML export completed:', exportedFilePath);
+        
+        // Check if the exported HTML file should refresh the current preview
+        let shouldRefresh = false;
+        let refreshReason = '';
+        
+        if (window.currentFilePath) {
+            // Direct match (HTML file is currently open)
+            if (window.currentFilePath === exportedFilePath) {
+                shouldRefresh = true;
+                refreshReason = 'HTML file directly open';
+            }
+            // Check if the exported HTML corresponds to the currently open markdown file
+            else if (window.currentFilePath.endsWith('.md')) {
+                const expectedHtmlPath = window.currentFilePath.replace('.md', '.html');
+                if (expectedHtmlPath === exportedFilePath) {
+                    shouldRefresh = true;
+                    refreshReason = 'corresponding markdown file open';
+                }
+            }
+        }
+        
+        // Additional check: Always refresh if preview is currently showing HTML content
+        const previewContent = document.getElementById('preview-content');
+        if (previewContent && previewContent.innerHTML.includes('html-preview-container')) {
+            shouldRefresh = true;
+            refreshReason += (refreshReason ? ' + ' : '') + 'HTML preview currently visible';
+        }
+        
+        if (shouldRefresh) {
+            console.log(`[renderer.js] Refreshing HTML preview for: ${exportedFilePath} (reason: ${refreshReason})`);
+            
+            try {
+                // Re-read the HTML file content and refresh the preview
+                const response = await window.electronAPI.invoke('read-file', exportedFilePath);
+                if (response.success) {
+                    displayHTMLInPreview(response.content, exportedFilePath);
+                    console.log('[renderer.js] HTML preview refreshed successfully');
+                } else {
+                    console.error('[renderer.js] Error re-reading HTML file for refresh:', response.error);
+                }
+            } catch (error) {
+                console.error('[renderer.js] Error refreshing HTML preview:', error);
+            }
+        } else {
+            console.log('[renderer.js] HTML export was for different file, not refreshing preview');
+        }
     });
 }
 
