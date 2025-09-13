@@ -164,4 +164,5 @@ Think for a moment about this final activity. Is your completion different to th
 
 ### Make Content, Get Attention... Profit?
 
-Turning now to Terranova's article, we come to the idea that attention is a *commodity*. It is an object that in itself warrants the *attention* of capital, of investors and advertisers, in the context of digital media. Of course this is not new - the nephew of Sigmund Freud, Edmund Bernays, pioneered many uses of what was then, in the early/mid twentieth century, new media, such as radio, magazines, film and television. 
+Turning now to Terranova's article, we come to the idea that attention is a kind of *commodity* and even *capital*, marked - like all commodities – by scarcity. It is an object that in itself warrants the *attention* of capital, of investors and advertisers, in the context of digital media. This is of course not new - the nephew of Sigmund Freud, Edmund Bernays, pioneered many uses of what was then, in the early/mid twentieth century, new media, such as radio, magazines, film and television. But 
+

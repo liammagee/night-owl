@@ -14,6 +14,7 @@ const contextMenuHandlers = require('./contextMenuHandlers');
 const ttsHandlers = require('./ttsHandlers');
 const videoHandlers = require('./videoHandlers');
 const citationHandlers = require('./citationHandlers');
+const imageHandlers = require('./imageHandlers');
 
 /**
  * Register all IPC handlers
@@ -64,6 +65,13 @@ function registerAllHandlers(dependencies) {
       console.log('[IPC] Citation handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering citation handlers:', error);
+    }
+    
+    try {
+      imageHandlers.register(dependencies);
+      console.log('[IPC] Image handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering image handlers:', error);
     }
     
     console.log('[IPC] All IPC handlers registered successfully');
