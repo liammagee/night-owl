@@ -2668,59 +2668,57 @@ async function initializeMonacoEditor() {
             
             document.addEventListener('paste', globalPasteHandler);
             
-            // 4. Keyboard shortcut as another fallback
+            // Smart keyboard command - only handles image paste, lets text paste through
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, async () => {
-                console.log('[Editor] 🎯 Monaco Ctrl+V command triggered!');
+                console.log('[Editor] 🎯 Monaco Ctrl+V command triggered - checking for images');
+                
                 try {
-                    // Use the Clipboard API to read clipboard
-                    if (navigator.clipboard && navigator.clipboard.read) {
-                        const clipboardItems = await navigator.clipboard.read();
-                        console.log('[Editor] Clipboard items:', clipboardItems.length);
+                    // First, try to detect if there are images using Electron's clipboard API
+                    const result = await window.electronAPI.invoke('paste-image-from-clipboard');
+                    
+                    if (result.success) {
+                        // We have an image, handle it
+                        console.log('[Editor] ✅ Image detected and saved:', result.relativePath);
                         
-                        for (const clipboardItem of clipboardItems) {
-                            console.log('[Editor] Clipboard item types:', clipboardItem.types);
-                            for (const type of clipboardItem.types) {
-                                if (type.startsWith('image/')) {
-                                    console.log('[Editor] 🖼️ Found image in clipboard via API!');
-                                    const result = await window.electronAPI.invoke('paste-image-from-clipboard');
-                                    
-                                    if (result.success) {
-                                        console.log('[Editor] ✅ Image saved:', result.relativePath);
-                                        
-                                        const position = editor.getPosition();
-                                        editor.executeEdits('paste-image', [{
-                                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-                                            text: result.markdownLink
-                                        }]);
-                                        
-                                        editor.setPosition({
-                                            lineNumber: position.lineNumber,
-                                            column: position.column + result.markdownLink.length
-                                        });
-                                        
-                                        if (window.updatePreview) {
-                                            await window.updatePreview(editor.getValue());
-                                        }
-                                        
-                                        // Refresh file tree to show new image
-                                        if (window.electronAPI && window.electronAPI.invoke) {
-                                            try {
-                                                await window.electronAPI.invoke('refresh-file-tree');
-                                                console.log('[Editor] File tree refreshed to show new image');
-                                            } catch (error) {
-                                                console.warn('[Editor] Could not refresh file tree:', error);
-                                            }
-                                        }
-                                        
-                                        console.log('[Editor] 🎉 Image inserted via command');
-                                        return; // Prevent default Monaco paste
-                                    }
-                                }
+                        const position = editor.getPosition();
+                        editor.executeEdits('paste-image', [{
+                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                            text: result.markdownLink
+                        }]);
+                        
+                        editor.setPosition({
+                            lineNumber: position.lineNumber,
+                            column: position.column + result.markdownLink.length
+                        });
+                        
+                        if (window.updatePreview) {
+                            await window.updatePreview(editor.getValue());
+                        }
+                        
+                        // Refresh file tree to show new image
+                        if (window.electronAPI && window.electronAPI.invoke) {
+                            try {
+                                await window.electronAPI.invoke('refresh-file-tree');
+                                console.log('[Editor] File tree refreshed to show new image');
+                            } catch (error) {
+                                console.warn('[Editor] Could not refresh file tree:', error);
                             }
                         }
+                        
+                        console.log('[Editor] 🎉 Image inserted successfully');
+                        // Return early to prevent text paste
+                        return;
+                    } else {
+                        // No image found, let Monaco handle normal text paste
+                        console.log('[Editor] No image in clipboard, triggering default paste');
+                        // Use Monaco's trigger method to execute paste command
+                        editor.trigger('keyboard', 'editor.action.clipboardPasteAction');
                     }
+                    
                 } catch (error) {
-                    console.error('[Editor] Error in Ctrl+V handler:', error);
+                    console.error('[Editor] Error in smart paste handler:', error);
+                    // On error, fallback to default text paste
+                    editor.trigger('keyboard', 'editor.action.clipboardPasteAction');
                 }
             });
             
@@ -2747,6 +2745,7 @@ async function initializeMonacoEditor() {
                         console.log('[Editor] 🖼️ Image detected in clipboard!');
                         hasImage = true;
                         
+                        // Only prevent default if we have an image
                         event.preventDefault();
                         
                         try {
