@@ -197,6 +197,16 @@ The reason for including Terranova's analysis – aside from its wide-ranging su
 
 The individual human subject is affected by what others say and do, and digital technologies act like a concentrating device of those social habits. Let's exaggerate: every tweet, post or Tiktok we read or watch acts like a small encounter between two self-consciousnesses, which must resolve itself into a micro-master / servant dialectic enounter. Do we like the content, do we stay engaged to it - are we in other words, a servant to it? Or do we criticize, disengage and ultimately walk away? Is our self-governance of our own attention a method also of self-mastery that resists servitude to others? 
 
-And where does this then bring us with respect to a technology that arguably 
+And where does this then bring us with respect to a technology that arguably exceeds what Terranova, Lazzaratto and Stiegler could ever have anticipated in terms of its potential capture of human attention - precisely via application of its own "attention" mechanisms?
+Hansen argues that as we enter the era of machine learning, platforms will increasingly predict,  and thereby control, even more fundamental processes than our attention: our conscious thinking itself.
+
+
+[Over to Michele?]
+
+
+
+---
+
+According to many neuroscience, attention is seen as critical to the operations of consciousness. Next week we focus on this concept, bringing closer together Hegel's ideas on consciousness and self-consciousness and other theories. We will revisit attention, but also consider ideas of the "unconscious" – developed originally by Freud, but surprisingly relevant in the world of machine learning too – as well as  Nancy Katherine Hayles' work on what she terms "nonconscious cognition".
 
 

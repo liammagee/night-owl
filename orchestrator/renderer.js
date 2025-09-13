@@ -1,5 +1,5 @@
 
-console.error('*** RENDERER.JS IS LOADING - THIS SHOULD BE VISIBLE ***');
+// Renderer initialization
 
 // --- Electron IPC (for theme) ---
 // Access IPC functions exposed by preload.js via window.electronAPI
@@ -2622,14 +2622,11 @@ async function initializeMonacoEditor() {
             });
 
             // Add paste event listener for image handling using Monaco's API
-            console.log('[Editor] Setting up Monaco paste handler');
             
             // Try multiple approaches to catch paste events
             // 1. Monaco's onDidPaste event (if available)
             if (editor.onDidPaste) {
-                console.log('[Editor] Using Monaco onDidPaste');
                 editor.onDidPaste(async (event) => {
-                    console.log('[Editor] 🎯 Monaco onDidPaste triggered!');
                     await handleImagePaste(event);
                 });
             }
@@ -2637,10 +2634,7 @@ async function initializeMonacoEditor() {
             // 2. DOM paste event on editor container
             const editorDomNode = editor.getDomNode();
             if (editorDomNode) {
-                console.log('[Editor] Setting up DOM paste listener on editor');
-                
                 editorDomNode.addEventListener('paste', async (event) => {
-                    console.log('[Editor] 🎯 DOM paste event on editor!');
                     await handleImagePaste(event);
                 });
                 
@@ -2648,7 +2642,6 @@ async function initializeMonacoEditor() {
                 const container = editorDomNode.parentElement;
                 if (container) {
                     container.addEventListener('paste', async (event) => {
-                        console.log('[Editor] 🎯 DOM paste event on container!');
                         await handleImagePaste(event);
                     });
                 }
@@ -2656,13 +2649,9 @@ async function initializeMonacoEditor() {
             
             // 3. Global document paste listener as fallback
             const globalPasteHandler = async (event) => {
-                console.log('[Editor] 📋 Global paste event detected');
                 // Only handle if editor is focused
                 if (editor.hasTextFocus()) {
-                    console.log('[Editor] Editor has focus, checking for images...');
                     await handleImagePaste(event);
-                } else {
-                    console.log('[Editor] Editor not focused, ignoring paste');
                 }
             };
             
@@ -2699,18 +2688,15 @@ async function initializeMonacoEditor() {
                         if (window.electronAPI && window.electronAPI.invoke) {
                             try {
                                 await window.electronAPI.invoke('refresh-file-tree');
-                                console.log('[Editor] File tree refreshed to show new image');
                             } catch (error) {
                                 console.warn('[Editor] Could not refresh file tree:', error);
                             }
                         }
                         
-                        console.log('[Editor] 🎉 Image inserted successfully');
                         // Return early to prevent text paste
                         return;
                     } else {
                         // No image found, let Monaco handle normal text paste
-                        console.log('[Editor] No image in clipboard, triggering default paste');
                         // Use Monaco's trigger method to execute paste command
                         editor.trigger('keyboard', 'editor.action.clipboardPasteAction');
                     }
@@ -2724,25 +2710,18 @@ async function initializeMonacoEditor() {
             
             // Helper function to handle image paste
             async function handleImagePaste(event) {
-                console.log('[Editor] handleImagePaste called');
-                
                 const clipboardData = event.clipboardData || window.clipboardData;
                 if (!clipboardData) {
-                    console.log('[Editor] No clipboardData available');
                     return;
                 }
-                
-                console.log('[Editor] ClipboardData items count:', clipboardData.items.length);
                 
                 const items = clipboardData.items;
                 let hasImage = false;
                 
                 for (let i = 0; i < items.length; i++) {
                     const item = items[i];
-                    console.log(`[Editor] Clipboard item ${i}: type="${item.type}", kind="${item.kind}"`);
                     
                     if (item.type.indexOf('image') !== -1) {
-                        console.log('[Editor] 🖼️ Image detected in clipboard!');
                         hasImage = true;
                         
                         // Only prevent default if we have an image
@@ -2753,7 +2732,6 @@ async function initializeMonacoEditor() {
                             const result = await window.electronAPI.invoke('paste-image-from-clipboard');
                             
                             if (result.success) {
-                                console.log('[Editor] ✅ Image saved successfully:', result.relativePath);
                                 
                                 const position = editor.getPosition();
                                 const range = new monaco.Range(
@@ -2783,30 +2761,23 @@ async function initializeMonacoEditor() {
                                 if (window.electronAPI && window.electronAPI.invoke) {
                                     try {
                                         await window.electronAPI.invoke('refresh-file-tree');
-                                        console.log('[Editor] File tree refreshed to show new image');
                                     } catch (error) {
                                         console.warn('[Editor] Could not refresh file tree:', error);
                                     }
                                 }
                                 
-                                console.log('[Editor] 🎉 Image link inserted:', result.markdownLink);
                             } else {
-                                console.error('[Editor] ❌ Failed to save image:', result.error);
                             }
                         } catch (error) {
-                            console.error('[Editor] ❌ Error handling image paste:', error);
+                            console.error('[Editor] Error handling image paste:', error);
                         }
                         
                         break;
                     }
                 }
                 
-                if (!hasImage) {
-                    console.log('[Editor] No images found in clipboard');
-                }
             }
             
-            console.log('[Editor] All paste handlers set up successfully');
 
             // --- THEME SYNC: Ensure Monaco theme matches settings ---
             // Use the current body class to determine theme if appSettings is not yet set

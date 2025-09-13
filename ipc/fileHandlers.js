@@ -1148,10 +1148,8 @@ function register(deps) {
   // Refresh file tree handler
   ipcMain.handle('refresh-file-tree', async (event) => {
     try {
-      console.log('[FileHandlers] Refreshing file tree...');
       
       if (mainWindow) {
-        console.log('[FileHandlers] Sending refresh-file-tree signal to renderer');
         mainWindow.webContents.send('refresh-file-tree');
         return { success: true };
       } else {

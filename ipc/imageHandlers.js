@@ -47,13 +47,11 @@ function register(deps) {
   // Handle pasting images from clipboard
   ipcMain.handle('paste-image-from-clipboard', async (event) => {
     try {
-      console.log('[ImageHandlers] Handling paste image from clipboard');
       
       // Get image from clipboard
       const image = clipboard.readImage();
       
       if (image.isEmpty()) {
-        console.log('[ImageHandlers] No image found in clipboard');
         return {
           success: false,
           error: 'No image found in clipboard'
@@ -73,7 +71,6 @@ function register(deps) {
       // Save the image
       await fs.writeFile(filePath, buffer);
       
-      console.log(`[ImageHandlers] Image saved successfully: ${filePath}`);
       
       // Return the relative path for markdown
       const relativePath = `images/${filename}`;
@@ -98,7 +95,6 @@ function register(deps) {
   // Handle saving image data (for drag/drop or other sources)
   ipcMain.handle('save-image-data', async (event, imageData, originalFilename) => {
     try {
-      console.log('[ImageHandlers] Handling save image data');
       
       // Ensure images directory exists
       const imagesDir = await ensureImagesDirectory();
@@ -123,7 +119,6 @@ function register(deps) {
       // Save the image
       await fs.writeFile(filePath, buffer);
       
-      console.log(`[ImageHandlers] Image saved successfully: ${filePath}`);
       
       // Return the relative path for markdown
       const relativePath = `images/${filename}`;
@@ -145,7 +140,6 @@ function register(deps) {
     }
   });
 
-  console.log('[ImageHandlers] Image handlers registered successfully - paste-image-from-clipboard, save-image-data');
 }
 
 module.exports = { register };
