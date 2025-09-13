@@ -18,6 +18,8 @@ function initializeMarkdownFormatting() {
     const formatTableBtn = document.getElementById('format-table-btn');
     const formatInlineMathBtn = document.getElementById('format-inline-math-btn');
     const formatDisplayMathBtn = document.getElementById('format-display-math-btn');
+    const formatColorBtn = document.getElementById('format-color-btn');
+    const colorPickerInput = document.getElementById('color-picker-input');
     const autoSlideMarkersBtn = document.getElementById('auto-slide-markers-btn');
     const removeSlideMarkersBtn = document.getElementById('remove-slide-markers-btn');
     const insertSpeakerNotesBtn = document.getElementById('insert-speaker-notes-btn');
@@ -42,6 +44,28 @@ function initializeMarkdownFormatting() {
     if (formatTableBtn) formatTableBtn.addEventListener('click', () => insertTable());
     if (formatInlineMathBtn) formatInlineMathBtn.addEventListener('click', async () => await formatText('$', '$', 'math'));
     if (formatDisplayMathBtn) formatDisplayMathBtn.addEventListener('click', async () => await formatDisplayMath());
+    
+    // Color picker functionality
+    if (formatColorBtn && colorPickerInput) {
+        // Update button color when color changes
+        colorPickerInput.addEventListener('change', () => {
+            const colorIcon = formatColorBtn.querySelector('span');
+            colorIcon.style.color = colorPickerInput.value;
+        });
+        
+        // Trigger color picker when button is clicked
+        formatColorBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            colorPickerInput.click(); // This will open the native color picker
+        });
+        
+        // Apply color formatting when color changes
+        colorPickerInput.addEventListener('change', async () => {
+            const selectedColor = colorPickerInput.value;
+            await formatColorText(selectedColor);
+        });
+    }
+    
     if (autoSlideMarkersBtn) autoSlideMarkersBtn.addEventListener('click', async () => await addSlideMarkersToParagraphs());
     if (removeSlideMarkersBtn) removeSlideMarkersBtn.addEventListener('click', async () => await removeAllSlideMarkers());
     if (insertSpeakerNotesBtn) insertSpeakerNotesBtn.addEventListener('click', async () => await insertSpeakerNotesTemplate());
@@ -1104,6 +1128,52 @@ function insertCodeBlock() {
     window.editor.focus();
 }
 
+// --- Color Text Formatting ---
+async function formatColorText(color) {
+    if (!window.editor) {
+        return;
+    }
+    
+    const selection = window.editor.getSelection();
+    const selectedText = window.editor.getModel().getValueInRange(selection);
+    
+    if (selectedText) {
+        // If text is selected, wrap it with color span
+        const coloredText = `<span style="color: ${color};">${selectedText}</span>`;
+        window.editor.executeEdits('format-color', [{
+            range: selection,
+            text: coloredText
+        }]);
+    } else {
+        // If no text is selected, insert a placeholder
+        const position = window.editor.getPosition();
+        const placeholderText = `<span style="color: ${color};">colored text</span>`;
+        
+        window.editor.executeEdits('format-color', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: placeholderText
+        }]);
+        
+        // Select the placeholder text for easy replacement
+        const endColumn = position.column + placeholderText.length;
+        const startColumn = position.column + `<span style="color: ${color};">`.length;
+        const endColumnActual = startColumn + 'colored text'.length;
+        
+        window.editor.setSelection(new monaco.Range(
+            position.lineNumber, 
+            startColumn, 
+            position.lineNumber, 
+            endColumnActual
+        ));
+    }
+    
+    // Update preview
+    if (window.updatePreview) {
+        const content = window.editor.getValue();
+        await window.updatePreview(content);
+    }
+}
+
 // --- Export for Global Access ---
 window.formatText = formatText;
 window.formatHeading = formatHeading;
@@ -1119,6 +1189,7 @@ window.insertSpeakerNotesTemplate = insertSpeakerNotesTemplate;
 window.insertTableOfContents = insertTableOfContents;
 window.removeTableOfContents = removeTableOfContents;
 window.addToCButtons = addToCButtons;
+window.formatColorText = formatColorText;
 window.initializeMarkdownFormatting = initializeMarkdownFormatting;
 
 // --- Initialization is called from renderer.js with a delay ---
