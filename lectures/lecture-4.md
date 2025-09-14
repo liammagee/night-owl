@@ -21,28 +21,56 @@ I'll start by looking at the Petersen & Posner [-@stevene.petersen2012theattenti
 ### Human Attention
 
 
+| Attention Subsystem | Part of Brain | Reading Analogy |
+| --- | --- | --- |
+| Alerting | Thalamus; Frontal area | Be *ready* to read  |
+| Orienting | Data 2-2 | *Direct* attention to text |
+| Executive: Sustain focus  | Data 2-2 | *Continue* to concentrate |
+| Executive: Switch focus  | Data 2-2 | Realize that you are tired and *need a break* |
 
+
+![Image](images/pasted-image-2025-09-14T18-41-01-466Z-7f762d1b.png)
 
 ```notes
 
 
 
-The first paper is an updated version of an earlier text from 1990, also by Posner and Petersen, at the beginning of the era of "neuroimaging": using tomography, fMRI and EEG machines to monitor brain activity. Posner and Petersen suggest human attention involves three distinct but related cognitive processes: alterting, orienting and executive (or executive control). We might think of these as involving become aware of something; turning our attention towards that thing; and then making some decision about that thing: is it dangerous, attractive, and so on.
+The first paper is an updated version of an earlier text from 1990, also by Posner and Petersen, at the beginning of the era of "neuroimaging": using tomography, fMRI and EEG machines to monitor brain activity. Posner and Petersen suggest human attention involves three distinct but related subsystems and associated cognitive processes: alterting, orienting and executive (or executive control). We might think of these as involving become aware of something; turning our attention towards that thing; and then making some decision about that thing: is it dangerous, attractive, and so on.
 
 Alerting involves the initial registration of an external stimulus. They further distinguish two modes of alerting:  phasic, or short-term reactions, and tonic, os sustained vigilance. Both their initial and this updated paper located alerting function to the right hemisphere of the brain.
 
 Orienting involves some kind of fast directing of attention in response to the stimulus or goal. This might be the instant turning of the head toward a large sound; or the fixation of the head and eyes on the road ahead while driving in difficult conditions. This happens in the frontal and posterior parts of the brain.
 
-Finally, the executive function involves making decisions: to stay fixed upon an object that has gained attention, or to move on. Executive control is apparently located in several regions of the brain: the prefrontal cortex, the frontal midline region and lateral frontal cortex. In their revised article Petersen and Posner identify two distinct executive processes: one involving *sustained* focus or attention, another enabling a *switching* of tasks within the same overall attention frame or goal.
+Finally, the executive function involves making decisions: to stay fixed upon an object that has gained attention, or to move on. Executive control is located in several regions of the brain: the prefrontal cortex, the frontal midline region and lateral frontal cortex. In their revised article Petersen and Posner identify two distinct executive processes: one involving *sustained* focus or attention, another enabling a *switching* of tasks within the same overall attention frame or goal.
+
+
 ```
 
+
+---
+
+### Hierarchy and Networks
+
+- (a) Connected, Ordered Hierarchy: different parts of the brain are responsible for **different** aspects of attention: alerting, orienting, executive functions (sustaining and switching attention)
+- (b) Semi-redundant Networks: different parts of the brain coordinate on the **same** aspects of attention
+
+
+![Image](images/pasted-image-2025-09-14T18-41-01-466Z-7f762d1b.png)
+
+```notes
+
+What perhaps matters to us here is not so much which areas of the brain are involved in different aspects of attention. Instead we can note that attention involves (a) a connected *hierarchy* of functions or subsystems and (b) a *network* of parts performing the same or similar roles (with some redundancy).
+
+As we will see, it is not so much that use of attention in computer networks follows precisely what happens in our brains. The word "attention" is in some sense metaphorical, just as is the term "neural networks". However at the level of architecture we will see some analogies. 
+
+```
 
 ---
 
 ### Attention and Learning
 
 
-Within the context of learning, we can see how this new attention-oriented work helps to make sense of, in particular, learning *difficulties*. Impairments on different brain regions can result in complex but still localizable – and potentially addressable – limitations in how attention is alerted, directed, sustained and purposefully redirected, as conditions require. 
+Within the context of learning, we can also see how this new attention-oriented work helps to make sense of, in particular, learning *difficulties*. Impairments on different brain regions can result in complex but still localizable – and potentially addressable – limitations in how attention is alerted, directed, sustained and purposefully redirected, as conditions require. 
 
 Now while this is not a course diving into neuroscientific research, we can note in passing that this kind of neurological or neuroscientific research has impacted upon the theory and practice of pedagogy. A quick Google Scholar search shows for example how many results have integrated "executive function" into pedagogy research:
 
@@ -50,23 +78,64 @@ Now while this is not a course diving into neuroscientific research, we can note
 
 ---
 
-These recent studies show, for example, that the hierarchy of attention mechanisms - alerting to orienting to executing – also correspond to stages of learning and childhood development. 
+### Attention and Childhood Development
 
+These recent studies show, for example, that the hierarchy of attention mechanisms - alerting to orienting to executing – also correspond to stages of learning and childhood development. Work by Posner and colleagues in particular has sought to demonstrate that:
 
----
+ - infants first develop alerting functions (with some orienting and executive ability)
+ - children develop mature orienting and basic executive (concentrating) functions
+ - adolescents and young adults develop higher order executive (both attention-sustaining and -switching) functions
+ 
+#### References:
 
-And of course GPT can help us 
-
-![alt text](images/executive-models.png)
-
+- Rueda, M. R., Posner, M. I., & Rothbart, M. K. (2004). Attentional control and self-regulation in early development. Trends in Cognitive Sciences, 8, 140–147.
+- Rueda, M. R., & Posner, M. I. (2013). Development of attention networks. 
+- Posner, M. I., & Rothbart, M. K. (2007). Research on attention networks as a model for the integration of psychological science. Annual Review of Psychology, 58, 1–23.
+ - Boen, R., Ferschmann, L., Vijayakumar, N., Overbye, K., Fjell, A. M., Espeseth, T., & Tamnes, C. K. (2021). Development of attention networks from childhood to young adulthood: A study of performance, intraindividual variability and cortical thickness. Cortex, 138, 138-151.
 
 ---
 
 ### Neuroscience and Hegel?
 
-And to keep concordance with Hegel, we might also note his own strong distrust with the neuroscience of his day – a now outdated field called "phrenology", which involved measuring skulls to determinine cognitive aptitude. 
+> Without hesitation, the raw instinct of self-conscious reason will reject such a science of phrenology – as well as reject this other observing instinct of self-conscious reason, which, once it has blossomed into a foreshadowing *of cognition*, has spiritlessly grasped cognition as, “The outer is supposed to be an expression of the inner.” However, the worse the thought is, the less easy it sometimes is to say exactly where its badness lies, and it becomes even more difficult to explicate it. (para 340)
+
+```notes
+And to keep concordance with Hegel, we might also note his own strong distrust of the "neuroscience" of his day – a now outdated field called "phrenology", which involved measuring skulls to determinine cognitive aptitude. Much later in the *Phenomenology*, he savagely criticises the pseudoscience of phrenology for attempting to account for traits like intelligence based on bumps on the skull. Of course for Hegel, as we have seen, the development of Consciousness and Self-consciousness - and eventually Reason, Spirit and Absolute Knowledge – depends upon an infinitely supple and complex negotiation, both within ourselves and with others. This complex process of development cannot be "read" off the shape or dimensions of the skull. In a phrase that pre-empts where we go next week, Hegel states: 
+ 
+> Without hesitation, the raw instinct of self-conscious reason will reject such a science of phrenology – as well as reject this other observing instinct of self-conscious reason, which, once it has blossomed into a foreshadowing *of cognition*, has spiritlessly grasped cognition as, “The outer is supposed to be an expression of the inner.” However, the worse the thought is, the less easy it sometimes is to say exactly where its badness lies, and it becomes even more difficult to explicate it. (para 340)
+
+```
 
 
+---
+
+### The Gap Between Brain and Mind
+
+> The idea of mapping psychological functions to brain structures has a venerable history, dating back to Galen’s ventricular doctrine (Green [2003]) and continuing to Gall’s phrenology (Gall and Spurzheim [1810]). Although those theories are now in disrepute, the advent of neuroimaging techniques, such as positron emission tomography (PET), functional magnetic resonance imaging (fMRI), electro-encephalography (EEG), and magnetoencephalography (MEG), gives the prospect of finding one-to-one correlations between psychological functions and brain structures new vigour, and the project is the main goal of the young field of cognitive neuroscience (Posner and DiGirolamo [2000]).1 Yet many doubt that cognitive neuroscience can give us such a psychological atlas, whereby the building blocks of mind get assigned to specific neural structures (Uttal [2001], [2011]).
+
+#### References:
+
+ - Stea, J. N., Black, T. R., & Di Domenico, S. I. (2022). Phrenology and neuroscience. In *Investigating Pop Psychology* (pp. 9-19). Routledge.
+
+
+
+
+
+| Header 1 | Header 2 | 
+| --- | --- | 
+| ![Image](images/pasted-image-2025-09-14T22-33-13-908Z-4dbfa114.png) | ![Image](images/pasted-image-2025-09-14T22-34-05-167Z-40814aab.png)  |
+
+
+
+```notes
+
+
+While neuroscience involves far more rigorous and detailed methods of investigation into the operations of the brain than phrenology, we can note in passing that it has attracted criticisms quite similar to those levelled by Hegel towards the "neuroscience" of his day. See for example the following quote from a recent book chapter by Stea, Black and Domenico, titled appropriately for our purposes "Phrenology and Neuroscience.
+
+Despite the advances in science, for many today there remains a distinct gap between brain and mind, or the biological processing of signals and the rich descriptions of consciousness we get from philosophy, literature, art and religion. 
+
+How we understand this gap also affects our interpretation of the potential for machines to develop consciousness - our topic for next week. But for now, we need to look at how the concept of attention also applies to machine learning.
+```
 
 ---
 

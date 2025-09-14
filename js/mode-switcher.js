@@ -21,8 +21,11 @@ function jumpToSlideInEditor(slideIndex) {
       return;
     }
     
-    // Split content by slide separators (---)
-    const slides = content.split('---');
+    // Split content by slide separators (--- on standalone lines)
+    // Match --- that is either at start/end of string or surrounded by newlines
+    // but NOT part of a table (which would have | characters on the same line)
+    const slideSeparatorRegex = /(?:^|\n)---(?:\n|$)/;
+    const slides = content.split(slideSeparatorRegex).filter(s => s.trim());
     
     if (slideIndex >= slides.length) {
       console.warn('[Mode Switching] Slide index', slideIndex, 'exceeds available slides', slides.length);
@@ -79,8 +82,11 @@ function calculateSlideFromCursor() {
       return 0;
     }
     
-    // Split content by slide separators (---)
-    const slides = content.split('---');
+    // Split content by slide separators (--- on standalone lines)
+    // Match --- that is either at start/end of string or surrounded by newlines
+    // but NOT part of a table (which would have | characters on the same line)
+    const slideSeparatorRegex = /(?:^|\n)---(?:\n|$)/;
+    const slides = content.split(slideSeparatorRegex).filter(s => s.trim());
     console.log('[Mode Switching] Found', slides.length, 'slides');
     
     // Calculate which slide the cursor is in by counting lines

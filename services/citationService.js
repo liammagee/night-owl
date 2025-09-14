@@ -699,9 +699,18 @@ class CitationService {
             if (lastSyncTime) {
                 // Convert ISO timestamp to Zotero API format (Unix timestamp)
                 const sinceTimestamp = Math.floor(new Date(lastSyncTime).getTime() / 1000);
-                params.append('since', sinceTimestamp.toString());
-                console.log('[Citation Service] Using since parameter:', sinceTimestamp, 'for timestamp:', lastSyncTime);
+
+                // TEMPORARY DEBUG: Skip the 'since' parameter to see all items
+                // Comment this out after testing
+                console.log('[Citation Service] DEBUG: Temporarily skipping since parameter to see all collection items');
+                // params.append('since', sinceTimestamp.toString());
+
+                console.log('[Citation Service] Would use since parameter:', sinceTimestamp, 'for timestamp:', lastSyncTime);
                 console.log('[Citation Service] Current time:', Math.floor(Date.now() / 1000), 'vs since:', sinceTimestamp);
+                console.log('[Citation Service] Time difference:', Math.floor(Date.now() / 1000) - sinceTimestamp, 'seconds ago');
+
+                // Also try a version query to see total items available (for debugging)
+                console.log('[Citation Service] DEBUG: Will fetch ALL items in collection (since parameter disabled for debugging)');
             } else {
                 console.log('[Citation Service] No lastSyncTime provided, doing full sync');
             }
@@ -719,6 +728,20 @@ class CitationService {
 
             const zoteroItems = response.data;
             console.log(`[Citation Service] Retrieved ${zoteroItems.length} items from Zotero API`);
+
+            // Debug: show modification dates of all items (or first 5)
+            if (zoteroItems.length > 0) {
+                console.log('[Citation Service] DEBUG: Item modification dates:');
+                zoteroItems.slice(0, 5).forEach((item, index) => {
+                    if (item.data) {
+                        console.log(`[Citation Service] DEBUG: Item ${index + 1}: "${item.data.title?.substring(0, 40)}..." modified: ${item.data.dateModified} version: ${item.version}`);
+                    }
+                });
+                if (zoteroItems.length > 5) {
+                    console.log(`[Citation Service] DEBUG: ... and ${zoteroItems.length - 5} more items`);
+                }
+            }
+
             let syncedCount = 0;
             let updatedCount = 0;
 
@@ -1209,8 +1232,12 @@ class CitationService {
             }
 
             // Update last sync timestamp AFTER both import and export are complete
-            const currentTime = new Date().toISOString();
-            await this.updateLastSyncTime(currentTime);
+            // Use a very conservative timestamp (1 hour ago) to avoid missing items due to timing/timezone issues
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            const conservativeTime = oneHourAgo.toISOString();
+            await this.updateLastSyncTime(conservativeTime);
+            console.log(`[Citation Service] Set conservative sync time to ${conservativeTime} (1 hour ago)`);
+            const currentTime = new Date().toISOString(); // Keep for return value
 
             return {
                 success: true,

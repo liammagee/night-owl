@@ -387,7 +387,63 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     
     // Regular markdown links
     html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    
+
+    // Handle tables - simpler approach
+    // First, let's collect all table-related lines
+    const lines = html.split('\n');
+    const processedLines = [];
+    let currentTable = [];
+    let inTable = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Check if this is a table row (starts and ends with |)
+      if (line.startsWith('|') && line.endsWith('|') && line.includes('|')) {
+        // Check if this is a separator row (contains only |, -, and spaces)
+        const isSeparator = /^\|[\s\-\|]+\|$/.test(line);
+
+        if (!isSeparator) {
+          if (!inTable) {
+            inTable = true;
+            currentTable = [];
+          }
+
+          // Parse the row
+          const cells = line.slice(1, -1).split('|').map(cell => cell.trim());
+
+          // Check if next line is a separator to determine if this is header
+          const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+          const nextIsSeparator = /^\|[\s\-\|]+\|$/.test(nextLine);
+          const isHeader = nextIsSeparator && currentTable.length === 0;
+
+          const cellTag = isHeader ? 'th' : 'td';
+          const htmlRow = `<tr>${cells.map(cell => `<${cellTag}>${cell}</${cellTag}>`).join('')}</tr>`;
+          currentTable.push(htmlRow);
+        }
+        // Skip separator rows
+      } else {
+        // Not a table row
+        if (inTable && currentTable.length > 0) {
+          // End current table
+          processedLines.push(`<table class="presentation-table">${currentTable.join('')}</table>`);
+          currentTable = [];
+          inTable = false;
+        }
+
+        if (line || !inTable) {
+          processedLines.push(lines[i]); // Keep original line with spacing
+        }
+      }
+    }
+
+    // Handle table at end of content
+    if (inTable && currentTable.length > 0) {
+      processedLines.push(`<table class="presentation-table">${currentTable.join('')}</table>`);
+    }
+
+    html = processedLines.join('\n');
+
     // Handle lists
     html = html.replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li>$1</li>');
     html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
@@ -395,13 +451,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     
     // Blockquotes - handle multi-line blockquotes properly
     // First, collect all blockquote lines and group them
-    const lines = html.split('\n');
+    const blockquoteLines_raw = html.split('\n');
     let inBlockquote = false;
     let blockquoteLines = [];
-    const processedLines = [];
+    const blockquoteProcessedLines = [];
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    for (let i = 0; i < blockquoteLines_raw.length; i++) {
+      const line = blockquoteLines_raw[i];
       const blockquoteMatch = line.match(/^>\s*(.*)/);
       
       if (blockquoteMatch) {
@@ -416,21 +472,21 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         if (inBlockquote) {
           // End of blockquote, process accumulated lines
           const blockquoteContent = blockquoteLines.join('<br>').trim();
-          processedLines.push(`<blockquote class="presentation-blockquote">${blockquoteContent}</blockquote>`);
+          blockquoteProcessedLines.push(`<blockquote class="presentation-blockquote">${blockquoteContent}</blockquote>`);
           inBlockquote = false;
           blockquoteLines = [];
         }
-        processedLines.push(line);
+        blockquoteProcessedLines.push(line);
       }
     }
     
     // Handle case where blockquote is at the end of content
     if (inBlockquote && blockquoteLines.length > 0) {
       const blockquoteContent = blockquoteLines.join('<br>').trim();
-      processedLines.push(`<blockquote class="presentation-blockquote">${blockquoteContent}</blockquote>`);
+      blockquoteProcessedLines.push(`<blockquote class="presentation-blockquote">${blockquoteContent}</blockquote>`);
     }
-    
-    html = processedLines.join('\n');
+
+    html = blockquoteProcessedLines.join('\n');
     
     // Horizontal rules
     html = html.replace(/^---\s*$/gm, '<hr>');
@@ -481,7 +537,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Parse markdown into slides
   const parseMarkdown = (markdown) => {
-    const slideTexts = markdown.split('---').map(slide => slide.trim()).filter(slide => slide);
+    // Split content by slide separators (--- on standalone lines)
+    // Match --- that is either at start/end of string or surrounded by newlines
+    const slideSeparatorRegex = /(?:^|\n)---(?:\n|$)/;
+    const slideTexts = markdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
     return slideTexts.map((text, index) => {
       const { cleanContent, speakerNotes } = extractSpeakerNotes(text);
       return {
