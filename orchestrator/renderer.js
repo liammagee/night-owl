@@ -2795,6 +2795,117 @@ async function initializeMonacoEditor() {
                 editor.updateOptions({ theme: isDark ? 'vs-dark' : 'vs' });
             }
 
+            // --- IMAGE DRAG & DROP: Add drag/drop support for images ---
+            function setupImageDragAndDrop() {
+                const editorContainer = document.getElementById('editor');
+                if (!editorContainer) return;
+
+                // Prevent default drag behaviors on the editor container
+                editorContainer.addEventListener('dragover', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.dataTransfer.dropEffect = 'copy';
+                }, false);
+
+                editorContainer.addEventListener('dragenter', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }, false);
+
+                editorContainer.addEventListener('dragleave', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }, false);
+
+                // Handle file drop
+                editorContainer.addEventListener('drop', async (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const files = event.dataTransfer.files;
+                    if (!files || files.length === 0) return;
+
+                    console.log(`[Editor] Dropped ${files.length} file(s)`);
+
+                    // Process each dropped file
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        console.log(`[Editor] Processing dropped file: ${file.name} (${file.type})`);
+
+                        // Check if it's an image file
+                        if (file.type.startsWith('image/')) {
+                            try {
+                                // Get the file path (Electron provides this)
+                                const filePath = file.path;
+                                if (!filePath) {
+                                    console.warn('[Editor] No file path available for dropped image');
+                                    continue;
+                                }
+
+                                console.log(`[Editor] Copying dropped image: ${filePath}`);
+                                const result = await window.electronAPI.invoke('copy-local-image-file', filePath);
+
+                                if (result.success) {
+                                    console.log('[Editor] ✅ Image copied successfully:', result.relativePath);
+
+                                    // Insert the markdown link at cursor position
+                                    const position = editor.getPosition();
+                                    const range = new monaco.Range(
+                                        position.lineNumber,
+                                        position.column,
+                                        position.lineNumber,
+                                        position.column
+                                    );
+
+                                    editor.executeEdits('drop-image', [{
+                                        range: range,
+                                        text: result.markdownLink + '\n\n'
+                                    }]);
+
+                                    // Move cursor to end of inserted text
+                                    const newPosition = {
+                                        lineNumber: position.lineNumber + 2,
+                                        column: 1
+                                    };
+                                    editor.setPosition(newPosition);
+
+                                    // Update preview
+                                    if (window.updatePreview) {
+                                        const content = editor.getValue();
+                                        await window.updatePreview(content);
+                                    }
+
+                                    // Refresh file tree to show new image
+                                    if (window.electronAPI && window.electronAPI.invoke) {
+                                        try {
+                                            await window.electronAPI.invoke('refresh-file-tree');
+                                        } catch (error) {
+                                            console.warn('[Editor] Could not refresh file tree:', error);
+                                        }
+                                    }
+
+                                } else {
+                                    console.error('[Editor] Failed to copy image:', result.error);
+                                    if (window.showNotification) {
+                                        window.showNotification(`Failed to copy image: ${result.error}`, 'error');
+                                    }
+                                }
+                            } catch (error) {
+                                console.error('[Editor] Error processing dropped image:', error);
+                                if (window.showNotification) {
+                                    window.showNotification('Error processing dropped image', 'error');
+                                }
+                            }
+                        } else {
+                            console.log(`[Editor] Skipping non-image file: ${file.name} (${file.type})`);
+                        }
+                    }
+                }, false);
+            }
+
+            // Initialize drag and drop after editor is ready
+            setupImageDragAndDrop();
+
             // Trigger file restoration if we have restored content but didn't use it during initialization
             if (window.restoredFileContent && !initialContent) {
                 console.log('[renderer.js] Triggering delayed file restoration after Monaco initialization');
@@ -7396,6 +7507,7 @@ function showFileContextMenu(event, filePath, isFolder) {
     
     if (isFolder) {
         menuItems.push(
+            { label: 'Open in Finder', action: 'open-in-finder' },
             { label: 'New File in Folder', action: 'new-file' },
             { label: 'New Folder', action: 'new-subfolder' },
             { label: 'Rename Folder', action: 'rename' },
@@ -7412,6 +7524,13 @@ function showFileContextMenu(event, filePath, isFolder) {
         // Add tag editing option for markdown files
         if (filePath.endsWith('.md')) {
             menuItems.push({ label: 'Edit Tags', action: 'edit-tags' });
+        }
+
+        // Add insert option for image files
+        const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif'];
+        const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+        if (imageExtensions.includes(fileExtension)) {
+            menuItems.push({ label: 'Insert in Document', action: 'insert-image' });
         }
     }
     
@@ -7548,12 +7667,99 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
                 await showTagEditDialog(filePath);
             }
             break;
+
+        case 'insert-image':
+            if (!isFolder) {
+                try {
+                    console.log(`[handleFileContextMenuAction] Inserting image: ${filePath}`);
+
+                    // Check if it's an image file
+                    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif'];
+                    const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+
+                    if (!imageExtensions.includes(fileExtension)) {
+                        showNotification('Selected file is not a recognized image format', 'error');
+                        return;
+                    }
+
+                    // Copy the image to project images directory and get markdown link
+                    const result = await window.electronAPI.invoke('copy-local-image-file', filePath);
+
+                    if (result.success) {
+                        console.log('[handleFileContextMenuAction] ✅ Image copied successfully:', result.relativePath);
+
+                        // Insert the markdown link at cursor position
+                        if (window.editor) {
+                            const position = window.editor.getPosition();
+                            const range = new monaco.Range(
+                                position.lineNumber,
+                                position.column,
+                                position.lineNumber,
+                                position.column
+                            );
+
+                            window.editor.executeEdits('insert-image', [{
+                                range: range,
+                                text: result.markdownLink + '\n\n'
+                            }]);
+
+                            // Move cursor to end of inserted text
+                            const newPosition = {
+                                lineNumber: position.lineNumber + 2,
+                                column: 1
+                            };
+                            window.editor.setPosition(newPosition);
+
+                            // Update preview
+                            if (window.updatePreview) {
+                                const content = window.editor.getValue();
+                                await window.updatePreview(content);
+                            }
+
+                            // Refresh file tree to show new image
+                            if (window.electronAPI && window.electronAPI.invoke) {
+                                try {
+                                    await window.electronAPI.invoke('refresh-file-tree');
+                                } catch (error) {
+                                    console.warn('[handleFileContextMenuAction] Could not refresh file tree:', error);
+                                }
+                            }
+
+                            showNotification('Image inserted into document', 'success');
+                        } else {
+                            showNotification('No editor available to insert image', 'error');
+                        }
+                    } else {
+                        console.error('[handleFileContextMenuAction] Failed to copy image:', result.error);
+                        showNotification(`Failed to copy image: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error inserting image:', error);
+                    showNotification('Error inserting image', 'error');
+                }
+            }
+            break;
             
+        case 'open-in-finder':
+            if (isFolder) {
+                try {
+                    console.log(`[handleFileContextMenuAction] Opening folder in system file manager: ${filePath}`);
+                    const result = await window.electronAPI.invoke('open-folder-in-finder', filePath);
+                    if (!result.success) {
+                        showNotification(`Failed to open folder: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error opening folder:', error);
+                    showNotification('Error opening folder in system file manager', 'error');
+                }
+            }
+            break;
+
         case 'new-file':
         case 'new-subfolder':
             showNotification('This functionality will be implemented soon', 'info');
             break;
-            
+
         default:
             console.warn(`[handleFileContextMenuAction] Unknown action: ${action}`);
     }

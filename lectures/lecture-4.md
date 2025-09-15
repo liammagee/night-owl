@@ -13,8 +13,13 @@ As we've noted in the week's online guide, this week we are moving both back and
 What I propose this week is that we examine three key papers that all treat the concept of attention in a specific way. I won't be doing too much here to relate this concept to Hegel's unfolding architecture in *Phenomenology of Spirit* - we'll instead turn to that in the weeks ahead. But you may want to think how different meanings of attention might be situated with respect to both concepts of experience and recognition we've covered to date.
 
 I'll start by looking at the Petersen & Posner [-@stevene.petersen2012theattention] paper, *The Attention System of the Human Brain: 20 Years After*, then the Vaswani et al's [-@ashishvaswani2017attentionis] *Attention is All You Need* paper, and then finally Terranova's [-@tizianaterranova2012attentioneconomy] critique of the Attention Economy. In each case we'll provide a short summary, and connect the argument to the wider lecture and course content - then provide time for discussion.
-
 ```
+
+
+
+
+--- 
+
 
 ---
 
@@ -24,24 +29,24 @@ I'll start by looking at the Petersen & Posner [-@stevene.petersen2012theattenti
 | Attention Subsystem | Part of Brain | Reading Analogy |
 | --- | --- | --- |
 | Alerting | Thalamus; Frontal area | Be *ready* to read  |
-| Orienting | Data 2-2 | *Direct* attention to text |
-| Executive: Sustain focus  | Data 2-2 | *Continue* to concentrate |
-| Executive: Switch focus  | Data 2-2 | Realize that you are tired and *need a break* |
+| Orienting | Temporoparietal Junction  | *Direct* attention to text |
+| Executive: Sustain focus  | Cingulo-opercular | *Continue* to concentrate |
+| Executive: Switch focus  | Frontoparietal (eye field / superior parietal lob | Realize that you are tired and *need a break* |
 
 
 ![Image](images/pasted-image-2025-09-14T18-41-01-466Z-7f762d1b.png)
 
 ```notes
 
-
-
 The first paper is an updated version of an earlier text from 1990, also by Posner and Petersen, at the beginning of the era of "neuroimaging": using tomography, fMRI and EEG machines to monitor brain activity. Posner and Petersen suggest human attention involves three distinct but related subsystems and associated cognitive processes: alterting, orienting and executive (or executive control). We might think of these as involving become aware of something; turning our attention towards that thing; and then making some decision about that thing: is it dangerous, attractive, and so on.
 
-Alerting involves the initial registration of an external stimulus. They further distinguish two modes of alerting:  phasic, or short-term reactions, and tonic, os sustained vigilance. Both their initial and this updated paper located alerting function to the right hemisphere of the brain.
+I'll briefly talk through these three functions.
+
+Alerting involves the initial registration of an external stimulus. They further distinguish two modes of alerting:  phasic, or short-term reactions, and tonic, or sustained vigilance. Both their initial and this updated paper located alerting function to the right hemisphere of the brain.
 
 Orienting involves some kind of fast directing of attention in response to the stimulus or goal. This might be the instant turning of the head toward a large sound; or the fixation of the head and eyes on the road ahead while driving in difficult conditions. This happens in the frontal and posterior parts of the brain.
 
-Finally, the executive function involves making decisions: to stay fixed upon an object that has gained attention, or to move on. Executive control is located in several regions of the brain: the prefrontal cortex, the frontal midline region and lateral frontal cortex. In their revised article Petersen and Posner identify two distinct executive processes: one involving *sustained* focus or attention, another enabling a *switching* of tasks within the same overall attention frame or goal.
+Finally, the executive function involves making decisions: to stay fixed upon an object that has gained attention, or to move on. In their revised article Petersen and Posner identify two distinct executive processes: one involving *sustained* focus or attention, another enabling a *switching* of tasks within the same overall attention frame or goal. The prefrontal cortex is responsibile for the first of these - task focus – while the frontal eye field and superior parietal lobes together involve task switching. 
 
 
 ```
@@ -59,7 +64,7 @@ Finally, the executive function involves making decisions: to stay fixed upon an
 
 ```notes
 
-What perhaps matters to us here is not so much which areas of the brain are involved in different aspects of attention. Instead we can note that attention involves (a) a connected *hierarchy* of functions or subsystems and (b) a *network* of parts performing the same or similar roles (with some redundancy).
+But what perhaps matters to us here is not so much which areas of the brain are involved in different aspects of attention. Instead we can note that attention involves (a) a connected *hierarchy* of functions or subsystems and (b) a *network* of parts performing the same or similar roles (with some redundancy).
 
 As we will see, it is not so much that use of attention in computer networks follows precisely what happens in our brains. The word "attention" is in some sense metaphorical, just as is the term "neural networks". However at the level of architecture we will see some analogies. 
 
@@ -70,28 +75,46 @@ As we will see, it is not so much that use of attention in computer networks fol
 ### Attention and Learning
 
 
+![alt text](images/attention-pedagogy-studies.png)
+
+```notes
+
 Within the context of learning, we can also see how this new attention-oriented work helps to make sense of, in particular, learning *difficulties*. Impairments on different brain regions can result in complex but still localizable – and potentially addressable – limitations in how attention is alerted, directed, sustained and purposefully redirected, as conditions require. 
 
-Now while this is not a course diving into neuroscientific research, we can note in passing that this kind of neurological or neuroscientific research has impacted upon the theory and practice of pedagogy. A quick Google Scholar search shows for example how many results have integrated "executive function" into pedagogy research:
+Now while this is not a course diving into neuroscientific research, we can note in passing that this kind of neurological or neuroscientific research has impacted upon the theory and practice of pedagogy. A quick Google Scholar search shows for example how many results have integrated "executive function" into pedagogy research: 17,200 results since 2021.
 
-![alt text](images/attention-pedagogy-studies.png)
+```
 
 ---
 
 ### Attention and Childhood Development
 
-These recent studies show, for example, that the hierarchy of attention mechanisms - alerting to orienting to executing – also correspond to stages of learning and childhood development. Work by Posner and colleagues in particular has sought to demonstrate that:
+- infants first develop alerting functions (with some orienting and executive ability)
+- children develop mature orienting and basic executive (concentrating) functions
+- adolescents and young adults develop higher order executive (both attention-sustaining and -switching) functions
 
- - infants first develop alerting functions (with some orienting and executive ability)
- - children develop mature orienting and basic executive (concentrating) functions
- - adolescents and young adults develop higher order executive (both attention-sustaining and -switching) functions
- 
-#### References:
 
-- Rueda, M. R., Posner, M. I., & Rothbart, M. K. (2004). Attentional control and self-regulation in early development. Trends in Cognitive Sciences, 8, 140–147.
+**References:**
+
+<span style="font-size:0.8em;">
+
 - Rueda, M. R., & Posner, M. I. (2013). Development of attention networks. 
 - Posner, M. I., & Rothbart, M. K. (2007). Research on attention networks as a model for the integration of psychological science. Annual Review of Psychology, 58, 1–23.
  - Boen, R., Ferschmann, L., Vijayakumar, N., Overbye, K., Fjell, A. M., Espeseth, T., & Tamnes, C. K. (2021). Development of attention networks from childhood to young adulthood: A study of performance, intraindividual variability and cortical thickness. Cortex, 138, 138-151.
+ 
+</span>
+
+<!--- Rueda, M. R., Posner, M. I., & Rothbart, M. K. (2004). Attentional control and self-regulation in early development. Trends in Cognitive Sciences, 8, 140–147.-->
+
+```notes
+
+Several of these studies show that the hierarchy of attention mechanisms - alerting to orienting to executing – also correspond to stages of learning and childhood development. Work by Posner and colleagues in particular has sought to demonstrate that:
+
+- **infants** first develop alerting functions (with some orienting and executive ability)
+- **children** develop mature orienting and basic executive (concentrating) functions
+- **adolescents and young adults** develop higher order executive (both attention-sustaining and -switching) functions
+
+```
 
 ---
 
@@ -109,21 +132,29 @@ And to keep concordance with Hegel, we might also note his own strong distrust o
 
 ---
 
+
+### Neuroscience: A Modern Phrenology?
+
+|   |   | 
+|---|---| 
+| ![Image](images/pasted-image-2025-09-14T22-33-13-908Z-4dbfa114.png) | ![Image](images/pasted-image-2025-09-14T22-34-05-167Z-40814aab.png)  |
+
+
+---
+
 ### The Gap Between Brain and Mind
 
 > The idea of mapping psychological functions to brain structures has a venerable history, dating back to Galen’s ventricular doctrine (Green [2003]) and continuing to Gall’s phrenology (Gall and Spurzheim [1810]). Although those theories are now in disrepute, the advent of neuroimaging techniques, such as positron emission tomography (PET), functional magnetic resonance imaging (fMRI), electro-encephalography (EEG), and magnetoencephalography (MEG), gives the prospect of finding one-to-one correlations between psychological functions and brain structures new vigour, and the project is the main goal of the young field of cognitive neuroscience (Posner and DiGirolamo [2000]).1 Yet many doubt that cognitive neuroscience can give us such a psychological atlas, whereby the building blocks of mind get assigned to specific neural structures (Uttal [2001], [2011]).
 
 #### References:
 
- - Stea, J. N., Black, T. R., & Di Domenico, S. I. (2022). Phrenology and neuroscience. In *Investigating Pop Psychology* (pp. 9-19). Routledge.
+<span style="font-size:0.8em;">
 
+- Dobbs, D. (2005). Fact or phrenology?. Scientific American Mind, 16(1), 24-31.
 
+- Stea, J. N., Black, T. R., & Di Domenico, S. I. (2022). Phrenology and neuroscience. In *Investigating Pop Psychology* (pp. 9-19). Routledge.
 
-
-
-| Header 1 | Header 2 | 
-| --- | --- | 
-| ![Image](images/pasted-image-2025-09-14T22-33-13-908Z-4dbfa114.png) | ![Image](images/pasted-image-2025-09-14T22-34-05-167Z-40814aab.png)  |
+</span>
 
 
 
@@ -141,28 +172,118 @@ How we understand this gap also affects our interpretation of the potential for 
 
 ### Machine Attention
 
-Vaswani et al.'s 2017 paper is a landmark in machine learning. Perhaps the most cited paper this century, this work by Google scholars was first actually implemented, not by Google, but by a young start-up company, OpenAI. Their first effort, Improving Language Understanding
-by Generative Pre-Training *Generative Pre-Trained* ["""]
+
+ - Pre-2017: Recurrent, convolutional networks (RNNs, CNNs)
+ - Problems: Recurrent networks degrade as the length of text grows
+ - Attention already used in combination with architectures
+ - But is Attention All You Need? The Vaswani et al. (2017) Transformers paper
+ - Implementation by OpenAI: *Improving Language Understanding by Generative Pre-Training* (Radford et al. 2018): **GPT-1**.
+
+```notes
+Vaswani et al.'s 2017 paper is a landmark in machine learning. Perhaps the most cited paper this century, this work by Google scholars was first actually implemented, not by Google, but by a young start-up company, OpenAI. There is a entire story of intrigue about how OpenAI was founded – with seed funding from Elon Musk – and eventually caught sight of this 2017 paper, understood its potential, and developed something called a "Generative Pre-Training" model 
+(*Improving Language Understanding by Generative Pre-Training*)[-@alecradford2018improvinglanguage].
+
+Now we don't have time or opportunity to fully talk through this paper and its technical details. We would need to venture too far into the history of neural networks and their application to language modelling. But we can say that *prior* to this paper, the state-of-the-art models were using recurrent or convlutional networks, sometimes with attention mechanisms built in. 
+```
+
+---
+
+### From linear to grid representations
+
+
+
+
+<!-- | RNN | Transformer |
+| --- | --- |
+| ![rnn](images/rnn.png) | ![transformer](images/transformer.png) | -->
+
+
+![Image](images/comparison-heatmap-2025-09-15T13-42-51-212Z.png)
+
+
+
+```notes
+
+In short the problem with these systems was the need to maintain an ever-growing set of connections between the next token we would like to predict and the tokens or words that preceded it. 
+
+I've used two heatmaps generated by GPT-5 to convey the general idea: RNNs process tokens in a linear way, from left to right, just as we read. But we quickly develop a long set of connections between tokens. 
+
+Instead transformers require every token in a sentence or sequence to be related to every other - no matter how far apart they are in the sequence. This reduces the *time* involved in processing data, at the cost of increased training time and model space - but these are (comparatively) cheap.
+
+Shortly we'll do a thought experiment that will hopefully make this more clear.
+
+```
 
 
 ---
 
+### Some general terminology...
 
-### Synthesizing Human and Machine Attention?
+#### Tokens vs Words
 
-When we return to the topic of consciousness next week, we'll see how some scholars, like Nancy Katherine-Hayles, have sought to combine neuroscience research into attention mechanisms with more traditional philosophical concerns about the nature of consciousness.  
+**Tokens** are word-like pieces of data that are the foundational primitatives of language models. Why not words?  There are many words in natural language, but often they involve commonly recurring terms (e.g. morphemes, prefixes, suffixes: 'un-', '-ing'). Roughly **4** tokens per **3** words.
+
+#### Training vs Inference: 
+
+**Training** involves building a large language model by processing large amounts of textual (or other) data, to develop up relationships between tokens. 
+
+**Inference** applies the trained model to a particular sequence, e.g. when you ask a question of ChatGPT.
+
+
+#### Neural Network, Layers, Weights and Biases
+
+Describes the structure of a language model: has **interconnected** nodes organized in **layers**. Each layer contains (typically) a **weight** matrix and **bias** vector. 
+
+
+Much of the difference between models involves details about the architecture of a network and its layers; how much the weights and biases are trained; and what data is used in training.
+
+#### Feed forward / Backpropagation
+
+1. First we estimate **weights** and **biases**, and generate a **loss**, measuring their accuracy.
+2. Second we use **calculus** to update all the weights
+3. Rinse and repeat, until loss is minimized. 
+
 
 ---
 
+### Is AI just fancy statistics?
+
+ - Core Intuition: A **language model** approximates a **function** (with many parameters). 
+
+![Image](images/linear-regression-2025-09-15T13-42-02-464Z.png)
+
+Typical multiple regression - a simplified 1-layer neural network:
+
+$\begin{align}
+y_i &= \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \cdots + \beta_p x_{ip} + \varepsilon_i,
+\quad i = 1, \dots, n
+\end{align}$
+
+So **training** is the attempt to produce an (ever more) accurate 
+
+---
+
+### Attention is Three Matrices: Queries, Keys, Values
+
+- Queries: what each token is **asking for** from other tokens (in training or inference)
+- Keys: the **relative match** of each token to this token
+- Value: what the token **represents** (e.g. in syntax or semantic terms)
+
+This process is what is meant by **attention**. 
+
+
+---
 
 ### Thought Experiment
 
-Let's start with the following thought experiment. We will imagine we have the following unfinished sentence, and we'll focus on the last word, `the`:
+Let's work through the following thought experiment. We will imagine we have the following unfinished sentence, and we'll focus on the last word, `the`:
 
 > The cat sat on <span style="color: red;">the</span>...
 
 
 ---
+
+### 
 
 Now let's think about this from the machine's point of view. We saw from preceding discussion that this word `the` maintains a place in three lists of words or tokens:
 
@@ -261,6 +382,9 @@ Or both? Because this is a trivial case, you can complete the sentence very fast
 Think for a moment about this final activity. Is your completion different to the LLM? How much of this - pointing ahead to next week's topic – is conscious or unconscious? Do you, consciously or unconscously, draft a list of candidates, and pick the most likely? Is there a kind of metacognitive aspect that enables you to determine to sustain or switch your attention? Can you refuse to complete what you ought to - what your training suggests? 
 
 
+
+
+
 ---
 
 ### Make Content, Get Attention... Profit?
@@ -302,12 +426,21 @@ And where does this then bring us with respect to a technology that arguably exc
 Hansen argues that as we enter the era of machine learning, platforms will increasingly predict,  and thereby control, even more fundamental processes than our attention: our conscious thinking itself.
 
 
-[Over to Michele?]
-
-
 
 ---
 
-According to many neuroscience, attention is seen as critical to the operations of consciousness. Next week we focus on this concept, bringing closer together Hegel's ideas on consciousness and self-consciousness and other theories. We will revisit attention, but also consider ideas of the "unconscious" – developed originally by Freud, but surprisingly relevant in the world of machine learning too – as well as  Nancy Katherine Hayles' work on what she terms "nonconscious cognition".
+
+### Synthesizing Human and Machine Attention?
+
+
+![Image](images/pasted-image-2025-09-15T04-48-29-169Z-c40d94d6.png)
+
+
+
+```notes
+According to many neuroscience, attention is seen as critical to the operations of consciousness. Next week we focus on this concept, bringing closer together Hegel's ideas on consciousness and self-consciousness and other theories. We'll see how some scholars, like Nancy Katherine-Hayles, have sought to combine neuroscience research into attention mechanisms with more traditional philosophical concerns about the nature of consciousness. We will revisit attention, but also consider ideas of the "unconscious" – developed originally by Freud, but surprisingly relevant in the world of machine learning too – as well as  Nancy Katherine Hayles' work on what she terms "nonconscious cognition".
+```
+
+----
 
 

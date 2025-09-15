@@ -681,7 +681,7 @@ function register(deps) {
     try {
       const { shell } = require('electron');
       await shell.openPath(filePath);
-      
+
       console.log(`[FileHandlers] Opened external file: ${filePath}`);
       return { success: true, filePath };
     } catch (error) {
@@ -690,6 +690,30 @@ function register(deps) {
         success: false,
         error: `Failed to open file: ${error.message}`,
         filePath: filePath
+      };
+    }
+  });
+
+  // Open Folder in System File Manager (Finder/Explorer)
+  ipcMain.handle('open-folder-in-finder', async (event, folderPath) => {
+    try {
+      const { shell } = require('electron');
+      console.log(`[FileHandlers] Opening folder in system file manager: ${folderPath}`);
+
+      // Check if folder exists
+      await fs.access(folderPath);
+
+      // Open the folder in the system file manager
+      await shell.openPath(folderPath);
+
+      console.log(`[FileHandlers] Successfully opened folder in system file manager: ${folderPath}`);
+      return { success: true, folderPath };
+    } catch (error) {
+      console.error(`[FileHandlers] Error opening folder in system file manager ${folderPath}:`, error);
+      return {
+        success: false,
+        error: `Failed to open folder: ${error.message}`,
+        folderPath: folderPath
       };
     }
   });
@@ -726,7 +750,7 @@ function register(deps) {
     }
   });
 
-  console.log('[FileHandlers] Registered 22 file system handlers');
+  console.log('[FileHandlers] Registered 23 file system handlers');
 
   // Helper functions
   async function buildFileTree(dirPath) {

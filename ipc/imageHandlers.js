@@ -3,6 +3,7 @@
 
 const { ipcMain, clipboard, nativeImage } = require('electron');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -15,6 +16,8 @@ function register(deps) {
     appSettings,
     mainWindow
   } = deps;
+
+  console.log('[ImageHandlers] Starting registration of image handlers...');
 
   // Helper function to get working directory
   function getWorkingDirectory() {
@@ -140,6 +143,75 @@ function register(deps) {
     }
   });
 
+  // Handle copying local image files to project
+  try {
+    ipcMain.handle('copy-local-image-file', async (event, sourceFilePath) => {
+      try {
+        console.log(`[ImageHandlers] Copying local image file: ${sourceFilePath}`);
+
+        // Check if source file exists
+        await fs.access(sourceFilePath);
+
+        // Get file stats to check if it's actually a file
+        const stats = await fs.stat(sourceFilePath);
+        if (!stats.isFile()) {
+          return {
+            success: false,
+            error: 'Source path is not a file'
+          };
+        }
+
+        // Validate it's an image file by extension
+        const ext = path.extname(sourceFilePath).toLowerCase();
+        const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif'];
+        if (!imageExtensions.includes(ext)) {
+          return {
+            success: false,
+            error: `Unsupported image format: ${ext}`
+          };
+        }
+
+        // Ensure images directory exists
+        const imagesDir = await ensureImagesDirectory();
+
+        // Generate new filename to avoid conflicts
+        const originalName = path.basename(sourceFilePath, ext);
+        const safeOriginalName = originalName.replace(/[^a-zA-Z0-9\-_]/g, '-');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `${safeOriginalName}-${timestamp}${ext}`;
+        const targetFilePath = path.join(imagesDir, filename);
+
+        // Copy the file
+        await fs.copyFile(sourceFilePath, targetFilePath);
+
+        console.log(`[ImageHandlers] Image copied successfully: ${sourceFilePath} -> ${targetFilePath}`);
+
+        // Return the relative path for markdown
+        const relativePath = `images/${filename}`;
+
+        return {
+          success: true,
+          sourceFilePath: sourceFilePath,
+          targetFilePath: targetFilePath,
+          relativePath: relativePath,
+          filename: filename,
+          markdownLink: `![Image](${relativePath})`
+        };
+
+      } catch (error) {
+        console.error('[ImageHandlers] Error copying local image file:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    });
+    console.log('[ImageHandlers] Registered copy-local-image-file handler successfully');
+  } catch (error) {
+    console.error('[ImageHandlers] Error registering copy-local-image-file handler:', error);
+  }
+
+  console.log('[ImageHandlers] Successfully registered 3 image handlers: paste-image-from-clipboard, save-image-data, copy-local-image-file');
 }
 
 module.exports = { register };
