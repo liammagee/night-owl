@@ -2024,8 +2024,7 @@ async function loadDatabaseCitations() {
 
 // Load BibTeX files from the lectures directory
 async function loadBibTeXFiles() {
-    console.error('*** LOADBIBTEX FUNCTION CALLED - THIS SHOULD BE VISIBLE ***');
-    console.log('[loadBibTeX] *** FUNCTION CALLED - Starting BibTeX file loading process ***');
+    console.log('[loadBibTeX] Starting BibTeX file loading process');
     
     // Clear existing entries to prevent duplicates
     bibEntries.length = 0;

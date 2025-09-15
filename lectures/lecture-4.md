@@ -230,6 +230,10 @@ Shortly we'll do a thought experiment that will hopefully make this more clear.
 **Inference** applies the trained model to a particular sequence, e.g. when you ask a question of ChatGPT.
 
 
+---
+
+### Terminology continued...
+
 #### Neural Network, Layers, Weights and Biases
 
 Describes the structure of a language model: has **interconnected** nodes organized in **layers**. Each layer contains (typically) a **weight** matrix and **bias** vector. 

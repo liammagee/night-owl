@@ -90,7 +90,7 @@ function checkForListRenumbering(changeEvent) {
                         
                         if (prevMatch) {
                             const [, prevIndent, prevMarker] = prevMatch;
-                            
+
                             // Check indentation level
                             if (prevIndent.length < indent.length) {
                                 // Parent list level - stop searching, start at 1
@@ -111,7 +111,7 @@ function checkForListRenumbering(changeEvent) {
                         } else if (prevLine.trim() !== '') {
                             // Non-list, non-empty line
                             // Only break if we haven't found any items yet
-                            if (!foundPreviousItem && prevIndent === '') {
+                            if (!foundPreviousItem) {
                                 break;
                             }
                         }
