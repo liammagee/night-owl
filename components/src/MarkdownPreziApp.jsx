@@ -373,7 +373,25 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     // Process math expressions before other markdown to preserve them
     // Note: We preserve LaTeX math syntax for MathJax to process later
     // This ensures math expressions don't get processed as other markdown
-    
+
+    // Store math expressions to protect them from markdown processing
+    const mathExpressions = [];
+    let mathCounter = 0;
+
+    // Preserve display math ($$...$$)
+    html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
+      const placeholder = `MATH_DISPLAY_${mathCounter++}`;
+      mathExpressions.push({ placeholder, content: match });
+      return placeholder;
+    });
+
+    // Preserve inline math ($...$)
+    html = html.replace(/\$([^$\n]+?)\$/g, (match) => {
+      const placeholder = `MATH_INLINE_${mathCounter++}`;
+      mathExpressions.push({ placeholder, content: match });
+      return placeholder;
+    });
+
     // Process Obsidian-style [[]] internal links first
     html = html.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
       const cleanLink = link.trim();
@@ -504,7 +522,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     html = finalProcessedLines.join('\n');
     html = html.replace(/\n+/g, '\n');
     html = html.replace(/<p>\s*<\/p>/g, '');
-    
+
+    // Restore math expressions
+    mathExpressions.forEach(({ placeholder, content }) => {
+      html = html.replace(placeholder, content);
+    });
+
     return html;
   };
 
@@ -830,21 +853,31 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
   }, [slides.length, pan.x, pan.y, zoom, currentSlide, goToSlide]);
 
-  // Render math in slides whenever slides change
+  // Render math in slides whenever slides change or current slide changes
   useEffect(() => {
     if (slides.length > 0 && window.MathJax && window.MathJax.typesetPromise) {
+      console.log('[MathJax] Triggering math rendering for', slides.length, 'slides');
+
       // Small delay to ensure slides are rendered in DOM
       const timer = setTimeout(() => {
         const presentationContainer = document.getElementById('presentation-content');
         if (presentationContainer) {
+          console.log('[MathJax] Rendering math in presentation container');
           window.MathJax.typesetPromise([presentationContainer])
-            .catch((err) => console.error('Error rendering math in presentation:', err));
+            .then(() => console.log('[MathJax] Math rendering completed successfully'))
+            .catch((err) => console.error('[MathJax] Error rendering math in presentation:', err));
+        } else {
+          console.warn('[MathJax] Presentation container not found');
         }
-      }, 100);
-      
+      }, 200);
+
       return () => clearTimeout(timer);
+    } else {
+      if (slides.length === 0) console.log('[MathJax] No slides to render');
+      if (!window.MathJax) console.log('[MathJax] MathJax not available');
+      if (!window.MathJax?.typesetPromise) console.log('[MathJax] typesetPromise not available');
     }
-  }, [slides]);
+  }, [slides, currentSlide]);
 
 
 

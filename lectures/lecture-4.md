@@ -46,7 +46,7 @@ Alerting involves the initial registration of an external stimulus. They further
 
 Orienting involves some kind of fast directing of attention in response to the stimulus or goal. This might be the instant turning of the head toward a large sound; or the fixation of the head and eyes on the road ahead while driving in difficult conditions. This happens in the frontal and posterior parts of the brain.
 
-Finally, the executive function involves making decisions: to stay fixed upon an object that has gained attention, or to move on. In their revised article Petersen and Posner identify two distinct executive processes: one involving *sustained* focus or attention, another enabling a *switching* of tasks within the same overall attention frame or goal. The prefrontal cortex is responsibile for the first of these - task focus – while the frontal eye field and superior parietal lobes together involve task switching. 
+Finally, the executive function involves making decisions: to stay fixed upon an object that has gained attention, or to move on. In their revised article Petersen and Posner identify two distinct executive processes: one involving *sustained* focus or attention, another enabling a *switching* of tasks within the same overall attention frame or goal. The prefrontal cortex is responsible for the first of these - task focus – while the frontal eye field and superior parietal lobes together are responsible task switching. 
 
 
 ```
@@ -258,10 +258,12 @@ Much of the difference between models involves details about the architecture of
 
 Typical multiple regression - a simplified 1-layer neural network:
 
-$\begin{align}
+$$
+\begin{align}
 y_i &= \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \cdots + \beta_p x_{ip} + \varepsilon_i,
 \quad i = 1, \dots, n
-\end{align}$
+\end{align}
+$$
 
 So **training** is the attempt to produce an (ever more) accurate 
 
@@ -280,89 +282,138 @@ This process is what is meant by **attention**.
 
 ### Thought Experiment
 
-Let's work through the following thought experiment. We will imagine we have the following unfinished sentence, and we'll focus on the last word, `the`:
 
 > The cat sat on <span style="color: red;">the</span>...
+
+```notes
+Let's work through the following thought experiment. We will imagine we have the following unfinished sentence, and we'll focus on the last word, `the`:
+```
+
 
 
 ---
 
-### 
+### Sympathy for the Machine...
 
-Now let's think about this from the machine's point of view. We saw from preceding discussion that this word `the` maintains a place in three lists of words or tokens:
+
+| Query | Key | Weight |
+|-------|-----|--------|
+| the   | The | 0.05**  |
+| the   | cat | 0.15   |
+| the   | sat | 0.25   |
+| the   | on  | 0.55   |
+
+
+ ** Because `the` rarely follows `the`!
+
+What does this set of probabilities refer to? The relevance or how much the word `the` *attends* to the other tokens in the sentence. 
+
+
+```notes
+Now let's think about this from the machine's point of view, during inference rather than training. We saw from preceding discussion that this word `the` maintains a place in three lists of words or tokens:
 
 - Query
 - Key
 - Value
 
-We consider `the` as our *query* word, and we want to know what word should follow. We first compare it with every other word in the sentence, checking against their *key* values. This generates an initial set of probabilities, which I'll just use some example values:
+We are considering the second `the` as our *query* word, and we want to know what word should follow. We first compare it with every other word in the sentence, checking against their *key* values. This generates an initial set of probabilities, for which I'll just use some example values:
+
+
+
+| Query | Key | Weight |
+|-------|-----|--------|
+| the   | The | 0.05**  |
+| the   | cat | 0.15   |
+| the   | sat | 0.25   |
+| the   | on  | 0.55   |
+
+
+ ** Because `the` rarely follows `the`!
+
+What does this set of probabilities refer to? The relevance or how much the word `the` *attends* to the other tokens in the sentence. We are primed, in other words, more strongly in favour of 'on the' than anything else.
 
 ```
-the (Query) - The (Key): 0.05*
-the (Query) - cat (Key): 0.15
-the (Query) - sat (Key): 0.25
-the (Query) - on (Key): 0.55
-
-```
-
- * Because `the` rarely follows `the`!
-
-What does this set of probabilities refer to? The relevance or how much the word `the` *attends* to the other tokens in the sentence. 
 
 
 ---
 
 ### From Attention to Context
 
-Now each of these tokens – the, cat etc – also contains a set of numbers relating to their *values*. The values are – if you like – the semantic space of the word: the **cattiness** of the 'cat' (noun, animal, furry, etc); the **sittingness** of the 'sat' (verb, temporal, positional, etc); the **on-ness** of the 'on') (preposition, relational term); the **the-ness** of the 'the' (definite article, applies to nouns, connected to preposition). But also tied to the context of the current sentence.
+![Image](images/pasted-image-2025-09-15T17-24-12-198Z-d12b6f9d.png)
 
-So once we have a sense of relative attention – how the 'the' relates to other words in the sentence – we combine the values, the semantic representation, with these attention weights. 
+```notes
 
-This produces a **context**. To this we also add *positional* information:
+Now each of these tokens – *the*, *cat* etc – also contains a set of numbers relating to their *values*. The values are – if you like – the semantic space of the word: the **cattiness** of the 'cat' (noun, animal, furry, etc); the **sittingness** of the 'sat' (verb, temporal, positional, etc); the **on-ness** of the 'on') (preposition, relational term); the **the-ness** of the 'the' (definite article, applies to nouns, connected to preposition). But also tied to the context of the current sentence.
+
+So once we have a sense of relative attention – how the 'the' relates to other words in the sentence – we combine the values, which we can think of as a hybrid syntactico-semantic representation, with these attention weights. 
+
+This produces a **context** that governs prediction. 
+
 
 ```
-The - 1
-cat - 2
-sat - 3
-on - 4
-the - 5
-```
 
-This is important because we are looking for the *6th* word, and the word `the` should have more influence on our prediction than 'cat' or 'sat'. 
+
+---
+
+### Iterated Context: From tokens to quasi-phrases / sententces
+
+
+ - 'the' is no longer just a word or token
+ - its 'the'-ness becomes a kind of 0.55 * 'on' + 0.25 + 'sat etc. 
+ - All of these influences, derived from repeated attention, make 'mat' a more likely continuation.
+
+```notes
+
+This process is repeated over several or many layers of a network. At each layer we develop a richer representation of this context for each token. The mathematical representation of the 'the' we are looking at accumulates the influence of the other tokens it attends to - and so do these other tokens themselves. These ultimately help to narrow the scope – or increase the bias - toward particular tokens such as 'mat'.
+
+The 'the'-ness becomes a highly specific and contextualized 'the'-ness that is paired strongly with a prepositional phrase; is associated with a spatio-temporal situation - one of sitting; and is (less strongly) influenced by an agent. None of these roles are hard-coded; they are learned by the network. But at the same time they ressemble the rules of grammar and meaning we are used to.
+
+All of these influences, derived from repeated attention, make 'mat' a likely continuation (from within the wider set of the model's vocabulary).
+
+```
 
 ---
 
 ### From Context to Prediction
 
-Now this context is applied to every item in our initial vocabulary. That would include all the words we have used, plus (in a toy example), other nouns like 'mat', 'dog', 'house'. This produces a final set of probabilities:
 
-```
-the - 0.01
-cat - 0.01
-sat - 0.01
-on - 0.01
-mat - 0.80
-dog - 0.08
-house - 0.08
-```
+| Token | Probability |
+|-------|-------------|
+| the   | 0.01        |
+| cat   | 0.01        |
+| sat   | 0.01        |
+| on    | 0.01        |
+| mat   | **0.80**        |
+| dog   | 0.08        |
+| house | 0.08        |
 
-And finally: we roll a virtual die, and produce a prediction. In this toy example, 80 per cent of the time the predicted completion of the sentence will be 'mat'. 
 
-Note that this 80% of the time - not 100% - is what makes LLMs 'probabilistic', 'stochastic' and 'non-deterministic'.
+```notes
+This learned context is applied to every item in our initial vocabulary. That would include all the words we have used, plus (in a toy example), other nouns like 'mat', 'dog', 'house'. This produces a final set of probabilities:
+
+
+And finally: we roll a virtual die, and produce a set of predictions. In this toy example, 80 per cent of the time the predicted completion of the sentence will be 'mat'. 
+
+Note that this 80% of the time - not 100% - is what makes LLMs often 'probabilistic', 'stochastic' and 'non-deterministic'.
 
 As a further note: You might also imagine all of this computation gets expensive for (a) large vocabularies (like multiple human languages) and (b) long contexts (like novels). That is true! And why companies like Nvidia and TSMC have such extreme valuations today - to train and do inference on attention-based mechanisms involves hardware investments in the order of tens or hundreds of billions of dollars today.
+
+```
 
 ---
 
 ### What about human attention?
 
-Let's do this as a rough experiment.
+Let's continue now with a further rough experiment.
 
 Start by *attending to* the following words I say:
 
 ```
 The cat sat on the...
 ```
+
+---
+
 
 Now when I said:
 
@@ -376,16 +427,30 @@ What follows is your orientation to what actually does *follow* from the words '
 The cat sat on the...
 ```
 
-But then you are also primed to the visual and audible *incompleteness*. The sentence doesn't end, instead your lecturer continues on with his exposition. The executive functions need to *decide*. What do you do? Do you:
+
+---
+
+### Executive Functions and Metacognition 
+
+Do you:
+
+1. Complete the sentence?
+2. Keep listening to what I say?
+
+```notes
+But then you are also possibly primed to the visual and audible *incompleteness*. The sentence doesn't end, instead your lecturer continues on with his exposition. The executive functions need to *decide*. What do you do? Do you:
 
 1. Complete the sentence?
 2. Keep listening to what I say?
 
 Or both? Because this is a trivial case, you can complete the sentence very fast, and I'm not speaking too fast. Or do you *resist* the completion – ignoring my command altogether, or completing the sentence with another word? 
+```
 
-Think for a moment about this final activity. Is your completion different to the LLM? How much of this - pointing ahead to next week's topic – is conscious or unconscious? Do you, consciously or unconscously, draft a list of candidates, and pick the most likely? Is there a kind of metacognitive aspect that enables you to determine to sustain or switch your attention? Can you refuse to complete what you ought to - what your training suggests? 
+---
 
+### Questions on human attention
 
+Think for a moment about this final activity. Is **your** completion different to the **LLM**? How much of this - pointing ahead to next week's topic – is **conscious** or **unconscious**? Do you – like the Transformer model – draft a list of candidates, and pick the most **likely**? Is there a kind of metacognitive aspect that enables you to determine to **sustain** or **switch** your attention? Can you **refuse** to complete what you ought to - what your training suggests? 
 
 
 
@@ -393,10 +458,13 @@ Think for a moment about this final activity. Is your completion different to th
 
 ### Make Content, Get Attention... Profit?
 
-Turning now to Terranova's article, we come to the idea that attention is a kind of *commodity* and even *capital*, marked - like all commodities – by scarcity. It is an object that in itself warrants the *attention* of capital, of investors and advertisers, in the context of digital media. This is of course not new - the nephew of Sigmund Freud, Edmund Bernays, pioneered many uses of what was then, in the early/mid twentieth century, new media, such as radio, magazines, film and television. But with the maturation of computers, the Internet, smartphones, social media and, today, AI, we come to a point at which we see attention as corroded or "degraded" by information. There is so much information, in other worrds, that human attentive processes become saturated, barely able to keep up.
+![Image](images/pasted-image-2025-09-15T17-02-44-763Z-71b12cf1.png)
 
-Terranova argues, citing Nicholas Carr, Catherine Malabou, Jonathon Crary and othres, that precisely the kind of neuroscientific research we discussed earlier makes possible a new corresponding *industrialization* of attention. By developing sophisticated techniques for securing attention (at alerting and orienting levels), it also seems as though the higher order "executive functions" are disrupted. In particular, the ability to "switch" is impaired - we find ourselves staring at the screen long past the point at which we intended to, when we initially and intentionally sought distraction. 
+```notes
+Turning now to Terranova's article, we come to the idea that attention is a kind of *commodity* and even *capital*, marked - like all commodities – by scarcity. It is an object that in itself warrants the *attention* of capital, of investors and advertisers, in the context of digital media. This is of course not new - the nephew of Sigmund Freud, Edward Bernays, pioneered many uses of what was then, in the early/mid twentieth century, new media, such as radio, magazines, film and television. But with the maturation of computers, the Internet, smartphones, social media and, today, AI, we come to a point at which we see attention as corroded or "degraded" by information. There is so much information, in other worrds, that human attentive processes become saturated, barely able to keep up.
 
+Terranova argues, citing Nicholas Carr, Catherine Malabou, Jonathan Crary and othres, that precisely the kind of neuroscientific research we discussed earlier makes possible a new corresponding *industrialization* of attention. By developing sophisticated techniques for securing attention (at alerting and orienting levels), it also seems as though the higher order "executive functions" are disrupted. In particular, the ability to "switch" is impaired - we find ourselves staring at the screen long past the point at which we intended to, when we initially and intentionally sought distraction. 
+```
 
 ---
 
@@ -404,30 +472,41 @@ Terranova argues, citing Nicholas Carr, Catherine Malabou, Jonathon Crary and ot
 
 ![Image](images/pasted-image-2025-09-13T20-55-12-927Z-6998cdbe.png)
 
-
+```notes
 In a turn that also reminds us of our discussion of Hegel and the *social* process of learning, Terranova then discusses how attention to digital media in turn leads to another kind of by-passing of the deeper attention marked by executive function, due to social imitation. 
 
-But this need not be entirely negative. Here Terranova turns to another Italian theorist, Lazzaratto, and his treatment of attention as the condition of social labour – and therefore a positive and productive force.
+But this need not be entirely negative. Here Terranova turns to another Italian theorist, Lazzarato, and his treatment of attention as the condition of social labour – and therefore a positive and productive force.
 
 But Terranova's discussion takes a negative turn again, through the work of Bernard Stiegler. Stiegler – a French philosopher writing on technology since the 1990s – famously argued that contemporary technologies short-circuit important cognitive processes of memory and social processes of communication, resulting in, as Stiegler put it, a grave risk of "proletariatanization". Primal psychic and libidinal energy gets put to service, in this analysis, in the creation of value for companies that can direct our collective attention via "social technologies" and "new forms of social relations".
+```
 
 ---
+
+### Cooperation or Proletariatanization?
 
 ![Image](images/pasted-image-2025-09-13T21-05-34-066Z-650d5d77.png)
 
-Collecting up both Lazzaratto and Stiegler's arguments, Terranova claims that – despite the very different valences or attitudes each brings to their analysis – both authors see attention as not simply a store of human attention that is only degraded by technologies. Rather, those technologies redirect attention, which in turn makes possible new kinds of subjects and social relations. For Lazzaratto, technology actually makes humans cooperate in ways that can resemble the internal structure of an individual brain. For Stiegler, technology is similarly integral to all human cognitive and social activity – but in its current form (the Internet, social media, and the general capitalization of attention and associated "libidinal" energies), it is tending toward the production of a simplified and even stupified society. 
+
+```notes
+Collecting up both Lazzaratto and Stiegler's arguments, Terranova claims that – despite the very different valences or attitudes each brings to their analysis – both authors see attention as not simply a store of human attention that is only degraded by technologies. Rather, those technologies redirect attention, which in turn makes possible new kinds of subjects and social relations. For Lazzaratto, technology actually makes humans cooperate in ways that can resemble the internal structure of an individual brain. For Stiegler, technology is similarly integral to all human cognitive and social activity – but in its current form (the Internet, social media, and the general capitalization of attention and associated "libidinal" energies), it is tending toward the production of a simplified, proletarianized and even stupified society. 
+```
 
 
 ---
 
+
+### Is Attention a Design Problem?
+
 ![Image](images/pasted-image-2025-09-13T21-21-01-254Z-b87a061e.png)
 
+```notes
 The reason for including Terranova's analysis – aside from its wide-ranging survey of recent debates – is that in a certain sense it elaborates upon Hegel's insistence that self-consciousness and learning is essentially *social* in nature. Indeed both Lazzaratto and Stiegler's positions, which Terranova surveys, can be seen as extensions to Hegel's insight, though adjusted for the dramatic effects wrought by informatic technologies. 
 
-The individual human subject is affected by what others say and do, and digital technologies act like a concentrating device of those social habits. Let's exaggerate: every tweet, post or Tiktok we read or watch acts like a small encounter between two self-consciousnesses, which must resolve itself into a micro-master / servant dialectic enounter. Do we like the content, do we stay engaged to it - are we in other words, a servant to it? Or do we criticize, disengage and ultimately walk away? Is our self-governance of our own attention a method also of self-mastery that resists servitude to others? 
+The individual human subject is affected by what others say and do, and digital technologies act like a concentrating device of those social habits. Let's exaggerate: every tweet, post or Tiktok we read or watch acts like a small encounter between two self-consciousnesses, which must resolve itself into a micro-master / servant dialectic enounter. Do we like the content, do we stay engaged to it - are we in other words, a servant to it? Or do we criticize, disengage and ultimately walk away? Is our self-regulation of our own attention a method also of self-mastery that resists servitude to others? Or are these attention-grabbing technologies too powerful for self-regulation, and do we need to treat attention management as a collective design problem?
 
 And where does this then bring us with respect to a technology that arguably exceeds what Terranova, Lazzaratto and Stiegler could ever have anticipated in terms of its potential capture of human attention - precisely via application of its own "attention" mechanisms?
-Hansen argues that as we enter the era of machine learning, platforms will increasingly predict,  and thereby control, even more fundamental processes than our attention: our conscious thinking itself.
+Hansen argues that as we enter the era of machine learning, platforms will increasingly predict,  and thereby control, even more fundamental processes than our attention: our conscious thinking itself. 
+```
 
 
 
@@ -439,12 +518,13 @@ Hansen argues that as we enter the era of machine learning, platforms will incre
 
 ![Image](images/pasted-image-2025-09-15T04-48-29-169Z-c40d94d6.png)
 
-
+Posner on the role of att
+ - https://www.youtube.com/watch?v=PKzz1OAiTRQ
+ - https://www.youtube.com/watch?v=uYUdwS7-WvA
 
 ```notes
-According to many neuroscience, attention is seen as critical to the operations of consciousness. Next week we focus on this concept, bringing closer together Hegel's ideas on consciousness and self-consciousness and other theories. We'll see how some scholars, like Nancy Katherine-Hayles, have sought to combine neuroscience research into attention mechanisms with more traditional philosophical concerns about the nature of consciousness. We will revisit attention, but also consider ideas of the "unconscious" – developed originally by Freud, but surprisingly relevant in the world of machine learning too – as well as  Nancy Katherine Hayles' work on what she terms "nonconscious cognition".
+According to many neuroscience, attention is seen as critical to the operations of consciousness. Surprisingly, in recent discussions,  neuroscientists like Posner have also emphasized the experimental and social nature of attention formation, even in infants as they shape their alerting, orienting and executive facilities. Surprisingly, neuroscience may not be so far removed from Hegel's speculations on the nature of consciousness.
+
+ Next week we focus on this concept, bringing closer together Hegel's ideas on consciousness and self-consciousness with other theories. We'll see how some scholars, like N. Katherine Hayles, have sought to combine research into both human cognition and machine learning with more traditional philosophical concerns about the nature of consciousness. We will revisit attention, but also consider ideas of the "unconscious" – developed originally by Freud, but surprisingly relevant in the world of machine learning too – as well as Katherine Hayles' work on what she terms "nonconscious cognition", operating in the world of machines.
 ```
-
-----
-
 

@@ -8894,6 +8894,14 @@ async function saveFile() {
                 // Update file tree and highlight the new file
                 renderFileTree();
                 highlightCurrentFileInTree(result.filePath);
+
+                // Also refresh via IPC to ensure file tree is completely up to date
+                try {
+                    await window.electronAPI.invoke('refresh-file-tree');
+                    console.log('[renderer.js] File tree refreshed via IPC after save-as');
+                } catch (error) {
+                    console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
+                }
                 
                 // Update current file name display
                 const displayFileName = result.filePath.split('/').pop();
@@ -9045,7 +9053,23 @@ async function saveAsFile() {
             updateUnsavedIndicator(false);
             showNotification('File saved successfully', 'success');
             console.log('[renderer.js] Manual save-as completed successfully');
-            
+
+            // Refresh file tree to show new file
+            if (window.renderFileTree) {
+                window.renderFileTree();
+                if (window.highlightCurrentFileInTree) {
+                    window.highlightCurrentFileInTree(result.filePath);
+                }
+            }
+
+            // Also refresh via IPC to ensure file tree is completely up to date
+            try {
+                await window.electronAPI.invoke('refresh-file-tree');
+                console.log('[renderer.js] File tree refreshed via IPC after saveAsFile');
+            } catch (error) {
+                console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
+            }
+
             // Update the file name display
             const displayFileName = result.filePath.split('/').pop();
             const currentFileNameEl = document.getElementById('current-file-name');
