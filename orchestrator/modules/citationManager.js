@@ -657,7 +657,82 @@ class CitationManager {
             }
         });
 
+        // Add drag and drop functionality
+        this.makeCitationDraggable(div, citation);
+
         return div;
+    }
+
+    // Make citation element draggable
+    makeCitationDraggable(element, citation) {
+        element.draggable = true;
+        element.style.cursor = 'grab';
+
+        element.addEventListener('dragstart', (e) => {
+            // Generate citation key from available properties
+            const citationKey = citation.key || citation.citation_key || citation.id || 'unknown';
+            console.log(`[Citation Drag] Starting drag for citation: ${citationKey}`);
+
+            // Set the citation data for transfer
+            const citationText = `[@${citationKey}]`;
+            e.dataTransfer.setData('text/plain', citationText);
+            e.dataTransfer.setData('application/x-citation-key', citationKey);
+            e.dataTransfer.setData('application/x-citation-data', JSON.stringify(citation));
+            e.dataTransfer.effectAllowed = 'copy';
+
+            // Visual feedback during drag
+            element.style.opacity = '0.5';
+            element.style.cursor = 'grabbing';
+
+            // Add a visual indicator
+            const dragImage = document.createElement('div');
+            dragImage.style.cssText = `
+                position: absolute;
+                top: -1000px;
+                left: -1000px;
+                background: #16a34a;
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: bold;
+                pointer-events: none;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            dragImage.textContent = `📚 ${citationText}`;
+            document.body.appendChild(dragImage);
+
+            e.dataTransfer.setDragImage(dragImage, 60, 20);
+
+            // Clean up drag image after a short delay
+            setTimeout(() => {
+                if (document.body.contains(dragImage)) {
+                    document.body.removeChild(dragImage);
+                }
+            }, 100);
+        });
+
+        element.addEventListener('dragend', (e) => {
+            const citationKey = citation.key || citation.citation_key || citation.id || 'unknown';
+            console.log(`[Citation Drag] Drag ended for citation: ${citationKey}`);
+
+            // Reset visual state
+            element.style.opacity = '';
+            element.style.cursor = 'grab';
+        });
+
+        // Add hover effect to indicate draggability
+        element.addEventListener('mouseenter', (e) => {
+            if (!e.target.classList.contains('citation-action-btn')) {
+                element.style.boxShadow = '0 2px 8px rgba(22, 163, 74, 0.3)';
+                element.style.borderColor = '#16a34a';
+            }
+        });
+
+        element.addEventListener('mouseleave', (e) => {
+            element.style.boxShadow = '';
+            element.style.borderColor = '#ddd';
+        });
     }
 
     // Get icon for citation type

@@ -1355,7 +1355,22 @@ function addFoldingKeyboardShortcuts() {
             await saveAsFile();
         }
     });
-    
+
+    // Add Insert Citation action (Ctrl/Cmd + Shift + C)
+    editor.addAction({
+        id: 'insert-citation',
+        label: 'Insert Citation...',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyC
+        ],
+        contextMenuGroupId: 'insert',
+        contextMenuOrder: 1,
+        run: async function() {
+            console.log('[Monaco] Insert Citation action triggered');
+            await showCitationDialog();
+        }
+    });
+
     // console.log('[renderer.js] Folding keyboard shortcuts added');
     // console.log('[renderer.js] Save keyboard shortcuts added');
 }
@@ -2904,6 +2919,90 @@ async function initializeMonacoEditor() {
 
             // Initialize drag and drop after editor is ready
             setupImageDragAndDrop();
+
+            // --- CITATION DRAG & DROP: Add drag/drop support for citations ---
+            function setupCitationDragAndDrop() {
+                const editorContainer = document.getElementById('editor');
+                if (!editorContainer) return;
+
+                // Add citation-specific drop handling to the existing dragover listener
+                editorContainer.addEventListener('dragover', (event) => {
+                    const types = event.dataTransfer.types;
+                    if (types.includes('application/x-citation-key') || types.includes('text/plain')) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.dataTransfer.dropEffect = 'copy';
+
+                        // Add visual feedback for citation drop
+                        editorContainer.style.backgroundColor = '#f0fdf4';
+                        editorContainer.style.borderColor = '#16a34a';
+                    }
+                }, false);
+
+                editorContainer.addEventListener('dragleave', (event) => {
+                    // Reset visual feedback
+                    editorContainer.style.backgroundColor = '';
+                    editorContainer.style.borderColor = '';
+                }, false);
+
+                // Handle citation drop
+                editorContainer.addEventListener('drop', async (event) => {
+                    const citationKey = event.dataTransfer.getData('application/x-citation-key');
+                    const citationText = event.dataTransfer.getData('text/plain');
+
+                    if (citationKey || (citationText && citationText.startsWith('[@'))) {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        // Reset visual feedback
+                        editorContainer.style.backgroundColor = '';
+                        editorContainer.style.borderColor = '';
+
+                        console.log(`[Citation Drop] Dropped citation: ${citationKey || citationText}`);
+
+                        // Insert the citation at cursor position
+                        if (editor) {
+                            const position = editor.getPosition();
+                            const range = new monaco.Range(
+                                position.lineNumber,
+                                position.column,
+                                position.lineNumber,
+                                position.column
+                            );
+
+                            const textToInsert = citationText || `[@${citationKey}]`;
+
+                            editor.executeEdits('drop-citation', [{
+                                range: range,
+                                text: textToInsert
+                            }]);
+
+                            // Move cursor to end of inserted text
+                            const newPosition = {
+                                lineNumber: position.lineNumber,
+                                column: position.column + textToInsert.length
+                            };
+                            editor.setPosition(newPosition);
+
+                            console.log(`[Citation Drop] Inserted citation: ${textToInsert}`);
+
+                            // Show success notification
+                            if (window.showNotification) {
+                                window.showNotification(`Citation inserted: ${citationKey || 'citation'}`, 'success');
+                            }
+
+                            // Update preview if available
+                            if (window.updatePreview) {
+                                const content = editor.getValue();
+                                await window.updatePreview(content);
+                            }
+                        }
+                    }
+                }, false);
+            }
+
+            // Initialize citation drag and drop
+            setupCitationDragAndDrop();
 
             // Trigger file restoration if we have restored content but didn't use it during initialization
             if (window.restoredFileContent && !initialContent) {
@@ -7426,6 +7525,191 @@ async function showTagEditDialog(filePath) {
         }
     };
     document.addEventListener('keydown', handleEscape);
+}
+
+// Show citation insertion dialog
+async function showCitationDialog() {
+    if (!bibEntries || bibEntries.length === 0) {
+        showNotification('No citations available. Please ensure BibTeX files are loaded.', 'warning');
+        return;
+    }
+
+    // Create backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'dialog-backdrop';
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'citation-dialog';
+    dialog.style.cssText = `
+        background: white;
+        border-radius: 8px;
+        padding: 24px;
+        width: 600px;
+        max-width: 90vw;
+        max-height: 70vh;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+    `;
+
+    dialog.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <h3 style="margin: 0 0 10px 0; font-size: 18px; color: #333;">Insert Citation</h3>
+            <input type="text" id="citation-search" placeholder="Search citations by title, author, or key..."
+                   style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+        </div>
+        <div style="flex: 1; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; max-height: 300px;">
+            <div id="citation-list" style="padding: 8px;"></div>
+        </div>
+        <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 12px;">
+            <button id="citation-cancel" style="padding: 8px 16px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
+            <button id="citation-insert" style="padding: 8px 16px; border: none; background: #16a34a; color: white; border-radius: 4px; cursor: pointer;" disabled>Insert Citation</button>
+        </div>
+    `;
+
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
+
+    const searchInput = document.getElementById('citation-search');
+    const citationList = document.getElementById('citation-list');
+    const insertBtn = document.getElementById('citation-insert');
+    let selectedCitation = null;
+
+    // Function to render citation list
+    function renderCitations(entries) {
+        citationList.innerHTML = '';
+
+        if (entries.length === 0) {
+            citationList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No citations found</div>';
+            return;
+        }
+
+        entries.forEach(entry => {
+            const citationItem = document.createElement('div');
+            citationItem.className = 'citation-item';
+            citationItem.style.cssText = `
+                padding: 12px;
+                border: 1px solid #eee;
+                border-radius: 4px;
+                margin-bottom: 8px;
+                cursor: pointer;
+                transition: background-color 0.2s;
+            `;
+
+            citationItem.innerHTML = `
+                <div style="font-weight: bold; color: #333; margin-bottom: 4px;">${entry.title || 'Untitled'}</div>
+                <div style="color: #666; font-size: 13px; margin-bottom: 4px;">${entry.author || 'Unknown Author'}</div>
+                <div style="color: #888; font-size: 12px;">Key: ${entry.key} ${entry.year ? `• Year: ${entry.year}` : ''}</div>
+            `;
+
+            citationItem.addEventListener('click', () => {
+                // Remove previous selection
+                document.querySelectorAll('.citation-item').forEach(item => {
+                    item.style.backgroundColor = '';
+                    item.style.borderColor = '#eee';
+                });
+
+                // Select this item
+                citationItem.style.backgroundColor = '#f0f9ff';
+                citationItem.style.borderColor = '#0ea5e9';
+                selectedCitation = entry;
+                insertBtn.disabled = false;
+            });
+
+            citationItem.addEventListener('mouseover', () => {
+                if (selectedCitation !== entry) {
+                    citationItem.style.backgroundColor = '#f8f9fa';
+                }
+            });
+
+            citationItem.addEventListener('mouseout', () => {
+                if (selectedCitation !== entry) {
+                    citationItem.style.backgroundColor = '';
+                }
+            });
+
+            citationList.appendChild(citationItem);
+        });
+    }
+
+    // Initial render
+    renderCitations(bibEntries);
+
+    // Search functionality
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const filtered = bibEntries.filter(entry =>
+            (entry.title && entry.title.toLowerCase().includes(searchTerm)) ||
+            (entry.author && entry.author.toLowerCase().includes(searchTerm)) ||
+            (entry.key && entry.key.toLowerCase().includes(searchTerm))
+        );
+        selectedCitation = null;
+        insertBtn.disabled = true;
+        renderCitations(filtered);
+    });
+
+    // Handle insert
+    insertBtn.addEventListener('click', async () => {
+        if (selectedCitation && editor) {
+            const citationText = `[@${selectedCitation.key}]`;
+            const position = editor.getPosition();
+            const range = new monaco.Range(
+                position.lineNumber,
+                position.column,
+                position.lineNumber,
+                position.column
+            );
+
+            editor.executeEdits('insert-citation', [{
+                range: range,
+                text: citationText
+            }]);
+
+            // Move cursor to end of inserted text
+            const newPosition = {
+                lineNumber: position.lineNumber,
+                column: position.column + citationText.length
+            };
+            editor.setPosition(newPosition);
+
+            console.log(`[Citation] Inserted citation: ${citationText}`);
+            showNotification(`Inserted citation: ${selectedCitation.key}`, 'success');
+
+            // Close dialog
+            backdrop.remove();
+        }
+    });
+
+    // Handle cancel
+    document.getElementById('citation-cancel').addEventListener('click', () => {
+        backdrop.remove();
+    });
+
+    // Handle escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            backdrop.remove();
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+
+    // Focus search input
+    searchInput.focus();
 }
 
 // Function to pre-process tags for markdown files in the tree
