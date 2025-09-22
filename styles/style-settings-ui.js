@@ -344,7 +344,11 @@ class StyleSettingsUI {
             wordWrap: 'on',
             fontSize: 13,
             lineNumbers: 'on',
-            automaticLayout: true
+            automaticLayout: true,
+            // Disable sticky scroll to prevent line number errors
+            stickyScroll: {
+                enabled: false
+            }
         });
 
         // Auto-preview on changes

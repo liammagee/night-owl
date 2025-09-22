@@ -211,7 +211,84 @@ function register(deps) {
     console.error('[ImageHandlers] Error registering copy-local-image-file handler:', error);
   }
 
-  console.log('[ImageHandlers] Successfully registered 3 image handlers: paste-image-from-clipboard, save-image-data, copy-local-image-file');
+  // Register handler for fetching URL titles
+  try {
+    ipcMain.handle('fetch-url-title', async (event, url) => {
+      console.log('[ImageHandlers] Fetching title for URL:', url);
+
+      try {
+        // Use node-fetch or the built-in fetch (Node 18+) to get the page
+        const response = await fetch(url, {
+          timeout: 5000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; NightOwl/1.0)'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const html = await response.text();
+
+        // Extract title from HTML using a simple regex
+        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+        if (titleMatch && titleMatch[1]) {
+          // Clean up the title
+          let title = titleMatch[1]
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          // Limit title length
+          if (title.length > 100) {
+            title = title.substring(0, 97) + '...';
+          }
+
+          console.log('[ImageHandlers] Found title:', title);
+
+          return {
+            success: true,
+            title: title
+          };
+        }
+
+        // No title found, return domain as fallback
+        const urlObj = new URL(url);
+        return {
+          success: true,
+          title: urlObj.hostname.replace('www.', '')
+        };
+
+      } catch (error) {
+        console.error('[ImageHandlers] Error fetching URL title:', error);
+
+        // Return domain name as fallback
+        try {
+          const urlObj = new URL(url);
+          return {
+            success: true,
+            title: urlObj.hostname.replace('www.', '')
+          };
+        } catch {
+          return {
+            success: true,
+            title: 'Link'
+          };
+        }
+      }
+    });
+    console.log('[ImageHandlers] Registered fetch-url-title handler successfully');
+  } catch (error) {
+    console.error('[ImageHandlers] Error registering fetch-url-title handler:', error);
+  }
+
+  console.log('[ImageHandlers] Successfully registered 4 image handlers: paste-image-from-clipboard, save-image-data, copy-local-image-file, fetch-url-title');
 }
 
 module.exports = { register };

@@ -663,14 +663,54 @@ class CitationManager {
         return div;
     }
 
+    // Generate a proper citation key from citation metadata
+    generateCitationKey(citation) {
+        // Use existing key if available
+        if (citation.key && typeof citation.key === 'string') {
+            return citation.key;
+        }
+        if (citation.citation_key && typeof citation.citation_key === 'string') {
+            return citation.citation_key;
+        }
+
+        // Generate key from metadata: LastName + Year + Title
+        let key = '';
+
+        // Get first author's last name
+        if (citation.authors) {
+            const firstAuthor = citation.authors.split(',')[0].trim();
+            const lastName = firstAuthor.split(' ').pop();
+            key += lastName.replace(/[^a-zA-Z]/g, '');
+        } else {
+            key += 'Unknown';
+        }
+
+        // Add year
+        if (citation.publication_year) {
+            key += citation.publication_year;
+        } else {
+            key += new Date().getFullYear();
+        }
+
+        // Add first word of title
+        if (citation.title) {
+            const firstWord = citation.title.split(' ')[0].replace(/[^a-zA-Z]/g, '');
+            if (firstWord) {
+                key += firstWord;
+            }
+        }
+
+        return key || `citation${citation.id}`;
+    }
+
     // Make citation element draggable
     makeCitationDraggable(element, citation) {
         element.draggable = true;
         element.style.cursor = 'grab';
 
         element.addEventListener('dragstart', (e) => {
-            // Generate citation key from available properties
-            const citationKey = citation.key || citation.citation_key || citation.id || 'unknown';
+            // Generate proper citation key
+            const citationKey = this.generateCitationKey(citation);
             console.log(`[Citation Drag] Starting drag for citation: ${citationKey}`);
 
             // Set the citation data for transfer
@@ -713,7 +753,7 @@ class CitationManager {
         });
 
         element.addEventListener('dragend', (e) => {
-            const citationKey = citation.key || citation.citation_key || citation.id || 'unknown';
+            const citationKey = this.generateCitationKey(citation);
             console.log(`[Citation Drag] Drag ended for citation: ${citationKey}`);
 
             // Reset visual state

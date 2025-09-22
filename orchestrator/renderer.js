@@ -2444,6 +2444,10 @@ async function initializeMonacoEditor() {
                 foldingHighlight: true,
                 unfoldOnClickAfterEndOfLine: true,
                 showFoldingControls: 'always',
+                // Disable sticky scroll to prevent line number errors
+                stickyScroll: {
+                    enabled: false
+                },
                 // Additional options for better folding experience
                 minimap: {
                     enabled: true,
@@ -2671,33 +2675,69 @@ async function initializeMonacoEditor() {
             
             document.addEventListener('paste', globalPasteHandler);
             
-            // Smart keyboard command - only handles image paste, lets text paste through
+            // Helper function to check if text is a valid URL
+            function isValidURL(text) {
+                try {
+                    // Check if it's a valid URL
+                    const url = new URL(text.trim());
+                    // Accept http, https protocols
+                    return ['http:', 'https:'].includes(url.protocol);
+                } catch {
+                    // Also check for URLs without protocol
+                    const urlPattern = /^(www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?$/;
+                    return urlPattern.test(text.trim());
+                }
+            }
+
+            // Helper function to fetch page title from URL
+            async function fetchPageTitle(url) {
+                try {
+                    // Use the main process to fetch the title to avoid CORS issues
+                    if (window.electronAPI && window.electronAPI.invoke) {
+                        const result = await window.electronAPI.invoke('fetch-url-title', url);
+                        if (result.success) {
+                            return result.title;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('[Editor] Could not fetch page title:', error);
+                }
+                // Fallback to domain name if title fetch fails
+                try {
+                    const urlObj = new URL(url);
+                    return urlObj.hostname.replace('www.', '');
+                } catch {
+                    return 'Link';
+                }
+            }
+
+            // Smart keyboard command - handles images and URLs, lets normal text through
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, async () => {
-                console.log('[Editor] 🎯 Monaco Ctrl+V command triggered - checking for images');
-                
+                console.log('[Editor] 🎯 Monaco Ctrl+V command triggered - checking for images and URLs');
+
                 try {
                     // First, try to detect if there are images using Electron's clipboard API
-                    const result = await window.electronAPI.invoke('paste-image-from-clipboard');
-                    
-                    if (result.success) {
+                    const imageResult = await window.electronAPI.invoke('paste-image-from-clipboard');
+
+                    if (imageResult.success) {
                         // We have an image, handle it
-                        console.log('[Editor] ✅ Image detected and saved:', result.relativePath);
-                        
+                        console.log('[Editor] ✅ Image detected and saved:', imageResult.relativePath);
+
                         const position = editor.getPosition();
                         editor.executeEdits('paste-image', [{
                             range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-                            text: result.markdownLink
+                            text: imageResult.markdownLink
                         }]);
-                        
+
                         editor.setPosition({
                             lineNumber: position.lineNumber,
-                            column: position.column + result.markdownLink.length
+                            column: position.column + imageResult.markdownLink.length
                         });
-                        
+
                         if (window.updatePreview) {
                             await window.updatePreview(editor.getValue());
                         }
-                        
+
                         // Refresh file tree to show new image
                         if (window.electronAPI && window.electronAPI.invoke) {
                             try {
@@ -2706,15 +2746,68 @@ async function initializeMonacoEditor() {
                                 console.warn('[Editor] Could not refresh file tree:', error);
                             }
                         }
-                        
+
                         // Return early to prevent text paste
                         return;
-                    } else {
-                        // No image found, let Monaco handle normal text paste
-                        // Use Monaco's trigger method to execute paste command
-                        editor.trigger('keyboard', 'editor.action.clipboardPasteAction');
                     }
-                    
+
+                    // No image found, check for URL in clipboard
+                    const clipboardText = await navigator.clipboard.readText();
+
+                    if (clipboardText && isValidURL(clipboardText)) {
+                        console.log('[Editor] 🔗 URL detected in clipboard:', clipboardText);
+
+                        // Normalize the URL (add https:// if missing)
+                        let normalizedUrl = clipboardText.trim();
+                        if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+                            normalizedUrl = 'https://' + normalizedUrl;
+                        }
+
+                        // Fetch the page title
+                        const pageTitle = await fetchPageTitle(normalizedUrl);
+
+                        // Create Markdown link
+                        const markdownLink = `[${pageTitle}](${normalizedUrl})`;
+
+                        // Insert the Markdown link at current position
+                        const position = editor.getPosition();
+                        const selection = editor.getSelection();
+
+                        editor.executeEdits('paste-url-as-markdown', [{
+                            range: selection,
+                            text: markdownLink
+                        }]);
+
+                        // Select the title text for easy editing
+                        const newPosition = {
+                            lineNumber: position.lineNumber,
+                            column: position.column + 1 // Position after '['
+                        };
+                        const endPosition = {
+                            lineNumber: position.lineNumber,
+                            column: position.column + pageTitle.length + 1 // Before ']'
+                        };
+
+                        editor.setSelection(new monaco.Range(
+                            newPosition.lineNumber,
+                            newPosition.column,
+                            endPosition.lineNumber,
+                            endPosition.column
+                        ));
+
+                        console.log('[Editor] ✅ URL converted to Markdown link with title:', pageTitle);
+
+                        // Update preview
+                        if (window.updatePreview) {
+                            await window.updatePreview(editor.getValue());
+                        }
+
+                        return;
+                    }
+
+                    // No image or URL found, let Monaco handle normal text paste
+                    editor.trigger('keyboard', 'editor.action.clipboardPasteAction');
+
                 } catch (error) {
                     console.error('[Editor] Error in smart paste handler:', error);
                     // On error, fallback to default text paste
