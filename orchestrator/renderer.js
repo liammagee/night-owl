@@ -6084,6 +6084,16 @@ if (showStatsBtn) {
     });
 }
 
+// Citations button event listener
+const showCitationsBtn = document.getElementById('show-citations-btn');
+if (showCitationsBtn) {
+    showCitationsBtn.addEventListener('click', () => {
+        if (window.currentStructureView !== 'citations') {
+            switchStructureView('citations');
+        }
+    });
+}
+
 // Refresh statistics button event listener
 const refreshStatsBtn = document.getElementById('refresh-statistics-btn');
 if (refreshStatsBtn) {
@@ -6413,12 +6423,16 @@ function switchStructureView(view) {
     showFilesBtn.classList.remove('active');
     if (searchBtn) searchBtn.classList.remove('active');
     if (showStatsBtn) showStatsBtn.classList.remove('active');
+    const showCitationsBtn = document.getElementById('show-citations-btn');
+    if (showCitationsBtn) showCitationsBtn.classList.remove('active');
     
     structureList.style.display = 'none';
     if (fileTreeView) fileTreeView.style.display = 'none';
     if (searchPane) searchPane.style.display = 'none';
     const statisticsPane = document.getElementById('statistics-pane');
     if (statisticsPane) statisticsPane.style.display = 'none';
+    const citationsPane = document.getElementById('citations-pane');
+    if (citationsPane) citationsPane.style.display = 'none';
     if (tagSearchSection) tagSearchSection.style.display = 'none';
     newFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
@@ -6456,6 +6470,16 @@ function switchStructureView(view) {
             statisticsPane.style.display = 'block';
             // Update statistics content when showing the pane
             updateStatisticsPane();
+        }
+    } else if (view === 'citations') {
+        structurePaneTitle.textContent = 'Citations';
+        if (showCitationsBtn) showCitationsBtn.classList.add('active');
+        if (citationsPane) {
+            citationsPane.style.display = 'flex';
+            // Call citations manager to handle citations-specific setup
+            if (window.citationManager) {
+                window.citationManager.showCitationsPanel();
+            }
         }
     }
 }

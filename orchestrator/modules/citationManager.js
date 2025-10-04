@@ -49,21 +49,8 @@ class CitationManager {
     setupEventListeners() {
         console.log('[Citation Manager] Setting up event listeners...');
         
-        // Tab button
-        const showCitationsBtn = document.getElementById('show-citations-btn');
-        console.log('[Citation Manager] Show Citations Button found:', !!showCitationsBtn);
-        
-        // Only set up the main Citations button if it exists and doesn't already have our listener
-        if (showCitationsBtn && !showCitationsBtn.hasAttribute('data-citation-listener')) {
-            console.log('[Citation Manager] Adding click listener to Citations button');
-            showCitationsBtn.addEventListener('click', (e) => {
-                console.log('[Citation Manager] Citations button clicked!');
-                e.preventDefault();
-                e.stopPropagation();
-                this.showCitationsPanel();
-            });
-            showCitationsBtn.setAttribute('data-citation-listener', 'true');
-        }
+        // Note: Citations button click handler is now managed by renderer.js through switchStructureView
+        // This integrates properly with the standard pane management system
         
         // Prevent duplicate listener registration for other elements
         if (this.eventListenersSet) {
@@ -292,66 +279,16 @@ class CitationManager {
         });
     }
 
-    // Show the citations panel
-    // Retry setting up Citations button if it wasn't available initially
-    ensureCitationsButtonListener() {
-        const showCitationsBtn = document.getElementById('show-citations-btn');
-        if (showCitationsBtn && !showCitationsBtn.hasAttribute('data-citation-listener')) {
-            console.log('[Citation Manager] Retrying Citations button listener setup');
-            showCitationsBtn.addEventListener('click', (e) => {
-                console.log('[Citation Manager] Citations button clicked!');
-                e.preventDefault();
-                e.stopPropagation();
-                this.showCitationsPanel();
-            });
-            showCitationsBtn.setAttribute('data-citation-listener', 'true');
-        }
-    }
+    // Show the citations panel (called by switchStructureView)
 
     showCitationsPanel() {
         console.log('[Citation Manager] showCitationsPanel called');
-        
-        // Update the main structure view state to prevent conflicts with other navigation buttons
-        if (window.currentStructureView !== undefined) {
-            window.currentStructureView = 'citations';
-            console.log('[Citation Manager] Updated currentStructureView to citations');
-        }
-        
-        // Ensure button listener is set up (in case button wasn't available during initial setup)
-        this.ensureCitationsButtonListener();
-        
-        // Hide other panels
-        const panels = ['file-tree-view', 'search-pane', 'statistics-pane', 'citations-pane'];
-        panels.forEach(panelId => {
-            const panel = document.getElementById(panelId);
-            if (panel) panel.style.display = 'none';
-        });
 
-        // Show citations panel
-        const citationsPane = document.getElementById('citations-pane');
-        const structureList = document.getElementById('structure-list');
-        if (citationsPane) citationsPane.style.display = 'flex';
-        if (structureList) structureList.style.display = 'none';
+        // Note: Pane switching, button states, and UI management is now handled by switchStructureView()
+        // This function now only handles citations-specific initialization
 
         // Set up action button event listeners now that panel is visible
         this.setupActionButtonListeners();
-
-        // Update button states
-        document.querySelectorAll('.pane-toggle-button').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        const showCitationsBtn = document.getElementById('show-citations-btn');
-        if (showCitationsBtn) showCitationsBtn.classList.add('active');
-
-        // Update title
-        const title = document.getElementById('structure-pane-title');
-        if (title) title.textContent = 'Citations';
-
-        // Hide file tree specific buttons
-        const changeDirBtn = document.getElementById('change-directory-btn');
-        const newFolderBtn = document.getElementById('new-folder-btn');
-        if (changeDirBtn) changeDirBtn.style.display = 'none';
-        if (newFolderBtn) newFolderBtn.style.display = 'none';
 
         // Initialize if not already done
         if (!this.isInitialized) {
