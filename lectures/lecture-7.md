@@ -67,7 +67,6 @@ The article by Gebru and Torres develops criticism in another direction: what I 
 
 They further develop their analysis with a comparison with eugenics: a movement that coincides with the history of statistics, which underpins machine learning. This they connect specifically with the recent focus on AGI. They note one of the recurring oddities of the generative AI moment: that those researching or investing to develop AI are often those also expressing concerns about its existential risk. What is downplayed in the "existential" crisis of AGI is the perpetuation of everyday risks: algorithmic racism and sexism, environmental harms and the concentration of political power.
 
-
 ```
 
 ---
@@ -78,9 +77,9 @@ They further develop their analysis with a comparison with eugenics: a movement 
 - LLMs cannot "experience"; they are useful regurgitators of human experience  
 - Echoes of Goodlad, Stone, Gebru and Torres: LLMs overrated
 - **But**: each suggests alternatives that can address limits of LLMs: 
-- Sutton highlights absence of experiential learning as core limitation.
-- Both agree Transformers cannot achieve general or super intelligence alone.
-- Overcoming limits requires integrating experience-driven mechanisms into models.
+  - Sutton sees Reinforcement Learning as the key to genuine (as opposed to imitative) AI.
+  - LeCun argues (in one of the supplementary readings) for AI that is modelled more closely on childhood development.
+
 
 ```notes
 In the follow-up two videos, featuring Yann LeCun and Richard Sutton, we see a different type of criticism. Both are highly respected scholars in the field of Artificial Intelligence, responsible for some of the foundational developments in neural networks and reinforcement learning. Both are however critical about the overreliance upon the Transformer architecture we discussed in Week 4. In different ways, each thinks language models can never arrive at general - much less super - intelligence, because they are inherently limited. 
@@ -94,12 +93,15 @@ Both offer criticisms that overlap, but also have differences, certainly in how 
 
 ### Criticism Types in Machine Learning
 
-- External critics are well-informed scholars outside ML, offering outsider perspectives.
-- Internal critics are ML experts questioning the field's own evolution.
+- *External* critics are well-informed scholars outside ML, offering outsider perspectives.
+- *Internal* critics are ML experts questioning the field's own evolution.
 - Both viewpoints highlight different concerns about progress and direction.
+- But are they *convincing*? *Persuasive*?
 
 ```notes
 So far we have examined two examples of two types of criticism. The first we can describe as *external*: developed by well-informed scholars who sit, like most of us, outside the immediate field of machine learning. The second we can describe as *internal*: developed by experts in machine learning itself, who are nonetheless critical of the way the field has evolved. 
+
+But whether we agree with these different critiques or not, we might still be troubled by whether *opposing* standpoints would find them convincing...
 ```
 
 ---

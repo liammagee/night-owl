@@ -334,6 +334,93 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
   };
 
+  // Process nested lists properly
+  const processNestedLists = (html) => {
+    const lines = html.split('\n');
+    const processedLines = [];
+    let inListMode = false;
+    let currentListHtml = '';
+
+    // First, extract just the list portions and process them
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+
+      // Check if this is a list item
+      const isListItem = /^(\s*)[-*+]\s+(.+)$/.test(line) || /^(\s*)(\d+)\.\s+(.+)$/.test(line);
+
+      if (isListItem) {
+        if (!inListMode) {
+          inListMode = true;
+          currentListHtml = '';
+        }
+        currentListHtml += line + '\n';
+      } else {
+        // End of list section
+        if (inListMode) {
+          // Process the accumulated list HTML
+          processedLines.push(processListSection(currentListHtml.trim()));
+          inListMode = false;
+          currentListHtml = '';
+        }
+
+        // Add non-list line as is
+        if (trimmedLine) {
+          processedLines.push(line);
+        }
+      }
+    }
+
+    // Handle any remaining list at end of content
+    if (inListMode && currentListHtml.trim()) {
+      processedLines.push(processListSection(currentListHtml.trim()));
+    }
+
+    return processedLines.join('\n');
+  };
+
+  // Process a section of list items into proper nested HTML
+  const processListSection = (listHtml) => {
+    const lines = listHtml.split('\n');
+    const processedLines = [];
+    const listStack = [];
+
+    for (const line of lines) {
+      const unorderedMatch = line.match(/^(\s*)[-*+]\s+(.+)$/);
+      const orderedMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
+
+      if (unorderedMatch || orderedMatch) {
+        const indent = (unorderedMatch || orderedMatch)[1].length;
+        const content = unorderedMatch ? unorderedMatch[2] : orderedMatch[3];
+        const isOrdered = !!orderedMatch;
+
+        // Close lists deeper than current level
+        while (listStack.length > 0 && listStack[listStack.length - 1].indent >= indent) {
+          const closedList = listStack.pop();
+          processedLines.push(`</${closedList.type}>`);
+        }
+
+        // Start new list if needed
+        if (listStack.length === 0 || listStack[listStack.length - 1].indent < indent) {
+          const listType = isOrdered ? 'ol' : 'ul';
+          processedLines.push(`<${listType} class="markdown-list">`);
+          listStack.push({ type: listType, indent: indent });
+        }
+
+        // Add list item
+        processedLines.push(`<li class="markdown-list-item">${content}</li>`);
+      }
+    }
+
+    // Close all remaining open lists
+    while (listStack.length > 0) {
+      const closedList = listStack.pop();
+      processedLines.push(`</${closedList.type}>`);
+    }
+
+    return processedLines.join('\n');
+  };
+
   // Enhanced markdown parser
   const parseMarkdownContent = (content) => {
     let html = content;
@@ -462,10 +549,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
     html = processedLines.join('\n');
 
-    // Handle lists
-    html = html.replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li>$1</li>');
-    html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\s*)+/gs, '<ul>$&</ul>');
+    // Handle nested lists properly
+    console.log('[MarkdownParser] Before list processing:', html.substring(0, 200));
+    html = processNestedLists(html);
+    console.log('[MarkdownParser] After list processing:', html.substring(0, 400));
     
     // Blockquotes - handle multi-line blockquotes properly
     // First, collect all blockquote lines and group them

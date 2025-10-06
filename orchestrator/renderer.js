@@ -546,6 +546,8 @@ function createCustomMarkdownRenderer() {
     const renderer = new marked.Renderer();
     const originalHeading = renderer.heading.bind(renderer);
     const originalImage = renderer.image.bind(renderer);
+    const originalList = renderer.list.bind(renderer);
+    const originalListitem = renderer.listitem.bind(renderer);
 
     // Override the heading method to add IDs
     renderer.heading = (text, level, raw) => {
@@ -565,6 +567,26 @@ function createCustomMarkdownRenderer() {
             return originalImage(fullPath, title, text);
         }
         return originalImage(href, title, text);
+    };
+
+    // Override list method to ensure proper nested list rendering
+    renderer.list = (body, ordered, start) => {
+        const type = ordered ? 'ol' : 'ul';
+        const startAttr = (ordered && start !== 1) ? ` start="${start}"` : '';
+        const html = `<${type}${startAttr} class="markdown-list">\n${body}</${type}>\n`;
+        console.log('[Renderer] Generated list HTML:', html.substring(0, 200) + '...');
+        return html;
+    };
+
+    // Override listitem method to ensure proper nesting
+    renderer.listitem = (text, task, checked) => {
+        if (task) {
+            const checkedAttr = checked ? ' checked=""' : '';
+            return `<li class="task-list-item markdown-list-item"><input type="checkbox"${checkedAttr} disabled=""> ${text}</li>\n`;
+        }
+        const html = `<li class="markdown-list-item">${text}</li>\n`;
+        console.log('[Renderer] Generated list item:', html.substring(0, 100) + '...');
+        return html;
     };
 
     return renderer;
@@ -607,10 +629,12 @@ async function renderMarkdownContent(markdownContent) {
     const processedContent = processMarkdownContent(markdownContent);
     
     // Use the custom renderer with marked.parse
-    let htmlContent = window.marked.parse(processedContent, { 
-        renderer: renderer, 
-        gfm: true, 
-        breaks: true 
+    let htmlContent = window.marked.parse(processedContent, {
+        renderer: renderer,
+        gfm: true,
+        breaks: true,
+        pedantic: false,
+        smartLists: true
     });
     
     // Process Obsidian-style [[]] internal links on the rendered HTML

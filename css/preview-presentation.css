@@ -204,3 +204,236 @@ body:not(.is-presenting) #right-pane {
     font-style: italic !important;
     color: #166534 !important;
 }
+
+/* List styling for proper nested list rendering in presentation mode */
+body.is-presenting #presentation-content ul,
+body.is-presenting #presentation-content ol,
+body.is-presenting .slide-content ul,
+body.is-presenting .slide-content ol,
+#presentation-content ul,
+#presentation-content ol,
+.slide-content ul,
+.slide-content ol {
+    margin: 0.5em 0 !important;
+    padding-left: 1.5em !important;
+    line-height: 1.6 !important;
+    list-style-position: outside !important;
+    display: block !important;
+}
+
+body.is-presenting #presentation-content li,
+body.is-presenting .slide-content li,
+#presentation-content li,
+.slide-content li {
+    margin: 0.25em 0 !important;
+    padding: 0 !important;
+    display: list-item !important;
+}
+
+/* Nested list styling */
+body.is-presenting #presentation-content ul ul,
+body.is-presenting #presentation-content ol ol,
+body.is-presenting #presentation-content ul ol,
+body.is-presenting #presentation-content ol ul,
+body.is-presenting .slide-content ul ul,
+body.is-presenting .slide-content ol ol,
+body.is-presenting .slide-content ul ol,
+body.is-presenting .slide-content ol ul,
+#presentation-content ul ul,
+#presentation-content ol ol,
+#presentation-content ul ol,
+#presentation-content ol ul,
+.slide-content ul ul,
+.slide-content ol ol,
+.slide-content ul ol,
+.slide-content ol ul {
+    margin: 0.25em 0 !important;
+    padding-left: 1.5em !important;
+}
+
+/* Ensure proper bullet/number display */
+body.is-presenting #presentation-content ul,
+body.is-presenting .slide-content ul,
+#presentation-content ul,
+.slide-content ul {
+    list-style-type: disc !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ul ul,
+body.is-presenting .slide-content ul ul,
+#presentation-content ul ul,
+.slide-content ul ul {
+    list-style-type: circle !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ul ul ul,
+body.is-presenting .slide-content ul ul ul,
+#presentation-content ul ul ul,
+.slide-content ul ul ul {
+    list-style-type: square !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ol,
+body.is-presenting .slide-content ol,
+#presentation-content ol,
+.slide-content ol {
+    list-style-type: decimal !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ol ol,
+body.is-presenting .slide-content ol ol,
+#presentation-content ol ol,
+.slide-content ol ol {
+    list-style-type: lower-alpha !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ol ol ol,
+body.is-presenting .slide-content ol ol ol,
+#presentation-content ol ol ol,
+.slide-content ol ol ol {
+    list-style-type: lower-roman !important;
+    list-style-position: outside !important;
+}
+
+/* Task list styling */
+body.is-presenting #presentation-content li.task-list-item,
+body.is-presenting .slide-content li.task-list-item,
+#presentation-content li.task-list-item,
+.slide-content li.task-list-item {
+    list-style-type: none !important;
+    margin-left: -1.5em !important;
+    padding-left: 1.5em !important;
+}
+
+body.is-presenting #presentation-content li.task-list-item input[type="checkbox"],
+body.is-presenting .slide-content li.task-list-item input[type="checkbox"],
+#presentation-content li.task-list-item input[type="checkbox"],
+.slide-content li.task-list-item input[type="checkbox"] {
+    margin-right: 0.5em !important;
+    vertical-align: middle !important;
+}
+
+/* Additional specific styling for markdown-generated lists */
+.markdown-list {
+    margin: 0.75em 0 !important;
+    padding-left: 2em !important;
+    list-style-position: outside !important;
+}
+
+.markdown-list .markdown-list {
+    margin: 0.5em 0 !important;
+    padding-left: 1.5em !important;
+}
+
+.markdown-list-item {
+    margin: 0.5em 0 !important;
+    padding: 0 !important;
+    display: list-item !important;
+}
+
+/* Force list styles */
+ul.markdown-list {
+    list-style-type: disc !important;
+}
+
+ul.markdown-list ul.markdown-list {
+    list-style-type: circle !important;
+}
+
+ul.markdown-list ul.markdown-list ul.markdown-list {
+    list-style-type: square !important;
+}
+
+ol.markdown-list {
+    list-style-type: decimal !important;
+}
+
+ol.markdown-list ol.markdown-list {
+    list-style-type: lower-alpha !important;
+}
+
+ol.markdown-list ol.markdown-list ol.markdown-list {
+    list-style-type: lower-roman !important;
+}
+
+/* AGGRESSIVE LIST STYLING FOR PRESENTATION MODE */
+/* Force proper list indentation and bullets for ALL lists in presentation */
+body.is-presenting ul,
+body.is-presenting ol,
+#presentation-content ul,
+#presentation-content ol,
+.slide-content ul,
+.slide-content ol,
+.presentation-slide ul,
+.presentation-slide ol {
+    margin: 0.8em 0 !important;
+    padding-left: 2.5em !important;
+    list-style-position: outside !important;
+    display: block !important;
+}
+
+body.is-presenting li,
+#presentation-content li,
+.slide-content li,
+.presentation-slide li {
+    display: list-item !important;
+    margin: 0.4em 0 !important;
+    padding: 0 !important;
+}
+
+/* FORCE BULLET STYLES */
+body.is-presenting ul,
+#presentation-content ul,
+.slide-content ul,
+.presentation-slide ul {
+    list-style-type: disc !important;
+}
+
+body.is-presenting ul ul,
+#presentation-content ul ul,
+.slide-content ul ul,
+.presentation-slide ul ul {
+    list-style-type: circle !important;
+    margin: 0.3em 0 !important;
+    padding-left: 2em !important;
+}
+
+body.is-presenting ul ul ul,
+#presentation-content ul ul ul,
+.slide-content ul ul ul,
+.presentation-slide ul ul ul {
+    list-style-type: square !important;
+    margin: 0.2em 0 !important;
+    padding-left: 1.8em !important;
+}
+
+/* FORCE NUMBER STYLES */
+body.is-presenting ol,
+#presentation-content ol,
+.slide-content ol,
+.presentation-slide ol {
+    list-style-type: decimal !important;
+}
+
+body.is-presenting ol ol,
+#presentation-content ol ol,
+.slide-content ol ol,
+.presentation-slide ol ol {
+    list-style-type: lower-alpha !important;
+    margin: 0.3em 0 !important;
+    padding-left: 2em !important;
+}
+
+body.is-presenting ol ol ol,
+#presentation-content ol ol ol,
+.slide-content ol ol ol,
+.presentation-slide ol ol ol {
+    list-style-type: lower-roman !important;
+    margin: 0.2em 0 !important;
+    padding-left: 1.8em !important;
+}
