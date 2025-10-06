@@ -13,6 +13,13 @@ let isNavigatingHistory = false;
 // --- Navigation Functions ---
 function addToNavigationHistory(filePath, fileName) {
     if (isNavigatingHistory || !filePath) return;
+
+    // Ensure navigationHistory is always an array
+    if (!Array.isArray(navigationHistory)) {
+        console.warn('[Navigation] navigationHistory was not an array, reinitializing');
+        navigationHistory = [];
+        currentHistoryIndex = -1;
+    }
     
     // Don't add duplicate consecutive entries
     if (navigationHistory.length > 0 && 

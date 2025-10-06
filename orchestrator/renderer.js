@@ -6,13 +6,13 @@ function debugLog(level, message, data) {
         window.electronAPI.invoke('debug-log', level, message, data);
     }
     // Also keep console logs as fallback
-    console[level](message, data);
+    if (data !== undefined) {
+        console[level](message, data);
+    } else {
+        console[level](message);
+    }
 }
 
-debugLog('error', '🚨 RENDERER.JS LOADING START - CRITICAL TEST');
-debugLog('error', '🚨 TIMESTAMP: ' + new Date().toISOString());
-debugLog('error', '🚨 DOM readyState: ' + document.readyState);
-debugLog('error', '🚨 Window object exists: ' + !!window);
 
 // --- Electron IPC (for theme) ---
 // Access IPC functions exposed by preload.js via window.electronAPI
@@ -8397,16 +8397,27 @@ async function loadNavigationHistoryFromSettings() {
             navigationHistory = savedHistory;
             currentHistoryIndex = navigationHistory.length - 1;
             updateNavigationButtons();
-            
+
             // Set current file name if we have history
             if (navigationHistory.length > 0) {
                 updateCurrentFileName(navigationHistory[currentHistoryIndex].fileName);
             }
-            
+
             console.log('[Navigation] Loaded navigation history:', navigationHistory.length, 'entries');
+        } else {
+            // Ensure navigationHistory is always an array
+            if (!Array.isArray(navigationHistory)) {
+                navigationHistory = [];
+                currentHistoryIndex = -1;
+            }
         }
     } catch (error) {
         console.error('[Navigation] Error loading navigation history:', error);
+        // Ensure navigationHistory is always an array on error
+        if (!Array.isArray(navigationHistory)) {
+            navigationHistory = [];
+            currentHistoryIndex = -1;
+        }
     }
 }
 
