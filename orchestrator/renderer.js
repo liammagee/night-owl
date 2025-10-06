@@ -1,5 +1,18 @@
 
 // Renderer initialization
+// Replace console logging with IPC-based logging for visibility in main process
+function debugLog(level, message, data) {
+    if (window.electronAPI) {
+        window.electronAPI.invoke('debug-log', level, message, data);
+    }
+    // Also keep console logs as fallback
+    console[level](message, data);
+}
+
+debugLog('error', '🚨 RENDERER.JS LOADING START - CRITICAL TEST');
+debugLog('error', '🚨 TIMESTAMP: ' + new Date().toISOString());
+debugLog('error', '🚨 DOM readyState: ' + document.readyState);
+debugLog('error', '🚨 Window object exists: ' + !!window);
 
 // --- Electron IPC (for theme) ---
 // Access IPC functions exposed by preload.js via window.electronAPI
@@ -86,9 +99,17 @@ let markedInstance = null;
 
 // Auto-save variables
 let autoSaveTimer = null;
-let hasUnsavedChanges = false;
+window.hasUnsavedChanges = false; // Make this globally accessible
 let lastSavedContent = '';
 let suppressAutoSave = false; // Flag to temporarily disable auto-save during file operations
+
+// Tag filtering variables
+let activeTagFilters = new Set();
+let tagFilteringInitialized = false;
+
+// File tree rendering state
+let fileTreeRendered = false;
+let isRenderingFileTree = false; // Prevent concurrent renders
 
 // Speaker notes variables
 let currentSpeakerNotes = [];
@@ -2554,9 +2575,29 @@ async function initializeMonacoEditor() {
                 
                 // Update for next change detection
                 previousContent = currentContent;
-                
+
+                const autosaveStatus = {
+                    hasWindowScheduleAutoSave: !!window.scheduleAutoSave,
+                    hasLocalScheduleAutoSave: typeof scheduleAutoSave !== 'undefined',
+                    currentContentLength: currentContent.length,
+                    previousContentLength: previousContent.length,
+                    hasUnsavedChanges: window.hasUnsavedChanges,
+                    currentFilePath: window.currentFilePath
+                };
+
+                console.log('[Monaco onDidChangeModelContent] 📝 Content changed, updating preview and scheduling autosave:', autosaveStatus);
+                debugLog('info', '📝 Monaco content changed - scheduling autosave', autosaveStatus);
+
                 await updatePreviewAndStructure(currentContent);
-                scheduleAutoSave(); // Schedule auto-save when content changes
+                if (window.scheduleAutoSave) {
+                    console.log('[Monaco onDidChangeModelContent] ✅ Calling window.scheduleAutoSave()');
+                    debugLog('info', '✅ Calling window.scheduleAutoSave() from Monaco content change');
+                    window.scheduleAutoSave(); // Schedule auto-save when content changes
+                } else {
+                    console.log('[Monaco onDidChangeModelContent] ⚠️ Fallback to local scheduleAutoSave()');
+                    debugLog('warn', '⚠️ Using fallback local scheduleAutoSave() - window.scheduleAutoSave not available');
+                    scheduleAutoSave(); // Fallback to local function
+                }
             });
             
             // Clear fallback editor since Monaco loaded successfully
@@ -2565,12 +2606,27 @@ async function initializeMonacoEditor() {
             // Make editor globally accessible for debugging
             window.editor = editor;
             
-            // Initialize auto-save after editor is ready
-            initializeAutoSave();
-            
-            // Load settings and apply editor options
+            // Load settings first, then initialize auto-save
             window.electronAPI.invoke('get-settings').then(settings => {
                 window.appSettings = settings;
+
+                // Initialize auto-save after settings are loaded
+                const initStatus = {
+                    hasInitializeAutoSave: !!window.initializeAutoSave,
+                    hasAppSettings: !!window.appSettings,
+                    autoSaveSettings: window.appSettings?.autoSave
+                };
+
+                console.log('[renderer.js] 🔍 Checking autosave initialization:', initStatus);
+                debugLog('info', '🔍 Autosave initialization check', initStatus);
+
+                if (window.initializeAutoSave) {
+                    console.log('[renderer.js] ✅ Calling window.initializeAutoSave()');
+                    debugLog('info', '✅ Calling window.initializeAutoSave()');
+                    window.initializeAutoSave();
+                } else {
+                    console.log('[renderer.js] ❌ window.initializeAutoSave not found - autosave.js may not be loaded yet');
+                }
                 
                 // Apply all editor settings using the centralized function
                 applyEditorSettings(settings);
@@ -3569,6 +3625,29 @@ async function openFileInEditor(filePath, content, options = {}) {
     if (options.isInternalLinkPreview) {
         console.log('[openFileInEditor] Internal link preview mode');
     }
+
+    // Trigger autosave before switching files (unless this is an internal link preview)
+    console.log('[openFileInEditor] Autosave check:', {
+        isInternalLinkPreview: options.isInternalLinkPreview,
+        hasPerformAutoSave: !!window.performAutoSave,
+        hasCurrentFilePath: !!window.currentFilePath,
+        hasUnsavedChanges: window.hasUnsavedChanges,
+        currentFilePath: window.currentFilePath,
+        newFilePath: filePath
+    });
+
+    if (!options.isInternalLinkPreview && window.performAutoSave && window.currentFilePath && window.hasUnsavedChanges) {
+        console.log('[openFileInEditor] ✅ Triggering autosave before opening new file');
+        try {
+            await window.performAutoSave();
+            console.log('[openFileInEditor] ✅ Autosave completed successfully');
+        } catch (error) {
+            console.warn('[openFileInEditor] ❌ Autosave failed during file switch:', error);
+            // Continue with file opening even if autosave fails
+        }
+    } else {
+        console.log('[openFileInEditor] ℹ️ Skipping autosave - conditions not met');
+    }
     
     // Close image viewer if it's currently open
     if (window.imageViewerOriginalContent) {
@@ -3960,7 +4039,7 @@ async function handleEditableFile(filePath, content, fileTypes) {
     
     // Update last saved content for auto-save tracking
     lastSavedContent = content;
-    hasUnsavedChanges = false;
+    window.hasUnsavedChanges = false;
     updateUnsavedIndicator(false);
     
     // Clear AI companion buffers when opening new file to prevent stale analysis
@@ -4000,7 +4079,7 @@ function clearEditor(suppressPreviewUpdate = false) {
     }
     
     lastSavedContent = '';
-    hasUnsavedChanges = false;
+    window.hasUnsavedChanges = false;
     updateUnsavedIndicator(false);
 }
 
@@ -5563,11 +5642,14 @@ document.addEventListener('keydown', async (e) => {
         return;
     }
     
-    // Escape: Close find dialog (global)
+    // Escape: Close find dialog (global) - TODO: Complete find/replace implementation
+    // Temporarily disabled to prevent ReferenceErrors
+    /*
     if (e.key === 'Escape' && !findReplaceDialog.classList.contains('hidden')) {
         hideFindReplaceDialog();
         return;
     }
+    */
 
     // Cmd+Shift+' or Ctrl+Shift+': Invoke Ash (AI Writing Companion) explicitly
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "'") {
@@ -6146,6 +6228,9 @@ changeDirectoryBtn.addEventListener('click', async () => {
 });
 
 // --- Find & Replace Event Listeners ---
+// TODO: Find & Replace functionality is incomplete - variables and functions not defined
+// Commenting out to prevent ReferenceErrors until implementation is complete
+/*
 findReplaceClose.addEventListener('click', hideFindReplaceDialog);
 
 // Button event listeners
@@ -6156,6 +6241,7 @@ replaceAllEl.addEventListener('click', replaceAll);
 
 // Input event listeners
 findInput.addEventListener('input', performSearch);
+
 findInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         e.preventDefault();
@@ -6182,6 +6268,7 @@ replaceInput.addEventListener('keydown', (e) => {
 caseSensitive.addEventListener('change', performSearch);
 regexMode.addEventListener('change', performSearch);
 wholeWord.addEventListener('change', performSearch);
+*/
 
 // --- Folder Name Modal Event Listeners ---
 folderNameCancel.addEventListener('click', hideFolderNameModal);
@@ -6996,6 +7083,28 @@ function renderFileTreeNode(node, container, depth) {
                     console.log(`[renderFileTree] Opening image file: ${node.path}`);
                     showImageViewer(node.path);
                 } else {
+                    // Trigger autosave before switching files
+                    console.log('[renderFileTree] Autosave check before file switch:', {
+                        hasPerformAutoSave: !!window.performAutoSave,
+                        hasCurrentFilePath: !!window.currentFilePath,
+                        hasUnsavedChanges: window.hasUnsavedChanges,
+                        currentFilePath: window.currentFilePath,
+                        newFilePath: node.path
+                    });
+
+                    if (window.performAutoSave && window.currentFilePath && window.hasUnsavedChanges) {
+                        console.log('[renderFileTree] ✅ Triggering autosave before opening new file');
+                        try {
+                            await window.performAutoSave();
+                            console.log('[renderFileTree] ✅ Autosave completed successfully');
+                        } catch (error) {
+                            console.warn('[renderFileTree] ❌ Autosave failed during file switch:', error);
+                            // Continue with file opening even if autosave fails
+                        }
+                    } else {
+                        console.log('[renderFileTree] ℹ️ Skipping autosave - conditions not met');
+                    }
+
                     // Regular file opening logic
                     const result = await window.electronAPI.invoke('open-file-path', node.path);
                     console.log(`[renderFileTree] IPC result:`, result);
@@ -7041,13 +7150,7 @@ function toggleFolderExpansion(folderPath) {
     }
 }
 
-// Tag filtering variables
-let activeTagFilters = new Set();
-let tagFilteringInitialized = false;
-
-// File tree rendering state
-let fileTreeRendered = false;
-let isRenderingFileTree = false;  // Prevent concurrent renders
+// Tag filtering and file tree functions use variables declared at top of file
 
 // Debounce utility for file tree rendering
 function debounce(func, wait) {
@@ -8765,22 +8868,7 @@ function showNotification(message, type = 'info', isHTML = false) {
 }
 
 
-// --- Auto-save functionality ---
-
-// Initialize auto-save functionality
-function initializeAutoSave() {
-    if (!window.appSettings || !window.appSettings.ui || !window.appSettings.ui.autoSave) {
-        return;
-    }
-    
-    const interval = window.appSettings.ui.autoSaveInterval || 2000; // Default 2 seconds
-    console.log(`[renderer.js] Auto-save initialized with ${interval}ms interval`);
-    
-    // Set initial saved content
-    if (editor) {
-        lastSavedContent = editor.getValue();
-    }
-}
+// --- Auto-save functionality (moved to autosave.js module) ---
 
 // Mark that there are unsaved changes and schedule auto-save
 function scheduleAutoSave() {
@@ -8790,11 +8878,11 @@ function scheduleAutoSave() {
     
     // Check if content has actually changed
     if (currentContent === lastSavedContent) {
-        hasUnsavedChanges = false;
+        window.hasUnsavedChanges = false;
         return;
     }
     
-    hasUnsavedChanges = true;
+    window.hasUnsavedChanges = true;
     
     // Clear existing timer
     if (autoSaveTimer) {
@@ -8813,7 +8901,7 @@ function scheduleAutoSave() {
 
 // Perform the actual auto-save
 async function performAutoSave() {
-    if (!hasUnsavedChanges || !editor) {
+    if (!window.hasUnsavedChanges || !editor) {
         return;
     }
     
@@ -8830,7 +8918,7 @@ async function performAutoSave() {
             
             if (result.success) {
                 lastSavedContent = content;
-                hasUnsavedChanges = false;
+                window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 console.log('[renderer.js] Auto-save completed successfully');
                 showNotification('Auto-saved', 'success', 1000); // Brief notification
@@ -8871,7 +8959,7 @@ function updateUnsavedIndicator(hasUnsaved) {
 function markContentAsSaved() {
     if (editor) {
         lastSavedContent = editor.getValue();
-        hasUnsavedChanges = false;
+        window.hasUnsavedChanges = false;
         updateUnsavedIndicator(false);
         
         // Clear auto-save timer
@@ -9208,7 +9296,7 @@ async function saveFile() {
                     lastSavedContent = content;
                 }
                 
-                hasUnsavedChanges = false;
+                window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
                 
@@ -9284,7 +9372,7 @@ async function saveFile() {
                     lastSavedContent = content;
                 }
                 
-                hasUnsavedChanges = false;
+                window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
                 console.log('[renderer.js] Manual save-as completed successfully');
@@ -9450,7 +9538,7 @@ async function saveAsFile() {
                 lastSavedContent = content;
             }
             
-            hasUnsavedChanges = false;
+            window.hasUnsavedChanges = false;
             updateUnsavedIndicator(false);
             showNotification('File saved successfully', 'success');
             console.log('[renderer.js] Manual save-as completed successfully');
@@ -9695,7 +9783,7 @@ async function extractTextToNewFile() {
                 console.log('[extractTextToNewFile] Reloading updated content into editor...');
                 editor.setValue(result.updatedOriginalContent);
                 lastSavedContent = result.updatedOriginalContent;
-                hasUnsavedChanges = false;
+                window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 
                 // Update preview

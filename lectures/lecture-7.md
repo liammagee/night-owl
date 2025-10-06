@@ -3,11 +3,16 @@
 ## Bitter Lessons, Stochastic Parrots, Errant Agents: From Criticism to Immanent Critique?
 
 
-We have traversed a lot of conceptual territory in this course, and this week we move to another term: critique. 
+We have traversed a lot of conceptual territory in this course, and this week we move to another term: critique, and a related term of criticism. 
 
-We will start with a more self-evident term: *criticism*. In the first two readings, we see criticism applied to AI from the standpoint of scholars working in the field of what has been termed "critical AI studies". 
+---
+
+In the first two readings, we see criticism applied to AI from the standpoint of scholars working in the field of what has been termed "critical AI studies". 
 
 The article by Goodlad and Stone is an introduction to a recent special issue launched by a new journal, in fact entitled "Critical AI". It develops a wide-ranging and lengthy but useful array of critical AI topics. I'll summarize several of these topics here:
+
+ - environmental effecs
+ - "ELIZA" effects of anthropomorphism
 
 ---
 
@@ -53,13 +58,76 @@ Rational knowledge, on the contrary, needs to be based upon foundations that und
 
 Why is this important? In the final analysis, transcendental critique - the kind of criticism that depends upon standards brought from outside the object – only holds if the speaker and the listener share some *a priori* values. For example liberalism: if we are both liberals, your critique of how AI (for example) offends liberal sensibility is likely to resonate. But what if I am opposed to liberalism? We are stuck: you appear to me as dogmatic; I appear to you as sceptical. What breaks this impasse? If you can show me how we are together by a historical process to understand certain values, such as equality, as precious - not as god-given, but rather acquired via painful historical trial-and-error. This doesn't require us both to be atheist; only that we see how history delivers us a set of ideals that seem to improve upon earlier versions. Then you might lead me to a conviction that AI (or something else) contradicts this historical and ethical achievement. Pointing out such a contradiction leads to a criticism that is *immanent*, because it does not depend us having some shared metaphysical values - only that we both acknowledge this historical process (a separate problem).
 
-How do we bring this all home in the context of AI? 
+---
+
+As the Stahl paper argues, this process of immanent critique involves a complex dialectic exchange: we judge an object against a normative, ethical standard, like the printing press, and then we also judge our own standards too - recalibrating both object and stanard together. This process, as Stahl reminds us, is what Hegel means by the term "experience", and is the genuine form of learning that takes us forward toward self-consciousness and, ultimately, Absolute Knowledge. 
+
+---
+
+How do we bring this all home in the context of AI? First, we might want to think in terms of our own processes of response to AI as an object: how do we judge it against what we take to be our normative expectations of technology? Or in less formal language: what are our hopes for technology, and in what ways does AI fail to live up to them? 
+
+But second, how are our hopes themselves being modified as we start to assess AI? Can we begin to see that our standards themselves need to evolve - not just that we need new rubrics, for example, but that the foundations for those rubrics also need examination?
+
+And on a wider front, leading us towards the differing visions of history and futurity we will discuss next week: is the advent of AI itself the kind of technology that might be essential to the very task of our critical self-examination? Is it the technology that can help transform the admitted obscurity of reflexive immanent critique? Can it lead us toward, as Mary and Bill might say, reflexive pedagogy? Or, as Gebru and Torres claim, is the AI project instead a massive fantasy projected by a disguised eugenics movement - a contemporary form, as Stahl discussed in relation to Marx, of "social domination" (rather than "conceptual self-determination")?
+
+
+---
+
+<!--
+And what is a related question, for immanent critique: what has, in turn, led to us having these hopes? Has there been a point at which technology might have been different? Or conversely: is technology instead leading us out of a kind of social despair, toward a more optimistic future? And in which case - what accounts for this alternate assessment?
+
+
+All of which we take up again next week, in considering again the relationship between machines and humans, as a kind of reciprocal, symbiotic and synthetic learning. 
+-->
+
+
+
+---
+
+### Example of the Printing Press
+
+Let's examine now the case of the printing press, as an example of an immanent critique of technology. We can look back upon the arrival of this invention and note its pros and cons: its democratization of information, on the one hand, and its propensity for the spread of misinformation, on the other. But then we might step back to say: where does our *desire* for democracy come from? In other words, what explains the basis of our judgment? We might say: we learn it, from parents, schools, community, all of which instils in us an appreciation for democracy, for an equal right to vote, and so on. But we might probe further, and note our education is in part depedent upon the low cost of the technologies for storing and disseminating information itself. These include the printing press, or derivatives from it. So a proper "immanent" critique acknowledges our debt to the very technology that we are busy critiquing. 
+
+Immanent critique involves then a process of trying to bring together the objects and our standards for assessing them in a single account. If we didn't have the object of the printing press, we might not have the benefit of several hundred years of the democratization of education to allow us to judge it. And this must form *part of our judgment*! 
+
+However that does not mean that critique needs to become mute. Instead it can observe the emergence of contradictions: when, for example, the technology of print is used to subvert the ideals of democracy and equality that it also gave rise to. In that case, we need to deliberate: either the object is not living up to the standards we expect of it; or our standards may have been too high; or some combination of the two. We need to be *reflexive* in our critique, and consider how both the object and the critique itself might need to be recalibrated. 
+
+Now this becomes more difficult in terms of technologies of the present, because we do not yet experience its benefits nor its deficits fully. So we have to *anticipate* many of its effects, while also acknowledging the role of similar technological innovations, like the printing press and the Internet, in the past. 
+
+
+---
+
+### Toward a Reflexive Pedagogy of AI? AI and Immanent Critique
+
+In breakout groups, we want to try to develop a rubric for a reflexive, immanent critique!
+
+We'll start by imagining we are evaluating a new AI technology for education. We want to develop a rubric that seeks to judge the following:
+
+a. the pros and cons of the technology itself - will it improve education?
+b. whether our existing standards are sufficient for evaluation - or do we need new ways to evaluate?
+c. how both technology and evaluation might be evaluated via a kind of meta-evaluation - and what would be the criteria for this meta-evaluation? How would we know that we are being sufficiently *reflexive* and *immanent* in our critique?
 
 
 
 
+<!--
+---
 
- - Persuasion. Immanent critique: leads to *contradiction*. How do we change our mind? Someone else's mind?
+Sketching immanent critique
+
+1. We could argue that both the history of technologies - such as the printing press and the Internet – and social progress has brought us standards that we apply to future technologies. These must also help to promote democracy, equality and liberty. 
+
+2. We could also argue that technologies and the "will to power" have led to a society that is increasingly centred on control, domination and value extraction. Certain technologies might then surprise in how they seem to run against this trend, opening up potential for liberation. 
+
+Both constitute examples of immanent critique, because we are judging the present against the expectations set by the past - history - not some values imported via religion or other means.
+
+-->
+
+---
+
+
+
+
 
 <!--
 We might begin by asking the obvious question: how is critique different from criticism? Often the terms are used interchangably. 
@@ -105,6 +173,4 @@ This week we review a small sample of this literature, to gain a sense of how ma
 This week I've added a number of papers that touch upon both critique and criticism of AI. As with previous weeks, pick readings that might interest you and absorb what you can. 
 
 -->
-
-
 

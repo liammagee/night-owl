@@ -359,8 +359,8 @@ function register(deps) {
       if (!currentFilePath) {
         return { success: false, error: 'No file currently open' };
       }
-      
-      console.log(`[FileHandlers] Saving file: ${currentFilePath} (${content.length} characters)`);
+
+      console.log(`[FileHandlers] 💾 PERFORM-SAVE called for: ${currentFilePath} (${content.length} characters)`);
       
       await fs.writeFile(currentFilePath, content, 'utf8');
       
@@ -1184,6 +1184,20 @@ function register(deps) {
       console.error('[FileHandlers] Error refreshing file tree:', error);
       return { success: false, error: error.message };
     }
+  });
+
+  // Debug IPC handler to see renderer logs in main process
+  ipcMain.handle('debug-log', async (event, level, message, data) => {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[RENDERER-${level.toUpperCase()}] ${timestamp} ${message}`;
+
+    if (data) {
+      console.log(logMessage, data);
+    } else {
+      console.log(logMessage);
+    }
+
+    return true;
   });
 }
 
