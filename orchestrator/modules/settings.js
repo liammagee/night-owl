@@ -131,6 +131,7 @@ function createSettingsSidebar() {
     const categories = [
         { id: 'general', label: 'General', icon: '⚙️' },
         { id: 'appearance', label: 'Appearance', icon: '🎨' },
+        { id: 'themes', label: 'Themes', icon: '🎭' },
         { id: 'editor', label: 'Editor', icon: '📝' },
         { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
@@ -183,6 +184,7 @@ function showSettingsCategory(category) {
         const categoryNames = {
             general: 'General Settings',
             appearance: 'Appearance',
+            themes: 'Themes',
             editor: 'Editor Settings',
             gamification: 'Gamification Settings',
             ai: 'AI Configuration',
@@ -210,6 +212,8 @@ function generateSettingsContent(category) {
             return generateGeneralSettings();
         case 'appearance':
             return generateAppearanceSettings();
+        case 'themes':
+            return generateThemesSettings();
         case 'editor':
             return generateEditorSettings();
         case 'gamification':
@@ -318,6 +322,61 @@ function generateAppearanceSettings() {
                     <input type="text" id="right-width" value="${currentSettings.layout?.rightWidth || '37%'}">
                     <span>Preview Panel Width</span>
                 </label>
+            </div>
+        </div>
+
+    `;
+}
+
+function generateThemesSettings() {
+    return `
+        <div class="settings-section">
+            <h3>Presentation Themes</h3>
+            <div class="settings-group">
+                <label>
+                    <select id="presentation-template-select">
+                        <option value="default" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'default' ? 'selected' : ''}>Default</option>
+                        <option value="academic" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'academic' ? 'selected' : ''}>Academic</option>
+                        <option value="minimal" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'minimal' ? 'selected' : ''}>Minimal</option>
+                        <option value="dark" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'dark' ? 'selected' : ''}>Dark</option>
+                    </select>
+                    <span>Presentation Theme</span>
+                </label>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Choose the visual theme for presentation mode slides
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Preview Themes</h3>
+            <div class="settings-group">
+                <label>
+                    <select id="preview-style-select">
+                        <option value="latex" ${(currentSettings.stylePreferences?.previewStyle || 'latex') === 'latex' ? 'selected' : ''}>LaTeX Document</option>
+                        <option value="academic-preview" ${(currentSettings.stylePreferences?.previewStyle || 'latex') === 'academic-preview' ? 'selected' : ''}>Academic Preview</option>
+                        <option value="minimal-preview" ${(currentSettings.stylePreferences?.previewStyle || 'latex') === 'minimal-preview' ? 'selected' : ''}>Minimal Preview</option>
+                    </select>
+                    <span>Preview Style</span>
+                </label>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Choose the visual style for the document preview pane
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Export Themes</h3>
+            <div class="settings-group">
+                <label>
+                    <select id="export-style-select">
+                        <option value="academic-export" ${(currentSettings.stylePreferences?.exportStyle || 'academic-export') === 'academic-export' ? 'selected' : ''}>Academic Export</option>
+                    </select>
+                    <span>Export Style</span>
+                </label>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Choose the visual style for PDF and HTML exports
+                </div>
             </div>
         </div>
     `;
@@ -1280,6 +1339,27 @@ function generateAdvancedSettings() {
     `;
 }
 
+function applyTheme(theme) {
+    const body = document.body;
+
+    // Remove existing theme classes
+    body.classList.remove('dark-mode');
+
+    if (theme === 'dark') {
+        body.classList.add('dark-mode');
+    } else if (theme === 'auto') {
+        // Check system preference
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) {
+            body.classList.add('dark-mode');
+        }
+    }
+    // 'light' theme is the default (no class needed)
+}
+
+// Make applyTheme available globally
+window.applyTheme = applyTheme;
+
 function addSettingsEventListeners(category) {
     // Add specific event listeners based on category
     
@@ -1340,8 +1420,111 @@ function addSettingsEventListeners(category) {
             }
         });
     }
-    
-    
+
+    // Application theme selection
+    const themeSelect = document.getElementById('theme-select');
+    if (themeSelect) {
+        themeSelect.addEventListener('change', async (e) => {
+            const newTheme = e.target.value;
+
+            try {
+                // Apply the theme immediately
+                applyTheme(newTheme);
+
+                // Update app settings
+                if (!window.appSettings) window.appSettings = {};
+                window.appSettings.theme = newTheme;
+
+                // Save settings
+                await window.electronAPI.invoke('set-settings', window.appSettings);
+
+                // Update currentSettings to reflect the change
+                currentSettings.theme = newTheme;
+
+                // Visual feedback for success
+                e.target.style.backgroundColor = '#d4edda';
+                e.target.style.borderColor = '#28a745';
+                setTimeout(() => {
+                    e.target.style.backgroundColor = '';
+                    e.target.style.borderColor = '';
+                }, 1000);
+
+                // Show notification
+                const themeNames = {
+                    'auto': 'Auto theme applied (follows system)',
+                    'light': 'Light theme applied',
+                    'dark': 'Dark theme applied'
+                };
+                window.showNotification(themeNames[newTheme] || 'Theme applied', 'success');
+
+            } catch (error) {
+                console.error('Failed to apply theme:', error);
+                window.showNotification('Failed to apply theme', 'error');
+
+                // Visual feedback for error
+                e.target.style.backgroundColor = '#f8d7da';
+                e.target.style.borderColor = '#dc3545';
+                setTimeout(() => {
+                    e.target.style.backgroundColor = '';
+                    e.target.style.borderColor = '';
+                }, 1000);
+            }
+        });
+    }
+
+    // Presentation template selection
+    const presentationTemplateSelect = document.getElementById('presentation-template-select');
+    if (presentationTemplateSelect) {
+        presentationTemplateSelect.addEventListener('change', async (e) => {
+            const newTemplate = e.target.value;
+
+            try {
+                // Apply the presentation template immediately (this also saves the preference)
+                if (window.styleManager) {
+                    const success = await window.styleManager.applyPresentationTemplate(newTemplate);
+                    if (!success) {
+                        throw new Error('Failed to apply presentation template');
+                    }
+                }
+
+                // Update currentSettings to reflect the change
+                if (!currentSettings.stylePreferences) currentSettings.stylePreferences = {};
+                currentSettings.stylePreferences.presentationTemplate = newTemplate;
+
+                // Visual feedback for success
+                e.target.style.backgroundColor = '#d4edda';
+                e.target.style.borderColor = '#28a745';
+                setTimeout(() => {
+                    e.target.style.backgroundColor = '';
+                    e.target.style.borderColor = '';
+                }, 1000);
+
+                // Show notification
+                const templateNames = {
+                    'default': 'Default presentation theme applied',
+                    'academic': 'Academic presentation theme applied',
+                    'minimal': 'Minimal presentation theme applied',
+                    'dark': 'Dark presentation theme applied'
+                };
+                window.showNotification(templateNames[newTemplate] || 'Presentation theme applied', 'success');
+
+            } catch (error) {
+                console.error('Failed to apply presentation template:', error);
+
+                // Visual feedback for error
+                e.target.style.backgroundColor = '#f8d7da';
+                e.target.style.borderColor = '#dc3545';
+                setTimeout(() => {
+                    e.target.style.backgroundColor = '';
+                    e.target.style.borderColor = '';
+                }, 1000);
+
+                window.showNotification('Failed to apply presentation theme', 'error');
+            }
+        });
+    }
+
+
     // Dual assistant temperature sliders
     const ashTempSlider = document.getElementById('ash-temperature');
     if (ashTempSlider) {
@@ -1714,7 +1897,14 @@ function collectSettingsFromForm() {
     // Theme settings
     const theme = document.getElementById('theme-select')?.value;
     if (theme) updatedSettings.theme = theme;
-    
+
+    // Presentation template settings
+    const presentationTemplate = document.getElementById('presentation-template-select')?.value;
+    if (presentationTemplate) {
+        if (!updatedSettings.stylePreferences) updatedSettings.stylePreferences = {};
+        updatedSettings.stylePreferences.presentationTemplate = presentationTemplate;
+    }
+
     // Editor settings
     const fontSize = document.getElementById('editor-font-size')?.value;
     if (fontSize) {

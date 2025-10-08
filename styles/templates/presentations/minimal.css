@@ -20,6 +20,15 @@
     line-height: 1.5;
 }
 
+/* Force styles on React component slides */
+#presentation-root .absolute.slide,
+#presentation-root div.absolute.slide,
+.absolute.slide,
+div.absolute.slide {
+    background: var(--bg-color) !important;
+    color: var(--text-color) !important;
+}
+
 .slide {
     padding: 80px;
     min-height: calc(100vh - 160px);

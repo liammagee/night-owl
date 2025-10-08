@@ -2061,7 +2061,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     <div 
       ref={containerRef}
       className="w-full h-screen relative overflow-hidden cursor-grab active:cursor-grabbing" 
-      style={{background: 'linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%)'}}
+      style={{background: 'var(--presentation-bg-gradient, linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%))'}}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -2294,7 +2294,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: 'center center',
-          transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+          transition: isDragging ? 'none' : 'transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
         }}
       >
         <div className="relative w-full h-full flex items-center justify-center">
@@ -2306,12 +2306,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             return (
               <div
                 key={slide.id}
-                className={`absolute bg-cream text-gray-900 rounded-xl shadow-2xl transition-all duration-300 cursor-pointer ${
-                  isFocused 
-                    ? 'ring-4 ring-purple-500 shadow-purple-500/50' 
-                    : isCurrent 
-                      ? 'ring-4 ring-green-500' 
-                      : 'hover:shadow-3xl hover:scale-105'
+                className={`absolute slide rounded-xl shadow-2xl transition-all duration-500 cursor-pointer transform ${
+                  isFocused
+                    ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse'
+                    : isCurrent
+                      ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105'
+                      : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'
                 }`}
                 style={{
                   left: `${slide.position.x}px`,

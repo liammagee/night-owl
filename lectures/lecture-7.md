@@ -101,32 +101,36 @@ Both offer criticisms that overlap, but also have differences, certainly in how 
 ```notes
 So far we have examined two examples of two types of criticism. The first we can describe as *external*: developed by well-informed scholars who sit, like most of us, outside the immediate field of machine learning. The second we can describe as *internal*: developed by experts in machine learning itself, who are nonetheless critical of the way the field has evolved. 
 
-But whether we agree with these different critiques or not, we might still be troubled by whether *opposing* standpoints would find them convincing...
+But whether we agree with these different critiques or not, we might still be troubled by whether *opposing* standpoints would find them convincing....
 ```
 
 ---
 
-### Immanent Critique in AI Studies
+### "What is Immanent Critique?"
 
-- Defines immanent critique as evaluating within the system’s own logic.
+- Immanent critique: unfolds the system’s own logic.
 - Distinguishes object (target of criticism) from standpoint (critic’s explicit position).
-- Example: Goodlad & Stone critique AI, stand‑point demands equity and sustainability.
-- Relevance: guides machine learning evaluation for fairness and ethical design.
+- Example: Goodlad & Stone critique
+  - Object: AI or LLMs 
+  - Standpoint: equality, sustainability, verifiability - *liberal* values? 
+
 
 ```notes
 Now we turn to the fifth article by Stahl, "what is immanent critique?" What *is* immanent critique? And what is its relevance for us, to think about machine and human learning?
 
-Let's start by introducing a couple of further terms: the *object* and the *standpoint* of critique. The object is the thing that we wish to judge with our criticism, while the standpoint is the position we adopt, implicitly or explicitly, when we do so. For example, the Goodlad and Stone article is  directed toward the *object* of artificial intelligence, and their *standpoint* is that technologies such as AI should be equitable, sustainable and fair with respect to the work of creators and workers. 
+Firstly, the purpose of immanent critique is to pose greater difficulties for those who would like to rebut that critique - because it aims to show it stems from the same *ground*, or shared premisses, as that which motivates the rebuttal.
+
+Let's move on by introducing a couple of further terms: the *object* and the *standpoint* of critique. The object is the thing that we wish to judge with our criticism, while the standpoint is the position we adopt, implicitly or explicitly, when we do so. For example, the Goodlad and Stone article is  directed toward the *object* of artificial intelligence, and their *standpoint* is that technologies such as AI should be equitable, sustainable and fair with respect to the work of creators and workers. 
 ```
 
 ---
 
 ### Transcendental vs Immanent Critique
 
-- Transcendental critique contrasts with immanent by focusing on external origins.
+- Transcendental critique: standpoint is *external* to the world of the object.
 - A transcendental god creates but remains aloof; an immanent god is embedded in creation.
 - Hegel’s philosophy exemplifies immanence, seeing Spirit evolve through history.
-- Immanence implies human development mirrors divine development.
+- **Immanence** implies that *human development* mirrors *divine development*
 
 ```notes
 We'll next introduce another term: the opposite of immanent critique, as a way for us to get into what can be quite a difficult idea to grasp, through the form of contrast. It is a term known as *transcendental* critique. What is transcendental, and how does it differ from immanent? 
@@ -137,17 +141,17 @@ Both ideas come in fact from the world of religion. A transcendental god is one 
 
 ---
 
-### Critique of Hegelian Immanence in History
+### Immanent Critique arises from Contradiction
 
-- History as god's unfolding may stall when humanity deviates from its intended path.
-- Missteps manifest as reduced knowledge, intelligence, and societal progress.
+- Missteps in history: reduced knowledge, stalled progress.
 - Ideal outcomes (equality, harmony) clash with reality: wars, xenophobia rise.
+- Contradiction between **ought** and **is** 
 - This contradiction fuels critical examination of our cultural trajectory.
 
 ```notes
 So what about critique? Let's stay with Hegel's idea of immanence a moment longer, even if we treat it just as a convenient fiction. If we assume our history - the history of our species, our culture, our technology – is the coming into being of god, then we might also assume there are missteps. These might be moments when god's development is arrested, held up, because we stray from the proper path. How do we know this? We might believe god's ultimate plan is for the realization of Absolute Knowledge; yet we might feel we are instead losing knowledge, becoming less intelligent, less educated - straying from the tendency towards god's own eventual realization. 
 
-In more concrete terms: we might believe our culture, science and technology *should* be leading us towards greater equality, mutual recognition, self-consciousness and awareness, political harmony, sustainability and so on. But then we notice in practice the opposite is true: wars continue to be fought, xenophobia – a kind of lack of recogition - is on the rise, and so on. 
+In more concrete terms: we might believe our culture, science and technology *should* be leading us towards greater equality, mutual recognition, self-consciousness and awareness, political harmony, sustainability and so on. But then we notice in practice the opposite is true: wars continue to be fought, xenophobia – a kind of lack of recogition - is on the rise. 
 
 In short, we notice a contradiction between what *ought* to be the case, and what *is* actually the case. And this leads us to criticism.
 ```
@@ -158,7 +162,7 @@ In short, we notice a contradiction between what *ought* to be the case, and wha
 ### Immanent Critique in Hegelian Thought
 
 - Standards of right and wrong arise from historical evolution, not divine decree.
-- Dogmatic beliefs resist challenge because they rely on transcendental conditions.
+- **Dogmatic** beliefs resist challenge because they rely on transcendental conditions.
 - Rational knowledge must acknowledge historical contingency to allow revision.
 - Immanent critique enables detection and correction of irrational foundations.
 
@@ -171,12 +175,13 @@ Rational knowledge, on the contrary, needs to be based upon foundations that und
 ```
 
 ---
-### Transcendental Critique and Shared Values
 
-- Critiques rely on shared a priori values like liberalism for resonance.
-- Divergent value systems cause perceived dogmatism or skepticism.
-- Historical process can unite parties by showing values as earned, not divine.
-- Recognizing this history enables immanent criticism independent of metaphysics.
+### The Problem of Transcendental Critique 
+
+- Transcendental Critique relies on shared *a priori* values (e.g. liberalism)
+- *Divergent* value systems cause perceived dogmatism or skepticism.
+- Historical process can unite parties by showing values as *earned* (not divinely bestowed on this or that group).
+
 
 ```notes
 
@@ -187,9 +192,9 @@ Why is this important? In the final analysis, transcendental critique - the kind
 
 ### Immanent Critique and Dialectic Learning
 
-- We evaluate objects against ethical standards while reassessing those standards.
+- We evaluate objects against ethical standards - while also *reassessing* those standards.
 - This reciprocal judgment embodies Hegelian experience, driving self-consciousness toward forward.
-- The process refines both object and norm, leading toward Absolute Knowledge.
+- The process refines both object and norm, leading toward *Absolute Knowledge*.
 - It exemplifies genuine learning through continuous recalibration of ideas and values.
 
 ```notes
@@ -200,10 +205,9 @@ As the Stahl paper argues, this process of immanent critique involves a complex 
 
 ### AI, Expectations, and Self‑Critique
 
-- Evaluate AI against normative tech expectations to identify gaps.
-- Question whether our hopes for technology should evolve alongside AI assessment.
-- Consider AI as a catalyst for reflexive pedagogy or potential social domination.
-- Explore how AI reshapes standards and foundations of critical self‑examination.
+- Shoud our hopes for technology should *evolve alongside* AI assessment?
+- Consider AI as a catalyst for *reflexive pedagogy* (following Hegel) - or potential *social domination* (following Marx)
+- How is AI reshaping standards and foundations of critical self‑examination?
 
 ```notes
 How do we bring this all home in the context of AI? First, we might want to think in terms of our own processes of response to AI as an object: how do we judge it against what we take to be our normative expectations of technology? Or in less formal language: what are our hopes for technology, and in what ways does AI fail to live up to them? 
@@ -220,9 +224,9 @@ And on a wider front, leading us towards the differing visions of history and fu
 ### Immanent Critique: Example of the Printing Press
 
 
-- Recognizes printing press's dual role in democratizing knowledge and spreading misinformation.
-- Highlights that our democratic values stem partly from technology-enabled education.
-- Calls for reflexive critique, balancing object’s shortcomings with realistic standards.
+- Printing press: dual role in *democratizing knowledge* and *spreading misinformation*.
+- Democratic values stem partly from *technology-enabled education*.
+- Calls for reflexive critique, balancing *object’s shortcomings* with *realistic standards*.
 - Emphasizes need to anticipate future tech impacts by learning from past innovations.
 
 ```notes
@@ -240,6 +244,12 @@ Now this becomes more difficult in terms of technologies of the present, because
 
 ### Toward a Reflexive Pedagogy of AI? AI and Immanent Critique
 
+
+a. the pros and cons of the technology itself - will it improve education? What are criteria for evaluating improvement?
+b. whether our existing standards are sufficient for evaluation - or do we need new ways to evaluate? How do we evaluate our evaluations?
+c. Can AI be a reflexive technology - one that helps us develop a critique that raises the standards of both human and machine? What would be criteria for assessing this?
+
+```notes
 In breakout groups, we want to try to develop a rubric for a reflexive, immanent critique!
 
 We'll start by imagining we are evaluating a new AI technology for education. We want to develop a rubric that seeks to judge the following:
@@ -247,7 +257,7 @@ We'll start by imagining we are evaluating a new AI technology for education. We
 a. the pros and cons of the technology itself - will it improve education? What are criteria for evaluting improvement?
 b. whether our existing standards are sufficient for evaluation - or do we need new ways to evaluate? How do we evaluate our evaluations?
 c. Can AI be a reflexive technology - one that helps us develop a critique that raises the standards of both human and machine? What would be criteria for assessing this?
-
+```
 
 
 <!--

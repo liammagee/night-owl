@@ -5953,6 +5953,16 @@ async function performAppInitialization() {
                 console.warn('[renderer.js] Failed to initialize style manager:', styleError);
             }
         }
+
+        // Initialize theme
+        if (window.applyTheme && appSettings.theme) {
+            try {
+                window.applyTheme(appSettings.theme);
+                console.log('[renderer.js] Theme applied:', appSettings.theme);
+            } catch (themeError) {
+                console.warn('[renderer.js] Failed to apply theme:', themeError);
+            }
+        }
         
         // Initialize file tree view on startup
         switchStructureView('file'); // Switch to file view (this will also render the tree)

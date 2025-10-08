@@ -6,7 +6,7 @@ class StyleManager {
         this.presentationTemplates = new Map();
         this.previewStyles = new Map();
         this.exportStyles = new Map();
-        this.currentPresentationTemplate = 'minimal';
+        this.currentPresentationTemplate = 'default';
         this.currentPreviewStyle = 'latex';
         this.currentExportStyle = 'academic-export';
         this.customStyles = new Map();
@@ -18,6 +18,13 @@ class StyleManager {
     // Initialize default templates and styles
     initializeDefaultTemplates() {
         // Presentation templates
+        this.presentationTemplates.set('default', {
+            name: 'Default',
+            description: 'Modern green theme with elegant gradients',
+            cssFile: './styles/templates/presentations/default.css',
+            preview: './styles/previews/default-presentation.png'
+        });
+
         this.presentationTemplates.set('academic', {
             name: 'Academic',
             description: 'Professional academic presentation style',
@@ -156,9 +163,9 @@ class StyleManager {
     // Apply presentation template
     async applyPresentationTemplate(templateId) {
         try {
-            const template = this.presentationTemplates.get(templateId) || 
+            const template = this.presentationTemplates.get(templateId) ||
                             this.customStyles.get(templateId);
-            
+
             if (!template) {
                 throw new Error(`Template ${templateId} not found`);
             }
@@ -311,7 +318,7 @@ class StyleManager {
 
             // If this was the current style, revert to default
             if (this.currentPresentationTemplate === styleId) {
-                await this.applyPresentationTemplate('academic');
+                await this.applyPresentationTemplate('default');
             }
             if (this.currentPreviewStyle === styleId) {
                 await this.applyPreviewStyle('academic-preview');
@@ -337,7 +344,13 @@ class StyleManager {
         try {
             if (filePath.startsWith('./styles/') && window.electronAPI) {
                 // Load from file system
-                return await window.electronAPI.invoke('load-style-file', filePath);
+                const response = await window.electronAPI.invoke('load-style-file', filePath);
+                if (response.success) {
+                    return response.content;
+                } else {
+                    console.error('[StyleManager] Error loading CSS file:', response.error);
+                    return '';
+                }
             } else {
                 // Treat as inline CSS
                 return filePath;

@@ -22,6 +22,16 @@
     line-height: 1.6;
 }
 
+/* Force styles on React component slides */
+#presentation-root .absolute.slide,
+#presentation-root div.absolute.slide,
+.absolute.slide,
+div.absolute.slide {
+    background: var(--slide-bg) !important;
+    color: var(--text-color) !important;
+    border: 2px solid var(--border-color) !important;
+}
+
 .slide {
     padding: 60px;
     border: 2px solid var(--border-color);

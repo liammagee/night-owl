@@ -1,27 +1,28 @@
-/* Dark Presentation Template */
-/* Dark theme for presentations with high contrast */
+/* Default Green Presentation Template */
+/* Modern green theme with elegant gradients and clean typography */
 
 :root {
-    --primary-color: #ffffff;
-    --secondary-color: #e8e8e8;
-    --accent-color: #64b5f6;
-    --text-color: #ffffff;
-    --bg-color: #0f1419;
-    --slide-bg: #1a1d24;
-    --border-color: #525252;
-    --highlight-color: #2a2d33;
-    --code-bg: #282c34;
-    --presentation-bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f1419 100%);
+    --primary-color: #065f46;
+    --secondary-color: #047857;
+    --accent-color: #10b981;
+    --text-color: #111827;
+    --bg-color: #ecfdf5;
+    --slide-bg: #f0fdf4;
+    --border-color: #86efac;
+    --highlight-color: #22c55e;
+    --quote-bg: #dcfce7;
+    --presentation-bg-gradient: linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%);
 }
 
 /* Slide container and content */
 .slide, .slide-content {
     background: var(--slide-bg) !important;
     color: var(--text-color) !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     line-height: 1.6;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    box-shadow: 0 10px 30px rgba(34, 197, 94, 0.15);
 }
 
 /* Force styles on React component slides */
@@ -31,10 +32,16 @@
 div.absolute.slide {
     background: var(--slide-bg) !important;
     color: var(--text-color) !important;
-    border: 1px solid var(--border-color) !important;
+    border: 2px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 30px rgba(34, 197, 94, 0.15) !important;
 }
 
-/* Ensure parent containers also get dark background */
+.slide {
+    padding: 60px;
+}
+
+/* Ensure parent containers get the green gradient background */
 #presentation-content,
 #presentation-root,
 #presentation-content .bg-white,
@@ -44,23 +51,25 @@ div.absolute.slide {
 
 /* Typography */
 .slide h1, .slide-content h1 {
-    color: #ffffff !important;
+    color: var(--primary-color) !important;
     font-size: 2.8em;
     font-weight: 700;
     margin-bottom: 1.2em;
-    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.7);
+    text-shadow: 0 2px 4px rgba(6, 95, 70, 0.1);
     letter-spacing: -0.02em;
+    border-bottom: 3px solid var(--accent-color);
+    padding-bottom: 0.3em;
 }
 
 .slide h2, .slide-content h2 {
-    color: var(--accent-color) !important;
+    color: var(--secondary-color) !important;
     font-size: 2.2em;
     font-weight: 600;
     margin-top: 1.5em;
     margin-bottom: 1em;
-    border-bottom: 2px solid var(--accent-color);
-    padding-bottom: 0.3em;
-    text-shadow: 0 2px 4px rgba(100, 181, 246, 0.3);
+    border-left: 5px solid var(--accent-color);
+    padding-left: 15px;
+    background: linear-gradient(to right, rgba(16, 185, 129, 0.1), transparent);
 }
 
 .slide h3, .slide-content h3 {
@@ -69,7 +78,6 @@ div.absolute.slide {
     font-weight: 500;
     margin-top: 1.3em;
     margin-bottom: 0.8em;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .slide p, .slide-content p {
@@ -96,30 +104,41 @@ div.absolute.slide {
     color: var(--accent-color);
 }
 
-/* Blockquotes */
-.slide blockquote, .slide-content blockquote {
-    border-left: 4px solid var(--accent-color);
-    margin: 1.8em 0;
-    padding: 1.2em 1.8em;
-    background: var(--highlight-color);
-    font-style: italic;
-    font-size: 1.2em;
-    color: var(--secondary-color);
-    border-radius: 0 8px 8px 0;
+.slide ol li::marker, .slide-content ol li::marker {
+    color: var(--accent-color);
+    font-weight: 600;
 }
 
-.slide blockquote, .slide-content blockquote::before {
+/* Blockquotes */
+.slide blockquote, .slide-content blockquote {
+    border-left: 5px solid var(--accent-color);
+    margin: 1.8em 0;
+    padding: 1.2em 1.8em;
+    background: var(--quote-bg);
+    font-style: italic;
+    font-size: 1.2em;
+    color: var(--primary-color);
+    border-radius: 0 8px 8px 0;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+    position: relative;
+}
+
+.slide blockquote::before, .slide-content blockquote::before {
     content: '"';
-    font-size: 2.5em;
+    font-size: 3em;
     color: var(--accent-color);
     font-weight: bold;
-    opacity: 0.7;
+    position: absolute;
+    left: 10px;
+    top: -10px;
+    font-family: Georgia, serif;
+    opacity: 0.6;
 }
 
 /* Code blocks */
 .slide code, .slide-content code {
-    background: var(--code-bg);
-    color: #58a6ff;
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--primary-color);
     padding: 0.3em 0.6em;
     border-radius: 4px;
     font-family: 'Monaco', 'Consolas', 'Fira Code', monospace;
@@ -128,16 +147,16 @@ div.absolute.slide {
 }
 
 .slide pre, .slide-content pre {
-    background: var(--code-bg);
+    background: rgba(16, 185, 129, 0.05);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 1.5em;
     overflow-x: auto;
     font-size: 0.95em;
-    color: #c9d1d9;
+    color: var(--primary-color);
 }
 
-.slide pre, .slide-content pre code {
+.slide pre code, .slide-content pre code {
     background: none;
     border: none;
     padding: 0;
@@ -153,22 +172,23 @@ div.absolute.slide {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
 }
 
-.slide th, .slide-content th, .slide td, .slide-content th, .slide-content td {
+.slide th, .slide-content th, .slide td, .slide-content td {
     border: 1px solid var(--border-color);
     padding: 1em;
     text-align: left;
 }
 
 .slide th, .slide-content th {
-    background: var(--highlight-color);
-    color: var(--primary-color);
+    background: var(--accent-color);
+    color: white;
     font-weight: 600;
 }
 
-.slide tr, .slide-content tr:nth-child(even) {
-    background: rgba(255, 255, 255, 0.02);
+.slide tr:nth-child(even), .slide-content tr:nth-child(even) {
+    background: rgba(16, 185, 129, 0.05);
 }
 
 /* Emphasis */
@@ -178,7 +198,7 @@ div.absolute.slide {
 }
 
 .slide em, .slide-content em {
-    color: var(--accent-color);
+    color: var(--secondary-color);
     font-style: italic;
 }
 
@@ -190,9 +210,9 @@ div.absolute.slide {
     transition: all 0.3s ease;
 }
 
-.slide a, .slide-content a:hover {
+.slide a:hover, .slide-content a:hover {
     border-bottom-color: var(--accent-color);
-    text-shadow: 0 0 8px rgba(100, 181, 246, 0.5);
+    text-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
 }
 
 /* Math equations */
@@ -206,23 +226,23 @@ div.absolute.slide {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);
+    border: 2px solid var(--border-color);
 }
 
 /* Speaker notes styling */
 .speaker-notes {
-    background: var(--highlight-color);
-    border-left: 4px solid #ff6b6b;
+    background: var(--quote-bg);
+    border-left: 4px solid var(--highlight-color);
     border-radius: 0 8px 8px 0;
     padding: 1.2em;
     margin: 1.5em 0;
     font-size: 0.95em;
-    color: var(--secondary-color);
+    color: var(--primary-color);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Slide number indicator */
+/* Slide indicator */
 .slide::after, .slide-content::after {
     content: '';
     position: absolute;
@@ -230,28 +250,34 @@ div.absolute.slide {
     right: 30px;
     width: 60px;
     height: 4px;
-    background: linear-gradient(90deg, var(--accent-color), #42a5f5);
+    background: linear-gradient(90deg, var(--accent-color), var(--highlight-color));
     border-radius: 2px;
-    box-shadow: 0 2px 8px rgba(100, 181, 246, 0.3);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
-/* Force all text elements to be visible on dark background */
+/* Hover effects for interactive elements */
+.slide:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 40px rgba(34, 197, 94, 0.25);
+}
+
+/* Force all text elements to use correct colors */
 .slide *, .slide-content *,
 .slide span, .slide-content span,
 .slide div, .slide-content div,
 .slide td, .slide-content td,
-.slide th, .slide-content th,
 .slide text, .slide-content text,
 .slide p, .slide-content p,
 .slide li, .slide-content li {
     color: var(--text-color) !important;
 }
 
-/* Override any inherited dark colors */
-.slide {
-    color: var(--text-color) !important;
+/* Override headings specifically */
+.slide h1, .slide-content h1 {
+    color: var(--primary-color) !important;
 }
 
-.slide-content {
-    color: var(--text-color) !important;
+.slide h2, .slide-content h2,
+.slide h3, .slide-content h3 {
+    color: var(--secondary-color) !important;
 }
