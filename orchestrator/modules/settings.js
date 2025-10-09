@@ -131,7 +131,7 @@ function createSettingsSidebar() {
     const categories = [
         { id: 'general', label: 'General', icon: '⚙️' },
         { id: 'appearance', label: 'Appearance', icon: '🎨' },
-        { id: 'themes', label: 'Themes', icon: '🎭' },
+        { id: 'themes', label: 'Templates', icon: '🎭' },
         { id: 'editor', label: 'Editor', icon: '📝' },
         { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
@@ -184,7 +184,7 @@ function showSettingsCategory(category) {
         const categoryNames = {
             general: 'General Settings',
             appearance: 'Appearance',
-            themes: 'Themes',
+            themes: 'Templates',
             editor: 'Editor Settings',
             gamification: 'Gamification Settings',
             ai: 'AI Configuration',
@@ -331,7 +331,7 @@ function generateAppearanceSettings() {
 function generateThemesSettings() {
     return `
         <div class="settings-section">
-            <h3>Presentation Themes</h3>
+            <h3>Presentation Templates</h3>
             <div class="settings-group">
                 <label>
                     <select id="presentation-template-select">
@@ -340,16 +340,16 @@ function generateThemesSettings() {
                         <option value="minimal" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'minimal' ? 'selected' : ''}>Minimal</option>
                         <option value="dark" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'dark' ? 'selected' : ''}>Dark</option>
                     </select>
-                    <span>Presentation Theme</span>
+                    <span>Presentation Template</span>
                 </label>
                 <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                    Choose the visual theme for presentation mode slides
+                    Choose the visual template for presentation mode slides
                 </div>
             </div>
         </div>
 
         <div class="settings-section">
-            <h3>Preview Themes</h3>
+            <h3>Preview Templates</h3>
             <div class="settings-group">
                 <label>
                     <select id="preview-style-select">
@@ -366,7 +366,7 @@ function generateThemesSettings() {
         </div>
 
         <div class="settings-section">
-            <h3>Export Themes</h3>
+            <h3>Export Templates</h3>
             <div class="settings-group">
                 <label>
                     <select id="export-style-select">
@@ -1440,6 +1440,9 @@ function addSettingsEventListeners(category) {
 
                 // Update currentSettings to reflect the change
                 currentSettings.theme = newTheme;
+
+                // Update the dropdown to reflect the change
+                e.target.value = newTheme;
 
                 // Visual feedback for success
                 e.target.style.backgroundColor = '#d4edda';

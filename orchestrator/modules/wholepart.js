@@ -8,7 +8,7 @@ class WholepartVisualization {
         this.height = 400;
         this.centerX = this.width / 2;
         this.centerY = this.height / 2;
-        
+
         this.currentVisualization = 0;
         this.isAnimating = false;
         this.animationTime = 0;
@@ -17,6 +17,13 @@ class WholepartVisualization {
         this.previousScale = 1.0;
         this.nodeOpacity = 1.0;
         this.spiralTightness = 2.0; // Controls spiral frequency/density
+
+        // Font settings for consistent text rendering in exports
+        this.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+        // Animation settings
+        this.animatedDots = [];
+        this.animationRequestId = null;
         
         // Data extracted from current document
         this.concepts = [];
@@ -180,22 +187,27 @@ class WholepartVisualization {
         // Add definitions for markers and gradients
         const defs = this.svg.append('defs');
         
+        // Create improved arrow marker that's more visible
         defs.append('marker')
             .attr('id', 'arrowhead')
             .attr('viewBox', '0 -5 10 10')
-            .attr('refX', 8)
+            .attr('refX', 9)
             .attr('refY', 0)
-            .attr('markerWidth', 6)
-            .attr('markerHeight', 6)
+            .attr('markerWidth', 8)
+            .attr('markerHeight', 8)
             .attr('orient', 'auto')
+            .attr('markerUnits', 'strokeWidth')
             .append('path')
             .attr('d', 'M0,-5L10,0L0,5')
-            .attr('fill', '#4ecdc4');
+            .attr('fill', '#4ecdc4')
+            .attr('stroke', '#4ecdc4')
+            .attr('stroke-width', '1');
 
         // Create main groups
         this.connectionsGroup = this.diagramGroup.append('g').attr('class', 'connections');
         this.nodesGroup = this.diagramGroup.append('g').attr('class', 'nodes');
         this.labelsGroup = this.diagramGroup.append('g').attr('class', 'labels');
+        this.animatedDotsGroup = this.diagramGroup.append('g').attr('class', 'animated-dots');
     }
 
     setupEventListeners() {
@@ -549,10 +561,12 @@ class WholepartVisualization {
     createVisualization(type) {
         if (!this.svg) return;
 
-        // Clear existing visualization
+        // Clear existing visualization and animations
+        this.stopPathAnimation();
         this.connectionsGroup.selectAll('*').remove();
         this.nodesGroup.selectAll('*').remove();
         this.labelsGroup.selectAll('*').remove();
+        this.animatedDotsGroup.selectAll('*').remove();
 
         const numParts = this.concepts.length;
         
@@ -568,6 +582,11 @@ class WholepartVisualization {
             case 8: this.createNestedContainment(numParts); break;
             default: this.createCircularRing(numParts);
         }
+
+        // Start path animation after visualization is created
+        setTimeout(() => {
+            this.startPathAnimation();
+        }, 500); // Small delay to ensure DOM is ready
     }
 
     createCircularRing(numParts) {
@@ -585,21 +604,25 @@ class WholepartVisualization {
                 const nextAngle = (nextIndex / numParts) * 2 * Math.PI - Math.PI / 2;
                 const nextX = this.centerX + radius * Math.cos(nextAngle);
                 const nextY = this.centerY + radius * Math.sin(nextAngle);
-                
+
                 // Create SVG arc path using the Arc command
                 // We want the shorter arc between adjacent points
                 const largeArcFlag = 0; // Always use shorter arc for adjacent points
                 const sweepFlag = 1; // Always go clockwise
-                
+
                 // Build SVG path string manually for precise arc control
                 const pathData = `M ${x} ${y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${nextX} ${nextY}`;
-                
-                this.connectionsGroup.append('path')
+
+                const arcPath = this.connectionsGroup.append('path')
                     .attr('d', pathData)
                     .attr('fill', 'none')
                     .attr('stroke', '#4ecdc4')
                     .attr('stroke-width', 2)
-                    .attr('opacity', 0.8);
+                    .attr('opacity', 0.8)
+                    .attr('marker-end', 'url(#arrowhead)');
+
+                // Add manual arrow triangle for better visibility
+                this.addManualArrow(x, y, nextX, nextY, '#4ecdc4');
             }
 
             // Draw part node
@@ -618,6 +641,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '10px')
                 .attr('font-weight', 'bold')
+                .attr('font-family', this.fontFamily)
                 .attr('fill', 'black')
                 .text(this.concepts[i] || `Part ${i + 1}`);
         }
@@ -641,6 +665,7 @@ class WholepartVisualization {
             .attr('text-anchor', 'middle')
             .attr('font-size', '12px')
             .attr('font-weight', 'bold')
+            .attr('font-family', this.fontFamily)
             .attr('fill', 'black')
             .text(this.wholeName);
 
@@ -676,6 +701,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '9px')
                 .attr('font-weight', 'bold')
+                .attr('font-family', this.fontFamily)
                 .attr('fill', 'black')
                 .text(this.concepts[i] || `Part ${i + 1}`);
         }
@@ -701,6 +727,7 @@ class WholepartVisualization {
             .attr('text-anchor', 'middle')
             .attr('font-size', '14px')
             .attr('font-weight', 'bold')
+            .attr('font-family', this.fontFamily)
             .attr('fill', '#e74c3c')
             .text(this.wholeName);
 
@@ -727,6 +754,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '9px')
                 .attr('font-weight', 'bold')
+                .attr('font-family', this.fontFamily)
                 .attr('fill', 'black')
                 .text(this.concepts[i] || `Part ${i + 1}`);
         }
@@ -770,7 +798,8 @@ class WholepartVisualization {
             .attr('fill', 'none')
             .attr('stroke', '#4ecdc4')
             .attr('stroke-width', 2)
-            .attr('opacity', 0.5);
+            .attr('opacity', 0.5)
+            .attr('marker-end', 'url(#arrowhead)');
 
         // Create spiral path for parts (minRadius already defined above)
         
@@ -786,7 +815,8 @@ class WholepartVisualization {
                 .attr('y2', firstY)
                 .attr('stroke', '#4ecdc4')
                 .attr('stroke-width', 2)
-                .attr('opacity', 0.8);
+                .attr('opacity', 0.8)
+                .attr('marker-end', 'url(#arrowhead)');
         }
         
         for (let i = 0; i < numParts; i++) {
@@ -815,6 +845,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '8px')
                 .attr('font-weight', 'bold')
+                .attr('font-family', this.fontFamily)
                 .attr('fill', 'black')
                 .text(this.concepts[i] || `${i + 1}`);
         }
@@ -848,7 +879,8 @@ class WholepartVisualization {
             .attr('fill', 'none')
             .attr('stroke', '#4ecdc4')
             .attr('stroke-width', 2)
-            .attr('opacity', 0.3);
+            .attr('opacity', 0.3)
+            .attr('marker-end', 'url(#arrowhead)');
         
         // Place parts along the spiral
         for (let i = 0; i < numParts; i++) {
@@ -909,6 +941,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', i === 0 ? '10px' : '8px')
                 .attr('font-weight', 'bold')
+                .attr('font-family', this.fontFamily)
                 .attr('fill', 'black')
                 .text(this.concepts[i] || `${i + 1}`);
         }
@@ -948,6 +981,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '8px')
                 .attr('font-weight', 'bold')
+                .attr('font-family', this.fontFamily)
                 .attr('fill', 'black')
                 .text(this.concepts[i] || `${i + 1}`);
                 
@@ -958,6 +992,7 @@ class WholepartVisualization {
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '10px')
                 .attr('font-weight', 'bold')
+                .attr('font-family', this.fontFamily)
                 .attr('fill', color)
                 .text(label);
 
@@ -972,7 +1007,8 @@ class WholepartVisualization {
                     .attr('y2', y)
                     .attr('stroke', '#95a5a6')
                     .attr('stroke-width', 2)
-                    .attr('stroke-dasharray', '3,3');
+                    .attr('stroke-dasharray', '3,3')
+                    .attr('marker-end', 'url(#arrowhead)');
             } else if (position === 2) { // synthesis connects to both
                 const thesisX = x;
                 const thesisY = y - 120;
@@ -985,7 +1021,8 @@ class WholepartVisualization {
                     .attr('x2', x)
                     .attr('y2', y)
                     .attr('stroke', '#4ecdc4')
-                    .attr('stroke-width', 2);
+                    .attr('stroke-width', 2)
+                    .attr('marker-end', 'url(#arrowhead)');
                     
                 this.connectionsGroup.append('line')
                     .attr('x1', antithesisX)
@@ -993,7 +1030,8 @@ class WholepartVisualization {
                     .attr('x2', x)
                     .attr('y2', y)
                     .attr('stroke', '#4ecdc4')
-                    .attr('stroke-width', 2);
+                    .attr('stroke-width', 2)
+                    .attr('marker-end', 'url(#arrowhead)');
             }
         }
     }
@@ -1028,6 +1066,7 @@ class WholepartVisualization {
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '8px')
                     .attr('font-weight', 'bold')
+                    .attr('font-family', this.fontFamily)
                     .attr('fill', 'black')
                     .text(this.concepts[6 + i] || `${7 + i}`);
             }
@@ -1065,6 +1104,7 @@ class WholepartVisualization {
                     .attr('text-anchor', 'middle')
                     .attr('font-size', `${10 - level}px`)
                     .attr('font-weight', 'bold')
+                    .attr('font-family', this.fontFamily)
                     .attr('fill', 'black')
                     .text(this.concepts[partIndex] || `${partIndex + 1}`);
                 
@@ -1113,6 +1153,7 @@ class WholepartVisualization {
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '8px')
                     .attr('font-weight', 'bold')
+                    .attr('font-family', this.fontFamily)
                     .attr('fill', 'black')
                     .text(this.concepts[partIndex] || `${partIndex + 1}`);
                 
@@ -1136,9 +1177,12 @@ class WholepartVisualization {
         if (btn) {
             btn.textContent = this.isAnimating ? '⏸️ Pause' : '▶️ Animate';
         }
-        
+
         if (this.isAnimating) {
             this.startAnimation();
+            this.startPathAnimation();
+        } else {
+            this.stopPathAnimation();
         }
     }
 
@@ -1195,6 +1239,97 @@ class WholepartVisualization {
     refresh() {
         this.extractConceptsFromDocument();
         this.createVisualization(this.currentVisualization);
+    }
+
+    // Add animated dots moving along connections
+    addAnimatedDot(path, duration = 3000, delay = 0) {
+        if (!this.animateTransitions || !this.isAnimating) return;
+
+        setTimeout(() => {
+            const dot = this.animatedDotsGroup.append('circle')
+                .attr('r', 3)
+                .attr('fill', '#22c55e')
+                .attr('stroke', '#ffffff')
+                .attr('stroke-width', 1)
+                .style('opacity', 0);
+
+            const pathLength = path.node().getTotalLength();
+
+            // Animate the dot along the path
+            dot.transition()
+                .duration(200)
+                .style('opacity', 1)
+                .transition()
+                .duration(duration)
+                .ease(d3.easeLinear)
+                .attrTween('transform', () => {
+                    return (t) => {
+                        const point = path.node().getPointAtLength(t * pathLength);
+                        return `translate(${point.x}, ${point.y})`;
+                    };
+                })
+                .transition()
+                .duration(200)
+                .style('opacity', 0)
+                .remove();
+        }, delay);
+    }
+
+    // Add manual arrow triangles at path endpoints for better visibility
+    addManualArrow(x1, y1, x2, y2, color = '#4ecdc4') {
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const arrowSize = 8;
+
+        // Calculate arrow points
+        const arrowX = x2 - arrowSize * Math.cos(angle);
+        const arrowY = y2 - arrowSize * Math.sin(angle);
+
+        const arrowPoint1X = arrowX - arrowSize * 0.5 * Math.cos(angle - Math.PI/2);
+        const arrowPoint1Y = arrowY - arrowSize * 0.5 * Math.sin(angle - Math.PI/2);
+
+        const arrowPoint2X = arrowX - arrowSize * 0.5 * Math.cos(angle + Math.PI/2);
+        const arrowPoint2Y = arrowY - arrowSize * 0.5 * Math.sin(angle + Math.PI/2);
+
+        const arrowPath = `M ${x2} ${y2} L ${arrowPoint1X} ${arrowPoint1Y} L ${arrowPoint2X} ${arrowPoint2Y} Z`;
+
+        return this.connectionsGroup.append('path')
+            .attr('d', arrowPath)
+            .attr('fill', color)
+            .attr('stroke', color)
+            .attr('stroke-width', 1);
+    }
+
+    // Start continuous animation of dots
+    startPathAnimation() {
+        if (!this.animateTransitions || !this.isAnimating) return;
+
+        // Clear existing animation
+        this.stopPathAnimation();
+
+        const animate = () => {
+            // Add dots to all visible paths
+            this.connectionsGroup.selectAll('path, line').each((d, i, nodes) => {
+                const path = d3.select(nodes[i]);
+                // Stagger the dots with random delays
+                this.addAnimatedDot(path, 3000, Math.random() * 2000);
+            });
+
+            // Schedule next batch of dots
+            this.animationRequestId = setTimeout(animate, 4000);
+        };
+
+        // Start the animation
+        animate();
+    }
+
+    // Stop path animation
+    stopPathAnimation() {
+        if (this.animationRequestId) {
+            clearTimeout(this.animationRequestId);
+            this.animationRequestId = null;
+        }
+        // Clear existing dots
+        this.animatedDotsGroup.selectAll('*').remove();
     }
 }
 

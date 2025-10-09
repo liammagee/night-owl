@@ -10,12 +10,6 @@ https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activ
 [[lecture-1]]
 
 
----
-
-## Week 1: Synthesis
-
-
-[[lecture-1]]
 
 
 ---

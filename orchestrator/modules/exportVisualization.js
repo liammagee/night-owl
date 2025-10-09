@@ -389,8 +389,10 @@ class VisualizationExporter {
     async exportSVGWithBlobURL(svgElement, filename) {
         const svgClone = svgElement.cloneNode(true);
         const bbox = svgElement.getBoundingClientRect();
-        const width = bbox.width || 800;
-        const height = bbox.height || 600;
+        // Use higher resolution with 2x scaling for better quality
+        const scaleFactor = 2;
+        const width = (bbox.width || 800) * scaleFactor;
+        const height = (bbox.height || 600) * scaleFactor;
         
         svgClone.setAttribute('width', width);
         svgClone.setAttribute('height', height);
