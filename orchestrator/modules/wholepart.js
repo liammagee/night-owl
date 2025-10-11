@@ -250,13 +250,13 @@ class WholepartVisualization {
 
         if (zoomInBtn) {
             zoomInBtn.addEventListener('click', () => {
-                this.zoom(1.2);
+                this.zoom(1.05);
             });
         }
 
         if (zoomOutBtn) {
             zoomOutBtn.addEventListener('click', () => {
-                this.zoom(0.8);
+                this.zoom(0.95);
             });
         }
 
@@ -1211,29 +1211,56 @@ class WholepartVisualization {
     }
 
     resetView() {
-        if (this.svg) {
-            this.createVisualization(this.currentVisualization);
+        // Reset zoom level
+        if (this.diagramGroup) {
+            this.currentScale = 1;
+            this.diagramGroup
+                .transition()
+                .duration(200)
+                .ease(d3.easeQuadOut)
+                .attr('transform', 'scale(1)');
         }
+
+        // Reset animation state
         this.isAnimating = false;
         const btn = document.getElementById('wholepart-animate');
         if (btn) {
             btn.textContent = '▶️ Animate';
         }
+
+        // Recreate visualization (this clears any transformations and resets positions)
+        if (this.svg) {
+            this.createVisualization(this.currentVisualization);
+        }
+
+        console.log('[Wholepart] View and zoom reset to defaults');
     }
 
     zoom(factor) {
-        if (this.diagramGroup) {
-            const currentTransform = this.diagramGroup.attr('transform') || 'scale(1)';
-            const match = currentTransform.match(/scale\(([^)]+)\)/);
-            const currentScale = match ? parseFloat(match[1]) : 1;
-            const newScale = Math.max(0.2, Math.min(3, currentScale * factor));
-            
-            // Apply zoom transform to center the scaled content
-            const translateX = this.centerX * (1 - newScale);
-            const translateY = this.centerY * (1 - newScale);
-            
-            this.diagramGroup.attr('transform', `translate(${translateX}, ${translateY}) scale(${newScale})`);
+        if (!this.diagramGroup) return;
+
+        // Initialize current scale if not already set
+        if (!this.currentScale) {
+            this.currentScale = 1;
         }
+
+        // Calculate new scale with tighter bounds
+        const newScale = Math.max(0.5, Math.min(2.5, this.currentScale * factor));
+
+        // If scale hasn't changed significantly, don't update
+        if (Math.abs(newScale - this.currentScale) < 0.01) return;
+
+        this.currentScale = newScale;
+
+        // Simple scale transformation around the center
+        // Don't use complex translation - just scale from center
+        this.diagramGroup
+            .transition()
+            .duration(200)
+            .ease(d3.easeLinear)
+            .attr('transform', `scale(${newScale})`);
+
+        console.log(`[Wholepart] Zoom: ${(newScale * 100).toFixed(0)}%`);
     }
 
     refresh() {

@@ -1,5 +1,5 @@
 
-## Hegel's Revenge: The Return of the *Grand Récit*
+## Hegel's Revenge: The Return of the *Grand Récit*?
 
 Perhaps the major intellectual movement in the postwar period, postmodernist (and related poststructuralist) thought argued against what one prominent theorist, Jean Francois Lyotard, termed the *Grand Récit*: the idea of a grand narrative governing human society and development. For Lyotard, and for many others, grand narratives died with the second world war, since no major project for humanity could any longer be sustained. Instead, we would be faced with competing *small narratives*, reflecting the desires of communities and perhaps nations, but not of humanity as a whole. In intellectual terms, we may have specific disciplinary projects and agendas, but not a grand unifying theory capable of tying, for instance, the sciences and the humanities together. Knowledge was to be fractured, partial, no longer held together by any organization or structure (hence, in at least one of its senses, "poststructural"). 
 
