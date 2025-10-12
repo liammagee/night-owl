@@ -97,12 +97,16 @@ Synthesis applies even less obviously to the attention mechanisms of generative 
 
 ---
 
-### Consciousness - By the Centuries
 
-- 19th century: Consciousness to Self-consciousness
-- 20th century: Consciousness | Pre-conscious | Unconscious
-- 21st century: Nonconscious cognition
-   - Joins machine and human cognition
+
+### Industrial Revolution / Fordism / Generative AI: How does Technology remake Concepts of Consciousness?
+
+- "The hand-mill gives you society with the feudal lord; the steam-mill society with the industrial capitalist." (Marx, 1847)
+   - But what does technology give to our concepts of consciousness?
+- Early 19th century: Consciousness to Self-consciousness
+- Early 20th century: Consciousness | Pre-conscious | Unconscious
+- Early 21st century: Nonconscious cognition
+   - "Joins" machine and human cognition
    - Human "consciousness": second-order cognitive effect - downstream from nonconscious cognition
 
 

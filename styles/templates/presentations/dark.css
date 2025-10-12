@@ -12,16 +12,36 @@
     --highlight-color: #2a2d33;
     --code-bg: #282c34;
     --presentation-bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f1419 100%);
+    --presentation-slide-width: 864px;
+    --presentation-slide-height: 486px;
 }
 
 /* Slide container and content */
-.slide, .slide-content {
+.slide {
     background: var(--slide-bg) !important;
     color: var(--text-color) !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.6;
     border: 1px solid var(--border-color);
     border-radius: 8px;
+    width: var(--presentation-slide-width) !important;
+    min-height: var(--presentation-slide-height) !important;
+    max-width: var(--presentation-slide-width) !important;
+    box-sizing: border-box;
+    overflow: hidden !important;
+    padding: 48px 56px;
+    margin: 20px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.slide-content {
+    background: transparent !important;
+    color: var(--text-color) !important;
+    font-family: inherit !important;
+    line-height: inherit !important;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* Force styles on React component slides */
@@ -32,6 +52,14 @@ div.absolute.slide {
     background: var(--slide-bg) !important;
     color: var(--text-color) !important;
     border: 1px solid var(--border-color) !important;
+    width: var(--presentation-slide-width) !important;
+    min-height: var(--presentation-slide-height) !important;
+    max-width: var(--presentation-slide-width) !important;
+    box-sizing: border-box;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 48px 56px !important;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35) !important;
 }
 
 /* Ensure parent containers also get dark background */
@@ -239,7 +267,7 @@ div.absolute.slide {
 }
 
 /* Slide number indicator */
-.slide::after, .slide-content::after {
+.slide::after {
     content: '';
     position: absolute;
     bottom: 20px;

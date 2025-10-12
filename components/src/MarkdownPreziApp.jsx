@@ -42,6 +42,12 @@ const ZoomOut = () => (
   </svg>
 );
 
+const SLIDE_WIDTH = 864;
+const SLIDE_HEIGHT = 486;
+const SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
+const SLIDE_HALF_HEIGHT = SLIDE_HEIGHT / 2;
+const SLIDE_SPACING = SLIDE_WIDTH + 240;
+
 const Home = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -312,7 +318,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Calculate slide positioning based on layout type
   const calculateSlidePosition = (index, total) => {
-    const spacing = 800;
+    const spacing = SLIDE_SPACING;
     
     switch (layoutType) {
       case 'linear':
@@ -326,7 +332,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         
       case 'circle':
         const circleAngle = (index / total) * 2 * Math.PI - Math.PI / 2;
-        const circleRadius = 600;
+        const circleRadius = spacing * 0.6;
         return {
           x: Math.cos(circleAngle) * circleRadius,
           y: Math.sin(circleAngle) * circleRadius
@@ -335,7 +341,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       case 'spiral':
         if (index === 0) return { x: 0, y: 0 };
         const spiralAngle = (index / total) * 4 * Math.PI;
-        const spiralRadius = 300 + (index * 100);
+        const spiralRadius = (SLIDE_HALF_WIDTH * 0.75) + (index * (SLIDE_HALF_WIDTH * 0.6));
         return {
           x: Math.cos(spiralAngle) * spiralRadius,
           y: Math.sin(spiralAngle) * spiralRadius
@@ -388,6 +394,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }
         currentListHtml += line + '\n';
       } else {
+        if (inListMode && trimmedLine === '') {
+          // Allow blank lines within a list without breaking numbering
+          currentListHtml += '\n';
+          continue;
+        }
         // End of list section
         if (inListMode) {
           // Process the accumulated list HTML
@@ -427,16 +438,22 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         const isOrdered = !!orderedMatch;
 
         // Close lists deeper than current level
-        while (listStack.length > 0 && listStack[listStack.length - 1].indent >= indent) {
+        while (listStack.length > 0 && listStack[listStack.length - 1].indent > indent) {
           const closedList = listStack.pop();
           processedLines.push(`</${closedList.type}>`);
         }
 
         // Start new list if needed
-        if (listStack.length === 0 || listStack[listStack.length - 1].indent < indent) {
-          const listType = isOrdered ? 'ol' : 'ul';
+        const currentLevel = listStack[listStack.length - 1];
+        const listType = isOrdered ? 'ol' : 'ul';
+
+        if (!currentLevel || currentLevel.indent < indent || currentLevel.type !== listType) {
+          if (currentLevel && currentLevel.indent === indent && currentLevel.type !== listType) {
+            const closedList = listStack.pop();
+            processedLines.push(`</${closedList.type}>`);
+          }
           processedLines.push(`<${listType} class="markdown-list">`);
-          listStack.push({ type: listType, indent: indent });
+          listStack.push({ type: listType, indent });
         }
 
         // Add list item
@@ -2420,21 +2437,23 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 style={{
                   left: `${slide.position.x}px`,
                   top: `${slide.position.y}px`,
-                  width: '600px',
-                  minHeight: '400px',
+                  width: `${SLIDE_WIDTH}px`,
+                  height: `${SLIDE_HEIGHT}px`,
+                  minHeight: `${SLIDE_HEIGHT}px`,
                   transform: 'translate(-50%, -50%)',
                   opacity: isPresenting && index !== currentSlide ? 0.1 : 1,
                   zIndex: isFocused ? 1000 : isCurrent ? 999 : isPresenting && index !== currentSlide ? 0 : 1,
-                  position: 'absolute'
+                  position: 'absolute',
+                  boxSizing: 'border-box',
+                  overflow: 'hidden'
                 }}
                 onDoubleClick={() => handleSlideDoubleClick(index)}
               >
-                <div className="p-8 h-full">
-                    <div 
-                    className="slide-content"
-                    dangerouslySetInnerHTML={{ __html: slide.parsed }}
-                  />
-                </div>
+                <div
+                  className="slide-content"
+                  style={{ height: '100%', width: '100%' }}
+                  dangerouslySetInnerHTML={{ __html: slide.parsed }}
+                />
               </div>
             );
           })}
@@ -2447,10 +2466,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               return (
                 <line
                   key={`line-${index}`}
-                  x1={slide.position.x + 300}
-                  y1={slide.position.y + 200}
-                  x2={nextSlide.position.x + 300}
-                  y2={nextSlide.position.y + 200}
+                  x1={slide.position.x + SLIDE_HALF_WIDTH}
+                  y1={slide.position.y + SLIDE_HALF_HEIGHT}
+                  x2={nextSlide.position.x + SLIDE_HALF_WIDTH}
+                  y2={nextSlide.position.y + SLIDE_HALF_HEIGHT}
                   stroke="rgba(255,255,255,0.1)"
                   strokeWidth="2"
                   strokeDasharray="5,5"
