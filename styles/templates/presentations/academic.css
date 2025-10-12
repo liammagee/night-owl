@@ -103,6 +103,19 @@ div.absolute.slide {
     padding-left: 2em;
 }
 
+/* Nested lists should be smaller than parent lists */
+.slide ul ul, .slide ol ol, .slide ul ol, .slide ol ul {
+    font-size: 0.9em;
+    margin: 0.7em 0;
+}
+
+/* Third level nested lists should be even smaller */
+.slide ul ul ul, .slide ol ol ol, .slide ul ol ul, .slide ol ul ol,
+.slide ul ul ol, .slide ol ol ul, .slide ol ul ul, .slide ul ol ol {
+    font-size: 0.8em;
+    margin: 0.5em 0;
+}
+
 .slide li {
     margin-bottom: 0.5em;
     line-height: 1.5;

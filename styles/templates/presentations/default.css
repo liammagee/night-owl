@@ -94,6 +94,22 @@ div.absolute.slide {
     padding-left: 2em;
 }
 
+/* Nested lists should be smaller than parent lists */
+.slide ul ul, .slide ol ol, .slide ul ol, .slide ol ul,
+.slide-content ul ul, .slide-content ol ol, .slide-content ul ol, .slide-content ol ul {
+    font-size: 0.95em;
+    margin: 0.8em 0;
+}
+
+/* Third level nested lists should be even smaller */
+.slide ul ul ul, .slide ol ol ol, .slide ul ol ul, .slide ol ul ol,
+.slide ul ul ol, .slide ol ol ul, .slide ol ul ul, .slide ul ol ol,
+.slide-content ul ul ul, .slide-content ol ol ol, .slide-content ul ol ul, .slide-content ol ul ol,
+.slide-content ul ul ol, .slide-content ol ol ul, .slide-content ol ul ul, .slide-content ul ol ol {
+    font-size: 0.85em;
+    margin: 0.6em 0;
+}
+
 .slide li, .slide-content li {
     color: var(--text-color) !important;
     margin-bottom: 0.7em;

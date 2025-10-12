@@ -122,6 +122,7 @@ const MarkdownPreziApp = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isZooming, setIsZooming] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
@@ -136,6 +137,8 @@ const MarkdownPreziApp = () => {
     isAdvancing: false,
     currentSpeakingSlide: -1 
   });
+  const MIN_ZOOM = 0.1;
+  const MAX_ZOOM = 3;
   
   // Video recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -147,6 +150,9 @@ const MarkdownPreziApp = () => {
   // Current slides and slide index state
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const zoomInteractionTimeoutRef = useRef(null);
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
 
   // Sample markdown content for demo
   const sampleMarkdown = `# SAMPLE CONTENT TEST
@@ -277,6 +283,32 @@ End with: "Are there any questions about the platform or its philosophical appli
 
 Note: You can press 'N' to toggle these speaker notes on/off during presentation.
 \`\`\``;
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+
+  const markZoomInteraction = useCallback(() => {
+    setIsZooming(true);
+    if (zoomInteractionTimeoutRef.current) {
+      clearTimeout(zoomInteractionTimeoutRef.current);
+    }
+    zoomInteractionTimeoutRef.current = setTimeout(() => {
+      setIsZooming(false);
+    }, 180);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (zoomInteractionTimeoutRef.current) {
+        clearTimeout(zoomInteractionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Calculate slide positioning based on layout type
   const calculateSlidePosition = (index, total) => {
@@ -647,10 +679,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Parse markdown into slides
   const parseMarkdown = (markdown) => {
+    // Strip trailing whitespace from the entire markdown content first
+    const trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
+
     // Split content by slide separators (--- on standalone lines)
-    // Match --- that is either at start/end of string or surrounded by newlines
-    const slideSeparatorRegex = /(?:^|\n)---(?:\n|$)/;
-    const slideTexts = markdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
+    // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
+    const slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
+    const slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
     return slideTexts.map((text, index) => {
       const { cleanContent, speakerNotes } = extractSpeakerNotes(text);
       return {
@@ -706,20 +741,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
 
     const targetZoom = 1.2;
-    const viewportCenterX = canvas.clientWidth / 2;
-    const viewportCenterY = canvas.clientHeight / 2;
-    const slideCenterX = slide.position.x;
-    const slideCenterY = slide.position.y;
-    
-    const targetPan = {
-      x: viewportCenterX - (slideCenterX * targetZoom),
-      y: viewportCenterY - (slideCenterY * targetZoom)
-    };
+    const targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
 
     console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
     
+    if (!isPresenting) {
+      markZoomInteraction();
+    }
     setCurrentSlide(slideIndex);
     setFocusedSlide(null);
+    zoomRef.current = targetZoom;
+    panRef.current = targetPan;
     setZoom(targetZoom);
     setPan(targetPan);
     
@@ -739,7 +771,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         window.updateSpeakerNotes(slideIndex, currentContent);
       }, 50);
     }
-  }, [slides, isPresenting, isRecording]);
+  }, [slides, isPresenting, isRecording, markZoomInteraction]);
 
   // Center on first slide when presentation view becomes active
   useEffect(() => {
@@ -793,6 +825,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         
         setSlides(newSlides);
         setCurrentSlide(0);
+        zoomRef.current = 1;
+        panRef.current = { x: 0, y: 0 };
         setZoom(1);
         setPan({ x: 0, y: 0 });
         setFocusedSlide(null);
@@ -969,91 +1003,155 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
 
   // Handle double click on slide to zoom in and focus
-  const handleSlideDoubleClick = (slideIndex) => {
-    const slide = slides[slideIndex];
+  const computeCenteredPan = (slide, zoomLevel, fallbackPan = panRef.current) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !slide) {
+      return fallbackPan;
+    }
 
-    const targetZoom = 2;
     const viewportCenterX = canvas.clientWidth / 2;
     const viewportCenterY = canvas.clientHeight / 2;
-    const slideCenterX = slide.position.x;
-    const slideCenterY = slide.position.y;
-    
-    const targetPan = {
-      x: viewportCenterX - (slideCenterX * targetZoom),
-      y: viewportCenterY - (slideCenterY * targetZoom)
+
+    return {
+      x: viewportCenterX - (slide.position.x * zoomLevel),
+      y: viewportCenterY - (slide.position.y * zoomLevel)
     };
+  };
+
+  const handleSlideDoubleClick = (slideIndex) => {
+    const slide = slides[slideIndex];
+    if (!slide) return;
+
+    markZoomInteraction();
+
+    const targetZoom = 2;
+    const targetPan = computeCenteredPan(slide, targetZoom);
 
     setCurrentSlide(slideIndex);
     setFocusedSlide(slideIndex);
+    zoomRef.current = targetZoom;
+    panRef.current = targetPan;
     setZoom(targetZoom);
     setPan(targetPan);
   };
 
   // Zoom handlers - zoom from current slide center
   const handleZoomIn = () => {
-    const newZoom = Math.min(3, zoom * 1.2);
+    const newZoom = Math.min(MAX_ZOOM, zoom * 1.1);
     zoomFromCurrentSlide(newZoom);
   };
 
   const handleZoomOut = () => {
-    const newZoom = Math.max(0.1, zoom * 0.8);
+    const newZoom = Math.max(MIN_ZOOM, zoom / 1.1);
     zoomFromCurrentSlide(newZoom);
   };
 
   // Helper function to zoom from current slide center
-  const zoomFromCurrentSlide = (newZoom) => {
-    if (slides.length === 0 || currentSlide >= slides.length) {
-      setZoom(newZoom);
+  const zoomFromCurrentSlide = (requestedZoom) => {
+    const clampedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, requestedZoom));
+
+    if (Math.abs(clampedZoom - zoomRef.current) < 0.0001) {
       return;
     }
 
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      setZoom(newZoom);
+    markZoomInteraction();
+
+    if (slides.length === 0 || currentSlide >= slides.length) {
+      zoomRef.current = clampedZoom;
+      setZoom(clampedZoom);
       return;
     }
 
     const slide = slides[currentSlide];
-    const viewportCenterX = canvas.clientWidth / 2;
-    const viewportCenterY = canvas.clientHeight / 2;
-    
-    // Calculate the current slide's position on screen
-    const currentSlideCenterX = slide.position.x * zoom + pan.x;
-    const currentSlideCenterY = slide.position.y * zoom + pan.y;
-    
-    // Calculate new pan to keep slide centered at new zoom level
-    const newPan = {
-      x: viewportCenterX - (slide.position.x * newZoom),
-      y: viewportCenterY - (slide.position.y * newZoom)
-    };
+    const newPan = computeCenteredPan(slide, clampedZoom);
 
-    setZoom(newZoom);
+    zoomRef.current = clampedZoom;
+    panRef.current = newPan;
+    setZoom(clampedZoom);
     setPan(newPan);
   };
 
   const resetView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+      setTimeout(() => resetView(), 50);
+      return;
+    }
+
+    const baseSlideIndex = slides.length > 0 ? 0 : currentSlide;
+    const targetZoom = 1;
+    const centeredPan = computeCenteredPan(slides[baseSlideIndex], targetZoom, { x: 0, y: 0 });
+
+    markZoomInteraction();
+    zoomRef.current = targetZoom;
+    panRef.current = centeredPan;
+    setZoom(targetZoom);
+    setPan(centeredPan);
+    if (slides.length > 0) {
+      setCurrentSlide(baseSlideIndex);
+    }
     setFocusedSlide(null);
+
+    if (
+      slides.length > 0 &&
+      isPresenting &&
+      window.updateSpeakerNotes &&
+      typeof window.updateSpeakerNotes === 'function'
+    ) {
+      const currentContent = slides.map(slide => slide.content).join('\n\n---\n\n');
+      setTimeout(() => {
+        window.updateSpeakerNotes(baseSlideIndex, currentContent);
+      }, 50);
+    }
   };
 
-  // Wheel zoom effect
+  // Wheel zoom effect with cursor-aware panning
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
     const handleWheel = (e) => {
+      if (!containerRef.current) {
+        return;
+      }
+
       e.preventDefault();
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-      const newZoom = Math.max(0.1, Math.min(3, zoom * zoomFactor));
-      setZoom(newZoom);
+      markZoomInteraction();
+
+      const previousZoom = zoomRef.current || 1;
+      const deltaModeMultiplier = e.deltaMode === 1 ? 33 : 1;
+      const rawDelta = e.deltaY * deltaModeMultiplier;
+      if (rawDelta === 0) {
+        return;
+      }
+
+      const normalizedDelta = Math.max(-1, Math.min(1, rawDelta / 120));
+      const zoomStep = (e.ctrlKey || e.metaKey) ? 0.12 : 0.08;
+      const deltaMagnitude = Math.max(0.02, Math.abs(normalizedDelta) * zoomStep);
+      const zoomFactor = 1 + deltaMagnitude;
+
+      let targetZoom = normalizedDelta < 0
+        ? previousZoom * zoomFactor
+        : previousZoom / zoomFactor;
+
+      targetZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, targetZoom));
+
+      if (Math.abs(targetZoom - previousZoom) < 0.0001) {
+        return;
+      }
+
+      const slide = slides[currentSlide];
+      const newPan = computeCenteredPan(slide, targetZoom, panRef.current);
+
+      zoomRef.current = targetZoom;
+      panRef.current = newPan;
+      setZoom(targetZoom);
+      setPan(newPan);
     };
 
-    const container = containerRef.current;
-    if (container) {
-      container.addEventListener('wheel', handleWheel, { passive: false });
-      return () => container.removeEventListener('wheel', handleWheel);
-    }
-  }, [zoom]);
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [markZoomInteraction, MAX_ZOOM, MIN_ZOOM, slides, currentSlide]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -2037,10 +2135,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     if (!isDragging) return;
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
-    setPan({
+    const newPan = {
       x: panStart.x + deltaX,
       y: panStart.y + deltaY
-    });
+    };
+    panRef.current = newPan;
+    setPan(newPan);
   };
 
   const handleMouseUp = () => {
@@ -2293,8 +2393,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         className="w-full h-full"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: 'center center',
-          transition: isDragging ? 'none' : 'transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+          transformOrigin: '0 0',
+          transition: (isDragging || isZooming)
+            ? 'none'
+            : isPresenting
+              ? 'transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+              : 'transform 0.2s ease-out'
         }}
       >
         <div className="relative w-full h-full flex items-center justify-center">

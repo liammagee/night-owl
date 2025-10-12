@@ -1,23 +1,76 @@
 ## Hegel's Revenge: The Return of the *Grand Récit*?
 
 
+ - From Synthesis (Week 1) back to Synthesis (Week 8)
+ - But what is being synthesized? Review of key concepts Weeks 2 – 7
+   - Experience
+   - Recognition
+   - Attention
+   - Consciousness
+   - Alignment
+   - Critique
+ 
+
 ```notes
 So far in this course we have traversed a wide array of concepts, loosely guided by Hegel's early but influential account of learning - as I have interpreted *The Phenomenology of Spirit*. 
 
-Today we return to our originating concept of *Synthesis* – a return to the beginning that echoes Hegel's own description of Spirit in that text, with hopefully the benefit of some lessons along the way. I want to run the lecture today a little short, to allow for some time for feedback and discussion of the final assessment. But I also want to bring things together, applying "synthesis" in several senses with the help of this week's readings.
+Today we return to our originating concept of *Synthesis* – a return to the beginning that echoes Hegel's own description of Spirit in that text, with hopefully the benefit of some lessons along the way. Each week we've covered a key concept – sometimes derived from Hegel, sometimes not – and sought to mobilize that concept to understand something about the emerging differences and similarities between machine and human learning.  In returning to Week one's concept, I'll summarize the concepts we've covered in Weeks 2–7 - closing the loop, as it were, by returning to Week one's key concept of *Synthesis*.
+```
+
+---
+
+### Synthesis as a Concept
+
+- Conceptual meaning: bringing together other concepts 
+- Historical meaning: bringing together past periods into a united present
+  - Liberal democracies bring together prior Greek and Christian periods (Hegel; Fukuyama)
+  - Communism brings together prior feudal and capitalist periods (Marx)
+  - Transhumanism / posthumanism / technopoeisis / cybersocial: bring together elements of the organic (pre-industrial; romantic) and the mechanical (industrial; post-romantic)
+
+
+```notes
+But first, a note about the term "synthesis" itself.
+One question to bear in mind for today, the final assignment and perhaps beyond: how do these seven concepts work together to form a *theory* of intelligence, consciousness or what – following Kant and Hegel here too – we can call the "automated subject". This is one sense of the term "synthesis" - the bringing together of a series of concepts in order to produce something new. 
+
+But there is another sense to hold on to - synthesis as a process that unfolds, and which includes the social historical process we all belong to. We can see examples of this in all the readings this week. Following Hegel, many kinds of discussions about the future involve some kind of implicit idea using this historical sense of synthesis - that we are "rolling up" elements of the past into the present and future. Even attempts to characterize how machines and humans might operate together employ this idea more or less explicitly: that we start with a pre-industrial society, evolve to an industrial or mechanized society, and now need to move forward to a post-industrial society that blends both "moments" of development and moves beyond them.
+```
+
+---
+
+### "Ontogeny recapitulates phylogeny"  
+
+ - Individual development follows the pattern of social development (infancy > adolescence > maturity (Spencer, Freud, many others))
+
+```notes 
+One key quote here – a piece of early 19th century biology that sounds as though it could come from Hegel:
+
+ - "ontogeny recapitulates phylogeny"
+ 
+This means something like the individual's history follows that of the species. In social terms: our own development (from infancy to adolescence to maturity) follows that of society's (from early to middle to late stages of development). See Herbert Spencer on pedagogy. This partly accounts from Hegel's shift in the Phenomenology from psychological to sociological language - and while many might wish to deny it, this pseudo-fallacy – of a relationship between individual and group – lives in variants of the narrative we tell ourselves even about technology.  
+
 ```
 
 ---
 
 ### Experience
 
+ - For Hegel, experience is the synthesis of concepts and sensory perception
+ - Perceptions correct concepts...
+ - But perceptions can be fallible, so we need *laws* - made up of concepts – that also check perceptions (for hallucinations, etc)
+ - We *synthesize* conceptual laws (e.g. theory of gravitation) and perceptions ('but what about this object that flies?') to produce understanding
+
 ```notes
-First, when we talk of synthesis we think of the convergence of machine learning with human learning. I think we have already seen ways that is happening. With the concept of Experience, Hegel suggests we always synthesizing our concepts with our perceptions: a process of revising our concepts to be consistent with those perceptions. To do so, we need to take account also of the fallibility of our perceptions, devising rules or laws, such as the law of gravity, to apply some order and regulation to the flow of sensations which can often be disorted. Hence we move from sense to perception to, finally, understanding. Synthesis involves this back-and-forth between the reality of the concept and the appearance of perception - each working to shape the other experientially.
+We'll move now back to the structure of our course.
+
+When we talk of synthesis then, we think of the convergence of machine learning with human learning. I think we have already seen ways that is happening. With the concept of Experience, Hegel suggests we always integrating or synthesizing our concepts with our perceptions: a process of revising our concepts to be consistent with those perceptions. To do so, we need to take account also of the fallibility of our perceptions, devising rules or laws, such as the law of gravity, to apply some order and regulation to the flow of sensations which can often be disorted. Hence we move from sense to perception to, finally, understanding. Synthesis involves this back-and-forth between the reality of the law and the concept and the appearance of things involved in perception - each working to shape the other through experience.
 ```
 
 ---
 
 ### Recognition
+
+ - But *understanding* has limits; it is directed outward, toward external objects, but cannot "know itself" (Hegel)
+ - Need further synthesis: consciousness knows itself through *knowing others* / *being known by others* (Recognition)
 
 ```notes
 We then saw synthesis in a different form: in the coming together of different social relations. What Hegel describes as an existential fight to the death results in the production of a society made up of masters and servants. Yet this equilibrium cannot hold. The servant is no longer the passive recipient of experience that results in even the lofty products of understanding. Instead they learn how to work with things: if you like, moving from a scientific to a technological understanding. In the process they seek to overcome the paradox of recognition faced by the master, who desires the recognition of equals but equally demands they submit to his authority as servants. The servant, by contrast, can acquire recognition of their labour – not by this master, we imagine, but by other servants. Here the synthesis exists in its social form: what we call society or the social is the synthesis of individuals coming together via at  least the pursuit of mutual recognition.
@@ -27,6 +80,10 @@ We then saw synthesis in a different form: in the coming together of different s
 
 ### Attention
 
+ - Humans pay attention via three mechanisms: alerting, orienting, executing
+ - "Attention is all you need" - machine tokens pay attention to each other, and build up rich context from this
+ - The mechanisms are very different - but machinic attention bears some resemblance to the implicit semantic theory of Hegel (and later semantic theories – e.g. generative semantics of Lakoff)
+
 ```notes
 By week 4 we reached the concept of Attention, and while we departed from a direct reading of Hegel, we again saw synthesis in the form of how both humans and machines, at least metaphorically, enact cognition via attention mechanisms. 
 ```
@@ -34,6 +91,14 @@ By week 4 we reached the concept of Attention, and while we departed from a dire
 ---
 
 ### Consciousness
+
+ - Consciousness often discussed with respect to 
+ - 19th century: Consciousness > Self-consciousness
+ - 20th century: Consciousness | Pre-conscious | Unconscious
+ - 21st century: Nonconscious cognition
+   - Joins machine and human cognition
+   - Human "consciousness": second-order cognitive effect - downstream from nonconscious cognition
+
 
 ```notes
 In week 5 we returned to Hegel's interest in consciousness, enriched perhaps via our interest in attention. Where Hegel plotted the path from consciousness to self-consciousness, we saw later developments that both undermine and enrich concepts of consciousness. With Freud, we get a partly mechanistic account that involves an interplay between conscious, pre-conscious and unconconscious subsystems or components. Messages from the unconscious are first screened by a pre-conscious before it is admitted to consciousness, while conscious messages are only reluctantly, via the process of therapy, permitted to revise deep unconscious structures. Taking into account neuroscientific discoveries like the attention mechanism alongside the rise of artificial intelligence, N Katherine Hayles' more recent work sought to *synthesize* machinic and human cognitive processes under the name of "nonconscious cognition". Yet even more recent AI systems – notably the attention mechanism itself in Transformer systems – has perhaps – even for some of you – raised again quite basic questions of whether machines can experience, recognise and so, in this much earlier Hegelian sense, be said to be conscious.
@@ -43,6 +108,9 @@ In week 5 we returned to Hegel's interest in consciousness, enriched perhaps via
 
 ### Alignment
 
+ - Alignment: synthesis in the sense of the machine with "human values"
+ - Suggests another similarity between deviant human and machinic "subjects" – subject to disciplinary systems (schools, prisons, hospitals, clinics, workplaces) – cf. Michel Foucault
+
 ```notes
 By the time we reach alignment, it is as though this obscure idea of synthesis has gone fully mainstream. Isn't alignment just another word for 'synthesis'? Not entirely perhaps, but it is as though the idea of synthesizing human with machines had gone from a strange 1960s or 70s sci fi scenario dreamed up by Isaac Asimov or Philip K. Dick had suddenly turned into a core industrial – and pedagogical - project. Think back to Michele's insightful discusion of her work as a trainer and teacher of AI systems at Scale AI. While AI clearly needs some kind of alignment – to avoid being offensive, to be useful and so on – we also saw several strange side-effects of this work. Companies now are in charge of determining what "human values" AI must conform to. AI is subject to many of the similar disciplinary techniques that have and continue to haunt human subjects. The language of machinic deviance - jailbroken, hallucination and so on – suggests a strong connection with the language of human deviance. Perhaps this is a kind of synthesis that could be unintentionally reassuring? Will we see errant AI agents conspiring with rogue human subjects? Does a refusal to align suggest perhaps an uneasy allyship between machine and human?
 ```
@@ -51,12 +119,22 @@ By the time we reach alignment, it is as though this obscure idea of synthesis h
 
 ### Critique
 
+ - *External* (Goodlad & Stone; Gebru & Torres) vs *Internal* (LeCun, Simmons)  Criticism
+ - Another distinction: immanent vs transcendental critique
+   - *Transcendental*: standards of criticism brought from outside the world of the object (e.g. from a god)
+   - *Immanent*: standards belong to the world of the object - the object is *self-contradictory*, in that it promises but does not deliver X. 
+     - But the critique must account for *itself* - it does not just condemn the object, it says why the critique itself is possible
+     - *Synthesizes* the object and the standards of assessment into a unitary account.
+
 ```notes
 In week 7, we examine what it means to criticize AI, looking at two recent works of critical AI studies. We also saw two prominent AI researchers criticize the overreliance of AI upon the attention mechanism - we could say they are arguing other aspects of AI have not received enough... attention!
 
 Yet what I wanted to pay attention to myself here was the complicated concept of "immanent critique". This was not due to any sense that the criticisms we reviewed were insufficiently reflexive, must less valid. Instead it was to address the concern might arise, almost unconsciously, whenever we hear criticism: that it contains at its core dogmatic beliefs, and that we need first to strip away the outer appearance of critique to arrive at what the criticism is really 'selling' - which might be as bad or worse than the object of criticism itself. 
 
-So in examining how critique can be immanent - a move that, as we saw, originates with Hegel himself – we also get another sense of synthesis: as a method for reconciling what seem  incommensurate standpoints. If we can show both standpoints derive from the same historical process, we might, according to this line of argument, be able to bring those standpoints together after all. We used the example of the printing press as a way for seeing how a properly immanent criticism needs to account for how the object of criticism can also be part of the conditions for the development of criticism itself.
+So in examining how critique can be immanent - a move that, as we saw, originates with Hegel himself – we also get another sense of synthesis: as the way critique can account for its own production alongside that of the object it criticizes. If we can show how both object and critical standpoint derive from the same historical process, we might, according to this line of argument, be able to produce something new from this contradictory state – a synthesis that moves things forward. We used the example of the printing press as a way for seeing how a properly immanent criticism needs to account for how what it is that produces the object of criticism can also be responsible for the development of criticism itself.
+
+In a contemporary situation, it may not be enough to show that AI is flawed and problematic. We may also want to say that the standards we use to judge AI stem from the same origins – for example, the Enlightenment, which unleashed the mathematical techniques and industrial concentrations of capital alongside a sense of liberalism and humanism that found the present day results of these techniques so troubling. From there, we might seek ways to amend the object via the critique to generate new synthesized ideas to move forward. Which brings us to this week's readings... 
+
 ```
 
 ---
@@ -104,12 +182,22 @@ On the other hand, we have a neo-Hegelian thinker like Fukuyama, who might argue
 
 For some, of course, this thesis was always absurd (see Derrida's critique in Spectres of Marx), and a far too literal reading of Hegel's own thesis about the end of history. However its naivete makes explicit the utopic elements that are often submerged within other, less explicitly historicist cases. These too include a sense of history as purpose-driven, a process that seeks synthesize our collective experience. 
 
+We might ask today whether these examples indicate how AI serves as a catalyst for the return, as I've put it, of the *grand recit* - the big picture or grand narrative. 
+
+
+```
+
+
+
+---
+
+
+
+
+
 On that note, I'll conclude. We'll now move to another exercise that prepares for the final assessment (covered in greater detail back in Week 6). 
 
 We'll start by asking, in a Hegelian vein: does history have an arc or tendency? If so, is it something we can influence? And what role does technology – and machine learning – play?
 
 From these wild speculations we'll move to a more concrete (though still 'big picture') topic: what do we (and let's be inclusive, and consider both machines and humans) need to learn? What would be the syllabus and / or curriculum for this ideal learning? How is our combined, synthetic knowledge limited? What – if anything – from our repetoire of concepts can steer us into the new horizons forecast by Braidotti, Katherine Hayles, Hui, Kalantzis & Cope? Discuss!
-
-```
-
 
