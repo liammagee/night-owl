@@ -73,7 +73,9 @@ When we talk of synthesis then, we think of the convergence of machine learning 
  - Need further synthesis: consciousness knows itself through *knowing others* / *being known by others* (Recognition)
 
 ```notes
-We then saw synthesis in a different form: in the coming together of different social relations. What Hegel describes as an existential fight to the death results in the production of a society made up of masters and servants. Yet this equilibrium cannot hold. The servant is no longer the passive recipient of experience that results in even the lofty products of understanding. Instead they learn how to work with things: if you like, moving from a scientific to a technological understanding. In the process they seek to overcome the paradox of recognition faced by the master, who desires the recognition of equals but equally demands they submit to his authority as servants. The servant, by contrast, can acquire recognition of their labour – not by this master, we imagine, but by other servants. Here the synthesis exists in its social form: what we call society or the social is the synthesis of individuals coming together via at  least the pursuit of mutual recognition.
+We then saw synthesis in a different form: in the coming together of social roles. What Hegel describes as an existential fight to the death results in the production of a society made up of masters and servants. Yet this equilibrium cannot hold. The servant is no longer the passive recipient of experience that results in even the lofty products of understanding. Instead they learn how to work with things: if you like, they move from a scientific understanding to a technological and practical know-how – ironically, a kind of mastery. In the process they seek to overcome the paradox of recognition faced by the master, who desires the recognition of equals but equally demands they submit to his authority as servants. The servant, by contrast, can acquire recognition of their labour – not by this master, we imagine, but by other servants who are coming into their own as equals in modern society. 
+
+Here the synthesis exists in its social form: what we call society or the social is the synthesis of individuals coming together via at  least the pursuit of mutual recognition.
 ```
 
 ---
@@ -86,22 +88,32 @@ We then saw synthesis in a different form: in the coming together of different s
 
 ```notes
 By week 4 we reached the concept of Attention, and while we departed from a direct reading of Hegel, we again saw synthesis in the form of how both humans and machines, at least metaphorically, enact cognition via attention mechanisms. 
+
+If we apply synthesis here, it is in a metaphorical way. Our experience of consciousness involves synthesizing different moments of neurological attention: moving from being alert, to orienting, to higher order executive functions, involving the sustaining and switching of the lower level attention subsystems. 
+
+Synthesis applies even less obviously to the attention mechanisms of generative AI systems. I did suggest however some analogy between Hegel's discussion of the concept – as something that stands in relation to, and is defined by, an intricate web of other concepts – and the ways tokens acquire semantic meaning via the Transformer attention mechanism. In an abstract, we might say both share a common semantic theory, insofar as terms obtain their meaning primarily through their connection to other terms. This idea, for people interested, is also taken up by semantic theorists like George Lakoff and Mark Johnson in recent decades.
+
 ```
 
 ---
 
-### Consciousness
+### Consciousness - By the Centuries
 
- - Consciousness often discussed with respect to 
- - 19th century: Consciousness > Self-consciousness
- - 20th century: Consciousness | Pre-conscious | Unconscious
- - 21st century: Nonconscious cognition
+- 19th century: Consciousness to Self-consciousness
+- 20th century: Consciousness | Pre-conscious | Unconscious
+- 21st century: Nonconscious cognition
    - Joins machine and human cognition
    - Human "consciousness": second-order cognitive effect - downstream from nonconscious cognition
 
 
 ```notes
-In week 5 we returned to Hegel's interest in consciousness, enriched perhaps via our interest in attention. Where Hegel plotted the path from consciousness to self-consciousness, we saw later developments that both undermine and enrich concepts of consciousness. With Freud, we get a partly mechanistic account that involves an interplay between conscious, pre-conscious and unconconscious subsystems or components. Messages from the unconscious are first screened by a pre-conscious before it is admitted to consciousness, while conscious messages are only reluctantly, via the process of therapy, permitted to revise deep unconscious structures. Taking into account neuroscientific discoveries like the attention mechanism alongside the rise of artificial intelligence, N Katherine Hayles' more recent work sought to *synthesize* machinic and human cognitive processes under the name of "nonconscious cognition". Yet even more recent AI systems – notably the attention mechanism itself in Transformer systems – has perhaps – even for some of you – raised again quite basic questions of whether machines can experience, recognise and so, in this much earlier Hegelian sense, be said to be conscious.
+In week 5 we returned to Hegel's interest in consciousness, enriched perhaps via our interest in attention. Where Hegel plotted the path from consciousness to self-consciousness, we saw later developments that both undermine and enrich concepts of consciousness. 
+
+With Freud, we get a partly mechanistic account that involves an interplay between conscious, pre-conscious and unconconscious subsystems or components. Messages from the unconscious are first screened by a pre-conscious before it is admitted to consciousness, while conscious messages are only reluctantly, via the process of therapy, permitted to revise deep unconscious structures. 
+
+Taking into account neuroscientific discoveries like the attention mechanism alongside the rise of artificial intelligence, N Katherine Hayles' more recent work sought to *synthesize* machinic and human cognitive processes under the name of "nonconscious cognition". 
+
+Yet even more recent AI systems – notably the attention mechanism itself in Transformer systems – has perhaps – even for some of you – raised again quite basic questions of whether machines can experience, recognise and so – in this much earlier Hegelian sense – can be said to be conscious.
 ```
 
 ---
@@ -112,7 +124,11 @@ In week 5 we returned to Hegel's interest in consciousness, enriched perhaps via
  - Suggests another similarity between deviant human and machinic "subjects" – subject to disciplinary systems (schools, prisons, hospitals, clinics, workplaces) – cf. Michel Foucault
 
 ```notes
-By the time we reach alignment, it is as though this obscure idea of synthesis has gone fully mainstream. Isn't alignment just another word for 'synthesis'? Not entirely perhaps, but it is as though the idea of synthesizing human with machines had gone from a strange 1960s or 70s sci fi scenario dreamed up by Isaac Asimov or Philip K. Dick had suddenly turned into a core industrial – and pedagogical - project. Think back to Michele's insightful discusion of her work as a trainer and teacher of AI systems at Scale AI. While AI clearly needs some kind of alignment – to avoid being offensive, to be useful and so on – we also saw several strange side-effects of this work. Companies now are in charge of determining what "human values" AI must conform to. AI is subject to many of the similar disciplinary techniques that have and continue to haunt human subjects. The language of machinic deviance - jailbroken, hallucination and so on – suggests a strong connection with the language of human deviance. Perhaps this is a kind of synthesis that could be unintentionally reassuring? Will we see errant AI agents conspiring with rogue human subjects? Does a refusal to align suggest perhaps an uneasy allyship between machine and human?
+By the time we reach alignment, it is as though this obscure idea of synthesis has gone fully mainstream. Isn't alignment just another word for 'synthesis'? Not entirely perhaps, but it is as though the idea of synthesizing human with machines had gone from a strange 1960s or 70s sci fi scenario dreamed up by Isaac Asimov or Philip K. Dick had suddenly turned into a core industrial – and pedagogical - project.
+
+ Think back to Michele's insightful discusion of her work as a trainer and teacher of AI systems at Scale AI. While AI clearly needs some kind of alignment – to avoid being offensive, to be useful and so on – we also saw several strange side-effects of this work. Companies now are in charge of determining what "human values" AI must conform to. AI is subject to many of the similar disciplinary techniques that have and continue to haunt human subjects. The language of machinic deviance - jailbroken, hallucination and so on – suggests a strong connection with the language of human deviance. 
+ 
+ Perhaps this is a kind of synthesis that could be unintentionally reassuring? Will we see errant AI agents conspiring with rogue human subjects? Does a refusal to align suggest perhaps an uneasy allyship between machine and human?
 ```
 
 --- 
@@ -142,9 +158,18 @@ In a contemporary situation, it may not be enough to show that AI is flawed and 
 ### History as Synthesis
 
 
+ - Does history have a direction? Can it "end"? What would this mean?
+ - History as moving from A to its negation, B (not-A) - and then to C, as a combination of A and B.
+   - Synthesis emerges from the **contradition** of A and not-A. 
+   - Contradition is **generative**. 
+ - Example:
+   - Ancient Greek: rationalism, art, philosophy
+   - Judeo-Christian: religion, monotheism
+   - Medieval / Renaissance: integrates Greek **thought** with Judeo-Christian **belief**.
+
 
 ```notes
-Finally we arrive at yet another turn - that of history itself. For Hegel - and as we see with someone like Fukuyama – history has a definite arc. Despite the inevitable deviations and detours, if it is to unfold according to its destiny, history will arrive at its destination. In Fukuyama's famous phrase, it has an **end**. 
+Finally we arrive at yet another turn - that of history itself, and whether we imagine the concept of synthesis applies here. For Hegel - and as we see with someone like Fukuyama – history has a definite arc. Despite the inevitable deviations and detours, if it is to unfold according to its destiny, history will arrive at its destination. In Fukuyama's famous phrase, it has an **end**. 
 
 How does the concept of synthesis work here? For Hegel, even the deviations and detours – such as the European Dark Ages – are productive. They allow earlier insights, such as the classical age of Greek philosophy and art, to be integrated with Judeo-Christian religion. They are integrated and synthesized, eventually producing, after an extended incubation, the Renaissance and the Enlightenment. And it was medieval feudal society that, despite its apparent backwardness, could effect this reconciliation.
 
@@ -159,10 +184,16 @@ And yet Hegel's ideas about the 'arc' of history still lurk behind this same dis
 ### History as Technological Synthesis?
 
 
- - posthuman (Braidotti)
- - technopoeisis (N Katherine Hayles)
- - technodiverse (Hui)
- - cybersocial (Kalantzis & Cope)  
+ - With Marx, Darwin, Freud: move to **materialist** view of historical development 
+ - Modern inheritors
+   - posthuman (Braidotti)
+   - technopoeisis (N Katherine Hayles)
+   - technodiverse (Hui)
+   - cybersocial (Kalantzis & Cope) 
+ - Fukuyama (neo-Hegelianism): history is over, liberal democracy has "won". What remains?
+   - Tinkering with the political and economic systems
+   - Techno-scientific progress (AI etc).
+ - But is AI causing a return to "big picture" thinking? Is the permanence of a global liberal democratic world order still certain? Can technology drive history?
 
 ```notes
 So while the present-day form of progress may not be 'idea-driven' – perhaps because we have run out of them? or because we have unwittingly taken Marx' materialism to heart, even if we want to dispute Marxism itself? – we still hold dear the idea that we can bend history to our will. In the first four readings this week – by Rosa Braidotti, N Katherine Hayles, Yuk Hui, and Mary Kalantzis and Bill Cope – we see several variations of this.
@@ -193,11 +224,17 @@ We might ask today whether these examples indicate how AI serves as a catalyst f
 
 
 
+### Designing Curriculum for the Forthcoming  Machine/Human Synthesis! 
 
+1. Does history have an arc or tendency? If so, is it something we can influence? And what role does technology – and machine learning – play?
+2. What do machines still need to learn? What about humans? What will help us get there?
 
+![concept-relations](concept-relations.png)
+
+```notes
 On that note, I'll conclude. We'll now move to another exercise that prepares for the final assessment (covered in greater detail back in Week 6). 
 
 We'll start by asking, in a Hegelian vein: does history have an arc or tendency? If so, is it something we can influence? And what role does technology – and machine learning – play?
 
 From these wild speculations we'll move to a more concrete (though still 'big picture') topic: what do we (and let's be inclusive, and consider both machines and humans) need to learn? What would be the syllabus and / or curriculum for this ideal learning? How is our combined, synthetic knowledge limited? What – if anything – from our repetoire of concepts can steer us into the new horizons forecast by Braidotti, Katherine Hayles, Hui, Kalantzis & Cope? Discuss!
-
+```

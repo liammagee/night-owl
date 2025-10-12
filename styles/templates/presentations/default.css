@@ -6,40 +6,52 @@
     --secondary-color: #047857;
     --accent-color: #10b981;
     --text-color: #111827;
-    --bg-color: #ecfdf5;
+    --bg-color: #d1fae5;
     --slide-bg: #f0fdf4;
+    --slide-inner-bg: #ffffff;
     --border-color: #86efac;
     --highlight-color: #22c55e;
-    --quote-bg: #dcfce7;
+    --quote-bg: #f9fafb;
     --presentation-bg-gradient: linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%);
 }
 
-/* Slide container and content */
+/* Slide container - white background with padding, positioned within light green area */
 .slide, .slide-content {
-    background: var(--slide-bg) !important;
+    background: var(--slide-inner-bg) !important;
     color: var(--text-color) !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     line-height: 1.6;
-    border-radius: 12px;
-    border: 2px solid var(--border-color);
-    box-shadow: 0 10px 30px rgba(34, 197, 94, 0.15);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin: 20px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+    position: relative;
+    max-width: calc(100vw - 80px);
+    min-height: 400px;
+    width: auto;
+    overflow: hidden;
 }
 
-/* Force styles on React component slides */
+/* Force styles on React component slides - white background with proper positioning */
 #presentation-root .absolute.slide,
 #presentation-root div.absolute.slide,
 .absolute.slide,
 div.absolute.slide {
-    background: var(--slide-bg) !important;
+    background: var(--slide-inner-bg) !important;
     color: var(--text-color) !important;
-    border: 2px solid var(--border-color) !important;
-    border-radius: 12px !important;
-    box-shadow: 0 10px 30px rgba(34, 197, 94, 0.15) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    margin: 20px !important;
+    padding: 20px !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1) !important;
+    position: relative;
+    max-width: calc(100vw - 80px) !important;
+    min-height: 400px !important;
+    width: auto !important;
+    overflow: hidden !important;
 }
 
-.slide {
-    padding: 60px;
-}
 
 /* Ensure parent containers get the green gradient background */
 #presentation-content,
@@ -52,53 +64,53 @@ div.absolute.slide {
 /* Typography */
 .slide h1, .slide-content h1 {
     color: var(--primary-color) !important;
-    font-size: 2.8em;
+    font-size: 2.2em;
     font-weight: 700;
-    margin-bottom: 1.2em;
+    margin-bottom: 0.8em;
     text-shadow: 0 2px 4px rgba(6, 95, 70, 0.1);
     letter-spacing: -0.02em;
     border-bottom: 3px solid var(--accent-color);
-    padding-bottom: 0.3em;
+    padding-bottom: 0.2em;
 }
 
 .slide h2, .slide-content h2 {
     color: var(--secondary-color) !important;
-    font-size: 2.2em;
+    font-size: 1.6em;
     font-weight: 600;
-    margin-top: 1.5em;
-    margin-bottom: 1em;
+    margin-top: 1em;
+    margin-bottom: 0.6em;
     border-left: 5px solid var(--accent-color);
-    padding-left: 15px;
+    padding-left: 12px;
     background: linear-gradient(to right, rgba(16, 185, 129, 0.1), transparent);
 }
 
 .slide h3, .slide-content h3 {
     color: var(--secondary-color) !important;
-    font-size: 1.7em;
+    font-size: 1.3em;
     font-weight: 500;
-    margin-top: 1.3em;
-    margin-bottom: 0.8em;
+    margin-top: 0.8em;
+    margin-bottom: 0.5em;
 }
 
 .slide p, .slide-content p {
     color: var(--text-color) !important;
-    font-size: 1.25em;
-    margin-bottom: 1.2em;
-    line-height: 1.7;
+    font-size: 1.1em;
+    margin-bottom: 0.8em;
+    line-height: 1.5;
 }
 
 /* Lists */
 .slide ul, .slide ol, .slide-content ul, .slide-content ol {
-    font-size: 1.15em;
-    margin: 1.2em 0;
-    padding-left: 2em;
+    font-size: 1em;
+    margin: 0.8em 0;
+    padding-left: 1.5em;
 }
 
 /* Nested lists should be smaller than parent lists */
 .slide ul ul, .slide ol ol, .slide ul ol, .slide ol ul,
 .slide-content ul ul, .slide-content ol ol, .slide-content ul ol, .slide-content ol ul {
-    font-size: 0.95em;
-    margin: 0.8em 0;
+    font-size: 0.9em;
+    margin: 0.5em 0;
 }
 
 /* Third level nested lists should be even smaller */
@@ -112,8 +124,8 @@ div.absolute.slide {
 
 .slide li, .slide-content li {
     color: var(--text-color) !important;
-    margin-bottom: 0.7em;
-    line-height: 1.6;
+    margin-bottom: 0.4em;
+    line-height: 1.4;
 }
 
 .slide ul li::marker, .slide-content ul li::marker {
