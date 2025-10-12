@@ -6,6 +6,92 @@ class VisualizationExporter {
         this.isExporting = false;
     }
 
+    getSVGContentBounds(svgElement) {
+        if (!svgElement || typeof svgElement.getBBox !== 'function') {
+            return null;
+        }
+
+        const mode = svgElement.getAttribute('data-export-mode');
+        if (mode !== 'tight') {
+            return null;
+        }
+
+        const selector = svgElement.getAttribute('data-export-content-selector');
+        const contentElement = selector ? svgElement.querySelector(selector) : svgElement;
+
+        if (!contentElement || typeof contentElement.getBBox !== 'function') {
+            return null;
+        }
+
+        try {
+            const bbox = contentElement.getBBox();
+            if (!bbox || !isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width === 0 || bbox.height === 0) {
+                return null;
+            }
+
+            const paddingAttr = svgElement.getAttribute('data-export-padding');
+            const parsedPadding = paddingAttr !== null ? parseFloat(paddingAttr) : 8;
+            const padding = Number.isFinite(parsedPadding) ? Math.max(parsedPadding, 0) : 8;
+
+            return {
+                x: bbox.x - padding,
+                y: bbox.y - padding,
+                width: bbox.width + padding * 2,
+                height: bbox.height + padding * 2
+            };
+        } catch (error) {
+            console.warn('[ExportVisualization] Failed to compute SVG content bounds:', error);
+            return null;
+        }
+    }
+
+    createPreparedSVGClone(svgElement) {
+        const svgClone = svgElement.cloneNode(true);
+        svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+        const bounds = this.getSVGContentBounds(svgElement);
+        const rect = svgElement.getBoundingClientRect();
+        const attrWidth = parseFloat(svgElement.getAttribute('width'));
+        const attrHeight = parseFloat(svgElement.getAttribute('height'));
+
+        let exportWidth = bounds ? bounds.width : (Number.isFinite(attrWidth) ? attrWidth : rect.width);
+        let exportHeight = bounds ? bounds.height : (Number.isFinite(attrHeight) ? attrHeight : rect.height);
+
+        if (!exportWidth || !isFinite(exportWidth) || exportWidth <= 0) {
+            exportWidth = bounds ? bounds.width : 800;
+        }
+
+        if (!exportHeight || !isFinite(exportHeight) || exportHeight <= 0) {
+            exportHeight = bounds ? bounds.height : 600;
+        }
+
+        exportWidth = Math.max(exportWidth, 1);
+        exportHeight = Math.max(exportHeight, 1);
+
+        if (bounds) {
+            svgClone.setAttribute('viewBox', `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
+            svgClone.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+        } else if (!svgClone.getAttribute('viewBox')) {
+            svgClone.setAttribute('viewBox', `0 0 ${exportWidth} ${exportHeight}`);
+            svgClone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        }
+
+        svgClone.setAttribute('width', exportWidth);
+        svgClone.setAttribute('height', exportHeight);
+
+        if (!svgClone.querySelector('rect.export-background')) {
+            const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            background.setAttribute('width', '100%');
+            background.setAttribute('height', '100%');
+            background.setAttribute('fill', 'white');
+            background.setAttribute('class', 'export-background');
+            svgClone.insertBefore(background, svgClone.firstChild);
+        }
+
+        return { svgClone, exportWidth, exportHeight };
+    }
+
     // Main export function that determines the type of element and exports accordingly
     async exportAsPNG(elementId, filename = 'visualization') {
         if (this.isExporting) {
@@ -369,61 +455,47 @@ class VisualizationExporter {
 
     // Export SVG element as PNG
     async exportSVGAsPNG(svgElement, filename) {
+        const scaleFactor = 2;
         try {
             // Method 1: Try using blob URL (may be blocked by CSP)
-            await this.exportSVGWithBlobURL(svgElement, filename);
+            await this.exportSVGWithBlobURL(svgElement, filename, scaleFactor);
         } catch (error) {
             console.log('Blob URL method failed, trying data URL method:', error.message);
             try {
                 // Method 2: Use data URL instead of blob URL
-                await this.exportSVGWithDataURL(svgElement, filename);
+                await this.exportSVGWithDataURL(svgElement, filename, scaleFactor);
             } catch (error2) {
                 console.log('Data URL method failed, using direct canvas method:', error2.message);
                 // Method 3: Direct canvas serialization
-                this.exportSVGDirect(svgElement, filename);
+                this.exportSVGDirect(svgElement, filename, scaleFactor);
             }
         }
     }
 
     // Method 1: Using Blob URL (original method)
-    async exportSVGWithBlobURL(svgElement, filename) {
-        const svgClone = svgElement.cloneNode(true);
-        const bbox = svgElement.getBoundingClientRect();
-        // Use higher resolution with 2x scaling for better quality
-        const scaleFactor = 2;
-        const width = (bbox.width || 800) * scaleFactor;
-        const height = (bbox.height || 600) * scaleFactor;
-        
-        svgClone.setAttribute('width', width);
-        svgClone.setAttribute('height', height);
-        
-        if (!svgClone.querySelector('rect.export-background')) {
-            const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            background.setAttribute('width', '100%');
-            background.setAttribute('height', '100%');
-            background.setAttribute('fill', 'white');
-            background.setAttribute('class', 'export-background');
-            svgClone.insertBefore(background, svgClone.firstChild);
-        }
-        
+    async exportSVGWithBlobURL(svgElement, filename, scaleFactor = 2) {
+        const { svgClone, exportWidth, exportHeight } = this.createPreparedSVGClone(svgElement);
+        const scaledWidth = exportWidth * scaleFactor;
+        const scaledHeight = exportHeight * scaleFactor;
+
         const svgData = new XMLSerializer().serializeToString(svgClone);
         const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
         const svgUrl = URL.createObjectURL(svgBlob);
         
         const img = new Image();
-        img.width = width;
-        img.height = height;
+        img.width = scaledWidth;
+        img.height = scaledHeight;
         
         return new Promise((resolve, reject) => {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
+                canvas.width = scaledWidth;
+                canvas.height = scaledHeight;
                 const ctx = canvas.getContext('2d');
                 
                 ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, width, height);
-                ctx.drawImage(img, 0, 0, width, height);
+                ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+                ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
                 
                 canvas.toBlob((blob) => {
                     this.downloadBlob(blob, `${filename}.png`);
@@ -442,43 +514,29 @@ class VisualizationExporter {
     }
 
     // Method 2: Using Data URL (CSP-friendly)
-    async exportSVGWithDataURL(svgElement, filename) {
-        const svgClone = svgElement.cloneNode(true);
-        const bbox = svgElement.getBoundingClientRect();
-        const width = bbox.width || 800;
-        const height = bbox.height || 600;
-        
-        svgClone.setAttribute('width', width);
-        svgClone.setAttribute('height', height);
-        svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        
-        if (!svgClone.querySelector('rect.export-background')) {
-            const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            background.setAttribute('width', '100%');
-            background.setAttribute('height', '100%');
-            background.setAttribute('fill', 'white');
-            background.setAttribute('class', 'export-background');
-            svgClone.insertBefore(background, svgClone.firstChild);
-        }
-        
+    async exportSVGWithDataURL(svgElement, filename, scaleFactor = 2) {
+        const { svgClone, exportWidth, exportHeight } = this.createPreparedSVGClone(svgElement);
+        const scaledWidth = exportWidth * scaleFactor;
+        const scaledHeight = exportHeight * scaleFactor;
+
         const svgData = new XMLSerializer().serializeToString(svgClone);
         const base64 = btoa(unescape(encodeURIComponent(svgData)));
         const dataUrl = `data:image/svg+xml;base64,${base64}`;
         
         const img = new Image();
-        img.width = width;
-        img.height = height;
+        img.width = scaledWidth;
+        img.height = scaledHeight;
         
         return new Promise((resolve, reject) => {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
+                canvas.width = scaledWidth;
+                canvas.height = scaledHeight;
                 const ctx = canvas.getContext('2d');
                 
                 ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, width, height);
-                ctx.drawImage(img, 0, 0, width, height);
+                ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+                ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
                 
                 canvas.toBlob((blob) => {
                     this.downloadBlob(blob, `${filename}.png`);
@@ -495,36 +553,30 @@ class VisualizationExporter {
     }
 
     // Method 3: Direct Canvas Export (fallback)
-    exportSVGDirect(svgElement, filename) {
-        const bbox = svgElement.getBoundingClientRect();
-        const width = bbox.width || 800;
-        const height = bbox.height || 600;
-        
-        // Create a canvas
+    exportSVGDirect(svgElement, filename, scaleFactor = 1) {
+        const { svgClone, exportWidth, exportHeight } = this.createPreparedSVGClone(svgElement);
+        const scaledWidth = exportWidth * scaleFactor;
+        const scaledHeight = exportHeight * scaleFactor;
+
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = scaledWidth;
+        canvas.height = scaledHeight;
         const ctx = canvas.getContext('2d');
-        
-        // Fill white background
+
         ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, width, height);
-        
-        // Try to use canvg if available (for better SVG rendering)
+        ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+
+        const serializedSvg = new XMLSerializer().serializeToString(svgClone);
+
         if (window.canvg) {
-            window.canvg(canvas, new XMLSerializer().serializeToString(svgElement));
+            window.canvg(canvas, serializedSvg);
             canvas.toBlob((blob) => {
                 this.downloadBlob(blob, `${filename}.png`);
             }, 'image/png');
         } else {
-            // Basic fallback: serialize SVG data directly
-            const svgData = new XMLSerializer().serializeToString(svgElement);
-            const svgSize = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'}).size;
-            
-            // Download as SVG if we can't convert to PNG
-            const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+            const svgBlob = new Blob([serializedSvg], { type: 'image/svg+xml;charset=utf-8' });
             this.downloadBlob(svgBlob, `${filename}.svg`);
-            this.showNotification(`Exported as SVG (${Math.round(svgSize/1024)}KB). PNG conversion unavailable.`, 'info');
+            this.showNotification(`Exported as SVG (${Math.round(svgBlob.size / 1024)}KB). PNG conversion unavailable.`, 'info');
         }
     }
 

@@ -179,6 +179,9 @@ class WholepartVisualization {
             .append('svg')
             .attr('width', this.width)
             .attr('height', this.height)
+            .attr('data-export-mode', 'tight')
+            .attr('data-export-content-selector', '.diagram-content')
+            .attr('data-export-padding', '6')
             .style('background', '#fafafa');
 
         // Create a group container for all diagram elements (this will be zoomed)
