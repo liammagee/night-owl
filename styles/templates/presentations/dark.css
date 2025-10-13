@@ -254,6 +254,25 @@ div.absolute.slide {
     border: 1px solid var(--border-color);
 }
 
+/* Automatic height extension for slides with images */
+.slide:has(img),
+.slide-content:has(img),
+#presentation-root .absolute.slide:has(img),
+#presentation-root div.absolute.slide:has(img),
+.absolute.slide:has(img),
+div.absolute.slide:has(img) {
+    min-height: var(--presentation-slide-height) !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+/* Ensure slide containers can expand */
+.slide:has(img) .slide-content,
+.slide-content:has(img) {
+    height: auto !important;
+    overflow: visible !important;
+}
+
 /* Speaker notes styling */
 .speaker-notes {
     background: var(--highlight-color);

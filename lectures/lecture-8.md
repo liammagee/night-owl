@@ -26,6 +26,7 @@ Today we return to our originating concept of *Synthesis* – a return to the be
   - Liberal democracies bring together prior Greek and Christian periods (Hegel; Fukuyama)
   - Communism brings together prior feudal and capitalist periods (Marx)
   - Transhumanism / posthumanism / technopoeisis / cybersocial: bring together elements of the organic (pre-industrial; romantic) and the mechanical (industrial; post-romantic)
+- Pedagogical meaning: we synthesize concepts in a cumulative way, when we are ready, in conjuction with others (cf. Vygotsky's Zone of Proximal Development - Vygotsky was apparently himself influenced by Hegel)
 
 
 ```notes

@@ -231,11 +231,30 @@ div.absolute.slide {
 }
 
 /* Images */
-.slide img {
+.slide img, .slide-content img {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Automatic height extension for slides with images */
+.slide:has(img),
+.slide-content:has(img),
+#presentation-root .absolute.slide:has(img),
+#presentation-root div.absolute.slide:has(img),
+.absolute.slide:has(img),
+div.absolute.slide:has(img) {
+    min-height: var(--presentation-slide-height) !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+/* Ensure slide containers can expand */
+.slide:has(img) .slide-content,
+.slide-content:has(img) {
+    height: auto !important;
+    overflow: visible !important;
 }
 
 /* Speaker notes styling */

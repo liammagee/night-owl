@@ -757,7 +757,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       return;
     }
 
-    const targetZoom = 1.2;
+    const targetZoom = isPresenting ? zoomRef.current || zoom : 1.2;
     const targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
 
     console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
