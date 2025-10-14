@@ -471,48 +471,73 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   };
 
   // Process a section of list items into proper nested HTML
-  const processListSection = (listHtml) => {
-    const lines = listHtml.split('\n');
-    const processedLines = [];
-    const listStack = [];
+  const processListSection = (listMarkdown) => {
+    // Prefer the full Marked parser to preserve correct nesting semantics
+    if (window.marked && typeof window.marked.parse === 'function') {
+      try {
+        let parsedHtml = window.marked.parse(listMarkdown, { breaks: false });
+        // Normalize spacing and add our presentation-specific classes
+        parsedHtml = parsedHtml
+          .replace(/<ul>/g, '<ul class="markdown-list">')
+          .replace(/<ol>/g, '<ol class="markdown-list markdown-list-ordered">')
+          .replace(/<li>/g, '<li class="markdown-list-item">');
 
-    for (const line of lines) {
-      const unorderedMatch = line.match(/^(\s*)[-*+]\s+(.+)$/);
-      const orderedMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
-
-      if (unorderedMatch || orderedMatch) {
-        const indent = (unorderedMatch || orderedMatch)[1].length;
-        const content = unorderedMatch ? unorderedMatch[2] : orderedMatch[3];
-        const isOrdered = !!orderedMatch;
-
-        // Close lists deeper than current level
-        while (listStack.length > 0 && listStack[listStack.length - 1].indent > indent) {
-          const closedList = listStack.pop();
-          processedLines.push(`</${closedList.type}>`);
-        }
-
-        // Start new list if needed
-        const currentLevel = listStack[listStack.length - 1];
-        const listType = isOrdered ? 'ol' : 'ul';
-
-        if (!currentLevel || currentLevel.indent < indent || currentLevel.type !== listType) {
-          if (currentLevel && currentLevel.indent === indent && currentLevel.type !== listType) {
-            const closedList = listStack.pop();
-            processedLines.push(`</${closedList.type}>`);
-          }
-          processedLines.push(`<${listType} class="markdown-list">`);
-          listStack.push({ type: listType, indent });
-        }
-
-        // Add list item
-        processedLines.push(`<li class="markdown-list-item">${content}</li>`);
+        return parsedHtml.trim();
+      } catch (error) {
+        console.error('[MarkdownParser] Failed to parse list section via marked:', error);
       }
     }
 
-    // Close all remaining open lists
+    // Fallback: basic nested list handling (maintained for offline safety)
+    const lines = listMarkdown.split('\n');
+    const processedLines = [];
+    const listStack = [];
+
+    const closeToIndent = (targetIndent) => {
+      while (listStack.length > 0 && listStack[listStack.length - 1].indent > targetIndent) {
+        processedLines.push('</li>');
+        processedLines.push(`</${listStack.pop().type}>`);
+      }
+    };
+
+    for (const rawLine of lines) {
+      if (!rawLine.trim()) continue;
+
+      const unorderedMatch = rawLine.match(/^(\s*)[-*+]\s+(.+)$/);
+      const orderedMatch = rawLine.match(/^(\s*)(\d+)\.\s+(.+)$/);
+      if (!unorderedMatch && !orderedMatch) continue;
+
+      const indent = (unorderedMatch || orderedMatch)[1].length;
+      const content = unorderedMatch ? unorderedMatch[2] : orderedMatch[3];
+      const listType = orderedMatch ? 'ol' : 'ul';
+
+      closeToIndent(indent);
+
+      let current = listStack[listStack.length - 1];
+
+      if (!current || current.indent < indent || current.type !== listType) {
+        if (current && current.indent === indent && current.type !== listType) {
+          processedLines.push('</li>');
+          processedLines.push(`</${listStack.pop().type}>`);
+          current = listStack[listStack.length - 1];
+        }
+
+        processedLines.push(`<${listType} class="markdown-list">`);
+        listStack.push({ type: listType, indent });
+        current = listStack[listStack.length - 1];
+      } else {
+        processedLines.push('</li>');
+      }
+
+      processedLines.push(`<li class="markdown-list-item">${content}`);
+    }
+
+    // Close any remaining open tags
+    closeToIndent(-1);
+    // Ensure we close the final item and list if any remain open
     while (listStack.length > 0) {
-      const closedList = listStack.pop();
-      processedLines.push(`</${closedList.type}>`);
+      processedLines.push('</li>');
+      processedLines.push(`</${listStack.pop().type}>`);
     }
 
     return processedLines.join('\n');

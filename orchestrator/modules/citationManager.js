@@ -680,6 +680,13 @@ class CitationManager {
         if (!skipNightowlSync) {
             await this.syncToNightowlBib();
         }
+        if (window.refreshCitationAutocompleteData) {
+            try {
+                await window.refreshCitationAutocompleteData({ reason: 'citation-manager-update' });
+            } catch (error) {
+                console.error('[Citation Manager] Failed to refresh citation autocomplete data:', error);
+            }
+        }
     }
 
     // Sync all citations to nightowl.bib in working directory (throttled)
@@ -836,7 +843,6 @@ class CitationManager {
 
     // Generate a proper citation key from citation metadata
     generateCitationKey(citation) {
-        // Use existing key if available
         if (citation.key && typeof citation.key === 'string') {
             return citation.key;
         }
@@ -844,34 +850,36 @@ class CitationManager {
             return citation.citation_key;
         }
 
-        // Generate key from metadata: LastName + Year + Title
         let key = '';
 
-        // Get first author's last name
         if (citation.authors) {
             const firstAuthor = citation.authors.split(',')[0].trim();
-            const lastName = firstAuthor.split(' ').pop();
-            key += lastName.replace(/[^a-zA-Z]/g, '');
+            const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+            key += lastName.replace(/[^A-Za-z]/g, '');
         } else {
-            key += 'Unknown';
+            key += 'Citation';
         }
 
-        // Add year
-        if (citation.publication_year) {
-            key += citation.publication_year;
-        } else {
-            key += new Date().getFullYear();
-        }
+        key += (citation.publication_year || new Date().getFullYear());
 
-        // Add first word of title
         if (citation.title) {
-            const firstWord = citation.title.split(' ')[0].replace(/[^a-zA-Z]/g, '');
-            if (firstWord) {
-                key += firstWord;
+            const cleanedWords = citation.title
+                .split(/\s+/)
+                .map(word => word.replace(/[^A-Za-z]/g, ''))
+                .filter(Boolean);
+            const significant = cleanedWords.filter(word => word.length > 3);
+            const chosen = (significant.length > 0 ? significant : cleanedWords).slice(0, 2);
+            if (chosen.length > 0) {
+                key += chosen.join('');
             }
         }
 
-        return key || `citation${citation.id}`;
+        if (!key) {
+            key = `Citation${citation.id || Date.now()}`;
+        }
+
+        citation.key = key;
+        return key;
     }
 
     // Make citation element draggable

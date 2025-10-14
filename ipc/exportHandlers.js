@@ -26,14 +26,50 @@ function register(deps) {
   } = deps;
 
   // Utility functions
+  function generateCitationKey(citation) {
+    if (citation.key && typeof citation.key === 'string') {
+      return citation.key;
+    }
+    if (citation.citation_key && typeof citation.citation_key === 'string') {
+      return citation.citation_key;
+    }
+
+    let key = '';
+
+    if (citation.authors) {
+      const firstAuthor = citation.authors.split(',')[0].trim();
+      const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+      key += lastName.replace(/[^A-Za-z]/g, '');
+    } else {
+      key += 'Citation';
+    }
+
+    key += (citation.publication_year || new Date().getFullYear());
+
+    if (citation.title) {
+      const cleanedWords = citation.title
+        .split(/\s+/)
+        .map(word => word.replace(/[^A-Za-z]/g, ''))
+        .filter(Boolean);
+      const significant = cleanedWords.filter(word => word.length > 3);
+      const chosen = (significant.length > 0 ? significant : cleanedWords).slice(0, 2);
+      if (chosen.length > 0) {
+        key += chosen.join('');
+      }
+    }
+
+    if (!key) {
+      key = `Citation${citation.id || Date.now()}`;
+    }
+
+    citation.key = key;
+    return key;
+  }
   
   // Convert database citation to BibTeX format
   function citationToBibTeX(citation) {
     // Generate citation key (similar to renderer.js logic)
-    const firstAuthor = citation.authors ? citation.authors.split(',')[0].trim().replace(/\s+/g, '').toLowerCase() : 'unknown';
-    const year = citation.publication_year || new Date().getFullYear();
-    const titleWords = citation.title ? citation.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).slice(0, 2).join('') : 'untitled';
-    const key = `${firstAuthor}${year}${titleWords}`;
+    const key = generateCitationKey(citation);
     
     // Convert to BibTeX format
     const type = citation.citation_type || 'article';

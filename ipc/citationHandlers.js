@@ -646,31 +646,43 @@ function mapToRISType(citationType) {
 }
 
 function generateCitationKey(citation) {
+    if (citation.key && typeof citation.key === 'string') {
+        return citation.key;
+    }
+    if (citation.citation_key && typeof citation.citation_key === 'string') {
+        return citation.citation_key;
+    }
+
     let key = '';
-    
-    // Add first author's last name
+
     if (citation.authors) {
         const firstAuthor = citation.authors.split(',')[0].trim();
-        const lastName = firstAuthor.split(' ').pop();
-        key += lastName.replace(/[^a-zA-Z]/g, '');
+        const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+        key += lastName.replace(/[^A-Za-z]/g, '');
+    } else {
+        key += 'Citation';
     }
-    
-    // Add year
-    if (citation.publication_year) {
-        key += citation.publication_year;
-    }
-    
-    // Add title words
+
+    key += (citation.publication_year || new Date().getFullYear());
+
     if (citation.title) {
-        const titleWords = citation.title.split(' ')
-            .filter(word => word.length > 3)
-            .slice(0, 2)
-            .map(word => word.replace(/[^a-zA-Z]/g, ''))
-            .join('');
-        key += titleWords;
+        const cleanedWords = citation.title
+            .split(/\s+/)
+            .map(word => word.replace(/[^A-Za-z]/g, ''))
+            .filter(Boolean);
+        const significant = cleanedWords.filter(word => word.length > 3);
+        const chosen = (significant.length > 0 ? significant : cleanedWords).slice(0, 2);
+        if (chosen.length > 0) {
+            key += chosen.join('');
+        }
     }
-    
-    return key || 'Citation' + Date.now();
+
+    if (!key) {
+        key = 'Citation' + (citation.id || Date.now());
+    }
+
+    citation.key = key;
+    return key;
 }
 
 function escapeCSV(value) {

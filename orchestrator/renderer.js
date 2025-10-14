@@ -2006,6 +2006,46 @@ function registerBibTeXLanguage() {
 // --- Citation Autocomplete Functionality ---
 let bibEntries = [];
 
+function computeCitationKey(citation) {
+    if (citation.key && typeof citation.key === 'string') {
+        return citation.key;
+    }
+    if (citation.citation_key && typeof citation.citation_key === 'string') {
+        return citation.citation_key;
+    }
+
+    let key = '';
+
+    if (citation.authors) {
+        const firstAuthor = citation.authors.split(',')[0].trim();
+        const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+        key += lastName.replace(/[^A-Za-z]/g, '');
+    } else {
+        key += 'Citation';
+    }
+
+    key += (citation.publication_year || new Date().getFullYear());
+
+    if (citation.title) {
+        const cleanedWords = citation.title
+            .split(/\s+/)
+            .map(word => word.replace(/[^A-Za-z]/g, ''))
+            .filter(Boolean);
+        const significant = cleanedWords.filter(word => word.length > 3);
+        const chosen = (significant.length > 0 ? significant : cleanedWords).slice(0, 2);
+        if (chosen.length > 0) {
+            key += chosen.join('');
+        }
+    }
+
+    if (!key) {
+        key = `Citation${citation.id || Date.now()}`;
+    }
+
+    citation.key = key;
+    return key;
+}
+
 // Parse BibTeX entries from content
 function parseBibTeX(content) {
     const entries = [];
@@ -2054,12 +2094,7 @@ async function loadDatabaseCitations() {
         
         // Convert database citations to BibTeX-like format
         const dbEntries = citations.map(citation => {
-            // Generate a citation key from title and author
-            const firstAuthor = citation.authors ? citation.authors.split(',')[0].trim().replace(/\s+/g, '').toLowerCase() : 'unknown';
-            const year = citation.publication_year || new Date().getFullYear();
-            const titleWords = citation.title ? citation.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).slice(0, 2).join('') : 'untitled';
-            const key = `${firstAuthor}${year}${titleWords}`;
-            
+            const key = computeCitationKey(citation);
             return {
                 key: key,
                 type: citation.citation_type || 'article',
@@ -2219,6 +2254,19 @@ async function loadBibTeXFiles() {
     }
 }
 
+async function refreshCitationAutocompleteData(context = {}) {
+    try {
+        console.log('[renderer.js] Refreshing citation autocomplete data...', context);
+        const updatedEntries = await loadBibTeXFiles();
+        console.log(`[renderer.js] Citation autocomplete data refreshed. Entries available: ${updatedEntries.length}`);
+    } catch (error) {
+        console.error('[renderer.js] Error refreshing citation autocomplete data:', error);
+    }
+}
+
+// Make refresh helper accessible to other modules (e.g., citation manager)
+window.refreshCitationAutocompleteData = refreshCitationAutocompleteData;
+
 // Register citation autocomplete provider for Markdown
 function registerCitationAutocomplete() {
     console.log('[renderer.js] Registering citation autocomplete provider...');
@@ -2228,6 +2276,12 @@ function registerCitationAutocomplete() {
         console.log('[renderer.js] Sample entry:', bibEntries[0]);
     }
     
+    const MAX_SUGGESTIONS = 50;
+    const truncate = (text, length = 80) => {
+        if (!text) return '';
+        return text.length > length ? text.slice(0, length - 1).trimEnd() + '…' : text;
+    };
+
     monaco.languages.registerCompletionItemProvider('markdown', {
         triggerCharacters: ['@', '['],
         // Also support manual triggering (Ctrl+Space)
@@ -2258,40 +2312,90 @@ function registerCitationAutocomplete() {
             console.log('[Citation Autocomplete] Search term:', searchTerm);
             
             // Filter entries based on search term
-            const suggestions = bibEntries
+            const searchLower = (searchTerm || '').toLowerCase();
+            const scoredEntries = bibEntries
                 .filter(entry => {
-                    if (!searchTerm) return true;
-                    const searchLower = searchTerm.toLowerCase();
-                    return entry.key.toLowerCase().includes(searchLower) ||
-                           entry.title.toLowerCase().includes(searchLower) ||
-                           entry.author.toLowerCase().includes(searchLower);
+                    if (!searchLower) return true;
+                    const haystack = [
+                        entry.key,
+                        entry.title,
+                        entry.author,
+                        entry.year,
+                        entry.journal
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return haystack.includes(searchLower);
                 })
                 .map(entry => {
-                    // Create a detailed description
-                    const description = [
-                        entry.author && `Author: ${entry.author}`,
-                        entry.year && `Year: ${entry.year}`,
-                        entry.title && `Title: ${entry.title}`,
-                        entry.journal && `Journal: ${entry.journal}`,
-                        entry.source && `Source: ${entry.source === 'database' ? 'Database' : 'BibTeX file'}`
-                    ].filter(Boolean).join('\n');
-                    
+                    const keyLower = entry.key?.toLowerCase() || '';
+                    const titleLower = entry.title?.toLowerCase() || '';
+                    const authorLower = entry.author?.toLowerCase() || '';
+                    let score = 3;
+                    if (!searchLower) {
+                        score = 0;
+                    } else if (keyLower.startsWith(searchLower)) {
+                        score = 0;
+                    } else if (authorLower.startsWith(searchLower) || titleLower.startsWith(searchLower)) {
+                        score = 1;
+                    } else if (keyLower.includes(searchLower)) {
+                        score = 2;
+                    }
+                    return { entry, score };
+                })
+                .sort((a, b) => {
+                    if (a.score !== b.score) return a.score - b.score;
+                    return (a.entry.key || '').localeCompare(b.entry.key || '');
+                })
+                .slice(0, MAX_SUGGESTIONS);
+
+            const suggestions = scoredEntries.map(({ entry }, index) => {
                     // Use different icons for different sources
                     const kind = entry.source === 'database' 
                         ? monaco.languages.CompletionItemKind.Database
                         : monaco.languages.CompletionItemKind.Reference;
                     
                     // Show source in detail
+                    const detailParts = [
+                        entry.author,
+                        entry.year && entry.year.toString()
+                    ].filter(Boolean);
+                    const labelDescription = entry.title ? truncate(entry.title, 60) : '';
                     const detail = entry.source === 'database' 
                         ? `@${entry.type} (from database)`
                         : `@${entry.type} (from BibTeX)`;
                     
-                    return {
+                    const documentationParts = [];
+                    if (entry.title) {
+                        documentationParts.push(`**${entry.title}**`);
+                    }
+                    const metaLine = [entry.author, entry.year, entry.journal].filter(Boolean).join(' • ');
+                    if (metaLine) {
+                        documentationParts.push(metaLine);
+                    }
+                    if (entry.doi) {
+                        documentationParts.push(`DOI: ${entry.doi}`);
+                    }
+                    if (entry.url) {
+                        documentationParts.push(entry.url);
+                    }
+                    documentationParts.push(entry.source === 'database'
+                        ? '_Source: Citation Manager_'
+                        : '_Source: BibTeX file_');
+
+                    const labelDetails = detailParts.length || labelDescription
+                        ? { detail: detailParts.join(' • ') || undefined, description: labelDescription || undefined }
+                        : undefined;
+
+                    const completionItem = {
                         label: entry.key,
                         kind: kind,
                         insertText: entry.key + ']',
                         detail: detail,
-                        documentation: description,
+                        documentation: {
+                            value: documentationParts.join('\n\n'),
+                            isTrusted: false
+                        },
+                        sortText: `${index.toString().padStart(4, '0')}_${entry.key}`,
+                        filterText: `${entry.key} ${entry.title || ''} ${entry.author || ''} ${entry.year || ''} ${entry.journal || ''}`,
                         range: {
                             startLineNumber: position.lineNumber,
                             endLineNumber: position.lineNumber,
@@ -2299,6 +2403,12 @@ function registerCitationAutocomplete() {
                             endColumn: position.column
                         }
                     };
+
+                    if (labelDetails) {
+                        completionItem.labelDetails = labelDetails;
+                    }
+
+                    return completionItem;
                 });
             
             return { suggestions: suggestions };
@@ -10976,4 +11086,3 @@ function showImageViewer(imagePath) {
 
 // Make image viewer available globally
 window.showImageViewer = showImageViewer;
-
