@@ -6675,7 +6675,29 @@ async function updateStatisticsPane() {
             
             stats = calculateBasicStatistics(content);
         }
-        
+
+        // Ensure stats object exists and has required properties
+        if (!stats) {
+            console.error('[Statistics] Stats calculation returned undefined');
+            stats = {
+                wordCount: 0,
+                charCount: 0,
+                paragraphCount: 0,
+                headingCount: 0,
+                sentenceCount: 0,
+                averageSentenceLength: 0,
+                averageWordLength: 0,
+                readingTime: 0,
+                presentationTime: 0,
+                slideCount: 0,
+                notesCount: 0,
+                listCount: 0,
+                linkCount: 0,
+                codeBlockCount: 0,
+                imageCount: 0
+            };
+        }
+
         const formatTime = (minutes) => {
             if (minutes < 60) return `${minutes}m`;
             const hours = Math.floor(minutes / 60);
@@ -6700,19 +6722,19 @@ async function updateStatisticsPane() {
                         ` : ''}
                         <div style="display: flex; justify-content: space-between;">
                             <span>Total Words:</span>
-                            <span style="font-weight: bold;">${stats.wordCount.toLocaleString()}</span>
+                            <span style="font-weight: bold;">${(stats.wordCount || 0).toLocaleString()}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Characters:</span>
-                            <span style="font-weight: bold;">${stats.charCount.toLocaleString()}</span>
+                            <span style="font-weight: bold;">${(stats.charCount || 0).toLocaleString()}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Paragraphs:</span>
-                            <span style="font-weight: bold;">${stats.paragraphCount}</span>
+                            <span style="font-weight: bold;">${stats.paragraphCount || 0}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Headings:</span>
-                            <span style="font-weight: bold;">${stats.headingCount}</span>
+                            <span style="font-weight: bold;">${stats.headingCount || 0}</span>
                         </div>
                     </div>
                 </div>
@@ -6723,19 +6745,19 @@ async function updateStatisticsPane() {
                     <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
                         <div style="display: flex; justify-content: space-between;">
                             <span>Slide Markers:</span>
-                            <span style="font-weight: bold;">${stats.slideCount}</span>
+                            <span style="font-weight: bold;">${stats.slideCount || 0}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Speaker Notes:</span>
-                            <span style="font-weight: bold;">${stats.notesCount}</span>
+                            <span style="font-weight: bold;">${stats.notesCount || 0}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Est. Reading Time:</span>
-                            <span style="font-weight: bold;">${formatTime(stats.readingTime)}</span>
+                            <span style="font-weight: bold;">${formatTime(stats.readingTime || 0)}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Est. Presentation:</span>
-                            <span style="font-weight: bold;">${formatTime(stats.presentationTime)}</span>
+                            <span style="font-weight: bold;">${formatTime(stats.presentationTime || 0)}</span>
                         </div>
                     </div>
                 </div>
@@ -6746,15 +6768,15 @@ async function updateStatisticsPane() {
                     <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
                         <div style="display: flex; justify-content: space-between;">
                             <span>Sentences:</span>
-                            <span style="font-weight: bold;">${stats.sentenceCount}</span>
+                            <span style="font-weight: bold;">${stats.sentenceCount || 0}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Avg Sentence Length:</span>
-                            <span style="font-weight: bold;">${stats.averageSentenceLength} words</span>
+                            <span style="font-weight: bold;">${stats.averageSentenceLength || 0} words</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Avg Word Length:</span>
-                            <span style="font-weight: bold;">${stats.averageWordLength} chars</span>
+                            <span style="font-weight: bold;">${stats.averageWordLength || 0} chars</span>
                         </div>
                     </div>
                 </div>
@@ -6765,19 +6787,19 @@ async function updateStatisticsPane() {
                     <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
                         <div style="display: flex; justify-content: space-between;">
                             <span>Lists:</span>
-                            <span style="font-weight: bold;">${stats.listCount}</span>
+                            <span style="font-weight: bold;">${stats.listCount || 0}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Links:</span>
-                            <span style="font-weight: bold;">${stats.linkCount}</span>
+                            <span style="font-weight: bold;">${stats.linkCount || 0}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Code Blocks:</span>
-                            <span style="font-weight: bold;">${stats.codeBlockCount}</span>
+                            <span style="font-weight: bold;">${stats.codeBlockCount || 0}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Images:</span>
-                            <span style="font-weight: bold;">${stats.imageCount}</span>
+                            <span style="font-weight: bold;">${stats.imageCount || 0}</span>
                         </div>
                     </div>
                 </div>
