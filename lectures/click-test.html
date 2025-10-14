@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Click Test</title>
+</head>
+<body>
+    <h1>Click Test Page</h1>
+
+    <p>This is a test to verify click events work in the app:</p>
+
+    <a href="#" class="internal-link" data-link="lecture-8.md">Test Internal Link (should log when Cmd/Ctrl+clicked)</a><br><br>
+
+    <a href="https://example.com">External Link (regular behavior)</a>
+
+    <script>
+        console.log('[Test] Adding simple click listener');
+
+        document.addEventListener('click', function(event) {
+            console.log('[Test] Click detected on:', event.target, 'metaKey:', event.metaKey, 'ctrlKey:', event.ctrlKey);
+
+            if ((event.metaKey || event.ctrlKey) && event.target.classList.contains('internal-link')) {
+                console.log('[Test] Cmd/Ctrl+click on internal link detected!');
+                event.preventDefault();
+                alert('Cmd/Ctrl+click detected! This should open: ' + event.target.getAttribute('data-link'));
+            }
+        });
+    </script>
+</body>
+</html>

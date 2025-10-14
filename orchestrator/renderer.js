@@ -7993,22 +7993,25 @@ function expandCommonFolders(rootNode) {
     // Always expand the root directory if it has children
     if (rootNode.children && rootNode.children.length > 0) {
         window.expandedFolders.add(rootNode.path);
-        
-        // Auto-expand folders with common names or small number of items
-        for (const child of rootNode.children) {
-            if (child.type === 'folder' || child.type === 'directory') {
-                const folderName = child.name.toLowerCase();
-                const childCount = child.children ? child.children.length : 0;
-                
-                // Expand if:
-                // 1. Common folder names (src, docs, components, etc.)
-                // 2. Small folders (5 or fewer items)
-                // 3. Only folder in the directory
-                if (folderName.match(/(src|docs|components|utils|lib|assets|styles|images|lectures|notes|content)/) ||
-                    childCount <= 5 ||
-                    rootNode.children.length === 1) {
-                    window.expandedFolders.add(child.path);
-                    console.log(`[expandCommonFolders] Auto-expanded: ${child.path}`);
+
+        // Only auto-expand subfolders if the setting is enabled
+        if (window.appSettings?.navigation?.autoExpandFolders !== false) {
+            // Auto-expand folders with common names or small number of items
+            for (const child of rootNode.children) {
+                if (child.type === 'folder' || child.type === 'directory') {
+                    const folderName = child.name.toLowerCase();
+                    const childCount = child.children ? child.children.length : 0;
+
+                    // Expand if:
+                    // 1. Common folder names (src, docs, components, etc.)
+                    // 2. Small folders (5 or fewer items)
+                    // 3. Only folder in the directory
+                    if (folderName.match(/(src|docs|components|utils|lib|assets|styles|images|lectures|notes|content)/) ||
+                        childCount <= 5 ||
+                        rootNode.children.length === 1) {
+                        window.expandedFolders.add(child.path);
+                        console.log(`[expandCommonFolders] Auto-expanded: ${child.path}`);
+                    }
                 }
             }
         }

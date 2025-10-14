@@ -120,6 +120,54 @@ const PauseIcon = () => (
 );
 
 const MarkdownPreziApp = () => {
+  console.log('[Presentation] *** COMPONENT LOADING ***');
+
+  // Set up the global handler immediately, not in useEffect
+  if (!window.handleInternalLinkClick) {
+    window.handleInternalLinkClick = function(event) {
+      console.log('[Internal Link] *** CLICK DETECTED *** Global handler called:', {
+        target: event.target,
+        tagName: event.target.tagName,
+        className: event.target.className,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        hasInternalLinkClass: event.target.classList?.contains('internal-link')
+      });
+
+      // Check if this is a click on an internal link with Cmd/Ctrl modifier
+      if ((event.metaKey || event.ctrlKey) && event.target.classList?.contains('internal-link')) {
+        console.log('[Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
+        event.preventDefault();
+        event.stopPropagation();
+
+        const linkPath = event.target.getAttribute('data-link');
+        if (linkPath) {
+          const decodedPath = decodeURIComponent(linkPath);
+          console.log('[Internal Link] Opening:', decodedPath);
+
+          // Use the existing window API to open the file
+          if (window.openFile) {
+            console.log('[Internal Link] Using window.openFile');
+            window.openFile(decodedPath);
+          } else if (window.electronAPI && window.electronAPI.invoke) {
+            // Fallback for Electron API
+            console.log('[Internal Link] Using electronAPI');
+            window.electronAPI.invoke('open-file', decodedPath);
+          } else {
+            console.warn('[Internal Link] No file opening API available');
+          }
+        } else {
+          console.warn('[Internal Link] No data-link attribute found');
+        }
+      } else if (event.target.classList?.contains('internal-link')) {
+        // Regular click on internal link - prevent default but don't open
+        console.log('[Internal Link] Regular click on internal link - preventing default');
+        event.preventDefault();
+      }
+    };
+    console.log('[Internal Link] *** GLOBAL HANDLER SET UP ***');
+  }
+
   // Check if running in Electron
   const isElectron = window.electronAPI && window.electronAPI.isElectron;
   
@@ -536,7 +584,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       if (!filePath.endsWith('.md') && !filePath.includes('.')) {
         filePath += '.md';
       }
-      return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+
+      // Create full path for internal links, similar to image path logic
+      if (!filePath.startsWith('/') && !filePath.startsWith('http')) {
+        const baseDir = window.currentFileDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+        filePath = `${baseDir}/${filePath}`;
+      }
+
+      return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}" onclick="handleInternalLinkClick(event)">${display}</a>`;
     });
     
     // Regular markdown links
@@ -1210,6 +1265,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentSlide, goToSlide]);
+
 
   // Control body class for presenting mode
   useEffect(() => {

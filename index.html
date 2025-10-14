@@ -2288,7 +2288,71 @@
     
     <!-- Load compiled React components -->
     <script src="components/dist/MarkdownPreziApp.js" defer></script>
-    
+
+    <!-- Internal link Cmd/Ctrl+click handler -->
+    <script>
+        console.log('[Internal Link] *** GLOBAL SCRIPT LOADED ***');
+
+        // Set up global click handler for internal links
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[Internal Link] *** DOM READY - Setting up click handler ***');
+
+            document.addEventListener('click', function(event) {
+                console.log('[Internal Link] *** CLICK DETECTED ***', {
+                    target: event.target,
+                    tagName: event.target.tagName,
+                    className: event.target.className,
+                    metaKey: event.metaKey,
+                    ctrlKey: event.ctrlKey,
+                    hasInternalLinkClass: event.target.classList?.contains('internal-link')
+                });
+
+                // Check if this is a click on an internal link (but not in preview pane which has its own handler)
+                if (event.target.classList?.contains('internal-link') && !event.target.closest('#preview-content')) {
+                    // Check for Cmd/Ctrl modifier
+                    if (event.metaKey || event.ctrlKey) {
+                        console.log('[Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        const linkPath = event.target.getAttribute('data-link');
+                        if (linkPath) {
+                            let decodedPath = decodeURIComponent(linkPath);
+                            console.log('[Internal Link] Raw linkPath:', linkPath);
+                            console.log('[Internal Link] Decoded path:', decodedPath);
+
+                            // If the path doesn't start with /, add the full lectures directory path
+                            if (!decodedPath.startsWith('/') && !decodedPath.startsWith('http')) {
+                                const fullPath = '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures/' + decodedPath;
+                                console.log('[Internal Link] Converting relative to full path:', fullPath);
+                                decodedPath = fullPath;
+                            }
+
+                            console.log('[Internal Link] Final path to open:', decodedPath);
+
+                            // Use the existing window API to open the file
+                            if (window.openFile) {
+                                console.log('[Internal Link] Using window.openFile');
+                                window.openFile(decodedPath);
+                            } else if (window.electronAPI && window.electronAPI.invoke) {
+                                console.log('[Internal Link] Using electronAPI');
+                                window.electronAPI.invoke('open-file', decodedPath);
+                            } else {
+                                console.warn('[Internal Link] No file opening API available');
+                            }
+                        } else {
+                            console.warn('[Internal Link] No data-link attribute found');
+                        }
+                    } else {
+                        // Regular click on internal link - prevent default
+                        console.log('[Internal Link] Regular click on internal link - preventing default');
+                        event.preventDefault();
+                    }
+                }
+            }, true); // Use capture phase
+        });
+    </script>
+
     <!-- Load JavaScript modules -->
     <script src="services/ttsService.js" defer></script>
     <script src="services/videoRecordingService.js" defer></script>

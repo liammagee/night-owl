@@ -195,10 +195,7 @@ And yet Hegel's ideas about the 'arc' of history still lurk behind this same dis
    - technopoeisis (N Katherine Hayles)
    - technodiverse (Hui)
    - cybersocial (Kalantzis & Cope) 
- - Fukuyama (neo-Hegelianism): history is over, liberal democracy has "won". What remains?
-   - Tinkering with the political and economic systems
-   - Techno-scientific progress (AI etc).
- - But is AI causing a return to "big picture" thinking? Is the permanence of a global liberal democratic world order still certain? Can technology drive history?
+
 
 ```notes
 So while the present-day form of progress may not be 'idea-driven' – perhaps because we have run out of them? or because we have unwittingly taken Marx' materialism to heart, even if we want to dispute Marxism itself? – we still hold dear the idea that we can bend history to our will. In the first four readings this week – by Rosa Braidotti, N Katherine Hayles, Yuk Hui, and Mary Kalantzis and Bill Cope – we see several variations of this.
@@ -214,15 +211,46 @@ Rosa Braidotti's discussion of AI develops upon her earlier work over several de
 
 Each of these terms gestures towards one or another way of thinking about exactly how we might consider our contemporary situation with respect to technology, and to AI. 
 
-On the other hand, we have a neo-Hegelian thinker like Fukuyama, who might argue this situation does not represent break or change, but instead a continuity with the past. In Fukuyama's case, the end of the Cold War witnessed the End of History, as the only true ideological rival to liberalism collapsed. Ironically, one of the signs of the end of history might be that time is marked by technological change rather than fundamentally new concepts of social or political organization. All that remains, according to this argument, is the stretching out of the achievements of liberalism to the parts of the world yet to fully experience its benefits. 
-
-For some, of course, this thesis was always absurd (see Derrida's critique in Spectres of Marx), and a far too literal reading of Hegel's own thesis about the end of history. However its naivete makes explicit the utopic elements that are often submerged within other, less explicitly historicist cases. These too include a sense of history as purpose-driven, a process that seeks synthesize our collective experience. 
-
-We might ask today whether these examples indicate how AI serves as a catalyst for the return, as I've put it, of the *grand recit* - the big picture or grand narrative. 
 
 
 ```
 
+---
+
+### Owl of Minerva (Roman Goddess of Wisdom)
+
+
+ - Fukuyama (neo-Hegelianism): history is over, liberal democracy has "won". What remains?
+   - Tinkering with the political and economic systems
+   - Techno-scientific progress (AI etc).
+ - But is AI causing a return to "big picture" thinking? Is the permanence of a global liberal democratic world order still certain? Can technology drive history? 
+ - Hegel's best-known quote: "the owl of Minerva spreads its wings only with the coming of the dusk"
+   - We can only understand events as history - once they are *past* 
+   - Cautionary note on our ability to predict the future, or even interpret the present
+ - **What do we make of AI's own ability to either predict or produce new futures?  **
+   - "The truth is that no one really knows how AIs will develop in the coming decades." (Katherine Hayles 2024)
+ 
+ 
+```notes
+
+On the other hand, we have a neo-Hegelian thinker like Fukuyama, who might argue this situation does not represent break or change, but instead a continuity with the past. In Fukuyama's case, the end of the Cold War witnessed the End of History, as the only true ideological rival to liberalism collapsed. Ironically, one of the signs of the end of history might be that time is marked by technological change rather than fundamentally new concepts of social or political organization. All that remains, according to this argument, is the stretching out of the achievements of liberalism to the parts of the world yet to fully experience its benefits. 
+
+For some, of course, this thesis was always absurd (see Derrida's critique in Spectres of Marx - a point I'll return to), and a far too literal reading of Hegel's own thesis about the end of history. However its naivete makes explicit the utopic elements that are often submerged within other, less explicitly historicist cases. These too include a sense of history as purpose-driven, a process that seeks synthesize our collective experience. 
+
+We might ask today whether these examples of "synthetic" thinking indicate how AI serves as a catalyst for the return, as I've put it, of the *grand recit* - the big picture or grand narrative. Or instead, as Fukuyama signals at the end of his essay, the calcification of history: when the bots take over, the genuine desire for recognition fades, and we are faced instead with the interminable "boredom at the end of history". In this view, AI - helping us to look back through our archives of culture – serves as a nostalgic reminder of a now-lost heroic age.
+
+Finally, we need to remind ourselves that Hegel himself, even while confidently calling the French Revolution "the end of history", remained ambivalent about the possibility for prediction. His most famous quote:
+
+> the owl of Minerva spreads its wings only with the coming of the dusk
+
+Is an example of epistemological caution. 
+
+This is part of Derrida's critique of Fukuyama - Fukuyama is essentially a naive Hegelian, whereas Hegel was himself far more circumspect. There is always the possibility for new contradictions – and therefore new syntheses. 
+
+What do we make of AI's own ability to either predict or produce new futures? 
+
+
+```
 
 
 ---

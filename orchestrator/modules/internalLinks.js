@@ -66,7 +66,14 @@ async function processInternalLinks(content) {
             filePath += '.md';
         }
         
-        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+        // Ensure we have the full path for internal links
+        let fullFilePath = filePath;
+        if (!fullFilePath.startsWith('/') && !fullFilePath.startsWith('http')) {
+            const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+            fullFilePath = `${workingDir}/${filePath}`;
+        }
+
+        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(fullFilePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
     });
 }
 
@@ -108,22 +115,35 @@ function createInlineLinkPreview(display, cleanLink, filePath, content) {
 // --- Link Click Handler ---
 function handleInternalLinkClick(event) {
     if (event.target && event.target.classList && event.target.classList.contains('internal-link')) {
-        event.preventDefault();
-        const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
-        const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
-        
-        
-        // Try to open the linked file
-        openInternalLink(filePath, originalLink);
+        console.log('[Preview Internal Link] Click detected on internal link');
+
+        // Check if Cmd (Mac) or Ctrl (Windows/Linux) is held
+        if (event.metaKey || event.ctrlKey) {
+            console.log('[Preview Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
+            event.preventDefault();
+
+            const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
+            const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
+
+            console.log('[Preview Internal Link] Raw filePath:', filePath);
+            console.log('[Preview Internal Link] Original link:', originalLink);
+
+            // Use the existing openInternalLink function which properly handles path resolution
+            openInternalLink(filePath, originalLink);
+        } else {
+            // Regular click - prevent default behavior (don't open file)
+            console.log('[Preview Internal Link] Regular click - preventing default');
+            event.preventDefault();
+        }
     }
 }
 
 // --- Open Internal Link ---
 async function openInternalLink(filePath, originalLink) {
     try {
-        // First, try to find the file in the current working directory
+        // Check if filePath is already absolute, if not, make it relative to working directory
         const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
-        const fullPath = `${workingDir}/${filePath}`;
+        const fullPath = filePath.startsWith('/') ? filePath : `${workingDir}/${filePath}`;
         
         
         // CRITICAL FIX: Use read-file-content instead of open-file-path to avoid changing currentFilePath
@@ -433,7 +453,14 @@ async function processInternalLinksHTML(htmlContent) {
                 filePath += '.md';
             }
             
-            return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+            // Ensure we have the full path for internal links
+        let fullFilePath = filePath;
+        if (!fullFilePath.startsWith('/') && !fullFilePath.startsWith('http')) {
+            const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+            fullFilePath = `${workingDir}/${filePath}`;
+        }
+
+        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(fullFilePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
         });
     }
     
