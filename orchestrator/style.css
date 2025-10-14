@@ -478,7 +478,7 @@ h2 {
 /* --- File Tree View Container --- */
 #file-tree-view {
     height: calc(100% - 40px); /* Adjust based on header height */
-    overflow-y: auto;
+    overflow: auto; /* Allow both horizontal and vertical scrolling */
     padding-top: 5px; /* Small padding at the top */
 }
 
@@ -486,6 +486,7 @@ h2 {
   margin: 0;
   padding: 0;
   list-style-type: none;
+  min-width: max-content; /* Allow ul to expand to fit content */
 }
 
 #file-tree-view ul.file-tree-children {
@@ -498,11 +499,12 @@ h2 {
 
 #file-tree-view li {
   padding: 1px 0;
-  margin: 0;        
+  margin: 0;
   cursor: pointer;
   white-space: nowrap; /* Prevent wrapping */
-  overflow: hidden;    /* Hide overflow */
-  text-overflow: ellipsis; /* Add ellipsis for long names */
+  min-width: max-content; /* Allow li to expand to fit content */
+  /* Remove overflow: hidden to allow horizontal scrolling */
+  /* text-overflow: ellipsis not needed with horizontal scroll */
 }
 
 #file-tree-view li.folder:hover,

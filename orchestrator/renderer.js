@@ -158,6 +158,9 @@ const folderNameError = document.getElementById('folder-name-error');
 const folderNameCancel = document.getElementById('folder-name-cancel');
 const folderNameCreate = document.getElementById('folder-name-create');
 
+// Track parent folder for context menu folder creation
+let folderCreationParentPath = '';
+
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
 const loadEditorToChatBtn = document.getElementById('load-editor-to-chat-btn'); // Get the new button
@@ -8159,7 +8162,11 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
             if (confirmDelete) {
                 console.log(`[handleFileContextMenuAction] Deleting ${filePath}`);
                 try {
-                    const result = await window.electronAPI.invoke('delete-file', filePath);
+                    const result = await window.electronAPI.invoke('delete-item', {
+                        path: filePath,
+                        type: isFolder ? 'directory' : 'file',
+                        name: filePath.split('/').pop()
+                    });
                     if (result.success) {
                         showNotification(result.message, 'success');
                         
@@ -8296,8 +8303,15 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
             break;
 
         case 'new-file':
-        case 'new-subfolder':
             showNotification('This functionality will be implemented soon', 'info');
+            break;
+
+        case 'new-subfolder':
+            if (isFolder) {
+                showFolderNameModalWithParent(filePath);
+            } else {
+                showNotification('New folder can only be created inside directories', 'error');
+            }
             break;
 
         default:
@@ -8337,6 +8351,7 @@ function highlightCurrentFileInTree(filePath) {
 
 // --- Folder Name Modal Functions ---
 function showFolderNameModal() {
+    folderCreationParentPath = ''; // Reset to root level
     folderNameModal.classList.remove('hidden');
     folderNameInput.value = '';
     folderNameError.style.display = 'none';
@@ -8345,6 +8360,15 @@ function showFolderNameModal() {
 
 function hideFolderNameModal() {
     folderNameModal.classList.add('hidden');
+    folderCreationParentPath = ''; // Reset parent path when modal is hidden
+}
+
+function showFolderNameModalWithParent(parentPath) {
+    folderCreationParentPath = parentPath;
+    folderNameModal.classList.remove('hidden');
+    folderNameInput.value = '';
+    folderNameError.style.display = 'none';
+    folderNameInput.focus();
 }
 
 function validateFolderName(name) {
@@ -8397,11 +8421,12 @@ async function handleCreateFolder() {
         console.log(`[Renderer] Creating new folder: ${trimmedName}`);
         
         // Send request to main process to create folder
-        const result = await window.electronAPI.invoke('create-folder', trimmedName);
+        const result = await window.electronAPI.invoke('create-folder', trimmedName, folderCreationParentPath);
         
         if (result.success) {
             console.log(`[Renderer] Folder created successfully: ${result.folderPath}`);
             hideFolderNameModal();
+            folderCreationParentPath = ''; // Reset parent path after successful creation
             // Refresh the file tree to show the new folder
             fileTreeRendered = false;
             debouncedRenderFileTree();

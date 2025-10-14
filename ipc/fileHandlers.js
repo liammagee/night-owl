@@ -26,10 +26,11 @@ function register(deps) {
   }
 
   // Directory and Folder Operations
-  ipcMain.handle('create-folder', async (event, folderName) => {
+  ipcMain.handle('create-folder', async (event, folderName, parentPath = '') => {
     try {
       const workingDir = getWorkingDirectory();
-      const folderPath = path.join(workingDir, folderName);
+      const basePath = parentPath ? path.join(workingDir, parentPath) : workingDir;
+      const folderPath = path.join(basePath, folderName);
       
       console.log(`[FileHandlers] Creating folder: ${folderPath}`);
       
@@ -525,7 +526,7 @@ function register(deps) {
       if (type === 'file') {
         await fs.unlink(itemPath);
       } else if (type === 'directory') {
-        await fs.rmdir(itemPath, { recursive: true });
+        await fs.rm(itemPath, { recursive: true, force: true });
       } else {
         throw new Error(`Unknown item type: ${type}`);
       }
