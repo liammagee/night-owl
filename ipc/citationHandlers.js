@@ -10,9 +10,199 @@ const path = require('path');
 
 let citationService = null;
 
+function extractYearFromString(value) {
+    if (!value || typeof value !== 'string') return null;
+    const yearMatch = value.match(/\b(19|20)\d{2}\b/);
+    return yearMatch ? parseInt(yearMatch[0], 10) : null;
+}
+
+function normalizeDateString(value) {
+    if (!value) return null;
+
+    const candidate = typeof value === 'string' ? value : String(value);
+
+    // Plain YYYY-MM-DD or similar
+    const isoMatch = candidate.match(/\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) return isoMatch[0];
+
+    // Try native Date parsing
+    const parsed = new Date(candidate);
+    if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+    }
+
+    // Twitter-style formats like "9:51 AM · Jan 10, 2024"
+    const twitterMatch = candidate.match(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}/i);
+    if (twitterMatch) {
+        const twitterParsed = new Date(twitterMatch[0]);
+        if (!Number.isNaN(twitterParsed.getTime())) {
+            return twitterParsed.toISOString().split('T')[0];
+        }
+    }
+
+    const yearOnly = extractYearFromString(candidate);
+    if (yearOnly) {
+        return `${yearOnly}-01-01`;
+    }
+
+    return null;
+}
+
+async function fetchTweetMetadata(url, parsedUrl = null) {
+    try {
+        const urlObj = parsedUrl || new URL(url);
+        const pathname = urlObj.pathname || '';
+        const idMatch = pathname.match(/status(?:es)?\/(\d+)/i);
+        const tweetId = idMatch ? idMatch[1] : null;
+        if (!tweetId) {
+            console.warn('[Citation Handlers] Tweet URL missing status ID:', url);
+            return null;
+        }
+
+        const fetchSyndication = async () => {
+            const response = await axios.get('https://cdn.syndication.twimg.com/widgets/tweet', {
+                params: { id: tweetId },
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                },
+                timeout: 10000
+            });
+            return response.data;
+        };
+
+        const fetchOEmbed = async () => {
+            const response = await axios.get('https://publish.twitter.com/oembed', {
+                params: {
+                    url,
+                    omit_script: true,
+                    hide_thread: true
+                },
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                },
+                timeout: 10000
+            });
+            return response.data;
+        };
+
+        let syndicationData = null;
+        try {
+            syndicationData = await fetchSyndication();
+        } catch (error) {
+            console.warn('[Citation Handlers] Tweet syndication fetch failed, falling back to oEmbed:', error.message);
+        }
+
+        let oembedData = null;
+        if (!syndicationData) {
+            try {
+                oembedData = await fetchOEmbed();
+            } catch (error) {
+                console.warn('[Citation Handlers] Tweet oEmbed fetch failed:', error.message);
+            }
+        } else {
+            // Try to also get oEmbed for additional author info if needed
+            try {
+                oembedData = await fetchOEmbed();
+            } catch (error) {
+                // Ignore secondary failure
+            }
+        }
+
+        if (!syndicationData && !oembedData) {
+            return null;
+        }
+
+        const metadata = {
+            site_name: 'X (formerly Twitter)'
+        };
+
+        const tweetText = syndicationData?.text || syndicationData?.full_text || syndicationData?.body;
+        const cleanTweetText = tweetText
+            ? tweetText.replace(/\s+/g, ' ').trim()
+            : oembedData?.html
+                ? cheerio.load(oembedData.html).text().replace(/\s+/g, ' ').trim()
+                : '';
+
+        // Title: concise representation of the tweet content
+        if (cleanTweetText) {
+            const maxLength = 80;
+            metadata.title = cleanTweetText.length > maxLength
+                ? `${cleanTweetText.slice(0, maxLength).trimEnd()}…`
+                : cleanTweetText;
+            metadata.abstract = cleanTweetText;
+        } else {
+            const fallbackAuthor = oembedData?.author_name || syndicationData?.user?.name || 'Tweet';
+            metadata.title = `Tweet by ${fallbackAuthor}`;
+        }
+
+        metadata.description = cleanTweetText || null;
+
+        // Author details
+        const authorName = syndicationData?.user?.name || oembedData?.author_name || syndicationData?.user?.screen_name;
+        let authorHandle = syndicationData?.user?.screen_name
+            ? syndicationData.user.screen_name
+            : oembedData?.author_url
+                ? oembedData.author_url.split('/').pop()
+                : null;
+        if (authorHandle) {
+            authorHandle = authorHandle.startsWith('@') ? authorHandle : `@${authorHandle}`;
+        }
+        if (authorName || authorHandle) {
+            metadata.author = authorHandle
+                ? `${authorName || authorHandle} (${authorHandle})`
+                : authorName;
+        }
+
+        // Publication date
+        let published = syndicationData?.created_at;
+        if (!published && oembedData?.cache_age) {
+            const now = new Date();
+            const ageSeconds = parseInt(oembedData.cache_age, 10);
+            if (!Number.isNaN(ageSeconds)) {
+                const publishedDate = new Date(now.getTime() - ageSeconds * 1000);
+                published = publishedDate.toISOString();
+            }
+        }
+
+        if (published) {
+            const normalized = normalizeDateString(published);
+            metadata.published_time = normalized || published;
+            const year = extractYearFromString(normalized || published);
+            metadata.year = year;
+        }
+
+        metadata.journal = 'X (formerly Twitter)';
+
+        return metadata;
+
+    } catch (error) {
+        console.error('[Citation Handlers] Tweet metadata fetch failed:', error.message);
+        return null;
+    }
+}
+
 // Extract metadata from URL
 async function extractUrlMetadata(url) {
     try {
+        let parsedUrl = null;
+        try {
+            parsedUrl = new URL(url);
+        } catch {
+            // Ignore invalid URLs; axios may still handle them
+        }
+
+        if (parsedUrl) {
+            const hostname = parsedUrl.hostname.toLowerCase();
+            const isTwitter = hostname.endsWith('twitter.com') || hostname.endsWith('x.com');
+            if (isTwitter) {
+                const tweetMetadata = await fetchTweetMetadata(url, parsedUrl);
+                if (tweetMetadata) {
+                    console.log('[Citation Handlers] Extracted tweet metadata via API:', tweetMetadata);
+                    return tweetMetadata;
+                }
+            }
+        }
+
         const response = await axios.get(url, {
             timeout: 10000,
             headers: {
@@ -22,47 +212,197 @@ async function extractUrlMetadata(url) {
 
         const $ = cheerio.load(response.data);
         const metadata = {};
+        const ldCandidates = [];
 
-        // Extract title
-        metadata.title = $('title').first().text().trim() ||
-                        $('meta[property="og:title"]').attr('content') ||
-                        $('meta[name="title"]').attr('content') ||
+        $('script[type="application/ld+json"]').each((_, element) => {
+            let text = $(element).contents().text() || $(element).text();
+            if (!text) return;
+            text = text.trim();
+            if (!text) return;
+
+            try {
+                const parsed = JSON.parse(text);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(item => ldCandidates.push(item));
+                } else {
+                    ldCandidates.push(parsed);
+                }
+            } catch (error) {
+                // Ignore JSON parse errors for malformed entries
+            }
+        });
+
+        const getContent = (selector) => {
+            const value = $(selector).first().attr('content');
+            return value ? value.trim() : null;
+        };
+
+        const collectMetaContents = (selector) => {
+            const values = [];
+            $(selector).each((_, element) => {
+                const value = $(element).attr('content');
+                if (value && value.trim()) {
+                    values.push(value.trim());
+                }
+            });
+            return values;
+        };
+
+        const authorSet = new Set();
+        const pushAuthor = (value) => {
+            if (value && typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed) {
+                    authorSet.add(trimmed.replace(/\s+/g, ' '));
+                }
+            }
+        };
+        const pushAuthorsFromLd = (value) => {
+            if (!value) return;
+            if (Array.isArray(value)) {
+                value.forEach(pushAuthorsFromLd);
+                return;
+            }
+            if (typeof value === 'string') {
+                pushAuthor(value);
+                return;
+            }
+            if (typeof value === 'object') {
+                if (value.name) pushAuthor(value.name);
+                if (value.alternateName) pushAuthor(value.alternateName);
+                if (value.givenName || value.familyName) {
+                    const combined = `${value.givenName || ''} ${value.familyName || ''}`.trim();
+                    if (combined) pushAuthor(combined);
+                }
+                if (value.author) pushAuthorsFromLd(value.author);
+            }
+        };
+
+        // Extract title with fallbacks
+        const rawTitle = $('title').first().text().trim() ||
+                        getContent('meta[property="og:title"]') ||
+                        getContent('meta[name="twitter:title"]') ||
+                        getContent('meta[name="title"]') ||
                         $('h1').first().text().trim();
 
-        // Extract description
-        metadata.description = $('meta[property="og:description"]').attr('content') ||
-                              $('meta[name="description"]').attr('content') ||
-                              $('meta[name="abstract"]').attr('content');
+        if (rawTitle) {
+            metadata.title = rawTitle.replace(/\s+/g, ' ').trim();
+        }
 
-        // Extract author
-        metadata.author = $('meta[name="author"]').attr('content') ||
-                         $('meta[property="article:author"]').attr('content') ||
-                         $('meta[name="citation_author"]').attr('content');
+        // Extract description
+        metadata.description = getContent('meta[property="og:description"]') ||
+                              getContent('meta[name="twitter:description"]') ||
+                              getContent('meta[name="description"]') ||
+                              getContent('meta[name="abstract"]');
+
+        // Extract author information
+        pushAuthor(getContent('meta[name="author"]'));
+        pushAuthor(getContent('meta[property="article:author"]'));
+        collectMetaContents('meta[name="citation_author"]').forEach(pushAuthor);
+        collectMetaContents('meta[name="dc.creator"]').forEach(pushAuthor);
+        pushAuthor(getContent('meta[name="twitter:creator"]'));
+        pushAuthor(getContent('meta[property="profile:username"]'));
+        const relAuthor = $('a[rel="author"]').first().text();
+        pushAuthor(relAuthor);
+        pushAuthor(getContent('meta[property="og:author"]'));
+        pushAuthor(getContent('meta[name="byl"]'));
+
+        const ldArticle = ldCandidates.find(item => {
+            const type = item?.['@type'];
+            if (!type) return false;
+            const types = Array.isArray(type) ? type : [type];
+            return types.some(t => ['Article', 'NewsArticle', 'BlogPosting', 'SocialMediaPosting', 'Tweet', 'CreativeWork', 'WebPage'].includes(t));
+        });
+
+        if (ldArticle) {
+            metadata.title = metadata.title || ldArticle.headline || ldArticle.name || ldArticle.title;
+            metadata.description = metadata.description || ldArticle.description;
+
+            pushAuthorsFromLd(ldArticle.author);
+            pushAuthorsFromLd(ldArticle.creator);
+            pushAuthorsFromLd(ldArticle.accountablePerson);
+
+            metadata.published_time = metadata.published_time || ldArticle.datePublished || ldArticle.uploadDate || ldArticle.dateCreated;
+            metadata.site_name = metadata.site_name || ldArticle.publisher?.name || ldArticle.isPartOf?.name;
+            metadata.journal = metadata.journal || ldArticle.isPartOf?.name;
+        }
+
+        // Attempt to derive author from title (common on X/Twitter)
+        if (authorSet.size === 0 && metadata.title) {
+            const twitterNameMatch = metadata.title.match(/^([^:]+)\s+on\s+X/i);
+            if (twitterNameMatch && twitterNameMatch[1]) {
+                pushAuthor(twitterNameMatch[1]);
+            }
+        }
+
+        if (authorSet.size > 0) {
+            metadata.author = Array.from(authorSet).join(', ');
+        }
 
         // Extract site name
-        metadata.site_name = $('meta[property="og:site_name"]').attr('content') ||
-                            $('meta[name="application-name"]').attr('content');
+        metadata.site_name = getContent('meta[property="og:site_name"]') ||
+                            getContent('meta[name="application-name"]') ||
+                            getContent('meta[name="publisher"]');
+
+        if (!metadata.site_name && url) {
+            try {
+                const { hostname } = new URL(url);
+                metadata.site_name = hostname.replace(/^www\./, '');
+            } catch {
+                // ignore URL parsing errors
+            }
+        }
 
         // Extract publication date
-        metadata.published_time = $('meta[property="article:published_time"]').attr('content') ||
-                                 $('meta[name="citation_publication_date"]').attr('content') ||
-                                 $('meta[name="pubdate"]').attr('content') ||
-                                 $('time[datetime]').attr('datetime');
+        metadata.published_time = getContent('meta[property="article:published_time"]') ||
+                                 getContent('meta[name="article:published_time"]') ||
+                                 getContent('meta[name="citation_publication_date"]') ||
+                                 getContent('meta[name="pubdate"]') ||
+                                 getContent('meta[name="date"]') ||
+                                 getContent('meta[name="dc.date"]') ||
+                                 $('time[datetime]').first().attr('datetime');
+
+        if (!metadata.published_time) {
+            const twitterDate = getContent('meta[name="twitter:data1"]');
+            if (twitterDate) {
+                metadata.published_time = twitterDate;
+            }
+        }
+        if (!metadata.published_time) {
+            const ldDate = ldArticle?.datePublished || ldArticle?.uploadDate || ldArticle?.dateCreated;
+            if (ldDate) {
+                metadata.published_time = ldDate;
+            }
+        }
+
+        // Extract publication year if explicitly provided
+        const citationYear = getContent('meta[name="citation_year"]') ||
+                            getContent('meta[name="dc.date.issued"]');
+        const explicitYear = extractYearFromString(citationYear);
 
         // Extract DOI if present
-        metadata.doi = $('meta[name="citation_doi"]').attr('content') ||
-                      $('meta[name="doi"]').attr('content');
+        metadata.doi = getContent('meta[name="citation_doi"]') ||
+                      getContent('meta[name="doi"]');
 
         // Extract journal information
-        metadata.journal = $('meta[name="citation_journal_title"]').attr('content') ||
-                          $('meta[name="citation_conference_title"]').attr('content');
+        metadata.journal = getContent('meta[name="citation_journal_title"]') ||
+                          getContent('meta[name="citation_conference_title"]');
 
-        // Clean up the title
-        if (metadata.title) {
-            metadata.title = metadata.title.replace(/\s+/g, ' ').trim();
-            // Remove site name from title if it's at the end
-            if (metadata.site_name && metadata.title.endsWith(' - ' + metadata.site_name)) {
-                metadata.title = metadata.title.replace(' - ' + metadata.site_name, '');
+        // Normalize publication date and year
+        const normalizedDate = normalizeDateString(metadata.published_time);
+        if (normalizedDate) {
+            metadata.published_time = normalizedDate;
+        }
+
+        metadata.year = explicitYear ||
+                        extractYearFromString(metadata.published_time) ||
+                        extractYearFromString(metadata.description);
+
+        // Clean up the title by removing trailing site name if duplicated
+        if (metadata.title && metadata.site_name) {
+            const suffix = ` - ${metadata.site_name}`;
+            if (metadata.title.endsWith(suffix)) {
+                metadata.title = metadata.title.slice(0, -suffix.length);
             }
         }
 
@@ -484,13 +824,16 @@ function registerCitationHandlers(userDataPath) {
             
             // Extract metadata from URL
             const metadata = await extractUrlMetadata(url);
-            
+            const publicationDate = normalizeDateString(metadata.published_time) || null;
+            const publicationYear = metadata.year || extractYearFromString(publicationDate);
+
             const citationData = {
                 title: metadata.title || 'Web Page',
                 authors: metadata.author || metadata.site_name || '',
-                url: url,
+                url,
                 citation_type: 'webpage',
-                publication_date: metadata.published_time || new Date().toISOString().split('T')[0],
+                publication_date: publicationDate,
+                publication_year: publicationYear || null,
                 abstract: metadata.description || '',
                 journal: metadata.site_name || '',
                 source: 'url'

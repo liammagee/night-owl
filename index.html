@@ -1174,6 +1174,40 @@
             color: #22c55e;
         }
 
+        body.dark-mode .citation-quick-capture {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: #374151;
+        }
+
+        body.dark-mode .citation-quick-capture textarea {
+            background: rgba(15, 23, 42, 0.95);
+            border-color: #475569;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .citation-quick-capture textarea:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+        }
+
+        body.dark-mode .citation-quick-status {
+            color: #cbd5f5;
+        }
+
+        body.dark-mode .citation-quick-controls {
+            color: #cbd5f5;
+        }
+
+        body.dark-mode .citation-quick-button {
+            border-color: #38bdf8;
+            background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+        }
+
+        body.dark-mode .citation-quick-hints span {
+            background: rgba(56, 189, 248, 0.15);
+            color: #7dd3fc;
+        }
+
         /* Citation Buttons - Default compact layout */
         .citation-btn-container {
             display: flex;
@@ -1209,6 +1243,114 @@
             border-left: 1px solid #ddd;
             height: 18px;
             margin: 0 3px;
+        }
+
+        .citation-quick-capture {
+            margin-top: 8px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px dashed #cbd5f5;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #f8fbff 0%, #f5fafd 40%, #ffffff 100%);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .citation-quick-capture.drag-over {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+            background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+        }
+
+        .citation-quick-capture label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #0f4c81;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .citation-quick-capture textarea {
+            width: 100%;
+            min-height: 48px;
+            padding: 6px 8px;
+            font-size: 12px;
+            border: 1px solid #d0d7e2;
+            border-radius: 6px;
+            resize: vertical;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .citation-quick-capture textarea:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+            outline: none;
+        }
+
+        .citation-quick-controls {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .citation-quick-status {
+            min-height: 18px;
+            font-size: 11px;
+            color: #456;
+        }
+
+        .citation-quick-status.success {
+            color: #0f9d58;
+        }
+
+        .citation-quick-status.error {
+            color: #d93025;
+        }
+
+        .citation-quick-status.warning {
+            color: #c46a00;
+        }
+
+        .citation-quick-button {
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: 6px;
+            border: 1px solid #2563eb;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+
+        .citation-quick-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(37, 99, 235, 0.2);
+        }
+
+        .citation-quick-button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        .citation-quick-hints {
+            margin-top: 2px;
+            font-size: 10px;
+            color: #5a6f8c;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .citation-quick-hints span {
+            background: rgba(59, 130, 246, 0.1);
+            color: #2360c7;
+            padding: 2px 6px;
+            border-radius: 4px;
         }
 
         /* Enhanced Citation Modal Styling */
@@ -1680,6 +1822,25 @@
                             <button id="refresh-citations-btn" class="btn citation-btn" title="Refresh Citations">
                                 <span class="btn-icon">🔃</span><span class="btn-label">Refresh</span>
                             </button>
+                            </div>
+                        </div>
+                        <!-- Quick capture -->
+                        <div id="citation-quick-capture-wrapper" class="citation-quick-capture">
+                            <label for="citation-quick-capture">
+                                ⚡ Quick Capture
+                                <span style="font-weight: 400; font-size: 11px; color: #5a6f8c;">
+                                    Paste a URL, DOI, tweet, or markdown link
+                                </span>
+                            </label>
+                            <textarea id="citation-quick-capture" placeholder="Example: https://twitter.com/... or 10.1145/12345.67890 or [Great Thread](https://example.com)"></textarea>
+                            <div class="citation-quick-controls">
+                                <button id="citation-quick-capture-btn" class="citation-quick-button" title="Create citation from the pasted reference">Add Citation</button>
+                                <div id="citation-quick-status" class="citation-quick-status"></div>
+                            </div>
+                            <div class="citation-quick-hints">
+                                <span>Press Enter or click Add to capture</span>
+                                <span>Drop text snippets here</span>
+                                <span>Supports DOI auto-lookup</span>
                             </div>
                         </div>
                         <!-- Collection Switcher (below buttons) -->

@@ -14,6 +14,8 @@ class CitationManager {
         this.actionListenersSet = false;
         this.lastNightowlSync = 0; // Timestamp to throttle sync
         this.currentCitationSource = 'manual'; // Track the source of the current citation being created/edited
+        this.quickCaptureProcessing = false;
+        this.quickCaptureStatusTimeout = null;
     }
 
     // Initialize the citation manager
@@ -103,6 +105,9 @@ class CitationManager {
 
         // Modal event listeners
         this.setupModalEventListeners();
+
+        // Quick capture controls
+        this.setupQuickCapture();
     }
 
     // Set up action button event listeners (called when panel becomes visible)
@@ -201,6 +206,235 @@ class CitationManager {
         
         this.actionListenersSet = true;
         console.log('[Citation Manager] Action button listeners set up successfully');
+    }
+
+    setupQuickCapture() {
+        const wrapper = document.getElementById('citation-quick-capture-wrapper');
+        const quickInput = document.getElementById('citation-quick-capture');
+        const quickButton = document.getElementById('citation-quick-capture-btn');
+
+        if (!quickInput || quickInput.dataset.listenersAttached === 'true') {
+            return;
+        }
+
+        quickInput.dataset.listenersAttached = 'true';
+
+        const scheduleProcess = (trigger) => {
+            if (!quickInput.value.trim()) {
+                this.setQuickStatus('');
+                return;
+            }
+            this.handleQuickCaptureInput(quickInput.value, trigger);
+        };
+
+        quickInput.addEventListener('drop', (event) => {
+            event.preventDefault();
+            const droppedText = event.dataTransfer?.getData('text/plain') || event.dataTransfer?.getData('text');
+            if (droppedText) {
+                quickInput.value = droppedText;
+                this.setQuickStatus('Ready — press Enter or click Add to capture.');
+            }
+        });
+
+        quickInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                if (event.metaKey || event.ctrlKey || !quickInput.value.includes('\n')) {
+                    event.preventDefault();
+                    scheduleProcess('enter');
+                }
+            }
+        });
+
+        if (wrapper) {
+            const addDrag = () => wrapper.classList.add('drag-over');
+            const removeDrag = () => wrapper.classList.remove('drag-over');
+
+            ['dragenter', 'dragover'].forEach(evt => {
+                wrapper.addEventListener(evt, (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    addDrag();
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(evt => {
+                wrapper.addEventListener(evt, (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    removeDrag();
+                });
+            });
+        }
+
+        if (quickButton) {
+            quickButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                scheduleProcess('button');
+            });
+        }
+
+        quickInput.addEventListener('paste', () => {
+            this.setQuickStatus('Press Enter or click Add to capture.');
+        });
+    }
+
+    async handleQuickCaptureInput(rawText, trigger = 'manual') {
+        const quickInput = document.getElementById('citation-quick-capture');
+        const cleaned = (rawText || '').trim();
+
+        if (!cleaned || this.quickCaptureProcessing) {
+            if (!cleaned) {
+                this.setQuickStatus('');
+            } else {
+                this.setQuickStatus('Still working on previous capture…', 'warning');
+            }
+            return;
+        }
+
+        const markdownMatch = cleaned.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
+        const doiRegex = /\b10\.\d{4,9}\/[^\s"<>]+/i;
+        const doiMatch = cleaned.match(doiRegex);
+        const urlRegex = /(https?:\/\/[^\s<>"')]+|www\.[^\s<>"')]+)/i;
+        let urlMatch = markdownMatch ? markdownMatch[2] : null;
+
+        if (!urlMatch) {
+            const plainUrlMatch = cleaned.match(urlRegex);
+            if (plainUrlMatch) {
+                urlMatch = plainUrlMatch[0];
+            }
+        }
+
+        if (!doiMatch && urlMatch && /doi\.org/i.test(urlMatch)) {
+            const doiFromUrl = urlMatch.replace(/^https?:\/\/(dx\.)?doi\.org\//i, '');
+            if (doiFromUrl) {
+                const potentialDoi = doiFromUrl.match(doiRegex);
+                if (potentialDoi) {
+                    const extracted = potentialDoi[0];
+                    // Recursively handle as DOI to leverage CrossRef metadata
+                    return this.handleQuickCaptureInput(extracted, trigger);
+                }
+            }
+        }
+
+        const hasDoi = !!doiMatch;
+        const doiValue = hasDoi ? doiMatch[0] : null;
+        const sanitizedUrl = urlMatch ? this.sanitizeUrl(urlMatch) : null;
+        const residualText = markdownMatch
+            ? cleaned.replace(markdownMatch[0], '').trim()
+            : sanitizedUrl
+                ? cleaned.replace(urlRegex, '').trim()
+                : cleaned;
+
+        this.quickCaptureProcessing = true;
+        this.setQuickStatus(hasDoi ? 'Looking up DOI metadata…' : sanitizedUrl ? 'Fetching page details…' : 'Processing input…');
+
+        try {
+            let response;
+            if (hasDoi) {
+                response = await window.electronAPI.invoke('citations-import-doi', doiValue);
+            } else if (sanitizedUrl) {
+                response = await window.electronAPI.invoke('citations-import-url', sanitizedUrl);
+            } else {
+                throw new Error('No URL or DOI detected. Paste a full link or DOI value.');
+            }
+
+            if (!response || !response.success) {
+                throw new Error(response?.error || 'Unable to create citation from text.');
+            }
+
+            const created = response.citation || {};
+            this.setQuickStatus(`Added “${created.title || created.url || 'Untitled citation'}”.`, 'success');
+            if (quickInput) quickInput.value = '';
+
+            await this.refreshCitationsWithSync(true); // Skip nightowl sync to avoid triggering reload
+        } catch (error) {
+            console.error('[Citation Manager] Quick capture failed:', error);
+            if (sanitizedUrl) {
+                try {
+                    const fallbackTitle = (markdownMatch && markdownMatch[1]) ||
+                        this.extractPotentialTitle(cleaned, sanitizedUrl) ||
+                        sanitizedUrl;
+                    const fallbackNotes = residualText && residualText !== sanitizedUrl ? residualText : '';
+                    const fallbackData = {
+                        title: fallbackTitle,
+                        url: sanitizedUrl,
+                        citation_type: 'webpage',
+                        notes: fallbackNotes,
+                        source: 'quick-capture'
+                    };
+
+                    const fallbackResponse = await window.electronAPI.invoke('citations-add', fallbackData);
+                    if (fallbackResponse && fallbackResponse.success) {
+                        this.setQuickStatus(`Saved basic citation for ${fallbackTitle}.`, 'warning');
+                        if (quickInput) quickInput.value = '';
+                        await this.refreshCitationsWithSync(true); // Skip nightowl sync to avoid triggering reload
+                    } else {
+                        throw new Error(fallbackResponse?.error || error.message);
+                    }
+                } catch (fallbackError) {
+                    console.error('[Citation Manager] Fallback quick capture failed:', fallbackError);
+                    this.setQuickStatus(`Could not add citation: ${fallbackError.message || fallbackError}`, 'error');
+                    if (window.showNotification) {
+                        window.showNotification(`Citation quick capture failed: ${fallbackError.message || fallbackError}`, 'error');
+                    }
+                }
+            } else {
+                this.setQuickStatus(`Could not add citation: ${error.message || error}`, 'error');
+            }
+        } finally {
+            this.quickCaptureProcessing = false;
+        }
+    }
+
+    setQuickStatus(message, variant = 'info') {
+        const statusEl = document.getElementById('citation-quick-status');
+        if (!statusEl) return;
+
+        statusEl.classList.remove('success', 'error', 'warning');
+        if (variant !== 'info' && variant) {
+            statusEl.classList.add(variant);
+        }
+        statusEl.textContent = message || '';
+
+        if (this.quickCaptureStatusTimeout) {
+            clearTimeout(this.quickCaptureStatusTimeout);
+            this.quickCaptureStatusTimeout = null;
+        }
+
+        if (message) {
+            this.quickCaptureStatusTimeout = setTimeout(() => {
+                statusEl.classList.remove('success', 'error', 'warning');
+                statusEl.textContent = '';
+                this.quickCaptureStatusTimeout = null;
+            }, variant === 'error' ? 8000 : 5000);
+        }
+    }
+
+    extractPotentialTitle(text, url) {
+        if (!text) return '';
+        let working = text;
+        if (url) {
+            const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedUrl, 'gi');
+            working = working.replace(regex, '');
+        }
+        working = working.replace(/\[[^\]]+\]\([^)]+\)/g, '');
+        working = working.replace(/https?:\/\/\S+/g, '');
+        const firstLine = working.split('\n').map(line => line.trim()).find(line => line.length > 0);
+        if (!firstLine) return '';
+        return firstLine.replace(/^[•\-\*]+/, '').trim();
+    }
+
+    sanitizeUrl(url) {
+        if (!url) return '';
+        let normalized = url.trim();
+        if (/^https?:\/\//i.test(normalized)) {
+            return normalized;
+        }
+        if (normalized.startsWith('www.')) {
+            return `https://${normalized}`;
+        }
+        return `https://${normalized}`;
     }
 
     // Set up modal event listeners

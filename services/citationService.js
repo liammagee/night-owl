@@ -230,6 +230,60 @@ class CitationService {
             const existing = await this.findExistingCitation(citationData);
             if (existing) {
                 console.log(`[Citation Service] Citation already exists: ${citationData.title}`);
+
+                const updates = {};
+                const preferNewValue = (field, options = {}) => {
+                    const newValue = citationData[field];
+                    if (newValue === undefined || newValue === null || newValue === '') {
+                        return;
+                    }
+
+                    const existingValue = existing[field];
+                    const { replaceIfPlaceholder = false, placeholderValues = [] } = options;
+                    const normalizedExisting = typeof existingValue === 'string'
+                        ? existingValue.trim().toLowerCase()
+                        : existingValue;
+                    const normalizedPlaceholders = placeholderValues
+                        .map(value => typeof value === 'string' ? value.trim().toLowerCase() : value)
+                        .filter(value => value !== undefined && value !== null && value !== '');
+
+                    const isPlaceholder = replaceIfPlaceholder &&
+                        normalizedPlaceholders.includes(normalizedExisting);
+
+                    if (!existingValue || isPlaceholder) {
+                        updates[field] = newValue;
+                    }
+                };
+
+                preferNewValue('title', {
+                    replaceIfPlaceholder: true,
+                    placeholderValues: ['Web Page', 'Untitled citation', existing?.url || '']
+                });
+                preferNewValue('authors');
+                preferNewValue('publication_year');
+                preferNewValue('publication_date');
+                preferNewValue('journal');
+                preferNewValue('volume');
+                preferNewValue('issue');
+                preferNewValue('pages');
+                preferNewValue('publisher');
+                preferNewValue('doi');
+                preferNewValue('url');
+                preferNewValue('file_path');
+                preferNewValue('abstract');
+                preferNewValue('notes');
+                preferNewValue('tags');
+                preferNewValue('citation_type');
+
+                if (citationData.source && (!existing.source || existing.source === 'manual')) {
+                    updates.source = citationData.source;
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    await this.updateCitation(existing.id, updates);
+                    return { ...existing, ...updates };
+                }
+
                 return existing; // Return existing instead of creating duplicate
             }
 
