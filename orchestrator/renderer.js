@@ -2047,7 +2047,7 @@ function computeCitationKey(citation) {
 }
 
 // Parse BibTeX entries from content
-function parseBibTeX(content) {
+function parseBibTeX(content, sourceLabel = '') {
     const entries = [];
     const entryRegex = /@(\w+)\s*\{\s*([^,\s\}]+)\s*,([^\}]*)\}/g;
     let match;
@@ -2071,7 +2071,9 @@ function parseBibTeX(content) {
             type: type,
             title: title,
             author: author,
-            year: year
+            year: year,
+            source: 'bibtex',
+            sourceDetail: sourceLabel
         });
     }
     
@@ -2104,7 +2106,8 @@ async function loadDatabaseCitations() {
                 journal: citation.journal || '',
                 doi: citation.doi || '',
                 url: citation.url || '',
-                source: 'database'  // Mark as database entry
+                source: 'database',  // Mark as database entry
+                sourceDetail: 'Citation Manager'
             };
         });
         
@@ -2177,7 +2180,10 @@ async function loadBibTeXFiles() {
                                     
                                     const content = response.content;
                                     console.log(`[loadBibTeX] Successfully read ${fullBibPath}, content length:`, content?.length || 0);
-                                    const entries = parseBibTeX(content);
+                                    const sourceLabel = relativePath && relativePath !== '.'
+                                        ? `${relativePath}/${file.name}`
+                                        : file.name;
+                                    const entries = parseBibTeX(content, sourceLabel);
                                     console.log(`[loadBibTeX] Parsed ${entries.length} entries from ${file.name}`);
                                     if (entries.length > 0) {
                                         bibEntries.push(...entries);
@@ -2205,7 +2211,10 @@ async function loadBibTeXFiles() {
                                         }
                                         
                                         const content = response.content;
-                                        const entries = parseBibTeX(content);
+                                        const sourceLabel = relativePath && relativePath !== '.'
+                                            ? `${relativePath}/${file.name}`
+                                            : file.name;
+                                        const entries = parseBibTeX(content, sourceLabel);
                                         console.log(`[renderer.js] Successfully parsed ${entries.length} entries from ${altPath}`);
                                         if (entries.length > 0) {
                                             console.log('[renderer.js] Sample parsed entry:', entries[0]);
@@ -2352,17 +2361,16 @@ function registerCitationAutocomplete() {
                     const kind = entry.source === 'database' 
                         ? monaco.languages.CompletionItemKind.Database
                         : monaco.languages.CompletionItemKind.Reference;
-                    
-                    // Show source in detail
-                    const detailParts = [
-                        entry.author,
-                        entry.year && entry.year.toString()
-                    ].filter(Boolean);
-                    const labelDescription = entry.title ? truncate(entry.title, 60) : '';
-                    const detail = entry.source === 'database' 
-                        ? `@${entry.type} (from database)`
-                        : `@${entry.type} (from BibTeX)`;
-                    
+
+                    const titleSnippet = entry.title ? truncate(entry.title, 60) : '';
+                    const authorSnippet = entry.author ? truncate(entry.author, 40) : '';
+                    const sourceDisplay = entry.source === 'database'
+                        ? 'Citation Manager'
+                        : (entry.sourceDetail || 'BibTeX');
+                    const detail = entry.type
+                        ? `${sourceDisplay} • @${entry.type}`
+                        : sourceDisplay;
+
                     const documentationParts = [];
                     if (entry.title) {
                         documentationParts.push(`**${entry.title}**`);
@@ -2371,18 +2379,19 @@ function registerCitationAutocomplete() {
                     if (metaLine) {
                         documentationParts.push(metaLine);
                     }
+                    documentationParts.push(`Source: ${sourceDisplay}`);
                     if (entry.doi) {
                         documentationParts.push(`DOI: ${entry.doi}`);
                     }
                     if (entry.url) {
                         documentationParts.push(entry.url);
                     }
-                    documentationParts.push(entry.source === 'database'
-                        ? '_Source: Citation Manager_'
-                        : '_Source: BibTeX file_');
+                    if (entry.sourceDetail && entry.source !== 'database') {
+                        documentationParts.push(`File: ${entry.sourceDetail}`);
+                    }
 
-                    const labelDetails = detailParts.length || labelDescription
-                        ? { detail: detailParts.join(' • ') || undefined, description: labelDescription || undefined }
+                    const labelDetails = (authorSnippet || titleSnippet)
+                        ? { detail: authorSnippet || undefined, description: titleSnippet || undefined }
                         : undefined;
 
                     const completionItem = {
@@ -2395,7 +2404,7 @@ function registerCitationAutocomplete() {
                             isTrusted: false
                         },
                         sortText: `${index.toString().padStart(4, '0')}_${entry.key}`,
-                        filterText: `${entry.key} ${entry.title || ''} ${entry.author || ''} ${entry.year || ''} ${entry.journal || ''}`,
+                        filterText: `${entry.key} ${entry.title || ''} ${entry.author || ''} ${entry.year || ''} ${entry.journal || ''} ${sourceDisplay} ${entry.sourceDetail || ''}`,
                         range: {
                             startLineNumber: position.lineNumber,
                             endLineNumber: position.lineNumber,
