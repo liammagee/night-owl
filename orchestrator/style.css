@@ -191,8 +191,8 @@ body, html {
 
 /* Left Sidebar */
 #left-sidebar {
-    width: 250px;
-    min-width: 200px;
+    width: 312px; /* Increased by 25% (250px -> 312px) */
+    min-width: 250px; /* Also increased min-width proportionally */
     max-width: 600px;
     border-right: 1px solid #ddd;
     display: flex;
@@ -236,7 +236,7 @@ body, html {
 }
 
 .structure-pane {
-    flex: 0 0 200px; /* Initial width, no grow/shrink */
+    flex: 0 0 250px; /* Initial width increased by 25% (200px -> 250px), no grow/shrink */
     min-width: 100px; /* Keep a minimum width */
     border-right: 1px solid #ccc;
     background-color: var(--surface-variant);

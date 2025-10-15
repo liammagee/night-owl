@@ -895,6 +895,7 @@ class CitationManager {
             // Set the citation data for transfer
             const citationText = `[@${citationKey}]`;
             e.dataTransfer.setData('text/plain', citationText);
+            e.dataTransfer.setData('text', citationText);
             e.dataTransfer.setData('application/x-citation-key', citationKey);
             e.dataTransfer.setData('application/x-citation-data', JSON.stringify(citation));
             e.dataTransfer.effectAllowed = 'copy';

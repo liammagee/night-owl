@@ -2651,6 +2651,12 @@ async function initializeMonacoEditor() {
             });
             
             editor.onDidChangeModelContent(async (event) => {
+                const shouldCleanPlaceholders = Array.isArray(event?.changes) &&
+                    event.changes.some(change => typeof change.text === 'string' && change.text.includes('$0'));
+                if (shouldCleanPlaceholders) {
+                    setTimeout(removeCitationPlaceholderArtifacts, 0);
+                }
+
                 const currentContent = editor.getValue();
                 
                 // Process content changes for AI writing companion
@@ -3095,6 +3101,47 @@ async function initializeMonacoEditor() {
                 editor.updateOptions({ theme: isDark ? 'vs-dark' : 'vs' });
             }
 
+            // Helper to strip lingering snippet placeholders like "$0" that Monaco may introduce
+            let isCleaningCitationPlaceholder = false;
+            const removeCitationPlaceholderArtifacts = () => {
+                if (!editor || isCleaningCitationPlaceholder) {
+                    return;
+                }
+
+                const model = editor.getModel();
+                if (!model) {
+                    return;
+                }
+
+                const placeholderMatches = model.findMatches(
+                    '\\[@[^\\]]*\\]\\$0',
+                    false,
+                    true,
+                    false,
+                    null,
+                    true
+                );
+
+                if (!placeholderMatches.length) {
+                    return;
+                }
+
+                isCleaningCitationPlaceholder = true;
+
+                const edits = placeholderMatches.map(match => ({
+                    range: new monaco.Range(
+                        match.range.endLineNumber,
+                        match.range.endColumn - 2,
+                        match.range.endLineNumber,
+                        match.range.endColumn
+                    ),
+                    text: ''
+                }));
+
+                editor.executeEdits('cleanup-citation-placeholder', edits);
+                isCleaningCitationPlaceholder = false;
+            };
+
             // --- IMAGE DRAG & DROP: Add drag/drop support for images ---
             function setupImageDragAndDrop() {
                 const editorContainer = document.getElementById('editor');
@@ -3211,6 +3258,15 @@ async function initializeMonacoEditor() {
                 const editorContainer = document.getElementById('editor');
                 if (!editorContainer) return;
 
+                // Clean up snippet placeholders that sometimes hitch a ride with dragged text
+                const cleanDroppedCitationText = (text) => {
+                    if (!text) return '';
+                    return text
+                        .replace(/\$\{\d+:([^}]*)\}/g, '$1') // unwrap ${1:placeholder} style snippets
+                        .replace(/\$\d+/g, '') // strip trailing $0 style placeholders
+                        .trim();
+                };
+
                 // Add citation-specific drop handling to the existing dragover listener
                 editorContainer.addEventListener('dragover', (event) => {
                     const types = event.dataTransfer.types;
@@ -3233,55 +3289,104 @@ async function initializeMonacoEditor() {
 
                 // Handle citation drop
                 editorContainer.addEventListener('drop', async (event) => {
+                    const types = Array.from(event.dataTransfer?.types || []);
                     const citationKey = event.dataTransfer.getData('application/x-citation-key');
-                    const citationText = event.dataTransfer.getData('text/plain');
+                    const rawText = event.dataTransfer.getData('text') || event.dataTransfer.getData('text/plain') || '';
+                    const citationText = cleanDroppedCitationText(rawText);
+                    const isCitationDrop = Boolean(
+                        citationKey ||
+                        (citationText && citationText.startsWith('[@')) ||
+                        types.includes('application/x-citation-key')
+                    );
 
-                    if (citationKey || (citationText && citationText.startsWith('[@'))) {
-                        event.preventDefault();
-                        event.stopPropagation();
+                    if (!isCitationDrop) {
+                        return;
+                    }
 
-                        // Reset visual feedback
-                        editorContainer.style.backgroundColor = '';
-                        editorContainer.style.borderColor = '';
+                    event.preventDefault();
+                    if (event.stopImmediatePropagation) {
+                        event.stopImmediatePropagation();
+                    }
+                    event.stopPropagation();
 
-                        console.log(`[Citation Drop] Dropped citation: ${citationKey || citationText}`);
+                    // Reset visual feedback
+                    editorContainer.style.backgroundColor = '';
+                    editorContainer.style.borderColor = '';
 
-                        // Insert the citation at cursor position
-                        if (editor) {
-                            const position = editor.getPosition();
-                            const range = new monaco.Range(
-                                position.lineNumber,
-                                position.column,
-                                position.lineNumber,
-                                position.column
-                            );
+                    const sanitizedKey = cleanDroppedCitationText(citationKey);
+                    let sanitizedCitation = '';
 
-                            const textToInsert = citationText || `[@${citationKey}]`;
+                    if (sanitizedKey) {
+                        sanitizedCitation = `[@${sanitizedKey}]`;
+                    } else if (citationText && citationText.startsWith('[@')) {
+                        sanitizedCitation = citationText;
+                    } else if (citationText) {
+                        sanitizedCitation = `[@${citationText.replace(/^\[@?/, '').replace(/\]$/, '')}]`;
+                    }
 
-                            editor.executeEdits('drop-citation', [{
-                                range: range,
-                                text: textToInsert
-                            }]);
+                    sanitizedCitation = cleanDroppedCitationText(sanitizedCitation);
 
-                            // Move cursor to end of inserted text
-                            const newPosition = {
-                                lineNumber: position.lineNumber,
-                                column: position.column + textToInsert.length
-                            };
-                            editor.setPosition(newPosition);
+                    if (!sanitizedCitation) {
+                        console.warn('[Citation Drop] Unable to determine citation text from drop payload', {
+                            rawText,
+                            citationKey,
+                            types
+                        });
+                        return;
+                    }
 
-                            console.log(`[Citation Drop] Inserted citation: ${textToInsert}`);
+                    console.log(`[Citation Drop] Dropped citation: ${sanitizedCitation}`);
 
-                            // Show success notification
-                            if (window.showNotification) {
-                                window.showNotification(`Citation inserted: ${citationKey || 'citation'}`, 'success');
+                    if (editor) {
+                        const insertStart = editor.getPosition();
+                        const range = new monaco.Range(
+                            insertStart.lineNumber,
+                            insertStart.column,
+                            insertStart.lineNumber,
+                            insertStart.column
+                        );
+
+                        editor.executeEdits('drop-citation', [{
+                            range: range,
+                            text: sanitizedCitation
+                        }]);
+
+                        const model = editor.getModel();
+                        const insertEndColumn = insertStart.column + sanitizedCitation.length;
+
+                        if (model) {
+                            const lineText = model.getLineContent(insertStart.lineNumber) || '';
+                            const trailingText = lineText.slice(insertEndColumn - 1);
+                            if (trailingText.startsWith('$0')) {
+                                const cleanupRange = new monaco.Range(
+                                    insertStart.lineNumber,
+                                    insertEndColumn,
+                                    insertStart.lineNumber,
+                                    insertEndColumn + 2
+                                );
+                                editor.executeEdits('drop-citation-cleanup', [{
+                                    range: cleanupRange,
+                                    text: ''
+                                }]);
                             }
+                        }
 
-                            // Update preview if available
-                            if (window.updatePreview) {
-                                const content = editor.getValue();
-                                await window.updatePreview(content);
-                            }
+                        editor.setPosition({
+                            lineNumber: insertStart.lineNumber,
+                            column: insertEndColumn
+                        });
+
+                        removeCitationPlaceholderArtifacts();
+
+                        console.log(`[Citation Drop] Inserted citation: ${sanitizedCitation}`);
+
+                        if (window.showNotification) {
+                            window.showNotification(`Citation inserted: ${citationKey || sanitizedCitation}`, 'success');
+                        }
+
+                        if (window.updatePreview) {
+                            const content = editor.getValue();
+                            await window.updatePreview(content);
                         }
                     }
                 }, false);
