@@ -200,10 +200,21 @@ class LibraryWorldEngine {
         return { ...this.worldState };
     }
 
-    consumeArchitectQueue() {
-        const queue = [...this.architectQueue];
-        this.architectQueue = [];
-        return queue;
+    consumeArchitectQueue(ids = null) {
+        if (!ids || ids.length === 0) {
+            const queue = [...this.architectQueue];
+            this.architectQueue = [];
+            return queue;
+        }
+
+        const idSet = new Set(ids);
+        const consumed = this.architectQueue.filter(entry => idSet.has(entry.id));
+        this.architectQueue = this.architectQueue.filter(entry => !idSet.has(entry.id));
+        return consumed;
+    }
+
+    peekArchitectQueue() {
+        return [...this.architectQueue];
     }
 
     saveWorldState() {

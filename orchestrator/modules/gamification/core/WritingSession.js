@@ -16,7 +16,8 @@ class WritingSession {
         this.totalWordsWritten = 0;
     }
 
-    startWritingSession() {
+    startWritingSession(options = {}) {
+        const { silent = false } = options;
         if (this.currentSession) {
             // console.log('[Gamification] Session already active');
             return;
@@ -38,8 +39,10 @@ class WritingSession {
         this.sessionWordCount = 0;
         
         // console.log('[Gamification] Writing session started:', this.currentSession.id);
-        this.gamification.updateGamificationUI();
-        this.showNotification('✍️ Writing session started! Keep the momentum flowing.', 'success');
+        this.gamification.updateGamificationUI(true);
+        if (!silent) {
+            this.showNotification('✍️ Writing session started! Keep the momentum flowing.', 'success');
+        }
         this.gamification.recordWorldEvent({
             type: 'session.started',
             payload: {
@@ -114,7 +117,6 @@ class WritingSession {
         
         this.currentSession = null;
         this.sessionStartTime = null;
-        this.gamification.updateGamificationUI();
         
         console.log('[Gamification] Writing session ended');
     }
@@ -231,13 +233,31 @@ class WritingSession {
     updateActivity() {
         if (!this.currentSession) return;
         
+        const previousWords = this.currentSession.wordCount || 0;
+        
         this.lastActivityTime = Date.now();
         const currentWordCount = this.getCurrentWordCount();
         this.sessionWordCount = Math.max(0, currentWordCount - this.sessionStartWordCount);
         this.currentSession.wordCount = this.sessionWordCount;
         
-        // Update UI with current progress
-        this.gamification.updateGamificationUI();
+        const delta = this.currentSession.wordCount - previousWords;
+        if (delta > 0 && typeof this.gamification.handleLiveWordDelta === 'function') {
+            this.gamification.handleLiveWordDelta(delta, this.getRecentSnippet());
+        }
+    }
+
+    getRecentSnippet() {
+        if (!editor) return '';
+        const content = editor.getValue();
+        if (!content) return '';
+        const trimmed = content.trim();
+        if (!trimmed) return '';
+        const snippetLength = 180;
+        if (trimmed.length <= snippetLength) {
+            return trimmed;
+        }
+        const snippet = trimmed.slice(-snippetLength);
+        return `…${snippet}`;
     }
 
     showNotification(message, type = 'info', duration = 3000) {

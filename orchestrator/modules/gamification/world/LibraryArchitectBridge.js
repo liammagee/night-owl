@@ -25,6 +25,8 @@ class LibraryArchitectBridge {
         const ledger = this.gamification?.resourceLedger || {};
         const stats = this.gamification?.getStats?.() || {};
 
+        const pendingPrompts = Array.isArray(context.pendingPrompts) ? context.pendingPrompts : [];
+
         return `
 You are the Library Architect, tasked with extending a Library-of-Babel style world that reflects a writer's ongoing practice.
 
@@ -33,6 +35,9 @@ ${JSON.stringify(worldState, null, 2)}
 
 Recent writing events (latest first):
 ${recentEvents.map(event => `- ${event.type}: ${JSON.stringify(event.payload)}`).join('\n')}
+
+Pending architect prompts to prioritise:
+${pendingPrompts.length ? pendingPrompts.map((prompt, idx) => `  ${idx + 1}. ${JSON.stringify(prompt)}`).join('\n') : '  (none)'}
 
 Resource ledger:
 ${JSON.stringify(ledger, null, 2)}

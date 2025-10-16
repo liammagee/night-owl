@@ -52,6 +52,20 @@ class GamificationManager {
             prestigeLabel: 'Archive Prestige'
         };
 
+        // Live progress tracking for incremental feedback
+        this.liveProgress = {
+            accumulatedWords: 0,
+            shardInterval: 30,
+            shardsPerInterval: 12,
+            recentSnippet: '',
+            lastMilestoneAt: null
+        };
+
+        this.architectAutomation = {
+            threshold: 3,
+            inFlight: false
+        };
+
         // Level/XP Progression System
         this.xpSystem = {
             currentXP: this.dataPersistence.loadXP().currentXP || 0,
@@ -134,8 +148,8 @@ class GamificationManager {
 
     // === Session Management Delegations ===
     
-    startWritingSession() {
-        return this.writingSession.startWritingSession();
+    startWritingSession(options = {}) {
+        return this.writingSession.startWritingSession(options);
     }
 
     endWritingSession() {
@@ -186,12 +200,18 @@ class GamificationManager {
         const currentWordCount = this.getCurrentWordCount();
         
         // Update writing session
+        if (!this.writingSession.currentSession) {
+            this.writingSession.startWritingSession({ silent: true });
+        }
         this.writingSession.updateActivity();
         
         // Update flow state detection
         this.flowState.updateFlowState(now, currentWordCount);
         
         // Update UI
+        if (this.explorerView) {
+            this.explorerView.signalActivity('typing');
+        }
         this.updateGamificationUI();
     }
 
@@ -250,11 +270,24 @@ class GamificationManager {
 
     // === Placeholder Methods (to be implemented) ===
 
-    updateGamificationUI() {
+    updateGamificationUI(force = false) {
         if (this.explorerView && this.worldEngine) {
             this.explorerView.render(
                 this.worldEngine.getWorldState(),
-                this.resourceLedger
+                this.resourceLedger,
+                {
+                    force,
+                    snippet: this.liveProgress.recentSnippet,
+                    pulse: {
+                        wordsRemaining: Math.max(
+                            this.liveProgress.shardInterval - this.liveProgress.accumulatedWords,
+                            0
+                        ),
+                        shardInterval: this.liveProgress.shardInterval,
+                        shardsPerInterval: this.liveProgress.shardsPerInterval,
+                        lastMilestoneAt: this.liveProgress.lastMilestoneAt
+                    }
+                }
             );
         }
     }
@@ -282,7 +315,6 @@ class GamificationManager {
         this.resourceLedger.lexiconShards = (this.resourceLedger.lexiconShards || 0) + amount;
         this.checkArchitectMilestones();
         this.saveResourceLedger();
-        this.updateGamificationUI();
         this.recordWorldEvent({
             type: 'resource.harvested',
             payload: { amount, reason, resource: 'lexiconShards' }
@@ -316,7 +348,6 @@ class GamificationManager {
             window.showNotification(`📑 +${amount} catalogue sigils: ${reason}`, 'success');
         }
 
-        this.updateGamificationUI();
         this.recordWorldEvent({
             type: 'resource.minted',
             payload: { amount, reason, resource: 'catalogueSigils' }
@@ -342,7 +373,6 @@ class GamificationManager {
             window.showNotification(`🏛 +${amount} architect token${amount !== 1 ? 's' : ''}: ${reason}`, 'success');
         }
 
-        this.updateGamificationUI();
         this.recordWorldEvent({
             type: 'resource.minted',
             payload: { amount, reason, resource: 'architectTokens' }
@@ -532,7 +562,14 @@ class GamificationManager {
                 resources,
                 flowMetrics: this.flowState.getFlowMetrics()
             });
+
+            this.scheduleArchitectAutoBuild();
         }
+
+        if (this.explorerView) {
+            this.explorerView.signalActivity('event', event);
+        }
+        this.updateGamificationUI(true);
     }
 
     getLibraryWorldState() {
@@ -551,7 +588,8 @@ class GamificationManager {
             'flow.completed',
             'focus.completed',
             'analytics.dailyUpdated',
-            'resource.minted'
+            'resource.minted',
+            'typing.milestone'
         ];
         return interestingTypes.includes(event.type);
     }
@@ -566,7 +604,74 @@ class GamificationManager {
 
     applyLibraryBlueprint(blueprint) {
         if (!this.architectBridge) return false;
-        return this.architectBridge.applyBlueprint(blueprint);
+        const applied = this.architectBridge.applyBlueprint(blueprint);
+        if (applied) {
+            this.updateGamificationUI(true);
+            if (this.explorerView) {
+                this.explorerView.signalActivity('maze');
+            }
+        }
+        return applied;
+    }
+
+    handleLiveWordDelta(delta, snippet = '') {
+        if (delta <= 0) return;
+
+        this.liveProgress.accumulatedWords += delta;
+        if (snippet) {
+            this.liveProgress.recentSnippet = snippet;
+        }
+
+        this.updateGamificationUI();
+
+        let milestonesAwarded = 0;
+        while (this.liveProgress.accumulatedWords >= this.liveProgress.shardInterval) {
+            this.liveProgress.accumulatedWords -= this.liveProgress.shardInterval;
+            milestonesAwarded += 1;
+            const awardAmount = this.liveProgress.shardsPerInterval;
+            this.awardXP(awardAmount, 'Writing momentum pulse');
+            this.recordWorldEvent({
+                type: 'typing.milestone',
+                payload: {
+                    awardAmount,
+                    snippet: this.liveProgress.recentSnippet,
+                    milestoneSize: this.liveProgress.shardInterval,
+                    remaining: this.liveProgress.accumulatedWords
+                }
+            });
+        }
+
+        if (milestonesAwarded > 0) {
+            this.liveProgress.lastMilestoneAt = Date.now();
+        }
+    }
+
+    async scheduleArchitectAutoBuild() {
+        if (!this.worldEngine?.peekArchitectQueue || !this.architectBridge) return;
+        if (this.architectAutomation.inFlight) return;
+
+        const pendingEntries = this.worldEngine.peekArchitectQueue();
+        if (pendingEntries.length < this.architectAutomation.threshold) return;
+
+        this.architectAutomation.inFlight = true;
+        try {
+            const blueprint = await this.requestLibraryBlueprint({
+                context: {
+                    pendingPrompts: pendingEntries.map(entry => entry.context?.event || entry),
+                    trigger: 'auto'
+                }
+            });
+
+            if (blueprint?.parsed) {
+                const applied = this.applyLibraryBlueprint(blueprint.parsed);
+                if (applied && typeof this.worldEngine.consumeArchitectQueue === 'function') {
+                    const idsToConsume = pendingEntries.map(entry => entry.id);
+                    this.worldEngine.consumeArchitectQueue(idsToConsume);
+                }
+            }
+        } finally {
+            this.architectAutomation.inFlight = false;
+        }
     }
 }
 

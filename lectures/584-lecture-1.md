@@ -1,5 +1,7 @@
 # 584 Lecture 1
 
+These aer some new words. these are more words, and yet more words. So many words I can't count. And yet I need still more words. How many words is enough? I don't know. So many. Even more words now.
+
 
 <!--
 How do you build a sense of your field and its gaps? This course aims to make sense of a term – academic literature – at once mundane and mystical. It starts with fundamentals: how to build, annotate, analyze, map and translate a literature database into a literature review. It progresses to think about how AI and other technology can help foster more critical, analytic and reflexive modes of interpretation and understandings of the field.
@@ -162,7 +164,8 @@ Simulation](https://gemini-school-agent-simulation-615179914493.us-west1.run.app
 
 
 
-This is is a test. Keep going - write text...
+This is a test -, writing more text.
+
 
 --- 
 ## References
