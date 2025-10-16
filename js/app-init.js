@@ -407,31 +407,31 @@ function createGamificationPanel() {
   
   panel.innerHTML = `
     <div class="gamification-header">
-      <h3>🎮 Writing Stats</h3>
+      <h3>📚 Library Ledger</h3>
       <button class="gamification-toggle" onclick="window.toggleGamificationPanel?.()">−</button>
     </div>
     <div class="gamification-content">
       <div class="stats-grid">
-        <div class="stat-item" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="stat-item" style="background: linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(14,165,233,0.2) 100%); border: 1px solid rgba(99,102,241,0.35);">
           <div class="stat-value">0</div>
-          <div class="stat-label">Words Today</div>
+          <div class="stat-label">Manuscripts Today</div>
         </div>
-        <div class="stat-item" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+        <div class="stat-item" style="background: linear-gradient(135deg, rgba(249,115,22,0.25) 0%, rgba(217,70,239,0.18) 100%); border: 1px solid rgba(249,115,22,0.35);">
           <div class="stat-value">0</div>
-          <div class="stat-label">Current Streak</div>
+          <div class="stat-label">Candles Lit (Streak)</div>
         </div>
-        <div class="stat-item" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">
+        <div class="stat-item" style="background: linear-gradient(135deg, rgba(56,189,248,0.22) 0%, rgba(34,197,94,0.18) 100%); border: 1px solid rgba(56,189,248,0.3);">
           <div class="stat-value">0</div>
-          <div class="stat-label">Sessions</div>
+          <div class="stat-label">Focus Rituals</div>
         </div>
-        <div class="stat-item" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);">
+        <div class="stat-item" style="background: linear-gradient(135deg, rgba(139,92,246,0.25) 0%, rgba(14,165,233,0.2) 100%); border: 1px solid rgba(139,92,246,0.35);">
           <div class="stat-value">0</div>
-          <div class="stat-label">Total Points</div>
+          <div class="stat-label">Catalogue Sigils</div>
         </div>
       </div>
       <div class="gamification-actions">
-        <button class="ai-suggestions-btn" id="start-writing-session-btn">Start Writing Session</button>
-        <button class="ai-suggestions-btn" id="view-achievements-btn">View Achievements</button>
+        <button class="ai-suggestions-btn" id="start-writing-session-btn">Begin Focus Ritual</button>
+        <button class="ai-suggestions-btn" id="view-achievements-btn">Browse Lore Fragments</button>
       </div>
     </div>
   `;
@@ -451,19 +451,19 @@ function createGamificationPanel() {
       } else {
         console.log('[App Init] Starting a focused writing session...');
         // Simple implementation if gamification system isn't fully loaded
-        alert('🎯 Writing session started! Focus mode activated.');
+        alert('🕯 Focus ritual initiated. Guard this candle of attention.');
       }
     });
   }
   
   if (viewAchievementsBtn) {
     viewAchievementsBtn.addEventListener('click', () => {
-      console.log('[App Init] View Achievements clicked');
+      console.log('[App Init] View Lore Fragments clicked');
       if (window.gamification && window.gamification.showStatsModal) {
         window.gamification.showStatsModal();
       } else {
         // Simple implementation if gamification system isn't fully loaded
-        console.log('[App Init] Showing achievements...');
+        console.log('[App Init] Showing lore fragments...');
         showSimpleAchievements();
       }
     });
@@ -480,7 +480,7 @@ function showSimpleAchievements() {
   const achievementCount = Object.keys(achievements).length;
   
   if (achievementCount === 0) {
-    alert('🏆 Achievements\n\nNo achievements yet! Keep writing to unlock them.\n\nPossible achievements:\n• Write your first 500 words\n• Maintain a 3-day streak\n• Complete a 30-minute session');
+    alert('📜 Lore Fragments\n\nNo fragments have manifested yet. Continue inscribing manuscripts to awaken them.\n\nPossible fragments:\n• Compose your first 500 words\n• Sustain a 3-night candle vigil\n• Complete a 30-minute immersion');
   } else {
     const recentAchievements = Object.values(achievements)
       .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -490,7 +490,7 @@ function showSimpleAchievements() {
       .map(a => `🏆 ${a.title}\n   ${a.description}`)
       .join('\n\n');
     
-    alert(`🏆 Achievements (${achievementCount} unlocked)\n\nRecent achievements:\n\n${achievementText}`);
+    alert(`📜 Lore Fragments (${achievementCount} awakened)\n\nRecent fragments:\n\n${achievementText}`);
   }
 }
 

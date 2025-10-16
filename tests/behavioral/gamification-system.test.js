@@ -18,8 +18,8 @@ describe('Gamification System Behavior', () => {
             <div class="stat-label">Current Streak</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value" data-stat="total-points">0</div>
-            <div class="stat-label">Total Points</div>
+            <div class="stat-value" data-stat="catalogue-sigils">0</div>
+            <div class="stat-label">Catalogue Sigils</div>
           </div>
         </div>
         <div class="gamification-actions">
@@ -69,6 +69,8 @@ describe('Gamification System Behavior', () => {
       this.streakData = this.loadStreakData();
       this.achievements = this.loadAchievements();
       this.rewards = this.loadRewards();
+      this.resourceLedger = this.loadResourceLedger();
+      this.rewards.totalPoints = this.resourceLedger.catalogueSigils;
       this.isWritingSession = false;
       this.sessionStartTime = null;
       this.sessionWordCount = 0;
@@ -104,11 +106,22 @@ describe('Gamification System Behavior', () => {
 
     loadRewards() {
       const stored = localStorage.getItem('gamification_rewards');
-      return stored ? JSON.parse(stored) : { totalPoints: 0, badges: {} };
+      const defaults = { totalPoints: 0, badges: {} };
+      return stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
     }
 
     saveRewards() {
       localStorage.setItem('gamification_rewards', JSON.stringify(this.rewards));
+    }
+
+    loadResourceLedger() {
+      const stored = localStorage.getItem('gamification_resource_ledger');
+      const defaults = { lexiconShards: 0, catalogueSigils: 0, architectTokens: 0, nextArchitectMilestone: 5000 };
+      return stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
+    }
+
+    saveResourceLedger() {
+      localStorage.setItem('gamification_resource_ledger', JSON.stringify(this.resourceLedger));
     }
 
     startWritingSession() {
@@ -151,18 +164,20 @@ describe('Gamification System Behavior', () => {
         this.sessionWordCount = wordCount;
         
         if (wordsAdded > 0) {
-          this.awardPoints(wordsAdded, 'Words written');
+          this.awardSigils(wordsAdded, 'Words written');
         }
       }
     }
 
-    awardPoints(amount, reason) {
-      this.rewards.totalPoints += amount;
+    awardSigils(amount, reason) {
+      this.resourceLedger.catalogueSigils += amount;
+      this.rewards.totalPoints = this.resourceLedger.catalogueSigils;
+      this.saveResourceLedger();
       this.saveRewards();
       this.updateUI();
       
       if (amount >= 10) {
-        this.showNotification(`+${amount} points: ${reason}`, 'points');
+        this.showNotification(`+${amount} catalogue sigils: ${reason}`, 'sigils');
       }
     }
 
@@ -254,7 +269,7 @@ describe('Gamification System Behavior', () => {
         this.saveAchievements();
         newAchievements.forEach(achievement => {
           this.showAchievementNotification(achievement);
-          this.awardPoints(50, `Achievement: ${achievement.title}`);
+          this.awardSigils(50, `Achievement: ${achievement.title}`);
         });
       }
     }
@@ -313,15 +328,15 @@ describe('Gamification System Behavior', () => {
       
       const wordsToday = todayStats ? todayStats.totalWords : 0;
       const currentStreak = this.streakData.currentStreak;
-      const totalPoints = this.rewards.totalPoints;
+      const catalogueSigils = this.resourceLedger.catalogueSigils;
       
       const wordsElement = document.querySelector('[data-stat="words-today"]');
       const streakElement = document.querySelector('[data-stat="current-streak"]');
-      const pointsElement = document.querySelector('[data-stat="total-points"]');
+      const sigilsElement = document.querySelector('[data-stat="catalogue-sigils"]');
       
       if (wordsElement) wordsElement.textContent = wordsToday;
       if (streakElement) streakElement.textContent = currentStreak;
-      if (pointsElement) pointsElement.textContent = totalPoints;
+      if (sigilsElement) sigilsElement.textContent = catalogueSigils;
     }
 
     showStatsModal() {
@@ -336,7 +351,7 @@ Total Sessions: ${totalSessions}
 Current Streak: ${this.streakData.currentStreak} days
 Longest Streak: ${this.streakData.longestStreak} days
 Achievements: ${achievementCount}
-Total Points: ${this.rewards.totalPoints}`);
+Catalogue Sigils: ${this.resourceLedger.catalogueSigils}`);
     }
   }
 
@@ -368,18 +383,18 @@ Total Points: ${this.rewards.totalPoints}`);
       expect(gamification.isWritingSession).toBe(true);
     });
 
-    test('should end writing session and award points for valid session', () => {
+    test('should end writing session and mint catalogue sigils for valid session', () => {
       gamification.startWritingSession();
       
       // Simulate 6 minutes passing
       gamification.sessionStartTime = Date.now() - (6 * 60 * 1000);
       gamification.sessionWordCount = 150;
       
-      const initialPoints = gamification.rewards.totalPoints;
+      const initialSigils = gamification.resourceLedger.catalogueSigils;
       gamification.endWritingSession();
       
       expect(gamification.isWritingSession).toBe(false);
-      expect(gamification.rewards.totalPoints).toBeGreaterThan(initialPoints);
+      expect(gamification.resourceLedger.catalogueSigils).toBeGreaterThan(initialSigils);
       
       // Should update daily stats
       const today = new Date().toDateString();
@@ -387,7 +402,7 @@ Total Points: ${this.rewards.totalPoints}`);
       expect(gamification.dailyStats[today].sessions).toHaveLength(1);
     });
 
-    test('should not award points for sessions shorter than 5 minutes', () => {
+    test('should not mint catalogue sigils for sessions shorter than 5 minutes', () => {
       gamification.startWritingSession();
       
       // Simulate 3 minutes passing
@@ -395,27 +410,29 @@ Total Points: ${this.rewards.totalPoints}`);
       gamification.sessionWordCount = 50;
       
       const initialStats = Object.keys(gamification.dailyStats).length;
+      const initialSigils = gamification.resourceLedger.catalogueSigils;
       gamification.endWritingSession();
       
       expect(gamification.isWritingSession).toBe(false);
       expect(Object.keys(gamification.dailyStats)).toHaveLength(initialStats);
+      expect(gamification.resourceLedger.catalogueSigils).toBe(initialSigils);
     });
 
     test('should track word count during active session', () => {
       gamification.startWritingSession();
       
-      const initialPoints = gamification.rewards.totalPoints;
+      const initialSigils = gamification.resourceLedger.catalogueSigils;
       gamification.trackWordCount(25);
       
       expect(gamification.sessionWordCount).toBe(25);
-      expect(gamification.rewards.totalPoints).toBe(initialPoints + 25);
+      expect(gamification.resourceLedger.catalogueSigils).toBe(initialSigils + 25);
     });
 
-    test('should not award points for word count when not in session', () => {
-      const initialPoints = gamification.rewards.totalPoints;
+    test('should not mint catalogue sigils for word count when not in session', () => {
+      const initialSigils = gamification.resourceLedger.catalogueSigils;
       gamification.trackWordCount(50);
       
-      expect(gamification.rewards.totalPoints).toBe(initialPoints);
+      expect(gamification.resourceLedger.catalogueSigils).toBe(initialSigils);
     });
   });
 
@@ -481,16 +498,16 @@ Total Points: ${this.rewards.totalPoints}`);
       expect(playSoundSpy).toHaveBeenCalledWith('achievement');
     });
 
-    test('should award bonus points for achievements', () => {
-      const initialPoints = gamification.rewards.totalPoints;
+    test('should mint bonus sigils for achievements', () => {
+      const initialSigils = gamification.resourceLedger.catalogueSigils;
       
       const today = new Date().toDateString();
       gamification.dailyStats[today] = { totalWords: 100, sessions: [], totalDuration: 0, longestSession: 0, avgWordsPerMinute: 0 };
       
       gamification.checkAchievements();
       
-      // Should award 50 points for the achievement
-      expect(gamification.rewards.totalPoints).toBe(initialPoints + 50);
+      // Should award 50 sigils for the achievement
+      expect(gamification.resourceLedger.catalogueSigils).toBe(initialSigils + 50);
     });
   });
 
@@ -555,13 +572,14 @@ Total Points: ${this.rewards.totalPoints}`);
       const today = new Date().toDateString();
       gamification.dailyStats[today] = { totalWords: 250, sessions: [], totalDuration: 0, longestSession: 0, avgWordsPerMinute: 0 };
       gamification.streakData.currentStreak = 5;
+      gamification.resourceLedger.catalogueSigils = 150;
       gamification.rewards.totalPoints = 150;
       
       gamification.updateUI();
       
       expect(document.querySelector('[data-stat="words-today"]').textContent).toBe('250');
       expect(document.querySelector('[data-stat="current-streak"]').textContent).toBe('5');
-      expect(document.querySelector('[data-stat="total-points"]').textContent).toBe('150');
+      expect(document.querySelector('[data-stat="catalogue-sigils"]').textContent).toBe('150');
     });
 
     test('should display zero stats for new user', () => {
@@ -569,7 +587,7 @@ Total Points: ${this.rewards.totalPoints}`);
       
       expect(document.querySelector('[data-stat="words-today"]').textContent).toBe('0');
       expect(document.querySelector('[data-stat="current-streak"]').textContent).toBe('0');
-      expect(document.querySelector('[data-stat="total-points"]').textContent).toBe('0');
+      expect(document.querySelector('[data-stat="catalogue-sigils"]').textContent).toBe('0');
     });
 
     test('should show comprehensive stats modal', () => {
@@ -584,6 +602,7 @@ Total Points: ${this.rewards.totalPoints}`);
       };
       gamification.streakData = { currentStreak: 3, longestStreak: 7 };
       gamification.achievements = { words_100: {}, streak_3: {} };
+      gamification.resourceLedger.catalogueSigils = 400;
       gamification.rewards.totalPoints = 400;
       
       // Mock alert
@@ -594,6 +613,7 @@ Total Points: ${this.rewards.totalPoints}`);
       expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Total Words: 300'));
       expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Current Streak: 3'));
       expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Achievements: 2'));
+      expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Catalogue Sigils: 400'));
     });
 
     test('should show notifications with auto-removal', (done) => {
@@ -677,6 +697,7 @@ Total Points: ${this.rewards.totalPoints}`);
       expect(newGamification.dailyStats).toEqual({});
       expect(newGamification.streakData.currentStreak).toBe(0);
       expect(newGamification.achievements).toEqual({});
+      expect(newGamification.resourceLedger.catalogueSigils).toBe(0);
       expect(newGamification.rewards.totalPoints).toBe(0);
     });
   });

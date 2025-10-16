@@ -17,6 +17,9 @@
         'gamification/core/WritingSession.js', 
         'gamification/core/FlowState.js',
         'gamification/timers/FocusTimer.js',
+        'gamification/world/LibraryWorldEngine.js',
+        'gamification/world/LibraryArchitectBridge.js',
+        'gamification/world/LibraryExplorerView.js',
         'gamification/GamificationManager.js'
     ];
 
@@ -49,6 +52,8 @@
             // Initialize the main gamification manager
             if (typeof GamificationManager !== 'undefined') {
                 window.gamification = new GamificationManager();
+                window.writingGamification = window.gamification;
+                window.gamificationInstance = window.gamification;
                 
                 // Initialize when DOM is ready
                 if (document.readyState === 'loading') {

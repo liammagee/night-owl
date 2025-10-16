@@ -135,6 +135,13 @@ class FlowState {
         
         this.showNotification('🌊 Flow state detected! You\'re in the zone!', 'success');
         this.gamification.playSound('flowStart');
+        this.gamification.recordWorldEvent({
+            type: 'flow.entered',
+            payload: {
+                startedAt: timestamp,
+                wordsAtStart: this.getCurrentWordCount()
+            }
+        });
         
         // Award XP for entering flow
         const flowXP = this.gamification.xpSystem.xpGains.flowStateReached;
@@ -164,6 +171,16 @@ class FlowState {
             
             flow.flowSessions.push(flowSession);
             this.gamification.saveFlowSessions();
+            this.gamification.recordWorldEvent({
+                type: 'flow.completed',
+                payload: {
+                    duration,
+                    quality: flow.currentFlowQuality,
+                    wordsDuringSession: flowSession.wordCount,
+                    startedAt: flow.flowStartTime,
+                    endedAt: timestamp
+                }
+            });
             
             const minutes = Math.round(duration / 60000);
             this.showNotification(

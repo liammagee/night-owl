@@ -1,5 +1,5 @@
 // === TODO Gamification System ===
-// Adds points, reminders, achievements, and AI suggestions to Kanban TODO boards
+// Mints catalogue sigils, reminders, achievements, and AI suggestions for Kanban TODO boards
 
 class TodoGamification {
     constructor(gamificationInstance) {
@@ -49,6 +49,10 @@ class TodoGamification {
         
         // User statistics
         this.stats = this.loadStats();
+        this.stats.totalSigils = this.stats.totalSigils || this.stats.totalPoints || 0;
+        this.stats.totalPoints = this.stats.totalSigils;
+        this.stats.totalSigilsFromTodos = this.stats.totalSigilsFromTodos || this.stats.totalPointsFromTodos || 0;
+        this.stats.totalPointsFromTodos = this.stats.totalSigilsFromTodos;
         
         this.init();
     }
@@ -101,28 +105,28 @@ class TodoGamification {
     }
     
     handleTaskCreated(taskData) {
-        const points = this.scoring.taskCreated;
-        this.awardPoints(points, `Created task: ${taskData.text}`);
+        const sigils = this.scoring.taskCreated;
+        this.awardSigils(sigils, `Catalogued new task: ${taskData.text}`);
         this.updateStats('tasksCreated', 1);
         this.checkAchievements();
         
         // Log for AI learning
-        this.logTaskAction('created', taskData);
+        this.logTaskAction('created', taskData, { sigils });
     }
     
     handleTaskCompleted(taskData) {
-        let points = this.scoring.taskCompleted;
+        let sigils = this.scoring.taskCompleted;
         let reason = `Completed task: ${taskData.text}`;
         
         // Check for bonus conditions
         if (this.isTaskUrgent(taskData)) {
-            points = this.scoring.urgentTaskCompleted;
+            sigils = this.scoring.urgentTaskCompleted;
             reason += ' (Urgent!)';
         } else if (this.isTaskCompletedEarly(taskData)) {
-            points = this.scoring.taskCompletedEarly;
+            sigils = this.scoring.taskCompletedEarly;
             reason += ' (Early!)';
         } else if (this.isTaskCompletedOnTime(taskData)) {
-            points = this.scoring.taskCompletedOnTime;
+            sigils = this.scoring.taskCompletedOnTime;
             reason += ' (On time!)';
         }
         
@@ -130,19 +134,19 @@ class TodoGamification {
         const streak = this.updateCompletionStreak();
         if (streak > 1) {
             const streakBonus = this.scoring.streakBonus * Math.min(streak, 7);
-            points += streakBonus;
+            sigils += streakBonus;
             reason += ` +${streakBonus} streak bonus`;
         }
         
-        this.awardPoints(points, reason);
+        this.awardSigils(sigils, reason);
         this.updateStats('tasksCompleted', 1);
-        this.updateStats('totalPointsFromTodos', points);
+        this.updateStats('totalSigilsFromTodos', sigils);
         
         // Show celebration effect
-        this.showTaskCompletionEffect(taskData, points);
+        this.showTaskCompletionEffect(taskData, sigils);
         
         this.checkAchievements();
-        this.logTaskAction('completed', taskData, { points, streak });
+        this.logTaskAction('completed', taskData, { sigils, streak });
     }
     
     handleTaskMoved(taskData) {
@@ -154,7 +158,7 @@ class TodoGamification {
         if (to === 'done') {
             this.handleTaskCompleted(task);
         } else if (from === 'todo' && to === 'inprogress') {
-            this.awardPoints(2, `Started working on: ${text}`);
+            this.awardSigils(2, `Started working on: ${text}`);
             this.logTaskAction('started', task);
         }
     }
@@ -178,15 +182,21 @@ class TodoGamification {
         this.setupTaskReminders(boardData);
     }
     
-    // === Points and Achievements ===
+    // === Sigils and Achievements ===
     
-    awardPoints(points, reason) {
-        if (this.gamification) {
-            this.gamification.awardXP(points, reason);
+    awardSigils(amount, reason) {
+        if (!amount || amount <= 0) return;
+
+        if (this.gamification && typeof this.gamification.awardCatalogueSigils === 'function') {
+            this.gamification.awardCatalogueSigils(amount, reason);
+        } else if (this.gamification) {
+            // Fallback to XP if catalogue method unavailable
+            this.gamification.awardXP(amount, reason);
         }
         
-        // Also track in local stats
-        this.stats.totalPoints += points;
+        // Track local stats
+        this.stats.totalSigils = (this.stats.totalSigils || 0) + amount;
+        this.stats.totalPoints = this.stats.totalSigils;
         this.saveStats();
     }
     
@@ -248,9 +258,9 @@ class TodoGamification {
         this.stats.unlockedAchievements.push(key);
         this.saveStats();
         
-        // Award bonus points
-        const bonusPoints = 50;
-        this.awardPoints(bonusPoints, `Achievement unlocked: ${achievement.name}`);
+        // Award bonus sigils
+        const bonusSigils = 50;
+        this.awardSigils(bonusSigils, `Achievement unlocked: ${achievement.name}`);
         
         // Show achievement notification
         this.showAchievementNotification(achievement);
@@ -872,8 +882,8 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             const taskData = { text: suggestion, status: 'todo', filePath };
             document.dispatchEvent(new CustomEvent('kanbanTaskAdded', { detail: taskData }));
             
-            // Award points for using AI suggestion
-            this.awardPoints(3, `Added AI suggested task: ${suggestion}`);
+            // Award sigils for using AI suggestion
+            this.awardSigils(3, `Adopted AI suggestion: ${suggestion}`);
             
             // Refresh the editor and kanban board to show the new task (following kanban.js pattern)
             console.log('[TODO Gamification] Refreshing UI...', {
@@ -967,8 +977,8 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
                     <span class="stat-label">Day Streak</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-value">${this.stats.totalPoints}</span>
-                    <span class="stat-label">Points</span>
+                    <span class="stat-value">${(this.stats.totalSigils || 0).toLocaleString()}</span>
+                    <span class="stat-label">Catalogue Sigils</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-value">${this.stats.unlockedAchievements.length}</span>
@@ -1009,7 +1019,7 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
         // Update stat values
         panel.querySelector('.stat-item:nth-child(1) .stat-value').textContent = this.stats.tasksCompleted;
         panel.querySelector('.stat-item:nth-child(2) .stat-value').textContent = this.stats.completionStreak;
-        panel.querySelector('.stat-item:nth-child(3) .stat-value').textContent = this.stats.totalPoints;
+        panel.querySelector('.stat-item:nth-child(3) .stat-value').textContent = (this.stats.totalSigils || 0).toLocaleString();
         panel.querySelector('.stat-item:nth-child(4) .stat-value').textContent = this.stats.unlockedAchievements.length;
         
         // Update achievements
@@ -1019,11 +1029,11 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             .join('');
     }
     
-    showTaskCompletionEffect(task, points) {
-        // Create floating points animation
+    showTaskCompletionEffect(task, sigils) {
+        // Create floating sigil animation
         const effect = document.createElement('div');
         effect.className = 'task-completion-effect';
-        effect.textContent = `+${points}`;
+        effect.textContent = `+${sigils} sigils`;
         effect.style.cssText = `
             position: fixed;
             top: 50%;
@@ -1136,19 +1146,29 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             const parsed = JSON.parse(stored);
             // Convert Array back to Set
             parsed.todoListsUsed = new Set(parsed.todoListsUsed || []);
+            if (parsed.totalSigils == null) {
+                parsed.totalSigils = parsed.totalPoints || 0;
+            }
+            if (parsed.totalSigilsFromTodos == null && parsed.totalPointsFromTodos != null) {
+                parsed.totalSigilsFromTodos = parsed.totalPointsFromTodos;
+            }
+            if (parsed.totalPoints == null) {
+                parsed.totalPoints = parsed.totalSigils;
+            }
             return parsed;
         }
         
         return {
             tasksCreated: 0,
             tasksCompleted: 0,
-            totalPoints: 0,
+            totalSigils: 0,
             completionStreak: 0,
             lastCompletionDate: null,
             dailyCompletions: {},
             earlyCompletions: 0,
             unlockedAchievements: [],
-            todoListsUsed: new Set()
+            todoListsUsed: new Set(),
+            totalSigilsFromTodos: 0
         };
     }
     
@@ -1156,6 +1176,8 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
         // Convert Set to Array for JSON serialization
         const statsToSave = {
             ...this.stats,
+            totalPoints: this.stats.totalSigils,
+            totalPointsFromTodos: this.stats.totalSigilsFromTodos || 0,
             todoListsUsed: Array.from(this.stats.todoListsUsed)
         };
         

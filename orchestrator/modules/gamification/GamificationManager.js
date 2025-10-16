@@ -22,6 +22,36 @@ class GamificationManager {
         this.goals = this.dataPersistence.loadGoals();
         this.rewards = this.dataPersistence.loadRewards();
         
+        // Library world progression state
+        if (typeof LibraryWorldEngine !== 'undefined') {
+            this.worldEngine = new LibraryWorldEngine(this);
+        } else {
+            console.warn('[GamificationManager] LibraryWorldEngine not available. Library world features disabled.');
+            this.worldEngine = null;
+        }
+        
+        if (typeof LibraryArchitectBridge !== 'undefined') {
+            this.architectBridge = new LibraryArchitectBridge(this);
+        } else {
+            console.warn('[GamificationManager] LibraryArchitectBridge not available. Architect integrations disabled.');
+            this.architectBridge = null;
+        }
+
+        if (typeof LibraryExplorerView !== 'undefined') {
+            this.explorerView = new LibraryExplorerView(this);
+        } else {
+            console.warn('[GamificationManager] LibraryExplorerView not available. Explorer UI disabled.');
+            this.explorerView = null;
+        }
+        
+        // Library progression system (formerly XP)
+        this.lexiconTheme = {
+            resourceLabel: 'Lexicon Shards',
+            resourceTicker: 'shards',
+            progressionLabel: 'Stack Tier',
+            prestigeLabel: 'Archive Prestige'
+        };
+
         // Level/XP Progression System
         this.xpSystem = {
             currentXP: this.dataPersistence.loadXP().currentXP || 0,
@@ -41,6 +71,15 @@ class GamificationManager {
             specializations: this.dataPersistence.loadSpecializations(),
             prestige: this.dataPersistence.loadPrestige()
         };
+
+        const storedLedger = this.dataPersistence.loadResourceLedger();
+        this.resourceLedger = {
+            lexiconShards: storedLedger.lexiconShards != null ? storedLedger.lexiconShards : this.xpSystem.currentXP,
+            catalogueSigils: storedLedger.catalogueSigils || 0,
+            architectTokens: storedLedger.architectTokens || 0,
+            nextArchitectMilestone: storedLedger.nextArchitectMilestone || 5000
+        };
+        this.saveResourceLedger();
         
         // Writing analytics and insights
         this.analytics = this.dataPersistence.loadAnalyticsData();
@@ -182,6 +221,15 @@ class GamificationManager {
         });
     }
 
+    saveResourceLedger() {
+        return this.dataPersistence.saveResourceLedger({
+            lexiconShards: this.resourceLedger.lexiconShards,
+            catalogueSigils: this.resourceLedger.catalogueSigils,
+            architectTokens: this.resourceLedger.architectTokens,
+            nextArchitectMilestone: this.resourceLedger.nextArchitectMilestone || 5000
+        });
+    }
+
     saveFlowSessions() {
         return this.dataPersistence.saveFlowSessions(this.flowState.flowState.flowSessions);
     }
@@ -203,9 +251,12 @@ class GamificationManager {
     // === Placeholder Methods (to be implemented) ===
 
     updateGamificationUI() {
-        // Update UI elements with current stats
-        // This would be implemented based on the actual UI structure
-        console.log('[GamificationManager] UI updated');
+        if (this.explorerView && this.worldEngine) {
+            this.explorerView.render(
+                this.worldEngine.getWorldState(),
+                this.resourceLedger
+            );
+        }
     }
 
     checkAchievements() {
@@ -225,8 +276,97 @@ class GamificationManager {
 
     awardXP(amount, reason) {
         this.xpSystem.currentXP += amount;
-        console.log(`[GamificationManager] Awarded ${amount} XP for: ${reason}`);
+        const label = this.lexiconTheme.resourceLabel;
+        console.log(`[GamificationManager] Harvested ${amount} ${label} for: ${reason}`);
         this.saveXP();
+        this.resourceLedger.lexiconShards = (this.resourceLedger.lexiconShards || 0) + amount;
+        this.checkArchitectMilestones();
+        this.saveResourceLedger();
+        this.updateGamificationUI();
+        this.recordWorldEvent({
+            type: 'resource.harvested',
+            payload: { amount, reason, resource: 'lexiconShards' }
+        });
+    }
+
+    awardCatalogueSigils(amount, reason = 'Task progress', { notify = false } = {}) {
+        if (!amount || amount <= 0) {
+            return;
+        }
+
+        if (!this.resourceLedger) {
+            this.resourceLedger = this.dataPersistence.loadResourceLedger();
+        }
+
+        this.resourceLedger.catalogueSigils = (this.resourceLedger.catalogueSigils || 0) + amount;
+
+        if (!this.rewards) {
+            this.rewards = this.dataPersistence.loadRewards();
+        }
+        if (this.rewards) {
+            this.rewards.totalPoints = this.resourceLedger.catalogueSigils;
+            this.saveRewards();
+        }
+
+        this.saveResourceLedger();
+
+        console.log(`[GamificationManager] Minted ${amount} catalogue sigils for: ${reason}`);
+
+        if (notify && typeof window !== 'undefined' && window.showNotification) {
+            window.showNotification(`📑 +${amount} catalogue sigils: ${reason}`, 'success');
+        }
+
+        this.updateGamificationUI();
+        this.recordWorldEvent({
+            type: 'resource.minted',
+            payload: { amount, reason, resource: 'catalogueSigils' }
+        });
+    }
+
+    awardArchitectTokens(amount, reason = 'Library expansion') {
+        if (!amount || amount <= 0) {
+            return;
+        }
+
+        if (!this.resourceLedger) {
+            this.resourceLedger = this.dataPersistence.loadResourceLedger();
+        }
+
+        this.resourceLedger.architectTokens = (this.resourceLedger.architectTokens || 0) + amount;
+
+        this.saveResourceLedger();
+
+        console.log(`[GamificationManager] Forged ${amount} architect tokens for: ${reason}`);
+
+        if (typeof window !== 'undefined' && window.showNotification) {
+            window.showNotification(`🏛 +${amount} architect token${amount !== 1 ? 's' : ''}: ${reason}`, 'success');
+        }
+
+        this.updateGamificationUI();
+        this.recordWorldEvent({
+            type: 'resource.minted',
+            payload: { amount, reason, resource: 'architectTokens' }
+        });
+    }
+
+    checkArchitectMilestones() {
+        if (!this.resourceLedger) {
+            return;
+        }
+
+        let milestone = this.resourceLedger.nextArchitectMilestone || 5000;
+        let minted = 0;
+
+        while (this.resourceLedger.lexiconShards >= milestone) {
+            minted += 1;
+            milestone += 5000;
+        }
+
+        if (minted > 0) {
+            this.resourceLedger.nextArchitectMilestone = milestone;
+            this.saveResourceLedger();
+            this.awardArchitectTokens(minted, 'Lexicon shard milestone reached');
+        }
     }
 
     playSound(soundType) {
@@ -245,7 +385,7 @@ class GamificationManager {
         // Calculate current level from XP
         const xp = this.xpSystem.currentXP;
         this.xpSystem.currentLevel = this.calculateLevelFromXP(xp);
-        console.log('[GamificationManager] XP system initialized');
+        console.log('[GamificationManager] Library ledger initialized');
     }
 
     initializeAudioContext() {
@@ -335,12 +475,11 @@ class GamificationManager {
     getLevelDefinitions() {
         // Define level requirements and rewards
         return {
-            1: { minXP: 0, title: 'Novice Writer' },
-            2: { minXP: 1000, title: 'Aspiring Author' },
-            3: { minXP: 2500, title: 'Dedicated Scribe' },
-            4: { minXP: 5000, title: 'Focused Writer' },
-            5: { minXP: 10000, title: 'Word Master' },
-            // Add more levels as needed
+            1: { minXP: 0, title: 'Dusty Alcove' },
+            2: { minXP: 1000, title: 'Keeper of the Catalog' },
+            3: { minXP: 2500, title: 'Curator of Stacks' },
+            4: { minXP: 5000, title: 'Architect of Aisles' },
+            5: { minXP: 10000, title: 'Warden of the Infinite' }
         };
     }
 
@@ -359,11 +498,13 @@ class GamificationManager {
             currentSession: this.writingSession.currentSession,
             focusSession: this.focusTimer.focusSession,
             flowMetrics: this.flowState.getFlowMetrics(),
-            xp: this.xpSystem,
+            libraryLedger: this.resourceLedger,
+            xp: this.xpSystem, // legacy alias
             dailyStats: this.dailyStats,
             streaks: this.streakData,
             achievements: this.achievements,
-            goals: this.goals
+            goals: this.goals,
+            libraryWorld: this.worldEngine ? this.worldEngine.getWorldState() : null
         };
     }
 
@@ -373,6 +514,59 @@ class GamificationManager {
 
     importData(data) {
         return this.dataPersistence.importAllData(data);
+    }
+
+    recordWorldEvent(event) {
+        if (!this.worldEngine || !this.worldEngine.recordProgressEvent) return;
+        this.worldEngine.recordProgressEvent(event);
+        
+        if (this.shouldQueueArchitectReview(event)) {
+            const resources = {
+                lexiconShards: this.resourceLedger?.lexiconShards || 0,
+                catalogueSigils: this.resourceLedger?.catalogueSigils || 0,
+                architectTokens: this.resourceLedger?.architectTokens || 0
+            };
+
+            this.worldEngine.queueArchitectPrompt({
+                event,
+                resources,
+                flowMetrics: this.flowState.getFlowMetrics()
+            });
+        }
+    }
+
+    getLibraryWorldState() {
+        return this.worldEngine ? this.worldEngine.getWorldState() : null;
+    }
+
+    toggleMenuVisibility() {
+        if (!this.explorerView) return false;
+        return this.explorerView.toggleVisibility();
+    }
+
+    shouldQueueArchitectReview(event) {
+        if (!event || !event.type) return false;
+        const interestingTypes = [
+            'session.completed',
+            'flow.completed',
+            'focus.completed',
+            'analytics.dailyUpdated',
+            'resource.minted'
+        ];
+        return interestingTypes.includes(event.type);
+    }
+
+    async requestLibraryBlueprint(options = {}) {
+        if (!this.architectBridge) {
+            console.warn('[GamificationManager] Architect bridge unavailable.');
+            return null;
+        }
+        return this.architectBridge.requestBlueprint(options);
+    }
+
+    applyLibraryBlueprint(blueprint) {
+        if (!this.architectBridge) return false;
+        return this.architectBridge.applyBlueprint(blueprint);
     }
 }
 

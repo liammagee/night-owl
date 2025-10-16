@@ -429,23 +429,24 @@ function generateEditorSettings() {
 
 function generateGamificationSettings() {
     const gamificationSettings = currentSettings.gamification || {};
+    const ledgerTrackingEnabled = (gamificationSettings.ledgerTracking !== false) && (gamificationSettings.pointsSystem !== false);
     
     return `
         <div class="settings-section">
-            <h3>Writing Gamification</h3>
+            <h3>Library Progression</h3>
             <div class="settings-group">
                 <label>
                     <input type="checkbox" id="gamification-enabled" ${gamificationSettings.enabled !== false ? 'checked' : ''}>
-                    <span>Enable Writing Gamification</span>
+                    <span>Animate the Library of Babel overlay</span>
                 </label>
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
-                    Turn on research-backed gamification features to boost motivation and combat procrastination during academic writing.
+                    Channel your words into lexicon shards, awaken stacks, and unlock quiet lore instead of loud rewards.
                 </p>
             </div>
         </div>
         
         <div class="settings-section">
-            <h3>Writing Sessions</h3>
+            <h3>Scribing Sessions</h3>
             <div class="settings-group">
                 <label>
                     <input type="checkbox" id="auto-start-sessions" ${gamificationSettings.autoStartSessions !== false ? 'checked' : ''}>
@@ -463,7 +464,7 @@ function generateGamificationSettings() {
         </div>
         
         <div class="settings-section">
-            <h3>Focus Sessions & Pomodoro Timer</h3>
+            <h3>Focus Rituals</h3>
             <div class="settings-group">
                 <label>
                     <input type="checkbox" id="focus-sessions-enabled" ${gamificationSettings.focusSessionsEnabled !== false ? 'checked' : ''}>
@@ -486,23 +487,23 @@ function generateGamificationSettings() {
         </div>
         
         <div class="settings-section">
-            <h3>Achievements & Rewards</h3>
+            <h3>Lore Fragments & Keeps</h3>
             <div class="settings-group">
                 <label>
                     <input type="checkbox" id="achievements-enabled" ${gamificationSettings.achievementsEnabled !== false ? 'checked' : ''}>
-                    <span>Enable achievement system</span>
+                    <span>Reveal lore fragments on milestones</span>
                 </label>
                 <label>
                     <input type="checkbox" id="streak-tracking" ${gamificationSettings.streakTracking !== false ? 'checked' : ''}>
-                    <span>Track daily writing streaks</span>
+                    <span>Track daily candles lit (streaks)</span>
                 </label>
                 <label>
-                    <input type="checkbox" id="points-system" ${gamificationSettings.pointsSystem !== false ? 'checked' : ''}>
-                    <span>Enable points and rewards system</span>
+                    <input type="checkbox" id="ledger-tracking" ${ledgerTrackingEnabled ? 'checked' : ''}>
+                    <span>Track lexicon shard & sigil ledger</span>
                 </label>
                 <label>
                     <input type="checkbox" id="achievement-notifications" ${gamificationSettings.achievementNotifications !== false ? 'checked' : ''}>
-                    <span>Show achievement notifications</span>
+                    <span>Whisper notifications when fragments unlock</span>
                 </label>
             </div>
         </div>
@@ -530,7 +531,7 @@ function generateGamificationSettings() {
             <div class="settings-group">
                 <label>
                     <button type="button" onclick="clearGamificationData()" style="background: #e74c3c; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Clear All Gamification Data</button>
-                    <span style="color: #666; font-size: 12px;">This will reset all streaks, achievements, and points</span>
+                    <span style="color: #666; font-size: 12px;">This will reset all streaks, lore fragments, and sigils</span>
                 </label>
                 <label>
                     <button type="button" onclick="exportGamificationData()" style="background: #3498db; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Export Gamification Data</button>
@@ -2006,10 +2007,11 @@ function collectSettingsFromForm() {
         updatedSettings.gamification.streakTracking = streakTracking;
     }
     
-    const pointsSystem = document.getElementById('points-system')?.checked;
-    if (pointsSystem !== undefined) {
+    const ledgerTracking = document.getElementById('ledger-tracking')?.checked;
+    if (ledgerTracking !== undefined) {
         if (!updatedSettings.gamification) updatedSettings.gamification = {};
-        updatedSettings.gamification.pointsSystem = pointsSystem;
+        updatedSettings.gamification.ledgerTracking = ledgerTracking;
+        updatedSettings.gamification.pointsSystem = ledgerTracking;
     }
     
     const achievementNotifications = document.getElementById('achievement-notifications')?.checked;
@@ -2676,7 +2678,7 @@ async function browseSystemPromptFile() {
 // Gamification Settings Helper Functions
 
 function clearGamificationData() {
-    if (confirm('Are you sure you want to clear all gamification data? This will reset all streaks, achievements, points, and session history. This action cannot be undone.')) {
+    if (confirm('Are you sure you want to clear all gamification data? This will reset all streaks, lore fragments, sigils, and session history. This action cannot be undone.')) {
         try {
             // Clear localStorage data
             localStorage.removeItem('gamification_daily_stats');

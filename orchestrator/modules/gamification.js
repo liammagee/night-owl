@@ -82,7 +82,14 @@ class WritingGamification {
             insights: this.loadInsights() || {}
         };
         this.initializeAnalytics();
-        
+
+        this.lexiconTheme = {
+            resourceLabel: 'Lexicon Shards',
+            resourceTicker: 'shards',
+            progressionLabel: 'Stack Tier',
+            accoladeLabel: 'Lore Fragment'
+        };
+
         // Level/XP Progression System
         this.xpSystem = {
             currentXP: this.loadXP(),
@@ -103,6 +110,15 @@ class WritingGamification {
             prestige: this.loadPrestige()
         };
         this.initializeXPSystem();
+
+        this.resourceLedger = this.loadResourceLedger();
+        if (!Array.isArray(this.resourceLedger.unlockedRooms)) {
+            this.resourceLedger.unlockedRooms = [];
+        }
+        this.saveResourceLedger();
+        if (this.rewards) {
+            this.rewards.totalPoints = this.resourceLedger.catalogueSigils;
+        }
         
         // Initialize collaborative challenges after core systems
         setTimeout(() => {
@@ -441,18 +457,18 @@ class WritingGamification {
             this.awardXP(wordXP, `${wordsWritten} words during focus session`);
         }
         
-        // Legacy points system (keep for backward compatibility)
-        let points = Math.round(minutes * 10); // 10 points per minute
+        // Catalogue sigils minted from focus rituals
+        let sigilYield = Math.round(minutes * 10); // 10 sigils per minute
         rewards.push({
             type: 'points',
-            amount: points,
+            amount: sigilYield,
             reason: `Completed ${minutes}-minute focus session`
         });
         
         // Word count bonus
         if (wordsWritten > 0) {
-            const wordBonus = Math.round(wordsWritten * 2); // 2 points per word
-            points += wordBonus;
+            const wordBonus = Math.round(wordsWritten * 2); // 2 sigils per word
+            sigilYield += wordBonus;
             rewards.push({
                 type: 'points',
                 amount: wordBonus,
@@ -471,13 +487,13 @@ class WritingGamification {
         
         // Perfect focus bonus (no interruptions detected)
         if (this.currentSession && this.currentSession.flowInterruptions === 0) {
-            const perfectBonus = Math.round(points * 0.5);
+            const perfectBonus = Math.round(sigilYield * 0.5);
             rewards.push({
                 type: 'points',
                 amount: perfectBonus,
                 reason: 'Perfect focus - no interruptions detected!'
             });
-            points += perfectBonus;
+            sigilYield += perfectBonus;
         }
         
         // Apply rewards
@@ -488,7 +504,14 @@ class WritingGamification {
     applyRewards(rewards) {
         for (const reward of rewards) {
             if (reward.type === 'points') {
-                this.rewards.totalPoints = (this.rewards.totalPoints || 0) + reward.amount;
+                const currentSigils = this.resourceLedger?.catalogueSigils || 0;
+                const updatedSigils = currentSigils + reward.amount;
+                if (!this.resourceLedger) {
+                    this.resourceLedger = { lexiconShards: this.xpSystem.currentXP || 0, catalogueSigils: 0, architectTokens: 0 };
+                }
+                this.resourceLedger.catalogueSigils = updatedSigils;
+                this.rewards.totalPoints = updatedSigils;
+                this.saveResourceLedger();
             } else if (reward.type === 'badge') {
                 if (!this.rewards.badges) this.rewards.badges = {};
                 this.rewards.badges[reward.name] = {
@@ -505,7 +528,7 @@ class WritingGamification {
     showRewardNotifications(rewards) {
         for (const reward of rewards) {
             if (reward.type === 'points') {
-                this.showNotification(`💰 +${reward.amount} points: ${reward.reason}`, 'success');
+                this.showNotification(`📑 +${reward.amount} catalogue sigils: ${reward.reason}`, 'success');
             } else if (reward.type === 'badge') {
                 this.showNotification(`🏆 New badge: ${reward.name}!`, 'success');
             }
@@ -544,10 +567,10 @@ class WritingGamification {
             if (stopFocusBtn) stopFocusBtn.style.display = 'none';
         }
         
-        // Update points display
+        // Update catalogue sigil display
         const pointsDisplay = document.querySelector('.points-display');
         if (pointsDisplay) {
-            pointsDisplay.textContent = `${this.rewards.totalPoints || 0} pts`;
+            pointsDisplay.textContent = `${((this.resourceLedger && this.resourceLedger.catalogueSigils) || 0).toLocaleString()} sigils`;
         }
     }
     
@@ -737,7 +760,7 @@ class WritingGamification {
             } else if (pause < flow.thresholds.flowBreakThreshold) {
                 qualityScore += 0.4; // Long but not flow-breaking
             }
-            // Longer pauses get 0 points
+            // Longer pauses mint 0 sigils
         });
         
         return recentPauses.length > 0 ? qualityScore / recentPauses.length : 1;
@@ -798,7 +821,7 @@ class WritingGamification {
                 flow.flowSessions.push(flowSession);
                 this.saveFlowSessions();
                 
-                // Award flow bonus points
+                // Award flow bonus sigils
                 this.awardFlowBonus(flowSession);
                 
                 // Show completion notification
@@ -847,14 +870,16 @@ class WritingGamification {
     awardFlowBonus(flowSession) {
         const minutes = flowSession.duration / 60000;
         const qualityMultiplier = 1 + flowSession.quality; // 1.0 to 2.0x multiplier
-        const basePoints = Math.round(minutes * 5); // 5 points per minute
-        const bonusPoints = Math.round(basePoints * qualityMultiplier);
+        const baseSigils = Math.round(minutes * 5); // 5 sigils per minute
+        const bonusSigils = Math.round(baseSigils * qualityMultiplier);
         
-        this.rewards.totalPoints = (this.rewards.totalPoints || 0) + bonusPoints;
+        this.resourceLedger.catalogueSigils = (this.resourceLedger.catalogueSigils || 0) + bonusSigils;
+        this.rewards.totalPoints = this.resourceLedger.catalogueSigils;
+        this.saveResourceLedger();
         this.saveRewards();
         
         this.showNotification(
-            `🌊 Flow bonus: +${bonusPoints} points (${Math.round(flowSession.quality * 100)}% quality)`, 
+            `🌊 Flow tithe: +${bonusSigils} catalogue sigils (${Math.round(flowSession.quality * 100)}% resonance)`, 
             'success'
         );
         
@@ -927,6 +952,7 @@ class WritingGamification {
             box-shadow: 0 1px 3px rgba(102, 126, 234, 0.4);
             animation: flowPulse 2s ease-in-out infinite alternate;
         `;
+
         
         indicator.innerHTML = `
             <span style="font-size: 12px;">🌊</span>
@@ -1154,13 +1180,15 @@ class WritingGamification {
         const message = `🎉 ${typeNames[type]} completed! ${progressData.current.toLocaleString()} words written!`;
         this.showNotification(message, 'success');
         
-        // Award bonus points for goal completion
-        const bonusPoints = type === 'daily' ? 100 : type === 'session' ? 25 : 250;
-        this.rewards.totalPoints = (this.rewards.totalPoints || 0) + bonusPoints;
+        // Award bonus sigils for goal completion
+        const bonusSigils = type === 'daily' ? 100 : type === 'session' ? 25 : 250;
+        this.resourceLedger.catalogueSigils = (this.resourceLedger.catalogueSigils || 0) + bonusSigils;
+        this.rewards.totalPoints = this.resourceLedger.catalogueSigils;
+        this.saveResourceLedger();
         this.saveRewards();
         
         setTimeout(() => {
-            this.showNotification(`🏆 Bonus: +${bonusPoints} points for goal completion!`, 'success');
+            this.showNotification(`🏆 Bonus: +${bonusSigils} catalogue sigils for goal completion!`, 'success');
         }, 2000);
         
         // Play goal completion sound
@@ -2096,8 +2124,8 @@ class WritingGamification {
         const menuHeader = document.createElement('div');
         menuHeader.className = 'gamification-menu-header';
         menuHeader.innerHTML = `
-            <span class="gamification-icon">🎮</span>
-            <span class="gamification-title">Writing Progress</span>
+            <span class="gamification-icon">📚</span>
+            <span class="gamification-title">Library Ledger</span>
             <button class="gamification-toggle" id="gamification-toggle">▼</button>
         `;
         
@@ -2154,7 +2182,43 @@ class WritingGamification {
                                 <span class="level-icon">⭐</span>
                                 <span class="level-text">Level ${this.xpSystem.currentLevel || 1}</span>
                             </div>
-                            <div class="points-display">${this.rewards.totalPoints || 0} pts</div>
+                            <div class="points-display">${((this.resourceLedger && this.resourceLedger.catalogueSigils) || 0).toLocaleString()} sigils</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Library Ledger Card -->
+                <div class="dashboard-card ledger-card">
+                    <div class="card-header">
+                        <h4 class="card-title">🏛 Ledger Overview</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="ledger-row">
+                            <span class="ledger-label">Lexicon Shards</span>
+                            <span class="ledger-value" data-ledger="shards">${(this.resourceLedger?.lexiconShards || 0).toLocaleString()}</span>
+                        </div>
+                        <div class="ledger-row">
+                            <span class="ledger-label">Catalogue Sigils</span>
+                            <span class="ledger-value" data-ledger="sigils">${(this.resourceLedger?.catalogueSigils || 0).toLocaleString()}</span>
+                        </div>
+                        <div class="ledger-row">
+                            <span class="ledger-label">Architect Tokens</span>
+                            <span class="ledger-value" data-ledger="tokens">${(this.resourceLedger?.architectTokens || 0).toLocaleString()}</span>
+                        </div>
+                        <div class="ledger-row">
+                            <span class="ledger-label">Lore Fragments</span>
+                            <span class="ledger-value" data-ledger="fragments">${Object.keys(this.achievements || {}).length}</span>
+                        </div>
+                        <div class="ledger-row milestone">
+                            <span class="ledger-label">Next Chamber</span>
+                            <span class="ledger-value" data-ledger="milestone">${Math.max((this.resourceLedger?.nextArchitectMilestone || 5000) - (this.resourceLedger?.lexiconShards || 0), 0).toLocaleString()} shards</span>
+                        </div>
+                        <div class="ledger-room-list" data-ledger="rooms">
+                            ${this.renderLibraryRooms()}
+                        </div>
+                        <div class="ledger-actions">
+                            <button class="ledger-action-btn" data-action="view-ledger">Open Ledger Chronicle</button>
+                            <button class="ledger-action-btn" data-action="unlock-next">Unlock Next Chamber</button>
                         </div>
                     </div>
                 </div>
@@ -2243,16 +2307,18 @@ class WritingGamification {
         menuContent.appendChild(controls);
         gamificationMenu.appendChild(menuHeader);
         gamificationMenu.appendChild(menuContent);
-        
+
         // Insert after editor toolbar
         console.log('[Gamification] Inserting gamification menu after editor toolbar');
         editorToolbar.insertAdjacentElement('afterend', gamificationMenu);
         console.log('[Gamification] Gamification menu inserted successfully');
-        
+
         this.controls = controls;
         this.menuContent = menuContent;
         this.isMenuExpanded = this.loadMenuState();
         this.updateMenuState();
+
+        this.attachLedgerActions(controls);
         
         // Initialize menu visibility from saved state
         this.initializeMenuVisibility(gamificationMenu);
@@ -2426,6 +2492,36 @@ class WritingGamification {
         }
     }
 
+    attachLedgerActions(container) {
+        if (!container || container.dataset.ledgerBound === 'true') {
+            return;
+        }
+
+        const viewButton = container.querySelector('[data-action="view-ledger"]');
+        if (viewButton) {
+            viewButton.addEventListener('click', () => this.showLedgerModal());
+        }
+
+        const unlockNextButton = container.querySelector('[data-action="unlock-next"]');
+        if (unlockNextButton) {
+            unlockNextButton.addEventListener('click', () => this.unlockNextLibraryRoom());
+        }
+
+        const roomsContainer = container.querySelector('[data-ledger="rooms"]');
+        if (roomsContainer) {
+            roomsContainer.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-action="unlock-room"]');
+                if (!button) return;
+                const roomId = button.dataset.roomId;
+                if (roomId) {
+                    this.unlockLibraryRoom(roomId);
+                }
+            });
+        }
+
+        container.dataset.ledgerBound = 'true';
+    }
+
     updateGamificationUI() {
         const streakCountEl = document.querySelector('.streak-count');
         const sessionTimeEl = document.querySelector('.session-time');
@@ -2457,6 +2553,27 @@ class WritingGamification {
             if (sessionWordsEl) sessionWordsEl.textContent = '0 words';
             if (startBtn) startBtn.disabled = false;
             if (endBtn) endBtn.disabled = true;
+        }
+
+        const shardsEl = document.querySelector('[data-ledger="shards"]');
+        const sigilsEl = document.querySelector('[data-ledger="sigils"]');
+        const tokensEl = document.querySelector('[data-ledger="tokens"]');
+        const fragmentsEl = document.querySelector('[data-ledger="fragments"]');
+        const milestoneEl = document.querySelector('[data-ledger="milestone"]');
+
+        const lexiconShards = this.resourceLedger?.lexiconShards || 0;
+        const catalogueSigils = this.resourceLedger?.catalogueSigils || 0;
+        const architectTokens = this.resourceLedger?.architectTokens || 0;
+        const nextMilestone = this.resourceLedger?.nextArchitectMilestone || 5000;
+        const fragments = Object.keys(this.achievements || {}).length;
+
+        if (shardsEl) shardsEl.textContent = lexiconShards.toLocaleString();
+        if (sigilsEl) sigilsEl.textContent = catalogueSigils.toLocaleString();
+        if (tokensEl) tokensEl.textContent = architectTokens.toLocaleString();
+        if (fragmentsEl) fragmentsEl.textContent = fragments;
+        if (milestoneEl) {
+            const remaining = Math.max(nextMilestone - lexiconShards, 0);
+            milestoneEl.textContent = `${remaining.toLocaleString()} shards`;
         }
     }
 
@@ -2596,308 +2713,133 @@ class WritingGamification {
         );
     }
 
-    showFocusSessionSelector() {
-        const modalContent = `
-            <div class="focus-session-selector" style="padding: 10px;">
-                <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 20px; font-weight: 600;">Choose Your Focus Session</h3>
-                <p style="margin: 0 0 20px 0; color: #7f8c8d; font-size: 14px; line-height: 1.4;">Select a duration based on your current energy and task complexity:</p>
-                <div class="session-options" style="display: grid; gap: 15px;">
-                    <div class="session-option" onclick="window.gamificationInstance.startFocusSession(15*60000); window.gamificationInstance.closeModal();" style="
-                        padding: 20px;
-                        border: 2px solid #ecf0f1;
-                        border-radius: 12px;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                    " onmouseover="this.style.borderColor='#9b59b6'; this.style.background='linear-gradient(135deg, #f4f1ff 0%, #e8e1ff 100%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.borderColor='#ecf0f1'; this.style.background='linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="session-duration" style="font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 5px;">⏱️ 15 Minutes</div>
-                        <div class="session-type" style="font-size: 16px; font-weight: 600; color: #9b59b6; margin-bottom: 8px;">Quick Sprint</div>
-                        <div class="session-description" style="font-size: 13px; color: #7f8c8d; line-height: 1.4;">Perfect for quick edits, brainstorming, or when you have limited time</div>
-                    </div>
-                    <div class="session-option" onclick="window.gamificationInstance.startFocusSession(25*60000); window.gamificationInstance.closeModal();" style="
-                        padding: 20px;
-                        border: 2px solid #3498db;
-                        border-radius: 12px;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                        background: linear-gradient(135deg, #ebf5ff 0%, #d6ebff 100%);
-                        position: relative;
-                    " onmouseover="this.style.borderColor='#2980b9'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(52, 152, 219, 0.3)';" onmouseout="this.style.borderColor='#3498db'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <span style="position: absolute; top: 10px; right: 10px; background: #e74c3c; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold;">RECOMMENDED</span>
-                        <div class="session-duration" style="font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🍅 25 Minutes</div>
-                        <div class="session-type" style="font-size: 16px; font-weight: 600; color: #3498db; margin-bottom: 8px;">Classic Pomodoro</div>
-                        <div class="session-description" style="font-size: 13px; color: #7f8c8d; line-height: 1.4;">Ideal for most writing tasks. Research-backed for optimal focus</div>
-                    </div>
-                    <div class="session-option" onclick="window.gamificationInstance.startFocusSession(45*60000); window.gamificationInstance.closeModal();" style="
-                        padding: 20px;
-                        border: 2px solid #ecf0f1;
-                        border-radius: 12px;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                    " onmouseover="this.style.borderColor='#9b59b6'; this.style.background='linear-gradient(135deg, #f4f1ff 0%, #e8e1ff 100%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.borderColor='#ecf0f1'; this.style.background='linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="session-duration" style="font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🎯 45 Minutes</div>
-                        <div class="session-type" style="font-size: 16px; font-weight: 600; color: #9b59b6; margin-bottom: 8px;">Deep Work</div>
-                        <div class="session-description" style="font-size: 13px; color: #7f8c8d; line-height: 1.4;">For complex writing, analysis, or when you're in flow state</div>
-                    </div>
-                    <div class="session-option" onclick="window.gamificationInstance.startFocusSession(90*60000); window.gamificationInstance.closeModal();" style="
-                        padding: 20px;
-                        border: 2px solid #ecf0f1;
-                        border-radius: 12px;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                    " onmouseover="this.style.borderColor='#9b59b6'; this.style.background='linear-gradient(135deg, #f4f1ff 0%, #e8e1ff 100%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.borderColor='#ecf0f1'; this.style.background='linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)'; this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="session-duration" style="font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🏃 90 Minutes</div>
-                        <div class="session-type" style="font-size: 16px; font-weight: 600; color: #9b59b6; margin-bottom: 8px;">Marathon Session</div>
-                        <div class="session-description" style="font-size: 13px; color: #7f8c8d; line-height: 1.4;">Ultimate focus for major writing projects and dissertations</div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        this.showModal('🎯 Focus Session', modalContent);
-    }
-    
-    showBreakModal(title, message, onAccept) {
-        const modalContent = `
-            <div class="break-modal">
-                <h3>${title}</h3>
-                <p>${message}</p>
-                <div class="break-suggestions">
-                    <h4>Suggested break activities:</h4>
-                    <ul>
-                        <li>🚶 Take a short walk</li>
-                        <li>💧 Drink some water</li>
-                        <li>🤸 Do some stretches</li>
-                        <li>👀 Look away from the screen</li>
-                        <li>🧘 Practice deep breathing</li>
-                    </ul>
-                </div>
-                <div class="modal-actions">
-                    <button class="btn btn-primary" onclick="window.gamificationInstance.closeModal(); (${onAccept.toString()})()">Take Break</button>
-                    <button class="btn btn-secondary" onclick="window.gamificationInstance.closeModal()">Skip Break</button>
-                </div>
-            </div>
-        `;
-        
-        this.showModal('Break Time', modalContent);
-    }
-    
-    closeModal() {
-        const modal = document.querySelector('.gamification-modal-overlay');
-        if (modal) {
-            document.body.removeChild(modal);
-        }
-    }
-
     showStatsModal() {
+        let modalContent = '';
+
         const totalWords = this.getTotalWords();
         const totalSessions = Object.values(this.dailyStats).reduce((total, day) => total + day.sessions.length, 0);
-        const longestStreak = this.streakData.longestStreak || 0;
-        const achievementCount = Object.keys(this.achievements).length;
-        const totalPoints = this.rewards.totalPoints || 0;
+        const achievementCount = Object.keys(this.achievements || {}).length;
         const badgeCount = this.rewards.badges ? Object.keys(this.rewards.badges).length : 0;
-        
-        // Flow statistics
         const flowSessions = this.flowState.flowSessions;
         const totalFlowTime = flowSessions.reduce((sum, s) => sum + s.duration, 0);
-        const longestFlowSession = Math.max(...flowSessions.map(s => s.duration), 0);
-        const averageFlowQuality = flowSessions.length > 0 ? 
-            flowSessions.reduce((sum, s) => sum + s.quality, 0) / flowSessions.length : 0;
-        
-        const modalContent = `
-            <div class="gamification-stats" style="padding: 10px;">
-                <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 20px; font-weight: 600; border-bottom: 2px solid #9b59b6; padding-bottom: 10px;">📊 Writing Statistics</h3>
-                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 30px;">
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">📝 ${totalWords.toLocaleString()}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Total Words</div>
+        const longestFlowSession = flowSessions.length > 0 ? Math.max(...flowSessions.map(s => s.duration)) : 0;
+        const averageFlowQuality = flowSessions.length > 0 ? flowSessions.reduce((sum, s) => sum + s.quality, 0) / flowSessions.length : 0;
+        const lexiconShards = this.xpSystem.currentXP || 0;
+        const catalogSigils = (this.resourceLedger && this.resourceLedger.catalogueSigils) || 0;
+        const currentTierInfo = this.xpSystem.levelDefinitions[this.xpSystem.currentLevel] || { title: '', description: '', rewards: [] };
+        const progressPercent = (this.getProgressToNextLevel() * 100).toFixed(1);
+        const shardsToNext = this.xpSystem.currentLevel < 12
+            ? (this.getXPForNextLevel() - lexiconShards).toLocaleString()
+            : null;
+
+        modalContent = `
+            <div class="gamification-stats" style="padding: 12px; background: #0b1120; color: #e2e8f0;">
+                <h3 style="margin: 0 0 24px 0; font-size: 20px; font-weight: 600; border-bottom: 2px solid rgba(99,102,241,0.45); padding-bottom: 12px;">📚 Library Ledger</h3>
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; margin-bottom: 32px;">
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(59,130,246,0.16) 0%, rgba(14,116,144,0.18) 100%); border: 1px solid rgba(148,163,184,0.18); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7;">Manuscripts</div>
+                        <div style="font-size: 30px; font-weight: 600; margin-top: 8px;">📝 ${totalWords.toLocaleString()}</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Words inscribed across the stacks</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(255, 107, 53, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">🔥 ${this.streakData.currentStreak || 0}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Current Streak</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(249,115,22,0.15) 0%, rgba(217,70,239,0.1) 100%); border: 1px solid rgba(248,113,113,0.2); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7;">Candles Lit</div>
+                        <div style="font-size: 30px; font-weight: 600; margin-top: 8px;">🕯 ${this.streakData.currentStreak || 0}</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">${totalSessions} sessions tended; one flame per vigil</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(52, 152, 219, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">🏆 ${longestStreak}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Best Streak</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(30,64,175,0.22) 0%, rgba(56,189,248,0.12) 100%); border: 1px solid rgba(96,165,250,0.25); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7;">Lexicon Shards</div>
+                        <div style="font-size: 30px; font-weight: 600; margin-top: 8px;">✶ ${lexiconShards.toLocaleString()}</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Language crystallised through your work</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(39, 174, 96, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">📅 ${totalSessions}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Sessions</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(34,197,94,0.16) 0%, rgba(125,211,252,0.14) 100%); border: 1px solid rgba(74,222,128,0.2); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7;">Catalogue Sigils</div>
+                        <div style="font-size: 30px; font-weight: 600; margin-top: 8px;">📑 ${catalogSigils.toLocaleString()}</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Tokens minted from completed rituals</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(243, 156, 18, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">💰 ${totalPoints.toLocaleString()}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Points</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(251,191,36,0.18) 0%, rgba(252,211,77,0.12) 100%); border: 1px solid rgba(252,211,77,0.22); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7;">Lore Fragments</div>
+                        <div style="font-size: 30px; font-weight: 600; margin-top: 8px;">📜 ${achievementCount}</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Stories unearthed by your milestones</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(231, 76, 60, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">🎖️ ${badgeCount}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Badges</div>
-                    </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(155, 89, 182, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">⭐ L${this.xpSystem.currentLevel}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Level</div>
-                    </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #16a085 0%, #27ae60 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(22, 160, 133, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">✨ ${this.xpSystem.currentXP.toLocaleString()}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Experience</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(15,118,110,0.18) 0%, rgba(20,184,166,0.12) 100%); border: 1px solid rgba(45,212,191,0.2); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7;">Archive Relics</div>
+                        <div style="font-size: 30px; font-weight: 600; margin-top: 8px;">🗝 ${badgeCount}</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Keeps earned during focused vigils</div>
                     </div>
                 </div>
                 
-                <h3 style="margin: 30px 0 20px 0; color: #2c3e50; font-size: 18px; font-weight: 600; border-bottom: 2px solid #9b59b6; padding-bottom: 10px;">⭐ Level Progression</h3>
-                <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; padding: 24px; margin-bottom: 30px; border: 1px solid #dee2e6;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <div>
-                            <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">Level ${this.xpSystem.currentLevel}</div>
-                            <div style="font-size: 16px; color: #9b59b6; font-weight: 600;">${this.xpSystem.levelDefinitions[this.xpSystem.currentLevel].title}</div>
-                            <div style="font-size: 14px; color: #7f8c8d; margin-top: 4px;">${this.xpSystem.levelDefinitions[this.xpSystem.currentLevel].description}</div>
+                <h3 style="margin: 30px 0 20px 0; font-size: 18px; font-weight: 600; border-bottom: 2px solid rgba(148,163,184,0.3); padding-bottom: 10px;">🏛 Stack Tier Chronicle</h3>
+                <div style="background: rgba(15,23,42,0.6); border-radius: 16px; padding: 24px; margin-bottom: 32px; border: 1px solid rgba(148,163,184,0.18);">
+                    <div style="display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 18px;">
+                        <div style="flex: 1 1 220px;">
+                            <div style="font-size: 24px; font-weight: 600; color: #e2e8f0;">Tier ${this.xpSystem.currentLevel}</div>
+                            <div style="font-size: 16px; color: #6366f1; font-weight: 600; margin-top: 4px;">${currentTierInfo.title}</div>
+                            <div style="font-size: 13px; color: rgba(226,232,240,0.7); margin-top: 8px;">${currentTierInfo.description}</div>
                         </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 18px; font-weight: bold; color: #27ae60;">${this.xpSystem.currentXP.toLocaleString()} XP</div>
+                        <div style="text-align: right; flex: 1 1 180px;">
+                            <div style="font-size: 18px; font-weight: 600; color: #38bdf8;">${lexiconShards.toLocaleString()} shards</div>
                             ${this.xpSystem.currentLevel < 12 ? `
-                                <div style="font-size: 12px; color: #7f8c8d;">${(this.getXPForNextLevel() - this.xpSystem.currentXP).toLocaleString()} XP to level ${this.xpSystem.currentLevel + 1}</div>
+                                <div style="font-size: 12px; color: rgba(226,232,240,0.6); margin-top: 4px;">
+                                    ${shardsToNext} more shards to ascend tier ${this.xpSystem.currentLevel + 1}
+                                </div>
                             ` : `
-                                <div style="font-size: 12px; color: #f39c12; font-weight: bold;">MAX LEVEL REACHED!</div>
+                                <div style="font-size: 12px; color: rgba(250,204,21,0.85); margin-top: 4px; font-weight: 600;">Archives fully awakened</div>
                             `}
                         </div>
                     </div>
                     ${this.xpSystem.currentLevel < 12 ? `
-                        <div style="margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #7f8c8d; margin-bottom: 4px;">
-                                <span>Level ${this.xpSystem.currentLevel}</span>
-                                <span>Level ${this.xpSystem.currentLevel + 1}</span>
+                        <div style="margin-bottom: 14px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(226,232,240,0.5); margin-bottom: 6px;">
+                                <span>Current tier</span>
+                                <span>Next tier</span>
                             </div>
-                            <div style="width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden;">
-                                <div style="width: ${this.getProgressToNextLevel() * 100}%; height: 100%; background: linear-gradient(90deg, #9b59b6, #8e44ad); transition: width 0.3s ease;"></div>
+                            <div style="width: 100%; height: 8px; background: rgba(148,163,184,0.18); border-radius: 9999px; overflow: hidden;">
+                                <div style="width: ${progressPercent}%; height: 100%; background: linear-gradient(90deg, #6366f1 0%, #14b8a6 100%); transition: width 0.3s ease;"></div>
                             </div>
                         </div>
                     ` : ''}
-                    ${this.xpSystem.levelDefinitions[this.xpSystem.currentLevel].rewards.length > 0 ? `
-                        <div style="margin-top: 16px;">
-                            <div style="font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 8px;">🎁 Level Rewards:</div>
-                            <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #27ae60;">
-                                ${this.xpSystem.levelDefinitions[this.xpSystem.currentLevel].rewards.map(reward => `<li>${reward}</li>`).join('')}
+                    ${currentTierInfo.rewards && currentTierInfo.rewards.length > 0 ? `
+                        <div style="margin-top: 18px;">
+                            <div style="font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 8px;">Relics unlocked:</div>
+                            <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: rgba(74,222,128,0.85);">
+                                ${currentTierInfo.rewards.map(reward => `<li>${reward}</li>`).join('')}
                             </ul>
                         </div>
                     ` : ''}
                 </div>
                 
-                <h3 style="margin: 30px 0 20px 0; color: #2c3e50; font-size: 18px; font-weight: 600; border-bottom: 2px solid #667eea; padding-bottom: 10px;">🌊 Flow State Statistics</h3>
-                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 30px;">
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">🌊 ${flowSessions.length}</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Flow Sessions</div>
+                <h3 style="margin: 30px 0 20px 0; font-size: 18px; font-weight: 600; border-bottom: 2px solid rgba(56,189,248,0.4); padding-bottom: 10px;">🌊 Flow Currents</h3>
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; margin-bottom: 32px;">
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(99,102,241,0.18) 0%, rgba(147,197,253,0.14) 100%); border: 1px solid rgba(129,140,248,0.24); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 30px; font-weight: 600;">🌊 ${flowSessions.length}</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Distinct flow sessions logged</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(142, 68, 173, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">⏰ ${Math.round(totalFlowTime / 60000)}m</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Total Flow Time</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(139,92,246,0.18) 0%, rgba(168,85,247,0.12) 100%); border: 1px solid rgba(165,180,252,0.2); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 30px; font-weight: 600;">⏰ ${Math.round(totalFlowTime / 60000)}m</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Minutes sustained in deep focus</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(52, 73, 94, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">🏆 ${Math.round(longestFlowSession / 60000)}m</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Longest Flow</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(14,165,233,0.18) 0%, rgba(21,128,61,0.12) 100%); border: 1px solid rgba(45,212,191,0.2); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 30px; font-weight: 600;">🏆 ${Math.round(longestFlowSession / 60000)}m</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Longest uninterrupted vigil</div>
                     </div>
-                    <div class="stat-item" style="
-                        background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%);
-                        border-radius: 12px;
-                        padding: 20px;
-                        text-align: center;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        color: white;
-                    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 10px 25px rgba(22, 160, 133, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-                        <div class="stat-value" style="font-size: 32px; font-weight: bold; margin-bottom: 4px;">✨ ${Math.round(averageFlowQuality * 100)}%</div>
-                        <div class="stat-label" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; opacity: 0.9;">Avg Quality</div>
+                    <div class="stat-item" style="background: linear-gradient(160deg, rgba(59,130,246,0.16) 0%, rgba(37,99,235,0.12) 100%); border: 1px solid rgba(96,165,250,0.22); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 30px; font-weight: 600;">✨ ${Math.round(averageFlowQuality * 100)}%</div>
+                        <div style="font-size: 12px; opacity: 0.6; margin-top: 6px;">Average flow resonance</div>
                     </div>
                 </div>
-                <div class="recent-achievements" style="margin-bottom: 20px;">
-                    <h4 style="margin-bottom: 16px; color: #2c3e50; font-size: 16px; border-bottom: 2px solid #f39c12; padding-bottom: 8px;">🏆 Recent Achievements</h4>
+                <div class="recent-achievements" style="margin-bottom: 18px;">
+                    <h4 style="margin-bottom: 14px; font-size: 16px; border-bottom: 2px solid rgba(251,191,36,0.4); padding-bottom: 8px;">📜 Recent Lore Fragments</h4>
                     ${this.getRecentAchievementsHTMLStyled()}
                 </div>
-                <div class="recent-badges" style="margin-bottom: 10px;">
-                    <h4 style="margin-bottom: 16px; color: #2c3e50; font-size: 16px; border-bottom: 2px solid #3498db; padding-bottom: 8px;">🎖️ Recent Badges</h4>
+                <div class="recent-badges" style="margin-bottom: 12px;">
+                    <h4 style="margin-bottom: 14px; font-size: 16px; border-bottom: 2px solid rgba(125,211,252,0.35); padding-bottom: 8px;">🗝 Archive Relics</h4>
                     ${this.getRecentBadgesHTMLStyled()}
                 </div>
             </div>
         `;
-        
-        // Show in a simple modal (you might want to integrate with existing modal system)
-        this.showModal('📊 Writing Statistics', modalContent);
+
+        // Display the ledger overlay
+        this.showModal('📚 Library Ledger', modalContent);
     }
     
     showGoalsModal() {
@@ -3118,6 +3060,62 @@ class WritingGamification {
         `;
         
         this.showModal('🎯 Goal Customization', modalContent);
+    }
+
+    showFocusSessionSelector() {
+        const focusDurations = [
+            { label: '15 min | Warm-up', minutes: 15, description: 'Shake off inertia and prime the mind.' },
+            { label: '25 min | Pomodoro', minutes: 25, description: 'Classic sprint with room to breathe.' },
+            { label: '45 min | Deep Work', minutes: 45, description: 'Sustain attention long enough to descend.' },
+            { label: '90 min | Immersion', minutes: 90, description: 'Commit to a full chapter of thought.' }
+        ];
+
+        const ritualList = focusDurations.map(entry => `
+            <div class="focus-ritual-card" style="
+                display: flex;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 16px;
+                border-radius: 12px;
+                border: 1px solid rgba(148, 163, 184, 0.2);
+                background: linear-gradient(135deg, rgba(15,23,42,0.75) 0%, rgba(30,41,59,0.85) 100%);
+                color: #e2e8f0;
+                transition: transform 0.2s ease, border-color 0.2s ease;
+            " onmouseover="this.style.transform='translateY(-2px)'; this.style.borderColor='rgba(99,102,241,0.6)';" onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='rgba(148,163,184,0.2)';">
+                <div>
+                    <div style="font-size: 15px; font-weight: 600;">${entry.label}</div>
+                    <div style="font-size: 12px; opacity: 0.7; margin-top: 4px;">${entry.description}</div>
+                </div>
+                <button style="
+                    align-self: center;
+                    padding: 8px 16px;
+                    border-radius: 9999px;
+                    border: none;
+                    background: linear-gradient(135deg, #6366f1 0%, #14b8a6 100%);
+                    color: white;
+                    font-size: 12px;
+                    font-weight: 600;
+                    letter-spacing: 0.3px;
+                    cursor: pointer;
+                " onclick="window.gamificationInstance.startFocusSession(${entry.minutes * 60000})">
+                    Begin Ritual
+                </button>
+            </div>
+        `).join('');
+
+        const modalContent = `
+            <div style="padding: 16px; background: #0b1120; color: #e2e8f0;">
+                <h3 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">🕰 Focus Rituals</h3>
+                <p style="margin: 0 0 18px 0; font-size: 13px; opacity: 0.75;">
+                    Choose a cadence for your next writing vigil. The longer the ritual, the richer the lexicon shards you will harvest.
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    ${ritualList}
+                </div>
+            </div>
+        `;
+
+        this.showModal('🕰 Focus Rituals', modalContent);
     }
 
     getRecentAchievementsHTMLStyled() {
@@ -3580,29 +3578,29 @@ class WritingGamification {
         console.log('[Gamification] Focus session saved:', session.id);
     }
     
-    // === Level/XP Progression System ===
+    // === Library Ledger Progression ===
     
     initializeXPSystem() {
-        console.log('[Gamification] Initializing XP system...');
+        console.log('[Gamification] Initializing library ledger...');
         this.xpSystem.currentLevel = this.calculateLevel();
         this.updateXPDisplay();
     }
     
     getLevelDefinitions() {
         return {
-            1: { title: "Novice Writer", xpRequired: 0, description: "Just starting your academic journey", rewards: [] },
-            2: { title: "Apprentice Scribe", xpRequired: 500, description: "Learning the fundamentals", rewards: ["Custom theme unlock"] },
-            3: { title: "Dedicated Scholar", xpRequired: 1500, description: "Building consistency", rewards: ["Extended focus sessions"] },
-            4: { title: "Focused Researcher", xpRequired: 3000, description: "Mastering concentration", rewards: ["Advanced analytics"] },
-            5: { title: "Prolific Author", xpRequired: 5500, description: "High output writer", rewards: ["Goal customization"] },
-            6: { title: "Flow Master", xpRequired: 9000, description: "Achieving regular flow states", rewards: ["Flow state alerts"] },
-            7: { title: "Academic Expert", xpRequired: 14000, description: "Expert-level productivity", rewards: ["Collaboration features"] },
-            8: { title: "Publishing Scholar", xpRequired: 21000, description: "Ready for publication", rewards: ["Export templates"] },
-            9: { title: "Research Leader", xpRequired: 30000, description: "Leading academic work", rewards: ["Mentorship tools"] },
-            10: { title: "Distinguished Professor", xpRequired: 42000, description: "Academic excellence achieved", rewards: ["All features unlocked"] },
-            // Prestige levels
-            11: { title: "Emeritus Scholar", xpRequired: 60000, description: "Beyond mastery", rewards: ["Prestige badge"] },
-            12: { title: "Academic Legend", xpRequired: 85000, description: "Legendary productivity", rewards: ["Legacy features"] }
+            1: { title: "Dusty Alcove", xpRequired: 0, description: "A single shelf flickers awake", rewards: [] },
+            2: { title: "Cataloguer's Nook", xpRequired: 500, description: "Card drawers whisper your name", rewards: ["Palette: oxidized brass"] },
+            3: { title: "Scriptorium Wing", xpRequired: 1500, description: "Tables gather for your drafts", rewards: ["Extended focus rituals"] },
+            4: { title: "Resonant Gallery", xpRequired: 3000, description: "Echoes of citations line the vaults", rewards: ["Insight glyphs"] },
+            5: { title: "Infinite Stack", xpRequired: 5500, description: "Ladders spiral toward hidden tomes", rewards: ["Goal constellation view"] },
+            6: { title: "Axiomatic Atrium", xpRequired: 9000, description: "Flowing light maps every paragraph", rewards: ["Flow sentry alerts"] },
+            7: { title: "Archivist's Keep", xpRequired: 14000, description: "Custodians guard your methodology", rewards: ["Collaboration sigils"] },
+            8: { title: "Codex Observatory", xpRequired: 21000, description: "Constellations reveal structural patterns", rewards: ["Export engravings"] },
+            9: { title: "Curator's Council", xpRequired: 30000, description: "The library debates in your honor", rewards: ["Mentorship reliquary"] },
+            10: { title: "Warden of Aisles", xpRequired: 42000, description: "Stacks rearrange at your gesture", rewards: ["All chambers accessible"] },
+            // Prestige tiers
+            11: { title: "Mythic Librarium", xpRequired: 60000, description: "Language obeys your taxonomy", rewards: ["Prestige sigil"] },
+            12: { title: "Babel Prime", xpRequired: 85000, description: "The library loops into itself", rewards: ["Eternal archive mode"] }
         };
     }
     
@@ -3654,11 +3652,17 @@ class WritingGamification {
     }
     
     awardXP(amount, reason = 'General activity') {
-        console.log(`[Gamification] Awarding ${amount} XP for: ${reason}`);
+        const resourceLabel = this.lexiconTheme.resourceLabel;
+        console.log(`[Gamification] Harvesting ${amount} ${resourceLabel} for: ${reason}`);
         
         const oldLevel = this.xpSystem.currentLevel;
         this.xpSystem.currentXP += amount;
         this.xpSystem.currentLevel = this.calculateLevel();
+        if (!this.resourceLedger) {
+            this.resourceLedger = this.loadResourceLedger();
+        }
+        this.resourceLedger.lexiconShards = (this.resourceLedger.lexiconShards || 0) + amount;
+        this.saveResourceLedger();
         
         // Check for level up
         if (this.xpSystem.currentLevel > oldLevel) {
@@ -3680,9 +3684,11 @@ class WritingGamification {
     }
     
     handleLevelUp(oldLevel, newLevel) {
-        console.log(`[Gamification] Level up! ${oldLevel} → ${newLevel}`);
+        const progressionLabel = this.lexiconTheme.progressionLabel;
+        const resourceLabel = this.lexiconTheme.resourceLabel;
+        console.log(`[Gamification] ${progressionLabel} ascends: ${oldLevel} → ${newLevel}`);
         
-        // Award bonus XP for leveling up
+        // Award bonus shards for leveling up
         this.xpSystem.currentXP += this.xpSystem.xpGains.levelUp;
         
         // Play level up sound
@@ -3713,44 +3719,47 @@ class WritingGamification {
         `;
         
         modal.innerHTML = `
-            <div class="gamification-modal" style="background: white; border-radius: 16px; width: 90%; max-width: 500px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3); overflow: hidden;">
-                <div class="modal-header" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; padding: 24px; text-align: center;">
-                    <div style="font-size: 48px; margin-bottom: 16px;">🎊</div>
-                    <h3 style="margin: 0; font-size: 24px; font-weight: bold;">Level Up!</h3>
-                    <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 16px;">Congratulations on your progress!</p>
+            <div class="gamification-modal" style="background: white; border-radius: 16px; width: 90%; max-width: 520px; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35); overflow: hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #111827 0%, #0f172a 100%); color: white; padding: 28px 24px; text-align: center;">
+                    <div style="font-size: 44px; margin-bottom: 12px;">📚</div>
+                    <h3 style="margin: 0; font-size: 24px; font-weight: 600;">Stacks Ascend</h3>
+                    <p style="margin: 10px 0 0 0; opacity: 0.85; font-size: 15px;">A fresh chamber unfolds within the Library of Babel.</p>
                 </div>
-                <div class="modal-content" style="padding: 32px 24px; text-align: center;">
-                    <div style="margin-bottom: 24px;">
-                        <div style="font-size: 48px; font-weight: bold; color: #2c3e50; margin-bottom: 8px;">
-                            ${oldLevel} → ${newLevel}
+                <div class="modal-content" style="padding: 32px 28px; text-align: center; background: #f9fafb;">
+                    <div style="margin-bottom: 26px;">
+                        <div style="font-size: 42px; font-weight: 600; color: #1f2937; margin-bottom: 8px;">
+                            ${oldLevel} ⟶ ${newLevel}
                         </div>
-                        <div style="font-size: 20px; font-weight: 600; color: #9b59b6; margin-bottom: 8px;">
+                        <div style="font-size: 20px; font-weight: 600; color: #4338ca; margin-bottom: 10px; letter-spacing: 0.5px;">
                             ${levelInfo.title}
                         </div>
-                        <div style="font-size: 14px; color: #7f8c8d; line-height: 1.4;">
+                        <div style="font-size: 14px; color: #4b5563; line-height: 1.6;">
                             ${levelInfo.description}
                         </div>
                     </div>
                     
                     ${levelInfo.rewards.length > 0 ? `
-                        <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-                            <h4 style="margin: 0 0 12px 0; color: #2c3e50; font-size: 16px;">🎁 Rewards Unlocked</h4>
+                        <div style="background: rgba(17, 24, 39, 0.05); border-radius: 10px; padding: 18px 20px; margin-bottom: 24px; text-align: left;">
+                            <h4 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; font-weight: 600;">Unlocked Relics</h4>
                             <ul style="list-style: none; padding: 0; margin: 0;">
                                 ${levelInfo.rewards.map(reward => `
-                                    <li style="padding: 4px 0; color: #27ae60; font-weight: 500;">✓ ${reward}</li>
+                                    <li style="padding: 6px 0; color: #16a34a; font-weight: 500; display: flex; align-items: center; gap: 8px;">
+                                        <span>✦</span><span>${reward}</span>
+                                    </li>
                                 `).join('')}
                             </ul>
                         </div>
                     ` : ''}
                     
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-                        <div style="font-size: 14px; margin-bottom: 8px;">Total XP</div>
-                        <div style="font-size: 28px; font-weight: bold;">${this.xpSystem.currentXP.toLocaleString()}</div>
+                    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(147, 197, 253, 0.35) 100%); color: #0f172a; border-radius: 10px; padding: 18px; margin-bottom: 26px;">
+                        <div style="font-size: 13px; letter-spacing: 0.3px; text-transform: uppercase; margin-bottom: 6px;">Total ${resourceLabel}</div>
+                        <div style="font-size: 30px; font-weight: 600;">${this.xpSystem.currentXP.toLocaleString()}</div>
+                        <div style="font-size: 12px; color: rgba(15, 23, 42, 0.6); margin-top: 4px;">Includes bonus +${this.xpSystem.xpGains.levelUp.toLocaleString()} ${resourceLabel.toLowerCase()}</div>
                     </div>
                     
                     <button onclick="this.closest('.gamification-modal-overlay').remove()" 
-                            style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; border: none; padding: 12px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s ease;">
-                        Continue Writing!
+                            style="background: linear-gradient(135deg, #1f2937 0%, #111827 100%); color: white; border: none; padding: 13px 34px; border-radius: 9999px; font-size: 15px; font-weight: 600; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease;">
+                        Continue the Vigil
                     </button>
                 </div>
             </div>
@@ -3770,19 +3779,19 @@ class WritingGamification {
         // Create floating XP notification
         const notification = document.createElement('div');
         notification.style.cssText = `
-            position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-            color: white; padding: 12px 16px; border-radius: 8px; font-weight: bold;
-            box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3); z-index: 9999;
-            animation: slideInRight 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
-            font-size: 14px; max-width: 200px;
+            position: fixed; top: 80px; right: 20px; background: rgba(17, 24, 39, 0.92);
+            color: #f1f5f9; padding: 14px 18px; border-radius: 12px; font-weight: 600;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.45); z-index: 9999;
+            animation: slideInRight 0.3s ease, fadeOut 0.3s ease 3s forwards;
+            font-size: 13px; max-width: 240px; letter-spacing: 0.3px; backdrop-filter: blur(6px);
         `;
         
         notification.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 18px;">⭐</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 16px;">✶</span>
                 <div>
-                    <div>+${amount} XP</div>
-                    <div style="font-size: 11px; opacity: 0.9;">${reason}</div>
+                    <div style="font-size: 15px;">+${amount} ${this.lexiconTheme.resourceLabel}</div>
+                    <div style="font-size: 11px; opacity: 0.75; margin-top: 2px;">${reason}</div>
                 </div>
             </div>
         `;
@@ -3807,13 +3816,13 @@ class WritingGamification {
             const xpForNext = nextLevelXP - this.xpSystem.currentXP;
             
             levelDisplay.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="font-size: 14px;">⭐</span>
-                    <span style="font-weight: bold;">L${this.xpSystem.currentLevel}</span>
-                    <div style="width: 60px; height: 6px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden;">
-                        <div style="width: ${progress * 100}%; height: 100%; background: #f39c12; transition: width 0.3s ease;"></div>
+                <div style="display: flex; align-items: center; gap: 6px; color: #e2e8f0;">
+                    <span style="font-size: 13px;">⌘</span>
+                    <span style="font-weight: 600; letter-spacing: 0.5px;">Tier ${this.xpSystem.currentLevel}</span>
+                    <div style="width: 74px; height: 6px; background: rgba(226, 232, 240, 0.25); border-radius: 9999px; overflow: hidden;">
+                        <div style="width: ${(progress * 100).toFixed(1)}%; height: 100%; background: linear-gradient(90deg, #6366f1 0%, #14b8a6 100%); transition: width 0.3s ease;"></div>
                     </div>
-                    <span style="font-size: 10px; opacity: 0.9;">${xpForNext > 0 ? xpForNext : 'MAX'}</span>
+                    <span style="font-size: 10px; opacity: 0.85;">${xpForNext > 0 ? `${xpForNext} ${this.lexiconTheme.resourceTicker}` : 'complete'}</span>
                 </div>
             `;
         }
@@ -3850,6 +3859,255 @@ class WritingGamification {
     
     savePrestige() {
         localStorage.setItem('gamification_prestige', JSON.stringify(this.xpSystem.prestige));
+    }
+
+    loadResourceLedger() {
+        const stored = localStorage.getItem('gamification_resource_ledger');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                const lexiconShards = typeof parsed.lexiconShards === 'number' ? parsed.lexiconShards : 0;
+                const catalogueSigils = typeof parsed.catalogueSigils === 'number' ? parsed.catalogueSigils : 0;
+                const architectTokens = typeof parsed.architectTokens === 'number' ? parsed.architectTokens : 0;
+                const unlockedRooms = Array.isArray(parsed.unlockedRooms) ? parsed.unlockedRooms : [];
+                const nextMilestone = typeof parsed.nextArchitectMilestone === 'number'
+                    ? parsed.nextArchitectMilestone
+                    : ((Math.floor(lexiconShards / 5000) + 1) * 5000);
+                return {
+                    lexiconShards,
+                    catalogueSigils,
+                    architectTokens,
+                    nextArchitectMilestone: nextMilestone,
+                    unlockedRooms
+                };
+            } catch (error) {
+                console.warn('[Gamification] Failed to parse resource ledger, resetting.', error);
+            }
+        }
+        const legacyPoints = this.rewards?.totalPoints || 0;
+        return {
+            lexiconShards: this.xpSystem?.currentXP || 0,
+            catalogueSigils: legacyPoints,
+            architectTokens: 0,
+            nextArchitectMilestone: 5000,
+            unlockedRooms: []
+        };
+    }
+
+    saveResourceLedger() {
+        const ledger = this.resourceLedger || {
+            lexiconShards: this.xpSystem?.currentXP || 0,
+            catalogueSigils: this.rewards?.totalPoints || 0,
+            architectTokens: 0,
+            nextArchitectMilestone: 5000,
+            unlockedRooms: []
+        };
+        localStorage.setItem('gamification_resource_ledger', JSON.stringify(ledger));
+    }
+
+    getLibraryRooms() {
+        if (!this.libraryRooms) {
+            this.libraryRooms = [
+                {
+                    id: 'scriptorium-annex',
+                    title: 'Scriptorium Annex',
+                    icon: '📖',
+                    cost: 1,
+                    description: 'Expand the copyist wing to better catalogue fresh manuscripts.',
+                    effect: 'Future bonus to lexicon shard yield (coming soon).'
+                },
+                {
+                    id: 'luminarium',
+                    title: 'Luminarium',
+                    icon: '🕯️',
+                    cost: 2,
+                    description: 'Illuminate study halls with attentive candles that protect focus rituals.',
+                    effect: 'Future focus ritual buffs (coming soon).'
+                },
+                {
+                    id: 'celestial-observatory',
+                    title: 'Celestial Observatory',
+                    icon: '🌌',
+                    cost: 3,
+                    description: 'Chart constellations of concepts to uncover new lore fragments.',
+                    effect: 'Future analytics insights (coming soon).'
+                }
+            ];
+        }
+        return this.libraryRooms;
+    }
+
+    isRoomUnlocked(roomId) {
+        const unlocked = this.resourceLedger?.unlockedRooms || [];
+        return unlocked.includes(roomId);
+    }
+
+    getNextLockedRoom() {
+        return this.getLibraryRooms().find(room => !this.isRoomUnlocked(room.id)) || null;
+    }
+
+    renderLibraryRooms() {
+        return this.getLibraryRooms().map(room => {
+            const unlocked = this.isRoomUnlocked(room.id);
+            return `
+                <div class="ledger-room${unlocked ? ' unlocked' : ''}" data-room-id="${room.id}" data-room-cost="${room.cost}">
+                    <div class="ledger-room-header">
+                        <span class="ledger-room-title">${room.icon} ${room.title}</span>
+                        <span class="ledger-room-status" data-room-status>${unlocked ? 'Unlocked' : `Locked • Cost: ${room.cost} tokens`}</span>
+                    </div>
+                    <div class="ledger-room-description">${room.description}</div>
+                    <div class="ledger-room-footer">
+                        <span class="ledger-room-effect">${room.effect}</span>
+                        <button class="ledger-room-button ${unlocked ? 'hidden' : ''}" data-action="unlock-room" data-room-id="${room.id}">Unlock (−${room.cost})</button>
+                        <span class="ledger-room-tag ${unlocked ? '' : 'hidden'}">Unlocked</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    unlockLibraryRoom(roomId) {
+        const room = this.getLibraryRooms().find(r => r.id === roomId);
+        if (!room) {
+            console.warn('[Gamification] Unknown library room:', roomId);
+            return;
+        }
+
+        if (this.isRoomUnlocked(roomId)) {
+            this.showNotification(`${room.icon} ${room.title} is already unlocked.`, 'info');
+            return;
+        }
+
+        const availableTokens = this.resourceLedger?.architectTokens || 0;
+        if (availableTokens < room.cost) {
+            const deficit = room.cost - availableTokens;
+            this.showNotification(`🏛 Not enough architect tokens. Need ${deficit} more.`, 'warning');
+            return;
+        }
+
+        this.resourceLedger.architectTokens = availableTokens - room.cost;
+        if (!Array.isArray(this.resourceLedger.unlockedRooms)) {
+            this.resourceLedger.unlockedRooms = [];
+        }
+        this.resourceLedger.unlockedRooms.push(room.id);
+        this.saveResourceLedger();
+        this.showNotification(`🏛 ${room.title} unlocked!`, 'success');
+        this.updateGamificationUI();
+    }
+
+    unlockNextLibraryRoom() {
+        const nextRoom = this.getNextLockedRoom();
+        if (!nextRoom) {
+            this.showNotification('🏛 All chambers are already unlocked.', 'info');
+            return;
+        }
+        this.unlockLibraryRoom(nextRoom.id);
+    }
+
+    awardSigils(amount, reason = 'Task progress', { notify = false } = {}) {
+        if (!amount || amount <= 0) return;
+        if (!this.resourceLedger) {
+            this.resourceLedger = this.loadResourceLedger();
+        }
+
+        this.resourceLedger.catalogueSigils = (this.resourceLedger.catalogueSigils || 0) + amount;
+        this.rewards.totalPoints = this.resourceLedger.catalogueSigils;
+        this.saveRewards();
+        this.saveResourceLedger();
+
+        if (notify && window.showNotification) {
+            window.showNotification(`📑 +${amount} catalogue sigils: ${reason}`, 'success');
+        }
+
+        this.updateGamificationUI();
+    }
+
+    awardArchitectTokens(amount, reason = 'Library expansion') {
+        if (!amount || amount <= 0) return;
+        if (!this.resourceLedger) {
+            this.resourceLedger = this.loadResourceLedger();
+        }
+
+        this.resourceLedger.architectTokens = (this.resourceLedger.architectTokens || 0) + amount;
+        this.saveResourceLedger();
+
+        if (window.showNotification) {
+            window.showNotification(`🏛 +${amount} architect token${amount !== 1 ? 's' : ''}: ${reason}`, 'success');
+        }
+
+        this.updateGamificationUI();
+    }
+
+    checkArchitectMilestones() {
+        if (!this.resourceLedger) {
+            this.resourceLedger = this.loadResourceLedger();
+        }
+
+        let milestone = this.resourceLedger.nextArchitectMilestone || 5000;
+        let minted = 0;
+
+        while ((this.resourceLedger.lexiconShards || 0) >= milestone) {
+            minted += 1;
+            milestone += 5000;
+        }
+
+        if (minted > 0) {
+            this.resourceLedger.nextArchitectMilestone = milestone;
+            this.saveResourceLedger();
+            this.awardArchitectTokens(minted, 'Lexicon shard milestone reached');
+        }
+    }
+
+    showLedgerModal() {
+        const lexiconShards = this.resourceLedger?.lexiconShards || 0;
+        const catalogueSigils = this.resourceLedger?.catalogueSigils || 0;
+        const architectTokens = this.resourceLedger?.architectTokens || 0;
+        const nextMilestone = this.resourceLedger?.nextArchitectMilestone || 5000;
+        const fragments = Object.keys(this.achievements || {}).length;
+
+        const wordsToday = (() => {
+            const todayStats = this.dailyStats[this.getTodayKey()];
+            return todayStats ? todayStats.totalWords || 0 : 0;
+        })();
+
+        const totalFocusMinutes = Math.round((this.flowState.flowSessions || []).reduce((sum, session) => sum + session.duration, 0) / 60000);
+
+        const roomsHtml = this.getLibraryRooms().map(room => {
+            const unlocked = this.isRoomUnlocked(room.id);
+            return `<li class="ledger-modal-room${unlocked ? ' unlocked' : ''}">
+                <span>${room.icon} ${room.title}</span>
+                <span>${unlocked ? 'Unlocked' : `${room.cost} tokens`}</span>
+            </li>`;
+        }).join('');
+
+        const modalContent = `
+            <div class="ledger-modal">
+                <section>
+                    <h4>Current Reserves</h4>
+                    <ul>
+                        <li>Lexicon shards: <strong>${lexiconShards.toLocaleString()}</strong></li>
+                        <li>Catalogue sigils: <strong>${catalogueSigils.toLocaleString()}</strong></li>
+                        <li>Architect tokens: <strong>${architectTokens.toLocaleString()}</strong></li>
+                        <li>Lore fragments discovered: <strong>${fragments}</strong></li>
+                        <li>Next architect token at: <strong>${Math.max(nextMilestone - lexiconShards, 0).toLocaleString()}</strong> shards</li>
+                    </ul>
+                </section>
+                <section>
+                    <h4>Recent Activity</h4>
+                    <ul>
+                        <li>Manuscripts today: <strong>${wordsToday.toLocaleString()}</strong> words</li>
+                        <li>Total focus ritual time: <strong>${totalFocusMinutes.toLocaleString()}</strong> minutes</li>
+                        <li>Active streak: <strong>${this.streakData.currentStreak || 0}</strong> days</li>
+                    </ul>
+                </section>
+                <section>
+                    <h4>Library Chambers</h4>
+                    <ul class="ledger-modal-room-list">${roomsHtml}</ul>
+                </section>
+            </div>
+        `;
+
+        this.showModal('📜 Ledger Chronicle', modalContent);
     }
     
     // === Goal Completion System ===

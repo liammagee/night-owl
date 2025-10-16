@@ -12,11 +12,13 @@ class DataPersistence {
             rewards: 'rewards',
             flowSessions: 'flow_sessions',
             goals: 'goals',
+            worldState: 'world_state',
             xp: 'xp_data',
             specializations: 'specializations',
             prestige: 'prestige',
             analyticsData: 'analytics_data',
-            insights: 'insights'
+            insights: 'insights',
+            resourceLedger: 'resource_ledger'
         };
     }
 
@@ -101,7 +103,8 @@ class DataPersistence {
             unlockedSounds: ['basic'],
             unlockedThemes: ['default'],
             availableRewards: [],
-            pendingRewards: []
+            pendingRewards: [],
+            totalPoints: 0
         });
     }
 
@@ -127,6 +130,21 @@ class DataPersistence {
 
     saveGoals(data) {
         return this.save('goals', data);
+    }
+
+    loadWorldState() {
+        return this.load('worldState', {
+            version: 1,
+            anchors: {},
+            corridors: [],
+            rooms: {},
+            loreFragments: {},
+            lastUpdated: null
+        });
+    }
+
+    saveWorldState(data) {
+        return this.save('worldState', data);
     }
 
     loadXP() {
@@ -163,6 +181,19 @@ class DataPersistence {
 
     savePrestige(data) {
         return this.save('prestige', data);
+    }
+
+    loadResourceLedger() {
+        return this.load('resourceLedger', {
+            lexiconShards: 0,
+            catalogueSigils: 0,
+            architectTokens: 0,
+            nextArchitectMilestone: 5000
+        });
+    }
+
+    saveResourceLedger(data) {
+        return this.save('resourceLedger', data);
     }
 
     loadAnalyticsData() {

@@ -1172,7 +1172,7 @@ async function showAISettings() {
             settingsMessage += '📝 **Offline Mode Features:**\n';
             settingsMessage += '• TODO Suggestions: ✅ Smart contextual suggestions\n';
             settingsMessage += '• Writing Analysis: ✅ Local text analysis\n';
-            settingsMessage += '• Gamification: ✅ Full points and achievements\n';
+            settingsMessage += '• Gamification: ✅ Ledger tracking and lore fragments enabled\n';
             settingsMessage += '• File Management: ✅ All file operations\n\n';
             settingsMessage += '💡 Many features work without AI! Configure providers in Settings for enhanced capabilities.\n\n';
         }

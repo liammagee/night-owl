@@ -39,6 +39,15 @@ class FocusTimer {
             `🎯 ${minutes}-minute focus session started! Deep work time begins now.`, 
             'success'
         );
+        this.gamification.recordWorldEvent({
+            type: 'focus.started',
+            payload: {
+                sessionId: this.focusSession.id,
+                plannedDuration: sessionDuration,
+                type: this.focusSession.type,
+                startedAt: this.focusSession.startTime
+            }
+        });
         
         // Auto-start writing session if not already active
         if (!this.gamification.writingSession.currentSession) {
@@ -80,6 +89,14 @@ class FocusTimer {
         this.focusTimer = null;
         this.updateFocusUI();
         this.showNotification('⏸️ Focus session paused', 'info');
+        this.gamification.recordWorldEvent({
+            type: 'focus.paused',
+            payload: {
+                sessionId: this.focusSession.id,
+                remaining: this.focusSession.remaining,
+                pausedAt: Date.now()
+            }
+        });
     }
     
     resumeFocusSession() {
@@ -88,13 +105,22 @@ class FocusTimer {
         this.startFocusTimer();
         this.updateFocusUI();
         this.showNotification('▶️ Focus session resumed', 'info');
+        this.gamification.recordWorldEvent({
+            type: 'focus.resumed',
+            payload: {
+                sessionId: this.focusSession.id,
+                remaining: this.focusSession.remaining,
+                resumedAt: Date.now()
+            }
+        });
     }
     
     stopFocusSession() {
         if (!this.focusSession) return;
         
-        this.focusSession.interrupted = true;
-        this.focusSession.wordCountEnd = this.getCurrentWordCount();
+        const session = this.focusSession;
+        session.interrupted = true;
+        session.wordCountEnd = this.getCurrentWordCount();
         
         if (this.focusTimer) {
             clearInterval(this.focusTimer);
@@ -102,14 +128,24 @@ class FocusTimer {
         }
         
         // Save interrupted session if it was significant
-        const elapsed = this.focusSession.duration - this.focusSession.remaining;
+        const elapsed = session.duration - session.remaining;
         if (elapsed >= 300000) { // At least 5 minutes
-            this.gamification.saveFocusSession(this.focusSession);
+            this.gamification.saveFocusSession(session);
         }
         
         this.focusSession = null;
         this.updateFocusUI();
         this.showNotification('🛑 Focus session stopped', 'warning');
+        this.gamification.recordWorldEvent({
+            type: 'focus.stopped',
+            payload: {
+                sessionId: session.id,
+                elapsed,
+                plannedDuration: session.duration || 0,
+                stoppedAt: Date.now(),
+                interrupted: true
+            }
+        });
     }
     
     completeFocusSession() {
@@ -129,6 +165,16 @@ class FocusTimer {
         
         // Save completed session
         this.gamification.saveFocusSession(this.focusSession);
+        this.gamification.recordWorldEvent({
+            type: 'focus.completed',
+            payload: {
+                sessionId: this.focusSession.id,
+                duration: this.focusSession.duration,
+                wordsWritten,
+                type: this.focusSession.type,
+                completedAt: Date.now()
+            }
+        });
         
         // Award rewards
         this.awardFocusRewards(this.focusSession);
@@ -184,6 +230,10 @@ class FocusTimer {
         
         if (typeBonus[session.type]) {
             this.gamification.awardXP(typeBonus[session.type], `${session.type} focus session bonus`);
+        }
+
+        if (session.type === 'marathon' || session.duration >= 90 * 60000) {
+            this.gamification.awardArchitectTokens(1, 'Completed marathon focus ritual');
         }
         
         // Play completion sound

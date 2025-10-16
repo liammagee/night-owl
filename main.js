@@ -357,6 +357,7 @@ Content to analyze:
         breakReminders: true,
         achievementsEnabled: true,
         streakTracking: true,
+        ledgerTracking: true,
         pointsSystem: true,
         achievementNotifications: true,
         showProgressBar: true,

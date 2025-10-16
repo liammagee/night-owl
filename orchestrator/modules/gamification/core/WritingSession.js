@@ -40,6 +40,15 @@ class WritingSession {
         // console.log('[Gamification] Writing session started:', this.currentSession.id);
         this.gamification.updateGamificationUI();
         this.showNotification('✍️ Writing session started! Keep the momentum flowing.', 'success');
+        this.gamification.recordWorldEvent({
+            type: 'session.started',
+            payload: {
+                sessionId: this.currentSession.id,
+                startedAt: this.currentSession.startTime,
+                filePath: this.currentSession.filePath,
+                wordsAtStart: this.sessionStartWordCount
+            }
+        });
     }
 
     endWritingSession() {
@@ -74,12 +83,33 @@ class WritingSession {
             // Update collaborative challenges progress
             this.gamification.updateChallengeProgress();
             
+            this.gamification.recordWorldEvent({
+                type: 'session.completed',
+                payload: {
+                    sessionId: this.currentSession.id,
+                    duration,
+                    wordsWritten: this.currentSession.wordCount,
+                    filePath: this.currentSession.filePath,
+                    endedAt: this.currentSession.endTime
+                }
+            });
+
             this.showSessionSummary(this.currentSession);
             
             // Play session completion sound
             this.gamification.playSound('sessionEnd');
         } else {
             this.showNotification('Session too short to count. Keep writing for at least 5 minutes!', 'info');
+            this.gamification.recordWorldEvent({
+                type: 'session.discarded',
+                payload: {
+                    sessionId: this.currentSession.id,
+                    duration,
+                    wordsWritten: this.currentSession.wordCount,
+                    filePath: this.currentSession.filePath,
+                    endedAt: new Date()
+                }
+            });
         }
         
         this.currentSession = null;
@@ -107,6 +137,15 @@ class WritingSession {
         dailyStats[today].totalDuration += session.duration;
         
         this.gamification.saveDailyStats();
+        this.gamification.recordWorldEvent({
+            type: 'analytics.dailyUpdated',
+            payload: {
+                date: today,
+                totalWords: dailyStats[today].totalWords,
+                totalDuration: dailyStats[today].totalDuration,
+                sessionCount: dailyStats[today].sessions.length
+            }
+        });
     }
 
     recordSessionAnalytics(session) {
@@ -143,6 +182,15 @@ class WritingSession {
             (dayStats.averageDuration * (dayStats.sessions - 1) + session.duration) / dayStats.sessions;
         
         this.gamification.saveAnalyticsData();
+        this.gamification.recordWorldEvent({
+            type: 'analytics.timeSlotUpdated',
+            payload: {
+                hour,
+                hourStats: this.gamification.analytics.timeSlots[hour],
+                dayOfWeek,
+                dayStats: this.gamification.analytics.dayOfWeek[dayOfWeek]
+            }
+        });
     }
 
     showSessionSummary(session) {
