@@ -11,6 +11,17 @@
         return;
     }
 
+    // Provide a stub for legacy initializers so callers stop polling
+    if (typeof window.initializeGamification !== 'function') {
+        window.initializeGamification = function initializeGamificationFallback() {
+            if (window.gamification && typeof window.gamification.initialize === 'function') {
+                window.gamification.initialize();
+                return true;
+            }
+            return false;
+        };
+    }
+
     // Array of module files to load in order
     const moduleFiles = [
         'gamification/data/DataPersistence.js',
@@ -54,6 +65,13 @@
                 window.gamification = new GamificationManager();
                 window.writingGamification = window.gamification;
                 window.gamificationInstance = window.gamification;
+                window.initializeGamification = function initializeGamification() {
+                    if (window.gamification && typeof window.gamification.initialize === 'function') {
+                        window.gamification.initialize();
+                        return true;
+                    }
+                    return false;
+                };
                 
                 // Initialize when DOM is ready
                 if (document.readyState === 'loading') {

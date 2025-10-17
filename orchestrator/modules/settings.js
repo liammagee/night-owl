@@ -568,7 +568,13 @@ function generateAISettings() {
         </div>
 
         <div class="settings-section">
-            <h3>AI Assistant Configuration</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0;">AI Assistant Configuration</h3>
+                <button type="button" onclick="refreshAIProviders()"
+                        style="padding: 6px 12px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    🔄 Refresh
+                </button>
+            </div>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
                 Configure different AI assistants for different purposes. Ash provides quick writing feedback, while Dr. Chen offers deep dialogue and analysis.
             </p>
@@ -598,7 +604,7 @@ function generateAISettings() {
                     <label>
                         <select id="ash-model">
                             <option value="auto">Auto (Provider Default)</option>
-                            ${generateModelOptions(getAssistantProvider('ash'), getAssistantModel('ash'))}
+                            <!-- Models will be populated dynamically -->
                         </select>
                         <span>AI Model</span>
                     </label>
@@ -644,7 +650,7 @@ function generateAISettings() {
                     <label>
                         <select id="chen-model">
                             <option value="auto">Auto (Provider Default)</option>
-                            ${generateModelOptions(getAssistantProvider('chen'), getAssistantModel('chen'))}
+                            <!-- Models will be populated dynamically -->
                         </select>
                         <span>AI Model</span>
                     </label>
@@ -1581,6 +1587,8 @@ function addSettingsEventListeners(category) {
     if (category === 'ai') {
         // Add assistant tab styles
         injectAssistantTabStyles();
+        // Initialize model dropdowns with dynamic data
+        setTimeout(() => initializeAIModelDropdowns(), 100);
     }
     
     // AI custom prompts setup
@@ -2555,41 +2563,27 @@ function updateLocalAIVisibility() {
     localAIConfig.style.display = isLocal ? 'block' : 'none';
 }
 
-function generateModelOptions(provider, selectedModel) {
-    const models = {
-        openai: [
-            'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'
-        ],
-        anthropic: [
-            'claude-opus-4-1-20250805', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514',
-            'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022',
-            'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'
-        ],
-        gemini: [
-            'gemini-2.5-flash-image-preview', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 
-            'gemini-1.5-flash-8b', 'gemini-1.5-flash-002', 'gemini-1.5-pro', 'gemini-1.5-pro-002', 
-            'gemini-1.0-pro', 'gemini-pro-vision'
-        ],
-        groq: [
-            'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-90b-text-preview',
-            'llama-3.2-11b-text-preview', 'mixtral-8x7b-32768', 'gemma2-9b-it'
-        ],
-        openrouter: [
-            'anthropic/claude-3.5-sonnet', 'anthropic/claude-3-opus', 'openai/gpt-4', 'openai/gpt-4-turbo',
-            'meta-llama/llama-3.1-70b-instruct', 'google/gemini-pro-1.5', 'mistralai/mistral-large'
-        ],
-        local: [
-            'local-model', 'llama', 'codellama', 'mistral', 'neural-chat', 'vicuna', 'alpaca'
-        ]
-    };
-    
-    if (provider === 'auto' || !models[provider]) {
+async function generateModelOptions(provider, selectedModel) {
+    try {
+        if (provider === 'auto') {
+            return '';
+        }
+
+        // Get models from backend
+        const result = await window.electronAPI.invoke('get-provider-models', provider);
+        if (!result || !result.models || !Array.isArray(result.models)) {
+            console.warn(`[Settings] No models available for provider: ${provider}`);
+            return '';
+        }
+
+        return result.models.map(model =>
+            `<option value="${model}" ${selectedModel === model ? 'selected' : ''}>${model}</option>`
+        ).join('');
+
+    } catch (error) {
+        console.error(`[Settings] Error fetching models for provider ${provider}:`, error);
         return '';
     }
-    
-    return models[provider].map(model => 
-        `<option value="${model}" ${selectedModel === model ? 'selected' : ''}>${model}</option>`
-    ).join('');
 }
 
 async function updateModelOptions(assistantKey) {
@@ -2606,8 +2600,13 @@ async function updateModelOptions(assistantKey) {
         if (provider === 'auto') {
             modelSelect.innerHTML = '<option value="auto" selected>Auto (Provider Default)</option>';
         } else {
-            modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>' + 
-                                    generateModelOptions(provider, null);
+            try {
+                const modelOptions = await generateModelOptions(provider, null);
+                modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>' + modelOptions;
+            } catch (error) {
+                console.error('[Settings] Error updating model options:', error);
+                modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>';
+            }
         }
         
         // Update local AI visibility
@@ -2745,5 +2744,99 @@ function exportGamificationData() {
     } catch (error) {
         console.error('[Settings] Error exporting gamification data:', error);
         showNotification('Error exporting gamification data', 'error');
+    }
+}
+
+async function refreshAIProviders() {
+    try {
+        console.log('[Settings] Refreshing AI providers...');
+
+        // Get fresh provider data from backend
+        const providerData = await window.electronAPI.invoke('get-available-ai-providers');
+        if (!providerData || !providerData.providers) {
+            console.warn('[Settings] No provider data received');
+            showNotification('No AI providers available', 'warning');
+            return;
+        }
+
+        const availableProviders = providerData.providers;
+        console.log('[Settings] Available providers:', availableProviders);
+
+        // Update both Ash and Dr. Chen provider dropdowns
+        updateProviderDropdown('ash', availableProviders);
+        updateProviderDropdown('chen', availableProviders);
+
+        // Update model options for current provider selections
+        updateModelOptions('ash');
+        updateModelOptions('chen');
+
+        showNotification('AI providers refreshed successfully', 'success');
+
+    } catch (error) {
+        console.error('[Settings] Error refreshing AI providers:', error);
+        showNotification('Error refreshing AI providers', 'error');
+    }
+}
+
+function updateProviderDropdown(assistantKey, availableProviders) {
+    const providerSelect = document.getElementById(`${assistantKey}-provider`);
+    if (!providerSelect) {
+        console.warn(`[Settings] Provider select not found for ${assistantKey}`);
+        return;
+    }
+
+    // Store current selection
+    const currentProvider = providerSelect.value;
+
+    // Clear and rebuild options
+    providerSelect.innerHTML = '<option value="auto">Auto (Use Available)</option>';
+
+    // Add available providers
+    const providerOptions = [
+        'openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'local'
+    ];
+
+    providerOptions.forEach(provider => {
+        if (availableProviders.includes(provider) || provider === 'local') {
+            const option = document.createElement('option');
+            option.value = provider;
+            option.textContent = getProviderDisplayName(provider);
+            providerSelect.appendChild(option);
+        }
+    });
+
+    // Restore selection if still available, otherwise use 'auto'
+    if (Array.from(providerSelect.options).some(opt => opt.value === currentProvider)) {
+        providerSelect.value = currentProvider;
+    } else {
+        providerSelect.value = 'auto';
+        console.log(`[Settings] Provider ${currentProvider} no longer available for ${assistantKey}, falling back to auto`);
+    }
+}
+
+function getProviderDisplayName(provider) {
+    const displayNames = {
+        'auto': 'Auto (Use Available)',
+        'openai': 'OpenAI',
+        'anthropic': 'Anthropic',
+        'gemini': 'Google Gemini',
+        'groq': 'Groq',
+        'openrouter': 'OpenRouter',
+        'local': 'Local AI'
+    };
+    return displayNames[provider] || provider;
+}
+
+async function initializeAIModelDropdowns() {
+    try {
+        console.log('[Settings] Initializing AI model dropdowns...');
+
+        // Initialize both Ash and Dr. Chen model dropdowns
+        await updateModelOptions('ash');
+        await updateModelOptions('chen');
+
+        console.log('[Settings] AI model dropdowns initialized successfully');
+    } catch (error) {
+        console.error('[Settings] Error initializing AI model dropdowns:', error);
     }
 }

@@ -11,6 +11,14 @@ class LibraryExplorerView {
         this.transientActive = false;
         this.transientTimeout = null;
         this.typingTimeout = null;
+        this.nodeOrder = [];
+        this.nodeMap = new Map();
+        this.adjacency = new Map();
+        this.positions = new Map();
+        this.selectedNodeId = null;
+        this.lastNeighborId = null;
+        this.currentWorldState = {};
+        this.keyboardBound = false;
     }
 
     ensureContainer() {
@@ -56,13 +64,21 @@ class LibraryExplorerView {
                         <div class="maze-header">
                             <span class="maze-title">Maze Overview</span>
                         </div>
-                        <div class="maze-canvas"></div>
+                        <div class="maze-canvas" tabindex="0"></div>
                         <div class="maze-empty">Write to awaken the corridors.</div>
                     </div>
                     <div class="le-pulse" id="le-pulse">
                         <div class="pulse-header">Live Scribing</div>
                         <div class="pulse-count">Next shard in 30 words</div>
-                        <div class="pulse-text">Begin typing to awaken the stacks.</div>
+                        <div class="pulse-snippet">
+                            <div class="pulse-subtitle">Latest prose</div>
+                            <div class="pulse-snippet-text">Begin typing to awaken the stacks.</div>
+                        </div>
+                        <div class="pulse-node">
+                            <div class="pulse-subtitle">Selected chamber</div>
+                            <div class="pulse-node-title">No chamber selected</div>
+                            <div class="pulse-node-body">Use arrow keys or click the maze to explore rooms.</div>
+                        </div>
                     </div>
                 </div>
                 <div class="le-grid">
@@ -131,6 +147,11 @@ class LibraryExplorerView {
                 color: #f9fafb;
                 backdrop-filter: blur(12px);
                 transition: box-shadow 0.25s ease;
+                box-sizing: border-box;
+                overflow: auto;
+                resize: vertical;
+                min-height: 200px;
+                max-height: 80vh;
             }
             .library-explorer-panel .le-header {
                 display: flex;
@@ -245,6 +266,9 @@ class LibraryExplorerView {
                 height: 180px;
                 transition: box-shadow 0.3s ease;
             }
+            .library-explorer-panel .maze-canvas {
+                outline: none;
+            }
             .library-explorer-panel .maze-canvas svg {
                 width: 100%;
                 height: 100%;
@@ -265,6 +289,24 @@ class LibraryExplorerView {
             .library-explorer-panel .maze-node-room {
                 fill: rgba(94, 234, 212, 0.85);
                 stroke: rgba(94, 234, 212, 0.45);
+            }
+            .library-explorer-panel .maze-node {
+                cursor: pointer;
+            }
+            .library-explorer-panel .maze-node.selected circle {
+                stroke-width: 3;
+                stroke: rgba(250, 204, 21, 0.95);
+                filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.45));
+            }
+            .library-explorer-panel .maze-node .maze-node-ring {
+                fill: none;
+                stroke: rgba(250, 204, 21, 0.35);
+                stroke-width: 1.5;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+            }
+            .library-explorer-panel .maze-node.selected .maze-node-ring {
+                opacity: 1;
             }
             .library-explorer-panel .maze-connection {
                 stroke: rgba(226, 232, 240, 0.4);
@@ -294,24 +336,41 @@ class LibraryExplorerView {
                 font-size: 12px;
                 color: rgba(147, 197, 253, 0.85);
             }
-            .library-explorer-panel .pulse-text {
-                flex: 1;
+            .library-explorer-panel .pulse-subtitle {
+                font-size: 11px;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: rgba(191, 219, 254, 0.6);
+                margin-bottom: 4px;
+            }
+            .library-explorer-panel .pulse-snippet,
+            .library-explorer-panel .pulse-node {
+                background: rgba(15, 23, 42, 0.55);
+                border: 1px solid rgba(148, 163, 184, 0.15);
+                border-radius: 8px;
+                padding: 8px 10px;
+            }
+            .library-explorer-panel .pulse-snippet-text,
+            .library-explorer-panel .pulse-node-body {
                 font-size: 13px;
                 line-height: 1.4;
                 color: rgba(226, 232, 240, 0.9);
                 white-space: pre-line;
-                position: relative;
             }
-            .library-explorer-panel .pulse-text::after {
+            .library-explorer-panel .pulse-node-title {
+                font-size: 14px;
+                font-weight: 600;
+                color: rgba(248, 250, 252, 0.95);
+                margin-bottom: 4px;
+            }
+            .library-explorer-panel::after {
                 content: '';
-                position: absolute;
-                inset: 0;
-                background: linear-gradient(to top, rgba(15, 23, 42, 0.85), rgba(15,23,42,0));
-                opacity: 0;
-                transition: opacity 0.4s ease;
-            }
-            .library-explorer-panel .le-pulse.recent .pulse-text::after {
-                opacity: 1;
+                display: block;
+                height: 6px;
+                margin-top: 10px;
+                border-radius: 6px;
+                background: linear-gradient(90deg, rgba(94, 234, 212, 0.2), rgba(125, 211, 252, 0.35), rgba(147, 197, 253, 0.2));
+                pointer-events: none;
             }
         `;
 
@@ -338,6 +397,21 @@ class LibraryExplorerView {
         }
 
         this.renderPulse(options?.snippet || '', options?.pulse || {});
+        this.attachKeyboardAndMouse();
+
+        if (!this.nodeOrder?.length) {
+            this.selectedNodeId = null;
+            this.clearNodeDetails();
+        } else if (!this.selectedNodeId || !this.nodeMap?.has(this.selectedNodeId)) {
+            this.selectNode(this.nodeOrder[0].id, { silent: true });
+        } else {
+            this.highlightSelection();
+            this.renderNodeDetails();
+        }
+
+        if (options?.force && this.container) {
+            this.container.classList.remove('pulse-active');
+        }
     }
 
     renderAnchors(anchors) {
@@ -429,10 +503,15 @@ class LibraryExplorerView {
         }));
 
         const nodes = [...anchors, ...rooms];
+        this.currentWorldState = worldState;
 
         if (!nodes.length) {
             canvas.innerHTML = '';
             if (placeholder) placeholder.style.display = 'block';
+            this.nodeOrder = [];
+            this.nodeMap = new Map();
+            this.positions = new Map();
+            this.adjacency = new Map();
             return;
         }
 
@@ -451,6 +530,11 @@ class LibraryExplorerView {
         });
 
         const corridors = Array.isArray(worldState.corridors) ? worldState.corridors : [];
+        this.nodeOrder = nodes;
+        this.positions = positions;
+        this.nodeMap = new Map(nodes.map(node => [node.id, node]));
+        this.buildAdjacency(corridors);
+
         const lines = corridors
             .map(corridor => {
                 const from = positions.get(corridor.from);
@@ -460,15 +544,16 @@ class LibraryExplorerView {
             })
             .join('');
 
-        const circles = nodes
+        const nodeMarkup = nodes
             .map(node => {
                 const pos = positions.get(node.id);
                 if (!pos) return '';
                 const cls = node.type === 'anchor' ? 'maze-node-anchor' : 'maze-node-room';
                 const radiusSize = node.type === 'anchor' ? 8 : 6;
                 return `
-                    <g>
+                    <g class="maze-node" data-node-id="${node.id}">
                         <circle class="${cls}" cx="${pos.x}" cy="${pos.y}" r="${radiusSize}"></circle>
+                        <circle class="maze-node-ring" cx="${pos.x}" cy="${pos.y}" r="${radiusSize + 4}"></circle>
                         <text x="${pos.x}" y="${pos.y + 18}" font-size="10" text-anchor="middle" fill="rgba(226,232,240,0.8)">${node.title}</text>
                     </g>
                 `;
@@ -478,9 +563,11 @@ class LibraryExplorerView {
         canvas.innerHTML = `
             <svg viewBox="0 0 ${size} ${size}" preserveAspectRatio="xMidYMid meet">
                 ${lines}
-                ${circles}
+                ${nodeMarkup}
             </svg>
         `;
+
+        this.attachMazeInteraction(canvas);
     }
 
     setStatus(message, options = {}) {
@@ -533,9 +620,8 @@ class LibraryExplorerView {
                     container.classList.remove('le-typing');
                 }, 950);
                 if (pulseCard) {
-                    pulseCard.classList.add('pulse-active', 'recent');
+                    pulseCard.classList.add('pulse-active');
                     setTimeout(() => pulseCard.classList.remove('pulse-active'), 600);
-                    setTimeout(() => pulseCard.classList.remove('recent'), 1400);
                 }
                 break;
             case 'event':
@@ -597,7 +683,7 @@ class LibraryExplorerView {
 
         const { wordsRemaining = 0, shardInterval = 30, shardsPerInterval = 12, lastMilestoneAt = null } = pulse;
         const countEl = pulseCard.querySelector('.pulse-count');
-        const textEl = pulseCard.querySelector('.pulse-text');
+        const snippetEl = pulseCard.querySelector('.pulse-snippet-text');
 
         if (countEl) {
             const remaining = Math.max(wordsRemaining, 0);
@@ -608,15 +694,200 @@ class LibraryExplorerView {
             countEl.textContent = message;
         }
 
-        if (textEl) {
+        if (snippetEl) {
             const displaySnippet = snippet ? this.escapeHTML(snippet).replace(/\n+/g, '\n') : 'Begin typing to awaken the stacks.';
-            textEl.innerHTML = displaySnippet;
+            snippetEl.innerHTML = displaySnippet;
         }
 
         if (lastMilestoneAt && Date.now() - lastMilestoneAt < 2000) {
             pulseCard.classList.add('pulse-active');
             setTimeout(() => pulseCard.classList.remove('pulse-active'), 1600);
         }
+    }
+
+    attachMazeInteraction(canvas) {
+        const svg = canvas.querySelector('svg');
+        if (!svg) return;
+
+        svg.querySelectorAll('.maze-node').forEach(nodeEl => {
+            nodeEl.addEventListener('click', () => {
+                const nodeId = nodeEl.getAttribute('data-node-id');
+                if (nodeId) {
+                    this.selectNode(nodeId);
+                }
+                canvas.focus();
+            });
+        });
+    }
+
+    attachKeyboardAndMouse() {
+        if (this.keyboardBound) return;
+        this.keyboardBound = true;
+
+        this.handleKeyDown = (event) => {
+            if (!this.container || this.container.classList.contains('le-hidden')) return;
+            const activeElement = document.activeElement;
+            const isWithinExplorer = activeElement && this.container.contains(activeElement);
+            const allowNavigation = !activeElement || activeElement === document.body || isWithinExplorer;
+            if (!allowNavigation) return;
+
+            switch (event.key) {
+                case 'ArrowLeft':
+                    this.stepSelection(-1);
+                    event.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    this.stepSelection(1);
+                    event.preventDefault();
+                    break;
+                case 'ArrowUp':
+                    this.stepAlongCorridor(1);
+                    event.preventDefault();
+                    break;
+                case 'ArrowDown':
+                    this.stepAlongCorridor(-1);
+                    event.preventDefault();
+                    break;
+                case 'Enter':
+                    this.stepAlongCorridor(1);
+                    event.preventDefault();
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        document.addEventListener('keydown', this.handleKeyDown);
+
+        const mazeCanvas = this.container.querySelector('.maze-canvas');
+        if (mazeCanvas) {
+            mazeCanvas.addEventListener('click', () => {
+                mazeCanvas.focus();
+            });
+        }
+    }
+
+    buildAdjacency(corridors) {
+        this.adjacency = new Map();
+        corridors.forEach(corridor => {
+            const { from, to } = corridor;
+            if (!from || !to) return;
+            if (!this.adjacency.has(from)) this.adjacency.set(from, new Set());
+            if (!this.adjacency.has(to)) this.adjacency.set(to, new Set());
+            this.adjacency.get(from).add(to);
+            this.adjacency.get(to).add(from);
+        });
+    }
+
+    stepSelection(direction = 1) {
+        if (!this.nodeOrder?.length) return;
+        if (!this.selectedNodeId) {
+            this.selectNode(this.nodeOrder[0].id);
+            return;
+        }
+
+        const currentIndex = this.nodeOrder.findIndex(node => node.id === this.selectedNodeId);
+        if (currentIndex === -1) {
+            this.selectNode(this.nodeOrder[0].id);
+            return;
+        }
+
+        const nextIndex = (currentIndex + direction + this.nodeOrder.length) % this.nodeOrder.length;
+        this.selectNode(this.nodeOrder[nextIndex].id);
+    }
+
+    stepAlongCorridor(direction = 1) {
+        if (!this.selectedNodeId) {
+            if (this.nodeOrder?.length) this.selectNode(this.nodeOrder[0].id);
+            return;
+        }
+
+        const neighbors = Array.from(this.adjacency?.get(this.selectedNodeId) || []);
+        if (!neighbors.length) {
+            this.stepSelection(direction);
+            return;
+        }
+
+        neighbors.sort();
+        const currentIdx = Math.max(0, neighbors.indexOf(this.lastNeighborId ?? neighbors[0]));
+        const nextIdx = (currentIdx + direction + neighbors.length) % neighbors.length;
+        this.lastNeighborId = neighbors[nextIdx];
+        this.selectNode(this.lastNeighborId);
+    }
+
+    selectNode(nodeId, options = {}) {
+        if (!nodeId || !this.nodeMap?.has(nodeId)) return;
+        this.selectedNodeId = nodeId;
+        this.lastNeighborId = null;
+        this.highlightSelection();
+        this.renderNodeDetails();
+
+        if (!options.silent) {
+            const mazeCanvas = this.container?.querySelector('.maze-canvas');
+            if (mazeCanvas) {
+                mazeCanvas.classList.add('pulse-active');
+                setTimeout(() => mazeCanvas.classList.remove('pulse-active'), 500);
+            }
+        }
+    }
+
+    highlightSelection() {
+        const svg = this.container?.querySelector('.maze-canvas svg');
+        if (!svg) return;
+
+        svg.querySelectorAll('.maze-node').forEach(nodeEl => {
+            nodeEl.classList.remove('selected');
+        });
+
+        if (!this.selectedNodeId) return;
+        const selected = svg.querySelector(`.maze-node[data-node-id="${this.selectedNodeId}"]`);
+        if (selected) selected.classList.add('selected');
+    }
+
+    renderNodeDetails() {
+        const pulseCard = this.container?.querySelector('#le-pulse');
+        if (!pulseCard) return;
+
+        const titleEl = pulseCard.querySelector('.pulse-node-title');
+        const bodyEl = pulseCard.querySelector('.pulse-node-body');
+        if (!titleEl || !bodyEl) return;
+
+        if (!this.selectedNodeId || !this.currentWorldState) {
+            titleEl.textContent = 'No chamber selected';
+            bodyEl.textContent = 'Use arrow keys or click the maze to explore rooms.';
+            return;
+        }
+
+        const node = this.nodeMap?.get(this.selectedNodeId);
+        if (!node) {
+            titleEl.textContent = 'Unknown chamber';
+            bodyEl.textContent = 'Lost within unmapped corridors.';
+            return;
+        }
+
+        if (node.type === 'anchor') {
+            const anchor = this.currentWorldState.anchors?.[node.id];
+            titleEl.textContent = anchor?.label || node.id;
+            const status = anchor?.unlocked ? 'Unlocked' : 'Sealed';
+            bodyEl.textContent = `${anchor?.description || 'No description available.'}\nStatus: ${status}`;
+        } else {
+            const room = this.currentWorldState.rooms?.[node.id];
+            titleEl.textContent = room?.title || node.id;
+            const tags = room?.thematicTags?.length ? `Tags: ${room.thematicTags.join(', ')}` : '';
+            const desc = room?.description || 'Awaiting catalogue entry.';
+            bodyEl.textContent = `${desc}${tags ? `\n${tags}` : ''}`;
+        }
+    }
+
+    clearNodeDetails() {
+        const pulseCard = this.container?.querySelector('#le-pulse');
+        if (!pulseCard) return;
+        const titleEl = pulseCard.querySelector('.pulse-node-title');
+        const bodyEl = pulseCard.querySelector('.pulse-node-body');
+        if (titleEl) titleEl.textContent = 'No chamber selected';
+        if (bodyEl) bodyEl.textContent = 'Use arrow keys or click the maze to explore rooms.';
+        this.selectedNodeId = null;
+        this.lastNeighborId = null;
     }
 
     escapeHTML(str) {

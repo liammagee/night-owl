@@ -39,6 +39,7 @@ class GamificationManager {
 
         if (typeof LibraryExplorerView !== 'undefined') {
             this.explorerView = new LibraryExplorerView(this);
+            this.explorerView.ensureContainer();
         } else {
             console.warn('[GamificationManager] LibraryExplorerView not available. Explorer UI disabled.');
             this.explorerView = null;
@@ -139,7 +140,7 @@ class GamificationManager {
         if (this.initialized) return;
         
         this.setupEventListeners();
-        this.updateGamificationUI();
+        this.updateGamificationUI(true);
         this.startActivityTracking();
         this.initialized = true;
         
@@ -212,7 +213,7 @@ class GamificationManager {
         if (this.explorerView) {
             this.explorerView.signalActivity('typing');
         }
-        this.updateGamificationUI();
+        this.updateGamificationUI(true);
     }
 
     // === Data Persistence Helpers ===
@@ -589,7 +590,8 @@ class GamificationManager {
             'focus.completed',
             'analytics.dailyUpdated',
             'resource.minted',
-            'typing.milestone'
+            'typing.milestone',
+            'world.roomSpawned'
         ];
         return interestingTypes.includes(event.type);
     }
@@ -622,7 +624,7 @@ class GamificationManager {
             this.liveProgress.recentSnippet = snippet;
         }
 
-        this.updateGamificationUI();
+        this.updateGamificationUI(true);
 
         let milestonesAwarded = 0;
         while (this.liveProgress.accumulatedWords >= this.liveProgress.shardInterval) {
@@ -639,11 +641,84 @@ class GamificationManager {
                     remaining: this.liveProgress.accumulatedWords
                 }
             });
+            this.spawnLibraryRoomFromSnippet(this.liveProgress.recentSnippet, awardAmount);
         }
 
         if (milestonesAwarded > 0) {
             this.liveProgress.lastMilestoneAt = Date.now();
+            this.scheduleArchitectAutoBuild();
         }
+    }
+
+    spawnLibraryRoomFromSnippet(snippet, awardAmount = 0) {
+        if (!this.worldEngine) return;
+
+        const now = Date.now();
+
+        const cleanSnippet = (snippet || '').trim();
+        const words = cleanSnippet ? cleanSnippet.split(/\s+/).filter(Boolean) : [];
+        const anchorId = this.worldEngine.worldState?.anchors?.flowAtrium?.unlocked ? 'flowAtrium' : 'scriptorium';
+        const roomId = `scribe-${now}-${Math.floor(Math.random() * 1000)}`;
+
+        const titleWords = words.slice(-3).map(w => this.capitalizeWord(w)).filter(Boolean);
+        const title = titleWords.length ? titleWords.join(' ') : `Chamber ${new Date(now).toLocaleTimeString()}`;
+        const description = cleanSnippet
+            ? `Echoes of recent prose:\n${cleanSnippet.slice(-220)}`
+            : 'An alcove formed from momentum, awaiting inscription.';
+
+        const tagCandidates = words
+            .filter(word => word.length > 4)
+            .slice(-6)
+            .map(word => word.toLowerCase());
+        const thematicTags = Array.from(new Set(tagCandidates)).slice(-4);
+
+        const room = {
+            id: roomId,
+            title,
+            description,
+            anchor: anchorId,
+            unlockCost: {
+                lexiconShards: 0,
+                catalogueSigils: Math.max(1, Math.floor(awardAmount / 2)),
+                architectTokens: 0
+            },
+            thematicTags
+        };
+
+        const corridor = {
+            from: anchorId,
+            to: roomId,
+            description: 'A passage woven from your latest writing surge.'
+        };
+
+        const loreFragment = {
+            id: `lore-${roomId}`,
+            roomId,
+            prose: cleanSnippet || 'A fragment awaiting its author.'
+        };
+
+        this.worldEngine.addRoom(room);
+        this.worldEngine.addCorridor(corridor);
+        this.worldEngine.addLoreFragment(loreFragment);
+
+        this.recordWorldEvent({
+            type: 'world.roomSpawned',
+            payload: {
+                roomId,
+                anchor: anchorId,
+                title,
+                tags: thematicTags
+            }
+        });
+
+        this.updateGamificationUI(true);
+    }
+
+    capitalizeWord(word) {
+        if (!word) return '';
+        const cleaned = word.replace(/[^a-zA-Z0-9'-]+/g, '');
+        if (!cleaned) return '';
+        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
     }
 
     async scheduleArchitectAutoBuild() {
