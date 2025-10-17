@@ -158,8 +158,18 @@ const folderNameError = document.getElementById('folder-name-error');
 const folderNameCancel = document.getElementById('folder-name-cancel');
 const folderNameCreate = document.getElementById('folder-name-create');
 
+// File creation modal elements
+const fileNameModal = document.getElementById('file-name-modal');
+const fileNameInput = document.getElementById('file-name-input');
+const fileNameError = document.getElementById('file-name-error');
+const fileNameCancel = document.getElementById('file-name-cancel');
+const fileNameCreate = document.getElementById('file-name-create');
+
 // Track parent folder for context menu folder creation
 let folderCreationParentPath = '';
+
+// Track parent folder for context menu file creation
+let fileCreationParentPath = '';
 
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
@@ -6553,6 +6563,33 @@ folderNameModal.addEventListener('click', (e) => {
     }
 });
 
+// File name modal event listeners
+fileNameCancel.addEventListener('click', hideFileNameModal);
+fileNameCreate.addEventListener('click', handleCreateFile);
+
+// Handle Enter key in file name input
+fileNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        handleCreateFile();
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideFileNameModal();
+    }
+});
+
+// Hide file modal when clicking on backdrop
+fileNameModal.addEventListener('click', (e) => {
+    if (e.target === fileNameModal) {
+        hideFileNameModal();
+    }
+});
+
+// Clear validation error when typing in file name
+fileNameInput.addEventListener('input', () => {
+    fileNameError.style.display = 'none';
+});
+
 // Clear validation error when typing
 folderNameInput.addEventListener('input', () => {
     if (folderNameError.style.display !== 'none') {
@@ -8549,7 +8586,11 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
             break;
 
         case 'new-file':
-            showNotification('This functionality will be implemented soon', 'info');
+            if (isFolder) {
+                showFileNameModalWithParent(filePath);
+            } else {
+                showNotification('New file can only be created inside directories', 'error');
+            }
             break;
 
         case 'new-subfolder':
@@ -8684,6 +8725,110 @@ async function handleCreateFolder() {
     } catch (error) {
         console.error('[Renderer] Error in handleCreateFolder:', error);
         showFolderNameError('Failed to create folder. Please try again.');
+    }
+}
+
+// File creation modal functions
+function showFileNameModal() {
+    fileCreationParentPath = ''; // Reset to root level
+    fileNameModal.classList.remove('hidden');
+    fileNameInput.value = '';
+    fileNameError.style.display = 'none';
+    fileNameInput.focus();
+}
+
+function hideFileNameModal() {
+    fileNameModal.classList.add('hidden');
+    fileCreationParentPath = ''; // Reset parent path when modal is hidden
+}
+
+function showFileNameModalWithParent(parentPath) {
+    fileCreationParentPath = parentPath;
+    fileNameModal.classList.remove('hidden');
+    fileNameInput.value = '';
+    fileNameError.style.display = 'none';
+    fileNameInput.focus();
+}
+
+function validateFileName(name) {
+    if (!name || name.trim() === '') {
+        return 'File name cannot be empty.';
+    }
+
+    const trimmedName = name.trim();
+
+    // Check for invalid characters (similar to folder validation but more restrictive for files)
+    if (!/^[a-zA-Z0-9_\-\s\.]+$/.test(trimmedName)) {
+        return 'File name can only contain letters, numbers, spaces, hyphens, underscores, and periods.';
+    }
+
+    // Check if it has a valid extension (encourage .md files)
+    if (!trimmedName.includes('.')) {
+        return 'File name should include an extension (e.g., .md, .txt).';
+    }
+
+    // Prevent certain invalid names
+    const invalidNames = ['con', 'prn', 'aux', 'nul', 'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9', 'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'];
+    const baseName = trimmedName.toLowerCase().split('.')[0];
+    if (invalidNames.includes(baseName)) {
+        return 'This file name is reserved by the system.';
+    }
+
+    return null; // Valid
+}
+
+function showFileNameError(message) {
+    fileNameError.textContent = message;
+    fileNameError.style.display = 'block';
+}
+
+async function handleCreateFile() {
+    const fileName = fileNameInput.value;
+
+    // Validate file name
+    const validationError = validateFileName(fileName);
+    if (validationError) {
+        showFileNameError(validationError);
+        return;
+    }
+
+    try {
+        const trimmedName = fileName.trim();
+
+        // Convert absolute path to relative path for backend
+        let relativePath = fileCreationParentPath;
+        if (relativePath && window.appSettings?.workingDirectory) {
+            const workingDir = window.appSettings.workingDirectory;
+            if (relativePath.startsWith(workingDir)) {
+                relativePath = relativePath.replace(workingDir, '').replace(/^[\/\\]/, '');
+            }
+        }
+
+        // Use the create-file IPC handler
+        const result = await window.electronAPI.invoke('create-file', trimmedName, relativePath, '');
+
+        if (result.success) {
+            console.log(`[Renderer] File created successfully: ${result.filePath}`);
+            hideFileNameModal();
+            fileCreationParentPath = ''; // Reset parent path after successful creation
+            // Refresh the file tree to show the new file
+            fileTreeRendered = false;
+            debouncedRenderFileTree();
+            showNotification('File created successfully', 'success');
+
+            // Optionally open the newly created file
+            try {
+                await window.electronAPI.invoke('load-file', result.filePath);
+            } catch (error) {
+                console.error('[Renderer] Error opening newly created file:', error);
+            }
+        } else {
+            console.error(`[Renderer] Error creating file: ${result.error}`);
+            showFileNameError(result.error);
+        }
+    } catch (error) {
+        console.error('[Renderer] Error in handleCreateFile:', error);
+        showFileNameError('Failed to create file. Please try again.');
     }
 }
 

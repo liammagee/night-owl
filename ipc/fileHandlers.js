@@ -63,6 +63,43 @@ function register(deps) {
     }
   });
 
+  ipcMain.handle('create-file', async (event, fileName, parentPath = '', content = '') => {
+    try {
+      const workingDir = getWorkingDirectory();
+      const basePath = parentPath ? path.join(workingDir, parentPath) : workingDir;
+      const filePath = path.join(basePath, fileName);
+
+      console.log(`[FileHandlers] Creating file: ${filePath}`);
+
+      // Check if file already exists
+      try {
+        await fs.access(filePath);
+        return {
+          success: false,
+          error: 'A file with that name already exists'
+        };
+      } catch (err) {
+        // File doesn't exist, which is what we want
+      }
+
+      // Create the file with optional content
+      await fs.writeFile(filePath, content, 'utf8');
+
+      console.log(`[FileHandlers] File created successfully: ${filePath}`);
+      return {
+        success: true,
+        filePath: filePath,
+        message: `File "${fileName}" created successfully`
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error creating file:', error);
+      return {
+        success: false,
+        error: `Failed to create file: ${error.message}`
+      };
+    }
+  });
+
   ipcMain.handle('request-file-tree', async (event) => {
     try {
       const workingDir = getWorkingDirectory();

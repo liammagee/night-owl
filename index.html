@@ -626,6 +626,24 @@
             display: none;
         }
 
+        /* File Name Dialog */
+        #file-name-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #file-name-modal.hidden {
+            display: none;
+        }
+
         .folder-name-dialog {
             background: #fefdfb;
             border-radius: 8px;
@@ -2357,6 +2375,24 @@
             <div class="folder-name-actions">
                 <button class="folder-name-btn" id="folder-name-cancel">Cancel</button>
                 <button class="folder-name-btn primary" id="folder-name-create">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Name Modal -->
+    <div id="file-name-modal" class="hidden">
+        <div class="folder-name-dialog">
+            <div class="folder-name-header">Create New File</div>
+
+            <div class="folder-name-field">
+                <label for="file-name-input">File name:</label>
+                <input type="text" id="file-name-input" class="folder-name-input" placeholder="Enter file name (e.g., notes.md)">
+                <div class="folder-name-error" id="file-name-error"></div>
+            </div>
+
+            <div class="folder-name-actions">
+                <button class="folder-name-btn" id="file-name-cancel">Cancel</button>
+                <button class="folder-name-btn primary" id="file-name-create">Create</button>
             </div>
         </div>
     </div>
