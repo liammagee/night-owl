@@ -200,6 +200,33 @@ class LibraryWorldEngine {
         return { ...this.worldState };
     }
 
+    exportWorldState(pretty = false) {
+        const state = this.getWorldState();
+        return pretty ? JSON.stringify(state, null, 2) : JSON.stringify(state);
+    }
+
+    replaceWorldState(newState, { recordEvent = true } = {}) {
+        if (!newState || typeof newState !== 'object') {
+            throw new Error('[LibraryWorldEngine] Invalid world state supplied');
+        }
+
+        const normalized = this.normalizeWorldState(newState);
+        this.worldState = normalized;
+        this.ensureBaselineAnchors();
+        this.saveWorldState();
+
+        if (recordEvent && this.gamification?.recordWorldEvent) {
+            this.gamification.recordWorldEvent({
+                type: 'world.reloaded',
+                payload: {
+                    anchors: Object.keys(this.worldState.anchors || {}),
+                    rooms: Object.keys(this.worldState.rooms || {}),
+                    corridors: (this.worldState.corridors || []).length
+                }
+            });
+        }
+    }
+
     consumeArchitectQueue(ids = null) {
         if (!ids || ids.length === 0) {
             const queue = [...this.architectQueue];

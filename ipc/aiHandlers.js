@@ -340,7 +340,7 @@ function register(deps) {
     }
     
     try {
-      const models = aiService.getProviderModels(provider);
+      const models = await aiService.getProviderModels(provider);
       return { models };
     } catch (error) {
       console.error('[AIHandlers] Error getting provider models:', error);

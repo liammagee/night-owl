@@ -19,6 +19,10 @@ class LibraryExplorerView {
         this.lastNeighborId = null;
         this.currentWorldState = {};
         this.keyboardBound = false;
+        this.ensureRetryScheduled = false;
+        this.wrapper = null;
+        this.resizer = null;
+        this.worldModal = null;
     }
 
     ensureContainer() {
@@ -26,9 +30,23 @@ class LibraryExplorerView {
             return this.container;
         }
 
-        const target = document.getElementById('editor-toolbar') || document.querySelector('.toolbar');
+        const target =
+            document.getElementById('editor-toolbar') ||
+            document.querySelector('.toolbar') ||
+            document.querySelector('#main-toolbar') ||
+            document.querySelector('.header-toolbar');
+
         if (!target) {
-            console.warn('[LibraryExplorerView] Toolbar not found. Delaying UI mount.');
+            if (!this.ensureRetryScheduled) {
+                this.ensureRetryScheduled = true;
+                setTimeout(() => {
+                    this.ensureRetryScheduled = false;
+                    this.ensureContainer();
+                }, 500);
+            }
+            if (!this.container) {
+                console.warn('[LibraryExplorerView] Toolbar not found. Delaying UI mount.');
+            }
             return null;
         }
 
@@ -36,12 +54,45 @@ class LibraryExplorerView {
         panel.id = 'library-explorer-panel';
         panel.className = 'library-explorer-panel';
         panel.innerHTML = this.getSkeletonMarkup();
-
-        target.insertAdjacentElement('afterend', panel);
         this.container = panel;
+        this.container.style.width = '100%';
+
+        let wrapper = this.wrapper;
+        if (!wrapper || !document.body.contains(wrapper)) {
+            wrapper = document.createElement('div');
+            wrapper.className = 'library-explorer-wrapper';
+            target.insertAdjacentElement('afterend', wrapper);
+            this.wrapper = wrapper;
+        } else if (target.nextElementSibling !== wrapper) {
+            target.insertAdjacentElement('afterend', wrapper);
+        }
+
+        if (this.resizer && wrapper.contains(this.resizer)) {
+            wrapper.insertBefore(panel, this.resizer);
+        } else {
+            wrapper.appendChild(panel);
+        }
+
+        if (!this.resizer || !wrapper.contains(this.resizer)) {
+            const resizer = document.createElement('div');
+            resizer.className = 'library-explorer-resizer';
+            wrapper.appendChild(resizer);
+            this.attachResizerHandlers(resizer);
+            this.resizer = resizer;
+        }
+
+        this.ensureRetryScheduled = false;
+        console.log('[LibraryExplorerView] Explorer panel mounted after toolbar.');
 
         this.attachEventHandlers();
         this.injectStyles();
+
+        requestAnimationFrame(() => {
+            if (this.container && !this.container.style.height) {
+                const rect = this.container.getBoundingClientRect();
+                this.container.style.height = `${Math.max(260, rect.height)}px`;
+            }
+        });
 
         return this.container;
     }
@@ -55,6 +106,7 @@ class LibraryExplorerView {
                 </div>
                 <div class="le-actions">
                     <button id="le-request-blueprint" class="le-btn primary">Summon Architect</button>
+                    <button id="le-world-btn" class="le-btn secondary">World JSON</button>
                     <span class="le-status" id="le-status-indicator">Awaiting whispers</span>
                 </div>
             </div>
@@ -130,6 +182,13 @@ class LibraryExplorerView {
                 }
             });
         }
+
+        const worldBtn = this.container.querySelector('#le-world-btn');
+        if (worldBtn) {
+            worldBtn.addEventListener('click', () => {
+                this.openWorldModal();
+            });
+        }
     }
 
     injectStyles() {
@@ -138,8 +197,16 @@ class LibraryExplorerView {
         const style = document.createElement('style');
         style.id = 'library-explorer-styles';
         style.textContent = `
+            .library-explorer-wrapper {
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 0;
+                width: 100%;
+            }
             .library-explorer-panel {
-                margin: 12px 24px;
+                margin: 0;
                 padding: 16px;
                 background: rgba(9, 12, 19, 0.85);
                 border: 1px solid rgba(94, 234, 212, 0.2);
@@ -148,10 +215,17 @@ class LibraryExplorerView {
                 backdrop-filter: blur(12px);
                 transition: box-shadow 0.25s ease;
                 box-sizing: border-box;
-                overflow: auto;
-                resize: vertical;
+                overflow: hidden;
                 min-height: 200px;
                 max-height: 80vh;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+            .library-explorer-panel .le-content {
+                overflow: auto;
+                flex: 1;
             }
             .library-explorer-panel .le-header {
                 display: flex;
@@ -171,7 +245,7 @@ class LibraryExplorerView {
             .library-explorer-panel .le-actions {
                 display: flex;
                 align-items: center;
-                gap: 12px;
+                gap: 10px;
                 font-size: 13px;
             }
             .library-explorer-panel .le-btn {
@@ -182,10 +256,19 @@ class LibraryExplorerView {
                 color: #d1fae5;
                 cursor: pointer;
                 transition: background 0.2s, transform 0.2s;
+                font-size: 13px;
             }
             .library-explorer-panel .le-btn:hover {
                 background: rgba(94, 234, 212, 0.2);
                 transform: translateY(-1px);
+            }
+            .library-explorer-panel .le-btn.secondary {
+                border: 1px solid rgba(125, 211, 252, 0.4);
+                background: rgba(125, 211, 252, 0.12);
+                color: #bfdbfe;
+            }
+            .library-explorer-panel .le-btn.secondary:hover {
+                background: rgba(125, 211, 252, 0.2);
             }
             .library-explorer-panel .le-content {
                 display: flex;
@@ -196,6 +279,22 @@ class LibraryExplorerView {
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
                 gap: 16px;
+            }
+            .library-explorer-resizer {
+                height: 8px;
+                width: 100%;
+                cursor: ns-resize;
+                border-radius: 999px;
+                background: linear-gradient(90deg, rgba(94, 234, 212, 0.2), rgba(125, 211, 252, 0.65), rgba(94, 234, 212, 0.2));
+                opacity: 0.6;
+                transition: opacity 0.2s ease, box-shadow 0.2s ease;
+                margin: 8px 0;
+                align-self: stretch;
+            }
+            .library-explorer-resizer:hover,
+            .library-explorer-resizer.active {
+                opacity: 1;
+                box-shadow: 0 0 14px rgba(94, 234, 212, 0.45);
             }
             .library-explorer-panel .le-grid {
                 display: grid;
@@ -363,16 +462,118 @@ class LibraryExplorerView {
                 color: rgba(248, 250, 252, 0.95);
                 margin-bottom: 4px;
             }
-            .library-explorer-panel::after {
-                content: '';
-                display: block;
-                height: 6px;
-                margin-top: 10px;
-                border-radius: 6px;
-                background: linear-gradient(90deg, rgba(94, 234, 212, 0.2), rgba(125, 211, 252, 0.35), rgba(147, 197, 253, 0.2));
-                pointer-events: none;
+            .library-world-modal-overlay {
+                position: fixed;
+                inset: 0;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                background: rgba(8, 12, 18, 0.65);
+                backdrop-filter: blur(16px);
+                z-index: 10000;
+                padding: 24px;
             }
-        `;
+            .library-world-modal {
+                width: min(720px, 92vw);
+                max-height: 82vh;
+                background: rgba(15, 23, 42, 0.92);
+                border: 1px solid rgba(94, 234, 212, 0.25);
+                border-radius: 14px;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                box-shadow: 0 24px 60px rgba(8, 12, 18, 0.45);
+                color: #e2e8f0;
+            }
+            .library-world-modal header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+            .library-world-modal header h3 {
+                margin: 0;
+                font-size: 18px;
+                font-weight: 600;
+                color: #bae6fd;
+                letter-spacing: 0.06em;
+            }
+            .library-world-modal header button {
+                background: transparent;
+                border: 1px solid rgba(94, 234, 212, 0.35);
+                color: #bae6fd;
+                border-radius: 8px;
+                cursor: pointer;
+                padding: 4px 10px;
+                transition: background 0.2s ease;
+            }
+            .library-world-modal header button:hover {
+                background: rgba(94, 234, 212, 0.18);
+            }
+            .library-world-modal textarea {
+                width: 100%;
+                flex: 1;
+                min-height: 220px;
+                max-height: 48vh;
+                background: rgba(8, 12, 18, 0.8);
+                border: 1px solid rgba(94, 234, 212, 0.3);
+                border-radius: 10px;
+                color: #e2e8f0;
+                font-family: 'Fira Code', 'Courier New', monospace;
+                font-size: 13px;
+                padding: 14px;
+                resize: vertical;
+                line-height: 1.45;
+            }
+            .library-world-modal textarea:focus {
+                outline: none;
+                box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.35);
+            }
+            .library-world-modal .modal-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: flex-end;
+            }
+            .library-world-modal .modal-actions button {
+                padding: 8px 14px;
+                border-radius: 10px;
+                border: 1px solid rgba(125, 211, 252, 0.4);
+                background: rgba(125, 211, 252, 0.12);
+                color: #bfdbfe;
+                cursor: pointer;
+                transition: background 0.2s ease, transform 0.2s ease;
+            }
+            .library-world-modal .modal-actions button:hover {
+                background: rgba(125, 211, 252, 0.22);
+                transform: translateY(-1px);
+            }
+            .library-world-modal .modal-actions button.primary {
+                border-color: rgba(94, 234, 212, 0.5);
+                background: rgba(94, 234, 212, 0.18);
+                color: #bbf7d0;
+            }
+            .library-world-modal .modal-actions button.danger {
+                border-color: rgba(248, 113, 113, 0.4);
+                background: rgba(248, 113, 113, 0.12);
+                color: #fecaca;
+            }
+            .library-world-modal .modal-actions button.danger:hover {
+                background: rgba(248, 113, 113, 0.2);
+            }
+            .library-world-modal .modal-status {
+                font-size: 12px;
+                min-height: 18px;
+                color: rgba(148, 163, 184, 0.9);
+            }
+            .library-world-modal .modal-status.error {
+                color: #fecaca;
+            }
+            .library-world-modal .modal-status.success {
+                color: #bbf7d0;
+            }
+            `;
 
         document.head.appendChild(style);
     }
@@ -766,6 +967,235 @@ class LibraryExplorerView {
             });
         }
     }
+
+    attachResizerHandlers(resizer) {
+        if (!resizer || resizer.dataset.bound === 'true') return;
+
+        const handleStart = (event) => {
+            if (!this.container) return;
+            const isTouch = event.type.startsWith('touch');
+            event.preventDefault();
+
+            const startY = isTouch ? event.touches[0].clientY : event.clientY;
+            const startHeight = this.container.getBoundingClientRect().height;
+
+            const handleMove = (moveEvent) => {
+                const currentY = moveEvent.type.startsWith('touch')
+                    ? moveEvent.touches[0].clientY
+                    : moveEvent.clientY;
+                const delta = currentY - startY;
+                const newHeight = Math.max(220, startHeight + delta);
+                this.container.style.height = `${newHeight}px`;
+            };
+
+            const handleEnd = () => {
+                const moveEventName = isTouch ? 'touchmove' : window.PointerEvent ? 'pointermove' : 'mousemove';
+                const endEventName = isTouch ? 'touchend' : window.PointerEvent ? 'pointerup' : 'mouseup';
+                window.removeEventListener(moveEventName, handleMove);
+                window.removeEventListener(endEventName, handleEnd);
+                resizer.classList.remove('active');
+            };
+
+            const moveEventName = isTouch ? 'touchmove' : window.PointerEvent ? 'pointermove' : 'mousemove';
+            const endEventName = isTouch ? 'touchend' : window.PointerEvent ? 'pointerup' : 'mouseup';
+
+            resizer.classList.add('active');
+            window.addEventListener(moveEventName, handleMove, { passive: false });
+            window.addEventListener(endEventName, handleEnd, { passive: false });
+        };
+
+        if (window.PointerEvent) {
+            resizer.addEventListener('pointerdown', handleStart, { passive: false });
+        } else {
+            resizer.addEventListener('mousedown', handleStart, { passive: false });
+            resizer.addEventListener('touchstart', handleStart, { passive: false });
+        }
+
+        resizer.dataset.bound = 'true';
+    }
+
+    getWorldModalElements() {
+        if (this.worldModal && document.body.contains(this.worldModal.overlay)) {
+            return this.worldModal;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'library-world-modal-overlay';
+        overlay.style.display = 'none';
+
+        const modal = document.createElement('div');
+        modal.className = 'library-world-modal';
+
+        const header = document.createElement('header');
+        const title = document.createElement('h3');
+        title.textContent = 'Library Maze JSON';
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Close';
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'world-json-input';
+
+        const status = document.createElement('div');
+        status.className = 'modal-status';
+
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = 'Copy JSON';
+
+        const loadBtn = document.createElement('button');
+        loadBtn.textContent = 'Load File';
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download JSON';
+
+        const applyBtn = document.createElement('button');
+        applyBtn.textContent = 'Apply Changes';
+        applyBtn.classList.add('primary');
+
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = 'Reset Maze';
+        resetBtn.classList.add('danger');
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'application/json';
+        fileInput.style.display = 'none';
+
+        actions.append(copyBtn, loadBtn, downloadBtn, resetBtn, applyBtn);
+        modal.append(header, textarea, status, actions, fileInput);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        const closeModal = () => {
+            overlay.style.display = 'none';
+        };
+
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) closeModal();
+        });
+        closeBtn.addEventListener('click', closeModal);
+
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(textarea.value);
+                status.textContent = 'Copied to clipboard';
+                status.classList.remove('error');
+                status.classList.add('success');
+            } catch (error) {
+                status.textContent = 'Copy failed: ' + error.message;
+                status.classList.remove('success');
+                status.classList.add('error');
+            }
+        });
+
+        loadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                textarea.value = text;
+                status.textContent = `Loaded ${file.name}`;
+                status.classList.remove('error');
+                status.classList.add('success');
+            } catch (error) {
+                status.textContent = 'Failed to load file: ' + error.message;
+                status.classList.remove('success');
+                status.classList.add('error');
+            } finally {
+                fileInput.value = '';
+            }
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const blob = new Blob([textarea.value], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `library-world-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            status.textContent = 'Download started';
+            status.classList.remove('error');
+            status.classList.add('success');
+        });
+
+        applyBtn.addEventListener('click', () => {
+            try {
+                this.gamification?.importLibraryWorld(textarea.value);
+                status.textContent = 'Library updated';
+                status.classList.remove('error');
+                status.classList.add('success');
+                setTimeout(() => closeModal(), 600);
+            } catch (error) {
+                status.textContent = 'Import failed: ' + error.message;
+                status.classList.remove('success');
+                status.classList.add('error');
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            if (!window.confirm('Reset the maze to its default seed?')) {
+                return;
+            }
+            try {
+                this.gamification?.resetLibraryWorld();
+                const latest = this.gamification?.exportLibraryWorld({ pretty: true }) || '{}';
+                textarea.value = latest;
+                status.textContent = 'Maze reset to default.';
+                status.classList.remove('error');
+                status.classList.add('success');
+            } catch (error) {
+                status.textContent = 'Reset failed: ' + error.message;
+                status.classList.remove('success');
+                status.classList.add('error');
+            }
+        });
+
+        this.worldModal = {
+            overlay,
+            modal,
+            textarea,
+            status,
+            close: closeModal
+        };
+
+        return this.worldModal;
+    }
+
+    openWorldModal() {
+        const modal = this.getWorldModalElements();
+        if (!modal) return;
+
+        let payload = '{}';
+        try {
+            payload = this.gamification?.exportLibraryWorld?.({ pretty: true }) || '{}';
+        } catch (error) {
+            console.error('[LibraryExplorerView] Failed to export world JSON:', error);
+        }
+
+        modal.textarea.value = payload;
+        modal.status.textContent = '';
+        modal.status.classList.remove('success', 'error');
+        modal.overlay.style.display = 'flex';
+        requestAnimationFrame(() => {
+            modal.textarea.focus({ preventScroll: false });
+            modal.textarea.setSelectionRange(0, 0);
+        });
+    }
+
+    closeWorldModal() {
+        if (this.worldModal?.overlay) {
+            this.worldModal.overlay.style.display = 'none';
+        }
+    }
+
 
     buildAdjacency(corridors) {
         this.adjacency = new Map();

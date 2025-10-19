@@ -291,11 +291,11 @@ class AIService {
     return Array.from(this.providers.keys());
   }
 
-  getProviderModels(provider) {
+  async getProviderModels(provider) {
     if (!this.providers.has(provider)) {
       return [];
     }
-    return this.providers.get(provider).getAvailableModels();
+    return await this.providers.get(provider).getAvailableModels();
   }
 
   getDefaultProvider() {
@@ -963,8 +963,28 @@ class LocalAIProvider extends BaseProvider {
     }
   }
 
-  getAvailableModels() {
-    // These are generic model names - the actual models depend on what's loaded in the local AI server
+  async getAvailableModels() {
+    try {
+      // Fetch actual models from the local AI server
+      const modelsUrl = this.baseUrl + 'v1/models';
+      const response = await fetch(modelsUrl);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.data && Array.isArray(data.data)) {
+          // Extract model IDs from the OpenAI-compatible response
+          const models = data.data.map(model => model.id || model.name).filter(Boolean);
+          console.log(`[LocalAIProvider] Found ${models.length} models:`, models);
+          return models;
+        }
+      }
+
+      console.warn(`[LocalAIProvider] Could not fetch models from ${modelsUrl}, falling back to generic list`);
+    } catch (error) {
+      console.warn(`[LocalAIProvider] Error fetching models: ${error.message}, falling back to generic list`);
+    }
+
+    // Fallback to generic model names if fetching fails
     return [
       'local-model',
       'llama',

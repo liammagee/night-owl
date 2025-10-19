@@ -2596,13 +2596,21 @@ async function updateModelOptions(assistantKey) {
         
         const provider = providerSelect.value;
         
+        // Get the current saved model for this assistant
+        const currentModel = getAssistantModel(assistantKey);
+
         // Update model options
         if (provider === 'auto') {
             modelSelect.innerHTML = '<option value="auto" selected>Auto (Provider Default)</option>';
         } else {
             try {
-                const modelOptions = await generateModelOptions(provider, null);
+                const modelOptions = await generateModelOptions(provider, currentModel);
                 modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>' + modelOptions;
+
+                // Ensure the correct model is selected
+                if (currentModel && currentModel !== 'auto') {
+                    modelSelect.value = currentModel;
+                }
             } catch (error) {
                 console.error('[Settings] Error updating model options:', error);
                 modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>';

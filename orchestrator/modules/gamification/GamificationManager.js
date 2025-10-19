@@ -44,6 +44,9 @@ class GamificationManager {
             console.warn('[GamificationManager] LibraryExplorerView not available. Explorer UI disabled.');
             this.explorerView = null;
         }
+
+        this.activityTrackingInitialized = false;
+        this.activityTrackingRetry = null;
         
         // Library progression system (formerly XP)
         this.lexiconTheme = {
@@ -178,10 +181,23 @@ class GamificationManager {
     // === Activity Tracking ===
 
     startActivityTracking() {
-        if (!editor) {
-            console.warn('[GamificationManager] Editor not available for activity tracking');
+        if (this.activityTrackingInitialized) {
             return;
         }
+
+        if (typeof editor === 'undefined' || !editor) {
+            if (!this.activityTrackingRetry) {
+                console.warn('[GamificationManager] Editor not available for activity tracking, retrying in 500ms');
+            }
+            clearTimeout(this.activityTrackingRetry);
+            this.activityTrackingRetry = setTimeout(() => {
+                this.startActivityTracking();
+            }, 500);
+            return;
+        }
+
+        clearTimeout(this.activityTrackingRetry);
+        this.activityTrackingRetry = null;
 
         // Track typing activity for flow state detection
         editor.onDidChangeModelContent(() => {
@@ -193,6 +209,7 @@ class GamificationManager {
             this.updateActivity();
         });
 
+        this.activityTrackingInitialized = true;
         console.log('[GamificationManager] Activity tracking started');
     }
 
@@ -545,6 +562,44 @@ class GamificationManager {
 
     importData(data) {
         return this.dataPersistence.importAllData(data);
+    }
+
+    exportLibraryWorld({ pretty = true } = {}) {
+        if (!this.worldEngine) return null;
+        return this.worldEngine.exportWorldState(pretty);
+    }
+
+    importLibraryWorld(input) {
+        if (!this.worldEngine) {
+            throw new Error('Library world engine unavailable');
+        }
+
+        let parsed = input;
+        if (typeof input === 'string') {
+            try {
+                parsed = JSON.parse(input);
+            } catch (error) {
+                console.error('[GamificationManager] Failed to parse world JSON:', error);
+                throw error;
+            }
+        }
+
+        try {
+            this.worldEngine.replaceWorldState(parsed, { recordEvent: true });
+            this.updateGamificationUI(true);
+            return true;
+        } catch (error) {
+            console.error('[GamificationManager] Failed to import world state:', error);
+            throw error;
+        }
+    }
+
+    resetLibraryWorld() {
+        if (!this.worldEngine) return false;
+        const defaultState = this.worldEngine.getDefaultState();
+        this.worldEngine.replaceWorldState(defaultState, { recordEvent: true });
+        this.updateGamificationUI(true);
+        return true;
     }
 
     recordWorldEvent(event) {

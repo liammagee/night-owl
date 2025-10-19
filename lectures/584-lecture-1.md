@@ -1,5 +1,10 @@
 # 584 - AI and Academic Literature
 
+---
+
+How do you build a sense of your field and its gaps? This course aims to make sense of a term – academic literature – at once mundane and mystical. It starts with fundamentals: how to build, annotate, analyze, map and translate a literature database into a literature review. It progresses to think about how AI and other technology can help foster more critical, analytic and reflexive modes of interpretation and understandings of the field.
+
+All required material (video lectures, readings etc.) will be provided to students, as per the tentative schedule below
 
 ---
 
@@ -17,23 +22,42 @@
 
 ### What we'll cover...
 
-- Week 1 - Overview: Anatomy of a Journal Article
-- Week 2 - Where's the Gap? Designing a Literature Review
-- Week 3 - Does Artificial Intelligence mean  Artificial Knowledge? How AI is Impacting Academia 
-- Week 4 - "What Do I Know?" Towards A Sociology of Knowledge
-- Week 6 - Finding Your Scholarly Voice: Peers / Audience / Venue / Field
-- Week 5 - Vibe Scholarship (Is It as Bad as It Sounds?)
+- Week 1 - Course Overview / Anatomy of a Journal Article / What's a Good Research Question? / AI tools for literature
+- Week 2 - Where's the Gap? Mapping a Field  / Academic Audiences and Techniques of Persuasion
+- Week 3 - Does Artificial Intelligence mean  Artificial Knowledge? How AI is Impacting Academia / Vibe Scholarship (Is It as Bad as It Sounds?)
+- Week 4 - Finding Your Scholarly Voice: Peers / Audience / Venue / Field 
+- Week 5 - "What Do I Know?" Towards A Sociology of Knowledge / Designing a Literature Review
+- Week 6 - The Reflexive Researcher - what is this?
 - Week 7 - The Automatic Academy? The Future of Scholarship
-
-
 
 ---
 
-### Assessments
+### Assessments: Building a 'Mock' (or Real) Literature Review
 
- - 2 activities:
-1.  Cumulative literature review, with weekly check-ins (formative) - due each week
-2. Meta-cognitive reflection about trends in academic literature / knowledge production (summative) - due Dec 14
+The aim of the course is to build a cumulative literature review. It is a course in which to experiment with different approaches to engage with literature. Accordingly assessment will focus less on the "correctness" of the final output and more on week-to-week engagement with course materials and activities. 
+
+That all said, the purpose of the course is to support a dissertation / journal article / other academic writing – to that extent, if the final output does serve other purposes, well and good!
+
+Week 1:
+ - First Draft of Research Topic / Research Question
+
+Week 2:
+ - Concept Map of the Literature
+
+Week 3:
+ - Design of the Literature Review 
+
+Week 4:
+ - Literature Review Sample: In the Scientific Mode
+
+Week 5:
+ - Literature Review Sample: In the Humanities Mode
+
+Week 6:
+  - Statement about the use of AI in your Literature Review / Reflection about the role of AI in academia
+
+Week 7:
+  - Final Literature Review
 
 
 ---
