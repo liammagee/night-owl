@@ -68,8 +68,9 @@ function register(deps) {
       console.log(`[updateInternalLinks] Found ${allMarkdownFiles.length} markdown files to scan`);
 
       // Regex patterns to match internal links
-      // Matches [[old-name]] or [[old-name|Display Text]]
-      const linkPattern = new RegExp(`\\[\\[${escapeRegex(oldBasename)}(\\|[^\\]]+)?\\]\\]`, 'g');
+      // Matches [[old-name]], [[old-name.md]], [[old-name|Display Text]], or [[old-name.md|Display Text]]
+      const escapedBasename = escapeRegex(oldBasename);
+      const linkPattern = new RegExp(`\\[\\[${escapedBasename}(\\.md)?(\\|[^\\]]+)?\\]\\]`, 'g');
       console.log(`[updateInternalLinks] Using regex pattern: ${linkPattern}`);
 
       for (const filePath of allMarkdownFiles) {
@@ -88,9 +89,12 @@ function register(deps) {
             console.log(`[updateInternalLinks] Found ${matches.length} link(s) in ${filePath}:`, matches);
           }
 
-          const updatedContent = content.replace(linkPattern, (match, displayPart) => {
-            // Preserve the display text if it exists, otherwise use new basename
-            const newLink = `[[${newBasename}${displayPart || ''}]]`;
+          const updatedContent = content.replace(linkPattern, (match, mdExtension, displayPart) => {
+            // Preserve .md extension if it was in the original link
+            // Preserve the display text if it exists
+            const extension = mdExtension || '';
+            const display = displayPart || '';
+            const newLink = `[[${newBasename}${extension}${display}]]`;
             console.log(`[updateInternalLinks] Replacing "${match}" with "${newLink}"`);
             return newLink;
           });

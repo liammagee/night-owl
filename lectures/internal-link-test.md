@@ -12,8 +12,8 @@ This file tests the Cmd/Ctrl+click functionality for internal links.
 Here are some internal links to test with:
 
 - Link to lecture 8: [[lecture-8]]
-- Link to lecture 7: [[lecture-7]]
-- Link to lecture 6: [[lecture-6]]
+- Link to lecture 7: [[479-lecture-7]]
+- Link to lecture 6: [[479-lecture-6]]
 - Link with custom display text: [[lecture-5|Click here for Lecture 5]]
 - Link to a specific section: [[lecture-4#synthesis]]
 

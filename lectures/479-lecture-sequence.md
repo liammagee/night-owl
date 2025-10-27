@@ -7,7 +7,7 @@ https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activ
 ## Week 1: Synthesis
 
 
-[[lecture-1]]
+[[479-lecture-1]]
 
 
 
@@ -16,7 +16,7 @@ https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activ
 
 ## Week 2: Experience
 
-[[lecture-2]]
+[[479-lecture-2]]
 
 
 ---
@@ -24,7 +24,7 @@ https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activ
 ## Week 3: Recognition
 
 
-[[lecture-3]]
+[[479-lecture-3]]
 
 
 ---
@@ -32,7 +32,7 @@ https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activ
 ## Week 4: Attention
 
 
-[[lecture-4]]
+[[479-lecture-4]]
 
 
 ---
@@ -40,7 +40,7 @@ https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activ
 ## Week 5: Consciousness
 
 
-[[lecture-5]]
+[[479-lecture-5]]
 
 ---
 
@@ -58,13 +58,13 @@ https://cgscholar.com/community/community_profiles/epol-479-fa25/community_activ
 
 
 
-[[lecture-7]]
+[[479-lecture-7]]
 
 ---
 
 ## Week 8: Back to Synthesis
 
-[[lecture-8]]
+[[479-lecture-8]]
 
 
 
