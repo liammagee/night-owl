@@ -842,20 +842,26 @@ class LocalAIProvider extends BaseProvider {
       verboseLogging = false
     } = options;
 
+    const historyLimitValue = parseInt(process.env.LOCAL_AI_MAX_HISTORY || '6', 10);
+    const maxHistoryMessages = Number.isFinite(historyLimitValue) ? historyLimitValue : 6;
+    const trimmedHistory = maxHistoryMessages > 0
+      ? conversationHistory.slice(-Math.max(1, maxHistoryMessages))
+      : [];
+
     // Build messages array similar to OpenAI format
     const messages = [];
-    
+
     if (systemMessage) {
       messages.push({ role: 'system', content: systemMessage });
     }
-    
+
     // Add conversation history
-    for (const historyMsg of conversationHistory) {
+    for (const historyMsg of trimmedHistory) {
       messages.push({ role: historyMsg.role, content: historyMsg.content });
     }
-    
+
     // Add current user message if not already in history
-    if (!conversationHistory.length || conversationHistory[conversationHistory.length - 1].content !== message) {
+    if (!trimmedHistory.length || trimmedHistory[trimmedHistory.length - 1].content !== message) {
       messages.push({ role: 'user', content: message });
     }
 

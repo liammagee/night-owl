@@ -139,6 +139,21 @@ class DataPersistence {
             corridors: [],
             rooms: {},
             loreFragments: {},
+            mazeLayout: {
+                assignments: {},
+                slots: {},
+                branchState: {},
+                lastLayoutAt: null,
+                lastLayoutNodeCount: 0,
+                lastRebalancedAt: null,
+                lastRebalancedNodeCount: 0,
+                lastRebalanceAttemptAt: null,
+                lastAshResponse: null,
+                rebalanceHistory: [],
+                pendingArrangement: null,
+                lastArrangement: null,
+                layoutSeed: 1
+            },
             lastUpdated: null
         });
     }

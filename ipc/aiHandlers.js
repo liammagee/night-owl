@@ -300,7 +300,7 @@ function register(deps) {
         provider: actualProvider,
         model: actualModel,
         availableProviders: baseConfig.availableProviders,
-        availableModels: actualProvider ? aiService.getProviderModels(actualProvider) : [],
+        availableModels: actualProvider ? await aiService.getProviderModels(actualProvider) : [],
         settings: {
           preferredProvider: aiSettings.preferredProvider || 'auto',
           preferredModel: aiSettings.preferredModel || 'auto',

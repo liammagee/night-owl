@@ -1871,8 +1871,8 @@ function addCustomSelectionKeybindings() {
             ed.setSelection(newSelection);
         }
     });
-    
-    console.log('[renderer.js] Custom selection keybindings added');
+
+    console.log('[renderer.js] Custom selection keybindings added (Tab/Shift+Tab handled by listManagement.js)');
 }
 
 // --- Navigation Controls Setup ---

@@ -27,10 +27,104 @@ function initializeSmartLists() {
                 e.stopPropagation();
             }
         } else if (e.keyCode === monaco.KeyCode.Tab) {
-            // Handle Tab for list indentation
-            if (handleListIndentation(!e.shiftKey)) {
+            const selection = window.editor.getSelection();
+            const model = window.editor.getModel();
+            const startLine = Math.min(selection.startLineNumber, selection.endLineNumber);
+            const endLine = Math.max(selection.startLineNumber, selection.endLineNumber);
+            const isMultiLine = startLine !== endLine;
+
+            if (isMultiLine) {
+                // MULTI-LINE: Indent/unindent all selected lines
                 e.preventDefault();
                 e.stopPropagation();
+
+                const edits = [];
+                const tabSize = model.getOptions().tabSize || 4;
+                const indentString = ' '.repeat(tabSize);
+
+                if (e.shiftKey) {
+                    // UNINDENT all lines
+                    for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
+                        const lineContent = model.getLineContent(lineNumber);
+                        let removeLength = 0;
+
+                        if (lineContent.startsWith('\t')) {
+                            removeLength = 1;
+                        } else if (lineContent.match(/^ +/)) {
+                            const leadingSpaces = lineContent.match(/^ */)[0].length;
+                            removeLength = Math.min(tabSize, leadingSpaces);
+                        }
+
+                        if (removeLength > 0) {
+                            edits.push({
+                                range: new monaco.Range(lineNumber, 1, lineNumber, removeLength + 1),
+                                text: ''
+                            });
+                        }
+                    }
+                } else {
+                    // INDENT all lines
+                    for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
+                        edits.push({
+                            range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+                            text: indentString
+                        });
+                    }
+                }
+
+                if (edits.length > 0) {
+                    window.editor.executeEdits(e.shiftKey ? 'outdent-lines' : 'indent-lines', edits);
+                }
+            } else {
+                // SINGLE-LINE: Check if it's a list item
+                const lineContent = model.getLineContent(startLine);
+                const isListItem = lineContent.match(/^\s*([-*+]|\d+\.)\s/);
+
+                if (isListItem) {
+                    // Handle list item indentation
+                    if (handleListIndentation(!e.shiftKey)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                } else {
+                    // Regular text - handle Tab/Shift+Tab manually
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const position = window.editor.getPosition();
+                    const tabSize = model.getOptions().tabSize || 4;
+                    const indentString = ' '.repeat(tabSize);
+
+                    if (e.shiftKey) {
+                        // Shift+Tab: Remove indentation from beginning of line if present
+                        let removeLength = 0;
+                        if (lineContent.startsWith('\t')) {
+                            removeLength = 1;
+                        } else if (lineContent.match(/^ +/)) {
+                            const leadingSpaces = lineContent.match(/^ */)[0].length;
+                            removeLength = Math.min(tabSize, leadingSpaces);
+                        }
+
+                        if (removeLength > 0) {
+                            window.editor.executeEdits('outdent-line', [{
+                                range: new monaco.Range(startLine, 1, startLine, removeLength + 1),
+                                text: ''
+                            }]);
+                        }
+                    } else {
+                        // Tab: Insert spaces at cursor position
+                        window.editor.executeEdits('insert-tab', [{
+                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                            text: indentString
+                        }]);
+
+                        // Move cursor after inserted spaces
+                        window.editor.setPosition({
+                            lineNumber: position.lineNumber,
+                            column: position.column + tabSize
+                        });
+                    }
+                }
             }
         }
     });

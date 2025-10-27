@@ -1977,6 +1977,7 @@
                     <button id="editor-mode-btn" class="mode-btn active" style="padding: 6px 16px; border: none; background: #16a34a; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Editor</button>
                     <button id="presentation-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Presentation</button>
                     <button id="network-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Network</button>
+                    <button id="library-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Library</button>
                     <button id="circle-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Circle</button>
                 </div>
                 
@@ -2126,6 +2127,7 @@
                             <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
                                 <span id="cursor-position">Ln 1, Col 1</span>
                                 <span id="file-status">Markdown (.md)</span>
+                                <span id="progress-status">Next shard: 30 words</span>
                             </div>
                         </div>
                     </div>
@@ -2307,6 +2309,10 @@
             </div>
             
             <!-- Circle Visualization Content -->
+            <div id="library-content" class="content-view" style="display: none; flex-direction: column; height: 100%; overflow: hidden;">
+                <div id="library-mode-root" class="library-mode-root" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;"></div>
+            </div>
+
             <div id="circle-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
                 <div id="circle-export-controls" style="position: absolute; top: 10px; right: 10px; z-index: 1000;"></div>
                 <div id="circle-visualization" style="width: 100%; flex: 1; min-height: 0; background: #fafafa;">

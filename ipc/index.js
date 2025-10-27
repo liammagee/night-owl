@@ -3,6 +3,9 @@
 
 const { ipcMain } = require('electron');
 
+// Clear module cache to ensure fresh load
+delete require.cache[require.resolve('./exportHandlers')];
+
 // Import handler modules
 const aiHandlers = require('./aiHandlers');
 const fileHandlers = require('./fileHandlers');

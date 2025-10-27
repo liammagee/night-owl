@@ -26,9 +26,11 @@
     border-radius: 8px;
     width: var(--presentation-slide-width) !important;
     min-height: var(--presentation-slide-height) !important;
+    height: auto !important;
     max-width: var(--presentation-slide-width) !important;
     box-sizing: border-box;
-    overflow: hidden !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
     padding: 48px 56px;
     margin: 20px;
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
@@ -54,9 +56,11 @@ div.absolute.slide {
     border: 1px solid var(--border-color) !important;
     width: var(--presentation-slide-width) !important;
     min-height: var(--presentation-slide-height) !important;
+    height: auto !important;
     max-width: var(--presentation-slide-width) !important;
     box-sizing: border-box;
-    overflow: hidden !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
     margin: 0 !important;
     padding: 48px 56px !important;
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35) !important;
@@ -119,6 +123,7 @@ div.absolute.slide {
 .slide-content ul ul, .slide-content ol ol, .slide-content ul ol, .slide-content ol ul {
     font-size: 0.95em;
     margin: 0.8em 0;
+    margin-top: 2px;
 }
 
 /* Third level nested lists should be even smaller */

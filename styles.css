@@ -1072,6 +1072,10 @@ body {
     margin-bottom: 15px;
 }
 
+.slide-content ul ul, .slide-content ol ol, .slide-content ul ol, .slide-content ol ul {
+    margin-top: 2px;
+}
+
 .slide-content li {
     color: #333;
     line-height: 1.6;

@@ -42,6 +42,8 @@ function initializeCommandPalette() {
     registerCommand('view.editorMode', 'View: Editor Mode', () => window.switchToMode('editor'), 'Cmd+1');
     registerCommand('view.presentationTab', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
     registerCommand('view.networkMode', 'View: Network Mode', () => window.switchToMode('network'), 'Cmd+3');
+    registerCommand('view.circleMode', 'View: Circle Mode', () => window.switchToMode('circle'), 'Cmd+4');
+    registerCommand('view.libraryMode', 'View: Library Maze Mode', () => window.switchToMode('library'), 'Cmd+5');
     registerCommand('view.kanban', 'View: Open Kanban Board', () => window.showKanbanBoard(), 'Cmd+K');
     registerCommand('view.minimap.toggle', 'View: Toggle Minimap', () => {
         if (window.editor && window.editor.updateOptions) {

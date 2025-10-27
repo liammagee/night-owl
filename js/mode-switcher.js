@@ -1,5 +1,5 @@
 // Mode Switching Functions
-// Handles switching between editor, presentation, network, and circle modes
+// Handles switching between editor, presentation, network, circle, and library modes
 
 // Global mode state
 let currentMode = 'editor';
@@ -314,6 +314,28 @@ function switchToMode(modeName) {
     if (circleContainer && window.initializeCircleVisualization) {
       window.initializeCircleVisualization();
     }
+  } else if (modeName === 'library') {
+    document.body.classList.remove('presentation-mode');
+    hideSpeakerNotesPanel();
+    const explorer =
+      (window.gamificationInstance && window.gamificationInstance.explorerView) ||
+      (window.gamificationManager && window.gamificationManager.explorerView) ||
+      null;
+    if (explorer && typeof explorer.ensureContainer === 'function') {
+      const container = explorer.ensureContainer();
+      if (container && typeof explorer.renderMaze === 'function') {
+        try {
+          const world =
+            explorer.currentWorldState &&
+            Object.keys(explorer.currentWorldState).length
+              ? explorer.currentWorldState
+              : explorer.gamification?.worldEngine?.getWorldState?.() || {};
+          explorer.renderMaze(world);
+        } catch (error) {
+          console.warn('[Mode Switching] Failed to render maze on library mode switch:', error);
+        }
+      }
+    }
   } else {
     // Default case (editor mode)
     document.body.classList.remove('presentation-mode');
@@ -338,6 +360,7 @@ function setupModeSwitching() {
   const editorModeBtn = document.getElementById('editor-mode-btn');
   const presentationModeBtn = document.getElementById('presentation-mode-btn');
   const networkModeBtn = document.getElementById('network-mode-btn');
+  const libraryModeBtn = document.getElementById('library-mode-btn');
   
   if (editorModeBtn) {
     editorModeBtn.addEventListener('click', () => {
@@ -365,6 +388,13 @@ function setupModeSwitching() {
     circleModeBtn.addEventListener('click', () => {
       console.log('[Mode Switching] Circle mode button clicked');
       switchToMode('circle');
+    });
+  }
+
+  if (libraryModeBtn) {
+    libraryModeBtn.addEventListener('click', () => {
+      console.log('[Mode Switching] Library mode button clicked');
+      switchToMode('library');
     });
   }
 

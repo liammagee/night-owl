@@ -171,6 +171,26 @@ function setupKeyboardShortcuts() {
     // Handle different key combinations
     if (e.ctrlKey || e.metaKey) {
       switch (e.key) {
+        case '1':
+          e.preventDefault();
+          switchToMode('editor');
+          return;
+        case '2':
+          e.preventDefault();
+          switchToMode('presentation');
+          return;
+        case '3':
+          e.preventDefault();
+          switchToMode('network');
+          return;
+        case '4':
+          e.preventDefault();
+          switchToMode('circle');
+          return;
+        case '5':
+          e.preventDefault();
+          switchToMode('library');
+          return;
         case 's':
           e.preventDefault();
           // Trigger save
@@ -214,11 +234,11 @@ function setupKeyboardShortcuts() {
           break;
         case '4':
           e.preventDefault();
-          switchToMode('graph');
+          switchToMode('circle');
           break;
         case '5':
           e.preventDefault();
-          switchToMode('circle');
+          switchToMode('library');
           break;
       }
     }

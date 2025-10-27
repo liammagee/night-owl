@@ -676,15 +676,24 @@ function register(deps) {
       await fs.writeFile(tempMdFile, content, 'utf8');
       
       try {
+        // Set resource path to help Pandoc find images
+        const workingDir = currentWorkingDirectory || path.dirname(getCurrentFilePath() || tempMdFile);
+        console.log('[ExportHandlers] *** UPDATED CODE IS RUNNING - VERSION 2.0 ***');
+        console.log('[ExportHandlers] Working directory for resources:', workingDir);
+
         const pandocArgs = [
           tempMdFile,
           '-f', 'markdown',
           '-t', 'pptx',
-          '--slide-level=2', // H2 headers create new slides
-          '--mathjax', // Math rendering support
-          '-o', result.filePath
+          '--slide-level=2' // H2 headers create new slides
         ];
-        
+
+        // Add resource path BEFORE output file
+        pandocArgs.push('--resource-path', workingDir);
+
+        // Add output file
+        pandocArgs.push('-o', result.filePath);
+
         // Add bibliography support if .bib files found
         if (bibFiles.length > 0) {
           console.log(`[ExportHandlers] Found ${bibFiles.length} .bib file(s) for PowerPoint:`, bibFiles.map(f => path.basename(f)));
@@ -693,12 +702,17 @@ function register(deps) {
             pandocArgs.push('--bibliography', bibFile);
           });
         }
-        
-        // Add PowerPoint-specific options
+
+        // Add PowerPoint-specific options (filter out --mathjax as it's not supported for pptx)
         if (exportOptions?.pandocArgs) {
-          pandocArgs.push(...exportOptions.pandocArgs);
+          const filteredArgs = exportOptions.pandocArgs.filter(arg => arg !== '--mathjax');
+          if (filteredArgs.length > 0) {
+            console.log(`[ExportHandlers] Adding filtered pandoc args (removed --mathjax):`, filteredArgs);
+            pandocArgs.push(...filteredArgs);
+          }
         }
-        
+
+        console.log('[ExportHandlers] Final pandoc args before execution:', pandocArgs);
         await runPandoc(pandocArgs);
         console.log('[ExportHandlers] PowerPoint export completed successfully');
         
