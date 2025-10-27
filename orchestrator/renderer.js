@@ -3944,13 +3944,17 @@ async function openFileInEditor(filePath, content, options = {}) {
     if (!options.isInternalLinkPreview) {
         // Highlight the currently opened file in the file tree
         highlightCurrentFileInTree(filePath);
-        
+
         // Add to navigation history and recent files (unless we're navigating history)
         const fileName = filePath.split('/').pop();
         addToNavigationHistory(filePath, fileName);
         addFileToRecents(filePath);
     } else {
-        console.log('[DEBUG] SKIPPING navigation/tree updates (internal link preview)');
+        console.log('[DEBUG] SKIPPING tree updates (internal link preview)');
+
+        // Still add to navigation history for internal link clicks, but skip file tree highlighting
+        const fileName = filePath.split('/').pop();
+        addToNavigationHistory(filePath, fileName);
     }
     
     // Store current file directory for image path resolution (only for real file opens)
@@ -8427,7 +8431,14 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
                         newName: newName 
                     });
                     if (result.success) {
-                        showNotification(`${isFolder ? 'Folder' : 'File'} renamed to "${newName}" successfully`, 'success');
+                        let message = `${isFolder ? 'Folder' : 'File'} renamed to "${newName}" successfully`;
+
+                        // Add info about updated links if any
+                        if (result.linksUpdated && result.linksUpdated > 0) {
+                            message += ` (${result.linksUpdated} internal link${result.linksUpdated > 1 ? 's' : ''} updated)`;
+                        }
+
+                        showNotification(message, 'success');
                         // Refresh the file tree to show the renamed item
                         renderFileTree();
                     } else {

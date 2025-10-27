@@ -2993,7 +2993,14 @@ Rules:
             });
 
             const suggestions = this.extractAshLinkSuggestions(response, nodeId);
-            if (suggestions) {
+            if (suggestions == null) {
+                this.setLinkSuggestionState({
+                    nodeId,
+                    status: 'error',
+                    items: [],
+                    message: 'Ash returned an unreadable corridor map.'
+                });
+            } else if (suggestions.length) {
                 this.ashLinkSuggestionCache.set(nodeId, suggestions);
                 this.lastLinkSuggestionAt = Date.now();
                 this.updateLinkSuggestions(nodeId, suggestions, { fromCache: false });
@@ -3199,8 +3206,18 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
         try {
             parsed = JSON.parse(text);
         } catch (error) {
-            console.warn('[LibraryExplorerView] Failed to parse Ash link suggestions JSON:', text);
-            return null;
+            const repaired = this.repairAshJSON(text);
+            if (repaired && repaired !== text) {
+                try {
+                    parsed = JSON.parse(repaired);
+                } catch (innerError) {
+                    console.warn('[LibraryExplorerView] Failed to parse Ash link suggestions JSON after repair:', repaired);
+                    return null;
+                }
+            } else {
+                console.warn('[LibraryExplorerView] Failed to parse Ash link suggestions JSON:', text);
+                return null;
+            }
         }
 
         const suggestionsArray = Array.isArray(parsed?.suggestions) ? parsed.suggestions :
@@ -3229,6 +3246,24 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
                 };
             })
             .filter(Boolean);
+    }
+
+    repairAshJSON(text) {
+        if (!text || typeof text !== 'string') return text;
+        let str = text.trim();
+        if (!str) return str;
+        str = str.replace(/,\s*([}\]])/g, '$1');
+        const openBrackets = (str.match(/\[/g) || []).length;
+        const closeBrackets = (str.match(/\]/g) || []).length;
+        if (openBrackets > closeBrackets) {
+            str += ']'.repeat(openBrackets - closeBrackets);
+        }
+        const openBraces = (str.match(/\{/g) || []).length;
+        const closeBraces = (str.match(/\}/g) || []).length;
+        if (openBraces > closeBraces) {
+            str += '}'.repeat(openBraces - closeBraces);
+        }
+        return str;
     }
 
     updateLinkSuggestions(nodeId, suggestions = [], options = {}) {

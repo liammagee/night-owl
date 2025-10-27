@@ -2,18 +2,16 @@
 
 ---
 
-## 590 Lecture 2
+## 590 Lecture 2: Anatomy of a Journal Article / Where's the Gap? Mapping a Field  
 
-- Week 2 - Anatomy of a Journal Article / Where's the Gap? Mapping a Field  
 
-  
-- Overview:
+Topics:
+
   - What is a Journal Article? What is a Literature Review? (hours 1) 
   - Mapping a Field (and Minding the Gap) (hour 2)
   - Design, Method and Structure of the Literature Review (hour 3)
 
 
-Academic Audiences and Techniques of Persuasion | Where's the Gap? Mapping a Field | 
 
 ---
 
@@ -165,6 +163,17 @@ Lots of answers, lots of guidance...
 
 ---
 
+
+
+
+## Hour 2 (might get here early)...
+
+### Mapping Fields and Minding Gaps
+
+
+
+---
+
 ### What's the "research question" of the Literature Review
 
  - What's the gap in the literature? (should eventually coincide with the research question)
@@ -177,15 +186,6 @@ Lots of answers, lots of guidance...
      - Organize by time? How have debates on topic X *evolved*?
  - Construct an *Introduction* and *Conclusion*
   
-
----
-
-
-
-
-## Hour 2...
-
-### Mapping Fields and Minding Gaps
 
 ---
 
@@ -231,6 +231,19 @@ Lots of answers, lots of guidance...
 
 ---
 
+### More on tone...
+
+ - Tone: Navigating The Two Cultures (see Snow 1959)
+ - Scientist / Quantitative / Positivist
+   - Lots of 3rd person / passive voice ("It was observed that...") - But note, this is changing
+ - Humanist / Qualitative / Post-positivist or Interpretivist or Constuctivist
+   - More 1st person / active voice ("We noticed that")
+ - In the field of education, both "cultures" co-exist (sometimes even peacefully)
+ - How do you decide on your tone? 
+
+
+---
+
 ### Two (or Three) (Pseudo-)Random Articles
 
 
@@ -255,7 +268,10 @@ Lots of answers, lots of guidance...
    - Methodology first (what did the researchers do?)
    - References first (what "space" of academia does this belong in?)
 
+Other ideas?
+
 [ERAM 590 - Google Docs](https://docs.google.com/document/d/1wyWkvOju-FPXxWnpSlzrrgugqy0RdZGNL6S3Kh5wHd4/edit?tab=t.0)
+
 
 ---
 
@@ -283,13 +299,13 @@ Spivak, G. C. (2023). Can the subaltern speak?. In Imperialism (pp. 171-219). Ro
 
 ---
 
-## Hour 3...
-
----
+## Hour 3 
 
 ### Designing a Literature Review
 
-Checklist:
+---
+
+### Checklist:
 
 1. What are the key terms of the (draft) research question? List them...
 2. What are the *norms* of your field? And what *is* your field?
@@ -388,5 +404,5 @@ Different techniques for expanding your database:
 ### Next Week's Readings
 
 [sciencepolicy.colorado.edu](https://sciencepolicy.colorado.edu/students/envs_5110/snow_1959.pdf)
-
-Aarseth, E. J. (1997). Cybertext: Perspectives on ergodic literature. JHU Press. [williamwolff.org](https://williamwolff.org/wp-content/uploads/2013/01/aarseth-ergodic-ch1-1997.pdf) 
+<!-- 
+Aarseth, E. J. (1997). Cybertext: Perspectives on ergodic literature. JHU Press. [williamwolff.org](https://williamwolff.org/wp-content/uploads/2013/01/aarseth-ergodic-ch1-1997.pdf)  -->

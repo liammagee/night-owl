@@ -114,43 +114,68 @@ function createInlineLinkPreview(display, cleanLink, filePath, content) {
 
 // --- Link Click Handler ---
 function handleInternalLinkClick(event) {
+    console.log('[handleInternalLinkClick] Function called, event target:', event.target);
+    console.log('[handleInternalLinkClick] Target classes:', event.target?.classList);
+    console.log('[handleInternalLinkClick] Has internal-link class:', event.target?.classList?.contains('internal-link'));
+
     if (event.target && event.target.classList && event.target.classList.contains('internal-link')) {
         console.log('[Preview Internal Link] Click detected on internal link');
+        event.preventDefault();
 
-        // Check if Cmd (Mac) or Ctrl (Windows/Linux) is held
-        if (event.metaKey || event.ctrlKey) {
-            console.log('[Preview Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
-            event.preventDefault();
+        const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
+        const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
 
-            const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
-            const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
+        console.log('[Preview Internal Link] Raw filePath:', filePath);
+        console.log('[Preview Internal Link] Original link:', originalLink);
 
-            console.log('[Preview Internal Link] Raw filePath:', filePath);
-            console.log('[Preview Internal Link] Original link:', originalLink);
-
-            // Use the existing openInternalLink function which properly handles path resolution
-            openInternalLink(filePath, originalLink);
-        } else {
-            // Regular click - prevent default behavior (don't open file)
-            console.log('[Preview Internal Link] Regular click - preventing default');
-            event.preventDefault();
-        }
+        // Open the linked file on any click (regular or with modifier keys)
+        openInternalLink(filePath, originalLink);
+    } else {
+        console.log('[handleInternalLinkClick] Target is not an internal link, ignoring');
     }
 }
 
 // --- Open Internal Link ---
 async function openInternalLink(filePath, originalLink) {
+    console.log('[openInternalLink] CALLED with filePath:', filePath, 'originalLink:', originalLink);
+
     try {
         // Check if filePath is already absolute, if not, make it relative to working directory
         const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
         const fullPath = filePath.startsWith('/') ? filePath : `${workingDir}/${filePath}`;
-        
-        
+
+        console.log('[openInternalLink] Working dir:', workingDir);
+        console.log('[openInternalLink] Full path:', fullPath);
+
+        // Check if this is a binary file type that shouldn't be loaded in the editor
+        const binaryExtensions = [
+            '.pptx', '.ppt', '.docx', '.doc', '.xlsx', '.xls',
+            '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z',
+            '.exe', '.dmg', '.pkg', '.deb', '.rpm',
+            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.ico',
+            '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flac',
+            '.db', '.sqlite', '.sqlite3'
+        ];
+
+        const fileExtension = filePath.toLowerCase().match(/\.[^.]+$/)?.[0];
+        const isBinaryFile = binaryExtensions.includes(fileExtension);
+
+        if (isBinaryFile) {
+            // For binary files, open them with the system default application
+            console.log(`[openInternalLink] Binary file detected: ${filePath}, opening with system default`);
+            if (window.electronAPI && window.electronAPI.invoke) {
+                await window.electronAPI.invoke('open-external', fullPath);
+            } else {
+                alert(`Cannot open binary file ${filePath} in the editor.\n\nPlease open it with an external application.`);
+            }
+            return;
+        }
+
         // CRITICAL FIX: Use read-file-content instead of open-file-path to avoid changing currentFilePath
         const result = await window.electronAPI.invoke('read-file-content', fullPath);
-        
+
         if (result.success) {
-            
+
             // If we're currently in presentation mode, switch to editor mode first
             if (window.switchToMode && typeof window.switchToMode === 'function') {
                 const presentationContent = document.getElementById('presentation-content');
@@ -158,7 +183,7 @@ async function openInternalLink(filePath, originalLink) {
                     window.switchToMode('editor');
                 }
             }
-            
+
             // Load the file content into both editor and preview
             // CRITICAL FIX: Pass flag to prevent changing currentFilePath
             await window.openFileInEditor(result.filePath, result.content, { isInternalLinkPreview: true });
@@ -168,6 +193,8 @@ async function openInternalLink(filePath, originalLink) {
             alert(`File not found: ${filePath}`);
         }
     } catch (error) {
+        console.error('[openInternalLink] Error opening link:', error);
+        alert(`Error opening file: ${error.message || error}`);
     }
 }
 

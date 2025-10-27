@@ -25,6 +25,101 @@ function register(deps) {
     return appSettings.workingDirectory || currentWorkingDirectory;
   }
 
+  // Helper function to update internal links after a file rename
+  async function updateInternalLinksAfterRename(oldPath, newPath) {
+    const workingDir = getWorkingDirectory();
+    const oldBasename = path.basename(oldPath, '.md');
+    const newBasename = path.basename(newPath, '.md');
+
+    console.log(`[updateInternalLinks] Starting link update process:`);
+    console.log(`  Working directory: ${workingDir}`);
+    console.log(`  Old file: ${oldPath} (basename: ${oldBasename})`);
+    console.log(`  New file: ${newPath} (basename: ${newBasename})`);
+
+    let filesUpdated = 0;
+
+    // Function to recursively find all .md files
+    async function findMarkdownFiles(dir) {
+      const files = [];
+      try {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            // Skip node_modules and hidden directories
+            if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
+              files.push(...await findMarkdownFiles(fullPath));
+            }
+          } else if (entry.isFile() && entry.name.endsWith('.md')) {
+            files.push(fullPath);
+          }
+        }
+      } catch (error) {
+        console.error(`[updateInternalLinks] Error reading directory ${dir}:`, error);
+      }
+
+      return files;
+    }
+
+    try {
+      // Find all markdown files in the working directory
+      const allMarkdownFiles = await findMarkdownFiles(workingDir);
+      console.log(`[updateInternalLinks] Found ${allMarkdownFiles.length} markdown files to scan`);
+
+      // Regex patterns to match internal links
+      // Matches [[old-name]] or [[old-name|Display Text]]
+      const linkPattern = new RegExp(`\\[\\[${escapeRegex(oldBasename)}(\\|[^\\]]+)?\\]\\]`, 'g');
+      console.log(`[updateInternalLinks] Using regex pattern: ${linkPattern}`);
+
+      for (const filePath of allMarkdownFiles) {
+        // Skip the renamed file itself
+        if (filePath === newPath) {
+          console.log(`[updateInternalLinks] Skipping renamed file: ${filePath}`);
+          continue;
+        }
+
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+
+          // Check if file contains the old link before replacing
+          const matches = content.match(linkPattern);
+          if (matches) {
+            console.log(`[updateInternalLinks] Found ${matches.length} link(s) in ${filePath}:`, matches);
+          }
+
+          const updatedContent = content.replace(linkPattern, (match, displayPart) => {
+            // Preserve the display text if it exists, otherwise use new basename
+            const newLink = `[[${newBasename}${displayPart || ''}]]`;
+            console.log(`[updateInternalLinks] Replacing "${match}" with "${newLink}"`);
+            return newLink;
+          });
+
+          // Only write if content changed
+          if (updatedContent !== content) {
+            await fs.writeFile(filePath, updatedContent, 'utf-8');
+            filesUpdated++;
+            console.log(`[updateInternalLinks] ✓ Updated links in: ${filePath}`);
+          }
+        } catch (fileError) {
+          console.error(`[updateInternalLinks] Error processing ${filePath}:`, fileError);
+        }
+      }
+
+      console.log(`[updateInternalLinks] Completed. Updated ${filesUpdated} file(s)`);
+    } catch (error) {
+      console.error('[updateInternalLinks] Error finding markdown files:', error);
+      throw error;
+    }
+
+    return filesUpdated;
+  }
+
+  // Helper function to escape special regex characters
+  function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   // Directory and Folder Operations
   ipcMain.handle('create-folder', async (event, folderName, parentPath = '') => {
     try {
@@ -683,15 +778,31 @@ function register(deps) {
       
       // Perform the rename
       await fs.rename(filePath, newPath);
-      
+
       console.log(`[FileHandlers] Item renamed successfully: ${filePath} -> ${newPath}`);
+
+      // Check if this is a markdown file and update internal links
+      const isMarkdownFile = newName.endsWith('.md');
+      let linksUpdated = 0;
+
+      if (isMarkdownFile) {
+        try {
+          linksUpdated = await updateInternalLinksAfterRename(filePath, newPath);
+          console.log(`[FileHandlers] Updated ${linksUpdated} internal links referencing the renamed file`);
+        } catch (linkUpdateError) {
+          console.error('[FileHandlers] Error updating internal links:', linkUpdateError);
+          // Don't fail the rename if link updating fails
+        }
+      }
+
       return {
         success: true,
         oldPath: filePath,
         newPath: newPath,
         oldName: path.basename(filePath),
         newName: newName,
-        message: `Item renamed to "${newName}" successfully`
+        message: `Item renamed to "${newName}" successfully`,
+        linksUpdated: linksUpdated
       };
     } catch (error) {
       console.error(`[FileHandlers] Error renaming item ${filePath}:`, error);
