@@ -698,7 +698,11 @@ class UnifiedNetworkVisualization {
 
                 if (this.pendingFocus) {
                     const target = this.getNodeById(this.pendingFocus.nodeId);
-                    if (target && Number.isFinite(target.x) && Number.isFinite(target.y)) {
+                    if (
+                        target &&
+                        Number.isFinite(target.x) &&
+                        Number.isFinite(target.y)
+                    ) {
                         this.focusOnNode(this.pendingFocus.nodeId, this.pendingFocus.options || {});
                         this.pendingFocus = null;
                     }
@@ -922,7 +926,7 @@ class UnifiedNetworkVisualization {
 
     requestFocusOnNode(nodeId, options = {}) {
         const node = this.getNodeById(nodeId);
-        if (node && typeof node.x === 'number' && typeof node.y === 'number') {
+        if (node && Number.isFinite(node.x) && Number.isFinite(node.y)) {
             this.focusOnNode(nodeId, options);
             this.pendingFocus = null;
         } else {

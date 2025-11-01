@@ -3301,8 +3301,16 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
                     .join(', ');
                 if (highlight) {
                     this.pushNarrativeEntry(`Ash sketches corridors toward ${highlight}.`, { source: 'ash', tone: 'muted' });
-                    this.lastLinkNarratedNode = nodeId;
                 }
+                enriched.forEach(entry => {
+                    const label = entry.targetLabel || entry.targetId;
+                    if (!label) return;
+                    const rationale = this.truncateNarrativeText(entry.rationale || '', 120);
+                    const relation = entry.relation ? `${entry.relation}. ` : '';
+                    const whisper = `${relation}${rationale || 'Ash senses a resonance there.'}`;
+                    this.pushNarrativeEntry(`Ash advises: forge a link to ${label}. ${whisper}`, { source: 'ash', tone: 'muted' });
+                });
+                this.lastLinkNarratedNode = nodeId;
             }
         }
     }
