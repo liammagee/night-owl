@@ -346,6 +346,436 @@ async function renderMathInPresentation() {
     }
 }
 
+// Helper function to render Mermaid diagrams
+async function renderMermaidDiagrams(container) {
+    if (!window.mermaid) {
+        console.warn('[Mermaid] Mermaid library not loaded yet');
+        return;
+    }
+
+    try {
+        // Find all code blocks with language=mermaid
+        const mermaidBlocks = container.querySelectorAll('code.language-mermaid, pre.language-mermaid code');
+
+        if (mermaidBlocks.length === 0) {
+            return;
+        }
+
+        console.log(`[Mermaid] Found ${mermaidBlocks.length} mermaid diagram(s) to render`);
+
+        for (let i = 0; i < mermaidBlocks.length; i++) {
+            const codeBlock = mermaidBlocks[i];
+            const mermaidCode = codeBlock.textContent;
+
+            // Create a unique ID for this diagram
+            const id = `mermaid-diagram-${Date.now()}-${i}`;
+
+            // Create a wrapper for the diagram with controls
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mermaid-diagram-wrapper';
+
+            // Create zoom controls
+            const controls = document.createElement('div');
+            controls.className = 'mermaid-zoom-controls';
+            controls.innerHTML = `
+                <button class="mermaid-zoom-btn" data-action="zoom-in" title="Zoom In">+</button>
+                <button class="mermaid-zoom-btn" data-action="zoom-out" title="Zoom Out">−</button>
+                <button class="mermaid-zoom-btn" data-action="reset" title="Reset Zoom">⟲</button>
+                <button class="mermaid-zoom-btn" data-action="expand" title="Expand Diagram">⛶</button>
+                <button class="mermaid-zoom-btn" data-action="download" title="Download as PNG">💾</button>
+                <button class="mermaid-zoom-btn" data-action="copy" title="Copy to Clipboard">📋</button>
+            `;
+
+            // Create a div to hold the rendered diagram
+            const diagramDiv = document.createElement('div');
+            diagramDiv.id = id;
+            diagramDiv.className = 'mermaid-diagram';
+
+            try {
+                // Render the diagram
+                const { svg } = await window.mermaid.render(id, mermaidCode);
+
+                // Set the SVG content
+                diagramDiv.innerHTML = svg;
+
+                // Remove any width/height constraints from the SVG to allow full-size rendering
+                const svgElement = diagramDiv.querySelector('svg');
+                if (svgElement) {
+                    // Remove max-width if Mermaid added it
+                    svgElement.style.maxWidth = 'none';
+                    // Keep the viewBox for proper scaling, but remove fixed width/height
+                    // Only keep the natural dimensions
+                    const width = svgElement.getAttribute('width');
+                    const height = svgElement.getAttribute('height');
+                    console.log(`[Mermaid] Diagram natural size: ${width} x ${height}`);
+                }
+
+                // Assemble the wrapper
+                wrapper.appendChild(controls);
+                wrapper.appendChild(diagramDiv);
+
+                // Replace the code block with the wrapper
+                const pre = codeBlock.closest('pre');
+                if (pre) {
+                    pre.parentNode.replaceChild(wrapper, pre);
+                } else {
+                    codeBlock.parentNode.replaceChild(wrapper, codeBlock);
+                }
+
+                // Initialize panzoom on the diagram
+                let panzoomInstance = null;
+                if (window.Panzoom && svgElement) {
+                    panzoomInstance = window.Panzoom(svgElement, {
+                        maxScale: 10,
+                        minScale: 0.1,
+                        step: 0.3,
+                        cursor: 'move'
+                    });
+
+                    // Attach control event listeners
+                    controls.querySelector('[data-action="zoom-in"]').addEventListener('click', () => {
+                        panzoomInstance.zoomIn();
+                    });
+
+                    controls.querySelector('[data-action="zoom-out"]').addEventListener('click', () => {
+                        panzoomInstance.zoomOut();
+                    });
+
+                    controls.querySelector('[data-action="reset"]').addEventListener('click', () => {
+                        panzoomInstance.reset();
+                    });
+
+                    // Add expand/collapse functionality
+                    const expandBtn = controls.querySelector('[data-action="expand"]');
+                    let overlayElement = null;
+                    let originalParent = null;
+                    let originalNextSibling = null;
+
+                    expandBtn.addEventListener('click', () => {
+                        console.log('[Mermaid] Expand button clicked');
+
+                        // Check if we're currently in an overlay
+                        if (overlayElement && document.body.contains(overlayElement)) {
+                            // Close overlay
+                            console.log('[Mermaid] Closing overlay');
+
+                            // Move wrapper back to original location
+                            if (originalNextSibling) {
+                                originalParent.insertBefore(wrapper, originalNextSibling);
+                            } else {
+                                originalParent.appendChild(wrapper);
+                            }
+
+                            // Remove overlay
+                            document.body.removeChild(overlayElement);
+                            document.body.style.overflow = '';
+                            expandBtn.textContent = '⛶';
+                            expandBtn.title = 'Expand Diagram';
+                            overlayElement = null;
+
+                            // Remove fullscreen classes
+                            wrapper.classList.remove('mermaid-in-fullscreen');
+                            diagramDiv.classList.remove('mermaid-in-fullscreen');
+                            svgElement.classList.remove('mermaid-in-fullscreen');
+
+                            // Destroy overlay panzoom before recreating
+                            if (panzoomInstance) {
+                                panzoomInstance.destroy();
+                                panzoomInstance = null;
+                            }
+
+                            // Recreate panzoom instance for normal view
+                            if (window.Panzoom) {
+                                console.log('[Mermaid] Recreating panzoom instance for normal view');
+                                panzoomInstance = window.Panzoom(svgElement, {
+                                    maxScale: 10,
+                                    minScale: 0.1,
+                                    step: 0.3,
+                                    cursor: 'move'
+                                });
+
+                                // Re-enable wheel zoom
+                                diagramDiv.addEventListener('wheel', (event) => {
+                                    if (!event.ctrlKey && !event.metaKey) {
+                                        return;
+                                    }
+                                    panzoomInstance.zoomWithWheel(event);
+                                });
+                            }
+                        } else {
+                            // Open overlay
+                            console.log('[Mermaid] Opening overlay');
+
+                            // DESTROY panzoom before moving - this is the key!
+                            if (panzoomInstance) {
+                                console.log('[Mermaid] Destroying panzoom instance');
+                                panzoomInstance.destroy();
+                                panzoomInstance = null;
+                            }
+
+                            // Store the original parent so we can restore later
+                            originalParent = wrapper.parentNode;
+                            originalNextSibling = wrapper.nextSibling;
+
+                            // Create fullscreen overlay
+                            overlayElement = document.createElement('div');
+                            overlayElement.className = 'mermaid-fullscreen-overlay';
+                            overlayElement.id = `overlay-${id}`;
+
+                            // Move the wrapper into the overlay
+                            overlayElement.appendChild(wrapper);
+                            document.body.appendChild(overlayElement);
+                            document.body.style.overflow = 'hidden';
+
+                            // Clear any inline styles that panzoom may have set
+                            wrapper.style.cssText = '';
+                            diagramDiv.style.cssText = '';
+                            svgElement.style.cssText = '';
+                            svgElement.removeAttribute('width');
+                            svgElement.removeAttribute('height');
+
+                            // Add special class to force CSS overrides
+                            wrapper.classList.add('mermaid-in-fullscreen');
+                            diagramDiv.classList.add('mermaid-in-fullscreen');
+                            svgElement.classList.add('mermaid-in-fullscreen');
+
+                            // Recreate panzoom for the overlay
+                            if (window.Panzoom) {
+                                console.log('[Mermaid] Creating panzoom for overlay');
+                                panzoomInstance = window.Panzoom(svgElement, {
+                                    maxScale: 10,
+                                    minScale: 0.1,
+                                    step: 0.3,
+                                    cursor: 'move'
+                                });
+
+                                // Re-enable wheel zoom
+                                diagramDiv.addEventListener('wheel', (event) => {
+                                    if (!event.ctrlKey && !event.metaKey) {
+                                        return;
+                                    }
+                                    panzoomInstance.zoomWithWheel(event);
+                                });
+                            }
+
+                            // Change expand button to close button
+                            expandBtn.textContent = '✕';
+                            expandBtn.title = 'Close (Esc)';
+
+                            // Escape key handler
+                            const overlayEscapeHandler = (event) => {
+                                if (event.key === 'Escape' && overlayElement) {
+                                    expandBtn.click(); // Reuse the button logic
+                                    document.removeEventListener('keydown', overlayEscapeHandler);
+                                }
+                            };
+                            document.addEventListener('keydown', overlayEscapeHandler);
+
+                            // Click outside to close
+                            overlayElement.addEventListener('click', (e) => {
+                                if (e.target === overlayElement) {
+                                    expandBtn.click(); // Reuse the button logic
+                                }
+                            });
+
+                            console.log('[Mermaid] Overlay created and diagram moved');
+                            console.log('[Mermaid] Overlay element:', overlayElement);
+                            console.log('[Mermaid] Wrapper parent:', wrapper.parentNode);
+
+                            // Debug computed styles
+                            setTimeout(() => {
+                                const overlayStyle = window.getComputedStyle(overlayElement);
+                                const wrapperStyle = window.getComputedStyle(wrapper);
+                                const diagramStyle = window.getComputedStyle(diagramDiv);
+                                const svgStyle = window.getComputedStyle(svgElement);
+
+                                console.log('[Mermaid] Overlay styles:', {
+                                    display: overlayStyle.display,
+                                    position: overlayStyle.position,
+                                    zIndex: overlayStyle.zIndex,
+                                    background: overlayStyle.background
+                                });
+                                console.log('[Mermaid] Wrapper styles:', {
+                                    display: wrapperStyle.display,
+                                    width: wrapperStyle.width,
+                                    height: wrapperStyle.height
+                                });
+                                console.log('[Mermaid] Diagram styles:', {
+                                    display: diagramStyle.display,
+                                    width: diagramStyle.width,
+                                    height: diagramStyle.height
+                                });
+                                console.log('[Mermaid] SVG styles:', {
+                                    display: svgStyle.display,
+                                    width: svgStyle.width,
+                                    height: svgStyle.height
+                                });
+                            }, 100);
+                        }
+                    });
+
+                    // Add download functionality
+                    const downloadBtn = controls.querySelector('[data-action="download"]');
+                    downloadBtn.addEventListener('click', async () => {
+                        console.log('[Mermaid] Download button clicked');
+                        try {
+                            // Just download the SVG directly - simpler and more reliable
+                            const svgData = svgElement.outerHTML;
+                            const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `mermaid-diagram-${Date.now()}.svg`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            console.log('[Mermaid] SVG download complete');
+                        } catch (error) {
+                            console.error('[Mermaid] Error downloading diagram:', error);
+                            alert('Failed to download diagram: ' + error.message);
+                        }
+                    });
+
+                    // Add copy to clipboard functionality
+                    const copyBtn = controls.querySelector('[data-action="copy"]');
+                    copyBtn.addEventListener('click', async () => {
+                        console.log('[Mermaid] Copy button clicked');
+                        try {
+                            // Get the bounding box for actual rendered size
+                            const bbox = svgElement.getBoundingClientRect();
+                            const width = Math.ceil(bbox.width);
+                            const height = Math.ceil(bbox.height);
+
+                            console.log('[Mermaid] Creating PNG from SVG, dimensions:', width, height);
+
+                            // Create a new SVG with embedded styles
+                            const svgClone = svgElement.cloneNode(true);
+
+                            // Create a style element with all Mermaid styles
+                            const styleEl = document.createElement('style');
+                            // Get all stylesheets and extract Mermaid-related rules
+                            let mermaidStyles = '';
+                            for (const sheet of document.styleSheets) {
+                                try {
+                                    for (const rule of sheet.cssRules) {
+                                        const ruleText = rule.cssText;
+                                        // Include rules that might affect SVG/Mermaid
+                                        if (ruleText.includes('mermaid') || ruleText.includes('node') ||
+                                            ruleText.includes('edge') || ruleText.includes('cluster') ||
+                                            ruleText.includes('label') || ruleText.includes('svg')) {
+                                            mermaidStyles += ruleText + '\n';
+                                        }
+                                    }
+                                } catch (e) {
+                                    // Skip stylesheets we can't access (CORS)
+                                }
+                            }
+                            styleEl.textContent = mermaidStyles;
+                            svgClone.insertBefore(styleEl, svgClone.firstChild);
+
+                            // Set proper attributes
+                            svgClone.setAttribute('width', width);
+                            svgClone.setAttribute('height', height);
+                            svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+                            // Create canvas for PNG conversion
+                            const scale = 2; // 2x for retina/high quality
+                            const canvas = document.createElement('canvas');
+                            canvas.width = width * scale;
+                            canvas.height = height * scale;
+
+                            const ctx = canvas.getContext('2d');
+                            ctx.scale(scale, scale);
+                            ctx.fillStyle = 'white';
+                            ctx.fillRect(0, 0, width, height);
+
+                            // Convert SVG to data URL
+                            const svgString = new XMLSerializer().serializeToString(svgClone);
+                            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                            const url = URL.createObjectURL(svgBlob);
+
+                            const img = new Image();
+                            img.onload = async () => {
+                                console.log('[Mermaid] Image loaded, converting to PNG');
+                                ctx.drawImage(img, 0, 0, width, height);
+                                URL.revokeObjectURL(url);
+
+                                // Convert canvas to blob and copy to clipboard
+                                canvas.toBlob(async (blob) => {
+                                    try {
+                                        await navigator.clipboard.write([
+                                            new ClipboardItem({ 'image/png': blob })
+                                        ]);
+
+                                        console.log('[Mermaid] PNG copied to clipboard');
+                                        // Visual feedback
+                                        const originalText = copyBtn.textContent;
+                                        copyBtn.textContent = '✓';
+                                        setTimeout(() => {
+                                            copyBtn.textContent = originalText;
+                                        }, 1500);
+                                    } catch (clipboardError) {
+                                        console.error('[Mermaid] Clipboard error:', clipboardError);
+                                        alert('Failed to copy to clipboard: ' + clipboardError.message);
+                                    }
+                                }, 'image/png');
+                            };
+
+                            img.onerror = (error) => {
+                                console.error('[Mermaid] Image load error:', error);
+                                URL.revokeObjectURL(url);
+                                alert('Failed to convert diagram to PNG. Try downloading as SVG instead.');
+                            };
+
+                            img.src = url;
+                        } catch (error) {
+                            console.error('[Mermaid] Error copying diagram:', error);
+                            alert('Failed to copy diagram: ' + error.message);
+                        }
+                    });
+
+                    // Add Escape key handler for expanded diagrams
+                    const escapeHandler = (event) => {
+                        if (event.key === 'Escape' && wrapper.classList.contains('mermaid-expanded')) {
+                            wrapper.classList.remove('mermaid-expanded');
+                            expandBtn.textContent = '⛶';
+                            expandBtn.title = 'Expand Diagram';
+                            document.body.style.overflow = '';
+
+                            // Restore original styles
+                            diagramDiv.style.overflow = '';
+                            diagramDiv.style.width = '';
+                            diagramDiv.style.height = '';
+
+                            svgElement.style.width = '';
+                            svgElement.style.height = '';
+                        }
+                    };
+                    document.addEventListener('keydown', escapeHandler);
+
+                    // Enable mouse wheel zoom
+                    diagramDiv.addEventListener('wheel', (event) => {
+                        if (!event.ctrlKey && !event.metaKey) {
+                            return;
+                        }
+                        panzoomInstance.zoomWithWheel(event);
+                    });
+
+                    console.log(`[Mermaid] Initialized zoom for diagram ${i + 1}`);
+                }
+
+                console.log(`[Mermaid] Rendered diagram ${i + 1}/${mermaidBlocks.length}`);
+            } catch (error) {
+                console.error(`[Mermaid] Error rendering diagram ${i + 1}:`, error);
+                // Keep the code block if rendering fails
+            }
+        }
+    } catch (error) {
+        console.error('[Mermaid] Error in renderMermaidDiagrams:', error);
+    }
+}
+
 // --- Internal Links Functionality ---
 // All internal links functionality has been moved to modules/internalLinks.js
 // --- Update Function Definition ---
@@ -665,7 +1095,10 @@ async function renderMarkdownContent(markdownContent) {
     
     // Render math equations with MathJax
     await renderMathInContent(previewContent);
-    
+
+    // Render Mermaid diagrams
+    await renderMermaidDiagrams(previewContent);
+
     // Update speaker notes display if visible
     updateSpeakerNotesDisplay();
 }

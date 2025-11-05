@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
-        script-src 'self' 'unsafe-inline';
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
         style-src 'self' 'unsafe-inline';
         font-src 'self' data:;
         img-src 'self' data: https: http: blob:;
@@ -56,7 +56,21 @@
         };
     </script>
     <script id="MathJax-script" async src="lib/tex-svg.js"></script>
-    
+
+    <!-- Mermaid for diagram rendering -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose'
+        });
+        window.mermaid = mermaid;
+    </script>
+
+    <!-- Panzoom for interactive zoom on Mermaid diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+
     <script src="lib/react.production.min.js"></script>
     <script src="lib/react-dom.production.min.js"></script>
     <script src="lib/html2canvas.min.js"></script>
@@ -1419,6 +1433,228 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
+        /* Mermaid Diagram Styles */
+        .mermaid-diagram-wrapper {
+            margin: 20px 0;
+            position: relative;
+            border-radius: 8px;
+            background: #f8f9fa;
+            overflow: hidden;
+            display: block;
+        }
+
+        .mermaid-diagram {
+            padding: 20px;
+            overflow: auto;
+            max-height: 800px;
+            position: relative;
+            cursor: grab;
+            user-select: none;
+        }
+
+        /* Remove height constraint when not expanded */
+        .mermaid-diagram-wrapper:not(.mermaid-expanded) .mermaid-diagram {
+            overflow: auto;
+        }
+
+        .mermaid-diagram:active {
+            cursor: grabbing;
+        }
+
+        .mermaid-diagram svg {
+            /* Allow diagrams to render at full size */
+            display: block;
+            /* Remove all size constraints - let SVG use natural dimensions */
+            width: auto !important;
+            height: auto !important;
+            max-width: none !important;
+            max-height: none !important;
+            touch-action: none;
+        }
+
+        /* Zoom controls */
+        .mermaid-zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 6px;
+            padding: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .mermaid-zoom-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #fff;
+            color: #333;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .mermaid-zoom-btn:hover {
+            background: #f0f0f0;
+            transform: scale(1.05);
+        }
+
+        .mermaid-zoom-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Scrollbar styling for better UX */
+        .mermaid-diagram::-webkit-scrollbar {
+            height: 12px;
+            width: 12px;
+        }
+
+        .mermaid-diagram::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 6px;
+        }
+
+        .mermaid-diagram::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 6px;
+        }
+
+        .mermaid-diagram::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Dark mode support for Mermaid */
+        @media (prefers-color-scheme: dark) {
+            .mermaid-diagram-wrapper {
+                background: #2d2d2d;
+            }
+
+            .mermaid-zoom-controls {
+                background: rgba(45, 45, 45, 0.95);
+            }
+
+            .mermaid-zoom-btn {
+                background: #3d3d3d;
+                color: #e0e0e0;
+            }
+
+            .mermaid-zoom-btn:hover {
+                background: #4d4d4d;
+            }
+
+            .mermaid-diagram::-webkit-scrollbar-track {
+                background: #3d3d3d;
+            }
+
+            .mermaid-diagram::-webkit-scrollbar-thumb {
+                background: #666;
+            }
+
+            .mermaid-diagram::-webkit-scrollbar-thumb:hover {
+                background: #888;
+            }
+        }
+
+        /* Mermaid Fullscreen Overlay */
+        .mermaid-fullscreen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(5px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            box-sizing: border-box;
+            overflow: auto;
+        }
+
+        .mermaid-fullscreen-overlay .mermaid-diagram-wrapper {
+            position: relative;
+            margin: 0;
+            max-width: 95vw;
+            max-height: 95vh;
+            overflow: visible;
+            background: transparent;
+        }
+
+        .mermaid-fullscreen-overlay .mermaid-diagram {
+            background: #f8f9fa;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            overflow: auto;
+            max-height: 95vh;
+            max-width: 95vw;
+        }
+
+        .mermaid-fullscreen-overlay .mermaid-diagram svg {
+            display: block;
+            width: auto !important;
+            height: auto !important;
+            max-width: none !important;
+            max-height: none !important;
+            min-width: 800px !important;
+            min-height: 600px !important;
+        }
+
+        /* Force dimensions for fullscreen elements */
+        .mermaid-in-fullscreen {
+            width: auto !important;
+            height: auto !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            max-width: none !important;
+            max-height: none !important;
+        }
+
+        .mermaid-fullscreen-overlay .mermaid-diagram-wrapper.mermaid-in-fullscreen {
+            width: fit-content !important;
+            height: fit-content !important;
+            max-width: 98vw !important;
+            max-height: 98vh !important;
+        }
+
+        .mermaid-fullscreen-overlay .mermaid-diagram.mermaid-in-fullscreen {
+            width: fit-content !important;
+            height: fit-content !important;
+            max-width: 95vw !important;
+            max-height: 95vh !important;
+        }
+
+        .mermaid-fullscreen-overlay svg.mermaid-in-fullscreen {
+            width: auto !important;
+            height: auto !important;
+            min-width: 1200px !important;
+            min-height: 800px !important;
+        }
+
+        /* Dark mode support for fullscreen overlay */
+        @media (prefers-color-scheme: dark) {
+            .mermaid-fullscreen-overlay .mermaid-diagram {
+                background: #2d2d2d;
+            }
+
+            .mermaid-fullscreen-overlay .mermaid-zoom-controls {
+                background: rgba(45, 45, 45, 1);
+            }
+        }
     </style>
 </head>
 <body>
@@ -2135,6 +2371,7 @@
                     <div id="right-pane">
                     <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                         <div id="preview-pane" class="content-pane">
+                            <button id="preview-fullscreen-btn" class="preview-fullscreen-toggle" title="Toggle Fullscreen (F11)">⛶</button>
                             <div id="preview-content"></div>
                         </div>
                         <div id="chat-pane" class="content-pane terminal-chat" style="display: none;">
@@ -2438,6 +2675,7 @@
     <script src="orchestrator/modules/listManagement.js" defer></script>
     <script src="orchestrator/modules/speakerNotes.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
+    <script src="orchestrator/modules/previewFullscreen.js" defer></script>
     <!-- D3.js v7.8.5 already loaded above with React/Babel -->
     <script src="orchestrator/modules/wholepart.js" defer></script>
     <!-- AI Assistant Configuration -->

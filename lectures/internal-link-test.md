@@ -27,3 +27,4 @@ Here are some internal links to test with:
 
 Regular markdown links should still work normally:
 - [External link](https://example.com) - opens in browser with regular click
+[[590-lecture-overview|590 Lecture Overview]]

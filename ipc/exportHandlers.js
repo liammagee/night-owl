@@ -688,6 +688,13 @@ function register(deps) {
           '--slide-level=2' // H2 headers create new slides
         ];
 
+        // Add reference template for better margins and styling
+        const referencePath = path.join(__dirname, '..', 'templates', 'reference.pptx');
+        if (await fs.access(referencePath).then(() => true).catch(() => false)) {
+          pandocArgs.push('--reference-doc', referencePath);
+          console.log('[ExportHandlers] Using reference template:', referencePath);
+        }
+
         // Add resource path BEFORE output file
         pandocArgs.push('--resource-path', workingDir);
 

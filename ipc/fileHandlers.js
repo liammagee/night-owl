@@ -323,6 +323,64 @@ function register(deps) {
     }
   });
 
+  ipcMain.handle('library.append-internal-link', async (event, payload = {}) => {
+    try {
+      const { sourcePath, targetId, targetLabel } = payload;
+      if (!sourcePath || !targetId) {
+        return {
+          success: false,
+          error: 'Missing source or target information.'
+        };
+      }
+
+      const workingDir = getWorkingDirectory();
+      let absoluteSource = sourcePath;
+      if (!path.isAbsolute(absoluteSource)) {
+        absoluteSource = path.join(workingDir, sourcePath);
+      }
+
+      const content = await fs.readFile(absoluteSource, 'utf8');
+      const baseTarget = targetId.replace(/\.md$/i, '');
+      const sanitizedLabel = (targetLabel || '').replace(/[\r\n]+/g, ' ').trim();
+      const escapedTarget = escapeRegex(baseTarget);
+      const existingPattern = new RegExp(`\\[\\[${escapedTarget}(?:\\.md)?(?:\\|[^\\]]+)?\\]\\]`, 'i');
+
+      if (existingPattern.test(content)) {
+        return {
+          success: true,
+          alreadyExists: true,
+          link: baseTarget
+        };
+      }
+
+      const labelSegment = sanitizedLabel && sanitizedLabel.toLowerCase() !== baseTarget.toLowerCase()
+        ? `|${sanitizedLabel}`
+        : '';
+      const linkToken = `[[${baseTarget}${labelSegment}]]`;
+      let prefix = '';
+      if (content.length > 0 && !content.endsWith('\n')) {
+        prefix = '\n';
+      }
+      const commentToken = '<!-- AUTOMATICALLY INSERTED LINK -->';
+      const appendText = `${prefix}${commentToken}\n${linkToken}\n`;
+
+      await fs.appendFile(absoluteSource, appendText, 'utf8');
+
+      return {
+        success: true,
+        appended: linkToken,
+        sourcePath: absoluteSource,
+        link: baseTarget
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error appending internal link:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to append link.'
+      };
+    }
+  });
+
   ipcMain.handle('read-file', async (event, filePath) => {
     try {
       console.log(`[FileHandlers] Reading file: ${filePath}`);

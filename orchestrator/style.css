@@ -3944,6 +3944,88 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     z-index: 1 !important;
 }
 
+/* Preview Fullscreen Styles */
+.preview-fullscreen-toggle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--neutral-300);
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--neutral-700);
+    font-size: 20px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    opacity: 0.6;
+}
+
+.preview-fullscreen-toggle:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-md);
+}
+
+.preview-fullscreen-toggle:active {
+    transform: scale(0.95);
+}
+
+.preview-fullscreen-toggle.active {
+    background: var(--primary-500);
+    color: white;
+    border-color: var(--primary-600);
+    opacity: 1;
+}
+
+/* Fullscreen mode for preview pane */
+#preview-pane.preview-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    background: var(--surface);
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#preview-pane.preview-fullscreen #preview-content {
+    width: 100%;
+    height: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 60px;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+/* Dark mode support for fullscreen toggle */
+@media (prefers-color-scheme: dark) {
+    .preview-fullscreen-toggle {
+        background: rgba(45, 45, 45, 0.95);
+        color: var(--neutral-200);
+        border-color: var(--neutral-600);
+    }
+
+    .preview-fullscreen-toggle:hover {
+        background: rgba(60, 60, 60, 1);
+    }
+
+    #preview-pane.preview-fullscreen {
+        background: var(--neutral-900);
+    }
+}
+
 /* Terminal Chat Styling */
 .terminal-chat {
     background-color: var(--bg-primary);

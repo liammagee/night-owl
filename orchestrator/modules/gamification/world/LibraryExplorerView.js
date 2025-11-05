@@ -41,8 +41,17 @@ class LibraryExplorerView {
         this.lastCorridorDirection = null;
         this.lastDirectionVector = null;
         this.lastDirectionKey = null;
-        this.directionAxisBias = 0.58;
-        this.directionDotThreshold = 0.42;
+        this.directionDotThreshold = 0.22;
+        this.orientationNeighbors = [];
+        this.orientationIndex = -1;
+        this.orientationVector = { x: 0, y: -1 };
+        this.forwardNeighborId = null;
+        this.followAshInFlight = false;
+        this.ashChatLog = [];
+        this.ashChatInFlight = false;
+        this.ashChatHistoryLimit = 60;
+        this.ashChatPendingId = null;
+        this.ashChatInitialized = false;
         this.ashLinkSuggestionCache = new Map();
         this.ashLinkTimer = null;
         this.ashLinkInFlight = false;
@@ -97,6 +106,7 @@ class LibraryExplorerView {
             } else {
                 this.container.classList.remove('library-explorer-panel-full');
             }
+            this.updateOrientationIndicator();
             return this.container;
         }
 
@@ -122,6 +132,7 @@ class LibraryExplorerView {
             this.attachEventHandlers();
             this.injectStyles();
             this.attachKeyboardAndMouse();
+            this.updateOrientationIndicator();
 
             requestAnimationFrame(() => {
                 if (this.container) {
@@ -189,6 +200,8 @@ class LibraryExplorerView {
 
         this.attachEventHandlers();
         this.injectStyles();
+        this.attachKeyboardAndMouse();
+        this.updateOrientationIndicator();
 
         requestAnimationFrame(() => {
             if (this.container && !this.container.style.height) {
@@ -218,15 +231,52 @@ class LibraryExplorerView {
                     <div class="le-constellation">
                         <div class="le-maze" id="le-maze">
                             <div class="maze-header">
-                                <span class="maze-title">Library Constellation</span>
-                                <span class="maze-help">Drag to pan • Scroll to zoom • Arrow keys to traverse • Enter follows highlighted links</span>
+                                <div class="maze-header-top">
+                                    <span class="maze-title">Library Constellation</span>
+                                    <span class="maze-help">Drag to pan • Scroll to zoom • Arrows traverse • Space rotates heading</span>
+                                </div>
+                                <div class="maze-actions">
+                                    <span class="maze-orientation" id="le-orientation-indicator">Forward: North</span>
+                                </div>
                             </div>
                             <div class="maze-canvas" tabindex="0"></div>
-                            <div class="maze-narrative" aria-live="polite">
-                                <div class="narrative-header">Constellation Log</div>
-                                <div class="maze-narrative-log">Awaiting first steps…</div>
-                            </div>
                             <div class="maze-empty">Write to awaken the constellation.</div>
+                        </div>
+                        <div class="le-companion-strip">
+                            <section class="le-pulse companion-pane" id="le-pulse">
+                                <div class="pulse-header">Live Scribing</div>
+                                <div class="pulse-count">Next shard in 30 words</div>
+                                <div class="pulse-snippet">
+                                    <div class="pulse-subtitle">Latest prose</div>
+                                    <div class="pulse-snippet-text">Begin typing to awaken the stacks.</div>
+                                </div>
+                                <div class="pulse-node">
+                                    <div class="pulse-subtitle">Selected node</div>
+                                    <div class="pulse-node-title">No node selected</div>
+                                    <div class="pulse-node-body">Use arrow keys or click the constellation to explore manuscripts.</div>
+                                </div>
+                            </section>
+                            <section class="le-digest companion-pane" id="le-digest">
+                                <h4 class="digest-title">Stacks Digest</h4>
+                                <div class="digest-section" id="le-anchors">
+                                    <h5>Anchors</h5>
+                                    <div class="list"></div>
+                                </div>
+                                <div class="digest-section" id="le-rooms">
+                                    <h5>Recent Rooms</h5>
+                                    <div class="list"></div>
+                                </div>
+                                <div class="digest-section" id="le-lore">
+                                    <h5>Lore Fragments</h5>
+                                    <div class="list"></div>
+                                </div>
+                            </section>
+                            <section class="le-links companion-pane" id="le-links">
+                                <h4 class="links-title">Ash's Link Hypotheses</h4>
+                                <div class="links-list">
+                                    <div class="links-placeholder">Select a node to let Ash propose new corridors.</div>
+                                </div>
+                            </section>
                         </div>
                     </div>
                     <div class="le-side">
@@ -236,39 +286,24 @@ class LibraryExplorerView {
                                 <div class="companion-subtitle">Ash keeps vigil while you cross the shelves.</div>
                             </div>
                             <div class="companion-body">
-                                <section class="le-pulse companion-pane" id="le-pulse">
-                                    <div class="pulse-header">Live Scribing</div>
-                                    <div class="pulse-count">Next shard in 30 words</div>
-                                    <div class="pulse-snippet">
-                                        <div class="pulse-subtitle">Latest prose</div>
-                                        <div class="pulse-snippet-text">Begin typing to awaken the stacks.</div>
+                                <section class="le-narrative companion-pane" id="le-narrative">
+                                    <div class="companion-actions">
+                                        <button class="companion-btn primary" id="le-ash-link-btn">Inscribe Ash's Link</button>
+                                        <button class="companion-btn" id="le-orientation-btn">Cycle Forward Edge</button>
+                                        <button class="companion-btn" id="le-recenter-btn">Recenter View</button>
                                     </div>
-                                    <div class="pulse-node">
-                                        <div class="pulse-subtitle">Selected node</div>
-                                        <div class="pulse-node-title">No node selected</div>
-                                        <div class="pulse-node-body">Use arrow keys or click the constellation to explore manuscripts.</div>
+                                    <div class="narrative-log" id="le-narrative-log" aria-live="polite" aria-label="Constellation Log">
+                                        <div class="narrative-line muted">Awaiting first steps…</div>
                                     </div>
-                                </section>
-                                <section class="le-digest companion-pane" id="le-digest">
-                                    <h4 class="digest-title">Stacks Digest</h4>
-                                    <div class="digest-section" id="le-anchors">
-                                        <h5>Anchors</h5>
-                                        <div class="list"></div>
+                                    <div class="chat-log" id="le-chat-log" aria-live="polite"></div>
+                                    <div class="chat-input-wrap">
+                                        <textarea id="le-chat-input" placeholder="Describe your next move or ask Ash for a hint…"></textarea>
+                                        <div class="chat-actions">
+                                            <button type="button" id="le-chat-send-btn">Send Whisper</button>
+                                            <button type="button" id="le-chat-help-btn">Command Lore</button>
+                                        </div>
                                     </div>
-                                    <div class="digest-section" id="le-rooms">
-                                        <h5>Recent Rooms</h5>
-                                        <div class="list"></div>
-                                    </div>
-                                    <div class="digest-section" id="le-lore">
-                                        <h5>Lore Fragments</h5>
-                                        <div class="list"></div>
-                                    </div>
-                                </section>
-                                <section class="le-links companion-pane" id="le-links">
-                                    <h4 class="links-title">Ash's Link Hypotheses</h4>
-                                    <div class="links-list">
-                                        <div class="links-placeholder">Select a node to let Ash propose new corridors.</div>
-                                    </div>
+                                    <div class="chat-hints">Press Enter to send • Shift+Enter for a new line • Commands: north • south • east • west • rotate • go to &lt;node&gt;.</div>
                                 </section>
                             </div>
                         </div>
@@ -317,6 +352,27 @@ class LibraryExplorerView {
             });
         }
 
+        const followAshBtn = this.container.querySelector('#le-ash-link-btn');
+        if (followAshBtn) {
+            followAshBtn.addEventListener('click', () => {
+                this.handleFollowAshLink();
+            });
+        }
+
+        const rotateForwardBtn = this.container.querySelector('#le-orientation-btn');
+        if (rotateForwardBtn) {
+            rotateForwardBtn.addEventListener('click', () => {
+                this.rotateDirectionBasis(1);
+            });
+        }
+
+        const recenterBtn = this.container.querySelector('#le-recenter-btn');
+        if (recenterBtn) {
+            recenterBtn.addEventListener('click', () => {
+                this.handleRecenterView();
+            });
+        }
+
         const linksList = this.container.querySelector('#le-links .links-list');
         if (linksList && linksList.dataset.bound !== 'true') {
             linksList.addEventListener('click', (event) => {
@@ -335,6 +391,7 @@ class LibraryExplorerView {
             linksList.dataset.bound = 'true';
         }
 
+        this.bindChatInterface();
     }
 
     injectStyles() {
@@ -344,9 +401,9 @@ class LibraryExplorerView {
         style.id = 'library-explorer-styles';
         style.textContent = `
             .library-explorer-wrapper { display: flex; flex-direction: column; width: 100%; }
-            .library-explorer-panel { margin: 0; padding: 16px; background: rgba(9,12,19,0.85); border: 1px solid rgba(94,234,212,0.2); border-radius: 12px; color: #f9fafb; backdrop-filter: blur(12px); box-sizing: border-box; overflow: hidden; min-height: 200px; max-height: 80vh; display: flex; flex-direction: column; gap: 16px; }
+            .library-explorer-panel { margin: 0; padding: 18px 20px 20px; background: rgba(9,12,19,0.85); border: 1px solid rgba(94,234,212,0.2); border-radius: 14px; color: #f9fafb; backdrop-filter: blur(12px); box-sizing: border-box; overflow: hidden; min-height: 200px; max-height: 80vh; display: flex; flex-direction: column; gap: 18px; }
             .library-explorer-panel.library-explorer-panel-full { max-height: none; height: 100%; flex: 1; }
-            .library-explorer-panel .le-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+            .library-explorer-panel .le-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 6px; border-bottom: 1px solid rgba(94,234,212,0.14); }
             .library-explorer-panel .le-icon { font-size: 20px; margin-right: 6px; }
             .library-explorer-panel .le-title { font-size: 18px; font-weight: 600; }
             .library-explorer-panel .le-actions { display: flex; align-items: center; gap: 10px; font-size: 13px; }
@@ -354,31 +411,34 @@ class LibraryExplorerView {
             .library-explorer-panel .le-btn.secondary { border-color: rgba(125,211,252,0.4); background: rgba(125,211,252,0.12); color: #bfdbfe; }
             .library-explorer-panel .le-btn:hover { background: rgba(94,234,212,0.2); transform: translateY(-1px); }
             .library-explorer-panel .le-btn.secondary:hover { background: rgba(125,211,252,0.2); }
-            .library-explorer-panel .le-content { display: flex; flex-direction: column; gap: 20px; overflow: auto; flex: 1; }
-            .library-explorer-panel .le-layout { display: grid; grid-template-columns: minmax(720px, 3fr) minmax(300px, 1fr); gap: 24px; align-items: start; }
-            .library-explorer-panel.library-explorer-panel-full .le-layout { grid-template-columns: minmax(780px, 3.2fr) minmax(320px, 1fr); }
+            .library-explorer-panel .le-content { display: flex; flex-direction: column; gap: 24px; overflow: auto; flex: 1; padding-top: 6px; }
+            .library-explorer-panel .le-layout { display: grid; grid-template-columns: minmax(0, 2.75fr) minmax(0, 1.1fr); gap: 32px; align-items: stretch; }
+            .library-explorer-panel.library-explorer-panel-full .le-layout { grid-template-columns: minmax(0, 3fr) minmax(0, 1.1fr); }
             .library-explorer-panel.le-hidden { display: none !important; }
             .library-explorer-panel.le-typing { box-shadow: 0 0 20px rgba(56,189,248,0.2); }
             .library-explorer-panel .le-status.pulsing { color: #38bdf8; }
             .library-explorer-resizer { height: 8px; width: 100%; cursor: ns-resize; border-radius: 999px; background: linear-gradient(90deg, rgba(94,234,212,0.2), rgba(125,211,252,0.65), rgba(94,234,212,0.2)); opacity: 0.65; transition: opacity 0.2s ease, box-shadow 0.2s ease; margin: 8px 0; }
             .library-explorer-resizer:hover, .library-explorer-resizer.active { opacity: 1; box-shadow: 0 0 14px rgba(94,234,212,0.45); }
-            .library-explorer-panel .le-constellation { display: flex; flex-direction: column; gap: 16px; }
-            .library-explorer-panel .le-side { display: flex; flex-direction: column; gap: 18px; position: relative; }
-            .library-explorer-panel .le-companion-card { position: relative; border: 1px solid rgba(94,234,212,0.2); border-radius: 14px; padding: 18px; background: linear-gradient(180deg, rgba(15,23,42,0.82) 0%, rgba(11,15,25,0.9) 60%, rgba(8,12,18,0.94) 100%); box-shadow: 0 14px 36px rgba(8,12,18,0.45); display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
+            .library-explorer-panel .le-constellation { display: flex; flex-direction: column; gap: 22px; }
+            .library-explorer-panel .le-companion-strip { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+            .library-explorer-panel .le-side { display: flex; flex-direction: column; gap: 24px; position: relative; padding-top: 4px; min-height: 0; }
+            .library-explorer-panel .le-companion-card { position: relative; border: 1px solid rgba(94,234,212,0.2); border-radius: 16px; padding: 20px; background: linear-gradient(180deg, rgba(15,23,42,0.82) 0%, rgba(11,15,25,0.9) 60%, rgba(8,12,18,0.94) 100%); box-shadow: 0 14px 36px rgba(8,12,18,0.45); display: flex; flex-direction: column; gap: 20px; overflow-x: hidden; overflow-y: auto; max-height: clamp(520px, 70vh, 880px); }
+            .library-explorer-panel .le-companion-card::-webkit-scrollbar { width: 6px; }
+            .library-explorer-panel .le-companion-card::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.35); border-radius: 999px; }
             .library-explorer-panel .le-companion-card::after { content: ''; position: absolute; inset: auto -40% -42%; height: 220px; background: radial-gradient(circle at top, rgba(94,234,212,0.18) 0%, rgba(14,23,42,0) 65%); pointer-events: none; opacity: 0.7; }
             .library-explorer-panel .companion-header { position: relative; display: flex; flex-direction: column; gap: 4px; }
             .library-explorer-panel .companion-title { font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(191,219,254,0.88); }
             .library-explorer-panel .companion-subtitle { font-size: 12px; color: rgba(226,232,240,0.72); max-width: 240px; }
             .library-explorer-panel .companion-body { position: relative; display: grid; gap: 16px; grid-auto-rows: minmax(0, auto); }
-            .library-explorer-panel .companion-pane { border: 1px solid rgba(148,163,184,0.16); border-radius: 12px; padding: 14px; background: rgba(8,12,18,0.58); backdrop-filter: blur(4px); display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
-            .library-explorer-panel .le-digest { gap: 12px; }
+            .library-explorer-panel .companion-pane { border: 1px solid rgba(148,163,184,0.16); border-radius: 12px; padding: 16px; background: rgba(8,12,18,0.58); backdrop-filter: blur(4px); display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }
+            .library-explorer-panel .le-digest { gap: 16px; }
             .library-explorer-panel .le-digest .digest-title { margin: 0 0 2px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(191,219,254,0.75); }
-            .library-explorer-panel .le-digest .digest-section { display: flex; flex-direction: column; gap: 6px; }
+            .library-explorer-panel .le-digest .digest-section { display: flex; flex-direction: column; gap: 10px; }
             .library-explorer-panel .le-digest .digest-section h5 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(226,232,240,0.68); }
-            .library-explorer-panel .le-digest .digest-section .list { max-height: 160px; overflow-y: auto; padding-right: 4px; font-size: 12px; color: rgba(226,232,240,0.85); }
-            .library-explorer-panel .le-digest .digest-section .list .list-item { padding: 6px 0; border-bottom: 1px solid rgba(148,163,184,0.16); margin: 0; background: transparent; border: none; border-radius: 0; }
-            .library-explorer-panel .le-digest .digest-section .list .list-item:last-child { border-bottom: none; }
-            .library-explorer-panel .list-item { padding: 8px; margin-bottom: 8px; border-radius: 8px; background: rgba(148,163,184,0.08); border: 1px solid rgba(148,163,184,0.18); }
+            .library-explorer-panel .le-digest .digest-section .list { max-height: 184px; overflow-y: auto; padding-right: 6px; font-size: 12px; color: rgba(226,232,240,0.85); display: flex; flex-direction: column; gap: 10px; }
+            .library-explorer-panel .le-digest .digest-section .list .list-item { padding: 10px 12px; border: 1px solid rgba(148,163,184,0.18); margin: 0; background: rgba(12,20,32,0.54); border-radius: 10px; transition: border 0.2s ease, background 0.2s ease; }
+            .library-explorer-panel .le-digest .digest-section .list .list-item:last-child { margin-bottom: 0; }
+            .library-explorer-panel .list-item { padding: 10px 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(148,163,184,0.08); border: 1px solid rgba(148,163,184,0.18); }
             .library-explorer-panel .list-item .item-title { font-weight: 600; font-size: 13px; }
             .library-explorer-panel .list-item .item-meta { font-size: 12px; color: rgba(226,232,240,0.65); margin-top: 4px; }
             .library-explorer-panel .list-item .item-tags { font-size: 11px; margin-top: 6px; color: rgba(94,234,212,0.8); }
@@ -387,7 +447,8 @@ class LibraryExplorerView {
             .library-explorer-panel .le-links { gap: 10px; }
             .library-explorer-panel .le-links .links-title { margin: 0; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(226,232,240,0.68); }
             .library-explorer-panel .le-links .links-list { display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; padding-right: 4px; }
-            .library-explorer-panel .le-links .links-item { border: 1px solid rgba(148,163,184,0.16); border-radius: 10px; padding: 8px 10px; background: rgba(11,18,30,0.62); display: flex; flex-direction: column; gap: 6px; }
+            .library-explorer-panel .le-links .links-list { display: flex; flex-direction: column; gap: 12px; }
+            .library-explorer-panel .le-links .links-item { border: 1px solid rgba(148,163,184,0.16); border-radius: 10px; padding: 10px 12px; background: rgba(11,18,30,0.62); display: flex; flex-direction: column; gap: 8px; }
             .library-explorer-panel .le-links .links-item[data-missing="true"] { opacity: 0.75; }
             .library-explorer-panel .le-links .links-item .link-target { font-weight: 600; font-size: 13px; color: rgba(248,250,252,0.95); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
             .library-explorer-panel .le-links .links-item .link-relation { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(94,234,212,0.68); }
@@ -397,41 +458,78 @@ class LibraryExplorerView {
             .library-explorer-panel .le-links .links-item button { padding: 4px 8px; font-size: 11px; border-radius: 8px; border: 1px solid rgba(125,211,252,0.35); background: rgba(125,211,252,0.16); color: #e0f2fe; cursor: pointer; transition: background 0.2s ease; }
             .library-explorer-panel .le-links .links-item button:hover { background: rgba(125,211,252,0.28); }
             .library-explorer-panel .le-links .links-placeholder { font-size: 12px; color: rgba(148,163,184,0.78); }
-            .library-explorer-panel .le-maze { border: 1px solid rgba(94,234,212,0.18); border-radius: 12px; padding: 14px; background: rgba(15,23,42,0.7); }
-            .library-explorer-panel .maze-header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-            .library-explorer-panel .maze-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(244,244,245,0.78); }
-            .library-explorer-panel .maze-help { font-size: 11px; color: rgba(148,172,190,0.85); }
-            .library-explorer-panel .maze-canvas { position: relative; width: 100%; height: clamp(520px, 64vh, 820px); min-height: 520px; overflow: hidden; transition: box-shadow 0.3s ease, border 0.3s ease; border-radius: 14px; background: rgba(4,7,12,0.62); border: 1px solid rgba(94,234,212,0.14); }
-            .library-explorer-panel .maze-canvas svg { width: 100%; height: 100%; overflow: visible; transform-origin: 50% 50%; transition: transform 0.18s ease; }
-            .library-explorer-panel .maze-grid line { stroke: rgba(148,163,184,0.12); stroke-width: 1; }
-            .library-explorer-panel .maze-node-rect { rx: 12; ry: 12; transition: fill 0.2s ease, stroke 0.2s ease; }
-            .library-explorer-panel .maze-node-rect.anchor { fill: rgba(30,64,175,0.28); stroke: rgba(244,114,182,0.5); stroke-width: 1.6; }
-            .library-explorer-panel .maze-node-rect.room { fill: rgba(13,148,136,0.22); stroke: rgba(94,234,212,0.38); stroke-width: 1.4; }
-            .library-explorer-panel .maze-node-pill { fill: rgba(94,234,212,0.85); stroke: rgba(94,234,212,0.6); stroke-width: 1.2; }
-            .library-explorer-panel .maze-node-pill.anchor { fill: rgba(244,114,182,0.88); stroke: rgba(244,114,182,0.64); }
+            .library-explorer-panel .le-maze { border: 1px solid rgba(94,234,212,0.18); border-radius: 16px; padding: 18px 18px 20px; background: rgba(15,23,42,0.7); display: flex; flex-direction: column; gap: 16px; }
+            .library-explorer-panel .maze-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+            .library-explorer-panel .maze-header-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+            .library-explorer-panel .maze-title { font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(248,230,171,0.96); text-shadow: 0 0 10px rgba(0,0,0,0.55); }
+            .library-explorer-panel .maze-help { font-size: 11px; letter-spacing: 0.06em; color: rgba(191,219,254,0.88); text-shadow: 0 0 6px rgba(6,12,24,0.85); }
+            .library-explorer-panel .maze-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-bottom: 6px; border-bottom: 1px solid rgba(148,163,184,0.14); }
+            .library-explorer-panel .maze-actions-buttons { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+            .library-explorer-panel .maze-btn { padding: 7px 14px; border-radius: 10px; border: 1px solid rgba(94,234,212,0.28); background: rgba(8,24,40,0.72); color: rgba(226,232,240,0.92); font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em; cursor: pointer; transition: background 0.2s ease, border 0.2s ease, transform 0.2s ease; }
+            .library-explorer-panel .maze-btn:hover { background: rgba(14,34,52,0.92); border-color: rgba(125,211,252,0.45); transform: translateY(-1px); }
+            .library-explorer-panel .maze-btn.primary { border-color: rgba(250,204,21,0.55); background: rgba(250,204,21,0.24); color: rgba(253,244,191,0.96); }
+            .library-explorer-panel .maze-btn.primary:hover { background: rgba(250,204,21,0.32); }
+            .library-explorer-panel .maze-orientation { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(226,232,240,0.92); text-shadow: 0 0 6px rgba(9,17,31,0.9); }
+            .library-explorer-panel .maze-canvas { position: relative; width: 100%; height: clamp(460px, 56vh, 720px); min-height: 460px; overflow: hidden; transition: box-shadow 0.3s ease, border 0.3s ease; border-radius: 14px; border: 1px solid rgba(30,41,59,0.85); box-shadow: inset 0 0 36px rgba(0,0,0,0.85), 0 0 24px rgba(8,12,22,0.65); background-color: #050814 !important; background-image: radial-gradient(circle at 28% 18%, rgba(36,52,78,0.55) 0%, rgba(12,18,32,0.94) 58%, rgba(3,6,12,0.99) 100%); color-scheme: dark; }
+            .library-explorer-panel .maze-canvas::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; background-image: radial-gradient(circle at 68% 12%, rgba(40,56,84,0.32), transparent 52%), radial-gradient(circle at 22% 78%, rgba(22,32,54,0.28), transparent 60%), repeating-linear-gradient(90deg, rgba(24,36,52,0.2) 0px, rgba(24,36,52,0.2) 1px, transparent 1px, transparent 120px), repeating-linear-gradient(0deg, rgba(24,36,52,0.2) 0px, rgba(24,36,52,0.2) 1px, transparent 1px, transparent 120px); opacity: 0.45; }
+            .library-explorer-panel .maze-canvas:focus { outline: 1px solid rgba(250,204,21,0.4); outline-offset: 2px; }
+            .library-explorer-panel .maze-canvas svg { position: relative; z-index: 1; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 50%; transition: transform 0.16s ease; background: transparent; }
+            .library-explorer-panel .maze-grid line { stroke: rgba(46,60,85,0.45); stroke-width: 1; }
+            .library-explorer-panel .maze-node-rect { rx: 12; ry: 12; transition: fill 0.2s ease, stroke 0.2s ease; fill: rgba(28,34,48,0.78); stroke: rgba(253,224,71,0.28); stroke-width: 1.6; }
+            .library-explorer-panel .maze-node-rect.anchor { fill: rgba(63,47,26,0.88); stroke: rgba(250,204,21,0.55); stroke-width: 1.8; }
+            .library-explorer-panel .maze-node-rect.room { fill: rgba(24,36,56,0.8); stroke: rgba(96,165,250,0.45); stroke-width: 1.6; }
+            .library-explorer-panel .maze-node-pill { fill: rgba(245,158,11,0.82); stroke: rgba(253,230,138,0.62); stroke-width: 1.4; }
+            .library-explorer-panel .maze-node-pill.anchor { fill: rgba(251,191,36,0.9); stroke: rgba(253,230,138,0.6); }
             .library-explorer-panel .maze-node { cursor: pointer; }
             .library-explorer-panel .maze-node.selected .maze-node-rect { stroke: rgba(251,191,36,0.95); fill: rgba(251,191,36,0.14); }
-            .library-explorer-panel .maze-node-label { fill: rgba(226,232,240,0.85); font-size: 12px; letter-spacing: 0.02em; pointer-events: none; text-shadow: 0 0 8px rgba(8,12,18,0.55); }
+            .library-explorer-panel .maze-node-label { fill: rgba(248,244,219,0.92); font-size: 12px; letter-spacing: 0.03em; pointer-events: none; text-shadow: 0 0 10px rgba(8,12,18,0.65); text-transform: uppercase; }
             .library-explorer-panel .maze-connection { stroke: rgba(148,197,253,0.42); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
             .library-explorer-panel .maze-canvas .network-node { transition: stroke 0.2s ease, fill 0.2s ease, r 0.2s ease; }
             .library-explorer-panel .maze-canvas .network-node.selected { stroke: rgba(251,191,36,0.92); stroke-width: 3; fill: rgba(253,230,138,0.32); filter: drop-shadow(0 0 10px rgba(253,230,138,0.55)); }
             .library-explorer-panel .maze-canvas .network-node.previous { stroke-dasharray: 4 2; opacity: 0.78; }
-            .library-explorer-panel .maze-canvas .network-label.selected { font-weight: 600; fill: rgba(254,249,195,0.95); }
+            .library-explorer-panel .maze-canvas .network-label { fill: rgba(244,244,245,0.94); text-shadow: 0 0 8px rgba(6,10,19,0.85); paint-order: stroke fill; stroke: rgba(3,7,15,0.7); stroke-width: 0.6px; }
+            .library-explorer-panel .maze-canvas .network-label.selected { font-weight: 600; fill: rgba(253,244,191,0.98); text-shadow: 0 0 10px rgba(251,191,36,0.55); }
             .library-explorer-panel .maze-canvas .network-label.previous { opacity: 0.78; }
             .library-explorer-panel .maze-canvas .network-link.active { stroke: rgba(253,230,138,0.85); stroke-width: 2.4; opacity: 0.9; }
             .library-explorer-panel .maze-canvas .network-link.trail { stroke: rgba(253,230,138,0.9); stroke-width: 3; opacity: 0.95; }
+            .library-explorer-panel .maze-canvas .network-link.orientation { stroke: rgba(14,165,233,0.92); stroke-width: 3.4; opacity: 0.98; filter: drop-shadow(0 0 10px rgba(56,189,248,0.55)); }
+            .library-explorer-panel .maze-canvas .network-node.orientation-forward { stroke: rgba(14,165,233,0.95); stroke-width: 3.6; filter: drop-shadow(0 0 12px rgba(14,165,233,0.6)); }
+            .library-explorer-panel .maze-canvas .network-label.orientation-forward { fill: rgba(186,230,253,0.98); text-shadow: 0 0 12px rgba(14,165,233,0.6); font-weight: 600; }
             .library-explorer-panel .maze-canvas.maze-pulse { box-shadow: 0 0 22px rgba(94,234,212,0.35); }
             .library-explorer-panel .maze-empty { font-size: 12px; color: rgba(226,232,240,0.55); margin-top: 8px; }
-            .library-explorer-panel .maze-narrative { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(15,23,42,0.55); border: 1px solid rgba(148,163,184,0.18); display: flex; flex-direction: column; gap: 6px; min-height: 90px; max-height: 140px; overflow: hidden; }
-            .library-explorer-panel .maze-narrative .narrative-header { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(191,219,254,0.65); }
-            .library-explorer-panel .maze-narrative-log { font-size: 12px; line-height: 1.45; color: rgba(226,232,240,0.9); max-height: 100px; overflow-y: auto; padding-right: 4px; }
-            .library-explorer-panel .maze-narrative-log .narrative-line { margin-bottom: 4px; }
-            .library-explorer-panel .maze-narrative-log .narrative-line:last-child { margin-bottom: 0; color: rgba(248,250,252,0.95); }
-            .library-explorer-panel .maze-narrative-log .narrative-line.muted { color: rgba(148,163,184,0.7); }
-            .library-explorer-panel .maze-narrative-log .narrative-line.ash-line { font-style: italic; color: rgba(236,233,216,0.92); position: relative; padding-left: 18px; }
-            .library-explorer-panel .maze-narrative-log .narrative-line.ash-line::before { content: '✶'; position: absolute; left: 0; top: 2px; font-size: 11px; color: rgba(253,230,138,0.75); opacity: 0.4; animation: ashPulse 6s ease-in-out infinite; }
+            .library-explorer-panel .le-narrative { border: 1px solid rgba(148,163,184,0.18); border-radius: 14px; padding: 18px 18px 20px; background: linear-gradient(180deg, rgba(15,23,42,0.68) 0%, rgba(10,16,28,0.92) 60%, rgba(8,12,18,0.96) 100%); display: flex; flex-direction: column; gap: 16px; position: relative; overflow: hidden; min-height: 320px; }
+            .library-explorer-panel .le-narrative::after { content: ''; position: absolute; inset: auto -35% -55% 40%; height: 240px; background: radial-gradient(circle at top, rgba(56,189,248,0.18) 0%, rgba(8,12,18,0) 70%); opacity: 0.55; pointer-events: none; }
+            .library-explorer-panel .le-narrative .companion-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+            .library-explorer-panel .le-narrative .companion-btn { padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(94,234,212,0.4); background: rgba(15,118,110,0.26); color: rgba(191,219,254,0.94); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; cursor: pointer; transition: transform 0.2s ease, background 0.2s ease, border 0.2s ease; }
+            .library-explorer-panel .le-narrative .companion-btn.primary { border-color: rgba(250,204,21,0.5); background: rgba(250,204,21,0.24); color: rgba(253,244,191,0.96); }
+            .library-explorer-panel .le-narrative .companion-btn:hover { transform: translateY(-1px); background: rgba(56,189,248,0.25); border-color: rgba(125,211,252,0.5); }
+            .library-explorer-panel .le-narrative .companion-btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+            .library-explorer-panel .le-narrative .narrative-log { font-size: 12px; line-height: 1.55; color: rgba(226,232,240,0.9); overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 6px; max-height: 140px; position: relative; z-index: 1; }
+            .library-explorer-panel .le-narrative .narrative-log .narrative-line { margin: 0; }
+            .library-explorer-panel .le-narrative .narrative-log .narrative-line:last-child { color: rgba(248,250,252,0.95); }
+            .library-explorer-panel .le-narrative .narrative-log .narrative-line.muted { color: rgba(148,163,184,0.7); }
+            .library-explorer-panel .le-narrative .narrative-log .narrative-line.ash-line { font-style: italic; color: rgba(236,233,216,0.92); position: relative; padding-left: 18px; }
+            .library-explorer-panel .le-narrative .narrative-log .narrative-line.ash-line::before { content: '✶'; position: absolute; left: 0; top: 2px; font-size: 11px; color: rgba(253,230,138,0.75); opacity: 0.4; animation: ashPulse 6s ease-in-out infinite; }
+            .library-explorer-panel .le-narrative .chat-log { position: relative; z-index: 1; min-height: 160px; max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; padding-right: 10px; font-family: 'IBM Plex Mono','Fira Code','Courier New',monospace; font-size: 13px; line-height: 1.55; color: rgba(226,232,240,0.9); background: rgba(8,16,26,0.48); border: 1px solid rgba(56,189,248,0.14); border-radius: 12px; box-shadow: inset 0 0 18px rgba(2,12,20,0.65); }
+            .library-explorer-panel .le-narrative .chat-log .chat-line { display: flex; gap: 10px; align-items: flex-start; }
+            .library-explorer-panel .le-narrative .chat-log .chat-line.you .label { color: rgba(253,230,138,0.92); }
+            .library-explorer-panel .le-narrative .chat-log .chat-line.ash .label { color: rgba(56,189,248,0.88); }
+            .library-explorer-panel .le-narrative .chat-log .chat-line.system .label { color: rgba(148,163,184,0.78); }
+            .library-explorer-panel .le-narrative .chat-log .chat-line .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; padding-top: 3px; }
+            .library-explorer-panel .le-narrative .chat-log .chat-line .content { flex: 1; white-space: pre-line; }
+            .library-explorer-panel .le-narrative .chat-log .chat-line .content em { font-style: normal; color: rgba(253,230,138,0.9); }
+            .library-explorer-panel .le-narrative .chat-log .chat-line.pending .content { opacity: 0.7; font-style: italic; }
+            .library-explorer-panel .le-narrative .chat-input-wrap { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; }
+            .library-explorer-panel .le-narrative textarea { resize: vertical; min-height: 72px; max-height: 160px; border-radius: 12px; border: 1px solid rgba(56,189,248,0.22); background: rgba(4,10,18,0.85); color: rgba(226,232,240,0.96); font-family: 'IBM Plex Mono','Fira Code','Courier New',monospace; font-size: 13px; line-height: 1.5; padding: 12px 14px; box-shadow: inset 0 0 14px rgba(2,12,20,0.55); }
+            .library-explorer-panel .le-narrative textarea:focus { outline: none; border-color: rgba(94,234,212,0.45); box-shadow: 0 0 0 2px rgba(94,234,212,0.2); }
+            .library-explorer-panel .le-narrative .chat-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+            .library-explorer-panel .le-narrative .chat-actions button { padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(94,234,212,0.4); background: rgba(15,118,110,0.26); color: rgba(191,219,254,0.94); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; cursor: pointer; transition: transform 0.2s ease, background 0.2s ease, border 0.2s ease; }
+            .library-explorer-panel .le-narrative .chat-actions button:hover { transform: translateY(-1px); background: rgba(56,189,248,0.25); border-color: rgba(125,211,252,0.5); }
+            .library-explorer-panel .le-narrative .chat-actions button:disabled { opacity: 0.5; cursor: wait; transform: none; }
+            .library-explorer-panel .le-narrative .chat-hints { font-size: 11px; letter-spacing: 0.05em; color: rgba(148,163,184,0.75); text-transform: uppercase; position: relative; z-index: 1; }
+            .library-explorer-panel .le-narrative .chat-log .chat-placeholder { color: rgba(148,163,184,0.72); font-style: italic; }
             @keyframes ashPulse { 0% { opacity: 0.35; transform: translateY(0); } 45% { opacity: 0.88; transform: translateY(-1px); } 100% { opacity: 0.35; transform: translateY(0); } }
-            .library-explorer-panel .le-pulse { border: 1px solid rgba(148,163,184,0.18); border-radius: 12px; padding: 14px; background: rgba(21,33,52,0.68); display: flex; flex-direction: column; gap: 10px; min-height: 190px; transition: box-shadow 0.25s ease, border 0.25s ease; }
+            .library-explorer-panel .le-pulse { border: 1px solid rgba(148,163,184,0.18); border-radius: 14px; padding: 16px; background: rgba(21,33,52,0.68); display: flex; flex-direction: column; gap: 12px; min-height: 200px; transition: box-shadow 0.25s ease, border 0.25s ease; }
             .library-explorer-panel .le-pulse.pulse-active { box-shadow: 0 0 22px rgba(96,165,250,0.35); border-color: rgba(125,211,252,0.45); }
             .library-explorer-panel .pulse-header { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(191,219,254,0.82); }
             .library-explorer-panel .pulse-count { font-size: 12px; color: rgba(147,197,253,0.85); }
@@ -457,8 +555,8 @@ class LibraryExplorerView {
             .library-world-modal .modal-status.error { color: #fecaca; }
             .library-world-modal .modal-status.success { color: #bbf7d0; }
             @media (max-width: 1200px) {
-                .library-explorer-panel .le-layout { grid-template-columns: 1fr; }
-                .library-explorer-panel .le-digest .digest-section .list { max-height: 120px; }
+                .library-explorer-panel .le-layout { grid-template-columns: 1fr; gap: 24px; }
+                .library-explorer-panel .le-digest .digest-section .list { max-height: 140px; }
             }
         `;
 
@@ -572,8 +670,8 @@ class LibraryExplorerView {
                 showControls: false,
                 enableSelection: true,
                 openFileOnClick: true,
-                focusScale: 0.9,
-                initialScale: 0.85,
+                focusScale: 0.85,
+                initialScale: 0.64,
                 preserveScaleOnFocus: true,
                 vizId: 'library-constellation-viz',
                 visualizationOptions: {
@@ -714,14 +812,35 @@ class LibraryExplorerView {
         this.clusterLookup = new Map();
         this.clusterMembers = new Map();
 
-        if (!this.selectedNodeId || !this.nodeMap.has(this.selectedNodeId)) {
-            const defaultNode = this.chooseDefaultNetworkNode(nodes);
+        const chooseConnected = !this.selectedNodeId || !this.nodeMap.has(this.selectedNodeId);
+        if (chooseConnected) {
+            const defaultNode = this.chooseDefaultNetworkNode(nodes, corridors);
             if (defaultNode) {
                 this.selectNode(defaultNode.id, { silent: true, center: true, source: 'system', immediate: true });
             }
-        } else {
+        }
+
+        if (this.selectedNodeId && this.networkInstance?.setSelectedNode) {
+            this.networkInstance.setSelectedNode(this.selectedNodeId, {
+                source: 'library',
+                center: true,
+                preserveScale: true,
+                immediate: true
+            });
+        }
+
+        if (!chooseConnected) {
             this.highlightSelection();
             this.renderNodeDetails();
+        }
+
+        if (this.selectedNodeId) {
+            this.configureOrientationForNode(this.selectedNodeId, this.lastVisitedNodeId, {
+                preserveForward: true,
+                fallbackVector: this.orientationVector
+            });
+        } else {
+            this.updateOrientationIndicator();
         }
     }
 
@@ -878,11 +997,130 @@ class LibraryExplorerView {
         return Array.from(keys).filter(Boolean);
     }
 
-    chooseDefaultNetworkNode(nodes = []) {
+    chooseDefaultNetworkNode(nodes = [], corridors = []) {
         if (!Array.isArray(nodes) || !nodes.length) return null;
+        if (!Array.isArray(corridors) || !corridors.length) {
+            const fileNode = nodes.find(node => node.type === 'file');
+            if (fileNode) return fileNode;
+            return nodes[0];
+        }
+
+        const adjacency = new Map();
+        corridors.forEach(corridor => {
+            const from = corridor?.from;
+            const to = corridor?.to;
+            if (!from || !to) return;
+            if (!adjacency.has(from)) adjacency.set(from, new Set());
+            if (!adjacency.has(to)) adjacency.set(to, new Set());
+            adjacency.get(from).add(to);
+            adjacency.get(to).add(from);
+        });
+
+        if (!adjacency.size) {
+            const fileNode = nodes.find(node => node.type === 'file');
+            if (fileNode) return fileNode;
+            return nodes[0];
+        }
+
+        const visited = new Set();
+        let bestComponent = { size: 0, nodes: [], edges: 0 };
+
+        const bfs = (startId) => {
+            const queue = [startId];
+            const componentNodes = [];
+            let edgeCount = 0;
+            visited.add(startId);
+
+            while (queue.length) {
+                const currentId = queue.shift();
+                componentNodes.push(currentId);
+                const neighbors = adjacency.get(currentId) || new Set();
+                edgeCount += neighbors.size;
+                neighbors.forEach(neighborId => {
+                    if (!visited.has(neighborId)) {
+                        visited.add(neighborId);
+                        queue.push(neighborId);
+                    }
+                });
+            }
+
+            return {
+                size: componentNodes.length,
+                nodes: componentNodes,
+                edges: edgeCount / 2
+            };
+        };
+
+        adjacency.forEach((_neighbors, nodeId) => {
+            if (!visited.has(nodeId)) {
+                const component = bfs(nodeId);
+                if (
+                    component.size > bestComponent.size ||
+                    (component.size === bestComponent.size && component.edges > bestComponent.edges)
+                ) {
+                    bestComponent = component;
+                }
+            }
+        });
+
+        if (bestComponent.size > 0) {
+            const centerCandidate = bestComponent.nodes
+                .map(id => this.nodeMap?.get(id))
+                .filter(Boolean)
+                .map(node => {
+                    const neighbors = adjacency.get(node.id) || new Set();
+                    const distanceSum = bestComponent.nodes.reduce((sum, otherId) => {
+                        if (otherId === node.id) return sum;
+                        const path = this.shortestPathLength(node.id, otherId, adjacency);
+                        return sum + (Number.isFinite(path) ? path : 0);
+                    }, 0);
+                    return {
+                        node,
+                        degree: neighbors.size,
+                        distanceSum
+                    };
+                })
+                .sort((a, b) => {
+                    if (b.degree !== a.degree) return b.degree - a.degree;
+                    if (a.distanceSum !== b.distanceSum) return a.distanceSum - b.distanceSum;
+                    const scoreA = (a.node.type === 'file' ? 0 : 1);
+                    const scoreB = (b.node.type === 'file' ? 0 : 1);
+                    if (scoreA !== scoreB) return scoreA - scoreB;
+                    return (a.node.name || a.node.id || '').localeCompare(b.node.name || b.node.id || '');
+                });
+
+            if (centerCandidate.length) {
+                return centerCandidate[0].node;
+            }
+        }
+
         const fileNode = nodes.find(node => node.type === 'file');
         if (fileNode) return fileNode;
         return nodes[0];
+    }
+
+    shortestPathLength(startId, targetId, adjacency) {
+        if (startId === targetId) return 0;
+        if (!adjacency.has(startId) || !adjacency.has(targetId)) return Infinity;
+        const visited = new Set([startId]);
+        let frontier = [startId];
+        let distance = 0;
+        while (frontier.length) {
+            distance += 1;
+            const nextFrontier = [];
+            for (const nodeId of frontier) {
+                const neighbors = adjacency.get(nodeId) || new Set();
+                for (const neighbor of neighbors) {
+                    if (neighbor === targetId) return distance;
+                    if (!visited.has(neighbor)) {
+                        visited.add(neighbor);
+                        nextFrontier.push(neighbor);
+                    }
+                }
+            }
+            frontier = nextFrontier;
+        }
+        return Infinity;
     }
 
     disposeNetwork() {
@@ -937,7 +1175,18 @@ class LibraryExplorerView {
         this.lastLinkNarratedNode = null;
         this.lastDirectionVector = null;
         this.lastDirectionKey = null;
+        this.orientationNeighbors = [];
+        this.orientationIndex = -1;
+        this.orientationVector = { x: 0, y: -1 };
+        this.forwardNeighborId = null;
+        this.networkInstance?.setOrientationHighlight?.(null, null);
+        this.updateOrientationIndicator();
         this.renderNarrativeLog();
+        this.ashChatInFlight = false;
+        this.ashChatPendingId = null;
+        this.ashChatInitialized = false;
+        this.ashChatLog = [];
+        this.refreshChatLog();
     }
 
     handleEmptyNetwork() {
@@ -973,7 +1222,18 @@ class LibraryExplorerView {
             this.ashLinkTimer = null;
         }
         this.lastLinkNarratedNode = null;
+        this.orientationNeighbors = [];
+        this.orientationIndex = -1;
+        this.orientationVector = { x: 0, y: -1 };
+        this.forwardNeighborId = null;
+        this.networkInstance?.setOrientationHighlight?.(null, null);
+        this.updateOrientationIndicator();
         this.clearNodeDetails();
+
+        this.ashChatInFlight = false;
+        this.ashChatPendingId = null;
+        this.ashChatInitialized = false;
+        this.ashChatLog = [];
 
         const placeholder = this.container?.querySelector('#le-maze .maze-empty');
         const canvas = this.container?.querySelector('#le-maze .maze-canvas');
@@ -985,6 +1245,7 @@ class LibraryExplorerView {
             placeholder.textContent = 'Constellation dormant — write to summon new nodes.';
         }
         this.renderNarrativeLog();
+        this.refreshChatLog();
     }
 
     activateSelection() {
@@ -2891,6 +3152,101 @@ Rules:
         listEl.innerHTML = markup;
     }
 
+    async handleFollowAshLink() {
+        if (this.followAshInFlight) return;
+        if (!this.selectedNodeId) {
+            this.setStatus('Select a node to follow Ash.', { temporary: true, duration: 1800 });
+            return;
+        }
+
+        const state = this.linkSuggestionState || {};
+        if (state.nodeId !== this.selectedNodeId || !Array.isArray(state.items) || !state.items.length) {
+            this.setStatus('Ash offers no corridor here yet.', { temporary: true, duration: 2000 });
+            return;
+        }
+
+        const suggestion = state.items[0];
+        const currentNode = this.nodeMap?.get(this.selectedNodeId);
+        if (!currentNode || !currentNode.path) {
+            this.setStatus('Current node cannot be scribed directly.', { temporary: true, duration: 2000 });
+            return;
+        }
+
+        const sourcePath = currentNode.path;
+        const targetId = suggestion.targetId || suggestion.id;
+        if (!targetId) {
+            this.setStatus('Ash did not name the destination.', { temporary: true, duration: 2000 });
+            return;
+        }
+
+        const targetNode = this.nodeMap?.get(targetId);
+        const rawLabel = suggestion.targetLabel || this.getNodeDisplayLabel(targetNode) || targetId;
+        const targetLabel = rawLabel ? rawLabel.replace(/\s+/g, ' ').trim() : targetId;
+
+        if (!window?.electronAPI?.invoke) {
+            this.setStatus('File bridge unavailable in this environment.', { temporary: true, duration: 2200 });
+            return;
+        }
+
+        const payload = {
+            sourcePath,
+            targetId,
+            targetLabel
+        };
+
+        this.followAshInFlight = true;
+        this.setStatus('Scribing Ash’s corridor…', { temporary: true, duration: 2000 });
+
+        try {
+            const result = await window.electronAPI.invoke('library.append-internal-link', payload);
+            if (!result?.success && !result?.alreadyExists) {
+                const message = result?.error || 'Failed to inscribe corridor.';
+                this.setStatus(message, { temporary: true, duration: 2200 });
+                return;
+            }
+
+            if (result.alreadyExists) {
+                this.setStatus('Corridor already etched into the stacks.', { temporary: true, duration: 2200 });
+            } else {
+                const sourceLabel = this.getNodeDisplayLabel(currentNode) || currentNode.name || currentNode.id;
+                this.pushNarrativeEntry(`Ash inscribes a link from ${sourceLabel} to ${targetLabel}.`, { source: 'ash' });
+                this.setStatus('Corridor inscribed.', { temporary: true, duration: 2000 });
+            }
+
+            this.ashLinkSuggestionCache.delete(this.selectedNodeId);
+            this.setLinkSuggestionState({
+                nodeId: this.selectedNodeId,
+                status: 'idle',
+                items: [],
+                message: ''
+            });
+
+            const currentGraphNode = this.nodeMap?.get(this.selectedNodeId);
+            if (currentGraphNode) {
+                this.scheduleAshLinkSuggestions(currentGraphNode, { source: 'ash-link' });
+            }
+            this.scheduleNetworkSync({ immediate: true });
+            this.configureOrientationForNode(this.selectedNodeId, this.lastVisitedNodeId, {
+                preserveForward: true,
+                fallbackVector: this.orientationVector
+            });
+        } catch (error) {
+            console.error('[LibraryExplorerView] Failed to follow Ash link:', error);
+            this.setStatus('Ash’s corridor failed to materialize.', { temporary: true, duration: 2200 });
+        } finally {
+            this.followAshInFlight = false;
+        }
+    }
+
+    handleRecenterView() {
+        if (this.selectedNodeId && this.networkInstance?.requestFocusOnNode) {
+            this.networkInstance.requestFocusOnNode(this.selectedNodeId, { preserveScale: false, immediate: false });
+            this.setStatus('Constellation recentred.', { temporary: true, duration: 1500 });
+        } else if (this.networkInstance?.centerView) {
+            this.networkInstance.centerView();
+        }
+    }
+
     scheduleAshLinkSuggestions(currentNode, context = {}) {
         if (!currentNode || !currentNode.id) return;
         const nodeId = currentNode.id;
@@ -3468,6 +3824,14 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
                     this.moveSelectionDirectional(event.key);
                     event.preventDefault();
                     break;
+                case ' ':
+                case 'Spacebar':
+                    if (activeElement && ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(activeElement.tagName)) {
+                        return;
+                    }
+                    this.rotateDirectionBasis(1);
+                    event.preventDefault();
+                    break;
                 case 'Enter':
                     if (this.activateSelection()) {
                         event.preventDefault();
@@ -3490,6 +3854,343 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
         }
     }
 
+    bindChatInterface() {
+        if (!this.container) return;
+        const input = this.container.querySelector('#le-chat-input');
+        if (!input || input.dataset.bound === 'true') {
+            if (this.ashChatInitialized) {
+                this.refreshChatLog();
+            }
+            return;
+        }
+
+        const sendBtn = this.container.querySelector('#le-chat-send-btn');
+        const helpBtn = this.container.querySelector('#le-chat-help-btn');
+
+        const submit = () => {
+            const value = input.value.trim();
+            if (!value) return;
+            input.value = '';
+            this.handleAshChatSubmit(value);
+        };
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
+                event.preventDefault();
+                submit();
+            } else if ((event.key === 'Enter') && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
+                event.preventDefault();
+                submit();
+            }
+        });
+
+        if (sendBtn && sendBtn.dataset.bound !== 'true') {
+            sendBtn.addEventListener('click', submit);
+            sendBtn.dataset.bound = 'true';
+        }
+
+        if (helpBtn && helpBtn.dataset.bound !== 'true') {
+            helpBtn.addEventListener('click', () => this.showChatHelp());
+            helpBtn.dataset.bound = 'true';
+        }
+
+        input.dataset.bound = 'true';
+
+        if (!this.ashChatInitialized) {
+            this.ashChatInitialized = true;
+            this.appendChatMessage('system', 'Whisper directions like "north" or ask Ash for guidance. Use "go to <node>" to jump corridors.');
+        } else {
+            this.refreshChatLog();
+        }
+    }
+
+    setChatBusyState(isBusy) {
+        if (!this.container) return;
+        const input = this.container.querySelector('#le-chat-input');
+        const sendBtn = this.container.querySelector('#le-chat-send-btn');
+        if (input) input.disabled = isBusy;
+        if (sendBtn) sendBtn.disabled = isBusy;
+    }
+
+    handleAshChatSubmit(rawValue) {
+        const message = (rawValue || '').trim();
+        if (!message) return;
+
+        this.appendChatMessage('you', message);
+        const handled = this.processChatCommand(message);
+        if (!handled) {
+            this.requestAshChatResponse(message);
+        }
+    }
+
+    processChatCommand(message = '') {
+        const clean = message.trim();
+        if (!clean) return false;
+        const lower = clean.toLowerCase();
+
+        if (lower === '/help' || lower === 'help' || lower === 'commands' || lower === 'command lore') {
+            this.showChatHelp();
+            return true;
+        }
+
+        const directionAliases = {
+            north: 'ArrowUp',
+            up: 'ArrowUp',
+            forward: 'ArrowUp',
+            south: 'ArrowDown',
+            down: 'ArrowDown',
+            back: 'ArrowDown',
+            backward: 'ArrowDown',
+            east: 'ArrowRight',
+            right: 'ArrowRight',
+            west: 'ArrowLeft',
+            left: 'ArrowLeft'
+        };
+
+        const resolveDirectionMove = (keyword) => {
+            const key = directionAliases[keyword];
+            if (!key) return false;
+            const before = this.selectedNodeId;
+            this.moveSelectionDirectional(key);
+            const after = this.selectedNodeId;
+            const moved = before !== after;
+            const pretty = keyword.replace(/^(?:go|move|walk|step)\s+/, '');
+            this.appendChatMessage('system', moved ? `You slip ${pretty} through the stacks.` : `No mapped corridor stretches ${pretty}.`);
+            return true;
+        };
+
+        if (directionAliases[lower]) {
+            return resolveDirectionMove(lower);
+        }
+
+        const goMatch = lower.match(/^(?:go|step|walk|move|head|travel)(?:\s+(?:to|toward|into|through))?\s+(.+)/);
+        if (goMatch && goMatch[1]) {
+            const target = goMatch[1].trim();
+            if (directionAliases[target]) {
+                return resolveDirectionMove(target);
+            }
+            const node = this.resolveNodeFromQuery(target);
+            if (node) {
+                this.selectNode(node.id, { center: true, source: 'chat', immediate: false });
+                const label = this.getNodeDisplayLabel(node) || node.name || node.id;
+                this.appendChatMessage('system', `You drift toward ${label}.`);
+            } else {
+                this.appendChatMessage('system', `Ash cannot locate a chamber matching "${target}".`);
+            }
+            return true;
+        }
+
+        if (/(?:recenter|center|recentre|reset map|focus map)/.test(lower)) {
+            this.handleRecenterView();
+            this.appendChatMessage('system', 'The map recentres around your current footing.');
+            return true;
+        }
+
+        if (/^(?:rotate|spin|twist)\b/.test(lower)) {
+            const step = /\b(left|counter|anti|widdershins)\b/.test(lower) ? -1 : 1;
+            this.rotateDirectionBasis(step);
+            this.appendChatMessage('system', step === 1 ? 'You pivot the forward arrow clockwise.' : 'You pivot the forward arrow counter-clockwise.');
+            return true;
+        }
+
+        return false;
+    }
+
+    resolveNodeFromQuery(query = '') {
+        const target = query.trim().toLowerCase();
+        if (!target || !this.nodeMap) return null;
+
+        let bestNode = null;
+        let bestScore = -Infinity;
+
+        const scoreCandidate = (value) => {
+            if (!value) return -Infinity;
+            const lower = value.toLowerCase();
+            if (lower === target) return 120;
+            if (lower.startsWith(target)) return 90;
+            if (lower.includes(target)) return 75;
+
+            const parts = target.split(/\s+/).filter(Boolean);
+            if (parts.length > 1 && parts.every(part => lower.includes(part))) {
+                return 60;
+            }
+            return -Infinity;
+        };
+
+        this.nodeMap.forEach((node) => {
+            if (!node) return;
+            const label = this.getNodeDisplayLabel(node);
+            const id = node.id || '';
+            const name = node.name || '';
+            const candidates = [label, id, name].filter(Boolean);
+            let nodeScore = -Infinity;
+            candidates.forEach(candidate => {
+                const score = scoreCandidate(candidate);
+                if (score > nodeScore) nodeScore = score;
+            });
+
+            if (nodeScore > bestScore) {
+                bestScore = nodeScore;
+                bestNode = node;
+            }
+        });
+
+        if (bestScore >= 60) {
+            return bestNode;
+        }
+        return null;
+    }
+
+    appendChatMessage(author, text, options = {}) {
+        const entry = {
+            id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+            author,
+            text,
+            pending: Boolean(options.pending),
+            timestamp: Date.now()
+        };
+
+        this.ashChatLog.push(entry);
+        while (this.ashChatLog.length > this.ashChatHistoryLimit) {
+            this.ashChatLog.shift();
+        }
+
+        this.refreshChatLog();
+        return entry.id;
+    }
+
+    updateChatMessage(messageId, updates = {}) {
+        if (!messageId) return;
+        const entry = this.ashChatLog.find(item => item.id === messageId);
+        if (!entry) return;
+        Object.assign(entry, updates);
+        this.refreshChatLog();
+    }
+
+    refreshChatLog() {
+        const logEl = this.container?.querySelector('#le-chat-log');
+        if (!logEl) return;
+
+        if (!this.ashChatLog.length) {
+            logEl.innerHTML = `<div class="chat-placeholder">The signal room hums softly, awaiting your whisper.</div>`;
+            return;
+        }
+
+        const markup = this.ashChatLog
+            .map(entry => {
+                const classes = ['chat-line', entry.author || 'system'];
+                if (entry.pending) classes.push('pending');
+                const labelMap = {
+                    you: 'you',
+                    ash: 'ash',
+                    system: 'glyphs'
+                };
+                const label = labelMap[entry.author] || 'glyphs';
+                const safeText = this.escapeHTML(entry.text || '').replace(/\n+/g, '<br>');
+                return `<div class="${classes.join(' ')}"><span class="label">${label}</span><span class="content">${safeText || '…'}</span></div>`;
+            })
+            .join('');
+
+        logEl.innerHTML = markup;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    showChatHelp() {
+        const tips = [
+            'north / south / east / west — move through mapped corridors',
+            'go to <node name> — jump directly to a chamber',
+            'rotate / rotate left — spin the forward arrow',
+            'center map — recentre the constellation view',
+            'Ask Ash anything to receive atmospheric guidance.'
+        ];
+        this.appendChatMessage('system', `Command lexicon:\n• ${tips.join('\n• ')}`);
+    }
+
+    async requestAshChatResponse(message) {
+        const companion = this.gamification?.aiCompanion || window.aiCompanion;
+        if (!companion || typeof companion.callAIService !== 'function') {
+            this.appendChatMessage('system', 'The signal to Ash is down. Try again after a moment.');
+            return;
+        }
+
+        if (this.ashChatInFlight) {
+            this.appendChatMessage('system', 'Ash is still shaping the last whisper. Hold a beat.');
+            return;
+        }
+
+        this.ashChatInFlight = true;
+        this.setChatBusyState(true);
+
+        const pendingId = this.appendChatMessage('ash', 'Ash is tuning to your frequency…', { pending: true });
+        this.ashChatPendingId = pendingId;
+
+        try {
+            const prompt = this.buildAshChatPrompt(message);
+            const response = await companion.callAIService(prompt, {
+                context: 'library.constellation-chat',
+                temperature: 0.55
+            });
+
+            const reply = this.extractAshNarrative(response) || 'Static flickers; no words arrive.';
+            this.updateChatMessage(pendingId, { text: reply, author: 'ash', pending: false });
+            this.pushNarrativeEntry(`Ash transmits: ${reply}`, { source: 'ash', tone: 'muted' });
+        } catch (error) {
+            console.warn('[LibraryExplorerView] Ash chat request failed:', error);
+            this.updateChatMessage(pendingId, { text: 'The channel crackles—Ash cannot reach you right now.', author: 'system', pending: false });
+        } finally {
+            this.ashChatInFlight = false;
+            this.ashChatPendingId = null;
+            this.setChatBusyState(false);
+            const input = this.container?.querySelector('#le-chat-input');
+            if (input && !input.disabled) {
+                input.focus();
+            }
+        }
+    }
+
+    buildAshChatPrompt(message) {
+        const selectedNode = this.selectedNodeId ? this.nodeMap?.get(this.selectedNodeId) : null;
+        const nodeLabel = selectedNode ? (this.getNodeDisplayLabel(selectedNode) || selectedNode.name || selectedNode.id) : 'no node selected';
+        const nodeRole = selectedNode?.libraryMeta?.role || selectedNode?.type || 'node';
+        const nodeDescription = this.truncateNarrativeText(
+            selectedNode?.libraryMeta?.description ||
+            selectedNode?.description ||
+            '',
+            180
+        ) || 'No description recorded.';
+
+        const neighbors = selectedNode
+            ? Array.from(this.adjacency?.get(selectedNode.id) || [])
+                .map(id => this.nodeMap?.get(id))
+                .filter(Boolean)
+                .map(node => `${this.getNodeDisplayLabel(node) || node.name || node.id} (${node.libraryMeta?.role || node.type || 'node'})`)
+            : [];
+
+        const orientation = this.describeOrientationVector(this.orientationVector);
+        const forwardNeighbor = this.forwardNeighborId ? (this.getNodeDisplayLabel(this.nodeMap?.get(this.forwardNeighborId)) || this.forwardNeighborId) : 'none';
+
+        const recentChat = this.ashChatLog
+            .slice(-6)
+            .map(entry => `${entry.author}: ${entry.text}`)
+            .join('\n');
+
+        const liveSnippet = this.truncateNarrativeText(this.gamification?.liveProgress?.recentSnippet || '', 140);
+
+        return `You are Ash, spectral cartographer and companion. Respond to the traveller's latest whisper in 2-3 sentences (under 80 words) with a game-like tone—mystical but encouraging.
+Current node: ${nodeLabel} (role: ${nodeRole})
+Description: ${nodeDescription}
+Forward heading: ${orientation}
+Forward neighbour: ${forwardNeighbor}
+Nearby nodes: ${neighbors.length ? neighbors.join('; ') : 'none'}
+Recent writing fragment: ${liveSnippet || 'No fresh fragment'}
+Recent chat history:
+${recentChat || 'None yet.'}
+
+Traveller message: "${message}"
+
+Offer atmospheric guidance, optionally suggest a direction (north/south/east/west) or a node label to explore. Reference available directions only if relevant. Reply as Ash, without markdown formatting.`;
+    }
+
     moveSelectionDirectional(key) {
         if (!this.selectedNodeId && this.nodeOrder?.length) {
             this.selectNode(this.nodeOrder[0].id, { center: true, source: 'keyboard', immediate: true });
@@ -3497,9 +4198,15 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
 
         if (!this.selectedNodeId) return;
 
+        this.configureOrientationForNode(this.selectedNodeId, this.lastVisitedNodeId, {
+            preserveForward: true,
+            fallbackVector: this.orientationVector
+        });
+
         const directionInfo = this.getDirectionVector(key);
         const previousNodeId = this.selectedNodeId;
 
+        let moved = false;
         if (directionInfo) {
             if (this.selectNeighborInDirection(directionInfo)) {
                 if (this.selectedNodeId !== previousNodeId) {
@@ -3512,18 +4219,10 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
 
         if (key === 'ArrowLeft' || key === 'ArrowRight') {
             const step = key === 'ArrowLeft' ? -1 : 1;
-            if (this.rotateWithinCluster(step)) {
-                this.lastDirectionVector = null;
-                this.lastDirectionKey = null;
-                return;
-            }
-            this.stepSelection(step);
+            moved = this.rotateWithinCluster(step);
             this.lastDirectionVector = null;
             this.lastDirectionKey = null;
-            return;
-        }
-
-        if (key === 'ArrowUp') {
+        } else if (key === 'ArrowUp') {
             if (this.stepAlongCorridor('up')) {
                 if (this.selectedNodeId !== previousNodeId && directionInfo) {
                     this.lastDirectionVector = directionInfo.vector;
@@ -3531,18 +4230,10 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
                 }
                 return;
             }
-            if (this.rotateWithinCluster(-1)) {
-                this.lastDirectionVector = null;
-                this.lastDirectionKey = null;
-                return;
-            }
-            this.stepSelection(-1);
+            moved = this.rotateWithinCluster(-1);
             this.lastDirectionVector = null;
             this.lastDirectionKey = null;
-            return;
-        }
-
-        if (key === 'ArrowDown') {
+        } else if (key === 'ArrowDown') {
             if (this.stepAlongCorridor('down')) {
                 if (this.selectedNodeId !== previousNodeId && directionInfo) {
                     this.lastDirectionVector = directionInfo.vector;
@@ -3550,37 +4241,304 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
                 }
                 return;
             }
-            if (this.rotateWithinCluster(1)) {
-                this.lastDirectionVector = null;
-                this.lastDirectionKey = null;
-                return;
-            }
-            this.stepSelection(1);
+            moved = this.rotateWithinCluster(1);
             this.lastDirectionVector = null;
             this.lastDirectionKey = null;
         }
+
+        if (!moved) {
+            this.setStatus('No mapped corridor in that direction.', { temporary: true, duration: 1600 });
+        }
+    }
+
+    rotateDirectionBasis(step = 1) {
+        if (this.selectedNodeId) {
+            this.configureOrientationForNode(this.selectedNodeId, null, {
+                preserveForward: true,
+                fallbackVector: this.orientationVector
+            });
+        }
+
+        const neighbors = this.orientationNeighbors || [];
+        if (!neighbors.length) {
+            this.setStatus('No corridors to align.', { temporary: true, duration: 1800 });
+            return;
+        }
+
+        const len = neighbors.length;
+        if (this.orientationIndex < 0) {
+            this.orientationIndex = 0;
+        }
+        this.orientationIndex = (this.orientationIndex + step + len) % len;
+        const entry = neighbors[this.orientationIndex];
+        if (entry) {
+            this.orientationVector = { ...entry.vector };
+            this.forwardNeighborId = entry.id;
+            this.networkInstance?.setOrientationHighlight?.(this.selectedNodeId, entry.id);
+        }
+        this.lastDirectionVector = null;
+        this.lastDirectionKey = null;
+        this.updateOrientationIndicator();
+        if (entry) {
+            const targetLabel = entry.label || entry.id;
+            this.setStatus(`Forward arrow aligned toward ${targetLabel}.`, { temporary: true, duration: 1700 });
+        }
+    }
+
+    updateOrientationIndicator() {
+        const indicator = this.container?.querySelector('#le-orientation-indicator');
+        if (!indicator) return;
+        const neighbors = this.orientationNeighbors || [];
+        let entry = null;
+        if (this.forwardNeighborId) {
+            entry = neighbors.find(item => item.id === this.forwardNeighborId) || null;
+        }
+        if (!entry && this.orientationIndex >= 0 && neighbors.length) {
+            entry = neighbors[this.orientationIndex] || neighbors[0];
+        }
+        if (!entry) {
+            indicator.textContent = 'Forward: None';
+            return;
+        }
+        const heading = this.describeOrientationVector(entry.vector);
+        const label = entry.label || entry.id;
+        indicator.textContent = `Forward: ${heading} → ${label}`;
     }
 
     getDirectionVector(key) {
-        const mapping = {
-            ArrowLeft: { x: -1, y: 0, axis: 'horizontal' },
-            ArrowRight: { x: 1, y: 0, axis: 'horizontal' },
-            ArrowUp: { x: 0, y: -1, axis: 'vertical' },
-            ArrowDown: { x: 0, y: 1, axis: 'vertical' }
-        };
-        const config = mapping[key];
-        if (!config) return null;
-        const length = Math.hypot(config.x, config.y) || 1;
-        const vector = { x: config.x / length, y: config.y / length };
-        const axisSign = config.axis === 'horizontal'
-            ? (config.x >= 0 ? 1 : -1)
-            : (config.y >= 0 ? 1 : -1);
-        return {
-            key,
-            axis: config.axis,
-            vector,
-            axisSign
-        };
+        const forward = this.normalizeVector(this.orientationVector);
+        const right = this.normalizeVector({ x: forward.y, y: -forward.x });
+        const left = this.normalizeVector({ x: -forward.y, y: forward.x });
+        const backward = this.normalizeVector({ x: -forward.x, y: -forward.y });
+        switch (key) {
+            case 'ArrowUp': {
+                const entry = this.findClosestNeighbor(forward);
+                return {
+                    key,
+                    vector: forward,
+                    preferredId: entry ? entry.id : null
+                };
+            }
+            case 'ArrowDown': {
+                const target = this.findClosestNeighbor(backward) || this.findNeighborById(this.lastVisitedNodeId);
+                return {
+                    key,
+                    vector: backward,
+                    preferredId: target ? target.id : null
+                };
+            }
+            case 'ArrowRight': {
+                const entry = this.findClosestNeighbor(right);
+                return {
+                    key,
+                    vector: right,
+                    preferredId: entry ? entry.id : null
+                };
+            }
+            case 'ArrowLeft': {
+                const entry = this.findClosestNeighbor(left);
+                return {
+                    key,
+                    vector: left,
+                    preferredId: entry ? entry.id : null
+                };
+            }
+            default:
+                return null;
+        }
+    }
+
+    findNeighborById(nodeId) {
+        if (!nodeId) return null;
+        return (this.orientationNeighbors || []).find(entry => entry.id === nodeId) || null;
+    }
+
+    findClosestNeighbor(vector) {
+        const normalized = this.normalizeVector(vector);
+        let best = null;
+        (this.orientationNeighbors || []).forEach(entry => {
+            const dot = entry.vector.x * normalized.x + entry.vector.y * normalized.y;
+            if (!best || dot > best.dot) {
+                best = { entry, dot };
+            }
+        });
+        return best ? best.entry : null;
+    }
+
+    normalizeVector(vector = { x: 0, y: 0 }) {
+        const x = Number.isFinite(vector?.x) ? vector.x : 0;
+        const y = Number.isFinite(vector?.y) ? vector.y : 0;
+        const length = Math.hypot(x, y);
+        if (!length) return { x: 0, y: 0 };
+        return { x: x / length, y: y / length };
+    }
+
+    normalizeAngle(angle = 0) {
+        const twoPi = Math.PI * 2;
+        return ((angle + Math.PI) % twoPi + twoPi) % twoPi - Math.PI;
+    }
+
+    describeOrientationVector(vector = { x: 0, y: -1 }) {
+        const { x, y } = this.normalizeVector(vector);
+        const angle = this.normalizeAngle(Math.atan2(y, x));
+        const deg = angle * (180 / Math.PI);
+        if (deg >= -45 && deg < 45) return 'East';
+        if (deg >= 45 && deg < 135) return 'South';
+        if (deg <= -45 && deg > -135) return 'North';
+        return 'West';
+    }
+
+    computeOrientationEntries(nodeId) {
+        if (!nodeId) return [];
+        const currentPos = this.positions?.get(nodeId);
+        if (!currentPos) return [];
+        const neighbors = Array.from(this.adjacency?.get(nodeId) || []);
+        if (!neighbors.length) return [];
+
+        const entries = neighbors.map(id => {
+            const neighborPos = this.positions?.get(id);
+            if (!neighborPos) return null;
+            const dx = neighborPos.x - currentPos.x;
+            const dy = neighborPos.y - currentPos.y;
+            const distance = Math.hypot(dx, dy);
+            if (!distance) return null;
+            const vector = { x: dx / distance, y: dy / distance };
+            const angle = Math.atan2(vector.y, vector.x);
+            return {
+                id,
+                vector,
+                angle,
+                distance,
+                label: this.getNodeDisplayLabel(this.nodeMap?.get(id)) || id
+            };
+        }).filter(Boolean);
+
+        entries.sort((a, b) => a.angle - b.angle);
+        return entries;
+    }
+
+    applyOrientationEntries(nodeId, entries, options = {}) {
+        if (!Array.isArray(entries) || !entries.length) {
+            this.orientationNeighbors = [];
+            this.orientationIndex = -1;
+            this.orientationVector = { x: 0, y: -1 };
+            this.forwardNeighborId = null;
+            if (nodeId) {
+                this.networkInstance?.setOrientationHighlight?.(nodeId, null);
+            } else {
+                this.networkInstance?.setOrientationHighlight?.(null, null);
+            }
+            this.updateOrientationIndicator();
+            return null;
+        }
+
+        const { preferredId, preferredVector, fallbackVector, excludeId } = options;
+        let index = -1;
+
+        if (preferredId) {
+            index = entries.findIndex(entry => entry.id === preferredId);
+        }
+
+        if (index === -1 && preferredVector) {
+            index = this.findClosestIndex(entries, preferredVector, excludeId);
+        }
+
+        if (index === -1 && fallbackVector) {
+            index = this.findClosestIndex(entries, fallbackVector, excludeId);
+        }
+
+        if (index === -1) {
+            index = this.findClosestIndex(entries, { x: 0, y: -1 });
+        }
+
+        if (index === -1 && entries.length) {
+            index = 0;
+        }
+
+        this.orientationNeighbors = entries;
+        this.orientationIndex = index;
+        const activeEntry = index >= 0 ? entries[index] : null;
+        this.orientationVector = activeEntry ? { ...activeEntry.vector } : { x: 0, y: -1 };
+        this.forwardNeighborId = activeEntry ? activeEntry.id : null;
+        if (nodeId) {
+            this.networkInstance?.setOrientationHighlight?.(nodeId, this.forwardNeighborId);
+        } else {
+            this.networkInstance?.setOrientationHighlight?.(null, null);
+        }
+        this.updateOrientationIndicator();
+        return activeEntry;
+    }
+
+    configureOrientationForNode(nodeId, previousNodeId = null, options = {}) {
+        if (!nodeId) {
+            this.applyOrientationEntries(null, []);
+            return;
+        }
+
+        const entries = this.computeOrientationEntries(nodeId);
+        if (!entries.length) {
+            this.applyOrientationEntries(nodeId, []);
+            return;
+        }
+
+        const preserveForward = Boolean(options?.preserveForward);
+        let preferredId = null;
+        if (preserveForward && this.forwardNeighborId) {
+            const exists = entries.some(entry => entry.id === this.forwardNeighborId);
+            if (exists) {
+                preferredId = this.forwardNeighborId;
+            }
+        }
+
+        let preferredVector = null;
+        if (!preferredId && previousNodeId) {
+            const currentPos = this.positions?.get(nodeId);
+            const previousPos = this.positions?.get(previousNodeId);
+            if (currentPos && previousPos) {
+                preferredVector = this.normalizeVector({
+                    x: currentPos.x - previousPos.x,
+                    y: currentPos.y - previousPos.y
+                });
+            }
+        }
+
+        if (!preferredVector && options?.preferredVector) {
+            preferredVector = this.normalizeVector(options.preferredVector);
+        }
+
+        const fallbackVector = options?.fallbackVector
+            ? this.normalizeVector(options.fallbackVector)
+            : this.orientationVector;
+
+        const entry = this.applyOrientationEntries(nodeId, entries, {
+            preferredId,
+            preferredVector,
+            fallbackVector,
+            excludeId: previousNodeId || null
+        });
+
+        if (!entry && entries.length) {
+            this.applyOrientationEntries(nodeId, entries, {});
+        }
+    }
+
+    findClosestIndex(entries, vector, excludeId = null) {
+        const normalized = this.normalizeVector(vector);
+        let bestIndex = -1;
+        let bestDot = -Infinity;
+        entries.forEach((entry, idx) => {
+            if (excludeId && entry.id === excludeId) return;
+            const dot = entry.vector.x * normalized.x + entry.vector.y * normalized.y;
+            if (dot > bestDot) {
+                bestDot = dot;
+                bestIndex = idx;
+            }
+        });
+        if (bestIndex === -1 && excludeId) {
+            const fallbackIndex = entries.findIndex(entry => entry.id === excludeId);
+            if (fallbackIndex !== -1) return fallbackIndex;
+        }
+        return bestIndex;
     }
 
     rotateWithinCluster(step = 1) {
@@ -3603,6 +4561,8 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
         const nextIndex = (currentIndex + step + members.length) % members.length;
         const targetId = members[nextIndex];
         if (!targetId || targetId === this.selectedNodeId) return false;
+        const neighbors = this.adjacency?.get(this.selectedNodeId);
+        if (!neighbors || !neighbors.has(targetId)) return false;
 
         this.selectNode(targetId, { center: true, source: 'keyboard', immediate: true });
         this.lastCorridorTarget = null;
@@ -3616,87 +4576,71 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
         const current = this.positions.get(this.selectedNodeId);
         if (!current) return false;
 
-        const { vector, axis, axisSign } = directionInfo;
-        const isHorizontal = axis === 'horizontal';
-        const axisBias = this.directionAxisBias;
-        const dotThreshold = this.directionDotThreshold;
-        const oppositeThreshold = -0.65;
+        const normalizedDirection = this.normalizeVector(directionInfo.vector);
+        const preferredId = directionInfo.preferredId || null;
+        const dotThreshold = this.directionDotThreshold ?? 0.25;
 
         const corridorNeighbors = Array.from(this.adjacency?.get(this.selectedNodeId) || []);
-        const graphNeighbors = Array.from(this.navGraph?.get(this.selectedNodeId) || []);
-        const candidateSet = new Set([...corridorNeighbors, ...graphNeighbors]);
-        if (!candidateSet.size) {
-            this.positions.forEach((_pos, nodeId) => {
-                if (nodeId !== this.selectedNodeId) candidateSet.add(nodeId);
-            });
-        }
-        if (!candidateSet.size) return false;
+        if (!corridorNeighbors.length) return false;
 
-        const candidates = [];
-        const backtrackId = this.lastVisitedNodeId;
-        const isOpposite = this.lastDirectionVector
-            ? (this.lastDirectionVector.x * vector.x + this.lastDirectionVector.y * vector.y) <= oppositeThreshold
-            : false;
-
-        Array.from(candidateSet).forEach(nodeId => {
+        const candidates = corridorNeighbors.map(nodeId => {
             const pos = this.positions.get(nodeId);
-            if (!pos) return;
+            if (!pos) return null;
             const dx = pos.x - current.x;
             const dy = pos.y - current.y;
-            const axisDelta = isHorizontal ? dx : dy;
-            if (!Number.isFinite(axisDelta)) return;
-            if (axisDelta === 0) return;
-            if (axisDelta * axisSign <= 0) return;
-            if (isHorizontal) {
-                if (Math.abs(dx) < Math.abs(dy) * axisBias) return;
-            } else {
-                if (Math.abs(dy) < Math.abs(dx) * axisBias) return;
-            }
-            const distance = Math.hypot(dx, dy) || 1;
-            const ndx = dx / distance;
-            const ndy = dy / distance;
-            const dot = ndx * vector.x + ndy * vector.y;
-            if (!Number.isFinite(dot) || dot <= dotThreshold) return;
-            const isCorridor = corridorNeighbors.includes(nodeId);
-            const corridorBias = isCorridor ? 0.08 : 0;
-            const distancePenalty = Math.min(0.4, distance / 1800);
-            const score = dot + corridorBias - distancePenalty;
-            candidates.push({
-                nodeId,
-                score,
+            const distance = Math.hypot(dx, dy);
+            if (!distance) return null;
+            const unitX = dx / distance;
+            const unitY = dy / distance;
+            const dot = unitX * normalizedDirection.x + unitY * normalizedDirection.y;
+            return {
+                id: nodeId,
                 distance,
-                isCorridor,
                 dot
-            });
-        });
+            };
+        }).filter(Boolean);
 
         if (!candidates.length) return false;
 
-        if (isOpposite && backtrackId) {
-            const backtrackCandidate = candidates.find(entry => entry.nodeId === backtrackId);
-            if (backtrackCandidate && backtrackCandidate.nodeId !== this.selectedNodeId) {
-                this.selectNode(backtrackCandidate.nodeId, { center: true, source: 'keyboard', immediate: true });
-                this.lastNeighborId = backtrackCandidate.nodeId;
-                this.lastCorridorTarget = backtrackCandidate.nodeId;
-                this.lastCorridorDirection = directionInfo.key || 'directional';
-                return this.selectedNodeId === backtrackCandidate.nodeId;
+        let best = null;
+        candidates.forEach(candidate => {
+            let score = candidate.dot;
+            if (preferredId && candidate.id === preferredId) {
+                score += 0.4;
+            }
+            if (score < dotThreshold && candidate.id !== preferredId) return;
+            const distancePenalty = Math.min(0.4, candidate.distance / 1800);
+            score -= distancePenalty;
+            if (!best || score > best.score || (Math.abs(score - best.score) < 0.0001 && candidate.distance < best.distance)) {
+                best = { ...candidate, score };
+            }
+        });
+
+        if (!best && preferredId) {
+            const fallback = candidates.find(candidate => candidate.id === preferredId);
+            if (fallback) {
+                best = { ...fallback, score: fallback.dot };
             }
         }
 
-        candidates.sort((a, b) => {
-            if (Math.abs(a.score - b.score) > 0.0001) return b.score - a.score;
-            if (Math.abs(a.dot - b.dot) > 0.0001) return b.dot - a.dot;
-            return a.distance - b.distance;
-        });
+        if (!best || best.id === this.selectedNodeId) return false;
 
-        const bestCandidate = candidates[0];
-        if (!bestCandidate || bestCandidate.nodeId === this.selectedNodeId) return false;
-
-        this.selectNode(bestCandidate.nodeId, { center: true, source: 'keyboard', immediate: true });
-        this.lastNeighborId = bestCandidate.nodeId;
-        this.lastCorridorTarget = bestCandidate.nodeId;
+        this.selectNode(best.id, { center: true, source: 'keyboard', immediate: true });
+        this.lastNeighborId = best.id;
+        this.lastCorridorTarget = best.id;
         this.lastCorridorDirection = directionInfo.key || 'directional';
-        return this.selectedNodeId === bestCandidate.nodeId;
+        this.orientationIndex = this.orientationNeighbors.findIndex(entry => entry.id === best.id);
+        if (this.orientationIndex === -1 && this.orientationNeighbors.length) {
+            this.orientationIndex = 0;
+        }
+        if (this.orientationIndex >= 0) {
+            const entry = this.orientationNeighbors[this.orientationIndex];
+            this.orientationVector = { ...entry.vector };
+            this.forwardNeighborId = entry.id;
+            this.networkInstance?.setOrientationHighlight?.(this.selectedNodeId, entry.id);
+            this.updateOrientationIndicator();
+        }
+        return true;
     }
 
     updateProgressStatus(message, options = {}) {
@@ -4086,6 +5030,7 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
         this.lastNeighborId = null;
         this.lastCorridorTarget = null;
         this.lastCorridorDirection = null;
+        const mazeCanvas = this.container?.querySelector('.maze-canvas');
 
         if (!options.skipNetwork && this.networkInstance?.setSelectedNode) {
             this.networkInstance.setSelectedNode(nodeId, {
@@ -4112,8 +5057,20 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
             this.lastVisitedNodeId = null;
         }
 
+        this.configureOrientationForNode(nodeId, changed ? previousNodeId : null, {
+            preserveForward: !changed,
+            fallbackVector: this.orientationVector
+        });
+
+        if (mazeCanvas && document.activeElement !== mazeCanvas) {
+            try {
+                mazeCanvas.focus({ preventScroll: true });
+            } catch (_error) {
+                mazeCanvas.focus();
+            }
+        }
+
         if (!options.silent && changed && source !== 'keyboard') {
-            const mazeCanvas = this.container?.querySelector('.maze-canvas');
             if (mazeCanvas) {
                 mazeCanvas.classList.add('pulse-active');
                 setTimeout(() => mazeCanvas.classList.remove('pulse-active'), 500);
@@ -4261,6 +5218,12 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
             items: [],
             message: ''
         });
+        this.orientationNeighbors = [];
+        this.orientationIndex = -1;
+        this.orientationVector = { x: 0, y: -1 };
+        this.forwardNeighborId = null;
+        this.networkInstance?.setOrientationHighlight?.(null, null);
+        this.updateOrientationIndicator();
     }
 
     focusDigestSelection() {
@@ -4311,7 +5274,7 @@ Only reference node ids from the candidate list, avoid duplicates, and do not re
     }
 
     renderNarrativeLog() {
-        const logEl = this.container?.querySelector('.maze-narrative-log');
+        const logEl = this.container?.querySelector('#le-narrative-log');
         if (!logEl) return;
 
         if (!Array.isArray(this.narrativeEntries) || !this.narrativeEntries.length) {

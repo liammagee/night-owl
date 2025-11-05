@@ -36,17 +36,17 @@ class UnifiedNetworkVisualization {
                 textBg: 'rgba(255, 255, 255, 0.9)'
             },
             dark: {
-                background: '#1e1e1e',
-                nodeFile: '#66BB6A',
-                nodeHeading: '#42A5F5',
-                nodeSubheading: '#26C6DA',
-                nodeFileStroke: '#4CAF50',
-                nodeHeadingStroke: '#2196F3',
-                nodeSubheadingStroke: '#00BCD4',
-                link: '#666',
-                linkHighlight: '#aaa',
-                text: '#fff',
-                textBg: 'rgba(30, 30, 30, 0.9)'
+                background: '#05060c',
+                nodeFile: '#4338ca',
+                nodeHeading: '#1d4ed8',
+                nodeSubheading: '#0f172a',
+                nodeFileStroke: '#c084fc',
+                nodeHeadingStroke: '#60a5fa',
+                nodeSubheadingStroke: '#38bdf8',
+                link: '#94a3b8',
+                linkHighlight: '#facc15',
+                text: '#e2e8f0',
+                textBg: 'rgba(8,11,18,0.92)'
             }
         };
         
@@ -77,12 +77,14 @@ class UnifiedNetworkVisualization {
         this.nodeElements = null;
         this.linkElements = null;
         this.labelElements = null;
+        this.backdrop = null;
         this.controlsElement = null;
         this.statElements = null;
         this.pendingFocus = null;
         this.previousSelectedNodeId = null;
         this.currentTransform = null;
         this.userAdjustedZoom = false;
+        this.orientationPair = null;
     }
 
     async initialize(container, config = {}) {
@@ -94,6 +96,12 @@ class UnifiedNetworkVisualization {
         }
         this.currentTransform = null;
         this.userAdjustedZoom = false;
+
+        this.injectVisualizationStyles();
+
+        if (config?.visualizationOptions && typeof config.visualizationOptions === 'object') {
+            Object.assign(this.options, config.visualizationOptions);
+        }
 
         // Clear container
         container.innerHTML = '';
@@ -114,11 +122,9 @@ class UnifiedNetworkVisualization {
 
         // Create SVG canvas
         this.createSVG(vizDiv);
+        this.updateTheme();
 
         // Load and render data
-        if (config?.visualizationOptions && typeof config.visualizationOptions === 'object') {
-            Object.assign(this.options, config.visualizationOptions);
-        }
         await this.refresh();
 
         if (this.instanceOptions.enableSelection && this.selectedNodeId) {
@@ -299,7 +305,18 @@ class UnifiedNetworkVisualization {
             .attr('width', width)
             .attr('height', height)
             .style('background', this.getCurrentTheme().background);
-        
+
+        this.backdrop = this.svg.insert('rect', ':first-child')
+            .attr('class', 'network-backdrop')
+            .attr('x', 0)
+            .attr('y', 0)
+            .attr('width', width)
+            .attr('height', height);
+        const theme = this.getCurrentTheme();
+        if (this.backdrop && theme) {
+            this.backdrop.attr('fill', theme.background);
+        }
+
         // Create groups for different elements
         this.g = this.svg.append('g');
         this.linksGroup = this.g.append('g').attr('class', 'links');
@@ -345,11 +362,14 @@ class UnifiedNetworkVisualization {
     }
 
     updateTheme() {
-        const theme = this.getCurrentTheme();
+            const theme = this.getCurrentTheme();
         
         // Update background
         if (this.svg) {
             this.svg.style('background', theme.background);
+        }
+        if (this.backdrop) {
+            this.backdrop.attr('fill', theme.background);
         }
         
         // Update controls panel
@@ -364,6 +384,8 @@ class UnifiedNetworkVisualization {
         
         // Load data
         await this.loadData();
+
+        this.assignNodeLayout();
         
         // Create force simulation
         this.createSimulation();
@@ -537,22 +559,90 @@ class UnifiedNetworkVisualization {
             .force('link', d3.forceLink(this.links)
                 .id(d => d.id)
                 .distance(d => {
-                    // Different distances for different link types
-                    if (d.type === 'contains') return 50;
-                    if (d.type === 'hierarchy') return 30;
-                    return 80;
+                    if (d.type === 'contains') return 90;
+                    if (d.type === 'hierarchy') return 70;
+                    return 160;
                 })
-                .strength(this.options.linkStrength))
+                .strength(Math.min(0.8, this.options.linkStrength + 0.2)))
             .force('charge', d3.forceManyBody()
                 .strength(d => {
-                    // Different charge for different node types
-                    if (d.type === 'file') return -300;
-                    if (d.type === 'heading') return -200;
-                    return -100;
+                    if (d.type === 'file') return -320;
+                    if (d.type === 'heading') return -240;
+                    return -200;
                 }))
             .force('center', d3.forceCenter(this.width / 2, this.height / 2))
             .force('collision', d3.forceCollide()
-                .radius(d => this.getNodeRadius(d) + 5));
+                .radius(d => this.getNodeRadius(d) + 14)
+                .strength(0.95))
+            .force('x', d3.forceX(d => d.targetX ?? this.width / 2).strength(0.12))
+            .force('y', d3.forceY(d => d.targetY ?? this.height / 2).strength(0.12));
+    }
+
+    assignNodeLayout() {
+        if (!Array.isArray(this.nodes) || !this.nodes.length) return;
+        const width = this.width || (this.container?.clientWidth ?? 960);
+        const height = this.height || (this.container?.clientHeight ?? 720);
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const ringRadius = Math.min(width, height) * 0.6;
+
+        const byType = {
+            file: [],
+            heading: [],
+            subheading: [],
+            other: []
+        };
+
+        const sortByLabel = (list) => list.sort((a, b) => {
+            const labelA = (a.displayName || a.name || a.id || '').toLowerCase();
+            const labelB = (b.displayName || b.name || b.id || '').toLowerCase();
+            return labelA.localeCompare(labelB);
+        });
+
+        this.nodes.forEach(node => {
+            if (node.type === 'file') {
+                byType.file.push(node);
+            } else if (node.type === 'heading') {
+                byType.heading.push(node);
+            } else if (node.type === 'subheading') {
+                byType.subheading.push(node);
+            } else {
+                byType.other.push(node);
+            }
+            node.displayName = this.truncateLabel(node.name);
+        });
+
+        sortByLabel(byType.file);
+        sortByLabel(byType.heading);
+        sortByLabel(byType.subheading);
+        sortByLabel(byType.other);
+
+        const positionRing = (nodes, radius, options = {}) => {
+            if (!nodes.length) return;
+            const angleOffset = typeof options.phase === 'number' ? options.phase : -Math.PI / 2;
+            const step = (Math.PI * 2) / nodes.length;
+            nodes.forEach((node, index) => {
+                const angle = angleOffset + index * step;
+                const targetX = centerX + Math.cos(angle) * radius;
+                const targetY = centerY + Math.sin(angle) * radius;
+                node.targetX = targetX;
+                node.targetY = targetY;
+                node.x = node.targetX;
+                node.y = node.targetY;
+            });
+        };
+
+        positionRing(byType.file, ringRadius, { phase: -Math.PI / 2 });
+        positionRing(byType.heading, ringRadius * 0.72, { phase: -Math.PI / 2 + (byType.heading.length ? (Math.PI / byType.heading.length) : 0) });
+        positionRing(byType.subheading, ringRadius * 0.48, { phase: -Math.PI / 2 + (byType.subheading.length ? (Math.PI / byType.subheading.length) / 2 : 0) });
+        positionRing(byType.other, ringRadius * 0.9, { phase: -Math.PI / 2 + Math.PI / 4 });
+    }
+
+    truncateLabel(value, max = 16) {
+        if (!value) return '';
+        const trimmed = value.trim();
+        if (trimmed.length <= max) return trimmed;
+        return `${trimmed.slice(0, max - 1)}…`;
     }
 
     getNodeRadius(d) {
@@ -587,19 +677,19 @@ class UnifiedNetworkVisualization {
             .append('line')
             .attr('class', d => `network-link ${d.type || 'link'}`)
             .attr('stroke', d => {
-                if (d.type === 'contains') return theme.link;
-                if (d.type === 'hierarchy') return theme.link;
-                return theme.link;
+                if (d.type === 'contains') return '#4f46e5';
+                if (d.type === 'hierarchy') return '#7c3aed';
+                return '#94a3b8';
             })
             .attr('stroke-opacity', d => {
-                if (d.type === 'contains') return 0.3;
-                if (d.type === 'hierarchy') return 0.2;
-                return 0.6;
+                if (d.type === 'contains') return 0.28;
+                if (d.type === 'hierarchy') return 0.18;
+                return 0.5;
             })
             .attr('stroke-width', d => {
-                if (d.type === 'contains') return 1;
-                if (d.type === 'hierarchy') return 1;
-                return 2;
+                if (d.type === 'contains') return 1.4;
+                if (d.type === 'hierarchy') return 1.2;
+                return 2.2;
             });
 
         // Draw nodes
@@ -607,23 +697,25 @@ class UnifiedNetworkVisualization {
             .data(this.nodes)
             .enter()
             .append('circle')
-            .attr('class', d => `network-node ${d.type || 'file'}`)
+            .attr('class', d => `network-node library-node ${d.type || 'file'}`)
             .attr('r', d => this.getNodeRadius(d))
             .attr('fill', d => {
-                if (d.type === 'file') return theme.nodeFile;
-                if (d.type === 'heading') return theme.nodeHeading;
-                if (d.type === 'subheading') return theme.nodeSubheading;
-                return theme.nodeFile;
+                if (d.type === 'file') return '#f59e0b';
+                if (d.type === 'heading') return '#0ea5e9';
+                if (d.type === 'subheading') return '#7c3aed';
+                return '#475569';
             })
             .attr('stroke', d => {
-                if (d.type === 'file') return theme.nodeFileStroke;
-                if (d.type === 'heading') return theme.nodeHeadingStroke;
-                if (d.type === 'subheading') return theme.nodeSubheadingStroke;
-                return theme.nodeFileStroke;
+                if (d.type === 'file') return '#fbbf24';
+                if (d.type === 'heading') return '#38bdf8';
+                if (d.type === 'subheading') return '#c4b5fd';
+                return '#94a3b8';
             })
-            .attr('stroke-width', 2)
+            .attr('stroke-width', 2.2)
             .style('cursor', 'pointer')
             .call(this.drag());
+
+        nodes.append('title').text(d => d.name);
 
         this.nodeElements = nodes;
         this.linkElements = links;
@@ -635,7 +727,7 @@ class UnifiedNetworkVisualization {
                 .enter()
                 .append('text')
                 .attr('class', d => `network-label ${d.type || 'file'}`)
-                .text(d => d.name)
+                .text(d => d.displayName || this.truncateLabel(d.name))
                 .attr('font-size', d => {
                     if (d.type === 'file') return '11px';
                     if (d.type === 'heading') return '10px';
@@ -657,7 +749,7 @@ class UnifiedNetworkVisualization {
             d3.select(this)
                 .transition()
                 .duration(200)
-                .attr('r', self.getNodeRadius(d) * 1.5);
+                .attr('r', self.getNodeRadius(d) * 1.18);
         }).on('mouseleave', function(event, d) {
             d3.select(this)
                 .transition()
@@ -750,13 +842,12 @@ class UnifiedNetworkVisualization {
         if (this.options.showLabels) {
             // Re-render labels
             this.labelsGroup.selectAll('*').remove();
-            const theme = this.getCurrentTheme();
             
             const labels = this.labelsGroup.selectAll('text')
                 .data(this.nodes)
                 .enter().append('text')
                 .attr('class', d => `network-label ${d.type || 'file'}`)
-                .text(d => d.name)
+                .text(d => d.displayName || this.truncateLabel(d.name))
                 .attr('font-size', d => {
                     if (d.type === 'file') return '11px';
                     if (d.type === 'heading') return '10px';
@@ -837,16 +928,16 @@ class UnifiedNetworkVisualization {
                     .duration(220)
                     .attr('r', d => {
                         const base = baseRadius(d);
-                        if (d.id === selectedId) return base * 1.35;
-                        if (previousId && d.id === previousId) return base * 1.18;
+                        if (d.id === selectedId) return base * 1.28;
+                        if (previousId && d.id === previousId) return base * 1.14;
                         return base;
                     });
             } else {
                 nodeSelection
                     .attr('r', d => {
                         const base = baseRadius(d);
-                        if (d.id === selectedId) return base * 1.35;
-                        if (previousId && d.id === previousId) return base * 1.18;
+                        if (d.id === selectedId) return base * 1.28;
+                        if (previousId && d.id === previousId) return base * 1.14;
                         return base;
                     });
             }
@@ -870,14 +961,15 @@ class UnifiedNetworkVisualization {
                 });
 
             const computeBaseWidth = (d) => {
-                if (d.type === 'contains' || d.type === 'hierarchy') return 1;
-                return 2;
+                if (d.type === 'contains') return 1.4;
+                if (d.type === 'hierarchy') return 1.2;
+                return 2.2;
             };
 
             const computeBaseOpacity = (d) => {
-                if (d.type === 'contains') return 0.3;
-                if (d.type === 'hierarchy') return 0.2;
-                return 0.6;
+                if (d.type === 'contains') return 0.28;
+                if (d.type === 'hierarchy') return 0.18;
+                return 0.5;
             };
 
             const applyLinkAttributes = (selection) => selection
@@ -921,6 +1013,45 @@ class UnifiedNetworkVisualization {
             this.labelElements
                 .classed('selected', d => d.id === selectedId)
                 .classed('previous', d => previousId && d.id === previousId);
+        }
+
+        this.updateOrientationHighlight();
+    }
+
+    setOrientationHighlight(sourceId, targetId) {
+        if (!sourceId || !targetId) {
+            this.orientationPair = null;
+        } else {
+            this.orientationPair = { source: sourceId, target: targetId };
+        }
+        this.updateOrientationHighlight();
+    }
+
+    updateOrientationHighlight() {
+        const pair = this.orientationPair;
+        const sourceId = pair?.source || null;
+        const targetId = pair?.target || null;
+
+        if (this.linkElements) {
+            this.linkElements
+                .classed('orientation', d => {
+                    if (!pair) return false;
+                    const linkSource = typeof d.source === 'object' ? d.source.id : d.source;
+                    const linkTarget = typeof d.target === 'object' ? d.target.id : d.target;
+                    if (!linkSource || !linkTarget) return false;
+                    return (linkSource === sourceId && linkTarget === targetId) ||
+                           (linkSource === targetId && linkTarget === sourceId);
+                });
+        }
+
+        if (this.nodeElements) {
+            this.nodeElements
+                .classed('orientation-forward', d => Boolean(targetId && d.id === targetId));
+        }
+
+        if (this.labelElements) {
+            this.labelElements
+                .classed('orientation-forward', d => Boolean(targetId && d.id === targetId));
         }
     }
 
@@ -991,7 +1122,7 @@ class UnifiedNetworkVisualization {
             if (!Number.isFinite(transform.k)) {
                 return;
             }
-            const duration = options.immediate ? 0 : 420;
+            const duration = 0;
             this.svg.transition('focus-on-node')
                 .duration(duration)
                 .call(this.zoomBehavior.transform, transform);
@@ -1108,6 +1239,59 @@ class UnifiedNetworkVisualization {
         }
     }
 
+    injectVisualizationStyles() {
+        if (document.getElementById('library-network-visual-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'library-network-visual-styles';
+        style.textContent = `
+            .network-node.library-node.file {
+                filter: drop-shadow(0 0 6px rgba(245,158,11,0.22));
+            }
+            .network-node.library-node.heading {
+                filter: drop-shadow(0 0 5px rgba(34,211,238,0.24));
+            }
+            .network-node.library-node.subheading {
+                filter: drop-shadow(0 0 4px rgba(165,180,252,0.25));
+            }
+            .network-node.library-node.selected {
+                stroke-width: 3 !important;
+                filter: drop-shadow(0 0 10px rgba(250,204,21,0.45));
+            }
+            .network-label {
+                font-family: 'IBM Plex Mono','Fira Code','Courier New',monospace;
+                letter-spacing: 0.04em;
+                text-shadow: 0 0 6px rgba(6,10,19,0.85);
+                paint-order: stroke fill;
+                stroke: rgba(2,6,14,0.7);
+                stroke-width: 0.6px;
+            }
+            .network-link.active {
+                stroke: #facc15 !important;
+                stroke-opacity: 0.85 !important;
+            }
+            .network-link.trail {
+                stroke: #fde68a !important;
+                stroke-opacity: 0.95 !important;
+            }
+            .network-link.orientation {
+                stroke: #0ea5e9 !important;
+                stroke-width: 3 !important;
+                stroke-opacity: 0.98 !important;
+            }
+            .network-node.orientation-forward {
+                stroke: #0ea5e9 !important;
+                stroke-width: 3.4 !important;
+                filter: drop-shadow(0 0 10px rgba(14,165,233,0.55));
+            }
+            .network-label.orientation-forward {
+                fill: #bae6fd !important;
+                font-weight: 600;
+                text-shadow: 0 0 10px rgba(14,165,233,0.6);
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     async exportVisualization() {
         if (!this.svg) {
             console.error('[UnifiedNetwork] No SVG to export');
@@ -1147,11 +1331,13 @@ class UnifiedNetworkVisualization {
         this.nodeElements = null;
         this.linkElements = null;
         this.labelElements = null;
+        this.backdrop = null;
         this.controlsElement = null;
         this.statElements = null;
         this.container = null;
         this.pendingFocus = null;
         this.previousSelectedNodeId = null;
+        this.orientationPair = null;
     }
 }
 
