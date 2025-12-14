@@ -16,24 +16,50 @@ function register(deps) {
     saveSettings
   } = deps;
 
+  const isPlainObject = (value) =>
+    Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+  const deepMergeSettings = (target, source) => {
+    if (!isPlainObject(target) || !isPlainObject(source)) return source;
+    const result = { ...target };
+    for (const [key, value] of Object.entries(source)) {
+      if (isPlainObject(value) && isPlainObject(target[key])) {
+        result[key] = deepMergeSettings(target[key], value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  };
+
+  const replaceSettingsInPlace = (nextSettings) => {
+    const merged = deepMergeSettings(appSettings, nextSettings);
+
+    // Mutate in place so any other references remain valid
+    Object.keys(appSettings).forEach((key) => {
+      delete appSettings[key];
+    });
+    Object.assign(appSettings, merged);
+  };
+
   // Settings utility functions
   function getSettingsCategory(category) {
     return appSettings[category] || defaultSettings[category] || {};
   }
 
   function updateSettingsCategory(category, updates) {
-    if (!appSettings[category]) {
+    // Allow setting primitives at the top-level (e.g., theme: 'dark')
+    if (!isPlainObject(updates)) {
+      appSettings[category] = updates;
+      saveSettings();
+      return appSettings[category];
+    }
+
+    if (!isPlainObject(appSettings[category])) {
       appSettings[category] = {};
     }
-    
-    // Deep merge the updates
-    Object.keys(updates).forEach(key => {
-      if (typeof updates[key] === 'object' && !Array.isArray(updates[key]) && updates[key] !== null) {
-        appSettings[category][key] = { ...appSettings[category][key], ...updates[key] };
-      } else {
-        appSettings[category][key] = updates[key];
-      }
-    });
+
+    appSettings[category] = deepMergeSettings(appSettings[category], updates);
     
     saveSettings();
     
@@ -115,10 +141,14 @@ function register(deps) {
   }
 
   function updateSettings(category, newSettings) {
-    if (category && appSettings[category]) {
-      appSettings[category] = { ...appSettings[category], ...newSettings };
-    } else {
-      appSettings = { ...appSettings, ...newSettings };
+    if (typeof category === 'string') {
+      updateSettingsCategory(category, newSettings);
+      return;
+    }
+
+    if (isPlainObject(category)) {
+      replaceSettingsInPlace(category);
+      saveSettings();
     }
     saveSettings();
     
@@ -160,14 +190,17 @@ function register(deps) {
   ipcMain.handle('set-settings', (event, category, newSettings) => {
     try {
       if (typeof category === 'string') {
-        updateSettings(category, newSettings);
-      } else {
-        // If category is actually the settings object (legacy call)
-        // Use proper deep merge by updating each category individually
-        Object.keys(category).forEach(key => {
-          updateSettingsCategory(key, category[key]);
-        });
+        updateSettingsCategory(category, newSettings);
+        return { success: true };
       }
+
+      if (isPlainObject(category)) {
+        // Legacy call: category is the full settings object
+        replaceSettingsInPlace(category);
+        saveSettings();
+        return { success: true };
+      }
+
       return { success: true };
     } catch (error) {
       console.error('[SettingsHandlers] Error in set-settings:', error);

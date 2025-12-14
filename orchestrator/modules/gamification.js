@@ -2213,6 +2213,11 @@ class WritingGamification {
                             <span class="ledger-label">Next Chamber</span>
                             <span class="ledger-value" data-ledger="milestone">${Math.max((this.resourceLedger?.nextArchitectMilestone || 5000) - (this.resourceLedger?.lexiconShards || 0), 0).toLocaleString()} shards</span>
                         </div>
+                        <div class="ledger-explainer">
+                            <p><strong>Lexicon shards</strong> are minted every ~${this.liveProgress?.shardInterval || 30} written words (+${this.liveProgress?.shardsPerInterval || 12} each harvest). Filling the shard bar forges architect tokens.</p>
+                            <p><strong>Catalogue sigils</strong> reflect planning rituals—focus sessions, Kanban wins, AI-assisted flows—and serve as your running craft score.</p>
+                            <p><strong>Architect tokens</strong> unlock ledger rooms and chambers. They are awarded automatically whenever your shard total crosses the milestone above.</p>
+                        </div>
                         <div class="ledger-room-list" data-ledger="rooms">
                             ${this.renderLibraryRooms()}
                         </div>

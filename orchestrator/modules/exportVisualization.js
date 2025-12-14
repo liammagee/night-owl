@@ -757,35 +757,9 @@ window.addExportButton = function(containerId, targetElementId, buttonText = 'ðŸ
     }
     
     const button = document.createElement('button');
-    button.className = 'export-png-btn btn';
+    button.className = 'export-png-btn btn btn-sm btn-primary';
     button.innerHTML = buttonText;
     button.title = 'Export visualization as PNG';
-    
-    // Match the style of other buttons in the control bar
-    button.style.cssText = `
-        padding: 6px 12px;
-        background: #f8f9fa;
-        color: #333;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 500;
-        transition: all 0.2s;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    `;
-    
-    button.addEventListener('mouseenter', () => {
-        button.style.background = '#e9ecef';
-        button.style.borderColor = '#adb5bd';
-    });
-    
-    button.addEventListener('mouseleave', () => {
-        button.style.background = '#f8f9fa';
-        button.style.borderColor = '#dee2e6';
-    });
     
     button.addEventListener('click', () => {
         const modeName = targetElementId.replace('-content', '').replace('-visualization', '').replace('-canvas', '');

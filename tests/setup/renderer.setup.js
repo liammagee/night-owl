@@ -1,5 +1,10 @@
 // Setup for renderer process tests
 
+// Polyfill missing Web APIs in jsdom
+const { TextEncoder, TextDecoder } = require('util');
+if (!global.TextEncoder) global.TextEncoder = TextEncoder;
+if (!global.TextDecoder) global.TextDecoder = TextDecoder;
+
 // Mock Electron's renderer APIs
 global.electronAPI = {
   invoke: jest.fn(),

@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="css/interactions.css">
     <link rel="stylesheet" href="css/gamification.css">
     <link rel="stylesheet" href="css/latex-style.css">
+    <link rel="stylesheet" href="css/techne-theme.css">
     
     <!-- Scripts -->
     <script id="marked-script" src="lib/marked.min.js"></script>
@@ -172,12 +173,12 @@
         }
         
         .mode-btn:hover {
-            background: #f0f0f0 !important;
+            background: var(--surface-hover, #f0f0f0) !important;
         }
         
         .mode-btn.active {
-            background: #16a34a !important;
-            color: white !important;
+            background: var(--primary, #16a34a) !important;
+            color: var(--text-on-primary, #ffffff) !important;
         }
         
         /* Network visualization styles */
@@ -202,13 +203,13 @@
         
         /* Fix mode button highlighting */
         .mode-btn.active {
-            background: #16a34a !important;
-            color: white !important;
+            background: var(--primary, #16a34a) !important;
+            color: var(--text-on-primary, #ffffff) !important;
         }
         
         .mode-btn:not(.active) {
             background: transparent !important;
-            color: #666 !important;
+            color: var(--text-muted, #666) !important;
         }
         
         /* Add margins to sidebar headers */
@@ -542,7 +543,7 @@
 
         .find-replace-input:focus {
             outline: none;
-            border-color: #16a34a;
+            border-color: var(--border-accent, #16a34a);
         }
 
         .find-replace-options {
@@ -566,16 +567,16 @@
 
         .find-replace-btn {
             padding: 4px 8px;
-            border: 1px solid #ddd;
-            background: #f8f9fa;
+            border: 1px solid var(--border, #ddd);
+            background: var(--surface-variant, #f8f9fa);
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
-            color: #333;
+            color: var(--text, #333);
         }
 
         .find-replace-btn:hover {
-            background: #e9ecef;
+            background: var(--surface-hover, #e9ecef);
         }
 
         .find-replace-btn:disabled {
@@ -584,23 +585,24 @@
         }
 
         body.dark-mode .find-replace-btn {
-            background: #404040;
-            border-color: #555;
-            color: #e0e0e0;
+            background: var(--surface-hover, #404040);
+            border-color: var(--border, #555);
+            color: var(--text, #e0e0e0);
         }
 
         body.dark-mode .find-replace-btn:hover:not(:disabled) {
-            background: #4a4a4a;
+            background: var(--surface-active, #4a4a4a);
         }
 
         .find-replace-primary {
-            background: #16a34a;
-            color: white;
-            border-color: #16a34a;
+            background: var(--primary, #16a34a);
+            color: var(--text-on-primary, #ffffff);
+            border-color: var(--primary, #16a34a);
         }
 
         .find-replace-primary:hover:not(:disabled) {
-            background: #005a9e;
+            background: var(--primary-hover, #005a9e);
+            border-color: var(--primary-hover, #005a9e);
         }
 
         .find-replace-stats {
@@ -659,7 +661,7 @@
         }
 
         .folder-name-dialog {
-            background: #fefdfb;
+            background: var(--surface, #fefdfb);
             border-radius: 8px;
             padding: 24px;
             min-width: 300px;
@@ -701,7 +703,7 @@
         .folder-name-input {
             width: 100%;
             padding: 8px 12px;
-            border: 2px solid #ddd;
+            border: 2px solid var(--border, #ddd);
             border-radius: 4px;
             font-size: 14px;
             box-sizing: border-box;
@@ -715,7 +717,7 @@
 
         .folder-name-input:focus {
             outline: none;
-            border-color: #16a34a;
+            border-color: var(--border-accent, #16a34a);
         }
 
         .folder-name-actions {
@@ -726,16 +728,16 @@
 
         .folder-name-btn {
             padding: 8px 16px;
-            border: 1px solid #ddd;
-            background: #f8f9fa;
+            border: 1px solid var(--border, #ddd);
+            background: var(--surface-variant, #f8f9fa);
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
-            color: #333;
+            color: var(--text, #333);
         }
 
         .folder-name-btn:hover {
-            background: #e9ecef;
+            background: var(--surface-hover, #e9ecef);
         }
 
         body.dark-mode .folder-name-btn {
@@ -749,17 +751,18 @@
         }
 
         .folder-name-btn.primary {
-            background: #16a34a;
-            color: white;
-            border-color: #16a34a;
+            background: var(--primary, #16a34a);
+            color: var(--text-on-primary, #ffffff);
+            border-color: var(--primary, #16a34a);
         }
 
         .folder-name-btn.primary:hover {
-            background: #005a9e;
+            background: var(--primary-hover, #005a9e);
+            border-color: var(--primary-hover, #005a9e);
         }
 
         .folder-name-error {
-            color: #dc3545;
+            color: var(--error, #dc3545);
             font-size: 12px;
             margin-top: 4px;
             display: none;
@@ -1218,8 +1221,8 @@
         }
 
         body.dark-mode .citation-quick-capture textarea:focus {
-            border-color: #38bdf8;
-            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+            border-color: var(--border-accent, #38bdf8);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--border-accent, #38bdf8) 25%, transparent);
         }
 
         body.dark-mode .citation-quick-status {
@@ -1231,8 +1234,8 @@
         }
 
         body.dark-mode .citation-quick-button {
-            border-color: #38bdf8;
-            background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+            border-color: var(--primary, #38bdf8);
+            background: linear-gradient(135deg, var(--primary, #1d4ed8) 0%, var(--primary-hover, #1e3a8a) 100%);
         }
 
         body.dark-mode .citation-quick-hints span {
@@ -1352,16 +1355,16 @@
             padding: 4px 10px;
             font-size: 11px;
             border-radius: 6px;
-            border: 1px solid #2563eb;
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-            color: #fff;
+            border: 1px solid var(--primary, #2563eb);
+            background: linear-gradient(135deg, var(--primary, #2563eb) 0%, var(--primary-hover, #1d4ed8) 100%);
+            color: var(--text-on-primary, #fff);
             cursor: pointer;
             transition: transform 0.1s ease, box-shadow 0.1s ease;
         }
 
         .citation-quick-button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 6px 12px rgba(37, 99, 235, 0.2);
+            box-shadow: var(--shadow-md, 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1));
         }
 
         .citation-quick-button:active {
@@ -1377,7 +1380,7 @@
 
         .citation-quick-info {
             font-size: 12px;
-            color: #2563eb;
+            color: var(--primary, #2563eb);
             cursor: help;
             user-select: none;
         }
@@ -1658,6 +1661,14 @@
     </style>
 </head>
 <body>
+    <!-- Techne theme background layers (enabled via body.techne-theme) -->
+    <div id="techne-background" aria-hidden="true">
+        <div class="techne-layer techne-noise"></div>
+        <div class="techne-layer techne-grid-primary"></div>
+        <div class="techne-layer techne-grid-secondary"></div>
+        <div class="techne-layer techne-grid-micro"></div>
+    </div>
+
     <!-- Command Palette Modal (VS Code style Cmd+P) -->
     <div id="command-palette-overlay" class="command-palette-overlay" style="display: none;">
         <div id="command-palette" class="command-palette">
@@ -1666,6 +1677,22 @@
             </div>
             <div id="command-palette-results" class="command-palette-results">
                 <div class="command-palette-loading">Loading files...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Help Modal -->
+    <div id="keyboard-shortcuts-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog" style="width: 700px; max-height: 85vh;">
+            <div class="modal-header">
+                <h3>Keyboard Shortcuts</h3>
+                <button class="modal-close" onclick="hideKeyboardShortcuts()">×</button>
+            </div>
+            <div class="modal-body" id="keyboard-shortcuts-content" style="overflow-y: auto; max-height: calc(85vh - 100px);">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="hideKeyboardShortcuts()" class="btn">Close</button>
             </div>
         </div>
     </div>
@@ -1984,7 +2011,7 @@
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <input type="text" id="global-replace-input" placeholder="Replace with..." style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 3px;">
-                            <button id="global-replace-execute" class="btn" title="Replace All Matches" style="background: #dc3545; color: white;">Replace All</button>
+                            <button id="global-replace-execute" class="btn btn-error" title="Replace All Matches">Replace All</button>
                             <button id="global-replace-preview" class="btn" title="Preview Replacements">Preview</button>
                         </div>
                         <div class="search-options" style="display: flex; gap: 12px; font-size: 12px;">
@@ -2013,12 +2040,12 @@
                 </div>
                 <div id="statistics-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
                     <!-- Statistics Panel -->
-                    <div class="statistics-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #007bff;">
+                    <div class="statistics-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--primary, #007bff);">
                         <div style="display: flex; align-items: center; gap: 12px;">
-                            <h3 style="margin: 0; color: #007bff; font-size: 16px;">📊 Statistics</h3>
-                            <div style="display: flex; gap: 4px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; padding: 2px;">
-                                <button id="stats-scope-document" class="stats-scope-btn active" style="padding: 4px 8px; border: none; background: #007bff; color: white; border-radius: 4px; cursor: pointer; font-size: 11px;">Document</button>
-                                <button id="stats-scope-project" class="stats-scope-btn" style="padding: 4px 8px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 11px;">Project</button>
+                            <h3 style="margin: 0; color: var(--primary, #007bff); font-size: 16px;">📊 Statistics</h3>
+                            <div style="display: flex; gap: 4px; background: var(--surface-variant, #f8f9fa); border: 1px solid var(--border, #ddd); border-radius: 6px; padding: 2px;">
+                                <button id="stats-scope-document" class="btn btn-sm btn-ghost stats-scope-btn active">Document</button>
+                                <button id="stats-scope-project" class="btn btn-sm btn-ghost stats-scope-btn">Project</button>
                             </div>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
@@ -2034,17 +2061,17 @@
                 </div>
                 <div id="citations-pane" class="content-pane citations-panel" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
                     <!-- Citations Panel -->
-                    <div class="citations-header" style="display: flex; flex-direction: column; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #007bff;">
+                    <div class="citations-header" style="display: flex; flex-direction: column; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--primary, #007bff);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <h3 style="margin: 0; color: #007bff; font-size: 16px;">📚 Citations</h3>
+                                <h3 style="margin: 0; color: var(--primary, #007bff); font-size: 16px;">📚 Citations</h3>
                                 <div id="citations-stats" style="font-size: 11px; color: #666; padding: 2px 6px; background: #f8f9fa; border-radius: 4px;">
                                     <!-- Citation count will be shown here -->
                                 </div>
                             </div>
                             <div class="citation-btn-container">
                             <!-- Primary Actions -->
-                            <button id="add-citation-btn" class="btn citation-btn" style="background: #28a745; color: white;" title="Add New Citation">
+                            <button id="add-citation-btn" class="btn btn-primary citation-btn" title="Add New Citation">
                                 <span class="btn-icon">➕</span><span class="btn-label">Add</span>
                             </button>
                             <button id="import-citation-btn" class="btn citation-btn" title="Import Citation">
@@ -2058,14 +2085,14 @@
                             <button id="select-all-citations-btn" class="btn citation-btn" title="Select/Deselect All">
                                 <span class="btn-icon">☑️</span><span class="btn-label">Select All</span>
                             </button>
-                            <button id="delete-selected-citations-btn" class="btn citation-btn" style="background: #dc3545; color: white;" title="Delete Selected Citations">
+                            <button id="delete-selected-citations-btn" class="btn btn-error citation-btn" title="Delete Selected Citations">
                                 <span class="btn-icon">🗑️</span><span class="btn-label">Delete Selected</span>
                             </button>
                             <!-- Zotero Actions -->
-                            <button id="export-to-zotero-btn" class="btn citation-btn" style="background: #dc3545; color: white;" title="Export Selected to Zotero">
+                            <button id="export-to-zotero-btn" class="btn btn-primary citation-btn" title="Export Selected to Zotero">
                                 <span class="btn-icon">📚</span><span class="btn-label">To Zotero</span>
                             </button>
-                            <button id="live-sync-zotero-btn" class="btn citation-btn" style="background: #17a2b8; color: white;" title="Live Sync with Zotero">
+                            <button id="live-sync-zotero-btn" class="btn btn-primary citation-btn" title="Live Sync with Zotero">
                                 <span class="btn-icon">🔄</span><span class="btn-label">Live Sync</span>
                             </button>
                             <div class="citation-separator"></div>
@@ -2098,7 +2125,7 @@
                             <select id="quick-collection-selector" style="font-size: 11px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 3px; background: white; min-width: 120px; display: none;">
                                 <option value="">Entire Library</option>
                             </select>
-                            <button id="refresh-collections-btn" class="btn" style="font-size: 11px; padding: 4px 6px; border: 1px solid #ddd; background: white; display: none;" title="Refresh Collections">
+                            <button id="refresh-collections-btn" class="btn" style="font-size: 11px; padding: 4px 6px; display: none;" title="Refresh Collections">
                                 🔄
                             </button>
                         </div>
@@ -2132,7 +2159,7 @@
                             </select>
                             
                             <!-- Advanced SQL Toggle -->
-                            <button id="citations-advanced-toggle" title="Toggle Advanced SQL Query" style="padding: 2px 6px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; background: #f5f5f5; cursor: pointer;">
+                            <button id="citations-advanced-toggle" class="btn btn-sm btn-ghost" title="Toggle Advanced SQL Query">
                                 SQL
                             </button>
                             
@@ -2159,12 +2186,12 @@
                     <div id="citations-sql-panel" style="display: none; margin: 6px 0; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
                         <div style="margin-bottom: 4px; font-size: 11px; color: #666; display: flex; justify-content: space-between; align-items: center;">
                             <span>🔍 Advanced SQL Query (SELECT only)</span>
-                            <button id="citations-sql-examples" style="padding: 1px 4px; font-size: 10px; border: 1px solid #ccc; background: #fff; border-radius: 2px; cursor: pointer;">Examples</button>
+                            <button id="citations-sql-examples" class="btn btn-sm btn-ghost">Examples</button>
                         </div>
                         <div style="display: flex; gap: 4px;">
                             <textarea id="citations-sql-input" placeholder="SELECT * FROM citations WHERE title LIKE '%search%'" 
                                       style="flex: 1; padding: 4px; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; font-size: 11px; min-height: 40px; resize: vertical;"></textarea>
-                            <button id="citations-sql-execute" style="padding: 4px 8px; font-size: 11px; border: 1px solid #007acc; background: #007acc; color: white; border-radius: 3px; cursor: pointer; white-space: nowrap;">Execute</button>
+                            <button id="citations-sql-execute" class="btn btn-sm btn-primary" style="white-space: nowrap;">Execute</button>
                         </div>
                     </div>
                     
@@ -2196,10 +2223,10 @@
             <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; padding: 0 16px;">
                 <!-- Navigation Controls -->
                 <div id="navigation-controls" style="display: flex; align-items: center; gap: 4px;">
-                    <button id="nav-back-btn" class="nav-btn" title="Go Back (Alt+Left)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: #fefdfb; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                    <button id="nav-back-btn" class="btn btn-sm nav-btn" title="Go Back (Alt+Left)" disabled>
                         ← Back
                     </button>
-                    <button id="nav-forward-btn" class="nav-btn" title="Go Forward (Alt+Right)" disabled style="padding: 6px 10px; border: 1px solid #ccc; background: #fefdfb; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                    <button id="nav-forward-btn" class="btn btn-sm nav-btn" title="Go Forward (Alt+Right)" disabled>
                         Forward →
                     </button>
                     <div style="width: 1px; height: 20px; background: #ccc; margin: 0 8px;"></div>
@@ -2210,20 +2237,20 @@
                 
                 <!-- Mode Switcher -->
                 <div style="display: flex; gap: 4px; padding: 4px; background: #fefdfb; border: 1px solid #ddd; border-radius: 6px;">
-                    <button id="editor-mode-btn" class="mode-btn active" style="padding: 6px 16px; border: none; background: #16a34a; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Editor</button>
-                    <button id="presentation-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Presentation</button>
-                    <button id="network-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Network</button>
-                    <button id="library-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Library</button>
-                    <button id="circle-mode-btn" class="mode-btn" style="padding: 6px 16px; border: none; background: transparent; color: #666; border-radius: 4px; cursor: pointer; font-size: 12px;">Circle</button>
+                    <button id="editor-mode-btn" class="mode-btn active">Editor</button>
+                    <button id="presentation-mode-btn" class="mode-btn">Presentation</button>
+                    <button id="network-mode-btn" class="mode-btn">Network</button>
+                    <button id="library-mode-btn" class="mode-btn">Library</button>
+                    <button id="circle-mode-btn" class="mode-btn">Circle</button>
                 </div>
                 
                 <!-- Pane Toggle Controls -->
                 <div style="display: flex; gap: 4px; align-items: center;">
                     <span style="font-size: 11px; color: #666; margin-right: 4px;">Panes:</span>
-                    <button id="toggle-sidebar-btn" class="btn" title="Toggle Files/Structure Pane" style="padding: 4px 8px; font-size: 11px; background: #16a34a; color: white; border-radius: 3px;">📁</button>
-                    <button id="toggle-editor-btn" class="btn" title="Toggle Editor Pane" style="padding: 4px 8px; font-size: 11px; background: #16a34a; color: white; border-radius: 3px;">📝</button>
-                    <button id="toggle-preview-btn" class="btn" title="Toggle Preview Pane" style="padding: 4px 8px; font-size: 11px; background: #16a34a; color: white; border-radius: 3px;">👁</button>
-                    <button id="toggle-gamification-btn" class="btn" title="Toggle Writing Stats Panel" style="padding: 4px 8px; font-size: 11px; background: #f59e0b; color: white; border-radius: 3px;">🎮</button>
+                    <button id="toggle-sidebar-btn" class="btn btn-sm btn-primary pane-visibility-btn" title="Toggle Files/Structure Pane" style="padding: 4px 8px; font-size: 11px;">📁</button>
+                    <button id="toggle-editor-btn" class="btn btn-sm btn-primary pane-visibility-btn" title="Toggle Editor Pane" style="padding: 4px 8px; font-size: 11px;">📝</button>
+                    <button id="toggle-preview-btn" class="btn btn-sm btn-primary pane-visibility-btn" title="Toggle Preview Pane" style="padding: 4px 8px; font-size: 11px;">👁</button>
+                    <button id="toggle-gamification-btn" class="btn btn-sm btn-warning pane-visibility-btn" title="Toggle Writing Stats Panel" style="padding: 4px 8px; font-size: 11px;">🎮</button>
                 </div>
             </div>
 
@@ -2309,7 +2336,10 @@
                         <button id="command-palette-btn" class="toolbar-btn" title="Command Palette (Cmd+Shift+P)">
                             🎯
                         </button>
-                        
+                        <button id="keyboard-shortcuts-btn" class="toolbar-btn" title="Keyboard Shortcuts (?)">
+                            ⌨️
+                        </button>
+
                         <!-- Annotation Controls -->
                         <div class="toolbar-separator"></div>
                         <button id="insert-comment-annotation-btn" class="toolbar-btn" title="Insert Comment Annotation">
@@ -2404,8 +2434,8 @@
                         
                         <div id="speaker-notes-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
                             <!-- Speaker Notes Interface -->
-                            <div class="speaker-notes-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #007bff;">
-                                <h3 style="margin: 0; color: #007bff; font-size: 16px;">📝 Speaker Notes</h3>
+                            <div class="speaker-notes-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--primary, #007bff);">
+                                <h3 style="margin: 0; color: var(--primary, #007bff); font-size: 16px;">📝 Speaker Notes</h3>
                                 <button id="toggle-speaker-notes-in-preview" class="btn" style="padding: 4px 8px; font-size: 11px;" title="Toggle Notes in Preview">Show in Preview</button>
                             </div>
                             
@@ -2498,7 +2528,7 @@
                             <div class="wholepart-controls" style="display: flex; justify-content: center; gap: 6px; padding: 8px 8px; border-top: 1px solid #e0e0e0; flex-wrap: wrap;">
                                 <button id="wholepart-animate" class="btn" style="padding: 4px 8px; font-size: 11px;">▶️ Animate</button>
                                 <button id="wholepart-reset" class="btn" style="padding: 4px 8px; font-size: 11px;">🔄 Reset</button>
-                                <button id="wholepart-export-png" class="btn" style="padding: 4px 8px; font-size: 11px; background: #4CAF50; color: white; border: 1px solid #45a049;">📸 Export</button>
+                                <button id="wholepart-export-png" class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;">📸 Export</button>
                                 <button id="wholepart-zoom-in" class="btn" style="padding: 4px 6px; font-size: 11px;">+</button>
                                 <button id="wholepart-zoom-out" class="btn" style="padding: 4px 6px; font-size: 11px;">-</button>
                             </div>
@@ -2753,11 +2783,14 @@
                             console.log('[Internal Link] Raw linkPath:', linkPath);
                             console.log('[Internal Link] Decoded path:', decodedPath);
 
-                            // If the path doesn't start with /, add the full lectures directory path
+                            // If the path doesn't start with /, add the working directory path
                             if (!decodedPath.startsWith('/') && !decodedPath.startsWith('http')) {
-                                const fullPath = '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures/' + decodedPath;
-                                console.log('[Internal Link] Converting relative to full path:', fullPath);
-                                decodedPath = fullPath;
+                                const workingDir = window.appSettings?.workingDirectory;
+                                if (workingDir) {
+                                    const fullPath = workingDir + '/' + decodedPath;
+                                    console.log('[Internal Link] Converting relative to full path:', fullPath);
+                                    decodedPath = fullPath;
+                                }
                             }
 
                             console.log('[Internal Link] Final path to open:', decodedPath);

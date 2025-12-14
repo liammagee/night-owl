@@ -9,7 +9,11 @@ yarn-error.log
 
 # Build and distribution artifacts
 dist/
-build/
+build/*
+!build/icon.svg
+!build/icon.png
+!build/icon.ico
+!build/icon.icns
 out/
 release/
 *.log

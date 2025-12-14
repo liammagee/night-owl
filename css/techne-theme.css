@@ -1,0 +1,304 @@
+/* Techne Theme (Swiss grid / trash-polka inspired)
+   - Activated by adding `techne-theme` class to <body>
+   - Optional: `techne-accent-orange`, `techne-grid-off`, `techne-noise-off`
+*/
+
+body.techne-theme {
+    /* Core palette */
+    --techne-black: #0a0a0a;
+    --techne-white: #ffffff;
+    --techne-off-white: #fafafa;
+    --techne-red: #E63946;
+    --techne-red-dark: #c1121f;
+    --techne-orange: #ff7a1a;
+    --techne-orange-dark: #d45a00;
+
+    /* Grid */
+    --techne-grid: 60px;
+
+    /* Typography */
+    --font-family-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --font-family-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+    /* Remap design tokens used across orchestrator/style.css */
+    --neutral-0: var(--techne-white);
+    --neutral-50: var(--techne-off-white);
+    --neutral-100: #f3f3f3;
+    --neutral-200: #e5e5e5;
+    --neutral-300: rgba(10, 10, 10, 0.18);
+    --neutral-400: rgba(10, 10, 10, 0.35);
+    --neutral-500: rgba(10, 10, 10, 0.55);
+    --neutral-600: rgba(10, 10, 10, 0.68);
+    --neutral-700: rgba(10, 10, 10, 0.82);
+    --neutral-800: #111111;
+    --neutral-900: var(--techne-black);
+
+    --primary-50: rgba(230, 57, 70, 0.08);
+    --primary-100: rgba(230, 57, 70, 0.14);
+    --primary-500: var(--techne-red);
+    --primary-600: var(--techne-red);
+    --primary-700: var(--techne-red-dark);
+    --primary-900: var(--techne-black);
+
+    --surface: var(--techne-white);
+    --surface-variant: rgba(10, 10, 10, 0.02);
+    --surface-hover: rgba(10, 10, 10, 0.04);
+    --surface-active: rgba(10, 10, 10, 0.06);
+
+    --border: rgba(10, 10, 10, 0.22);
+    --border-strong: rgba(10, 10, 10, 0.42);
+    --border-accent: var(--primary-500);
+
+    --text: var(--techne-black);
+    --text-secondary: rgba(10, 10, 10, 0.68);
+    --text-muted: rgba(10, 10, 10, 0.55);
+    --text-disabled: rgba(10, 10, 10, 0.35);
+    --text-on-primary: var(--techne-white);
+
+    --primary: var(--primary-600);
+    --primary-hover: var(--primary-700);
+    --primary-active: var(--primary-700);
+    --primary-subtle: var(--primary-50);
+
+    /* Legacy compatibility (older CSS files reference these) */
+    --app-bg: var(--techne-white);
+    --bg-color: var(--techne-white);
+    --text-color: var(--techne-black);
+    --accent-color: var(--primary-500);
+    --highlight-bg: var(--primary-50);
+}
+
+body.techne-theme.techne-accent-orange {
+    --primary-50: rgba(255, 122, 26, 0.10);
+    --primary-100: rgba(255, 122, 26, 0.18);
+    --primary-500: var(--techne-orange);
+    --primary-600: var(--techne-orange);
+    --primary-700: var(--techne-orange-dark);
+}
+
+/* Selection + scrollbars */
+body.techne-theme ::selection {
+    background: var(--primary-500);
+    color: var(--techne-white);
+}
+
+body.techne-theme ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+body.techne-theme ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+body.techne-theme ::-webkit-scrollbar-thumb {
+    background: var(--techne-black);
+}
+
+/* ===== Background layers (inserted by markup in index.html) ===== */
+#techne-background {
+    display: none;
+}
+
+body.techne-theme #techne-background {
+    display: block;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+body.techne-theme #techne-background .techne-layer {
+    position: absolute;
+    inset: 0;
+}
+
+body.techne-theme #techne-background .techne-noise {
+    opacity: 0.025;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+body.techne-theme.techne-noise-off #techne-background .techne-noise {
+    display: none;
+}
+
+body.techne-theme #techne-background .techne-grid-primary {
+    opacity: 0.12;
+    background-image:
+        linear-gradient(var(--techne-black) 2px, transparent 2px),
+        linear-gradient(90deg, var(--techne-black) 2px, transparent 2px);
+    background-size: var(--techne-grid) var(--techne-grid);
+}
+
+body.techne-theme #techne-background .techne-grid-secondary {
+    opacity: 0.10;
+    background-image:
+        linear-gradient(var(--primary-500) 1.5px, transparent 1.5px),
+        linear-gradient(90deg, var(--primary-500) 1.5px, transparent 1.5px);
+    background-size: 180px 180px;
+}
+
+body.techne-theme #techne-background .techne-grid-micro {
+    opacity: 1;
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+    background-size: 15px 15px;
+}
+
+body.techne-theme.techne-grid-off #techne-background .techne-grid-primary,
+body.techne-theme.techne-grid-off #techne-background .techne-grid-secondary,
+body.techne-theme.techne-grid-off #techne-background .techne-grid-micro {
+    display: none;
+}
+
+/* Ensure app UI sits above background layers */
+body.techne-theme #app-container {
+    position: relative;
+    z-index: 10;
+}
+
+/* ===== Key UI surfaces ===== */
+body.techne-theme {
+    background: var(--techne-white);
+    color: var(--techne-black);
+}
+
+body.techne-theme #mode-switcher {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border-bottom: 2px solid var(--techne-black) !important;
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+}
+
+body.techne-theme #left-sidebar {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border-right: 2px solid var(--techne-black) !important;
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+}
+
+body.techne-theme #right-pane {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-left: 2px solid var(--techne-black) !important;
+}
+
+body.techne-theme #editor-toolbar {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-bottom: 2px solid var(--techne-black) !important;
+}
+
+/* Resizers */
+body.techne-theme .resizer,
+body.techne-theme #sidebar-resizer {
+    background: var(--techne-black) !important;
+    opacity: 0.18;
+}
+
+body.techne-theme .resizer:hover,
+body.techne-theme #sidebar-resizer:hover {
+    opacity: 0.35;
+}
+
+/* Mode buttons (top center) */
+body.techne-theme .mode-btn {
+    font-family: var(--font-family-mono) !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.18em !important;
+    text-transform: uppercase !important;
+    border: 2px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: rgba(10, 10, 10, 0.65) !important;
+}
+
+body.techne-theme .mode-btn:hover {
+    border-color: var(--techne-black) !important;
+    background: rgba(10, 10, 10, 0.03) !important;
+    color: var(--techne-black) !important;
+}
+
+body.techne-theme .mode-btn.active {
+    background: var(--primary-500) !important;
+    color: var(--techne-white) !important;
+    border-color: var(--techne-black) !important;
+}
+
+/* Back/Forward buttons */
+body.techne-theme .nav-btn {
+    font-family: var(--font-family-mono) !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    border: 2px solid var(--techne-black) !important;
+    border-radius: 0 !important;
+    background: var(--techne-white) !important;
+    color: var(--techne-black) !important;
+}
+
+body.techne-theme .nav-btn:disabled {
+    opacity: 0.35 !important;
+    cursor: not-allowed !important;
+}
+
+/* Generic buttons */
+body.techne-theme .btn,
+body.techne-theme button.btn,
+body.techne-theme .toolbar-btn,
+body.techne-theme .pane-toggle-button {
+    border-radius: 0 !important;
+}
+
+body.techne-theme .btn,
+body.techne-theme button.btn {
+    border: 2px solid var(--techne-black) !important;
+}
+
+body.techne-theme .btn:not(.btn-primary):not(.btn-success):not(.btn-warning):not(.btn-error):hover:not(:disabled),
+body.techne-theme button.btn:not(.btn-primary):not(.btn-success):not(.btn-warning):not(.btn-error):hover:not(:disabled) {
+    background: rgba(10, 10, 10, 0.04) !important;
+}
+
+body.techne-theme .pane-toggle-button.active {
+    border-color: var(--techne-black) !important;
+}
+
+body.techne-theme .toolbar-btn {
+    border: 2px solid var(--techne-black) !important;
+    background: var(--techne-white) !important;
+    color: var(--techne-black) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+body.techne-theme .toolbar-btn:hover:not(:disabled) {
+    background: rgba(10, 10, 10, 0.04) !important;
+}
+
+/* Inputs */
+body.techne-theme input,
+body.techne-theme select,
+body.techne-theme textarea {
+    border-radius: 0 !important;
+}
+
+body.techne-theme input[type="text"],
+body.techne-theme input[type="search"],
+body.techne-theme input[type="number"],
+body.techne-theme select,
+body.techne-theme textarea {
+    border: 2px solid rgba(10, 10, 10, 0.25) !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    color: var(--techne-black) !important;
+}
+
+body.techne-theme input:focus,
+body.techne-theme select:focus,
+body.techne-theme textarea:focus {
+    outline: none !important;
+    border-color: var(--techne-black) !important;
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.15) !important;
+}

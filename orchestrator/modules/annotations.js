@@ -378,8 +378,8 @@ function showAnnotationDialog(annotationType, callback) {
         </div>
         ` : ''}
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
-            <button id="annotation-cancel" style="padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
-            <button id="annotation-ok" style="padding: 8px 16px; border: none; background: #2196F3; color: white; border-radius: 4px; cursor: pointer;">Add Annotation</button>
+            <button id="annotation-cancel" class="btn btn-ghost">Cancel</button>
+            <button id="annotation-ok" class="btn btn-primary">Add Annotation</button>
         </div>
     `;
     

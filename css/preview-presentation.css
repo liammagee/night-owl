@@ -108,18 +108,52 @@ body.is-presenting #speaker-notes-panel {
 
 /* Mode switcher button overrides */
 .mode-btn:hover {
-    background: #f0f0f0 !important;
-    color: #333 !important;
+    background: var(--surface-hover, #f0f0f0) !important;
+    color: var(--text, #333) !important;
 }
 
 .mode-btn.active {
-    background: #16a34a !important;
-    color: white !important;
+    background: var(--primary-500, var(--primary, #16a34a)) !important;
+    color: var(--text-on-primary, #ffffff) !important;
 }
 
 /* Resizer color overrides */
 .resizer:hover {
-    background: #16a34a !important;
+    background: var(--primary-500, var(--primary, #16a34a)) !important;
+}
+
+/* Presentation controls (React presentation view) */
+#presentation-root .presentation-control-btn {
+    border-color: var(--border, #d1d5db) !important;
+    background: var(--surface, #fefdfb) !important;
+    color: var(--text, #111827) !important;
+}
+
+#presentation-root .presentation-control-btn:hover:not(:disabled) {
+    background: var(--surface-hover, #f3f4f6) !important;
+}
+
+#presentation-root .presentation-present-btn {
+    background: var(--primary-500, var(--primary, #16a34a)) !important;
+    border-color: var(--primary-700, var(--primary-hover, #15803d)) !important;
+    color: var(--text-on-primary, #ffffff) !important;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+#presentation-root .presentation-present-btn:hover:not(:disabled) {
+    background: var(--primary-600, var(--primary-hover, #15803d)) !important;
+}
+
+body.techne-theme #presentation-root .presentation-control-btn {
+    border-radius: 0 !important;
+    border-width: 2px !important;
+}
+
+body.techne-theme #presentation-root .presentation-present-btn {
+    border-color: var(--techne-black, #0a0a0a) !important;
+    box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.12) !important;
 }
 
 /* Restore visibility when NOT actively presenting */
@@ -196,13 +230,13 @@ body:not(.is-presenting) #right-pane {
 
 /* Presentation blockquote styles */
 .presentation-blockquote {
-    border-left: 4px solid #16a34a !important;
+    border-left: 4px solid var(--primary-500, var(--primary, #16a34a)) !important;
     margin: 20px 0 !important;
     padding: 16px 20px !important;
-    background-color: #f0fdf4 !important;
+    background-color: var(--surface-variant, #f0fdf4) !important;
     border-radius: 0 8px 8px 0 !important;
     font-style: italic !important;
-    color: #166534 !important;
+    color: var(--text, #166534) !important;
 }
 
 /* List styling for proper nested list rendering in presentation mode */

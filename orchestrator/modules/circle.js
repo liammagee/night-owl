@@ -787,7 +787,7 @@ class CircleView {
                     </span>
                 </div>
                 <div style="margin-bottom: 10px;">
-                    <button id="circle-exit-preview" style="padding: 8px 12px; font-size: 11px; background: #007acc; color: white; border: none; border-radius: 4px;">← Back to Circle</button>
+                    <button id="circle-exit-preview" class="btn btn-sm btn-primary">← Back to Circle</button>
                 </div>
                 <div style="font-size: 10px; color: #999;">
                     ${this.summariesGenerated ? 
@@ -804,13 +804,13 @@ class CircleView {
                     </p>
                 </div>
                 <div style="margin-bottom: 10px;">
-                    <button id="circle-reset" style="padding: 8px 12px; margin-right: 5px; font-size: 11px;">Reset</button>
-                    <button id="circle-animate" style="padding: 8px 12px; margin-right: 5px; font-size: 11px;">Animate</button>
-                    <button id="circle-export" style="padding: 8px 12px; font-size: 11px; background: #4CAF50; color: white; border: 1px solid #45a049;">📸 Export</button>
+                    <button id="circle-reset" class="btn btn-sm" style="margin-right: 5px;">Reset</button>
+                    <button id="circle-animate" class="btn btn-sm" style="margin-right: 5px;">Animate</button>
+                    <button id="circle-export" class="btn btn-sm btn-primary">📸 Export</button>
                 </div>
                 <div style="margin-bottom: 10px;">
                     <strong>Current Stage:</strong><br>
-                    <span id="current-stage-name" style="color: #007acc;">${this.stages[this.currentStage]?.name || 'Initial'}</span>
+                    <span id="current-stage-name" style="color: var(--primary, #007acc);">${this.stages[this.currentStage]?.name || 'Initial'}</span>
                 </div>
                 <div style="font-size: 11px; color: #888;">
                     <strong>Stages:</strong><br>

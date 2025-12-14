@@ -1005,7 +1005,7 @@ function createCustomMarkdownRenderer() {
     // Override the image method to fix relative paths
     renderer.image = (href, title, text) => {
         if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('file://')) {
-            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
             const fullPath = `file://${baseDir}/${href}`;
             return originalImage(fullPath, title, text);
         }
@@ -1919,6 +1919,30 @@ function addFormattingKeyboardShortcuts() {
     // console.log('[renderer.js] Formatting keyboard shortcuts added');
 }
 
+// --- Editing Keyboard Shortcuts ---
+function addEditingKeyboardShortcuts() {
+    if (!editor) {
+        console.warn('[renderer.js] Cannot add editing keybindings: editor not available');
+        return;
+    }
+
+    editor.addAction({
+        id: 'duplicate-line-or-selection',
+        label: 'Duplicate Line or Selection',
+        keybindings: [
+            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyD
+        ],
+        run: function(ed) {
+            const duplicateAction = ed.getAction('editor.action.copyLinesDownAction');
+            if (duplicateAction) {
+                return duplicateAction.run();
+            }
+            console.warn('[renderer.js] Duplicate action unavailable on editor');
+            return null;
+        }
+    });
+}
+
 // --- Folding Toolbar Controls ---
 function addFoldingToolbarControls() {
     // Get toolbar buttons
@@ -1926,32 +1950,82 @@ function addFoldingToolbarControls() {
     const unfoldAllBtn = document.getElementById('unfold-all-btn');
     const foldCurrentBtn = document.getElementById('fold-current-btn');
     const unfoldCurrentBtn = document.getElementById('unfold-current-btn');
-    
+
     if (foldAllBtn) {
         foldAllBtn.addEventListener('click', () => {
             editor.getAction('editor.foldAll').run();
         });
     }
-    
+
     if (unfoldAllBtn) {
         unfoldAllBtn.addEventListener('click', () => {
             editor.getAction('editor.unfoldAll').run();
         });
     }
-    
+
     if (foldCurrentBtn) {
         foldCurrentBtn.addEventListener('click', () => {
             editor.getAction('editor.fold').run();
         });
     }
-    
+
     if (unfoldCurrentBtn) {
         unfoldCurrentBtn.addEventListener('click', () => {
             editor.getAction('editor.unfold').run();
         });
     }
-    
+
     // console.log('[renderer.js] Folding toolbar controls added');
+}
+
+// --- Keyboard Shortcuts Help Button ---
+function addKeyboardShortcutsButton() {
+    const shortcutsBtn = document.getElementById('keyboard-shortcuts-btn');
+
+    if (shortcutsBtn) {
+        shortcutsBtn.addEventListener('click', () => {
+            showKeyboardShortcuts();
+        });
+    }
+
+    // Also add keyboard shortcut to trigger help with '?'
+    document.addEventListener('keydown', (event) => {
+        // Only trigger if '?' is pressed without modifiers and not in an input field
+        if (event.key === '?' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            const activeElement = document.activeElement;
+            const isInputField = activeElement && (
+                activeElement.tagName === 'INPUT' ||
+                activeElement.tagName === 'TEXTAREA' ||
+                activeElement.isContentEditable
+            );
+
+            // Don't trigger if user is typing in an input field
+            if (!isInputField) {
+                event.preventDefault();
+                showKeyboardShortcuts();
+            }
+        }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            const overlay = document.getElementById('keyboard-shortcuts-overlay');
+            if (overlay && overlay.style.display === 'flex') {
+                hideKeyboardShortcuts();
+            }
+        }
+    });
+
+    // Close modal when clicking outside
+    const overlay = document.getElementById('keyboard-shortcuts-overlay');
+    if (overlay) {
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                hideKeyboardShortcuts();
+            }
+        });
+    }
 }
 
 // Export folding functions globally
@@ -3084,8 +3158,10 @@ async function initializeMonacoEditor() {
                 registerMarkdownFoldingProvider();
                 addFoldingKeyboardShortcuts();
                 addFormattingKeyboardShortcuts();
+                addEditingKeyboardShortcuts();
                 addCustomSelectionKeybindings();
                 addFoldingToolbarControls();
+                addKeyboardShortcutsButton();
                 addAISummarizationAction();
                 addCommandPaletteAction();
             }, 100);
@@ -4807,7 +4883,7 @@ function displayPDFInPreview(filePath) {
                     <div class="pdf-fallback" style="display: none; padding: 20px; text-align: center; color: #666;">
                         <p>📄 PDF preview not available</p>
                         <p><small>Path: ${filePath}</small></p>
-                        <button onclick="window.electronAPI.invoke('open-external', '${filePath}')" style="margin-top: 10px; padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">Open in External Viewer</button>
+                        <button class="btn btn-primary" onclick="window.electronAPI.invoke('open-external', '${filePath}')" style="margin-top: 10px;">Open in External Viewer</button>
                     </div>
                     <div class="pdf-loading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted, #666);">
                         Loading PDF...
@@ -6923,10 +6999,14 @@ changeDirectoryBtn.addEventListener('click', async () => {
     try {
         const result = await window.electronAPI.invoke('change-working-directory');
         if (result.success) {
+            // Update global settings cache with new directory
+            if (window.appSettings) {
+                window.appSettings.workingDirectory = result.directory;
+            }
             showNotification(`Working directory changed`, 'success');
             // Refresh file tree to show new directory contents
             renderFileTree();
-        } else if (!result.error.includes('cancelled')) {
+        } else if (!result.error?.includes('cancelled')) {
             showNotification(result.error, 'error');
         }
     } catch (error) {
@@ -7317,22 +7397,20 @@ function switchStatsScope(scope) {
     if (!documentBtn || !projectBtn) return;
     
     currentStatsScope = scope;
+
+    // Clear any legacy inline styles and rely on token-based CSS classes
+    documentBtn.style.background = '';
+    documentBtn.style.color = '';
+    projectBtn.style.background = '';
+    projectBtn.style.color = '';
     
     // Update button states
     if (scope === 'document') {
         documentBtn.classList.add('active');
-        documentBtn.style.background = '#007bff';
-        documentBtn.style.color = 'white';
         projectBtn.classList.remove('active');
-        projectBtn.style.background = 'transparent';
-        projectBtn.style.color = '#666';
     } else {
         projectBtn.classList.add('active');
-        projectBtn.style.background = '#007bff';
-        projectBtn.style.color = 'white';
         documentBtn.classList.remove('active');
-        documentBtn.style.background = 'transparent';
-        documentBtn.style.color = '#666';
     }
     
     
@@ -8291,8 +8369,8 @@ async function showTagEditDialog(filePath) {
                    value="${metadata.category || ''}" placeholder="Document category">
         </div>
         <div style="text-align: right; margin-top: 20px;">
-            <button id="tag-edit-cancel" style="padding: 8px 16px; margin-right: 8px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer;">Cancel</button>
-            <button id="tag-edit-save" style="padding: 8px 16px; border: none; border-radius: 4px; background: #16a34a; color: white; cursor: pointer;">Save</button>
+            <button id="tag-edit-cancel" class="btn btn-sm btn-ghost" style="margin-right: 8px;">Cancel</button>
+            <button id="tag-edit-save" class="btn btn-sm btn-primary">Save</button>
         </div>
     `;
     
@@ -8553,8 +8631,8 @@ async function showCitationDialog() {
             <div id="citation-list" style="padding: 8px;"></div>
         </div>
         <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 12px;">
-            <button id="citation-cancel" style="padding: 8px 16px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer;">Cancel</button>
-            <button id="citation-insert" style="padding: 8px 16px; border: none; background: #16a34a; color: white; border-radius: 4px; cursor: pointer;" disabled>Insert Citation</button>
+            <button id="citation-cancel" class="btn btn-sm btn-ghost">Cancel</button>
+            <button id="citation-insert" class="btn btn-sm btn-primary" disabled>Insert Citation</button>
         </div>
     `;
 
@@ -9329,24 +9407,114 @@ async function addFileToRecents(filePath) {
 // Drag and drop event listeners are now handled in modules/dragdrop.js
 
 // --- Theme Handling ---
-function applyTheme(isDarkMode) {
+// Canonical theme applicator used across the renderer.
+// Accepts either:
+// - a boolean `true|false` (apply actual dark state without changing user preference), or
+// - a string theme preference: 'auto' | 'light' | 'dark' | 'techne'
+function applyTheme(themeOrIsDark) {
     const body = document.body;
-    // Store current theme globally for reference by other parts of code
-    window.currentTheme = isDarkMode ? 'dark' : 'light';
-    
-    // Only toggle theme classes on body! CSS expects this.
-    if (isDarkMode) {
-        body.classList.remove('light-mode');
-        body.classList.add('dark-mode');
-        if (window.monaco && monaco.editor) {
-            monaco.editor.setTheme('vs-dark');
+    if (!body) return;
+
+    const preference = (typeof themeOrIsDark === 'string' && themeOrIsDark)
+        ? themeOrIsDark
+        : (window.appSettings?.theme || 'auto');
+
+    const prefersDark = () => {
+        try {
+            return Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        } catch (error) {
+            return false;
         }
+    };
+
+    const shouldUseTechne = preference === 'techne';
+
+    // Determine applied dark/light state
+    let appliedDark = false;
+    if (typeof themeOrIsDark === 'boolean') {
+        // Respect explicit preferences even when OS/theme events provide boolean state.
+        if (shouldUseTechne) {
+            appliedDark = false;
+        } else if (preference === 'dark') {
+            appliedDark = true;
+        } else if (preference === 'light') {
+            appliedDark = false;
+        } else if (preference === 'auto') {
+            appliedDark = themeOrIsDark;
+        } else {
+            appliedDark = themeOrIsDark;
+        }
+    } else if (preference === 'dark') {
+        appliedDark = true;
+    } else if (preference === 'light') {
+        appliedDark = false;
+    } else if (preference === 'auto') {
+        appliedDark = prefersDark();
+    } else if (preference === 'techne') {
+        appliedDark = false;
     } else {
+        appliedDark = false;
+    }
+
+    // Reset classes
+    body.classList.remove(
+        'dark-mode',
+        'light-mode',
+        'techne-theme',
+        'techne-accent-orange',
+        'techne-grid-off',
+        'techne-noise-off'
+    );
+
+    body.classList.add(appliedDark ? 'dark-mode' : 'light-mode');
+
+    // Apply Techne as an overlay on light mode
+    if (shouldUseTechne) {
         body.classList.remove('dark-mode');
         body.classList.add('light-mode');
-        if (window.monaco && monaco.editor) {
-            monaco.editor.setTheme('vs');
+        body.classList.add('techne-theme');
+
+        const techne = window.appSettings?.techne || {};
+        const accent = techne.accent === 'orange' ? 'orange' : 'red';
+        const gridOn = techne.grid !== false;
+        const noiseOn = techne.noise !== false;
+
+        body.classList.toggle('techne-accent-orange', accent === 'orange');
+        body.classList.toggle('techne-grid-off', !gridOn);
+        body.classList.toggle('techne-noise-off', !noiseOn);
+
+        // Prefer matching Techne presentation templates when available
+        if (window.styleManager && typeof window.styleManager.getPresentationTemplates === 'function') {
+            const desiredTemplate = accent === 'orange' ? 'techne-orange' : 'techne-red';
+            const available = window.styleManager.getPresentationTemplates().some(t => t.id === desiredTemplate);
+            if (available && typeof window.styleManager.applyPresentationTemplate === 'function') {
+                const current = window.styleManager.getCurrentStyles?.().presentation;
+                if (current !== desiredTemplate) {
+                    window.styleManager.applyPresentationTemplate(desiredTemplate);
+                }
+            }
         }
+    }
+
+    // Store applied theme for other modules
+    window.currentTheme = shouldUseTechne ? 'techne' : (appliedDark ? 'dark' : 'light');
+
+    // Sync Monaco theme
+    if (window.monaco && monaco.editor) {
+        monaco.editor.setTheme(appliedDark ? 'vs-dark' : 'vs');
+    }
+
+    // Notify listeners (network/library/etc)
+    try {
+        window.dispatchEvent(new CustomEvent('app-theme-changed', {
+            detail: {
+                preference,
+                applied: window.currentTheme,
+                isDark: appliedDark
+            }
+        }));
+    } catch (error) {
+        // ignore
     }
 }
 
@@ -9404,10 +9572,10 @@ if (window.electronAPI) {
     window.electronAPI.on('refresh-file-tree', () => {
         console.log('[Renderer] Received refresh-file-tree signal.');
         console.log('[Renderer] Current structure view:', window.currentStructureView);
-        
+
         // Reset the rendered flag to force a refresh
         fileTreeRendered = false;
-        
+
         // Switch to file view (which will trigger renderFileTree if needed)
         if (window.currentStructureView !== 'files') {
             console.log('[Renderer] Switching to file view');
@@ -9417,6 +9585,17 @@ if (window.electronAPI) {
             console.log('[Renderer] Already in file view, refreshing tree');
             fileTreeRendered = false;  // Reset flag to force refresh
             debouncedRenderFileTree();
+        }
+    });
+
+    // Listen for settings changes from main process (e.g., working directory change)
+    window.electronAPI.on('settings-changed', (changedSettings) => {
+        console.log('[Renderer] Received settings-changed:', changedSettings);
+
+        // Update global appSettings with changed values
+        if (changedSettings && changedSettings.workingDirectory && window.appSettings) {
+            window.appSettings.workingDirectory = changedSettings.workingDirectory;
+            console.log('[Renderer] Updated workingDirectory to:', changedSettings.workingDirectory);
         }
     });
 }
@@ -9907,6 +10086,26 @@ let sidebarVisible = true;
 let editorVisible = true;
 let previewVisible = true;
 
+function setPaneVisibilityButtonState(toggleBtn, isVisible, onVariantClass = 'btn-primary') {
+    if (!toggleBtn) return;
+
+    toggleBtn.classList.remove('toggle-off');
+    toggleBtn.classList.remove('btn-primary', 'btn-warning', 'btn-error', 'btn-success');
+
+    if (isVisible) {
+        toggleBtn.classList.add(onVariantClass);
+        toggleBtn.setAttribute('aria-pressed', 'true');
+    } else {
+        toggleBtn.classList.add('toggle-off');
+        toggleBtn.setAttribute('aria-pressed', 'false');
+    }
+
+    // Clear any legacy inline styles
+    toggleBtn.style.background = '';
+    toggleBtn.style.color = '';
+    toggleBtn.style.opacity = '';
+}
+
 function toggleSidebar() {
     console.log('[Sidebar Toggle] Function called, current sidebarVisible:', sidebarVisible);
     
@@ -9924,9 +10123,7 @@ function toggleSidebar() {
         console.log('[Sidebar Toggle] Hiding sidebar');
         sidebar.style.display = 'none';
         resizer.style.display = 'none';
-        toggleBtn.style.background = '#ccc';
-        toggleBtn.style.color = '#666';
-        toggleBtn.style.opacity = '0.7';
+        setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
         
         // Remove width constraints completely
         sidebar.style.width = '0px';
@@ -9939,9 +10136,7 @@ function toggleSidebar() {
         console.log('[Sidebar Toggle] Showing sidebar');
         sidebar.style.display = 'flex';
         resizer.style.display = 'block';
-        toggleBtn.style.background = '#16a34a';
-        toggleBtn.style.color = 'white';
-        toggleBtn.style.opacity = '1';
+        setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
         
         // Restore sidebar width
         sidebar.style.width = '';
@@ -9964,15 +10159,13 @@ function toggleEditor() {
     
     if (editorVisible) {
         editorPane.style.display = 'none';
-        toggleBtn.style.background = '#ccc';
-        toggleBtn.style.color = '#666';
+        setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
         // Adjust preview to take full width
         const previewPane = document.getElementById('preview-pane');
         if (previewPane) previewPane.style.flex = '1';
     } else {
         editorPane.style.display = 'flex';
-        toggleBtn.style.background = '#007acc';
-        toggleBtn.style.color = 'white';
+        setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
         // Restore normal layout proportions
         refreshLayoutProportions();
     }
@@ -9985,17 +10178,13 @@ function togglePreview() {
     
     if (previewVisible) {
         rightPane.style.display = 'none';
-        toggleBtn.style.background = '#ccc';
-        toggleBtn.style.color = '#666';
-        toggleBtn.style.opacity = '0.7';
+        setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
         // Adjust editor to take full width
         const editorContainer = document.getElementById('editor-container');
         if (editorContainer) editorContainer.style.flex = '1';
     } else {
         rightPane.style.display = 'flex';
-        toggleBtn.style.background = '#16a34a';
-        toggleBtn.style.color = 'white';
-        toggleBtn.style.opacity = '1';
+        setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
         // Restore normal layout proportions
         refreshLayoutProportions();
     }
@@ -10527,22 +10716,8 @@ function showCustomPrompt(title, message, defaultValue = '') {
                 box-sizing: border-box;
             " placeholder="Enter filename..." value="${defaultValue}">
             <div style="text-align: right;">
-                <button id="prompt-cancel" style="
-                    background: #f5f5f5;
-                    border: 1px solid #ddd;
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    margin-right: 10px;
-                    cursor: pointer;
-                ">Cancel</button>
-                <button id="prompt-ok" style="
-                    background: #007acc;
-                    color: white;
-                    border: none;
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                ">OK</button>
+                <button id="prompt-cancel" class="btn btn-sm btn-ghost" style="margin-right: 10px;">Cancel</button>
+                <button id="prompt-ok" class="btn btn-sm btn-primary">OK</button>
             </div>
         `;
         
@@ -11071,11 +11246,11 @@ function showAsyncStyleFeedback(message, persona = 'Ash', feedbackType = 'feedba
                 .ai-feedback-content { padding: 16px; }
                 .ai-feedback-header { 
                     display: flex; justify-content: space-between; align-items: center;
-                    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; 
+                    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border, #eee); 
                 }
-                .ai-persona { font-weight: 600; color: #333; }
+                .ai-persona { font-weight: 600; color: var(--text, #333); }
                 .ai-feedback-type { 
-                    font-size: 12px; color: #666; background: #f5f5f5; 
+                    font-size: 12px; color: var(--text-muted, #666); background: var(--surface-variant, #f5f5f5); 
                     padding: 2px 6px; border-radius: 3px; 
                 }
                 .ai-feedback-close { 
@@ -11084,11 +11259,11 @@ function showAsyncStyleFeedback(message, persona = 'Ash', feedbackType = 'feedba
                 }
                 .ai-feedback-close:hover { color: #666; }
                 .ai-feedback-message { 
-                    margin-bottom: 12px; line-height: 1.4; color: #444; 
+                    margin-bottom: 12px; line-height: 1.4; color: var(--text, #444); 
                 }
                 .ai-feedback-footer { 
                     display: flex; justify-content: space-between; 
-                    font-size: 11px; color: #888; margin-bottom: 12px; 
+                    font-size: 11px; color: var(--text-muted, #888); margin-bottom: 12px; 
                 }
                 .ai-feedback-actions { 
                     display: flex; gap: 8px; justify-content: center; 
@@ -11099,11 +11274,11 @@ function showAsyncStyleFeedback(message, persona = 'Ash', feedbackType = 'feedba
                     transition: all 0.2s; 
                 }
                 .ai-feedback-thanks-btn { 
-                    background: #f0f0f0; color: #333; border: 1px solid #ddd; 
+                    background: var(--surface-hover, #f0f0f0); color: var(--text, #333); border: 1px solid var(--border, #ddd); 
                 }
-                .ai-feedback-thanks-btn:hover { background: #e0e0e0; }
-                .ai-feedback-save-btn { background: #007acc; color: white; }
-                .ai-feedback-save-btn:hover { background: #005a9e; }
+                .ai-feedback-thanks-btn:hover { background: var(--surface-active, #e0e0e0); }
+                .ai-feedback-save-btn { background: var(--primary, #007acc); border: 1px solid var(--primary, #007acc); color: var(--text-on-primary, #fff); }
+                .ai-feedback-save-btn:hover { background: var(--primary-hover, #005a9e); border-color: var(--primary-hover, #005a9e); }
                 .ai-feedback-thanks-btn:active, .ai-feedback-save-btn:active { 
                     transform: translateY(1px); 
                 }
@@ -11177,6 +11352,104 @@ function hideCommandPalette() {
         commandPaletteOverlay.style.display = 'none';
     }
 }
+
+// === Keyboard Shortcuts Help Functions ===
+
+// Show keyboard shortcuts help dialog
+function showKeyboardShortcuts() {
+    const overlay = document.getElementById('keyboard-shortcuts-overlay');
+    const content = document.getElementById('keyboard-shortcuts-content');
+
+    if (!overlay || !content) return;
+
+    // Detect platform for keyboard shortcuts display
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const cmdKey = isMac ? '⌘' : 'Ctrl';
+    const optKey = isMac ? '⌥' : 'Alt';
+
+    // Define all keyboard shortcuts organized by category
+    const shortcuts = {
+        'File Operations': [
+            { description: 'Save Document', keys: [cmdKey, 'S'] },
+            { description: 'Open Command Palette', keys: [cmdKey, 'Shift', 'P'] }
+        ],
+        'Editing': [
+            { description: 'Duplicate Line/Selection', keys: [cmdKey, 'Shift', 'D'] },
+            { description: 'Bold', keys: [cmdKey, 'B'] },
+            { description: 'Italic', keys: [cmdKey, 'I'] },
+            { description: 'Inline Code', keys: [cmdKey, '`'] },
+            { description: 'Insert Link', keys: [cmdKey, 'K'] },
+            { description: 'Comment', keys: [cmdKey, '/'] },
+            { description: 'Undo', keys: [cmdKey, 'Z'] },
+            { description: 'Redo', keys: [cmdKey, 'Shift', 'Z'] }
+        ],
+        'Selection': [
+            { description: 'Select Whole Lines Up', keys: ['Shift', optKey, '↑'] },
+            { description: 'Select Whole Lines Down', keys: ['Shift', optKey, '↓'] },
+            { description: 'Select All', keys: [cmdKey, 'A'] }
+        ],
+        'Code Folding': [
+            { description: 'Fold Current Section', keys: [cmdKey, 'Shift', '['] },
+            { description: 'Unfold Current Section', keys: [cmdKey, 'Shift', ']'] },
+            { description: 'Fold All Sections', keys: [cmdKey, 'K', cmdKey, '0'] },
+            { description: 'Unfold All Sections', keys: [cmdKey, 'K', cmdKey, 'J'] }
+        ],
+        'Navigation': [
+            { description: 'Navigate Back', keys: [cmdKey, optKey, '←'] },
+            { description: 'Navigate Forward', keys: [cmdKey, optKey, '→'] },
+            { description: 'Go to Line', keys: [cmdKey, 'G'] }
+        ],
+        'Search': [
+            { description: 'Find', keys: [cmdKey, 'F'] },
+            { description: 'Global Search', keys: [cmdKey, 'Shift', 'F'] },
+            { description: 'Replace', keys: [cmdKey, 'H'] }
+        ],
+        'View': [
+            { description: 'Toggle Presentation Mode', keys: [cmdKey, 'Shift', 'M'] },
+            { description: 'Toggle Citations Panel', keys: [cmdKey, 'Shift', 'C'] }
+        ],
+        'AI Features': [
+            { description: 'Invoke Ash (AI Writing)', keys: [cmdKey, 'Shift', '\''] }
+        ]
+    };
+
+    // Build HTML for shortcuts
+    let html = '';
+    for (const [category, items] of Object.entries(shortcuts)) {
+        html += `<div class="shortcuts-section">`;
+        html += `<h4>${category}</h4>`;
+
+        for (const item of items) {
+            html += `<div class="shortcut-item">`;
+            html += `<span class="shortcut-description">${item.description}</span>`;
+            html += `<div class="shortcut-keys">`;
+
+            for (const key of item.keys) {
+                html += `<span class="shortcut-key">${key}</span>`;
+            }
+
+            html += `</div>`;
+            html += `</div>`;
+        }
+
+        html += `</div>`;
+    }
+
+    content.innerHTML = html;
+    overlay.style.display = 'flex';
+}
+
+// Hide keyboard shortcuts help dialog
+function hideKeyboardShortcuts() {
+    const overlay = document.getElementById('keyboard-shortcuts-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// Make functions globally accessible
+window.showKeyboardShortcuts = showKeyboardShortcuts;
+window.hideKeyboardShortcuts = hideKeyboardShortcuts;
 
 // Load all available files
 async function loadCommandPaletteFiles() {
@@ -11662,18 +11935,7 @@ function showImageViewer(imagePath) {
     // Create close button
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕ Back to Editor';
-    closeBtn.style.cssText = `
-        background: #007acc;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        padding: 8px 12px;
-        font-size: 12px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    `;
+    closeBtn.className = 'btn btn-sm btn-primary';
     
     headerBar.appendChild(title);
     headerBar.appendChild(closeBtn);

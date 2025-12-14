@@ -287,11 +287,21 @@ function register(deps) {
         appSettings.workingDirectory = result.filePaths[0];
         currentWorkingDirectory = appSettings.workingDirectory;
         saveSettings();
-        
+
         console.log(`[FileHandlers] Working directory changed to: ${appSettings.workingDirectory}`);
-        return { 
-          success: true, 
-          directory: appSettings.workingDirectory 
+
+        // Notify renderer about the settings change
+        const { BrowserWindow } = require('electron');
+        const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+        if (win) {
+          win.webContents.send('settings-changed', {
+            workingDirectory: appSettings.workingDirectory
+          });
+        }
+
+        return {
+          success: true,
+          directory: appSettings.workingDirectory
         };
       }
 
@@ -1026,28 +1036,70 @@ function register(deps) {
   async function getAvailableFiles(dirPath) {
     try {
       const files = [];
-      const entries = await fs.readdir(dirPath);
-      
-      for (const entry of entries) {
-        if (entry.startsWith('.')) continue; // Skip hidden files
-        
-        const entryPath = path.join(dirPath, entry);
+      const ignoredDirNames = new Set([
+        '.git',
+        'node_modules',
+        'dist',
+        'build',
+        'coverage',
+        'playwright-report',
+        'test-results',
+        'test-reports',
+        'out',
+        '.next',
+        '.cache'
+      ]);
+
+      const normalizeRelativePath = (relativePath) => relativePath.split(path.sep).join('/');
+
+      const walk = async (currentDir) => {
+        let entries;
         try {
-          const stats = await fs.stat(entryPath);
-          if (stats.isFile()) {
+          entries = await fs.readdir(currentDir, { withFileTypes: true });
+        } catch (error) {
+          console.warn(`[FileHandlers] Skipping unreadable directory: ${currentDir}`);
+          return;
+        }
+
+        for (const entry of entries) {
+          if (!entry || !entry.name) continue;
+          if (entry.name.startsWith('.')) continue; // Skip hidden files/dirs
+
+          const entryPath = path.join(currentDir, entry.name);
+
+          if (entry.isSymbolicLink()) {
+            continue; // Avoid symlink loops
+          }
+
+          if (entry.isDirectory()) {
+            if (ignoredDirNames.has(entry.name)) continue;
+            await walk(entryPath);
+            continue;
+          }
+
+          if (!entry.isFile()) continue;
+
+          const lower = entry.name.toLowerCase();
+          const isMarkdown = lower.endsWith('.md') || lower.endsWith('.markdown');
+          if (!isMarkdown) continue;
+
+          try {
+            const stats = await fs.stat(entryPath);
+            const relativePath = normalizeRelativePath(path.relative(dirPath, entryPath));
             files.push({
-              name: entry,
+              name: entry.name,
               path: entryPath,
+              relativePath,
               size: stats.size,
               modified: stats.mtime
             });
+          } catch (error) {
+            console.warn(`[FileHandlers] Skipping inaccessible file: ${entryPath}`);
           }
-        } catch (error) {
-          // Skip files we can't access
-          console.warn(`[FileHandlers] Skipping inaccessible file: ${entryPath}`);
         }
-      }
-      
+      };
+
+      await walk(dirPath);
       return files;
     } catch (error) {
       console.error(`[FileHandlers] Error getting available files from ${dirPath}:`, error);

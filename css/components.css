@@ -4,41 +4,42 @@
 #editor-toolbar {
     display: flex;
     padding: 8px;
-    background: #f8f8f8;
-    border-bottom: 1px solid #ddd;
+    background: var(--surface-variant, #f8f8f8);
+    border-bottom: 1px solid var(--border, #ddd);
     gap: 4px;
 }
 
 .toolbar-button {
     padding: 6px 10px;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #ddd);
     border-radius: 3px;
     cursor: pointer;
     font-size: 14px;
     transition: all 0.2s;
+    color: var(--text, #111827);
 }
 
 .toolbar-button:hover {
-    background: #f0f0f0;
-    border-color: #999;
+    background: var(--surface-hover, #f0f0f0);
+    border-color: var(--border-strong, #999);
 }
 
 .toolbar-button:active {
-    background: #e0e0e0;
+    background: var(--surface-active, #e0e0e0);
 }
 
 .toolbar-separator {
     width: 1px;
-    background: #ddd;
+    background: var(--border, #ddd);
     margin: 0 4px;
 }
 
 /* Navigation buttons */
 .nav-button {
     padding: 8px 12px;
-    background: #007acc;
-    color: white;
+    background: var(--primary, #007acc);
+    color: var(--text-on-primary, #ffffff);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -50,11 +51,12 @@
 }
 
 .nav-button:hover {
-    background: #005a9e;
+    background: var(--primary-hover, #005a9e);
 }
 
 .nav-button:disabled {
-    background: #ccc;
+    background: var(--surface-active, #ccc);
+    color: var(--text-muted, #666);
     cursor: not-allowed;
 }
 
@@ -85,12 +87,12 @@
 }
 
 .file-tree li:hover {
-    background: #e0e0e0;
+    background: var(--surface-hover, #e0e0e0);
 }
 
 .file-tree li.selected {
-    background: #007acc;
-    color: white;
+    background: var(--primary, #007acc);
+    color: var(--text-on-primary, #ffffff);
 }
 
 .file-tree li.folder::before {
@@ -119,18 +121,19 @@
 /* Toggle buttons */
 .toggle-buttons {
     display: flex;
-    background: #f5f5f5;
-    border-bottom: 1px solid #ddd;
+    background: var(--surface-variant, #f5f5f5);
+    border-bottom: 1px solid var(--border, #ddd);
 }
 
 .pane-toggle-button {
     flex: 1;
     padding: 10px;
-    background: white;
+    background: var(--surface, #ffffff);
     border: none;
-    border-right: 1px solid #ddd;
+    border-right: 1px solid var(--border, #ddd);
     cursor: pointer;
     transition: all 0.2s;
+    color: var(--text-secondary, #334155);
 }
 
 .pane-toggle-button:last-child {
@@ -138,12 +141,12 @@
 }
 
 .pane-toggle-button:hover {
-    background: #f0f0f0;
+    background: var(--surface-hover, #f0f0f0);
 }
 
 .pane-toggle-button.active {
-    background: #007acc;
-    color: white;
+    background: var(--primary, #007acc);
+    color: var(--text-on-primary, #ffffff);
 }
 
 /* Search box */
@@ -162,7 +165,27 @@
 
 .search-box input:focus {
     outline: none;
-    border-color: #007acc;
+    border-color: var(--border-accent, #007acc);
+}
+
+/* Stats scope buttons */
+.stats-scope-btn.active {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: var(--text-on-primary) !important;
+}
+
+.stats-scope-btn.active:hover:not(:disabled) {
+    background: var(--primary-hover) !important;
+    border-color: var(--primary-hover) !important;
+}
+
+/* Pane visibility toggle buttons (mode switcher right side) */
+.pane-visibility-btn.toggle-off {
+    background: var(--surface-active);
+    border-color: var(--border);
+    color: var(--text-muted);
+    opacity: 0.8;
 }
 
 /* Context menu */

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <pattern id="grid-micro" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#0a0a0a" stroke-opacity="0.06" stroke-width="2"/>
+    </pattern>
+    <pattern id="grid-major" width="128" height="128" patternUnits="userSpaceOnUse">
+      <path d="M 128 0 L 0 0 0 128" fill="none" stroke="#0a0a0a" stroke-opacity="0.12" stroke-width="4"/>
+    </pattern>
+    <filter id="paper-noise">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+    <marker id="arrowhead" markerWidth="28" markerHeight="28" refX="26" refY="14" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 4 4 L 26 14 L 4 24" fill="none" stroke="#0a0a0a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Swiss grid / trash‑polka palette -->
+  <rect width="1024" height="1024" fill="#fafafa"/>
+  <rect width="1024" height="1024" fill="url(#grid-micro)"/>
+  <rect width="1024" height="1024" fill="url(#grid-major)"/>
+  <rect width="1024" height="1024" filter="url(#paper-noise)" opacity="0.06"/>
+
+  <!-- Frame -->
+  <rect x="64" y="64" width="896" height="896" fill="none" stroke="#0a0a0a" stroke-width="28"/>
+
+  <!-- Accent disc -->
+  <circle cx="512" cy="512" r="340" fill="#E63946"/>
+
+  <!-- Halftone echo -->
+  <g opacity="0.18" fill="#0a0a0a">
+    <circle cx="806" cy="218" r="10"/>
+    <circle cx="842" cy="218" r="8"/>
+    <circle cx="874" cy="218" r="6"/>
+    <circle cx="806" cy="252" r="8"/>
+    <circle cx="840" cy="252" r="6"/>
+    <circle cx="870" cy="252" r="5"/>
+    <circle cx="806" cy="284" r="6"/>
+    <circle cx="836" cy="284" r="5"/>
+    <circle cx="864" cy="284" r="4"/>
+  </g>
+
+  <!-- Dialectic loop (thesis → antithesis → synthesis) -->
+  <g fill="none" stroke="#0a0a0a" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 480 366 C 418 424 386 494 388 570" stroke-width="44" marker-end="url(#arrowhead)"/>
+    <path d="M 402 708 C 462 770 562 770 622 708" stroke-width="44" marker-end="url(#arrowhead)"/>
+    <path d="M 636 570 C 638 494 606 424 544 366" stroke-width="44" marker-end="url(#arrowhead)"/>
+  </g>
+
+  <g>
+    <circle cx="512" cy="310" r="62" fill="#fafafa" stroke="#0a0a0a" stroke-width="18"/>
+    <circle cx="340" cy="660" r="62" fill="#fafafa" stroke="#0a0a0a" stroke-width="18"/>
+    <circle cx="684" cy="660" r="62" fill="#fafafa" stroke="#0a0a0a" stroke-width="18"/>
+  </g>
+</svg>

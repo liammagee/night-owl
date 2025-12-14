@@ -55,13 +55,24 @@ function matchesAnyPattern(fileItem, patterns) {
         
         const trimmedPattern = pattern.trim();
         
-        // Try to match both full path and relative path
-        const relativePath = filePath.replace(/^.*[\/\\]lectures[\/\\]/, '');
-        const justFilename = filePath.split('/').pop();
+        const normalizedFullPath = filePath.replace(/\\/g, '/');
+        const justFilename = normalizedFullPath.split('/').pop();
+
+        // Prefer explicit relativePath from IPC (relative to working directory)
+        const relativeCandidates = [];
+        if (fileItem && typeof fileItem === 'object' && typeof fileItem.relativePath === 'string') {
+            relativeCandidates.push(fileItem.relativePath.replace(/\\/g, '/'));
+        }
+
+        // Backward-compatible: infer a lectures-relative path (keeps "lectures/" prefix)
+        const lecturesIndex = normalizedFullPath.toLowerCase().lastIndexOf('/lectures/');
+        if (lecturesIndex !== -1) {
+            relativeCandidates.push(normalizedFullPath.slice(lecturesIndex + 1)); // "lectures/..."
+        }
         
         // Test all variations
-        const fullPathMatch = matchGlob(trimmedPattern, filePath);
-        const relativePathMatch = matchGlob(trimmedPattern, relativePath);
+        const fullPathMatch = matchGlob(trimmedPattern, normalizedFullPath);
+        const relativePathMatch = relativeCandidates.some(candidate => matchGlob(trimmedPattern, candidate));
         const filenameMatch = matchGlob(trimmedPattern, justFilename);
         
         // Only log if there's a match to reduce noise
@@ -118,7 +129,7 @@ async function getVisualizationFilters() {
         const vizSettings = settings?.visualization || {};
         
         return {
-            includePatterns: vizSettings.includePatterns || ['lectures/*.md', '*.md'],
+            includePatterns: vizSettings.includePatterns || ['lectures/**/*.md', '**/*.md', '**/*.markdown'],
             excludePatterns: vizSettings.excludePatterns || ['**/test/**', '**/tests/**', 'HELP.md', 'README.md', '**/node_modules/**'],
             cacheExpiryHours: vizSettings.cacheExpiryHours || 24,
             changeThreshold: vizSettings.changeThreshold || 0.15
@@ -127,7 +138,7 @@ async function getVisualizationFilters() {
         console.error('[FileFilters] Error getting visualization settings:', error);
         // Return defaults
         return {
-            includePatterns: ['lectures/*.md', '*.md'],
+            includePatterns: ['lectures/**/*.md', '**/*.md', '**/*.markdown'],
             excludePatterns: ['**/test/**', '**/tests/**', 'HELP.md', 'README.md', '**/node_modules/**'],
             cacheExpiryHours: 24,
             changeThreshold: 0.15

@@ -69,8 +69,10 @@ async function processInternalLinks(content) {
         // Ensure we have the full path for internal links
         let fullFilePath = filePath;
         if (!fullFilePath.startsWith('/') && !fullFilePath.startsWith('http')) {
-            const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
-            fullFilePath = `${workingDir}/${filePath}`;
+            const workingDir = window.appSettings?.workingDirectory;
+            if (workingDir) {
+                fullFilePath = `${workingDir}/${filePath}`;
+            }
         }
 
         return `<a href="#" class="internal-link" data-link="${encodeURIComponent(fullFilePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
@@ -79,7 +81,8 @@ async function processInternalLinks(content) {
 
 async function loadLinkContent(filePath) {
     try {
-        const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+        const workingDir = window.appSettings?.workingDirectory;
+        if (!workingDir) return 'Working directory not set';
         const fullPath = `${workingDir}/${filePath}`;
         
         // CRITICAL FIX: Use read-file-content to avoid changing currentFilePath
@@ -141,8 +144,8 @@ async function openInternalLink(filePath, originalLink) {
 
     try {
         // Check if filePath is already absolute, if not, make it relative to working directory
-        const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
-        const fullPath = filePath.startsWith('/') ? filePath : `${workingDir}/${filePath}`;
+        const workingDir = window.appSettings?.workingDirectory;
+        const fullPath = filePath.startsWith('/') ? filePath : (workingDir ? `${workingDir}/${filePath}` : filePath);
 
         console.log('[openInternalLink] Working dir:', workingDir);
         console.log('[openInternalLink] Full path:', fullPath);
@@ -233,7 +236,8 @@ function handleLinkMouseMove(event) {
 
 async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
     try {
-        const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
+        const workingDir = window.appSettings?.workingDirectory;
+        if (!workingDir) return;
         const fullPath = `${workingDir}/${filePath}`;
         
         // CRITICAL FIX: Use read-file-content for hover previews to avoid changing currentFilePath
@@ -483,8 +487,10 @@ async function processInternalLinksHTML(htmlContent) {
             // Ensure we have the full path for internal links
         let fullFilePath = filePath;
         if (!fullFilePath.startsWith('/') && !fullFilePath.startsWith('http')) {
-            const workingDir = window.appSettings?.workingDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
-            fullFilePath = `${workingDir}/${filePath}`;
+            const workingDir = window.appSettings?.workingDirectory;
+            if (workingDir) {
+                fullFilePath = `${workingDir}/${filePath}`;
+            }
         }
 
         return `<a href="#" class="internal-link" data-link="${encodeURIComponent(fullFilePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;

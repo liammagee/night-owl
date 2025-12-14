@@ -571,10 +571,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // Check if this is a relative path
       if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://')) {
         // Use current file directory if available, otherwise fallback to working directory
-        const baseDir = window.currentFileDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
-        const fullPath = `file://${baseDir}/${imagePath}`;
-        console.log(`[React Presentation] Converting image path: ${imagePath} -> ${fullPath}`);
-        return `<img src="${fullPath}" alt="${altText}" />`;
+        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+        if (baseDir) {
+          const fullPath = `file://${baseDir}/${imagePath}`;
+          console.log(`[React Presentation] Converting image path: ${imagePath} -> ${fullPath}`);
+          return `<img src="${fullPath}" alt="${altText}" />`;
+        }
       }
       return `<img src="${imagePath}" alt="${altText}" />`;
     });
@@ -612,8 +614,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
       // Create full path for internal links, similar to image path logic
       if (!filePath.startsWith('/') && !filePath.startsWith('http')) {
-        const baseDir = window.currentFileDirectory || '/Users/lmagee/Dev/hegel-pedagogy-ai/lectures';
-        filePath = `${baseDir}/${filePath}`;
+        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+        if (baseDir) {
+          filePath = `${baseDir}/${filePath}`;
+        }
       }
 
       return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}" onclick="handleInternalLinkClick(event)">${display}</a>`;
@@ -2320,13 +2324,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           >
             📸
           </button>
-          <button
-            onClick={() => setIsPresenting(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-lg border border-green-700 text-white"
-          >
-            <Play />
-            Present
-          </button>
+	          <button
+	            onClick={() => setIsPresenting(true)}
+	            className="presentation-control-btn presentation-present-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-lg border"
+	          >
+	            <Play />
+	            Present
+	          </button>
         </div>
       )}
 

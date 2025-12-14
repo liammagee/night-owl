@@ -13,7 +13,7 @@ class UnifiedNetworkVisualization {
         this.options = {
             includeHeadings: false,  // Show headings as nodes
             includeSubheadings: false, // Show subheadings (h2-h6) as nodes
-            theme: 'light', // 'light' or 'dark'
+            theme: 'auto', // 'auto' | 'light' | 'dark' | 'techne'
             showLabels: true,
             showStats: true,
             nodeSize: 'normal', // 'small', 'normal', 'large'
@@ -24,16 +24,18 @@ class UnifiedNetworkVisualization {
         this.themes = {
             light: {
                 background: '#f8f9fa',
-                nodeFile: '#4CAF50',
-                nodeHeading: '#2196F3',
-                nodeSubheading: '#00BCD4',
-                nodeFileStroke: '#388E3C',
-                nodeHeadingStroke: '#1976D2',
-                nodeSubheadingStroke: '#0097A7',
+                nodeFile: '#22c55e',
+                nodeHeading: '#0ea5e9',
+                nodeSubheading: '#6366f1',
+                nodeFileStroke: '#0f172a',
+                nodeHeadingStroke: '#0f172a',
+                nodeSubheadingStroke: '#0f172a',
                 link: '#999',
                 linkHighlight: '#333',
                 text: '#333',
-                textBg: 'rgba(255, 255, 255, 0.9)'
+                textBg: 'rgba(255, 255, 255, 0.9)',
+                linkContains: '#22c55e',
+                linkHierarchy: '#94a3b8'
             },
             dark: {
                 background: '#05060c',
@@ -46,7 +48,9 @@ class UnifiedNetworkVisualization {
                 link: '#94a3b8',
                 linkHighlight: '#facc15',
                 text: '#e2e8f0',
-                textBg: 'rgba(8,11,18,0.92)'
+                textBg: 'rgba(8,11,18,0.92)',
+                linkContains: '#38bdf8',
+                linkHierarchy: '#7c3aed'
             }
         };
         
@@ -123,6 +127,22 @@ class UnifiedNetworkVisualization {
         // Create SVG canvas
         this.createSVG(vizDiv);
         this.updateTheme();
+
+        // Follow app theme changes when in auto mode
+        if (this._appThemeChangedHandler) {
+            window.removeEventListener('app-theme-changed', this._appThemeChangedHandler);
+        }
+        this._appThemeChangedHandler = () => {
+            if (this.options.theme !== 'auto') return;
+            this.updateTheme();
+            this.render();
+            // Keep toggle state in sync
+            const themeToggle = this.controlsElement?.querySelector('[data-control="theme-toggle"]');
+            if (themeToggle) {
+                themeToggle.checked = this.getEffectiveThemeKey() === 'dark';
+            }
+        };
+        window.addEventListener('app-theme-changed', this._appThemeChangedHandler);
 
         // Load and render data
         await this.refresh();
@@ -254,7 +274,7 @@ class UnifiedNetworkVisualization {
         // Theme toggle
         const themeToggle = this.controlsElement?.querySelector('[data-control="theme-toggle"]');
         if (themeToggle) {
-            themeToggle.checked = this.options.theme === 'dark';
+            themeToggle.checked = this.getEffectiveThemeKey() === 'dark';
             themeToggle.addEventListener('change', (e) => {
                 this.options.theme = e.target.checked ? 'dark' : 'light';
                 this.updateTheme();
@@ -357,12 +377,47 @@ class UnifiedNetworkVisualization {
         this.height = height;
     }
 
+    getEffectiveThemeKey() {
+        const requested = this.options.theme;
+        if (requested === 'auto') {
+            if (document.body?.classList?.contains('techne-theme')) return 'techne';
+            if (document.body?.classList?.contains('dark-mode')) return 'dark';
+            return 'light';
+        }
+        if (requested === 'techne') return 'techne';
+        if (requested === 'dark') return 'dark';
+        return 'light';
+    }
+
+    getTechneTheme() {
+        const isOrange = document.body?.classList?.contains('techne-accent-orange');
+        const accent = isOrange ? '#ff7a1a' : '#E63946';
+
+        return {
+            background: 'transparent',
+            nodeFile: accent,
+            nodeHeading: '#0a0a0a',
+            nodeSubheading: '#ffffff',
+            nodeFileStroke: '#0a0a0a',
+            nodeHeadingStroke: accent,
+            nodeSubheadingStroke: '#0a0a0a',
+            link: 'rgba(10, 10, 10, 0.28)',
+            linkHighlight: accent,
+            text: '#0a0a0a',
+            textBg: 'rgba(255, 255, 255, 0.88)',
+            linkContains: accent,
+            linkHierarchy: 'rgba(10, 10, 10, 0.18)'
+        };
+    }
+
     getCurrentTheme() {
-        return this.themes[this.options.theme];
+        const key = this.getEffectiveThemeKey();
+        if (key === 'techne') return this.getTechneTheme();
+        return this.themes[key] || this.themes.light;
     }
 
     updateTheme() {
-            const theme = this.getCurrentTheme();
+        const theme = this.getCurrentTheme();
         
         // Update background
         if (this.svg) {
@@ -399,49 +454,215 @@ class UnifiedNetworkVisualization {
 
     async loadData() {
         try {
-            // Get filtered files
             const result = await window.getFilteredVisualizationFiles();
-            const files = result.files;
-            
+            const files = result.files || [];
+
             console.log(`[UnifiedNetwork] Processing ${files.length} files`);
-            
+
             // Clear existing data
             this.nodes = [];
             this.links = [];
+
+            const normalizePath = (value) => String(value || '')
+                .replace(/\\/g, '/')
+                .replace(/^\.\/+/, '')
+                .replace(/^\/+/, '')
+                .replace(/\/{2,}/g, '/')
+                .trim();
+
+            const stripExtension = (value) => value.replace(/\.(md|markdown)$/i, '');
+
+            const joinRelative = (baseDir, relPath) => {
+                const base = normalizePath(baseDir);
+                const rel = normalizePath(relPath);
+                const combined = base ? `${base}/${rel}` : rel;
+                const parts = combined.split('/').filter(Boolean);
+                const out = [];
+                for (const part of parts) {
+                    if (part === '.') continue;
+                    if (part === '..') {
+                        out.pop();
+                        continue;
+                    }
+                    out.push(part);
+                }
+                return out.join('/');
+            };
+
+            const coerceFileRecord = (fileItem) => {
+                const pathValue = typeof fileItem === 'string'
+                    ? fileItem
+                    : (fileItem?.path || fileItem?.filePath || fileItem?.absolutePath || fileItem?.name);
+                if (!pathValue) return null;
+
+                const normalizedFullPath = String(pathValue);
+                const name = typeof fileItem === 'object' && fileItem?.name
+                    ? String(fileItem.name)
+                    : normalizedFullPath.split(/[\/\\]/).pop();
+                const relativePath = typeof fileItem === 'object' && typeof fileItem?.relativePath === 'string'
+                    ? normalizePath(fileItem.relativePath)
+                    : null;
+                const id = normalizePath(relativePath || normalizedFullPath);
+                const basename = name;
+                const basenameLower = basename.toLowerCase();
+                const basenameNoExt = stripExtension(basename);
+                const basenameNoExtLower = basenameNoExt.toLowerCase();
+                const dir = id.includes('/') ? id.split('/').slice(0, -1).join('/') : '';
+
+                return {
+                    id,
+                    path: normalizedFullPath,
+                    relativePath,
+                    basename,
+                    basenameLower,
+                    basenameNoExt,
+                    basenameNoExtLower,
+                    dir
+                };
+            };
+
+            const records = files
+                .map(coerceFileRecord)
+                .filter(Boolean);
+
+            // Build indices for resolving wiki/markdown links
+            const idByLower = new Map();
+            const idsByBasename = new Map();
+            const idsByBasenameNoExt = new Map();
+
+            const addToMultiMap = (map, key, value) => {
+                if (!key) return;
+                const existing = map.get(key);
+                if (existing) {
+                    existing.push(value);
+                } else {
+                    map.set(key, [value]);
+                }
+            };
+
+            records.forEach(record => {
+                const lower = record.id.toLowerCase();
+                if (!idByLower.has(lower)) idByLower.set(lower, record.id);
+                addToMultiMap(idsByBasename, record.basenameLower, record.id);
+                addToMultiMap(idsByBasenameNoExt, record.basenameNoExtLower, record.id);
+            });
+
+            const resolveFileTarget = (rawTarget, sourceId) => {
+                if (!rawTarget) return null;
+                let target = String(rawTarget).trim();
+                if (!target) return null;
+
+                // Remove alias portion: [[path|label]]
+                if (target.includes('|')) {
+                    target = target.split('|')[0].trim();
+                }
+
+                // Drop anchors
+                if (target.includes('#')) {
+                    target = target.split('#')[0].trim();
+                }
+
+                target = target.replace(/^[.][\\/]/, '');
+                const hasSeparator = target.includes('/') || target.includes('\\');
+                let normalizedTarget = normalizePath(target);
+                if (!normalizedTarget) return null;
+
+                const hasMarkdownExt = /\.(md|markdown)$/i.test(normalizedTarget);
+                if (!hasMarkdownExt) {
+                    normalizedTarget = `${normalizedTarget}.md`;
+                }
+
+                const sourceDir = sourceId && String(sourceId).includes('/')
+                    ? String(sourceId).split('/').slice(0, -1).join('/')
+                    : '';
+
+                const tryExact = (candidate) => {
+                    const normalized = normalizePath(candidate);
+                    if (!normalized) return null;
+                    const found = idByLower.get(normalized.toLowerCase());
+                    return found || null;
+                };
+
+                if (hasSeparator) {
+                    const fromSameDir = sourceDir ? joinRelative(sourceDir, normalizedTarget) : normalizedTarget;
+                    return tryExact(fromSameDir) || tryExact(normalizedTarget);
+                }
+
+                // Same-directory match first
+                if (sourceDir) {
+                    const fromSameDir = tryExact(`${sourceDir}/${normalizedTarget}`);
+                    if (fromSameDir) return fromSameDir;
+                }
+
+                // Unique basename match
+                const baseLower = normalizedTarget.split('/').pop().toLowerCase();
+                const candidates = idsByBasename.get(baseLower) || [];
+                if (candidates.length === 1) return candidates[0];
+                if (candidates.length > 1 && sourceDir) {
+                    const preferred = candidates.find(id => id.toLowerCase() === `${sourceDir}/${baseLower}`);
+                    if (preferred) return preferred;
+                    return null; // ambiguous
+                }
+
+                // Try without extension
+                const baseNoExtLower = stripExtension(baseLower);
+                const candidatesNoExt = idsByBasenameNoExt.get(baseNoExtLower) || [];
+                if (candidatesNoExt.length === 1) return candidatesNoExt[0];
+                if (candidatesNoExt.length > 1 && sourceDir) {
+                    const preferred = candidatesNoExt.find(id => stripExtension(id.toLowerCase()) === `${sourceDir}/${baseNoExtLower}`);
+                    if (preferred) return preferred;
+                }
+
+                return null;
+            };
+
+            // Create file nodes first (ensures link resolution doesn't depend on processing order)
+            const titleCounts = new Map();
+            records.forEach(record => {
+                titleCounts.set(record.basenameNoExtLower, (titleCounts.get(record.basenameNoExtLower) || 0) + 1);
+            });
+
             const nodeMap = new Map();
-            
-            // Process each file
-            for (const file of files) {
-                // Add file node
+            records.forEach(record => {
+                const duplicate = (titleCounts.get(record.basenameNoExtLower) || 0) > 1;
+                const displayName = duplicate
+                    ? stripExtension(record.relativePath || record.id)
+                    : record.basenameNoExt;
+
                 const fileNode = {
-                    id: file.name,
-                    name: file.name.replace(/\.md$/, ''),
+                    id: record.id,
+                    name: displayName,
                     type: 'file',
-                    path: file.path,
+                    path: record.path,
+                    relativePath: record.relativePath || null,
                     group: 1
                 };
                 this.nodes.push(fileNode);
-                nodeMap.set(file.name, fileNode);
-                
-                // Get file content
-                const content = await this.getFileContent(file.path);
+                nodeMap.set(record.id, fileNode);
+            });
+
+            // Process content for headings and links
+            for (const record of records) {
+                const content = await this.getFileContent(record.path);
                 if (!content) continue;
-                
-                // Extract headings if enabled
+
                 if (this.options.includeHeadings) {
-                    this.extractHeadings(content, file, nodeMap);
+                    this.extractHeadings(content, record, nodeMap);
                 }
-                
-                // Extract internal links
-                const links = this.parseInternalLinks(content, file.name);
-                for (const link of links) {
-                    // Only add links to files that exist
-                    if (nodeMap.has(link.target) || link.target.startsWith('heading:')) {
-                        this.links.push(link);
-                    }
+
+                const references = this.parseInternalLinks(content);
+                for (const ref of references) {
+                    const resolved = resolveFileTarget(ref.target, record.id);
+                    if (!resolved) continue;
+                    if (!nodeMap.has(resolved)) continue;
+                    this.links.push({
+                        source: record.id,
+                        target: resolved,
+                        type: 'reference'
+                    });
                 }
             }
-            
+
             console.log(`[UnifiedNetwork] Created ${this.nodes.length} nodes and ${this.links.length} links`);
             
         } catch (error) {
@@ -449,7 +670,7 @@ class UnifiedNetworkVisualization {
         }
     }
 
-    extractHeadings(content, file, nodeMap) {
+    extractHeadings(content, fileRecord, nodeMap) {
         const lines = content.split('\n');
         let lastH1 = null;
         
@@ -463,14 +684,14 @@ class UnifiedNetworkVisualization {
             // Skip if we're not including subheadings and this is h2-h6
             if (level > 1 && !this.options.includeSubheadings) continue;
             
-            const headingId = `heading:${file.name}:${text}`;
+            const headingId = `heading:${fileRecord.id}:${text}`;
             const headingNode = {
                 id: headingId,
                 name: text,
                 type: level === 1 ? 'heading' : 'subheading',
                 level: level,
                 group: level + 1,
-                parent: file.name
+                parent: fileRecord.id
             };
             
             this.nodes.push(headingNode);
@@ -478,7 +699,7 @@ class UnifiedNetworkVisualization {
             
             // Create link from file to heading
             this.links.push({
-                source: file.name,
+                source: fileRecord.id,
                 target: headingId,
                 type: 'contains'
             });
@@ -677,9 +898,9 @@ class UnifiedNetworkVisualization {
             .append('line')
             .attr('class', d => `network-link ${d.type || 'link'}`)
             .attr('stroke', d => {
-                if (d.type === 'contains') return '#4f46e5';
-                if (d.type === 'hierarchy') return '#7c3aed';
-                return '#94a3b8';
+                if (d.type === 'contains') return theme.linkContains || theme.linkHighlight || theme.link;
+                if (d.type === 'hierarchy') return theme.linkHierarchy || theme.link;
+                return theme.link;
             })
             .attr('stroke-opacity', d => {
                 if (d.type === 'contains') return 0.28;
@@ -700,16 +921,16 @@ class UnifiedNetworkVisualization {
             .attr('class', d => `network-node library-node ${d.type || 'file'}`)
             .attr('r', d => this.getNodeRadius(d))
             .attr('fill', d => {
-                if (d.type === 'file') return '#f59e0b';
-                if (d.type === 'heading') return '#0ea5e9';
-                if (d.type === 'subheading') return '#7c3aed';
-                return '#475569';
+                if (d.type === 'file') return theme.nodeFile;
+                if (d.type === 'heading') return theme.nodeHeading;
+                if (d.type === 'subheading') return theme.nodeSubheading;
+                return theme.nodeSubheading || theme.nodeHeading || theme.nodeFile;
             })
             .attr('stroke', d => {
-                if (d.type === 'file') return '#fbbf24';
-                if (d.type === 'heading') return '#38bdf8';
-                if (d.type === 'subheading') return '#c4b5fd';
-                return '#94a3b8';
+                if (d.type === 'file') return theme.nodeFileStroke;
+                if (d.type === 'heading') return theme.nodeHeadingStroke;
+                if (d.type === 'subheading') return theme.nodeSubheadingStroke;
+                return theme.nodeFileStroke || theme.nodeHeadingStroke || theme.nodeSubheadingStroke || theme.link;
             })
             .attr('stroke-width', 2.2)
             .style('cursor', 'pointer')
@@ -839,6 +1060,7 @@ class UnifiedNetworkVisualization {
     }
 
     updateLabelsVisibility() {
+        const theme = this.getCurrentTheme();
         if (this.options.showLabels) {
             // Re-render labels
             this.labelsGroup.selectAll('*').remove();
@@ -1245,20 +1467,20 @@ class UnifiedNetworkVisualization {
         style.id = 'library-network-visual-styles';
         style.textContent = `
             .network-node.library-node.file {
-                filter: drop-shadow(0 0 6px rgba(245,158,11,0.22));
+                filter: drop-shadow(0 0 6px rgba(0,0,0,0.14));
             }
             .network-node.library-node.heading {
-                filter: drop-shadow(0 0 5px rgba(34,211,238,0.24));
+                filter: drop-shadow(0 0 5px rgba(0,0,0,0.12));
             }
             .network-node.library-node.subheading {
-                filter: drop-shadow(0 0 4px rgba(165,180,252,0.25));
+                filter: drop-shadow(0 0 4px rgba(0,0,0,0.10));
             }
             .network-node.library-node.selected {
                 stroke-width: 3 !important;
-                filter: drop-shadow(0 0 10px rgba(250,204,21,0.45));
+                filter: drop-shadow(0 0 12px rgba(34,197,94,0.35));
             }
             .network-label {
-                font-family: 'IBM Plex Mono','Fira Code','Courier New',monospace;
+                font-family: var(--font-family-mono, 'IBM Plex Mono','Fira Code','Courier New',monospace);
                 letter-spacing: 0.04em;
                 text-shadow: 0 0 6px rgba(6,10,19,0.85);
                 paint-order: stroke fill;
@@ -1266,27 +1488,54 @@ class UnifiedNetworkVisualization {
                 stroke-width: 0.6px;
             }
             .network-link.active {
-                stroke: #facc15 !important;
+                stroke: var(--primary, #22c55e) !important;
                 stroke-opacity: 0.85 !important;
             }
             .network-link.trail {
-                stroke: #fde68a !important;
+                stroke: var(--primary, #22c55e) !important;
                 stroke-opacity: 0.95 !important;
+                stroke-width: 3.2 !important;
             }
             .network-link.orientation {
-                stroke: #0ea5e9 !important;
+                stroke: var(--primary, #22c55e) !important;
                 stroke-width: 3 !important;
                 stroke-opacity: 0.98 !important;
             }
             .network-node.orientation-forward {
-                stroke: #0ea5e9 !important;
+                stroke: var(--primary, #22c55e) !important;
                 stroke-width: 3.4 !important;
-                filter: drop-shadow(0 0 10px rgba(14,165,233,0.55));
+                filter: drop-shadow(0 0 10px rgba(34,197,94,0.35));
             }
             .network-label.orientation-forward {
-                fill: #bae6fd !important;
+                fill: var(--text, #0f172a) !important;
                 font-weight: 600;
-                text-shadow: 0 0 10px rgba(14,165,233,0.6);
+                text-shadow: 0 0 10px rgba(34,197,94,0.35);
+            }
+
+            /* Techne (Swiss / trash-polka) overrides */
+            body.techne-theme .network-node.library-node.file,
+            body.techne-theme .network-node.library-node.heading,
+            body.techne-theme .network-node.library-node.subheading,
+            body.techne-theme .network-node.library-node.selected,
+            body.techne-theme .network-node.orientation-forward {
+                filter: none;
+            }
+
+            body.techne-theme .network-label {
+                font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+                text-shadow: none;
+                stroke: rgba(255,255,255,0.9);
+            }
+
+            body.techne-theme .network-link.active,
+            body.techne-theme .network-link.trail,
+            body.techne-theme .network-link.orientation {
+                stroke: var(--primary, #E63946) !important;
+            }
+
+            body.techne-theme .network-label.orientation-forward {
+                fill: var(--techne-black, #0a0a0a) !important;
+                text-shadow: none;
             }
         `;
         document.head.appendChild(style);
@@ -1321,6 +1570,10 @@ class UnifiedNetworkVisualization {
     destroy() {
         if (this.simulation) {
             this.simulation.stop();
+        }
+        if (this._appThemeChangedHandler) {
+            window.removeEventListener('app-theme-changed', this._appThemeChangedHandler);
+            this._appThemeChangedHandler = null;
         }
         if (this.container) {
             this.container.innerHTML = '';

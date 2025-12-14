@@ -37,13 +37,13 @@
 }
 
 .file-tree .folder.drag-over {
-    background-color: var(--hover-color, #e3f2fd) !important;
-    border: 2px solid #007bff !important;
+    background-color: var(--primary-subtle, #e3f2fd) !important;
+    border: 2px solid var(--border-accent, #007bff) !important;
 }
 
 .file-tree .dragging {
     opacity: 0.5 !important;
-    border: 2px dashed #007bff !important;
+    border: 2px dashed var(--border-accent, #007bff) !important;
 }
 
 /* Visual feedback for cut items */
@@ -62,12 +62,12 @@
 
 /* Toolbar button interactions */
 .toolbar-btn:hover {
-    background: var(--hover-color, #e9ecef) !important;
-    border-color: #adb5bd !important;
+    background: var(--surface-hover, #e9ecef) !important;
+    border-color: var(--border-strong, #adb5bd) !important;
 }
 
 .toolbar-btn:active {
-    background: var(--hover-color, #dee2e6) !important;
+    background: var(--surface-active, #dee2e6) !important;
     transform: translateY(1px);
 }
 
@@ -77,12 +77,12 @@
 }
 
 .nav-btn:hover:not(:disabled) {
-    background: var(--hover-color, #e9ecef) !important;
-    border-color: #adb5bd !important;
+    background: var(--surface-hover, #e9ecef) !important;
+    border-color: var(--border-strong, #adb5bd) !important;
 }
 
 .nav-btn:active:not(:disabled) {
-    background: var(--hover-color, #dee2e6) !important;
+    background: var(--surface-active, #dee2e6) !important;
     transform: translateY(1px);
 }
 

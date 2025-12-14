@@ -257,6 +257,25 @@ function setupKeyboardShortcuts() {
   console.log('[App Init] Keyboard shortcuts setup completed');
 }
 
+function updateGamificationToggleButton(toggleBtn, isVisible) {
+  if (!toggleBtn) return;
+
+  toggleBtn.classList.remove('toggle-off');
+  toggleBtn.classList.remove('btn-primary', 'btn-warning', 'btn-error', 'btn-success');
+
+  if (isVisible) {
+    toggleBtn.classList.add('btn-warning');
+    toggleBtn.setAttribute('aria-pressed', 'true');
+  } else {
+    toggleBtn.classList.add('toggle-off');
+    toggleBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  // Clear any legacy inline styles
+  toggleBtn.style.background = '';
+  toggleBtn.style.color = '';
+  toggleBtn.style.opacity = '';
+}
 
 function setupGamificationToggleIntegration() {
   console.log('[App Init] Setting up gamification toggle integration');
@@ -278,31 +297,13 @@ function setupGamificationToggleIntegration() {
           const newVisibility = window.writingGamification.toggleMenuVisibility();
           
           // Update button appearance based on new visibility state
-          const toggleBtn = document.getElementById('toggle-gamification-btn');
-          if (toggleBtn) {
-            if (newVisibility) {
-              toggleBtn.style.background = '#dc2626'; // Red - active/visible
-              toggleBtn.style.opacity = '1';
-            } else {
-              toggleBtn.style.background = '#f59e0b'; // Orange - inactive/hidden
-              toggleBtn.style.opacity = '0.7';
-            }
-          }
+          updateGamificationToggleButton(document.getElementById('toggle-gamification-btn'), newVisibility);
         } else if (window.gamificationInstance && window.gamificationInstance.toggleMenuVisibility) {
           console.log('[App Init] Calling gamificationInstance.toggleMenuVisibility()');
           const newVisibility = window.gamificationInstance.toggleMenuVisibility();
           
           // Update button appearance based on new visibility state
-          const toggleBtn = document.getElementById('toggle-gamification-btn');
-          if (toggleBtn) {
-            if (newVisibility) {
-              toggleBtn.style.background = '#dc2626'; // Red - active/visible
-              toggleBtn.style.opacity = '1';
-            } else {
-              toggleBtn.style.background = '#f59e0b'; // Orange - inactive/hidden
-              toggleBtn.style.opacity = '0.7';
-            }
-          }
+          updateGamificationToggleButton(document.getElementById('toggle-gamification-btn'), newVisibility);
         } else {
           console.warn('[App Init] Gamification system not ready, trying to toggle entire gamification menu');
           
@@ -314,16 +315,7 @@ function setupGamificationToggleIntegration() {
             console.log('[App Init] Manually toggled entire gamification menu:', !isVisible);
             
             // Update the toggle button appearance
-            const toggleBtn = document.getElementById('toggle-gamification-btn');
-            if (toggleBtn) {
-              if (isVisible) {
-                toggleBtn.style.background = '#f59e0b'; // Orange - inactive
-                toggleBtn.style.opacity = '0.7';
-              } else {
-                toggleBtn.style.background = '#dc2626'; // Red - active
-                toggleBtn.style.opacity = '1';
-              }
-            }
+            updateGamificationToggleButton(document.getElementById('toggle-gamification-btn'), !isVisible);
             
             // Save the visibility state
             localStorage.setItem('gamification-menu-visible', !isVisible);
@@ -363,16 +355,8 @@ function setupGamificationToggle() {
       e.preventDefault();
       e.stopPropagation();
       
-      const wasVisible = toggleGamificationPanel();
-      
-      // Update button visual state
-      if (wasVisible) {
-        gamificationToggleBtn.style.background = '#f59e0b'; // Orange - inactive
-        gamificationToggleBtn.style.opacity = '0.7';
-      } else {
-        gamificationToggleBtn.style.background = '#dc2626'; // Red - active
-        gamificationToggleBtn.style.opacity = '1';
-      }
+      const isVisible = toggleGamificationPanel();
+      updateGamificationToggleButton(gamificationToggleBtn, isVisible);
       
       console.log('[App Init] Gamification panel toggled via dedicated button');
     });
@@ -405,15 +389,7 @@ function setupGamificationToggle() {
   gamificationPanel.style.display = isVisible ? 'block' : 'none';
   
   // Set initial button state
-  if (gamificationToggleBtn) {
-    if (isVisible) {
-      gamificationToggleBtn.style.background = '#dc2626'; // Red - active
-      gamificationToggleBtn.style.opacity = '1';
-    } else {
-      gamificationToggleBtn.style.background = '#f59e0b'; // Orange - inactive
-      gamificationToggleBtn.style.opacity = '0.7';
-    }
-  }
+  updateGamificationToggleButton(gamificationToggleBtn, isVisible);
   
   console.log('[App Init] Gamification toggle setup completed');
 }

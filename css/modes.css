@@ -21,28 +21,29 @@
     display: flex;
     gap: 10px;
     padding: 10px;
-    background: #f5f5f5;
-    border-bottom: 1px solid #ddd;
+    background: var(--surface-variant, #f5f5f5);
+    border-bottom: 1px solid var(--border, #ddd);
 }
 
 /* Mode buttons */
 .mode-btn {
     padding: 8px 16px;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border, #ddd);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
+    color: var(--text-secondary, #334155);
 }
 
 .mode-btn:hover {
-    background: #f0f0f0;
+    background: var(--surface-hover, #f0f0f0);
 }
 
 .mode-btn.active {
-    background: #007acc !important;
-    color: white !important;
-    border-color: #005a9e !important;
+    background: var(--primary, #007acc) !important;
+    color: var(--text-on-primary, #ffffff) !important;
+    border-color: var(--primary-hover, #005a9e) !important;
 }
 
 /* Presentation mode specific */

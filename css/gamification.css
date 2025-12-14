@@ -222,6 +222,25 @@
     font-weight: 600;
 }
 
+.ledger-explainer {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 12px;
+    color: rgba(226, 232, 240, 0.78);
+    line-height: 1.4;
+}
+
+.ledger-explainer strong {
+    color: rgba(191, 219, 254, 0.95);
+    font-weight: 600;
+}
+
 .ledger-room-list {
     margin-top: 12px;
     display: flex;

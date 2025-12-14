@@ -503,16 +503,16 @@ class AICompanionManager {
                     align-items: center;
                     margin-bottom: 12px;
                     padding-bottom: 8px;
-                    border-bottom: 1px solid #eee;
+                    border-bottom: 1px solid var(--border, #eee);
                 }
                 .ai-persona {
                     font-weight: 600;
-                    color: #333;
+                    color: var(--text, #333);
                 }
                 .ai-feedback-type {
                     font-size: 12px;
-                    color: #666;
-                    background: #f5f5f5;
+                    color: var(--text-muted, #666);
+                    background: var(--surface-variant, #f5f5f5);
                     padding: 2px 6px;
                     border-radius: 3px;
                 }
@@ -529,13 +529,13 @@ class AICompanionManager {
                 .ai-feedback-message {
                     margin-bottom: 12px;
                     line-height: 1.4;
-                    color: #444;
+                    color: var(--text, #444);
                 }
                 .ai-feedback-footer {
                     display: flex;
                     justify-content: space-between;
                     font-size: 11px;
-                    color: #888;
+                    color: var(--text-muted, #888);
                     margin-bottom: 12px;
                 }
                 .ai-feedback-actions {
@@ -553,19 +553,21 @@ class AICompanionManager {
                     transition: all 0.2s;
                 }
                 .ai-feedback-thanks-btn {
-                    background: #f0f0f0;
-                    color: #333;
-                    border: 1px solid #ddd;
+                    background: var(--surface-hover, #f0f0f0);
+                    color: var(--text, #333);
+                    border: 1px solid var(--border, #ddd);
                 }
                 .ai-feedback-thanks-btn:hover {
-                    background: #e0e0e0;
+                    background: var(--surface-active, #e0e0e0);
                 }
                 .ai-feedback-save-btn {
-                    background: #007acc;
-                    color: white;
+                    background: var(--primary, #007acc);
+                    border: 1px solid var(--primary, #007acc);
+                    color: var(--text-on-primary, #fff);
                 }
                 .ai-feedback-save-btn:hover {
-                    background: #005a9e;
+                    background: var(--primary-hover, #005a9e);
+                    border-color: var(--primary-hover, #005a9e);
                 }
                 .ai-feedback-thanks-btn:active, .ai-feedback-save-btn:active {
                     transform: translateY(1px);

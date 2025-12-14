@@ -79,19 +79,12 @@ function createSettingsDialog() {
     
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.className = 'btn btn-ghost';
     cancelBtn.onclick = closeSettingsDialog;
     
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save Settings';
-    saveBtn.style.cssText = `
-        padding: 8px 16px;
-        border: none;
-        background: #0066cc;
-        color: white;
-        border-radius: 4px;
-        cursor: pointer;
-    `;
+    saveBtn.className = 'btn btn-primary';
     saveBtn.onclick = saveSettingsDialog;
     
     footer.appendChild(cancelBtn);
@@ -292,6 +285,11 @@ function generateGeneralSettings() {
 }
 
 function generateAppearanceSettings() {
+    const techneSettings = currentSettings.techne || {};
+    const techneAccent = techneSettings.accent || 'red';
+    const techneGrid = techneSettings.grid !== false;
+    const techneNoise = techneSettings.noise !== false;
+
     return `
         <div class="settings-section">
             <h3>Theme</h3>
@@ -301,9 +299,37 @@ function generateAppearanceSettings() {
                         <option value="auto" ${currentSettings.theme === 'auto' ? 'selected' : ''}>Auto (Follow System)</option>
                         <option value="light" ${currentSettings.theme === 'light' ? 'selected' : ''}>Light</option>
                         <option value="dark" ${currentSettings.theme === 'dark' ? 'selected' : ''}>Dark</option>
+                        <option value="techne" ${currentSettings.theme === 'techne' ? 'selected' : ''}>Techne (Swiss / Trash Polka)</option>
                     </select>
                     <span>Theme</span>
                 </label>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Techne Theme</h3>
+            <div class="settings-group">
+                <label>
+                    <select id="techne-accent-select">
+                        <option value="red" ${techneAccent === 'red' ? 'selected' : ''}>Red Accent</option>
+                        <option value="orange" ${techneAccent === 'orange' ? 'selected' : ''}>Orange Accent</option>
+                    </select>
+                    <span>Accent Color</span>
+                </label>
+
+                <label>
+                    <input type="checkbox" id="techne-grid-enabled" ${techneGrid ? 'checked' : ''}>
+                    <span>Show Background Grid</span>
+                </label>
+
+                <label>
+                    <input type="checkbox" id="techne-noise-enabled" ${techneNoise ? 'checked' : ''}>
+                    <span>Show Noise Texture</span>
+                </label>
+
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    These options apply when the theme is set to Techne.
+                </p>
             </div>
         </div>
         
@@ -339,6 +365,8 @@ function generateThemesSettings() {
                         <option value="academic" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'academic' ? 'selected' : ''}>Academic</option>
                         <option value="minimal" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'minimal' ? 'selected' : ''}>Minimal</option>
                         <option value="dark" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'dark' ? 'selected' : ''}>Dark</option>
+                        <option value="techne-red" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'techne-red' ? 'selected' : ''}>Techne — Red</option>
+                        <option value="techne-orange" ${(currentSettings.stylePreferences?.presentationTemplate || 'default') === 'techne-orange' ? 'selected' : ''}>Techne — Orange</option>
                     </select>
                     <span>Presentation Template</span>
                 </label>
@@ -530,11 +558,11 @@ function generateGamificationSettings() {
             <h3>Data & Privacy</h3>
             <div class="settings-group">
                 <label>
-                    <button type="button" onclick="clearGamificationData()" style="background: #e74c3c; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Clear All Gamification Data</button>
+                    <button type="button" class="btn btn-error" onclick="clearGamificationData()">Clear All Gamification Data</button>
                     <span style="color: #666; font-size: 12px;">This will reset all streaks, lore fragments, and sigils</span>
                 </label>
                 <label>
-                    <button type="button" onclick="exportGamificationData()" style="background: #3498db; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Export Gamification Data</button>
+                    <button type="button" class="btn btn-primary" onclick="exportGamificationData()">Export Gamification Data</button>
                     <span style="color: #666; font-size: 12px;">Download your writing statistics and achievements</span>
                 </label>
             </div>
@@ -570,8 +598,7 @@ function generateAISettings() {
         <div class="settings-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <h3 style="margin: 0;">AI Assistant Configuration</h3>
-                <button type="button" onclick="refreshAIProviders()"
-                        style="padding: 6px 12px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                <button type="button" class="btn btn-sm btn-primary" onclick="refreshAIProviders()">
                     🔄 Refresh
                 </button>
             </div>
@@ -587,7 +614,7 @@ function generateAISettings() {
             
             <!-- Ash Configuration -->
             <div id="ash-config" class="assistant-config active">
-                <h4 style="color: #007acc; margin-bottom: 15px;">Ash - AI Writing Companion</h4>
+                <h4 style="color: var(--primary, #007acc); margin-bottom: 15px;">Ash - AI Writing Companion</h4>
                 <div class="settings-group">
                     <label>
                         <select id="ash-provider" onchange="updateModelOptions('ash')">
@@ -620,7 +647,7 @@ function generateAISettings() {
                         <textarea id="ash-system-prompt" rows="6" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px; resize: vertical;">${getAssistantSystemPrompt('ash')}</textarea>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                             <span>System Prompt</span>
-                            <button type="button" onclick="resetSystemPrompt('ash')" style="padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            <button type="button" class="btn btn-sm btn-ghost" onclick="resetSystemPrompt('ash')">
                                 Use Default Prompt
                             </button>
                         </div>
@@ -633,7 +660,7 @@ function generateAISettings() {
             
             <!-- Dr. Chen Configuration -->
             <div id="chen-config" class="assistant-config">
-                <h4 style="color: #007acc; margin-bottom: 15px;">Dr. Chen - Philosophical Dialogue Partner</h4>
+                <h4 style="color: var(--primary, #007acc); margin-bottom: 15px;">Dr. Chen - Philosophical Dialogue Partner</h4>
                 <div class="settings-group">
                     <label>
                         <select id="chen-provider" onchange="updateModelOptions('chen')">
@@ -666,7 +693,7 @@ function generateAISettings() {
                         <textarea id="chen-system-prompt" rows="8" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px; resize: vertical;">${getAssistantSystemPrompt('chen')}</textarea>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                             <span>System Prompt</span>
-                            <button type="button" onclick="resetSystemPrompt('chen')" style="padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                            <button type="button" class="btn btn-sm btn-ghost" onclick="resetSystemPrompt('chen')">
                                 Use Default Prompt
                             </button>
                         </div>
@@ -829,7 +856,7 @@ function generateAIPromptsSettings() {
             </div>
             
             <div style="margin-top: 15px;">
-                <button type="button" onclick="addSlashCommand()" style="padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                <button type="button" class="btn btn-primary" onclick="addSlashCommand()">
                     + Add New Command
                 </button>
             </div>
@@ -881,19 +908,18 @@ function populateSlashCommands() {
         const commandDiv = document.createElement('div');
         commandDiv.className = 'slash-command-item';
         commandDiv.style.cssText = `
-            border: 1px solid #ddd;
+            border: 1px solid var(--border, #ddd);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
-            background: #f9f9f9;
+            background: var(--surface-variant, #f9f9f9);
             position: relative;
         `;
         
         commandDiv.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-                <h4 style="margin: 0; color: #007acc; font-size: 14px;">${command}</h4>
-                <button type="button" onclick="removeSlashCommand('${command}')" 
-                        style="background: #dc3545; color: white; border: none; border-radius: 3px; padding: 4px 8px; cursor: pointer; font-size: 12px;">
+                <h4 style="margin: 0; color: var(--primary, #007acc); font-size: 14px;">${command}</h4>
+                <button type="button" class="btn btn-sm btn-error" onclick="removeSlashCommand('${command}')">
                     Delete
                 </button>
             </div>
@@ -1283,7 +1309,7 @@ function generateVisualizationSettings() {
                 </label>
                 
                 <div style="margin-top: 15px;">
-                    <button type="button" onclick="clearVisualizationCache()" style="padding: 8px 16px; background: #ff6b35; color: white; border: none; border-radius: 4px; cursor: pointer;">Clear Summary Cache</button>
+                    <button type="button" class="btn btn-warning" onclick="clearVisualizationCache()">Clear Summary Cache</button>
                     <small style="color: #666; font-size: 11px; margin-left: 10px;">Clears all cached AI summaries</small>
                 </div>
             </div>
@@ -1299,7 +1325,7 @@ function generateVisualizationSettings() {
                     <div style="color: #28a745;"><strong>Included:</strong> ${includePatterns.join(', ')}</div>
                     <div style="color: #dc3545; margin-top: 5px;"><strong>Excluded:</strong> ${excludePatterns.join(', ')}</div>
                 </div>
-                <button type="button" onclick="testVisualizationFilters()" style="margin-top: 10px; padding: 6px 12px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Test Filters</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="testVisualizationFilters()" style="margin-top: 10px;">Test Filters</button>
             </div>
         </div>
     `;
@@ -1338,34 +1364,13 @@ function generateAdvancedSettings() {
         <div class="settings-section">
             <h3>Data Management</h3>
             <div class="settings-group">
-                <button type="button" onclick="exportSettingsFromDialog()">Export Settings</button>
-                <button type="button" onclick="importSettingsFromDialog()">Import Settings</button>
-                <button type="button" onclick="resetSettingsFromDialog()" style="background: #dc3545; color: white;">Reset All Settings</button>
+                <button type="button" class="btn btn-primary" onclick="exportSettingsFromDialog()">Export Settings</button>
+                <button type="button" class="btn btn-ghost" onclick="importSettingsFromDialog()">Import Settings</button>
+                <button type="button" class="btn btn-error" onclick="resetSettingsFromDialog()">Reset All Settings</button>
             </div>
         </div>
     `;
 }
-
-function applyTheme(theme) {
-    const body = document.body;
-
-    // Remove existing theme classes
-    body.classList.remove('dark-mode');
-
-    if (theme === 'dark') {
-        body.classList.add('dark-mode');
-    } else if (theme === 'auto') {
-        // Check system preference
-        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (prefersDark) {
-            body.classList.add('dark-mode');
-        }
-    }
-    // 'light' theme is the default (no class needed)
-}
-
-// Make applyTheme available globally
-window.applyTheme = applyTheme;
 
 function addSettingsEventListeners(category) {
     // Add specific event listeners based on category
@@ -1436,7 +1441,9 @@ function addSettingsEventListeners(category) {
 
             try {
                 // Apply the theme immediately
-                applyTheme(newTheme);
+                if (typeof window.applyTheme === 'function') {
+                    window.applyTheme(newTheme);
+                }
 
                 // Update app settings
                 if (!window.appSettings) window.appSettings = {};
@@ -1463,7 +1470,8 @@ function addSettingsEventListeners(category) {
                 const themeNames = {
                     'auto': 'Auto theme applied (follows system)',
                     'light': 'Light theme applied',
-                    'dark': 'Dark theme applied'
+                    'dark': 'Dark theme applied',
+                    'techne': 'Techne theme applied'
                 };
                 window.showNotification(themeNames[newTheme] || 'Theme applied', 'success');
 
@@ -1478,6 +1486,81 @@ function addSettingsEventListeners(category) {
                     e.target.style.backgroundColor = '';
                     e.target.style.borderColor = '';
                 }, 1000);
+            }
+        });
+    }
+
+    // Techne accent selection
+    const techneAccentSelect = document.getElementById('techne-accent-select');
+    if (techneAccentSelect) {
+        techneAccentSelect.addEventListener('change', async (e) => {
+            const accent = e.target.value === 'orange' ? 'orange' : 'red';
+            try {
+                if (!window.appSettings) window.appSettings = {};
+                if (!window.appSettings.techne) window.appSettings.techne = {};
+                window.appSettings.techne.accent = accent;
+
+                await window.electronAPI.invoke('set-settings', window.appSettings);
+                currentSettings.techne = { ...(currentSettings.techne || {}), accent };
+
+                if (window.appSettings.theme === 'techne') {
+                    if (typeof window.applyTheme === 'function') {
+                        window.applyTheme('techne');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to apply Techne accent:', error);
+                window.showNotification('Failed to apply Techne accent', 'error');
+            }
+        });
+    }
+
+    // Techne grid toggle
+    const techneGridEnabled = document.getElementById('techne-grid-enabled');
+    if (techneGridEnabled) {
+        techneGridEnabled.addEventListener('change', async (e) => {
+            const grid = Boolean(e.target.checked);
+            try {
+                if (!window.appSettings) window.appSettings = {};
+                if (!window.appSettings.techne) window.appSettings.techne = {};
+                window.appSettings.techne.grid = grid;
+
+                await window.electronAPI.invoke('set-settings', window.appSettings);
+                currentSettings.techne = { ...(currentSettings.techne || {}), grid };
+
+                if (window.appSettings.theme === 'techne') {
+                    if (typeof window.applyTheme === 'function') {
+                        window.applyTheme('techne');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to apply Techne grid toggle:', error);
+                window.showNotification('Failed to update Techne grid', 'error');
+            }
+        });
+    }
+
+    // Techne noise toggle
+    const techneNoiseEnabled = document.getElementById('techne-noise-enabled');
+    if (techneNoiseEnabled) {
+        techneNoiseEnabled.addEventListener('change', async (e) => {
+            const noise = Boolean(e.target.checked);
+            try {
+                if (!window.appSettings) window.appSettings = {};
+                if (!window.appSettings.techne) window.appSettings.techne = {};
+                window.appSettings.techne.noise = noise;
+
+                await window.electronAPI.invoke('set-settings', window.appSettings);
+                currentSettings.techne = { ...(currentSettings.techne || {}), noise };
+
+                if (window.appSettings.theme === 'techne') {
+                    if (typeof window.applyTheme === 'function') {
+                        window.applyTheme('techne');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to apply Techne noise toggle:', error);
+                window.showNotification('Failed to update Techne noise', 'error');
             }
         });
     }
@@ -1763,7 +1846,7 @@ function injectAssistantTabStyles() {
     styles.textContent = `
         .assistant-tabs {
             display: flex;
-            border-bottom: 1px solid #e0e0e0;
+            border-bottom: 1px solid var(--border, #e0e0e0);
             margin-bottom: 20px;
         }
         
@@ -1774,25 +1857,25 @@ function injectAssistantTabStyles() {
             cursor: pointer;
             border-bottom: 2px solid transparent;
             font-weight: 500;
-            color: #666;
+            color: var(--text-muted, #666);
             transition: all 0.2s;
             margin-right: 10px;
         }
         
         .assistant-tab:hover {
-            color: #333;
-            background: #f8f9fa;
+            color: var(--text, #333);
+            background: var(--surface-hover, #f8f9fa);
         }
         
         .assistant-tab.active {
-            color: #007acc;
-            border-bottom-color: #007acc;
+            color: var(--primary, #007acc);
+            border-bottom-color: var(--primary, #007acc);
         }
         
         .assistant-config {
             display: none;
             padding: 15px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border, #e0e0e0);
             border-radius: 4px;
             margin-bottom: 20px;
         }
@@ -2315,6 +2398,22 @@ async function testVisualizationFilters() {
         // Get all files and test filters
         const allFiles = await window.electronAPI.invoke('get-available-files');
         const filteredFiles = filterVisualizationFiles(allFiles, includePatterns, excludePatterns);
+
+        const formatFileItem = (fileItem) => {
+            if (typeof fileItem === 'string') return fileItem;
+            if (fileItem && typeof fileItem === 'object') {
+                return fileItem.relativePath || fileItem.path || fileItem.filePath || fileItem.name || String(fileItem);
+            }
+            return String(fileItem);
+        };
+
+        const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (ch) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[ch] || ch));
         
         // Show results
         const resultDiv = document.createElement('div');
@@ -2340,10 +2439,10 @@ async function testVisualizationFilters() {
             <div style="margin: 15px 0;">
                 <strong>Filtered files:</strong>
                 <div style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px;">
-                    ${filteredFiles.map(f => `<div>${f}</div>`).join('')}
+                    ${filteredFiles.map(f => `<div>${escapeHtml(formatFileItem(f))}</div>`).join('')}
                 </div>
             </div>
-            <button onclick="this.parentElement.remove()" style="padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+            <button class="btn btn-primary" onclick="this.parentElement.remove()">Close</button>
         `;
         
         document.body.appendChild(resultDiv);
@@ -2362,6 +2461,10 @@ async function changeWorkingDirectory() {
             const input = document.getElementById('working-directory');
             if (input && result.directory) {
                 input.value = result.directory;
+            }
+            // Update global settings cache with new directory
+            if (window.appSettings) {
+                window.appSettings.workingDirectory = result.directory;
             }
         }
     } catch (error) {

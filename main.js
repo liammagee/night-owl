@@ -100,8 +100,13 @@ let appSettings = {};
 // Default settings structure
 const defaultSettings = {
     // === Theme and Appearance ===
-    theme: 'auto', // 'light', 'dark', 'auto'
+    theme: 'techne', // 'light', 'dark', 'auto', 'techne'
     customThemes: {}, // User-defined theme overrides
+    techne: {
+        accent: 'red', // 'red' | 'orange'
+        grid: true,
+        noise: true
+    },
     
     // === Layout Configuration ===
     layout: {
@@ -451,6 +456,7 @@ function validateSettings() {
     if (!appSettings.presentation) appSettings.presentation = {};
     if (!appSettings.accessibility) appSettings.accessibility = {};
     if (!appSettings.advanced) appSettings.advanced = {};
+    if (!appSettings.techne) appSettings.techne = {};
     
     // Ensure arrays exist
     if (!Array.isArray(appSettings.navigation.history)) {
@@ -512,8 +518,24 @@ function validateSettings() {
     }
     
     // Validate theme setting
-    if (appSettings.theme && !['light', 'dark', 'auto'].includes(appSettings.theme)) {
+    if (appSettings.theme && !['light', 'dark', 'auto', 'techne'].includes(appSettings.theme)) {
         appSettings.theme = defaultSettings.theme;
+    }
+
+    // Ensure Techne theme settings are valid
+    if (!appSettings.techne || typeof appSettings.techne !== 'object') {
+        appSettings.techne = JSON.parse(JSON.stringify(defaultSettings.techne));
+    } else {
+        const accent = appSettings.techne.accent === 'orange' ? 'orange' : 'red';
+        const grid = appSettings.techne.grid !== false;
+        const noise = appSettings.techne.noise !== false;
+        appSettings.techne = {
+            ...defaultSettings.techne,
+            ...appSettings.techne,
+            accent,
+            grid,
+            noise
+        };
     }
     
     // Limit array sizes

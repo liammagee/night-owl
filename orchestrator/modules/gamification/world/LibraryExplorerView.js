@@ -256,27 +256,29 @@ class LibraryExplorerView {
                                     <div class="pulse-node-body">Use arrow keys or click the constellation to explore manuscripts.</div>
                                 </div>
                             </section>
-                            <section class="le-digest companion-pane" id="le-digest">
-                                <h4 class="digest-title">Stacks Digest</h4>
-                                <div class="digest-section" id="le-anchors">
-                                    <h5>Anchors</h5>
-                                    <div class="list"></div>
-                                </div>
-                                <div class="digest-section" id="le-rooms">
-                                    <h5>Recent Rooms</h5>
-                                    <div class="list"></div>
-                                </div>
-                                <div class="digest-section" id="le-lore">
-                                    <h5>Lore Fragments</h5>
-                                    <div class="list"></div>
-                                </div>
-                            </section>
-                            <section class="le-links companion-pane" id="le-links">
-                                <h4 class="links-title">Ash's Link Hypotheses</h4>
-                                <div class="links-list">
-                                    <div class="links-placeholder">Select a node to let Ash propose new corridors.</div>
-                                </div>
-                            </section>
+                            <div class="le-digest-cluster">
+                                <section class="le-digest companion-pane" id="le-digest">
+                                    <h4 class="digest-title">Stacks Digest</h4>
+                                    <div class="digest-section" id="le-anchors">
+                                        <h5>Anchors</h5>
+                                        <div class="list"></div>
+                                    </div>
+                                    <div class="digest-section" id="le-rooms">
+                                        <h5>Recent Rooms</h5>
+                                        <div class="list"></div>
+                                    </div>
+                                    <div class="digest-section" id="le-lore">
+                                        <h5>Lore Fragments</h5>
+                                        <div class="list"></div>
+                                    </div>
+                                </section>
+                                <section class="le-links companion-pane" id="le-links">
+                                    <h4 class="links-title">Ash's Link Hypotheses</h4>
+                                    <div class="links-list">
+                                        <div class="links-placeholder">Select a node to let Ash propose new corridors.</div>
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </div>
                     <div class="le-side">
@@ -287,11 +289,6 @@ class LibraryExplorerView {
                             </div>
                             <div class="companion-body">
                                 <section class="le-narrative companion-pane" id="le-narrative">
-                                    <div class="companion-actions">
-                                        <button class="companion-btn primary" id="le-ash-link-btn">Inscribe Ash's Link</button>
-                                        <button class="companion-btn" id="le-orientation-btn">Cycle Forward Edge</button>
-                                        <button class="companion-btn" id="le-recenter-btn">Recenter View</button>
-                                    </div>
                                     <div class="narrative-log" id="le-narrative-log" aria-live="polite" aria-label="Constellation Log">
                                         <div class="narrative-line muted">Awaiting first steps…</div>
                                     </div>
@@ -299,8 +296,15 @@ class LibraryExplorerView {
                                     <div class="chat-input-wrap">
                                         <textarea id="le-chat-input" placeholder="Describe your next move or ask Ash for a hint…"></textarea>
                                         <div class="chat-actions">
-                                            <button type="button" id="le-chat-send-btn">Send Whisper</button>
-                                            <button type="button" id="le-chat-help-btn">Command Lore</button>
+                                            <div class="chat-button-group primary">
+                                                <button type="button" id="le-chat-send-btn">Send Whisper</button>
+                                                <button type="button" id="le-chat-help-btn">Command Lore</button>
+                                            </div>
+                                            <div class="chat-button-group utility">
+                                                <button type="button" class="companion-btn primary" id="le-ash-link-btn">Inscribe Ash's Link</button>
+                                                <button type="button" class="companion-btn" id="le-orientation-btn">Cycle Forward Edge</button>
+                                                <button type="button" class="companion-btn" id="le-recenter-btn">Recenter View</button>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="chat-hints">Press Enter to send • Shift+Enter for a new line • Commands: north • south • east • west • rotate • go to &lt;node&gt;.</div>
@@ -412,24 +416,30 @@ class LibraryExplorerView {
             .library-explorer-panel .le-btn:hover { background: rgba(94,234,212,0.2); transform: translateY(-1px); }
             .library-explorer-panel .le-btn.secondary:hover { background: rgba(125,211,252,0.2); }
             .library-explorer-panel .le-content { display: flex; flex-direction: column; gap: 24px; overflow: auto; flex: 1; padding-top: 6px; }
-            .library-explorer-panel .le-layout { display: grid; grid-template-columns: minmax(0, 2.75fr) minmax(0, 1.1fr); gap: 32px; align-items: stretch; }
-            .library-explorer-panel.library-explorer-panel-full .le-layout { grid-template-columns: minmax(0, 3fr) minmax(0, 1.1fr); }
+            .library-explorer-panel .le-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 32px; align-items: stretch; }
+            .library-explorer-panel.library-explorer-panel-full .le-layout { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
             .library-explorer-panel.le-hidden { display: none !important; }
             .library-explorer-panel.le-typing { box-shadow: 0 0 20px rgba(56,189,248,0.2); }
             .library-explorer-panel .le-status.pulsing { color: #38bdf8; }
             .library-explorer-resizer { height: 8px; width: 100%; cursor: ns-resize; border-radius: 999px; background: linear-gradient(90deg, rgba(94,234,212,0.2), rgba(125,211,252,0.65), rgba(94,234,212,0.2)); opacity: 0.65; transition: opacity 0.2s ease, box-shadow 0.2s ease; margin: 8px 0; }
             .library-explorer-resizer:hover, .library-explorer-resizer.active { opacity: 1; box-shadow: 0 0 14px rgba(94,234,212,0.45); }
             .library-explorer-panel .le-constellation { display: flex; flex-direction: column; gap: 22px; }
-            .library-explorer-panel .le-companion-strip { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-            .library-explorer-panel .le-side { display: flex; flex-direction: column; gap: 24px; position: relative; padding-top: 4px; min-height: 0; }
-            .library-explorer-panel .le-companion-card { position: relative; border: 1px solid rgba(94,234,212,0.2); border-radius: 16px; padding: 20px; background: linear-gradient(180deg, rgba(15,23,42,0.82) 0%, rgba(11,15,25,0.9) 60%, rgba(8,12,18,0.94) 100%); box-shadow: 0 14px 36px rgba(8,12,18,0.45); display: flex; flex-direction: column; gap: 20px; overflow-x: hidden; overflow-y: auto; max-height: clamp(520px, 70vh, 880px); }
+            .library-explorer-panel .le-companion-strip { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+            .library-explorer-panel .le-digest-cluster { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+            .library-explorer-panel .le-digest-cluster .companion-pane { height: 100%; }
+            @media (min-width: 960px) {
+                .library-explorer-panel .le-companion-strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+                .library-explorer-panel .le-digest-cluster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            }
+            .library-explorer-panel .le-side { display: flex; flex-direction: column; gap: 24px; position: relative; padding-top: 4px; min-height: 0; height: 100%; }
+            .library-explorer-panel .le-companion-card { position: relative; border: 1px solid rgba(94,234,212,0.2); border-radius: 16px; padding: 20px; background: linear-gradient(180deg, rgba(15,23,42,0.82) 0%, rgba(11,15,25,0.9) 60%, rgba(8,12,18,0.94) 100%); box-shadow: 0 14px 36px rgba(8,12,18,0.45); display: flex; flex-direction: column; gap: 20px; overflow-x: hidden; overflow-y: auto; height: 100%; min-height: clamp(540px, 72vh, 960px); flex: 1 1 auto; }
             .library-explorer-panel .le-companion-card::-webkit-scrollbar { width: 6px; }
             .library-explorer-panel .le-companion-card::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.35); border-radius: 999px; }
             .library-explorer-panel .le-companion-card::after { content: ''; position: absolute; inset: auto -40% -42%; height: 220px; background: radial-gradient(circle at top, rgba(94,234,212,0.18) 0%, rgba(14,23,42,0) 65%); pointer-events: none; opacity: 0.7; }
             .library-explorer-panel .companion-header { position: relative; display: flex; flex-direction: column; gap: 4px; }
             .library-explorer-panel .companion-title { font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(191,219,254,0.88); }
             .library-explorer-panel .companion-subtitle { font-size: 12px; color: rgba(226,232,240,0.72); max-width: 240px; }
-            .library-explorer-panel .companion-body { position: relative; display: grid; gap: 16px; grid-auto-rows: minmax(0, auto); }
+            .library-explorer-panel .companion-body { position: relative; display: flex; flex-direction: column; gap: 16px; flex: 1; min-height: 0; }
             .library-explorer-panel .companion-pane { border: 1px solid rgba(148,163,184,0.16); border-radius: 12px; padding: 16px; background: rgba(8,12,18,0.58); backdrop-filter: blur(4px); display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }
             .library-explorer-panel .le-digest { gap: 16px; }
             .library-explorer-panel .le-digest .digest-title { margin: 0 0 2px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(191,219,254,0.75); }
@@ -499,7 +509,13 @@ class LibraryExplorerView {
             .library-explorer-panel .maze-empty { font-size: 12px; color: rgba(226,232,240,0.55); margin-top: 8px; }
             .library-explorer-panel .le-narrative { border: 1px solid rgba(148,163,184,0.18); border-radius: 14px; padding: 18px 18px 20px; background: linear-gradient(180deg, rgba(15,23,42,0.68) 0%, rgba(10,16,28,0.92) 60%, rgba(8,12,18,0.96) 100%); display: flex; flex-direction: column; gap: 16px; position: relative; overflow: hidden; min-height: 320px; }
             .library-explorer-panel .le-narrative::after { content: ''; position: absolute; inset: auto -35% -55% 40%; height: 240px; background: radial-gradient(circle at top, rgba(56,189,248,0.18) 0%, rgba(8,12,18,0) 70%); opacity: 0.55; pointer-events: none; }
-            .library-explorer-panel .le-narrative .companion-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+            .library-explorer-panel .le-narrative { flex: 1; min-height: 0; }
+            .library-explorer-panel .le-narrative .chat-actions { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
+            .library-explorer-panel .le-narrative .chat-button-group { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; width: 100%; }
+            .library-explorer-panel .le-narrative .chat-button-group button { min-width: 140px; flex: 1 1 160px; }
+            .library-explorer-panel .le-narrative .chat-button-group.primary { justify-content: center; }
+            .library-explorer-panel .le-narrative .chat-button-group.utility { padding: 10px; border-radius: 14px; border: 1px solid rgba(94,234,212,0.25); background: rgba(15,118,110,0.16); }
+            .library-explorer-panel .le-narrative .chat-button-group.utility .companion-btn { flex: 1 1 180px; }
             .library-explorer-panel .le-narrative .companion-btn { padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(94,234,212,0.4); background: rgba(15,118,110,0.26); color: rgba(191,219,254,0.94); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; cursor: pointer; transition: transform 0.2s ease, background 0.2s ease, border 0.2s ease; }
             .library-explorer-panel .le-narrative .companion-btn.primary { border-color: rgba(250,204,21,0.5); background: rgba(250,204,21,0.24); color: rgba(253,244,191,0.96); }
             .library-explorer-panel .le-narrative .companion-btn:hover { transform: translateY(-1px); background: rgba(56,189,248,0.25); border-color: rgba(125,211,252,0.5); }
@@ -522,7 +538,6 @@ class LibraryExplorerView {
             .library-explorer-panel .le-narrative .chat-input-wrap { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; }
             .library-explorer-panel .le-narrative textarea { resize: vertical; min-height: 72px; max-height: 160px; border-radius: 12px; border: 1px solid rgba(56,189,248,0.22); background: rgba(4,10,18,0.85); color: rgba(226,232,240,0.96); font-family: 'IBM Plex Mono','Fira Code','Courier New',monospace; font-size: 13px; line-height: 1.5; padding: 12px 14px; box-shadow: inset 0 0 14px rgba(2,12,20,0.55); }
             .library-explorer-panel .le-narrative textarea:focus { outline: none; border-color: rgba(94,234,212,0.45); box-shadow: 0 0 0 2px rgba(94,234,212,0.2); }
-            .library-explorer-panel .le-narrative .chat-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
             .library-explorer-panel .le-narrative .chat-actions button { padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(94,234,212,0.4); background: rgba(15,118,110,0.26); color: rgba(191,219,254,0.94); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; cursor: pointer; transition: transform 0.2s ease, background 0.2s ease, border 0.2s ease; }
             .library-explorer-panel .le-narrative .chat-actions button:hover { transform: translateY(-1px); background: rgba(56,189,248,0.25); border-color: rgba(125,211,252,0.5); }
             .library-explorer-panel .le-narrative .chat-actions button:disabled { opacity: 0.5; cursor: wait; transform: none; }
@@ -554,6 +569,84 @@ class LibraryExplorerView {
             .library-world-modal .modal-status { font-size: 12px; min-height: 18px; color: rgba(148,163,184,0.9); }
             .library-world-modal .modal-status.error { color: #fecaca; }
             .library-world-modal .modal-status.success { color: #bbf7d0; }
+
+            /* === Techne theme overrides === */
+            body.techne-theme .library-explorer-panel {
+                background: rgba(255, 255, 255, 0.92);
+                border: 2px solid var(--techne-black, #0a0a0a);
+                color: var(--techne-black, #0a0a0a);
+                backdrop-filter: none;
+            }
+
+            body.techne-theme .library-explorer-panel .le-header {
+                border-bottom: 2px solid rgba(10, 10, 10, 0.14);
+            }
+
+            body.techne-theme .library-explorer-panel .le-status {
+                color: var(--techne-black, #0a0a0a);
+            }
+
+            body.techne-theme .library-explorer-panel .le-status.pulsing {
+                color: var(--primary-500, #E63946);
+            }
+
+            body.techne-theme .library-explorer-panel .le-btn,
+            body.techne-theme .library-explorer-panel .le-narrative .chat-actions button,
+            body.techne-theme .library-world-modal .modal-actions button,
+            body.techne-theme .library-world-modal header button {
+                border-radius: 0;
+                border: 2px solid var(--techne-black, #0a0a0a);
+                background: rgba(255, 255, 255, 0.92);
+                color: var(--techne-black, #0a0a0a);
+                box-shadow: none;
+                transform: none;
+            }
+
+            body.techne-theme .library-explorer-panel .le-btn:hover,
+            body.techne-theme .library-explorer-panel .le-narrative .chat-actions button:hover,
+            body.techne-theme .library-world-modal .modal-actions button:hover,
+            body.techne-theme .library-world-modal header button:hover {
+                background: rgba(10, 10, 10, 0.04);
+                transform: none;
+            }
+
+            body.techne-theme .library-explorer-panel .le-narrative,
+            body.techne-theme .library-explorer-panel .companion-pane,
+            body.techne-theme .library-explorer-panel .le-digest,
+            body.techne-theme .library-world-modal {
+                background: rgba(255, 255, 255, 0.94);
+                border: 2px solid rgba(10, 10, 10, 0.22);
+                color: var(--techne-black, #0a0a0a);
+                box-shadow: none;
+            }
+
+            body.techne-theme .library-explorer-panel .le-narrative::after {
+                display: none;
+            }
+
+            body.techne-theme .library-explorer-panel .le-narrative .chat-log,
+            body.techne-theme .library-explorer-panel .le-narrative textarea,
+            body.techne-theme .library-world-modal textarea {
+                background: rgba(255, 255, 255, 0.92);
+                border: 2px solid rgba(10, 10, 10, 0.22);
+                color: var(--techne-black, #0a0a0a);
+                box-shadow: none;
+            }
+
+            body.techne-theme .library-explorer-panel .le-narrative .chat-log .chat-line.you .label,
+            body.techne-theme .library-explorer-panel .le-narrative .chat-log .chat-line.ash .label {
+                color: var(--primary-500, #E63946);
+            }
+
+            body.techne-theme .library-explorer-panel .maze-node.selected .maze-node-rect {
+                stroke: var(--techne-black, #0a0a0a);
+                fill: rgba(230, 57, 70, 0.10);
+            }
+
+            body.techne-theme.techne-accent-orange .library-explorer-panel .maze-node.selected .maze-node-rect {
+                fill: rgba(255, 122, 26, 0.12);
+            }
+
             @media (max-width: 1200px) {
                 .library-explorer-panel .le-layout { grid-template-columns: 1fr; gap: 24px; }
                 .library-explorer-panel .le-digest .digest-section .list { max-height: 140px; }
@@ -677,7 +770,7 @@ class LibraryExplorerView {
                 visualizationOptions: {
                     includeHeadings: false,
                     includeSubheadings: false,
-                    theme: 'dark',
+                    theme: 'auto',
                     showLabels: true,
                     nodeSize: 'normal'
                 }
@@ -3225,7 +3318,25 @@ Rules:
             if (currentGraphNode) {
                 this.scheduleAshLinkSuggestions(currentGraphNode, { source: 'ash-link' });
             }
-            this.scheduleNetworkSync({ immediate: true });
+            if (this.networkInstance?.refresh) {
+                try {
+                    await this.networkInstance.refresh();
+                    if (this.selectedNodeId && this.networkInstance?.setSelectedNode) {
+                        this.networkInstance.setSelectedNode(this.selectedNodeId, {
+                            source: 'library',
+                            center: false,
+                            preserveScale: true,
+                            immediate: true
+                        });
+                    }
+                    this.syncNetworkNodes();
+                } catch (error) {
+                    console.warn('[LibraryExplorerView] Failed to refresh constellation after corridor inscription:', error);
+                    this.scheduleNetworkSync({ immediate: true });
+                }
+            } else {
+                this.scheduleNetworkSync({ immediate: true });
+            }
             this.configureOrientationForNode(this.selectedNodeId, this.lastVisitedNodeId, {
                 preserveForward: true,
                 fallbackVector: this.orientationVector

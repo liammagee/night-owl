@@ -46,6 +46,18 @@ class StyleManager {
             preview: './styles/previews/dark-presentation.png'
         });
 
+        this.presentationTemplates.set('techne-red', {
+            name: 'Techne — Red',
+            description: 'Swiss grid / trash-polka inspired (red accent)',
+            cssFile: './styles/templates/presentations/techne-red.css'
+        });
+
+        this.presentationTemplates.set('techne-orange', {
+            name: 'Techne — Orange',
+            description: 'Swiss grid / trash-polka inspired (orange accent)',
+            cssFile: './styles/templates/presentations/techne-orange.css'
+        });
+
         // Preview styles
         this.previewStyles.set('latex', {
             name: 'LaTeX Document',

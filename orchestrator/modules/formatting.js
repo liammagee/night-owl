@@ -381,25 +381,12 @@ function createInputDialog(title, fields, callback) {
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.cssText = `
-        padding: 8px 16px;
-        background: #f5f5f5;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        cursor: pointer;
-    `;
+    cancelBtn.className = 'btn btn-ghost';
     
     const okBtn = document.createElement('button');
     okBtn.type = 'submit';
     okBtn.textContent = 'OK';
-    okBtn.style.cssText = `
-        padding: 8px 16px;
-        background: #007acc;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    `;
+    okBtn.className = 'btn btn-primary';
     
     buttonDiv.appendChild(cancelBtn);
     buttonDiv.appendChild(okBtn);
@@ -409,11 +396,22 @@ function createInputDialog(title, fields, callback) {
     dialog.appendChild(dialogContent);
     
     // Event handlers
-    const cleanup = () => document.body.removeChild(dialog);
-    
+    const cleanup = () => {
+        document.body.removeChild(dialog);
+        document.removeEventListener('keydown', escapeHandler);
+    };
+
+    const escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            cleanup();
+        }
+    };
+
     cancelBtn.onclick = cleanup;
     dialog.onclick = (e) => { if (e.target === dialog) cleanup(); };
-    
+    document.addEventListener('keydown', escapeHandler);
+
     form.onsubmit = (e) => {
         e.preventDefault();
         const values = {};
@@ -423,9 +421,9 @@ function createInputDialog(title, fields, callback) {
         cleanup();
         callback(values);
     };
-    
+
     document.body.appendChild(dialog);
-    
+
     // Focus first input
     if (fields.length > 0) {
         inputs[fields[0].name].focus();
@@ -515,15 +513,8 @@ function createImageDialog() {
     
     const selectFileBtn = document.createElement('button');
     selectFileBtn.textContent = 'Select Image File';
-    selectFileBtn.style.cssText = `
-        background: #007acc;
-        color: white;
-        border: none;
-        padding: 8px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        white-space: nowrap;
-    `;
+    selectFileBtn.className = 'btn btn-sm btn-primary';
+    selectFileBtn.style.whiteSpace = 'nowrap';
     
     sourceContainer.appendChild(urlInput);
     sourceContainer.appendChild(selectFileBtn);
@@ -548,11 +539,11 @@ function createImageDialog() {
     
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.cssText = 'padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;';
+    cancelBtn.className = 'btn btn-ghost';
     
     const okBtn = document.createElement('button');
     okBtn.textContent = 'Insert Image';
-    okBtn.style.cssText = 'padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;';
+    okBtn.className = 'btn btn-primary';
     
     buttonContainer.appendChild(cancelBtn);
     buttonContainer.appendChild(okBtn);
@@ -578,54 +569,62 @@ function createImageDialog() {
         }
     });
     
+    // Cleanup function to properly remove dialog and event listeners
+    const cleanup = () => {
+        if (dialog.parentNode) {
+            document.body.removeChild(dialog);
+        }
+        document.removeEventListener('keydown', keyHandler);
+    };
+
+    const keyHandler = (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            cleanup();
+        }
+    };
+
     cancelBtn.addEventListener('click', () => {
-        document.body.removeChild(dialog);
+        cleanup();
     });
-    
+
     okBtn.addEventListener('click', async () => {
         const url = urlInput.value.trim();
         const alt = altInput.value.trim() || 'image';
-        
+
         if (!url) {
             alert('Please enter an image URL or select an image file.');
             return;
         }
-        
+
         const imageMarkdown = `![${alt}](${url})`;
-        
+
         const position = window.editor.getPosition();
         window.editor.executeEdits('insert-image', [{
             range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
             text: imageMarkdown
         }]);
-        
+
         window.editor.focus();
         if (window.updatePreviewAndStructure) {
             await window.updatePreviewAndStructure(window.editor.getValue());
         }
-        
-        document.body.removeChild(dialog);
+
+        cleanup();
     });
-    
-    // Focus on URL input initially
-    setTimeout(() => urlInput.focus(), 100);
-    
-    // Close on Escape key
-    const keyHandler = (e) => {
-        if (e.key === 'Escape') {
-            document.body.removeChild(dialog);
-            document.removeEventListener('keydown', keyHandler);
-        }
-    };
-    document.addEventListener('keydown', keyHandler);
-    
+
     // Close on overlay click
     dialog.addEventListener('click', (e) => {
         if (e.target === dialog) {
-            document.body.removeChild(dialog);
-            document.removeEventListener('keydown', keyHandler);
+            cleanup();
         }
     });
+
+    // Add escape key handler
+    document.addEventListener('keydown', keyHandler);
+
+    // Focus on URL input initially
+    setTimeout(() => urlInput.focus(), 100);
 }
 
 // --- Table Insertion ---
