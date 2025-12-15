@@ -120,8 +120,9 @@ NightOwl implements these against existing globals (Monaco, IPC, mode switcher).
    - ✅ v0 implemented as `plugins/techne-presentations/` (loads TTS + recording + speaker notes + the current React presenter bundle in NightOwl).
    - Next: define a clean host interface for file access, TTS/audio, capture/recording, navigation, and a browser-friendly presenter UI for the LMS.
 4. **Babel Maze plugin**
-   - Move the maze engine + view + MUD commands into a plugin.
-   - Host contract: graph access, link insertion, open-in-editor, and persistence.
+   - ✅ Implemented as `plugins/techne-maze/` (MUD-style knowledge explorer with wiki-link graph).
+   - Uses host adapter for file operations, supports plugin mounting via `initialize()`.
+   - Next: integrate with NightOwl mode switcher, add harness link to index.
 5. **Network diagram plugin**
    - ✅ Implemented as `plugins/techne-network-diagram/` (D3 force-directed graph).
    - Next: graph access via host adapter instead of globals.
