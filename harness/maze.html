@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techne Maze Plugin - Test Harness</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: #2d2d2d;
+            padding: 1rem;
+            border-bottom: 1px solid #404040;
+        }
+        header h1 {
+            font-size: 1.25rem;
+            color: #fff;
+        }
+        header p {
+            font-size: 0.875rem;
+            color: #888;
+            margin-top: 0.25rem;
+        }
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+        }
+        #maze-mount {
+            flex: 1;
+            background: #0a0a0f;
+            border-radius: 8px;
+            min-height: 600px;
+            overflow: hidden;
+            position: relative;
+        }
+        /* Provide the library-mode-root container the maze expects */
+        #library-mode-root {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #library-content {
+            width: 100%;
+            height: 100%;
+        }
+        #library-content.active {
+            display: block;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+        .controls button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            background: #007acc;
+            color: white;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .controls button:hover {
+            background: #005a9e;
+        }
+        .controls button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .status {
+            font-size: 0.75rem;
+            color: #888;
+        }
+        .log-panel {
+            margin-top: 1rem;
+            background: #2d2d2d;
+            border-radius: 4px;
+            padding: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.75rem;
+        }
+        .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Techne Maze Plugin - Test Harness</h1>
+        <p>Babel Maze - MUD-style knowledge base explorer inspired by Borges' Library of Babel</p>
+    </header>
+    <main>
+        <div class="controls">
+            <button id="init-btn">Initialize Maze</button>
+            <button id="refresh-btn" disabled>Rebuild Graph</button>
+            <span class="status" id="status">Ready</span>
+        </div>
+        <div id="maze-mount">
+            <div id="library-mode-root">
+                <div id="library-content" class="active"></div>
+            </div>
+        </div>
+        <div class="log-panel" id="log-panel"></div>
+    </main>
+
+    <!-- Plugin system -->
+    <script>window.TECHNE_PLUGIN_AUTOSTART = false;</script>
+    <script src="/plugins/techne-plugin-system.js"></script>
+    <script src="/plugins/manifest.js"></script>
+
+    <script>
+        // Mock data for testing - simulates a small knowledge base
+        const mockFiles = [
+            { path: '/docs/being.md', name: 'being.md' },
+            { path: '/docs/nothing.md', name: 'nothing.md' },
+            { path: '/docs/becoming.md', name: 'becoming.md' },
+            { path: '/docs/determinate-being.md', name: 'determinate-being.md' },
+            { path: '/docs/quality.md', name: 'quality.md' },
+            { path: '/docs/quantity.md', name: 'quantity.md' },
+            { path: '/docs/measure.md', name: 'measure.md' },
+            { path: '/docs/essence.md', name: 'essence.md' },
+            { path: '/docs/appearance.md', name: 'appearance.md' },
+            { path: '/docs/actuality.md', name: 'actuality.md' }
+        ];
+
+        // Mock content with wiki-style links
+        const mockContent = {
+            '/docs/being.md': `# Being
+
+Being, pure being – without further determination. In its indeterminate immediacy it is equal only to itself.
+
+Being is the immediate. It passes over into [[nothing]].
+
+The unity of being and nothing is [[becoming]].`,
+
+            '/docs/nothing.md': `# Nothing
+
+Nothing, pure nothing; it is simple equality with itself, complete emptiness.
+
+Nothing is the same determination, or rather absence of determination, as [[being]].
+
+Nothing passes over into [[being]], showing their unity in [[becoming]].`,
+
+            '/docs/becoming.md': `# Becoming
+
+Becoming is the unity of [[being]] and [[nothing]].
+
+In becoming, being and nothing are different; but their difference has equally immediately resolved itself.
+
+The result of becoming is [[determinate-being|Determinate Being]].`,
+
+            '/docs/determinate-being.md': `# Determinate Being (Dasein)
+
+Determinate being is the unity of [[being]] and [[nothing]] in which the immediacy of these determinations is sublated.
+
+Determinate being has [[quality]] as its first determination.`,
+
+            '/docs/quality.md': `# Quality
+
+Quality is the first, immediate determinateness of [[determinate-being]].
+
+Quality is determinateness as such, distinct from [[quantity]].
+
+The truth of quality and quantity is [[measure]].`,
+
+            '/docs/quantity.md': `# Quantity
+
+Quantity is pure being where the determinateness is no longer one with being itself.
+
+Quantity stands in contrast to [[quality]].
+
+Their unity is found in [[measure]].`,
+
+            '/docs/measure.md': `# Measure
+
+Measure is the unity of [[quality]] and [[quantity]].
+
+Measure passes over into [[essence]].`,
+
+            '/docs/essence.md': `# Essence
+
+Essence is truth. It is being that has gone into itself.
+
+Essence must appear; its showing-forth is [[appearance]].
+
+The truth of essence is [[actuality]].`,
+
+            '/docs/appearance.md': `# Appearance
+
+Appearance is the showing-forth of [[essence]].
+
+Appearance is not mere semblance; it is the manifestation of essence.`,
+
+            '/docs/actuality.md': `# Actuality
+
+Actuality is the unity of [[essence]] and existence.
+
+It is essence that has become actual through its own movement.`
+        };
+
+        // Logging helper
+        function log(message) {
+            const panel = document.getElementById('log-panel');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            panel.appendChild(entry);
+            panel.scrollTop = panel.scrollHeight;
+            console.log(message);
+        }
+
+        // Set up mock globals for testing
+        window.getFilteredVisualizationFiles = async () => {
+            log('Mock: getFilteredVisualizationFiles called');
+            return {
+                files: mockFiles,
+                totalFiles: mockFiles.length,
+                filters: { mock: true }
+            };
+        };
+
+        // Extend host with mock capabilities
+        TechnePlugins.extendHost({
+            getFiles: async () => {
+                log('Mock: getFiles called');
+                return {
+                    files: mockFiles,
+                    totalFiles: mockFiles.length,
+                    filters: { mock: true }
+                };
+            },
+            readFile: async (filePath) => {
+                log(`Mock: readFile(${filePath})`);
+                const content = mockContent[filePath];
+                if (content) {
+                    return { content };
+                }
+                return { content: `# ${filePath.split('/').pop()}\n\nMock content for this file.` };
+            },
+            openFile: async (filePath) => {
+                log(`Mock: openFile(${filePath})`);
+                alert(`Would open: ${filePath}`);
+            },
+            getEditor: () => {
+                log('Mock: getEditor called');
+                return null; // No editor in harness
+            },
+            getCurrentFilePath: () => {
+                log('Mock: getCurrentFilePath called');
+                return null;
+            },
+            switchToEditorMode: () => {
+                log('Mock: switchToEditorMode called');
+            },
+            markContentAsSaved: () => {
+                log('Mock: markContentAsSaved called');
+            }
+        });
+
+        let mazeView = null;
+
+        document.getElementById('init-btn').addEventListener('click', async () => {
+            const status = document.getElementById('status');
+            status.textContent = 'Initializing...';
+
+            try {
+                // Start the plugin system with only the maze plugin
+                await TechnePlugins.start({
+                    enabled: ['techne-maze'],
+                    appId: 'harness'
+                });
+
+                log('Plugin system started');
+
+                // Listen for mode availability
+                TechnePlugins.on('mode:available', async (mode) => {
+                    log(`Mode available: ${mode.id} - ${mode.title}`);
+
+                    if (mode.id === 'maze') {
+                        const container = document.getElementById('library-content');
+                        mazeView = await mode.mount(container);
+                        log('Maze view mounted');
+
+                        document.getElementById('refresh-btn').disabled = false;
+                        status.textContent = 'Maze initialized';
+                    }
+                });
+
+            } catch (err) {
+                log(`Error: ${err.message}`);
+                console.error(err);
+                status.textContent = 'Error';
+            }
+        });
+
+        document.getElementById('refresh-btn').addEventListener('click', async () => {
+            if (mazeView && typeof mazeView.buildGraph === 'function') {
+                log('Rebuilding graph...');
+                await mazeView.buildGraph();
+                log('Graph rebuilt');
+            }
+        });
+
+        log('Harness ready. Click "Initialize Maze" to start.');
+    </script>
+</body>
+</html>

@@ -27,5 +27,10 @@ window.TECHNE_PLUGIN_MANIFEST = [
         id: 'techne-circle',
         entry: 'plugins/techne-circle/plugin.js',
         enabledByDefault: false
+    },
+    {
+        id: 'techne-maze',
+        entry: 'plugins/techne-maze/plugin.js',
+        enabledByDefault: false
     }
 ];
