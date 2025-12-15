@@ -57,7 +57,7 @@
         }
     };
 
-    // Normalize path to be absolute from root if it's a relative path
+    // Normalize path - keep relative for file:// protocol, make absolute for http(s)
     const normalizePath = (path) => {
         const trimmed = String(path || '').trim();
         if (!trimmed) return '';
@@ -65,7 +65,11 @@
         if (trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
             return trimmed;
         }
-        // Make relative paths absolute from root
+        // For file:// protocol (Electron), keep paths relative so they resolve from app directory
+        if (window.location.protocol === 'file:') {
+            return trimmed;
+        }
+        // For http(s), make relative paths absolute from root
         return '/' + trimmed;
     };
 
@@ -290,7 +294,7 @@
             }
 
             const entry = manifestById.get(id);
-            const scriptUrl = normalizeId(entry?.entry);
+            const scriptUrl = normalizePath(entry?.entry);
             if (!scriptUrl) {
                 warn(`Missing entry for enabled plugin "${id}"`);
                 continue;
