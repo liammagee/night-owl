@@ -137,30 +137,33 @@ class CircleView {
         circleContainer.id = 'circle-container';
         circleContainer.style.width = '100%';
         circleContainer.style.height = '100%';
+        circleContainer.style.minHeight = '500px';
         circleContainer.style.position = 'relative';
         circleContainer.style.background = '#fafafa';
         container.appendChild(circleContainer);
 
-        // Create SVG
+        // Get dimensions
+        const rect = circleContainer.getBoundingClientRect();
+        this.width = rect.width || 800;
+        this.height = rect.height || 500;
+        this.centerX = this.width / 2;
+        this.centerY = this.height / 2;
+
+        // Create SVG with viewBox for proper scaling
         this.svg = d3.select(circleContainer)
             .append('svg')
             .attr('width', '100%')
             .attr('height', '100%')
+            .attr('viewBox', `0 0 ${this.width} ${this.height}`)
+            .attr('preserveAspectRatio', 'xMidYMid meet')
             .style('cursor', 'grab');
-
-        // Get dimensions
-        const rect = circleContainer.getBoundingClientRect();
-        this.width = rect.width;
-        this.height = rect.height;
-        this.centerX = this.width / 2;
-        this.centerY = this.height / 2;
 
         // Create a group for zoom/pan
         this.g = this.svg.append('g');
 
         // Add zoom behavior
         const zoom = d3.zoom()
-            .scaleExtent([0.1, 4])
+            .scaleExtent([0.3, 4])
             .on('zoom', (event) => {
                 this.g.attr('transform', event.transform);
             });
@@ -200,6 +203,11 @@ class CircleView {
                 return;
             }
 
+            // Calculate radii based on available space (use smaller dimension)
+            const maxRadius = Math.min(this.width, this.height) * 0.4;
+            const baseRadius = maxRadius * 0.3;
+            const radiusStep = (maxRadius - baseRadius) / 3;
+
             // Create stages representing the hermeneutic circle process
             this.stages = [
                 {
@@ -207,28 +215,28 @@ class CircleView {
                     description: 'First encounter with the text/concept',
                     nodes: files.slice(0, Math.min(3, files.length)),
                     color: '#e3f2fd',
-                    radius: 80
+                    radius: baseRadius
                 },
                 {
                     name: 'Contextual Analysis',
                     description: 'Understanding parts in relation to whole',
                     nodes: files.slice(0, Math.min(6, files.length)),
                     color: '#f3e5f5',
-                    radius: 120
+                    radius: baseRadius + radiusStep
                 },
                 {
                     name: 'Deeper Interpretation',
                     description: 'Refined understanding through iteration',
                     nodes: files.slice(0, Math.min(9, files.length)),
                     color: '#e8f5e8',
-                    radius: 160
+                    radius: baseRadius + radiusStep * 2
                 },
                 {
                     name: 'Comprehensive Understanding',
                     description: 'Whole informs parts, parts inform whole',
                     nodes: files,
                     color: '#fff3e0',
-                    radius: 200
+                    radius: maxRadius
                 }
             ];
 

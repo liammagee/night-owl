@@ -2,10 +2,19 @@
 
 #circle-container {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
 }
 
 #circle-container svg {
     display: block;
+}
+
+/* Control panel positioning */
+#circle-container > div:last-child {
+    max-width: 220px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 11px;
 }
 
 /* Loading animation for summaries */
