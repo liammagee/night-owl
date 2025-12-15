@@ -57,8 +57,20 @@
         }
     };
 
+    // Normalize path to be absolute from root if it's a relative path
+    const normalizePath = (path) => {
+        const trimmed = String(path || '').trim();
+        if (!trimmed) return '';
+        // Already absolute or external URL
+        if (trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+            return trimmed;
+        }
+        // Make relative paths absolute from root
+        return '/' + trimmed;
+    };
+
     const loadCSS = (href, { id } = {}) => {
-        const url = String(href || '').trim();
+        const url = normalizePath(href);
         if (!url) return Promise.resolve(false);
         if (state.cssLoaded.has(url)) return Promise.resolve(true);
         state.cssLoaded.add(url);
@@ -75,7 +87,7 @@
     };
 
     const loadScript = (src, { id, async = false, type = 'text/javascript' } = {}) => {
-        const url = String(src || '').trim();
+        const url = normalizePath(src);
         if (!url) return Promise.resolve(false);
         if (state.scriptLoaded.has(url)) return Promise.resolve(true);
         state.scriptLoaded.add(url);
