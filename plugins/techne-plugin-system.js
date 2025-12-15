@@ -260,21 +260,55 @@
     };
 
     const updateEnabled = (enabled) => {
+        log('updateEnabled called with:', enabled);
+        log('Current manifest:', state.manifest.map(p => p.id));
+
+        // Handle array format: ['plugin-a', 'plugin-b']
         if (Array.isArray(enabled)) {
             for (const id of enabled) {
                 const norm = normalizeId(id);
                 if (norm) state.enabled.add(norm);
             }
+            log('After array update, enabled:', Array.from(state.enabled));
             return;
         }
 
-        // If nothing is enabled yet, fall back to defaults from the manifest.
+        // Handle object format: { 'plugin-a': { enabled: true }, 'plugin-b': { enabled: false } }
+        if (enabled && typeof enabled === 'object' && !Array.isArray(enabled)) {
+            // First, get defaults from manifest
+            const defaults = new Set(
+                state.manifest
+                    .filter((p) => p?.enabledByDefault !== false)
+                    .map((p) => normalizeId(p?.id))
+                    .filter(Boolean)
+            );
+            log('Defaults from manifest:', Array.from(defaults));
+
+            // Apply saved settings on top of defaults
+            for (const [id, config] of Object.entries(enabled)) {
+                const norm = normalizeId(id);
+                if (!norm) continue;
+                log(`Processing saved setting: ${id} = ${JSON.stringify(config)}`);
+                if (config?.enabled === true) {
+                    defaults.add(norm);
+                } else if (config?.enabled === false) {
+                    defaults.delete(norm);
+                }
+            }
+
+            state.enabled = defaults;
+            log('After object update, enabled:', Array.from(state.enabled));
+            return;
+        }
+
+        // If nothing is provided, fall back to defaults from the manifest.
         if (state.enabled.size === 0) {
             const defaults = state.manifest
                 .filter((p) => p?.enabledByDefault !== false)
                 .map((p) => normalizeId(p?.id))
                 .filter(Boolean);
             state.enabled = new Set(defaults);
+            log('Using defaults, enabled:', Array.from(state.enabled));
         }
     };
 
@@ -356,6 +390,43 @@
     const getPlugin = (id) => state.plugins.get(String(id || '').trim()) || null;
     const listPlugins = () => Array.from(state.plugins.keys()).sort((a, b) => a.localeCompare(b));
 
+    // Helper methods for settings UI
+    const getManifest = () => [...state.manifest];
+    const getEnabled = () => Array.from(state.enabled);
+    const isEnabled = (id) => state.enabled.has(String(id || '').trim());
+
+    // Enable/disable a plugin dynamically
+    const enablePlugin = async (id) => {
+        const pluginId = String(id || '').trim();
+        if (!pluginId) return false;
+        if (state.enabled.has(pluginId)) return true; // Already enabled
+
+        state.enabled.add(pluginId);
+        if (state.started) {
+            await loadEnabledPlugins();
+            emit('plugin:enabled', { id: pluginId });
+        }
+        return true;
+    };
+
+    const disablePlugin = (id) => {
+        const pluginId = String(id || '').trim();
+        if (!pluginId) return false;
+        if (!state.enabled.has(pluginId)) return true; // Already disabled
+
+        state.enabled.delete(pluginId);
+        const plugin = state.plugins.get(pluginId);
+        if (plugin?.destroy) {
+            try {
+                plugin.destroy();
+            } catch (err) {
+                warn(`Failed to destroy plugin "${pluginId}":`, err);
+            }
+        }
+        emit('plugin:disabled', { id: pluginId });
+        return true;
+    };
+
     window.TechnePlugins = {
         register,
         start,
@@ -367,6 +438,11 @@
         loadScriptsSequential,
         getPlugin,
         listPlugins,
+        getManifest,
+        getEnabled,
+        isEnabled,
+        enablePlugin,
+        disablePlugin,
         extendHost
     };
 

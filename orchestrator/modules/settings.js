@@ -126,6 +126,7 @@ function createSettingsSidebar() {
         { id: 'appearance', label: 'Appearance', icon: '🎨' },
         { id: 'themes', label: 'Templates', icon: '🎭' },
         { id: 'editor', label: 'Editor', icon: '📝' },
+        { id: 'plugins', label: 'Plugins', icon: '🧩' },
         { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
         { id: 'ai-prompts', label: 'AI Custom Prompts', icon: '💬' },
@@ -179,6 +180,7 @@ function showSettingsCategory(category) {
             appearance: 'Appearance',
             themes: 'Templates',
             editor: 'Editor Settings',
+            plugins: 'Plugins',
             gamification: 'Gamification Settings',
             ai: 'AI Configuration',
             tts: 'Text-to-Speech Settings',
@@ -209,6 +211,8 @@ function generateSettingsContent(category) {
             return generateThemesSettings();
         case 'editor':
             return generateEditorSettings();
+        case 'plugins':
+            return generatePluginsSettings();
         case 'gamification':
             return generateGamificationSettings();
         case 'ai':
@@ -452,6 +456,185 @@ function generateEditorSettings() {
                 </label>
             </div>
         </div>
+    `;
+}
+
+function generatePluginsSettings() {
+    // Get plugin information from TechnePlugins
+    const manifest = window.TechnePlugins?.getManifest?.() || window.TECHNE_PLUGIN_MANIFEST || [];
+    const enabledPlugins = window.TechnePlugins?.getEnabled?.() || [];
+
+    // Plugin metadata for display
+    const pluginInfo = {
+        'techne-backdrop': {
+            name: 'Backdrop',
+            description: 'Animated background effects with grid patterns and visual flourishes.'
+        },
+        'techne-presentations': {
+            name: 'Presentations',
+            description: 'Slide-based presentation mode for lectures with speaker notes support.'
+        },
+        'techne-markdown-renderer': {
+            name: 'Markdown Renderer',
+            description: 'Enhanced markdown rendering with custom syntax extensions.'
+        },
+        'techne-network-diagram': {
+            name: 'Network Diagram',
+            description: 'Interactive network/graph visualization for linked documents.'
+        },
+        'techne-circle': {
+            name: 'Hermeneutic Circle',
+            description: 'Visual representation of the hermeneutic circle for philosophical exploration.'
+        },
+        'techne-maze': {
+            name: 'Babel Maze',
+            description: 'Library of Babel-inspired maze navigation through your documents.'
+        }
+    };
+
+    let pluginRows = '';
+    for (const plugin of manifest) {
+        const info = pluginInfo[plugin.id] || { name: plugin.id, description: 'No description available.' };
+        const isEnabled = enabledPlugins.includes(plugin.id);
+        const isLoaded = window.TechnePlugins?.getPlugin?.(plugin.id) != null;
+
+        pluginRows += `
+            <div class="plugin-row" data-plugin-id="${plugin.id}">
+                <div class="plugin-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="plugin-enabled-toggle" data-plugin-id="${plugin.id}" ${isEnabled ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="plugin-info">
+                    <div class="plugin-name">${info.name}</div>
+                    <div class="plugin-description">${info.description}</div>
+                    <div class="plugin-status">
+                        <span class="status-badge ${isLoaded ? 'status-loaded' : 'status-not-loaded'}">
+                            ${isLoaded ? 'Loaded' : 'Not loaded'}
+                        </span>
+                        ${plugin.enabledByDefault ? '<span class="status-badge status-default">Default</span>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="settings-section">
+            <h3>Techne Plugins</h3>
+            <p class="section-description">Enable or disable plugins to customize your NightOwl experience. Some plugins may require a reload to fully activate or deactivate.</p>
+            <div class="plugins-list">
+                ${pluginRows || '<p class="no-plugins">No plugins available.</p>'}
+            </div>
+        </div>
+
+        <style>
+            .plugins-list {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                margin-top: 16px;
+            }
+            .plugin-row {
+                display: flex;
+                align-items: flex-start;
+                gap: 16px;
+                padding: 16px;
+                background: var(--bg-secondary, #f5f5f5);
+                border-radius: 8px;
+                border: 1px solid var(--border-color, #ddd);
+            }
+            .plugin-toggle {
+                flex-shrink: 0;
+                padding-top: 2px;
+            }
+            .plugin-info {
+                flex: 1;
+                min-width: 0;
+            }
+            .plugin-name {
+                font-weight: 600;
+                font-size: 14px;
+                margin-bottom: 4px;
+            }
+            .plugin-description {
+                font-size: 13px;
+                color: var(--text-secondary, #666);
+                margin-bottom: 8px;
+            }
+            .plugin-status {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .status-badge {
+                font-size: 11px;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            .status-loaded {
+                background: #d4edda;
+                color: #155724;
+            }
+            .status-not-loaded {
+                background: #f8d7da;
+                color: #721c24;
+            }
+            .status-default {
+                background: #cce5ff;
+                color: #004085;
+            }
+            .toggle-switch {
+                position: relative;
+                display: inline-block;
+                width: 44px;
+                height: 24px;
+            }
+            .toggle-switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+            .toggle-slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #ccc;
+                transition: 0.3s;
+                border-radius: 24px;
+            }
+            .toggle-slider:before {
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: white;
+                transition: 0.3s;
+                border-radius: 50%;
+            }
+            .toggle-switch input:checked + .toggle-slider {
+                background-color: #4CAF50;
+            }
+            .toggle-switch input:checked + .toggle-slider:before {
+                transform: translateX(20px);
+            }
+            .section-description {
+                color: var(--text-secondary, #666);
+                font-size: 13px;
+                margin: 8px 0 0 0;
+            }
+            .no-plugins {
+                color: var(--text-secondary, #666);
+                font-style: italic;
+            }
+        </style>
     `;
 }
 
@@ -1835,6 +2018,59 @@ function setupTTSEventListeners() {
             saveTTSSettings({ webSpeech: { volume } });
         });
     }
+
+    // Plugin toggle event listeners
+    const pluginToggles = document.querySelectorAll('.plugin-enabled-toggle');
+    pluginToggles.forEach(toggle => {
+        toggle.addEventListener('change', async (e) => {
+            const pluginId = e.target.dataset.pluginId;
+            const isEnabled = e.target.checked;
+            const row = e.target.closest('.plugin-row');
+            const statusBadge = row?.querySelector('.status-badge:not(.status-default)');
+
+            try {
+                if (isEnabled) {
+                    // Enable plugin
+                    await window.TechnePlugins?.enablePlugin?.(pluginId);
+                    console.log(`[Settings] Plugin enabled: ${pluginId}`);
+
+                    // Update status badge
+                    if (statusBadge) {
+                        statusBadge.className = 'status-badge status-loaded';
+                        statusBadge.textContent = 'Loaded';
+                    }
+
+                    window.showNotification(`Plugin "${pluginId}" enabled`, 'success');
+                } else {
+                    // Disable plugin
+                    window.TechnePlugins?.disablePlugin?.(pluginId);
+                    console.log(`[Settings] Plugin disabled: ${pluginId}`);
+
+                    // Update status badge
+                    if (statusBadge) {
+                        statusBadge.className = 'status-badge status-not-loaded';
+                        statusBadge.textContent = 'Disabled';
+                    }
+
+                    window.showNotification(`Plugin "${pluginId}" disabled`, 'info');
+                }
+
+                // Save plugin state to settings
+                if (!window.appSettings) window.appSettings = {};
+                if (!window.appSettings.plugins) window.appSettings.plugins = {};
+                window.appSettings.plugins[pluginId] = { enabled: isEnabled };
+
+                // Persist to settings file
+                await window.electronAPI?.invoke?.('set-settings', window.appSettings);
+
+            } catch (error) {
+                console.error(`[Settings] Failed to toggle plugin "${pluginId}":`, error);
+                // Revert toggle state
+                e.target.checked = !isEnabled;
+                window.showNotification(`Failed to ${isEnabled ? 'enable' : 'disable'} plugin`, 'error');
+            }
+        });
+    });
 }
 
 // Inject CSS styles for assistant tabs

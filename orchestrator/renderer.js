@@ -6636,7 +6636,7 @@ async function performAppInitialization() {
         if (window.TechnePlugins?.start) {
             await window.TechnePlugins.start({
                 appId: 'nightowl',
-                enabled: window.appSettings?.plugins?.enabled || null,
+                enabled: window.appSettings?.plugins || null,
                 settings: window.appSettings?.plugins || null
             });
         }
