@@ -58,9 +58,12 @@ Rewards should track *quality*: fewer orphan notes, healthier backlink ratios, m
 - **Subfolders are districts** (wings, stacks, annexes).
 - **Tags are “sigils”** that color rooms and allow “teleport”/search spells.
 
-### Corridors
-- An internal link `[[target]]` is a corridor.
-- Optional: `[[target#heading]]` becomes a corridor to a sub-room.
+### Two layers: Stone + Sigils (costly but navigable)
+- **Stone corridors (physical maze)**: a procedural, always-connected labyrinth over **all rooms**, guaranteeing you can always move even when a note has zero links.
+- **Sigil doors (semantic links)**: real internal links (`[[target]]`) become **shortcuts/portals** across long stone routes (directed by default).
+- **Wall breaches**: when two linked rooms happen to be adjacent on the grid, the link can “punch through” the wall and become an extra **stone corridor**.
+
+This makes coherence work visible: adding links literally changes the navigability of the maze.
 
 ### Fog-of-war
 - The player sees only nearby rooms until they “catalog” an area (e.g., add summaries/tags).
@@ -82,8 +85,11 @@ Map placement must feel stable:
 
 ### Commands (first slice)
 - `look` — describe current room, exits, notable artifacts (links, tags, citations).
-- `go <dir>` / `north|south|east|west` — traverse.
-- `map` — show local map, fog-of-war edges, discovered districts.
+- `go <dir>` / `north|south|east|west` — traverse stone corridors.
+- `go <room>` — traverse a sigil door (must be linked from here).
+- `back` — return to the previous room.
+- `path <room>` — show a route (stone vs sigil-shortcut hops).
+- `map` — show the global map; pan/zoom; center/fit.
 - `open` — open the note in the editor.
 - `examine <thing>` — read excerpt, summary, backlinks, tags.
 - `link <target>` — create corridor (with preview + confirm).
@@ -94,6 +100,10 @@ Map placement must feel stable:
 ### Presentation
 - Split view: **Map panel** (grid/hex) + **Text log** + **Command input**.
 - Optional “constellation” view remains as a secondary visualization, not the primary game.
+
+### Keyboard-first play
+- Arrow keys / WASD move through stone corridors.
+- Scroll zooms the map; drag pans; shortcuts for center/fit.
 
 ---
 
@@ -224,25 +234,41 @@ Use strict JSON envelopes for:
   - tokenization + aliases (`n`, `north`, `go north`)
   - error messages that stay in tone but remain actionable
 - [ ] Implement first command set:
-  - `look`, `map`, `go`, `open`, `examine`, `link`, `quest`, `help`
+  - `look`, `examine`, `exits`, `go`, `back`, `path`, `map`, `open`, `link`, `quest`, `help`
+- [ ] Make **Enter/Space** a first-class interaction:
+  - unseal the current folio (collect to inventory)
+  - activate map-focus (adjacent move / portal jump)
 - [ ] Hook engine actions into actual app actions:
   - open file in editor
   - insert link
   - create new note from “empty room”
 
 ### E. Map generation (maze that feels stable)
-- [ ] Choose representation: grid vs hex (Borges-friendly: hex).
-- [ ] Implement deterministic placement:
-  - derive seed from path + neighborhood
-  - local relaxation to reduce overlaps
-  - preserve coordinates across small edits
+- [ ] Establish the two-layer topology:
+  - stone maze: always-connected physical corridors over all rooms
+  - sigil doors: semantic `[[links]]` as shortcuts across long routes
+  - adjacent link “breaches”: links open walls when rooms are neighbors
+- [ ] Choose representation: grid vs hex (Borges-friendly: hex), and decide how districts render.
+- [ ] Implement deterministic placement + persistence:
+  - stable room ordering / coordinates that don’t reshuffle on small edits
+  - rebuild only when the set of files changes (not when links change)
+- [ ] Implement labyrinth carving:
+  - spanning-tree maze (DFS/backtracker, Wilson, etc.) so every room is reachable
+  - optional loop injection to reduce extreme dead-ends while staying “costly”
+- [ ] Make the maze **sparse** with “void cells”:
+  - empty rooms with their own wall/corridor geometry
+  - notes scattered across the grid (not 1:1 with cells)
 - [ ] Add fog-of-war reveal rules:
   - reveal current + neighbors
   - reveal more when a note gets summarized/tagged/linked
+- [ ] Add a “spotlight” rendering mode:
+  - illuminated haze around player
+  - the rest of the map dimmed (still present, but unreadable)
 - [ ] Support districts:
   - folder boundaries
   - tag constellations
   - “gates” unlocked by coherence metrics
+  - “library wings” as styled map regions (Swiss grid meets stacks)
 
 ### F. Quests (coherence as gameplay)
 - [ ] Define quest types (non-AI heuristics first):
@@ -253,6 +279,22 @@ Use strict JSON envelopes for:
   - connect two clusters with a “bridge note”
 - [ ] Implement quest scoring + completion criteria (objective, measurable).
 - [ ] Add daily/weekly quest rotation and “streak” flavoring (melancholic, not chirpy).
+
+### H. The Purloined Notes (Lacan/Derrida-inspired long arc)
+- [ ] Treat a subset of notes as “purloined”: present-but-obscured until recovered via play.
+- [ ] Encode “misdirection” mechanics:
+  - high-visibility rooms that lead nowhere (Derrida: the supplement / the endless deferral)
+  - obvious corridors that keep you circling (Lacan: insistence of the signifier)
+- [ ] Add a reveal structure:
+  - “catalogue fragments” (inventory items) that progressively unlock a meta-index
+  - a final synthesis note (the “Letter”) that reframes prior notes as parts of a single argument
+- [ ] Implement quest beats that improve the real knowledge base:
+  - recover an orphan note (0 inbound) → create 2 meaningful backlinks
+  - bridge two clusters → write a new “bridge note” to stabilize the corridor
+  - distill a long note into a short “catalog card” (abstract) to unlock map clarity
+- [ ] Make the ending legible and grounded:
+  - a generated reading path through the recovered notes
+  - an exportable “argument map” (links + headings) for teaching/presentation
 
 ### G. AI integration (Ash, Archivist, Cataloger)
 - [ ] Add strict JSON prompt templates:
@@ -270,6 +312,7 @@ Use strict JSON envelopes for:
   - quest pane (checklist + rewards)
 - [ ] Keyboard-first UX:
   - up/down history in command input
+  - arrow/WASD navigation when input is not focused
   - tab-complete commands + room names
 - [ ] Visual polish:
   - techne grid + trash-polka accents
@@ -290,4 +333,3 @@ Use strict JSON envelopes for:
   - quest completion rules
 - [ ] Smoke test script that builds a small fixture library and validates graph + map stability.
 - [ ] Logging hooks for “game move” events (so failures are diagnosable).
-

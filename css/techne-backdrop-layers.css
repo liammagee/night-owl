@@ -1,0 +1,196 @@
+/* Techne backdrop layers (synced from ~/Dev/my-website)
+   - Shapes layer + rotating shapes + fauna overlay
+   - Update via: ./scripts/sync-techne-backdrop-from-website.sh
+*/
+
+    /* ========== LAYER 4: GEOMETRIC SHAPES ========== */
+    .shapes-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      overflow: hidden;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+
+    .shapes-layer.hidden { opacity: 0; }
+
+    .cuts-layer.hidden,
+    .glass-panels-layer.hidden,
+    .rotating-shapes-layer.hidden { opacity: 0; }
+
+    .shape {
+      position: absolute;
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Solid blocks */
+    .block { background: var(--black); }
+    .block-red { background: var(--red); }
+    .block-white { 
+      background: var(--white); 
+      box-shadow: 0 0 0 2px var(--black);
+    }
+
+    /* Outlines */
+    .outline { border: 3px solid var(--black); opacity: 0.12; }
+    .outline-red { border: 3px solid var(--red); opacity: 0.18; }
+    .outline-thin { border: 2px solid var(--black); opacity: 0.08; }
+
+    /* Glass shapes */
+    .glass {
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .glass-dark {
+      background: rgba(10,10,10,0.4);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .glass-red {
+      background: rgba(var(--red-rgb), 0.15);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border: 1px solid rgba(var(--red-rgb), 0.3);
+    }
+
+    /* Lines */
+    .line { height: 4px; background: var(--black); opacity: 0.15; }
+    .line-red { height: 5px; background: var(--red); opacity: 0.25; box-shadow: 0 0 15px rgba(var(--red-rgb), 0.3); }
+    .line-thin { height: 2px; background: var(--black); opacity: 0.08; }
+
+    /* Crosses */
+    .cross::before, .cross::after {
+      content: '';
+      position: absolute;
+      background: currentColor;
+    }
+    .cross::before {
+      width: 100%; height: 3px;
+      top: 50%; transform: translateY(-50%);
+    }
+    .cross::after {
+      width: 3px; height: 100%;
+      left: 50%; transform: translateX(-50%);
+    }
+
+    /* Circles */
+    .circle { border-radius: 50%; }
+    .circle-outline { 
+      border-radius: 50%; 
+      border: 2px solid var(--black);
+      background: transparent;
+    }
+
+    /* ========== LAYER 5: DIAGONAL CUTS (TRASH POLKA) ========== */
+
+
+    /* ========== LAYER 7: ROTATING SHAPES ========== */
+    .rotating-shapes-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      overflow: hidden;
+      transition: opacity 0.5s ease;
+    }
+
+    .rotating-shape {
+      position: absolute;
+      border: 2px solid rgba(var(--red-rgb), 0.15);
+      background: rgba(var(--red-rgb), 0.03);
+      will-change: transform;
+    }
+
+    .shape-1 {
+      width: 300px;
+      height: 300px;
+      top: 15%;
+      right: 10%;
+      border-radius: 50%;
+    }
+
+    .shape-2 {
+      width: 200px;
+      height: 200px;
+      top: 60%;
+      left: 8%;
+      transform: rotate(45deg);
+    }
+
+    .shape-3 {
+      width: 180px;
+      height: 180px;
+      top: 40%;
+      right: 25%;
+      border-radius: 30%;
+      border-color: rgba(10,10,10,0.08);
+      background: rgba(10,10,10,0.02);
+    }
+
+    .shape-4 {
+      width: 250px;
+      height: 250px;
+      top: 75%;
+      right: 40%;
+      border-radius: 50%;
+      border-color: rgba(var(--red-rgb), 0.12);
+      background: rgba(var(--red-rgb), 0.02);
+    }
+
+    .shape-5 {
+      width: 150px;
+      height: 150px;
+      top: 30%;
+      left: 15%;
+      transform: rotate(30deg);
+      border-color: rgba(10,10,10,0.1);
+      background: rgba(10,10,10,0.03);
+    }
+
+    .shape-6 {
+      width: 220px;
+      height: 220px;
+      top: 80%;
+      left: 25%;
+      border-radius: 40%;
+      border-color: rgba(var(--red-rgb), 0.1);
+      background: rgba(var(--red-rgb), 0.015);
+    }
+
+    /* ========== LAYER 8: FAUNA OVERLAY ========== */
+
+
+    /* ========== LAYER 8: FAUNA OVERLAY ========== */
+    #fauna-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 7;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #fauna-overlay.active {
+      opacity: 1;
+    }
+
+    #fauna-canvas {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      transition: transform 0.35s ease;
+    }
+
+    /* ========== NAVIGATION ========== */

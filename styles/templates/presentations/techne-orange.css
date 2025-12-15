@@ -20,25 +20,9 @@
 /* Presentation canvas background (matches Techne app grid) */
 #presentation-content,
 #presentation-root > div {
-    background-color: var(--techne-off-white) !important;
-    background-image:
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E"),
-        linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-        linear-gradient(rgba(10, 10, 10, 0.08) 2px, transparent 2px),
-        linear-gradient(90deg, rgba(10, 10, 10, 0.08) 2px, transparent 2px),
-        linear-gradient(rgba(var(--techne-accent-rgb), 0.16) 1.5px, transparent 1.5px),
-        linear-gradient(90deg, rgba(var(--techne-accent-rgb), 0.16) 1.5px, transparent 1.5px) !important;
-    background-size:
-        512px 512px,
-        var(--techne-grid-micro) var(--techne-grid-micro),
-        var(--techne-grid-micro) var(--techne-grid-micro),
-        var(--techne-grid) var(--techne-grid),
-        var(--techne-grid) var(--techne-grid),
-        var(--techne-grid-secondary) var(--techne-grid-secondary),
-        var(--techne-grid-secondary) var(--techne-grid-secondary) !important;
-    background-position: 0 0 !important;
-    background-repeat: repeat !important;
+    /* Use app-level Techne backdrop (grid + shapes + fauna) */
+    background: transparent !important;
+    background-image: none !important;
 }
 
 /* Slide container */

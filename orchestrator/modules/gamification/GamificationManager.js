@@ -37,7 +37,10 @@ class GamificationManager {
             this.architectBridge = null;
         }
 
-        if (typeof LibraryExplorerView !== 'undefined') {
+        if (typeof BabelMazeView !== 'undefined') {
+            this.explorerView = new BabelMazeView(this);
+            this.explorerView.ensureContainer();
+        } else if (typeof LibraryExplorerView !== 'undefined') {
             this.explorerView = new LibraryExplorerView(this);
             this.explorerView.ensureContainer();
         } else {

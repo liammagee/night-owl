@@ -15,6 +15,13 @@ body.techne-theme {
 
     /* Grid */
     --techne-grid: 60px;
+    --grid: var(--techne-grid);
+
+    /* Website backdrop compatibility */
+    --black: var(--techne-black);
+    --white: var(--techne-white);
+    --red: var(--primary-500);
+    --red-rgb: 230, 57, 70;
 
     /* Typography */
     --font-family-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -74,6 +81,7 @@ body.techne-theme.techne-accent-orange {
     --primary-500: var(--techne-orange);
     --primary-600: var(--techne-orange);
     --primary-700: var(--techne-orange-dark);
+    --red-rgb: 255, 122, 26;
 }
 
 /* Selection + scrollbars */
@@ -301,4 +309,9 @@ body.techne-theme textarea:focus {
     outline: none !important;
     border-color: var(--techne-black) !important;
     box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.15) !important;
+}
+
+/* Presentation canvas: allow Techne backdrop to show through */
+body.techne-theme #presentation-content.active {
+    background: transparent !important;
 }

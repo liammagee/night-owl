@@ -31,6 +31,7 @@
         'gamification/world/LibraryWorldEngine.js',
         'gamification/world/LibraryArchitectBridge.js',
         'gamification/world/LibraryExplorerView.js',
+        'gamification/world/BabelMazeView.js',
         'gamification/GamificationManager.js'
     ];
 

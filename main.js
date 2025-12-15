@@ -1449,7 +1449,7 @@ function createPresentationMenuItems() {
       { type: 'separator' },
       {
         label: 'Next Slide',
-        accelerator: 'Right',
+        // accelerator: 'Right', // Disabled to allow renderer to handle arrow keys (fixes autocomplete focus)
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('next-slide');
@@ -1458,7 +1458,7 @@ function createPresentationMenuItems() {
       },
       {
         label: 'Previous Slide',
-        accelerator: 'Left',
+        // accelerator: 'Left', // Disabled to allow renderer to handle arrow keys (fixes autocomplete focus)
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('previous-slide');

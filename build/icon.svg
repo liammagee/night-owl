@@ -1,55 +1,63 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <pattern id="grid-micro" width="32" height="32" patternUnits="userSpaceOnUse">
-      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#0a0a0a" stroke-opacity="0.06" stroke-width="2"/>
-    </pattern>
-    <pattern id="grid-major" width="128" height="128" patternUnits="userSpaceOnUse">
-      <path d="M 128 0 L 0 0 0 128" fill="none" stroke="#0a0a0a" stroke-opacity="0.12" stroke-width="4"/>
-    </pattern>
-    <filter id="paper-noise">
-      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="2" stitchTiles="stitch"/>
-      <feColorMatrix type="saturate" values="0"/>
+    <clipPath id="clip">
+      <rect x="56" y="56" width="912" height="912" rx="208"/>
+    </clipPath>
+
+    <linearGradient id="tile" x1="512" y1="56" x2="512" y2="968" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e7e7e7"/>
+    </linearGradient>
+
+    <linearGradient id="ring" x1="352" y1="304" x2="704" y2="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff3d52"/>
+      <stop offset="0.55" stop-color="#e63946"/>
+      <stop offset="1" stop-color="#b60f1c"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="20" stdDeviation="28" flood-color="#000" flood-opacity="0.16"/>
     </filter>
-    <marker id="arrowhead" markerWidth="28" markerHeight="28" refX="26" refY="14" orient="auto" markerUnits="userSpaceOnUse">
-      <path d="M 4 4 L 26 14 L 4 24" fill="none" stroke="#0a0a0a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
+
+    <linearGradient id="glare" x1="256" y1="192" x2="760" y2="680" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
   </defs>
 
-  <!-- Swiss grid / trash‑polka palette -->
-  <rect width="1024" height="1024" fill="#fafafa"/>
-  <rect width="1024" height="1024" fill="url(#grid-micro)"/>
-  <rect width="1024" height="1024" fill="url(#grid-major)"/>
-  <rect width="1024" height="1024" filter="url(#paper-noise)" opacity="0.06"/>
+  <g clip-path="url(#clip)" filter="url(#shadow)">
+    <rect x="56" y="56" width="912" height="912" rx="208" fill="url(#tile)"/>
 
-  <!-- Frame -->
-  <rect x="64" y="64" width="896" height="896" fill="none" stroke="#0a0a0a" stroke-width="28"/>
+    <circle cx="512" cy="512" r="308" fill="none" stroke="url(#ring)" stroke-width="40"/>
 
-  <!-- Accent disc -->
-  <circle cx="512" cy="512" r="340" fill="#E63946"/>
+    <g fill="none" stroke="#141414" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 512 324 L 352 660"/>
+      <path d="M 512 324 L 672 660"/>
+      <path d="M 352 660 L 672 660"/>
+    </g>
 
-  <!-- Halftone echo -->
-  <g opacity="0.18" fill="#0a0a0a">
-    <circle cx="806" cy="218" r="10"/>
-    <circle cx="842" cy="218" r="8"/>
-    <circle cx="874" cy="218" r="6"/>
-    <circle cx="806" cy="252" r="8"/>
-    <circle cx="840" cy="252" r="6"/>
-    <circle cx="870" cy="252" r="5"/>
-    <circle cx="806" cy="284" r="6"/>
-    <circle cx="836" cy="284" r="5"/>
-    <circle cx="864" cy="284" r="4"/>
+    <g>
+      <g>
+        <circle cx="512" cy="324" r="52" fill="#ffffff" stroke="#141414" stroke-width="20"/>
+        <circle cx="512" cy="324" r="52" fill="none" stroke="url(#ring)" stroke-width="20"/>
+        <circle cx="512" cy="324" r="14" fill="url(#ring)"/>
+      </g>
+      <g>
+        <circle cx="352" cy="660" r="52" fill="#ffffff" stroke="#141414" stroke-width="20"/>
+        <circle cx="352" cy="660" r="52" fill="none" stroke="url(#ring)" stroke-width="20"/>
+        <circle cx="352" cy="660" r="14" fill="url(#ring)"/>
+      </g>
+      <g>
+        <circle cx="672" cy="660" r="52" fill="#ffffff" stroke="#141414" stroke-width="20"/>
+        <circle cx="672" cy="660" r="52" fill="none" stroke="url(#ring)" stroke-width="20"/>
+        <circle cx="672" cy="660" r="14" fill="url(#ring)"/>
+      </g>
+    </g>
+
+    <path d="M 156 224 C 244 140 380 108 512 132 C 644 156 744 208 820 292 C 868 344 896 408 908 484 C 816 392 700 328 576 304 C 452 280 304 308 208 392 C 164 432 132 476 116 520 C 116 392 124 296 156 224 Z" fill="url(#glare)" opacity="0.55"/>
   </g>
 
-  <!-- Dialectic loop (thesis → antithesis → synthesis) -->
-  <g fill="none" stroke="#0a0a0a" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 480 366 C 418 424 386 494 388 570" stroke-width="44" marker-end="url(#arrowhead)"/>
-    <path d="M 402 708 C 462 770 562 770 622 708" stroke-width="44" marker-end="url(#arrowhead)"/>
-    <path d="M 636 570 C 638 494 606 424 544 366" stroke-width="44" marker-end="url(#arrowhead)"/>
-  </g>
-
-  <g>
-    <circle cx="512" cy="310" r="62" fill="#fafafa" stroke="#0a0a0a" stroke-width="18"/>
-    <circle cx="340" cy="660" r="62" fill="#fafafa" stroke="#0a0a0a" stroke-width="18"/>
-    <circle cx="684" cy="660" r="62" fill="#fafafa" stroke="#0a0a0a" stroke-width="18"/>
-  </g>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="none" stroke="#141414" stroke-opacity="0.9" stroke-width="32"/>
 </svg>
+

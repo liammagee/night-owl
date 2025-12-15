@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="clip">
+      <path d="M 28,256 C 28,88 88,28 256,28 C 424,28 484,88 484,256 C 484,424 424,484 256,484 C 88,484 28,424 28,256 Z"/>
+    </clipPath>
+
+    <linearGradient id="tile" x1="256" y1="28" x2="256" y2="484" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e7e7e7"/>
+    </linearGradient>
+
+    <linearGradient id="ring" x1="176" y1="152" x2="352" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff3d52"/>
+      <stop offset="0.55" stop-color="#e63946"/>
+      <stop offset="1" stop-color="#b60f1c"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.16"/>
+    </filter>
+
+    <linearGradient id="glare" x1="128" y1="96" x2="380" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#clip)" filter="url(#shadow)">
+    <!-- tile -->
+    <path d="M 28,256 C 28,88 88,28 256,28 C 424,28 484,88 484,256 C 484,424 424,484 256,484 C 88,484 28,424 28,256 Z" fill="url(#tile)"/>
+
+    <!-- red ring -->
+    <circle cx="256" cy="256" r="154" fill="none" stroke="url(#ring)" stroke-width="20"/>
+
+    <!-- triangle -->
+    <g fill="none" stroke="#141414" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 256 162 L 176 330"/>
+      <path d="M 256 162 L 336 330"/>
+      <path d="M 176 330 L 336 330"/>
+    </g>
+
+    <!-- nodes -->
+    <g>
+      <g>
+        <circle cx="256" cy="162" r="26" fill="#ffffff" stroke="#141414" stroke-width="10"/>
+        <circle cx="256" cy="162" r="26" fill="none" stroke="url(#ring)" stroke-width="10"/>
+        <circle cx="256" cy="162" r="7" fill="url(#ring)"/>
+      </g>
+      <g>
+        <circle cx="176" cy="330" r="26" fill="#ffffff" stroke="#141414" stroke-width="10"/>
+        <circle cx="176" cy="330" r="26" fill="none" stroke="url(#ring)" stroke-width="10"/>
+        <circle cx="176" cy="330" r="7" fill="url(#ring)"/>
+      </g>
+      <g>
+        <circle cx="336" cy="330" r="26" fill="#ffffff" stroke="#141414" stroke-width="10"/>
+        <circle cx="336" cy="330" r="26" fill="none" stroke="url(#ring)" stroke-width="10"/>
+        <circle cx="336" cy="330" r="7" fill="url(#ring)"/>
+      </g>
+    </g>
+
+    <!-- subtle glass glare -->
+    <path d="M 78 112 C 122 70 190 54 256 66 C 322 78 372 104 410 146 C 434 172 448 204 454 242 C 408 192 350 160 288 148 C 226 136 152 150 104 192 C 82 212 66 236 58 260 C 58 196 62 148 78 112 Z" fill="url(#glare)" opacity="0.55"/>
+  </g>
+
+  <!-- outline -->
+  <path d="M 28,256 C 28,88 88,28 256,28 C 424,28 484,88 484,256 C 484,424 424,484 256,484 C 88,484 28,424 28,256 Z" fill="none" stroke="#141414" stroke-opacity="0.9" stroke-width="16"/>
+</svg>

@@ -1,0 +1,623 @@
+/* Babel Maze (Library of Babel / MUD) — Techne-aware styling */
+
+.babel-maze {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 14px;
+    padding: 14px;
+    box-sizing: border-box;
+    color: var(--text, #111827);
+
+    --bm-surface: rgba(255, 255, 255, 0.92);
+    --bm-surface-strong: rgba(255, 255, 255, 0.95);
+    --bm-map-surface: rgba(250, 250, 250, 0.92);
+}
+
+body.techne-theme .babel-maze {
+    --bm-surface: rgba(255, 255, 255, 0.82);
+    --bm-surface-strong: rgba(255, 255, 255, 0.86);
+    --bm-map-surface: rgba(255, 255, 255, 0.68);
+}
+
+.babel-maze .bm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bm-surface-strong);
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.18));
+    border-radius: 12px;
+}
+
+.babel-maze .bm-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+.babel-maze .bm-subtitle {
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 10px;
+    color: var(--text-secondary, #475569);
+}
+
+.babel-maze .bm-status {
+    font-size: 12px;
+    color: var(--text-secondary, #334155);
+    max-width: 52ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.babel-maze .bm-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.babel-maze .bm-body {
+    display: grid;
+    grid-template-columns: minmax(340px, 1.25fr) minmax(320px, 0.75fr);
+    gap: 14px;
+    min-height: 0;
+}
+
+.babel-maze .bm-panel {
+    background: var(--bm-surface);
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.18));
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.babel-maze .bm-panel-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.babel-maze .bm-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.babel-maze .bm-map-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.babel-maze .bm-panel-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #334155);
+}
+
+.babel-maze .bm-map {
+    flex: 1;
+    min-height: 0;
+    padding: 14px;
+    position: relative;
+    background-color: var(--bm-map-surface);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(10, 10, 10, 0.08) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(10, 10, 10, 0.08) 2px, transparent 2px),
+        linear-gradient(rgba(230, 57, 70, 0.12) 1.5px, transparent 1.5px),
+        linear-gradient(90deg, rgba(230, 57, 70, 0.12) 1.5px, transparent 1.5px);
+    background-size:
+        15px 15px,
+        15px 15px,
+        60px 60px,
+        60px 60px,
+        180px 180px,
+        180px 180px;
+    background-position: 0 0;
+}
+
+.babel-maze .bm-map-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+}
+
+.babel-maze .bm-map-svg:active {
+    cursor: grabbing;
+}
+
+.babel-maze .bm-map-placeholder {
+    fill: var(--text-secondary, #475569);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+}
+
+.babel-maze .bm-map-wall {
+    stroke: rgba(10, 10, 10, 0.22);
+    stroke-width: 18;
+    stroke-linecap: square;
+}
+
+body.techne-theme .babel-maze .bm-map-wall {
+    stroke: rgba(10, 10, 10, 0.26);
+}
+
+.babel-maze .bm-map-overlay,
+.babel-maze .bm-map-dim,
+.babel-maze .bm-map-ambient,
+.babel-maze .bm-map-illumination {
+    pointer-events: none;
+}
+
+.babel-maze .bm-map-dim {
+    fill: rgba(10, 10, 10, 0.55);
+}
+
+body.techne-theme .babel-maze .bm-map-dim {
+    fill: rgba(10, 10, 10, 0.58);
+}
+
+.babel-maze .bm-map-illumination {
+    fill: rgba(var(--red-rgb, 230, 57, 70), 0.14);
+    filter: blur(12px);
+    opacity: 0.9;
+}
+
+body.techne-theme.techne-accent-orange .babel-maze .bm-map-illumination {
+    fill: rgba(255, 122, 26, 0.16);
+}
+
+.babel-maze .bm-map-edge {
+    stroke: rgba(10, 10, 10, 0.55);
+    stroke-width: 3.2;
+    stroke-linecap: round;
+}
+
+body.techne-theme .babel-maze .bm-map-edge {
+    stroke: var(--techne-black, #0a0a0a);
+}
+
+.babel-maze .bm-map-edge-active {
+    stroke-width: 4.8;
+    stroke: rgba(10, 10, 10, 0.86);
+}
+
+body.techne-theme .babel-maze .bm-map-edge-active {
+    stroke: rgba(10, 10, 10, 0.9);
+}
+
+.babel-maze .bm-map-edge-link {
+    stroke: rgba(230, 57, 70, 0.9);
+    stroke-width: 3.6;
+    stroke-dasharray: 11 8;
+    filter: drop-shadow(0 0 6px rgba(var(--red-rgb, 230, 57, 70), 0.45));
+}
+
+body.techne-theme.techne-accent-orange .babel-maze .bm-map-edge-link {
+    stroke: rgba(255, 122, 26, 0.95);
+}
+
+.babel-maze .bm-map-secret {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.babel-maze .bm-map-secret-glow {
+    stroke: var(--primary-500, rgba(230, 57, 70, 0.9));
+    stroke-width: 10;
+    opacity: 0.18;
+}
+
+.babel-maze .bm-map-secret-core {
+    stroke: var(--primary-500, rgba(230, 57, 70, 0.95));
+    stroke-width: 3.6;
+    stroke-dasharray: 8 7;
+    animation: bmPortalDash 1.35s linear infinite;
+    opacity: 0.92;
+}
+
+.babel-maze .bm-map-secret-arrow {
+    fill: var(--primary-500, rgba(230, 57, 70, 0.95));
+}
+
+@keyframes bmPortalDash {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: -40;
+    }
+}
+
+.babel-maze .bm-map-room {
+    cursor: pointer;
+}
+
+.babel-maze .bm-map-room .bm-map-node-portal {
+    fill: none;
+    stroke: transparent;
+    opacity: 0;
+}
+
+.babel-maze .bm-map-room[data-portal-out="true"] .bm-map-node-portal {
+    opacity: 0.95;
+    stroke: var(--primary-500, rgba(230, 57, 70, 0.95));
+    stroke-width: 2.6px;
+    stroke-dasharray: 12 10;
+    animation: bmPortalDash 1.8s linear infinite;
+}
+
+.babel-maze .bm-map-room[data-portal-in="true"][data-portal-out="false"] .bm-map-node-portal {
+    opacity: 0.55;
+    stroke: rgba(10, 10, 10, 0.55);
+    stroke-width: 2.2px;
+    stroke-dasharray: 4 8;
+}
+
+.babel-maze .bm-map-room .bm-map-node {
+    fill: var(--surface, #ffffff);
+    stroke: rgba(10, 10, 10, 0.36);
+    stroke-width: 2px;
+    filter: drop-shadow(8px 8px 0 rgba(0, 0, 0, 0.06));
+}
+
+body.techne-theme .babel-maze .bm-map-room .bm-map-node {
+    stroke: var(--techne-black, #0a0a0a);
+}
+
+.babel-maze .bm-map-room[data-discovered="false"] {
+    opacity: 0.22;
+}
+
+.babel-maze .bm-map-room[data-current="true"] .bm-map-node {
+    fill: var(--surface, #ffffff);
+    stroke: rgba(10, 10, 10, 0.92);
+    stroke-width: 4.2px;
+}
+
+body.techne-theme .babel-maze .bm-map-room[data-current="true"] .bm-map-node {
+    stroke: var(--techne-black, #0a0a0a);
+}
+
+.babel-maze .bm-map-room[data-current="true"] .bm-map-node-portal {
+    opacity: 1;
+    fill: rgba(var(--red-rgb, 230, 57, 70), 0.06);
+    stroke: var(--primary-500, rgba(230, 57, 70, 0.95));
+    stroke-width: 3.4px;
+    stroke-dasharray: 0;
+}
+
+.babel-maze .bm-map-room[data-current="true"] .bm-map-label {
+    font-weight: 900;
+}
+
+.babel-maze .bm-map-room[data-kind="void"] .bm-map-node {
+    fill: rgba(255, 255, 255, 0.26);
+    stroke: rgba(10, 10, 10, 0.22);
+    stroke-dasharray: 7 10;
+    filter: none;
+}
+
+.babel-maze .bm-map-room[data-kind="void"] .bm-map-label {
+    display: none;
+}
+
+.babel-maze .bm-map-room[data-secret="true"] .bm-map-node {
+    fill: rgba(10, 10, 10, 0.88);
+    stroke: rgba(10, 10, 10, 0.92);
+}
+
+body.techne-theme .babel-maze .bm-map-room[data-secret="true"] .bm-map-node {
+    fill: rgba(10, 10, 10, 0.90);
+}
+
+.babel-maze .bm-map-room[data-secret="true"] .bm-map-label {
+    fill: rgba(255, 255, 255, 0.92);
+}
+
+.babel-maze .bm-map-room:hover .bm-map-node {
+    fill: rgba(255, 255, 255, 0.98);
+}
+
+.babel-maze .bm-map-room[data-secret="true"]:hover .bm-map-node {
+    fill: rgba(10, 10, 10, 0.92);
+}
+
+.babel-maze .bm-map-room[data-kind="void"]:hover .bm-map-node {
+    fill: rgba(255, 255, 255, 0.32);
+}
+
+.babel-maze .bm-map-label {
+    fill: var(--text, #0f172a);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+}
+
+body.techne-theme.techne-accent-orange .babel-maze .bm-map {
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(10, 10, 10, 0.08) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(10, 10, 10, 0.08) 2px, transparent 2px),
+        linear-gradient(rgba(255, 122, 26, 0.14) 1.5px, transparent 1.5px),
+        linear-gradient(90deg, rgba(255, 122, 26, 0.14) 1.5px, transparent 1.5px);
+}
+
+.babel-maze .bm-map-grid {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.babel-maze .bm-room {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 12px;
+    border: 2px solid rgba(10, 10, 10, 0.18);
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.15s ease, background 0.15s ease, border 0.15s ease;
+    min-height: 0;
+}
+
+.babel-maze .bm-room[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.28;
+    transform: none !important;
+    background: rgba(255, 255, 255, 0.6);
+    border-style: dashed;
+}
+
+.babel-maze .bm-room[data-discovered="false"][aria-disabled="false"] {
+    opacity: 0.78;
+}
+
+.babel-maze .bm-room[data-discovered="false"][aria-disabled="false"]:hover {
+    opacity: 0.92;
+}
+
+.babel-maze .bm-room:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.98);
+    border-color: rgba(10, 10, 10, 0.28);
+}
+
+.babel-maze .bm-room[aria-current="true"] {
+    border-color: var(--primary-700, rgba(10, 10, 10, 0.85));
+    background: rgba(230, 57, 70, 0.10);
+}
+
+body.techne-theme.techne-accent-orange .babel-maze .bm-room[aria-current="true"] {
+    background: rgba(255, 122, 26, 0.12);
+}
+
+.babel-maze .bm-room .bm-room-title {
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--text, #0f172a);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.babel-maze .bm-room .bm-room-meta {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #475569);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.babel-maze .bm-side {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 14px;
+    min-height: 0;
+}
+
+.babel-maze .bm-terminal {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: var(--bm-surface-strong);
+}
+
+.babel-maze .bm-log {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding-right: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text, #0f172a);
+}
+
+.babel-maze .bm-line {
+    white-space: pre-wrap;
+}
+
+.babel-maze .bm-line.bm-system {
+    color: var(--text-secondary, #475569);
+}
+
+.babel-maze .bm-line.bm-ash {
+    font-style: italic;
+    color: rgba(10, 10, 10, 0.78);
+}
+
+.babel-maze .bm-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid var(--border, rgba(0, 0, 0, 0.14));
+    padding-top: 10px;
+    font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+}
+
+.babel-maze .bm-prompt {
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-size: 11px;
+    color: var(--text-secondary, #475569);
+}
+
+.babel-maze input.bm-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 2px solid rgba(10, 10, 10, 0.20);
+    background: rgba(255, 255, 255, 0.98);
+    color: var(--text, #0f172a);
+    border-radius: 12px;
+}
+
+.babel-maze input.bm-input:focus {
+    outline: none;
+    border-color: rgba(10, 10, 10, 0.42);
+    box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.16);
+}
+
+body.techne-theme.techne-accent-orange .babel-maze input.bm-input:focus {
+    box-shadow: 0 0 0 2px rgba(255, 122, 26, 0.18);
+}
+
+.babel-maze .bm-hintbar {
+    padding: 10px 12px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #475569);
+    background: var(--bm-surface-strong);
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.14));
+    border-radius: 12px;
+}
+
+.babel-maze .bm-hintbar .bm-suggest {
+    text-transform: none;
+    letter-spacing: 0.02em;
+    display: grid;
+    gap: 8px;
+}
+
+.babel-maze .bm-hintbar .bm-suggest-title {
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 10px;
+}
+
+.babel-maze .bm-hintbar .bm-suggest-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.babel-maze .bm-hintbar .bm-suggest-item {
+    appearance: none;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid rgba(10, 10, 10, 0.14);
+    background: rgba(255, 255, 255, 0.66);
+    font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+    font-size: 11px;
+    color: rgba(10, 10, 10, 0.84);
+}
+
+.babel-maze .bm-hintbar .bm-suggest-item-selected {
+    border-color: var(--primary-500, rgba(230, 57, 70, 0.95));
+    background: rgba(var(--red-rgb, 230, 57, 70), 0.08);
+    color: rgba(10, 10, 10, 0.92);
+}
+
+body.techne-theme.techne-accent-orange .babel-maze .bm-hintbar .bm-suggest-item-selected {
+    border-color: rgba(255, 122, 26, 0.95);
+    background: rgba(255, 122, 26, 0.10);
+}
+
+.babel-maze .bm-hintbar .bm-suggest-desc {
+    font-size: 11px;
+    color: rgba(10, 10, 10, 0.72);
+    line-height: 1.4;
+}
+
+.babel-maze .bm-hintbar .bm-suggest-nav {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(10, 10, 10, 0.58);
+}
+
+/* Techne “Swiss” adjustments */
+body.techne-theme .babel-maze .bm-header,
+body.techne-theme .babel-maze .bm-panel,
+body.techne-theme .babel-maze .bm-hintbar,
+body.techne-theme .babel-maze input.bm-input {
+    border-radius: 0;
+    border-width: 2px;
+    border-color: var(--techne-black, #0a0a0a);
+}
+
+body.techne-theme .babel-maze .bm-room {
+    border-radius: 0;
+    border-color: rgba(10, 10, 10, 0.26);
+}
+
+body.techne-theme .babel-maze .bm-room:hover {
+    border-color: var(--techne-black, #0a0a0a);
+}
+
+@media (max-width: 1100px) {
+    .babel-maze .bm-body {
+        grid-template-columns: 1fr;
+    }
+    .babel-maze .bm-side {
+        grid-template-rows: auto;
+    }
+}
