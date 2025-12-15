@@ -1,6 +1,6 @@
-/* Techne backdrop layers (synced from ~/Dev/my-website)
+/* Techne backdrop layers
    - Shapes layer + rotating shapes + fauna overlay
-   - Update via: ./scripts/sync-techne-backdrop-from-website.sh
+   - Source of truth is ~/Dev/my-website (sync via ./scripts/sync-techne-backdrop-from-website.sh)
 */
 
     /* ========== LAYER 4: GEOMETRIC SHAPES ========== */
@@ -194,3 +194,4 @@
     }
 
     /* ========== NAVIGATION ========== */
+

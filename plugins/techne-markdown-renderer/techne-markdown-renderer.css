@@ -1,0 +1,22 @@
+/* Base styles for the Techne markdown renderer output.
+   - Keep this minimal so hosts can override freely.
+*/
+
+.markdown-list {
+    padding-left: 1.4em;
+    margin: 0.8em 0;
+}
+
+.markdown-list-item {
+    margin: 0.25em 0;
+}
+
+.task-list-item input[type="checkbox"] {
+    margin-right: 0.5em;
+    transform: translateY(1px);
+}
+
+.speaker-notes-placeholder {
+    display: none;
+}
+

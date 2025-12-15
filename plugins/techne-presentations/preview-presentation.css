@@ -1,0 +1,473 @@
+/* Preview pane and presentation mode styles */
+
+/* Preview pane styling - override external CSS */
+#right-pane {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background-color: #fefdfb !important;
+}
+
+/* Container for content panes - allow flex child to scroll */
+#right-pane > div:last-child {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    height: 100% !important;
+    background-color: #fefdfb !important;
+}
+
+#preview-pane {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    background-color: #fefdfb !important;
+}
+
+#preview-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    padding: 16px !important;
+    box-sizing: border-box !important;
+    line-height: 1.6 !important;
+    height: auto !important;
+    background-color: #fefdfb !important;
+}
+
+/* Content pane styling */
+.content-pane {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    position: relative !important;
+    background-color: #fefdfb !important;
+}
+
+/* Preview pane image constraints */
+#preview-content img {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block;
+    margin: 10px 0;
+}
+
+/* Ensure all preview content elements use full width */
+#preview-content * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Presentation mode image constraints */
+#presentation-content img,
+#presentation-root img,
+.slide-content img {
+    max-width: 80% !important;
+    max-height: 60vh !important;
+    height: auto !important;
+    width: auto !important;
+    display: block !important;
+    margin: 20px auto !important;
+    object-fit: contain !important;
+}
+
+/* Presentation-specific adjustments for speaker notes */
+body.is-presenting #presentation-root {
+    height: calc(100vh - 200px) !important; /* Default height adjustment */
+    overflow: hidden !important;
+}
+
+/* Ensure speaker notes text is readable */
+body.is-presenting #current-slide-notes {
+    font-size: 14px !important; /* Slightly larger for easier reading */
+    line-height: 1.6 !important;
+}
+
+/* Speaker notes positioning in presenting mode (display controlled by speaker-notes.css) */
+body.is-presenting #speaker-notes-panel {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    z-index: 1000 !important;
+    /* display property controlled by speaker-notes.css - do not override here */
+}
+
+/* Mode switcher button overrides */
+.mode-btn:hover {
+    background: var(--surface-hover, #f0f0f0) !important;
+    color: var(--text, #333) !important;
+}
+
+.mode-btn.active {
+    background: var(--primary-500, var(--primary, #16a34a)) !important;
+    color: var(--text-on-primary, #ffffff) !important;
+}
+
+/* Resizer color overrides */
+.resizer:hover {
+    background: var(--primary-500, var(--primary, #16a34a)) !important;
+}
+
+/* Presentation controls (React presentation view) */
+#presentation-root .presentation-control-btn {
+    border-color: var(--border, #d1d5db) !important;
+    background: var(--surface, #fefdfb) !important;
+    color: var(--text, #111827) !important;
+}
+
+#presentation-root .presentation-control-btn:hover:not(:disabled) {
+    background: var(--surface-hover, #f3f4f6) !important;
+}
+
+#presentation-root .presentation-present-btn {
+    background: var(--primary-500, var(--primary, #16a34a)) !important;
+    border-color: var(--primary-700, var(--primary-hover, #15803d)) !important;
+    color: var(--text-on-primary, #ffffff) !important;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+#presentation-root .presentation-present-btn:hover:not(:disabled) {
+    background: var(--primary-600, var(--primary-hover, #15803d)) !important;
+}
+
+body.techne-theme #presentation-root .presentation-control-btn {
+    border-radius: 0 !important;
+    border-width: 2px !important;
+}
+
+body.techne-theme #presentation-root .presentation-present-btn {
+    border-color: var(--techne-black, #0a0a0a) !important;
+    box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Restore visibility when NOT actively presenting */
+body:not(.is-presenting) #left-sidebar {
+    display: flex !important;
+}
+
+body:not(.is-presenting) #sidebar-resizer {
+    display: block !important;
+}
+
+body:not(.is-presenting) #editor-container {
+    display: flex !important;
+}
+
+body:not(.is-presenting) #mode-switcher {
+    display: flex !important;
+}
+
+body:not(.is-presenting) #editor-toolbar {
+    display: flex !important;
+}
+
+body:not(.is-presenting) .resizer {
+    display: block !important;
+}
+
+body:not(.is-presenting) #main-content {
+    height: auto !important;
+}
+
+body:not(.is-presenting) #right-pane {
+    flex: 1 !important;
+    width: auto !important;
+    max-width: none !important;
+}
+
+/* Presentation table styles - compact version */
+.presentation-table {
+    border-collapse: collapse !important;
+    width: auto !important;
+    margin: 10px auto !important;
+    background-color: white !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    font-size: 14px !important;
+}
+
+.presentation-table th,
+.presentation-table td {
+    border: 1px solid #d1d5db !important;
+    padding: 8px 12px !important;
+    text-align: left !important;
+    vertical-align: middle !important;
+    line-height: 1.4 !important;
+}
+
+.presentation-table th {
+    background-color: #f3f4f6 !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+    border-bottom: 2px solid #9ca3af !important;
+    padding: 6px 12px !important;
+}
+
+.presentation-table tr:nth-child(even) {
+    background-color: #f9fafb !important;
+}
+
+.presentation-table tr:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* Presentation blockquote styles */
+.presentation-blockquote {
+    border-left: 4px solid var(--primary-500, var(--primary, #16a34a)) !important;
+    margin: 20px 0 !important;
+    padding: 16px 20px !important;
+    background-color: var(--surface-variant, #f0fdf4) !important;
+    border-radius: 0 8px 8px 0 !important;
+    font-style: italic !important;
+    color: var(--text, #166534) !important;
+}
+
+/* List styling for proper nested list rendering in presentation mode */
+body.is-presenting #presentation-content ul,
+body.is-presenting #presentation-content ol,
+body.is-presenting .slide-content ul,
+body.is-presenting .slide-content ol,
+#presentation-content ul,
+#presentation-content ol,
+.slide-content ul,
+.slide-content ol {
+    margin: 0.5em 0 !important;
+    padding-left: 1.5em !important;
+    line-height: 1.6 !important;
+    list-style-position: outside !important;
+    display: block !important;
+}
+
+body.is-presenting #presentation-content li,
+body.is-presenting .slide-content li,
+#presentation-content li,
+.slide-content li {
+    margin: 0.25em 0 !important;
+    padding: 0 !important;
+    display: list-item !important;
+}
+
+/* Nested list styling */
+body.is-presenting #presentation-content ul ul,
+body.is-presenting #presentation-content ol ol,
+body.is-presenting #presentation-content ul ol,
+body.is-presenting #presentation-content ol ul,
+body.is-presenting .slide-content ul ul,
+body.is-presenting .slide-content ol ol,
+body.is-presenting .slide-content ul ol,
+body.is-presenting .slide-content ol ul,
+#presentation-content ul ul,
+#presentation-content ol ol,
+#presentation-content ul ol,
+#presentation-content ol ul,
+.slide-content ul ul,
+.slide-content ol ol,
+.slide-content ul ol,
+.slide-content ol ul {
+    margin: 0.25em 0 !important;
+    padding-left: 1.5em !important;
+}
+
+/* Ensure proper bullet/number display */
+body.is-presenting #presentation-content ul,
+body.is-presenting .slide-content ul,
+#presentation-content ul,
+.slide-content ul {
+    list-style-type: disc !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ul ul,
+body.is-presenting .slide-content ul ul,
+#presentation-content ul ul,
+.slide-content ul ul {
+    list-style-type: circle !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ul ul ul,
+body.is-presenting .slide-content ul ul ul,
+#presentation-content ul ul ul,
+.slide-content ul ul ul {
+    list-style-type: square !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ol,
+body.is-presenting .slide-content ol,
+#presentation-content ol,
+.slide-content ol {
+    list-style-type: decimal !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ol ol,
+body.is-presenting .slide-content ol ol,
+#presentation-content ol ol,
+.slide-content ol ol {
+    list-style-type: lower-alpha !important;
+    list-style-position: outside !important;
+}
+
+body.is-presenting #presentation-content ol ol ol,
+body.is-presenting .slide-content ol ol ol,
+#presentation-content ol ol ol,
+.slide-content ol ol ol {
+    list-style-type: lower-roman !important;
+    list-style-position: outside !important;
+}
+
+/* Task list styling */
+body.is-presenting #presentation-content li.task-list-item,
+body.is-presenting .slide-content li.task-list-item,
+#presentation-content li.task-list-item,
+.slide-content li.task-list-item {
+    list-style-type: none !important;
+    margin-left: -1.5em !important;
+    padding-left: 1.5em !important;
+}
+
+body.is-presenting #presentation-content li.task-list-item input[type="checkbox"],
+body.is-presenting .slide-content li.task-list-item input[type="checkbox"],
+#presentation-content li.task-list-item input[type="checkbox"],
+.slide-content li.task-list-item input[type="checkbox"] {
+    margin-right: 0.5em !important;
+    vertical-align: middle !important;
+}
+
+/* Additional specific styling for markdown-generated lists */
+.markdown-list {
+    margin: 0.75em 0 !important;
+    padding-left: 2em !important;
+    list-style-position: outside !important;
+}
+
+.markdown-list .markdown-list {
+    margin: 0.5em 0 !important;
+    padding-left: 1.5em !important;
+}
+
+.markdown-list-item {
+    margin: 0.5em 0 !important;
+    padding: 0 !important;
+    display: list-item !important;
+}
+
+/* Force list styles */
+ul.markdown-list {
+    list-style-type: disc !important;
+}
+
+ul.markdown-list ul.markdown-list {
+    list-style-type: circle !important;
+}
+
+ul.markdown-list ul.markdown-list ul.markdown-list {
+    list-style-type: square !important;
+}
+
+ol.markdown-list {
+    list-style-type: decimal !important;
+}
+
+ol.markdown-list ol.markdown-list {
+    list-style-type: lower-alpha !important;
+}
+
+ol.markdown-list ol.markdown-list ol.markdown-list {
+    list-style-type: lower-roman !important;
+}
+
+/* AGGRESSIVE LIST STYLING FOR PRESENTATION MODE */
+/* Force proper list indentation and bullets for ALL lists in presentation */
+body.is-presenting ul,
+body.is-presenting ol,
+#presentation-content ul,
+#presentation-content ol,
+.slide-content ul,
+.slide-content ol,
+.presentation-slide ul,
+.presentation-slide ol {
+    margin: 0.8em 0 !important;
+    padding-left: 2.5em !important;
+    list-style-position: outside !important;
+    display: block !important;
+}
+
+body.is-presenting li,
+#presentation-content li,
+.slide-content li,
+.presentation-slide li {
+    display: list-item !important;
+    margin: 0.4em 0 !important;
+    padding: 0 !important;
+}
+
+/* FORCE BULLET STYLES */
+body.is-presenting ul,
+#presentation-content ul,
+.slide-content ul,
+.presentation-slide ul {
+    list-style-type: disc !important;
+}
+
+body.is-presenting ul ul,
+#presentation-content ul ul,
+.slide-content ul ul,
+.presentation-slide ul ul {
+    list-style-type: circle !important;
+    margin: 0.3em 0 !important;
+    padding-left: 2em !important;
+}
+
+body.is-presenting ul ul ul,
+#presentation-content ul ul ul,
+.slide-content ul ul ul,
+.presentation-slide ul ul ul {
+    list-style-type: square !important;
+    margin: 0.2em 0 !important;
+    padding-left: 1.8em !important;
+}
+
+/* FORCE NUMBER STYLES */
+body.is-presenting ol,
+#presentation-content ol,
+.slide-content ol,
+.presentation-slide ol {
+    list-style-type: decimal !important;
+}
+
+body.is-presenting ol ol,
+#presentation-content ol ol,
+.slide-content ol ol,
+.presentation-slide ol ol {
+    list-style-type: lower-alpha !important;
+    margin: 0.3em 0 !important;
+    padding-left: 2em !important;
+}
+
+body.is-presenting ol ol ol,
+#presentation-content ol ol ol,
+.slide-content ol ol ol,
+.presentation-slide ol ol ol {
+    list-style-type: lower-roman !important;
+    margin: 0.2em 0 !important;
+    padding-left: 1.8em !important;
+}

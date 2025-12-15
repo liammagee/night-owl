@@ -1,5 +1,5 @@
 /**
- * GENERATIVE FAUNA OVERLAY
+ * GENERATIVE FAUNA OVERLAY (Techne plugin vendor)
  * Five totems: Kookaburra, Snake, Octopus, Wallaby, Echidna
  *
  * Usage:

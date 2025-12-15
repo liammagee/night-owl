@@ -107,6 +107,16 @@ const defaultSettings = {
         grid: true,
         noise: true
     },
+
+    // === Plugins (shared feature bundles) ===
+    plugins: {
+        enabled: [
+            'techne-backdrop',
+            'techne-presentations',
+            'techne-markdown-renderer',
+            'techne-network-diagram'
+        ]
+    },
     
     // === Layout Configuration ===
     layout: {
@@ -456,6 +466,7 @@ function validateSettings() {
     if (!appSettings.presentation) appSettings.presentation = {};
     if (!appSettings.accessibility) appSettings.accessibility = {};
     if (!appSettings.advanced) appSettings.advanced = {};
+    if (!appSettings.plugins) appSettings.plugins = {};
     if (!appSettings.techne) appSettings.techne = {};
     
     // Ensure arrays exist
@@ -467,6 +478,18 @@ function validateSettings() {
     }
     if (!Array.isArray(appSettings.recents.workspaces)) {
         appSettings.recents.workspaces = [];
+    }
+    if (!Array.isArray(appSettings.plugins.enabled)) {
+        appSettings.plugins.enabled = [];
+    }
+
+    // Ensure default plugins are present (plugin list is additive)
+    const defaultPlugins = Array.isArray(defaultSettings?.plugins?.enabled) ? defaultSettings.plugins.enabled : [];
+    for (const pluginId of defaultPlugins) {
+        if (!pluginId) continue;
+        if (!appSettings.plugins.enabled.includes(pluginId)) {
+            appSettings.plugins.enabled.push(pluginId);
+        }
     }
     
     // Backward compatibility: migrate old recentFiles to new structure

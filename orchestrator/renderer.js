@@ -1055,6 +1055,27 @@ function processMarkdownContent(markdownContent) {
 }
 
 async function renderMarkdownContent(markdownContent) {
+    // Prefer the shared Techne markdown renderer plugin when available
+    if (window.TechneMarkdownRenderer?.renderPreview) {
+        try {
+            await window.TechneMarkdownRenderer.renderPreview({
+                markdownContent,
+                previewElement: previewContent,
+                filePath: window.currentFilePath || '',
+                baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory || '',
+                processAnnotations: typeof processAnnotations === 'function' ? processAnnotations : null,
+                processInternalLinksHTML: typeof processInternalLinksHTML === 'function' ? processInternalLinksHTML : null,
+                previewZoom: window.previewZoom || null,
+                renderMathInContent: typeof renderMathInContent === 'function' ? renderMathInContent : null,
+                renderMermaidDiagrams: typeof renderMermaidDiagrams === 'function' ? renderMermaidDiagrams : null,
+                updateSpeakerNotesDisplay: typeof updateSpeakerNotesDisplay === 'function' ? updateSpeakerNotesDisplay : null
+            });
+            return;
+        } catch (pluginError) {
+            console.warn('[renderer.js] TechneMarkdownRenderer failed, falling back:', pluginError);
+        }
+    }
+
     // Check if marked is available
     if (typeof marked === 'undefined') {
         console.error('[renderer.js] Marked library not loaded, using fallback');
@@ -6609,6 +6630,19 @@ async function performAppInitialization() {
     console.log('[renderer.js] window.marked available:', !!window.marked);
     // Load settings before initializing the rest of the app
     await loadAppSettings();
+
+    // Start Techne plugin system (shared feature bundles for Electron + web)
+    try {
+        if (window.TechnePlugins?.start) {
+            await window.TechnePlugins.start({
+                appId: 'nightowl',
+                enabled: window.appSettings?.plugins?.enabled || null,
+                settings: window.appSettings?.plugins || null
+            });
+        }
+    } catch (pluginError) {
+        console.warn('[renderer.js] Failed to start TechnePlugins:', pluginError);
+    }
     
     // Load citation data early for autocomplete
     console.log('[renderer.js] *** EARLY CITATION LOADING ***');

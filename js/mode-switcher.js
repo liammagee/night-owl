@@ -4,6 +4,57 @@
 // Global mode state
 let currentMode = 'editor';
 let presentationEditorContent = '';
+let presentationLoadNonce = 0;
+
+function ensureTechnePresentationsReady(timeoutMs = 8000) {
+  const isReady = () =>
+    Boolean(window.MarkdownPreziApp) &&
+    typeof window.showSpeakerNotesPanel === 'function' &&
+    typeof window.hideSpeakerNotesPanel === 'function';
+
+  if (isReady()) return Promise.resolve(true);
+
+  const startPluginsBestEffort = async () => {
+    if (!window.TechnePlugins?.start) return;
+    try {
+      await window.TechnePlugins.start({
+        appId: 'nightowl',
+        enabled: window.appSettings?.plugins?.enabled || null,
+        settings: window.appSettings?.plugins || null
+      });
+    } catch (error) {
+      console.warn('[Mode Switching] Failed to start TechnePlugins:', error);
+    }
+  };
+
+  return new Promise((resolve) => {
+    let finished = false;
+    let unsubscribe = null;
+
+    const finish = (ok) => {
+      if (finished) return;
+      finished = true;
+      if (unsubscribe) unsubscribe();
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+      resolve(ok);
+    };
+
+    const check = () => {
+      if (isReady()) finish(true);
+    };
+
+    if (window.TechnePlugins?.on) {
+      unsubscribe = window.TechnePlugins.on('presentations:ready', () => check());
+    }
+
+    const intervalId = setInterval(check, 50);
+    const timeoutId = setTimeout(() => finish(isReady()), timeoutMs);
+
+    startPluginsBestEffort();
+    check();
+  });
+}
 
 function jumpToSlideInEditor(slideIndex) {
   console.log('[Mode Switching] Jumping to slide', slideIndex, 'in editor');
@@ -168,6 +219,11 @@ function restoreUIElementsAfterPresentation() {
 
 function switchToMode(modeName) {
   console.log('[Mode Switching] Switching to:', modeName);
+
+  // Cancel any in-flight presentation load when leaving presentation mode
+  if (modeName !== 'presentation') {
+    presentationLoadNonce += 1;
+  }
   
   // Hide all content views
   const contentViews = document.querySelectorAll('.content-view');
@@ -218,13 +274,33 @@ function switchToMode(modeName) {
     // Ensure React component is rendered
     const presentationRoot = document.getElementById('presentation-root');
     if (presentationRoot) {
-      console.log('[Mode Switching] Rendering React presentation component for presentation mode');
-      try {
-        ReactDOM.render(React.createElement(window.MarkdownPreziApp), presentationRoot);
-        console.log('[Mode Switching] React component rendered successfully');
-      } catch (error) {
-        console.error('[Mode Switching] Error rendering React component:', error);
-      }
+      const nonce = ++presentationLoadNonce;
+      presentationRoot.innerHTML = '<div style="padding: 16px; opacity: 0.8;">Loading presentation…</div>';
+
+      (async () => {
+        const ok = await ensureTechnePresentationsReady();
+        if (nonce !== presentationLoadNonce) return;
+
+        if (!ok) {
+          presentationRoot.innerHTML =
+            '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation plugin not ready. Please try again.</div>';
+          return;
+        }
+
+        if (!window.ReactDOM?.render || !window.React?.createElement || !window.MarkdownPreziApp) {
+          presentationRoot.innerHTML =
+            '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation runtime missing (React globals).</div>';
+          return;
+        }
+
+        console.log('[Mode Switching] Rendering React presentation component for presentation mode');
+        try {
+          window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), presentationRoot);
+          console.log('[Mode Switching] React component rendered successfully');
+        } catch (error) {
+          console.error('[Mode Switching] Error rendering React component:', error);
+        }
+      })();
     }
     
     // Always get the latest content from the editor when switching to presentation mode
@@ -283,14 +359,18 @@ function switchToMode(modeName) {
       window.pendingPresentationContent = currentContent;
       
       // Show speaker notes panel and populate with notes
-      showSpeakerNotesPanel(currentContent);
+      if (typeof window.showSpeakerNotesPanel === 'function') {
+        window.showSpeakerNotesPanel(currentContent);
+      }
     } else {
       console.warn('[Mode Switching] No content available to sync to presentation');
-      showSpeakerNotesPanel('');
+      if (typeof window.showSpeakerNotesPanel === 'function') {
+        window.showSpeakerNotesPanel('');
+      }
     }
   } else if (modeName === 'network') {
     document.body.classList.remove('presentation-mode');
-    hideSpeakerNotesPanel();
+    window.hideSpeakerNotesPanel?.();
     
     // Initialize unified network visualization
     console.log('[Mode Switching] Initializing unified network visualization');
@@ -306,7 +386,7 @@ function switchToMode(modeName) {
     }
   } else if (modeName === 'circle') {
     document.body.classList.remove('presentation-mode');
-    hideSpeakerNotesPanel();
+    window.hideSpeakerNotesPanel?.();
     
     // Initialize circle visualization
     console.log('[Mode Switching] Initializing circle visualization');
@@ -316,7 +396,7 @@ function switchToMode(modeName) {
     }
   } else if (modeName === 'library') {
     document.body.classList.remove('presentation-mode');
-    hideSpeakerNotesPanel();
+    window.hideSpeakerNotesPanel?.();
     const explorer =
       (window.gamificationInstance && window.gamificationInstance.explorerView) ||
       (window.gamificationManager && window.gamificationManager.explorerView) ||
@@ -339,7 +419,7 @@ function switchToMode(modeName) {
   } else {
     // Default case (editor mode)
     document.body.classList.remove('presentation-mode');
-    hideSpeakerNotesPanel();
+    window.hideSpeakerNotesPanel?.();
     restoreUIElementsAfterPresentation();
     
     // Jump to current slide position in editor if coming from presentation

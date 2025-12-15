@@ -25,14 +25,12 @@
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/modes.css">
     <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/speaker-notes.css">
-    <link rel="stylesheet" href="css/preview-presentation.css">
+    <!-- Presentation + speaker notes styling is provided by the Techne presentations plugin -->
     <link rel="stylesheet" href="css/search.css">
     <link rel="stylesheet" href="css/interactions.css">
     <link rel="stylesheet" href="css/gamification.css">
 		    <link rel="stylesheet" href="css/latex-style.css">
 		    <link rel="stylesheet" href="css/techne-theme.css">
-		    <link rel="stylesheet" href="css/techne-backdrop-layers.css">
 		    <link rel="stylesheet" href="css/babel-maze.css">
 	    
 	    <!-- Scripts -->
@@ -2692,10 +2690,10 @@
 	    </script>
 	    <script src="./node_modules/monaco-editor/min/vs/loader.js" defer></script>
 
-	    <!-- Techne backdrop layers (synced from ~/Dev/my-website) -->
-	    <script src="js/techne-backdrop-markup.js" defer></script>
-	    <script src="js/vendor/fauna-overlay.js" defer></script>
-	    <script src="js/techne-backdrop.js" defer></script>
+	    <!-- Techne plugin system -->
+	    <script>window.TECHNE_PLUGIN_AUTOSTART = false;</script>
+	    <script src="plugins/techne-plugin-system.js"></script>
+	    <script src="plugins/manifest.js"></script>
 	    
 	    <!-- Load modules first -->
 	    <script src="orchestrator/modules/internalLinks.js" defer></script>
@@ -2737,7 +2735,7 @@
     <script src="orchestrator/modules/ai-flow-detection/index.js" defer></script>
     <script src="orchestrator/modules/todo-gamification.js" defer></script>
     <script src="orchestrator/modules/dragdrop.js" defer></script>
-    <script src="orchestrator/modules/previewZoom.js" defer></script>
+    <!-- Preview abstraction/zoom is provided by the Techne markdown renderer plugin -->
     <script src="orchestrator/modules/fileFilters.js" defer></script>
     <script src="orchestrator/modules/tagManager.js" defer></script>
     <script src="orchestrator/modules/scholar-support.js" defer></script>
@@ -2755,8 +2753,7 @@
     <!-- Main renderer script -->
     <script src="orchestrator/renderer.js"></script>
     
-    <!-- Load compiled React components -->
-    <script src="components/dist/MarkdownPreziApp.js" defer></script>
+    <!-- Presentation UI is provided by the Techne presentations plugin -->
 
     <!-- Internal link Cmd/Ctrl+click handler -->
     <script>
@@ -2826,10 +2823,9 @@
     </script>
 
     <!-- Load JavaScript modules -->
-    <script src="services/ttsService.js" defer></script>
-    <script src="services/videoRecordingService.js" defer></script>
+    <!-- Presentation services are provided by the Techne presentations plugin -->
     <script src="orchestrator/modules/citationManager.js" defer></script>
-    <script src="js/speaker-notes.js" defer></script>
+    <!-- Speaker notes (presenting mode) is provided by the Techne presentations plugin -->
     <script src="js/mode-switcher.js" defer></script>  
     <script src="js/network-visualization.js" defer></script>
     <script src="orchestrator/modules/unifiedNetwork.js" defer></script>

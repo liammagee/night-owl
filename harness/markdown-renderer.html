@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Techne Harness — Markdown Renderer</title>
+    <base href="../" />
+    <link rel="stylesheet" href="css/techne-theme.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #fefdfb;
+        color: #111827;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      .wrap {
+        display: grid;
+        grid-template-columns: 420px 1fr;
+        height: 100vh;
+      }
+      .panel {
+        border-right: 2px solid #0a0a0a;
+        padding: 14px;
+        overflow: auto;
+        background: rgba(254, 253, 251, 0.96);
+      }
+      .panel h1 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin: 10px 0;
+        flex-wrap: wrap;
+      }
+      label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      textarea {
+        width: 100%;
+        height: 56vh;
+        resize: vertical;
+        border: 2px solid #0a0a0a;
+        padding: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        background: #ffffff;
+      }
+      .btn {
+        padding: 10px 12px;
+        border: 2px solid #0a0a0a;
+        border-radius: 0;
+        background: #ffffff;
+        cursor: pointer;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-size: 11px;
+        box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.12);
+      }
+      .btn:hover {
+        transform: translate(-1px, -1px);
+        box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.12);
+      }
+      .btn.primary {
+        background: #b91c1c;
+        color: #ffffff;
+      }
+      .hint {
+        font-size: 12px;
+        color: #374151;
+        margin-top: 10px;
+      }
+      .stage {
+        position: relative;
+        overflow: hidden;
+        background: #ffffff;
+      }
+      #preview-pane {
+        height: 100%;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      #preview-content {
+        flex: 1;
+        overflow: auto;
+        padding: 18px 22px;
+      }
+      .status {
+        font-size: 12px;
+        color: #111827;
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        padding: 8px 10px;
+      }
+      .theme-toggle {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      select {
+        border: 2px solid #0a0a0a;
+        background: #ffffff;
+        padding: 6px 8px;
+        font-weight: 700;
+      }
+      pre {
+        white-space: pre-wrap;
+      }
+      a.internal-link,
+      span.internal-link {
+        color: #b91c1c;
+        font-weight: 800;
+        text-decoration: none;
+      }
+    </style>
+    <script src="lib/marked.min.js"></script>
+    <script>
+      window.TECHNE_PLUGIN_AUTOSTART = false;
+      window.TECHNE_PLUGIN_MANIFEST = [
+        {
+          id: "techne-markdown-renderer",
+          entry: "plugins/techne-markdown-renderer/plugin.js",
+          enabledByDefault: true,
+        },
+      ];
+    </script>
+    <script src="plugins/techne-plugin-system.js"></script>
+  </head>
+  <body class="techne-theme techne-accent-red">
+    <div class="wrap">
+      <div class="panel">
+        <h1>Markdown Renderer Plugin Harness</h1>
+
+        <div class="row theme-toggle">
+          <label for="theme-select">Theme</label>
+          <select id="theme-select">
+            <option value="red" selected>Techne Red</option>
+            <option value="orange">Techne Orange</option>
+            <option value="none">No Techne</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <button class="btn primary" id="start-btn">Start plugin</button>
+          <button class="btn" id="render-btn" disabled>Render</button>
+        </div>
+
+        <label for="md-input">Markdown</label>
+        <textarea id="md-input"></textarea>
+
+        <div class="hint">
+          Use scroll at the top/bottom (or ↑/↓ at top/bottom) to switch abstraction levels after enabling
+          “Abstraction Zoom”.
+        </div>
+
+        <div class="row">
+          <div class="status" id="status">Status: idle</div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div id="preview-pane">
+          <div id="preview-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const els = {
+        start: document.getElementById("start-btn"),
+        render: document.getElementById("render-btn"),
+        status: document.getElementById("status"),
+        md: document.getElementById("md-input"),
+        theme: document.getElementById("theme-select"),
+        preview: document.getElementById("preview-content"),
+      };
+
+      const setStatus = (msg) => {
+        els.status.textContent = `Status: ${msg}`;
+      };
+
+      const setTheme = (value) => {
+        document.body.classList.remove("techne-theme", "techne-accent-red", "techne-accent-orange");
+        if (value === "red") document.body.classList.add("techne-theme", "techne-accent-red");
+        else if (value === "orange") document.body.classList.add("techne-theme", "techne-accent-orange");
+      };
+
+      els.theme.addEventListener("change", (e) => setTheme(e.target.value));
+
+      const SAMPLE = `# The Library of Babel
+
+The shelves recur. The letters recur. Meaning is a rumor.
+
+[[lectures/490-week-3|A remembered lecture]]
+
+## A footnote
+
+- A corridor
+- A turn
+- A lamp
+
+\`\`\`notes
+Speaker notes are extracted into the Notes pane in NightOwl.
+\`\`\`
+`;
+
+      els.md.value = SAMPLE;
+
+      const processInternalLinksHTML = async (html) => {
+        return String(html).replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, link, label) => {
+          const display = (label || link || "").trim();
+          return `<span class="internal-link" title="${display}">${display}</span>`;
+        });
+      };
+
+      const startPlugin = async () => {
+        setStatus("starting plugin…");
+        await window.TechnePlugins.start({
+          appId: "harness",
+          enabled: ["techne-markdown-renderer"],
+          settings: {},
+        });
+        if (!window.TechneMarkdownRenderer) {
+          setStatus("started, but TechneMarkdownRenderer missing");
+          return;
+        }
+        setStatus("plugin started");
+        els.render.disabled = false;
+      };
+
+      const render = async () => {
+        setStatus("rendering…");
+        await window.TechneMarkdownRenderer.renderPreview({
+          markdownContent: els.md.value,
+          previewElement: els.preview,
+          filePath: "harness.md",
+          baseDir: "/tmp",
+          processInternalLinksHTML,
+        });
+        setStatus("rendered");
+      };
+
+      els.start.addEventListener("click", () => {
+        startPlugin().catch((err) => {
+          console.error(err);
+          setStatus(`start failed: ${err?.message || err}`);
+        });
+      });
+
+      els.render.addEventListener("click", () => {
+        render().catch((err) => {
+          console.error(err);
+          setStatus(`render failed: ${err?.message || err}`);
+        });
+      });
+    </script>
+  </body>
+</html>
+

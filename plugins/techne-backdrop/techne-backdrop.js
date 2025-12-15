@@ -1,21 +1,29 @@
 /* Techne Backdrop Layers
    - Mounts shapes + rotating shapes + fauna overlay into #techne-background
-   - Uses FaunaOverlay (vendor) when available
-   - Markup is provided by `js/techne-backdrop-markup.js` and can be synced from ~/Dev/my-website
+   - Uses FaunaOverlay when available
 */
 
 (function () {
-    const backdropRoot = document.getElementById('techne-background');
+    const backdropRoot = document.getElementById('techne-background') || document.body;
     if (!backdropRoot) return;
 
     if (backdropRoot.dataset.techneBackdropReady === 'true') return;
     backdropRoot.dataset.techneBackdropReady = 'true';
 
     const html = window.TECHNE_BACKDROP_LAYERS_HTML;
-    if (typeof html === 'string' && html.trim()) {
-        backdropRoot.insertAdjacentHTML('beforeend', html);
-    } else {
-        console.warn('[techne-backdrop] Missing markup: window.TECHNE_BACKDROP_LAYERS_HTML');
+    const hasExistingLayers = Boolean(
+        document.getElementById('shapesLayer') ||
+        document.querySelector('.shapes-layer') ||
+        document.querySelector('.rotating-shapes-layer') ||
+        document.getElementById('fauna-overlay')
+    );
+
+    if (!hasExistingLayers) {
+        if (typeof html === 'string' && html.trim()) {
+            backdropRoot.insertAdjacentHTML('beforeend', html);
+        } else {
+            console.warn('[techne-backdrop] Missing markup: window.TECHNE_BACKDROP_LAYERS_HTML');
+        }
     }
 
     const prefersReducedMotion = (() => {
@@ -32,7 +40,10 @@
     let faunaInstance = null;
     let faunaRunning = false;
 
-    const getAccent = () => (document.body.classList.contains('techne-accent-orange') ? 'orange' : 'red');
+    const getAccent = () =>
+        document.body.classList.contains('techne-accent-orange') || document.body.classList.contains('theme-orange')
+            ? 'orange'
+            : 'red';
 
     const startFauna = () => {
         if (faunaRunning) return;
@@ -75,7 +86,10 @@
     };
 
     const syncVisibility = () => {
-        const techneOn = document.body.classList.contains('techne-theme');
+        const techneOn =
+            document.body.classList.contains('techne-theme') ||
+            document.body.classList.contains('theme-dark') ||
+            document.body.classList.contains('theme-orange');
         if (!techneOn) {
             stopFauna();
             return;
@@ -117,8 +131,10 @@
 
     let lastTime = performance.now();
     const animate = (now) => {
-        const techneOn = document.body.classList.contains('techne-theme');
-        const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+        const techneOn =
+            document.body.classList.contains('techne-theme') ||
+            document.body.classList.contains('theme-dark') ||
+            document.body.classList.contains('theme-orange');
         lastTime = now;
 
         if (techneOn && !prefersReducedMotion) {

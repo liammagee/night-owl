@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Techne Harness — Presentations</title>
+    <base href="../" />
+    <link rel="stylesheet" href="css/techne-theme.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #fefdfb;
+        color: #111827;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      .wrap {
+        display: grid;
+        grid-template-columns: 420px 1fr;
+        height: 100vh;
+      }
+      .panel {
+        border-right: 2px solid #0a0a0a;
+        padding: 14px;
+        overflow: auto;
+        background: rgba(254, 253, 251, 0.96);
+      }
+      .panel h1 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin: 10px 0;
+        flex-wrap: wrap;
+      }
+      label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      textarea {
+        width: 100%;
+        height: 54vh;
+        resize: vertical;
+        border: 2px solid #0a0a0a;
+        padding: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        background: #ffffff;
+      }
+      .btn {
+        padding: 10px 12px;
+        border: 2px solid #0a0a0a;
+        border-radius: 0;
+        background: #ffffff;
+        cursor: pointer;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-size: 11px;
+        box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.12);
+      }
+      .btn:hover {
+        transform: translate(-1px, -1px);
+        box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.12);
+      }
+      .btn.primary {
+        background: #b91c1c;
+        color: #ffffff;
+      }
+      .hint {
+        font-size: 12px;
+        color: #374151;
+        margin-top: 10px;
+      }
+      .stage {
+        position: relative;
+        overflow: hidden;
+      }
+      #presentation-root {
+        width: 100%;
+        height: 100%;
+      }
+      .status {
+        font-size: 12px;
+        color: #111827;
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        padding: 8px 10px;
+      }
+      .theme-toggle {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      select {
+        border: 2px solid #0a0a0a;
+        background: #ffffff;
+        padding: 6px 8px;
+        font-weight: 700;
+      }
+    </style>
+    <script src="lib/marked.min.js"></script>
+    <script src="lib/react.production.min.js"></script>
+    <script src="lib/react-dom.production.min.js"></script>
+    <script src="lib/html2canvas.min.js"></script>
+
+    <script>
+      window.TECHNE_PLUGIN_AUTOSTART = false;
+      window.TECHNE_PLUGIN_MANIFEST = [
+        {
+          id: "techne-presentations",
+          entry: "plugins/techne-presentations/plugin.js",
+          enabledByDefault: true,
+        },
+      ];
+    </script>
+    <script src="plugins/techne-plugin-system.js"></script>
+  </head>
+  <body class="techne-theme techne-accent-red">
+    <div class="wrap">
+      <div class="panel">
+        <h1>Presentations Plugin Harness</h1>
+
+        <div class="row theme-toggle">
+          <label for="theme-select">Theme</label>
+          <select id="theme-select">
+            <option value="red" selected>Techne Red</option>
+            <option value="orange">Techne Orange</option>
+            <option value="none">No Techne</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <button class="btn primary" id="start-btn">Start plugin</button>
+          <button class="btn" id="mount-btn" disabled>Mount UI</button>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="load-btn" disabled>Load content</button>
+          <button class="btn" id="presenting-btn" disabled>Toggle presenting</button>
+        </div>
+
+        <label for="md-input">Markdown</label>
+        <textarea id="md-input"></textarea>
+
+        <div class="hint">
+          Notes blocks use <code>```notes</code>. Slide separators are <code>---</code>.
+        </div>
+
+        <div class="row">
+          <div class="status" id="status">Status: idle</div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div id="presentation-root"></div>
+      </div>
+    </div>
+
+    <script>
+      const els = {
+        start: document.getElementById("start-btn"),
+        mount: document.getElementById("mount-btn"),
+        load: document.getElementById("load-btn"),
+        presenting: document.getElementById("presenting-btn"),
+        status: document.getElementById("status"),
+        md: document.getElementById("md-input"),
+        theme: document.getElementById("theme-select"),
+        root: document.getElementById("presentation-root"),
+      };
+
+      const setStatus = (msg) => {
+        els.status.textContent = `Status: ${msg}`;
+      };
+
+      const setTheme = (value) => {
+        document.body.classList.remove("techne-theme", "techne-accent-red", "techne-accent-orange");
+        if (value === "red") document.body.classList.add("techne-theme", "techne-accent-red");
+        else if (value === "orange") document.body.classList.add("techne-theme", "techne-accent-orange");
+      };
+
+      els.theme.addEventListener("change", (e) => setTheme(e.target.value));
+
+      const SAMPLE = `# The Library of Babel
+
+An arrangement of hexagons. A rumor of meaning.
+
+\`\`\`notes
+Read as if you are remembering.
+\`\`\`
+
+---
+
+## A Footnote
+
+- A corridor
+- A turn
+- A shelf of possible worlds
+
+\`\`\`notes
+Pause on "possible worlds".
+\`\`\`
+`;
+
+      els.md.value = SAMPLE;
+
+      const pushContent = (markdown) => {
+        window.pendingPresentationContent = markdown;
+        window.dispatchEvent(
+          new CustomEvent("updatePresentationContent", { detail: { content: markdown } })
+        );
+        if (window.showSpeakerNotesPanel) window.showSpeakerNotesPanel(markdown, true);
+      };
+
+      const startPlugin = async () => {
+        setStatus("starting plugin…");
+        await window.TechnePlugins.start({
+          appId: "harness",
+          enabled: ["techne-presentations"],
+          settings: {},
+        });
+        setStatus("plugin started");
+        els.mount.disabled = false;
+      };
+
+      const mountUI = () => {
+        if (!window.MarkdownPreziApp) {
+          setStatus("MarkdownPreziApp missing (React globals?)");
+          return;
+        }
+        setStatus("mounting UI…");
+        window.pendingPresentationContent = els.md.value;
+        window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), els.root);
+        setStatus("mounted");
+        els.load.disabled = false;
+        els.presenting.disabled = false;
+      };
+
+      els.start.addEventListener("click", () => {
+        startPlugin().catch((err) => {
+          console.error(err);
+          setStatus(`start failed: ${err?.message || err}`);
+        });
+      });
+
+      els.mount.addEventListener("click", () => mountUI());
+
+      els.load.addEventListener("click", () => {
+        pushContent(els.md.value);
+        setStatus("content loaded");
+      });
+
+      els.presenting.addEventListener("click", () => {
+        document.body.classList.toggle("is-presenting");
+        setStatus(`presenting: ${document.body.classList.contains("is-presenting") ? "on" : "off"}`);
+      });
+    </script>
+  </body>
+</html>
+
