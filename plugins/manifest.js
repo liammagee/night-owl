@@ -22,5 +22,10 @@ window.TECHNE_PLUGIN_MANIFEST = [
         id: 'techne-network-diagram',
         entry: 'plugins/techne-network-diagram/plugin.js',
         enabledByDefault: true
+    },
+    {
+        id: 'techne-circle',
+        entry: 'plugins/techne-circle/plugin.js',
+        enabledByDefault: false
     }
 ];

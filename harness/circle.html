@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techne Circle Plugin - Test Harness</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: #2d2d2d;
+            padding: 1rem;
+            border-bottom: 1px solid #404040;
+        }
+        header h1 {
+            font-size: 1.25rem;
+            color: #fff;
+        }
+        header p {
+            font-size: 0.875rem;
+            color: #888;
+            margin-top: 0.25rem;
+        }
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+        }
+        #circle-mount {
+            flex: 1;
+            background: #fafafa;
+            border-radius: 8px;
+            min-height: 500px;
+            overflow: hidden;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+        .controls button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            background: #007acc;
+            color: white;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .controls button:hover {
+            background: #005a9e;
+        }
+        .status {
+            font-size: 0.75rem;
+            color: #888;
+        }
+        .log-panel {
+            margin-top: 1rem;
+            background: #2d2d2d;
+            border-radius: 4px;
+            padding: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.75rem;
+        }
+        .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Techne Circle Plugin - Test Harness</h1>
+        <p>Hermeneutic Circle visualization for iterative understanding patterns</p>
+    </header>
+    <main>
+        <div class="controls">
+            <button id="init-btn">Initialize Circle</button>
+            <button id="refresh-btn" disabled>Refresh Data</button>
+            <span class="status" id="status">Ready</span>
+        </div>
+        <div id="circle-mount"></div>
+        <div class="log-panel" id="log-panel"></div>
+    </main>
+
+    <!-- D3.js -->
+    <script src="../lib/d3.min.js"></script>
+
+    <!-- Plugin system -->
+    <script>window.TECHNE_PLUGIN_AUTOSTART = false;</script>
+    <script src="../plugins/techne-plugin-system.js"></script>
+    <script src="../plugins/manifest.js"></script>
+
+    <script>
+        // Mock data for testing
+        const mockFiles = [
+            { path: '/docs/introduction.md', name: 'introduction.md' },
+            { path: '/docs/chapter-1.md', name: 'chapter-1.md' },
+            { path: '/docs/chapter-2.md', name: 'chapter-2.md' },
+            { path: '/docs/chapter-3.md', name: 'chapter-3.md' },
+            { path: '/docs/conclusion.md', name: 'conclusion.md' },
+            { path: '/docs/appendix-a.md', name: 'appendix-a.md' },
+            { path: '/docs/appendix-b.md', name: 'appendix-b.md' },
+            { path: '/docs/references.md', name: 'references.md' },
+            { path: '/docs/glossary.md', name: 'glossary.md' },
+            { path: '/docs/index.md', name: 'index.md' }
+        ];
+
+        const mockContent = {
+            '/docs/introduction.md': `# Introduction
+
+This is the introduction to our philosophical exploration of understanding.
+
+The hermeneutic circle represents the iterative process by which we come to understand texts and concepts. We begin with a pre-understanding, encounter the text, and through repeated engagement, develop deeper comprehension.
+
+Key themes:
+- Part and whole relationships
+- Pre-understanding and prejudice
+- The fusion of horizons
+- Historical consciousness`,
+
+            '/docs/chapter-1.md': `# Chapter 1: The Nature of Understanding
+
+Understanding is not a passive reception of meaning but an active construction. When we read a text, we bring our own horizons of meaning to bear upon it.
+
+Gadamer argues that understanding is always a form of application. We do not simply decode what an author meant; we translate that meaning into our own context and concerns.`,
+
+            '/docs/chapter-2.md': `# Chapter 2: The Circle in Practice
+
+The hermeneutic circle operates at multiple levels. At the most basic, we understand individual words through sentences, and sentences through the whole text.
+
+But the circle also operates historically. Our understanding of past texts shapes our present concerns, which in turn reshape how we read those texts.`
+        };
+
+        // Logging helper
+        function log(message) {
+            const panel = document.getElementById('log-panel');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            panel.appendChild(entry);
+            panel.scrollTop = panel.scrollHeight;
+            console.log(message);
+        }
+
+        // Set up mock globals for testing
+        window.getFilteredVisualizationFiles = async () => {
+            log('Mock: getFilteredVisualizationFiles called');
+            return {
+                files: mockFiles,
+                totalFiles: mockFiles.length,
+                filters: { mock: true }
+            };
+        };
+
+        // Extend host with mock capabilities
+        TechnePlugins.extendHost({
+            readFile: async (filePath) => {
+                log(`Mock: readFile(${filePath})`);
+                const content = mockContent[filePath];
+                if (content) {
+                    return { content };
+                }
+                return { content: `# ${filePath.split('/').pop()}\n\nMock content for this file.` };
+            },
+            openFile: async (filePath) => {
+                log(`Mock: openFile(${filePath})`);
+                alert(`Would open: ${filePath}`);
+            },
+            generateSummaries: async ({ content, filePath }) => {
+                log(`Mock: generateSummaries for ${filePath}`);
+                // Simulate AI delay
+                await new Promise(r => setTimeout(r, 500));
+                const sentences = content.split(/[.!?]+/).filter(s => s.trim());
+                return {
+                    success: true,
+                    paragraph: sentences.slice(0, 3).join('. ') + '.',
+                    sentence: sentences[0]?.trim() + '.' || 'Summary unavailable.'
+                };
+            }
+        });
+
+        let circleView = null;
+
+        document.getElementById('init-btn').addEventListener('click', async () => {
+            const status = document.getElementById('status');
+            status.textContent = 'Initializing...';
+
+            try {
+                // Start the plugin system with only the circle plugin
+                await TechnePlugins.start({
+                    enabled: ['techne-circle'],
+                    appId: 'harness'
+                });
+
+                log('Plugin system started');
+
+                // Listen for mode availability
+                TechnePlugins.on('mode:available', async (mode) => {
+                    log(`Mode available: ${mode.id} - ${mode.title}`);
+
+                    if (mode.id === 'circle') {
+                        const container = document.getElementById('circle-mount');
+                        circleView = await mode.mount(container);
+                        log('Circle view mounted');
+
+                        document.getElementById('refresh-btn').disabled = false;
+                        status.textContent = 'Circle initialized';
+                    }
+                });
+
+            } catch (err) {
+                log(`Error: ${err.message}`);
+                status.textContent = 'Error';
+            }
+        });
+
+        document.getElementById('refresh-btn').addEventListener('click', async () => {
+            if (circleView) {
+                log('Refreshing circle data...');
+                await circleView.refresh();
+                log('Circle refreshed');
+            }
+        });
+
+        log('Harness ready. Click "Initialize Circle" to start.');
+    </script>
+</body>
+</html>

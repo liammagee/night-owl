@@ -9,6 +9,8 @@ Goal: make major subsystems reusable across **NightOwl** (Electron Markdown edit
 - Reference plugin (fauna + shapes): `plugins/techne-backdrop/`
 - Presentations plugin (TTS + recording + speaker notes + UI bundle): `plugins/techne-presentations/`
 - Markdown renderer plugin (Marked + preview abstraction): `plugins/techne-markdown-renderer/`
+- Network diagram plugin (D3 force-directed graph): `plugins/techne-network-diagram/`
+- Hermeneutic Circle plugin (iterative understanding visualization): `plugins/techne-circle/`
 - Plugin harness pages: `harness/` (standalone browser testing)
 - NightOwl starts plugins after settings load: `orchestrator/renderer.js`
 - NightOwl default enabled plugins: `main.js` (`defaultSettings.plugins.enabled`)
@@ -57,20 +59,58 @@ techne-plugin-foo/
 
 Then each consumer app vendors it into its own `plugins/` directory (via copy, git submodule, or an install+copy script), and points the app manifest at `plugins/techne-plugin-foo/plugin.js`.
 
-### NightOwl vs LMS: host adapters (next)
+### Host Adapter Interface
 
-The current host surface is intentionally tiny (`loadCSS`, `loadScript`, events). To make the “big plugins” portable, we need **adapters** so plugins can request capabilities in a standard way:
+The plugin system provides a standard host interface that plugins can use. Consuming apps can extend these capabilities via `TechnePlugins.extendHost()`.
 
-**Planned host capabilities**
+**Core capabilities (always available)**
 
-- `host.registerMode({ id, title, mount, unmount })` (maze/network/present)
+- `host.loadCSS(href)` - Load a stylesheet
+- `host.loadScript(src)` - Load a script
+- `host.loadScriptsSequential(urls)` - Load scripts in order
+- `host.on(event, handler)` / `host.off()` / `host.emit()` - Event bus
+- `host.log()` / `host.warn()` / `host.error()` - Logging
+
+**File capabilities (v1 - implemented)**
+
+- `host.readFile(path)` - Read file content, returns `{ content }` or null
+- `host.openFile(path)` - Open file in editor
+- `host.getFiles(options)` - Get files for visualization, returns `{ files, totalFiles }`
+- `host.generateSummaries({ content, filePath })` - AI document summaries
+
+**Mode registration (via events)**
+
+Plugins can emit `mode:available` to register visualization modes:
+
+```js
+host.emit('mode:available', {
+  id: 'circle',
+  title: 'Hermeneutic Circle',
+  mount: async (container) => { /* returns view instance */ },
+  unmount: (view) => { view.destroy(); }
+});
+```
+
+**Extending host capabilities**
+
+Consuming apps can add or override capabilities:
+
+```js
+TechnePlugins.extendHost({
+  getGraph: () => window.myApp.graphData,
+  appendLink: (source, target, label) => window.myApp.addLink(source, target, label)
+});
+```
+
+**Planned capabilities (next)**
+
 - `host.registerCommand({ id, run, autocomplete })` (MUD commands, actions)
 - `host.getGraph()` / `host.on('graph:changed', …)` (notes/network/maze)
-- `host.openFile(path)` / `host.appendLink(sourcePath, targetId, label)`
-- `host.renderMarkdown(markdown, options)` (website + editor share pipeline)
+- `host.appendLink(sourcePath, targetId, label)` (link creation)
+- `host.renderMarkdown(markdown, options)` (shared pipeline)
 - `host.theme.get()` / `host.theme.onChange(...)` (palette + techne layers)
 
-NightOwl will implement these against existing globals (Monaco, IPC, mode switcher). The LMS will implement these against its router + markdown pages.
+NightOwl implements these against existing globals (Monaco, IPC, mode switcher). The LMS will implement these against its router + markdown pages.
 
 ### Extraction TODOs (high-level)
 
@@ -83,14 +123,15 @@ NightOwl will implement these against existing globals (Monaco, IPC, mode switch
    - Move the maze engine + view + MUD commands into a plugin.
    - Host contract: graph access, link insertion, open-in-editor, and persistence.
 5. **Network diagram plugin**
-   - Extract graph visualization UI.
-   - Host contract: graph access + selection events (open note / filter).
+   - ✅ Implemented as `plugins/techne-network-diagram/` (D3 force-directed graph).
+   - Next: graph access via host adapter instead of globals.
 6. **Markdown renderer plugin (levels of abstraction)**
    - ✅ v0 implemented as `plugins/techne-markdown-renderer/` (Marked rendering + preview abstraction/scrolling via `PreviewZoom`).
    - Next: move more of the NightOwl-specific preview pipeline (MathJax, Mermaid, internal link previews) behind host adapters so the LMS can share it cleanly.
 7. **Hermeneutic Circle plugin**
-   - Extract the circle view + data model.
-   - Host contract: graph + markdown + selection events.
+   - ✅ Implemented as `plugins/techne-circle/` (D3 concentric circle visualization with document preview).
+   - Uses host adapter for file operations (`host.readFile`, `host.openFile`, `host.getFiles`, `host.generateSummaries`).
+   - Emits `mode:available` for mode registration.
 
 ### Testing
 

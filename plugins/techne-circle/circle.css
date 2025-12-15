@@ -1,0 +1,52 @@
+/* Techne Circle Plugin Styles */
+
+#circle-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#circle-container svg {
+    display: block;
+}
+
+/* Loading animation for summaries */
+.loading-ellipsis::after {
+    content: '';
+    animation: ellipsis 1.5s infinite;
+}
+
+@keyframes ellipsis {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+}
+
+/* Button styles for controls */
+#circle-container .btn {
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s ease;
+}
+
+#circle-container .btn:hover {
+    background: #f0f0f0;
+}
+
+#circle-container .btn-primary {
+    background: #007acc;
+    color: white;
+    border-color: #007acc;
+}
+
+#circle-container .btn-primary:hover {
+    background: #005a9e;
+}
+
+#circle-container .btn-sm {
+    padding: 3px 6px;
+    font-size: 10px;
+}

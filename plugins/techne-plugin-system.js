@@ -104,6 +104,49 @@
         return true;
     };
 
+    // Host capability adapters - can be extended by the consuming app
+    const hostCapabilities = {
+        // File operations
+        readFile: async (filePath) => {
+            if (window?.electronAPI?.invoke) {
+                const result = await window.electronAPI.invoke('read-file-content', filePath);
+                return result?.success ? { content: result.content } : null;
+            }
+            return null;
+        },
+
+        openFile: async (filePath) => {
+            if (window?.electronAPI?.invoke) {
+                return window.electronAPI.invoke('open-file', filePath);
+            }
+        },
+
+        // Get files for visualization
+        getFiles: async (options = {}) => {
+            if (window.getFilteredVisualizationFiles) {
+                return window.getFilteredVisualizationFiles();
+            }
+            return { files: [], totalFiles: 0 };
+        },
+
+        // AI summaries
+        generateSummaries: async ({ content, filePath }) => {
+            if (window?.electronAPI?.invoke) {
+                return window.electronAPI.invoke('generate-document-summaries', { content, filePath });
+            }
+            return { success: false, error: 'Not available' };
+        }
+    };
+
+    // Allow apps to extend host capabilities
+    const extendHost = (capabilities) => {
+        Object.assign(hostCapabilities, capabilities);
+        // Update existing host if already created
+        if (state.host) {
+            Object.assign(state.host, capabilities);
+        }
+    };
+
     const createHost = ({ appId = 'unknown', settings = null } = {}) => {
         return {
             appId,
@@ -118,7 +161,9 @@
             loadScriptsSequential,
             log,
             warn,
-            error
+            error,
+            // Host capabilities (can be extended)
+            ...hostCapabilities
         };
     };
 
@@ -305,7 +350,8 @@
         loadScript,
         loadScriptsSequential,
         getPlugin,
-        listPlugins
+        listPlugins,
+        extendHost
     };
 
     const autostart = window.TECHNE_PLUGIN_AUTOSTART !== false;
