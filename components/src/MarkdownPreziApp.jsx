@@ -2029,9 +2029,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   };
 
   const toggleSpeakerNotesWindow = async () => {
-    console.log('[TOGGLE DEBUG] Starting toggle - speakerNotesWindowVisible:', speakerNotesWindowVisible);
     if (!isPresenting || !window.electronAPI) {
-      console.log('[TOGGLE DEBUG] Cannot toggle - isPresenting:', isPresenting, 'hasElectronAPI:', !!window.electronAPI);
       return;
     }
     
@@ -2053,7 +2051,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         if (window.panelVisibilityMonitor) {
           clearInterval(window.panelVisibilityMonitor);
           window.panelVisibilityMonitor = null;
-          console.log('[Panel Monitor] Stopped - switching to inline panel');
         }
         
         // Show the inline panel with current slide notes - recreate if needed
@@ -2064,7 +2061,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           if (presentationContent) {
             presentationContent.insertAdjacentHTML('beforeend', window.speakerNotesPanel_HTML);
             panel = document.getElementById('speaker-notes-panel');
-            console.log('[React Presentation] Recreated panel from stored HTML');
           }
         }
         
@@ -2082,8 +2078,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             }
           }
         }
-        
-        console.log('[React Presentation] Switched to inline panel');
       } catch (error) {
         console.error('[React Presentation] Failed to switch to inline panel:', error);
       } finally {
@@ -2092,25 +2086,21 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       }
     } else {
       // Switch from inline panel to separate window
-      console.log('[TOGGLE DEBUG] Switching from inline panel to separate window');
       try {
         // Set controlled toggle flag for this direction too
         window.REACT_CONTROLLED_TOGGLE = true;
-        // COMPLETELY REMOVE the inline panel from DOM (nuclear option)
+        // COMPLETELY REMOVE the inline panel from DOM
         const panel = document.getElementById('speaker-notes-panel');
-        console.log('[TOGGLE DEBUG] Found panel element:', !!panel);
         if (panel) {
           // Store panel HTML for later restoration if needed
           window.speakerNotesPanel_HTML = panel.outerHTML;
           panel.remove();
-          console.log('[TOGGLE DEBUG] REMOVED inline panel from DOM');
         }
-        
+
         // ALSO hide the sidebar speaker notes pane if it's visible
         const sidebarPane = document.getElementById('speaker-notes-pane');
         if (sidebarPane) {
           sidebarPane.style.display = 'none';
-          console.log('[React Presentation] Hidden sidebar speaker notes pane');
         }
         
         // Ensure we have speaker notes data, recreate if needed
@@ -2128,35 +2118,21 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         
         // Open the separate window with current slide data
         if (window.speakerNotesData) {
-          console.log('[TOGGLE DEBUG] Opening separate window with data:', {
-            totalSlides: window.speakerNotesData.allNotes.length,
-            currentSlide,
-            currentSlideHasNotes: !!window.speakerNotesData.allNotes[currentSlide],
-            allNotesPreview: window.speakerNotesData.allNotes.map((note, i) => ({ 
-              slideIndex: i, 
-              hasNotes: !!note, 
-              preview: note ? note.substring(0, 30) + '...' : 'empty' 
-            }))
-          });
-          
           const currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
           let formattedNotes;
           if (currentSlideNotes) {
             if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {
               formattedNotes = window.markdownToHtml(currentSlideNotes);
-              console.log('[TOGGLE DEBUG] Formatted notes with markdownToHtml:', formattedNotes.substring(0, 100));
             } else {
               formattedNotes = currentSlideNotes.split('\n')
                 .map(line => line.trim())
                 .filter(line => line)
                 .join('<br>');
-              console.log('[TOGGLE DEBUG] Formatted notes with simple formatting:', formattedNotes.substring(0, 100));
             }
           } else {
             formattedNotes = '<em>No speaker notes for this slide.</em>';
-            console.log('[TOGGLE DEBUG] No notes for current slide, using fallback');
           }
-          
+
           await window.electronAPI.invoke('open-speaker-notes-window', {
             notes: formattedNotes,
             slideNumber: currentSlide + 1,
@@ -2165,30 +2141,27 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           setSpeakerNotesWindowVisible(true);
           // Set a flag to prevent useEffect from showing inline panel
           window.explicitlySeparateWindow = true;
-          
+
           // Focus main window after opening speaker notes window
           setTimeout(() => {
             if (window.electronAPI && window.electronAPI.invoke) {
               window.electronAPI.invoke('focus-main-window');
-              console.log('[TOGGLE DEBUG] Focused main window after opening separate speaker notes window');
             }
           }, 100); // Short delay to ensure window has opened
           // Clear inline panel flag
           window.REACT_READY_FOR_INLINE = false;
-          console.log('[TOGGLE DEBUG] *** SET STATE AND FLAG - speakerNotesWindowVisible: true, explicitlySeparateWindow: true ***');
-          
+
           // Immediately hide any visible panel before starting monitoring
           const panel = document.getElementById('speaker-notes-panel');
           if (panel) {
             panel.style.setProperty('display', 'none', 'important');
-            console.log('[TOGGLE DEBUG] Immediately hidden panel before starting monitor');
           }
-          
+
           // Start monitoring for panel visibility and force hide it when in separate window mode
           if (window.panelVisibilityMonitor) {
             clearInterval(window.panelVisibilityMonitor);
           }
-          
+
           window.panelVisibilityMonitor = setInterval(() => {
             if (window.explicitlySeparateWindow) {
               const panel = document.getElementById('speaker-notes-panel');
@@ -2196,7 +2169,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 const computedStyle = window.getComputedStyle(panel);
                 if (computedStyle.display !== 'none') {
                   panel.style.setProperty('display', 'none', 'important');
-                  console.log('[Panel Monitor] Force hidden panel - separate window is active (was computed:', computedStyle.display, ')');
                 }
               }
             }
@@ -2206,15 +2178,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           // Still set the state to indicate separate window should be visible
           setSpeakerNotesWindowVisible(true);
         }
-        
-        console.log('[React Presentation] Switched to separate window');
       } catch (error) {
         console.error('[React Presentation] Failed to switch to separate window:', error);
         // Ensure panel stays hidden even if separate window fails
         const panel = document.getElementById('speaker-notes-panel');
         if (panel) {
           panel.style.setProperty('display', 'none', 'important');
-          console.log('[React Presentation] Ensured panel stays hidden after error');
         }
       } finally {
         // Ensure flag is cleared even if there was an error
@@ -2408,10 +2377,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             📸
           </button>
           <button
-            onClick={() => {
-              console.log('[BUTTON DEBUG] Button clicked - current state speakerNotesWindowVisible:', speakerNotesWindowVisible);
-              toggleSpeakerNotesWindow();
-            }}
+            onClick={() => toggleSpeakerNotesWindow()}
             className={`p-2 rounded-lg transition-colors shadow-lg border ${
               speakerNotesWindowVisible 
                 ? 'bg-green-600 hover:bg-green-700 text-white border-green-700' 

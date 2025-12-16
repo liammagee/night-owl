@@ -221,7 +221,7 @@ function clearSearchHighlights() {
 }
 
 function updateSearchStatus(message) {
-    const searchStatus = document.getElementById('search-status-text');
+    const searchStatus = document.getElementById('find-replace-stats');
     if (searchStatus) {
         searchStatus.textContent = message;
     }
@@ -231,10 +231,10 @@ function updateSearchStatus(message) {
 function initializeFindReplace() {
     const findInput = document.getElementById('find-input');
     const replaceInput = document.getElementById('replace-input');
-    const findNextBtn = document.getElementById('find-next-btn');
-    const findPrevBtn = document.getElementById('find-prev-btn');
-    const replaceBtn = document.getElementById('replace-btn');
-    const replaceAllBtn = document.getElementById('replace-all-btn');
+    const findNextBtn = document.getElementById('find-next');
+    const findPrevBtn = document.getElementById('find-previous');
+    const replaceBtn = document.getElementById('replace-current');
+    const replaceAllBtn = document.getElementById('replace-all');
     const findReplaceClose = document.getElementById('find-replace-close');
     
     // Event listeners
@@ -294,3 +294,11 @@ window.findNext = findNext;
 window.findPrevious = findPrevious;
 window.replaceNext = replaceNext;
 window.replaceAll = replaceAll;
+
+// --- Auto-initialize on DOMContentLoaded ---
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeFindReplace);
+} else {
+    // DOM already loaded
+    initializeFindReplace();
+}

@@ -753,20 +753,7 @@ class CitationService {
             if (lastSyncTime) {
                 // Convert ISO timestamp to Zotero API format (Unix timestamp)
                 const sinceTimestamp = Math.floor(new Date(lastSyncTime).getTime() / 1000);
-
-                // TEMPORARY DEBUG: Skip the 'since' parameter to see all items
-                // Comment this out after testing
-                console.log('[Citation Service] DEBUG: Temporarily skipping since parameter to see all collection items');
-                // params.append('since', sinceTimestamp.toString());
-
-                console.log('[Citation Service] Would use since parameter:', sinceTimestamp, 'for timestamp:', lastSyncTime);
-                console.log('[Citation Service] Current time:', Math.floor(Date.now() / 1000), 'vs since:', sinceTimestamp);
-                console.log('[Citation Service] Time difference:', Math.floor(Date.now() / 1000) - sinceTimestamp, 'seconds ago');
-
-                // Also try a version query to see total items available (for debugging)
-                console.log('[Citation Service] DEBUG: Will fetch ALL items in collection (since parameter disabled for debugging)');
-            } else {
-                console.log('[Citation Service] No lastSyncTime provided, doing full sync');
+                params.append('since', sinceTimestamp.toString());
             }
             
             apiUrl += '?' + params.toString();

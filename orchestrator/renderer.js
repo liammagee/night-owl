@@ -4481,8 +4481,6 @@ async function openFileInEditor(filePath, content, options = {}) {
         addToNavigationHistory(filePath, fileName);
         addFileToRecents(filePath);
     } else {
-        console.log('[DEBUG] SKIPPING tree updates (internal link preview)');
-
         // Still add to navigation history for internal link clicks, but skip file tree highlighting
         const fileName = filePath.split('/').pop();
         addToNavigationHistory(filePath, fileName);
@@ -6956,12 +6954,8 @@ showStructureBtn.addEventListener('click', () => {
 });
 
 showFilesBtn.addEventListener('click', () => {
-    console.log('[DEBUG] File button clicked! Current view:', window.currentStructureView);
     if (window.currentStructureView !== 'file') {
-        console.log('[DEBUG] Switching to file view...');
         switchStructureView('file');
-    } else {
-        console.log('[DEBUG] Already in file view, no action needed');
     }
 });
 
@@ -7078,48 +7072,9 @@ if (addWorkspaceFolderBtn) {
     });
 }
 
-// --- Find & Replace Event Listeners ---
-// TODO: Find & Replace functionality is incomplete - variables and functions not defined
-// Commenting out to prevent ReferenceErrors until implementation is complete
-/*
-findReplaceClose.addEventListener('click', hideFindReplaceDialog);
-
-// Button event listeners
-findNextEl.addEventListener('click', findNext);
-findPreviousEl.addEventListener('click', findPrevious);
-replaceCurrent.addEventListener('click', replaceNext);
-replaceAllEl.addEventListener('click', replaceAll);
-
-// Input event listeners
-findInput.addEventListener('input', performSearch);
-
-findInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        if (e.shiftKey) {
-            findPrevious();
-        } else {
-            findNext();
-        }
-    } else if (e.key === 'Escape') {
-        hideFindReplaceDialog();
-    }
-});
-
-replaceInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        replaceNext();
-    } else if (e.key === 'Escape') {
-        hideFindReplaceDialog();
-    }
-});
-
-// Option change listeners
-caseSensitive.addEventListener('change', performSearch);
-regexMode.addEventListener('change', performSearch);
-wholeWord.addEventListener('change', performSearch);
-*/
+// --- Find & Replace ---
+// Find & Replace is initialized via the findReplace.js module
+// which is loaded separately and calls initializeFindReplace() on DOMContentLoaded
 
 // --- Folder Name Modal Event Listeners ---
 folderNameCancel.addEventListener('click', hideFolderNameModal);
@@ -7192,14 +7147,6 @@ showWholepartBtn.addEventListener('click', () => {
 
 // --- Right Pane Switching Function ---
 // Helper functions for right pane management
-function debugToggleButtonsVisibility(toggleButtons, phase) {
-    if (!toggleButtons) return;
-    
-    console.log(`[DEBUG] Right pane toggle buttons ${phase} - display:`, window.getComputedStyle(toggleButtons).display);
-    console.log(`[DEBUG] Right pane toggle buttons ${phase} - visibility:`, window.getComputedStyle(toggleButtons).visibility);
-    console.log(`[DEBUG] Right pane toggle buttons ${phase} - parent:`, toggleButtons.parentElement);
-}
-
 function hideAllRightPanes() {
     const panes = [
         { element: previewPane, name: 'preview' },
@@ -7286,88 +7233,10 @@ function showSpecificPane(paneType) {
     }
 }
 
-function debugDetailedToggleButtonsInfo(toggleButtons) {
-    if (!toggleButtons) return;
-    
-    console.log('[DEBUG] Right pane toggle buttons after switch - display:', window.getComputedStyle(toggleButtons).display);
-    console.log('[DEBUG] Right pane toggle buttons after switch - visibility:', window.getComputedStyle(toggleButtons).visibility);
-    console.log('[DEBUG] Right pane toggle buttons after switch - parent:', toggleButtons.parentElement);
-    console.log('[DEBUG] Right pane toggle buttons after switch - style:', toggleButtons.style.cssText);
-    
-    // Check the actual position and size
-    const rect = toggleButtons.getBoundingClientRect();
-    console.log('[DEBUG] Toggle buttons position/size:', {
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height,
-        bottom: rect.bottom,
-        right: rect.right
-    });
-    
-    // Check viewport dimensions
-    console.log('[DEBUG] Viewport dimensions:', {
-        width: window.innerWidth,
-        height: window.innerHeight
-    });
-    
-    // Check if it's actually visible in viewport
-    const isInViewport = rect.top >= 0 && rect.left >= 0 && 
-                       rect.bottom <= window.innerHeight && 
-                       rect.right <= window.innerWidth;
-    console.log('[DEBUG] Toggle buttons in viewport:', isInViewport);
-    
-    // Check the right pane itself
-    const rightPane = document.getElementById('right-pane');
-    if (rightPane) {
-        const rightPaneRect = rightPane.getBoundingClientRect();
-        console.log('[DEBUG] Right pane position/size:', {
-            top: rightPaneRect.top,
-            left: rightPaneRect.left,
-            width: rightPaneRect.width,
-            height: rightPaneRect.height
-        });
-    }
-    
-    // Check z-index and positioning
-    const computedStyle = window.getComputedStyle(toggleButtons);
-    console.log('[DEBUG] Toggle buttons computed style:', {
-        position: computedStyle.position,
-        zIndex: computedStyle.zIndex,
-        transform: computedStyle.transform,
-        opacity: computedStyle.opacity,
-        overflow: computedStyle.overflow
-    });
-    
-    // Check if anything is covering the buttons
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const elementAtCenter = document.elementFromPoint(centerX, centerY);
-    console.log('[DEBUG] Element at toggle buttons center:', elementAtCenter);
-    
-    // Check the buttons themselves
-    const buttons = toggleButtons.querySelectorAll('button');
-    console.log('[DEBUG] Number of buttons found:', buttons.length);
-    buttons.forEach((btn, index) => {
-        const btnRect = btn.getBoundingClientRect();
-        console.log(`[DEBUG] Button ${index} (${btn.textContent}):`, {
-            visible: btnRect.width > 0 && btnRect.height > 0,
-            position: { top: btnRect.top, left: btnRect.left, width: btnRect.width, height: btnRect.height }
-        });
-    });
-}
-
 function showRightPane(paneType) {
-    console.log('[DEBUG] showRightPane called with:', paneType);
-    
-    const toggleButtons = document.querySelector('#right-pane .toggle-buttons');
-    debugToggleButtonsVisibility(toggleButtons, 'before switch');
-    
     hideAllRightPanes();
     deactivateAllToggleButtons();
     showSpecificPane(paneType);
-    
-    debugDetailedToggleButtonsInfo(toggleButtons);
 }
 
 // --- Structure Pane / File Tree Functions ---
