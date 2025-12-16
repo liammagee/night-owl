@@ -7,7 +7,18 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const AIService = require('./services/aiService');
 const ipcHandlers = require('./ipc');
-require('@electron/remote/main').initialize();
+
+// Initialize @electron/remote after checking if electron module loaded correctly
+try {
+    if (typeof ipcMain !== 'undefined' && ipcMain && typeof ipcMain.on === 'function') {
+        require('@electron/remote/main').initialize();
+        console.log('[main.js] @electron/remote initialized successfully');
+    } else {
+        console.warn('[main.js] Skipping @electron/remote initialization - ipcMain not available');
+    }
+} catch (error) {
+    console.error('[main.js] Failed to initialize @electron/remote:', error.message);
+}
 
 // Utility function to clean AI responses
 function cleanAIResponse(response) {
@@ -127,6 +138,7 @@ const defaultSettings = {
     
     // === File System ===
     workingDirectory: app.getPath('documents'),
+    workspaceFolders: [], // Additional folders to show in file tree (multi-folder support)
     currentFile: '',
     defaultFileType: '.md', // Default extension for new files
     
@@ -481,6 +493,9 @@ function validateSettings() {
     }
     if (!Array.isArray(appSettings.plugins.enabled)) {
         appSettings.plugins.enabled = [];
+    }
+    if (!Array.isArray(appSettings.workspaceFolders)) {
+        appSettings.workspaceFolders = [];
     }
 
     // Ensure default plugins are present (plugin list is additive)

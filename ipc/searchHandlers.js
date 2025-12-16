@@ -233,14 +233,42 @@ function register(deps) {
   ipcMain.handle('global-search', async (event, { query, options = {} }) => {
     try {
       const workingDir = appSettings.workingDirectory || currentWorkingDirectory;
-      console.log(`[SearchHandlers] Global search for "${query}" in ${workingDir}`);
-      
+      const workspaceFolders = appSettings.workspaceFolders || [];
+
+      console.log(`[SearchHandlers] Global search for "${query}" in ${workingDir} and ${workspaceFolders.length} workspace folders`);
+
       if (!query || query.trim().length === 0) {
         return { success: false, error: 'Search query is required' };
       }
-      
-      const searchResults = await performGlobalSearch(query, workingDir, options);
-      return { success: true, results: searchResults };
+
+      // Search primary working directory
+      let allResults = await performGlobalSearch(query, workingDir, options);
+
+      // Add source folder info to primary results
+      allResults.forEach(result => {
+        result.sourceFolder = workingDir;
+        result.isPrimaryFolder = true;
+      });
+
+      // Search additional workspace folders
+      for (const folderPath of workspaceFolders) {
+        try {
+          const fsSync = require('fs');
+          if (fsSync.existsSync(folderPath)) {
+            const folderResults = await performGlobalSearch(query, folderPath, options);
+            folderResults.forEach(result => {
+              result.sourceFolder = folderPath;
+              result.isWorkspaceFolder = true;
+            });
+            allResults = allResults.concat(folderResults);
+          }
+        } catch (folderError) {
+          console.error(`[SearchHandlers] Error searching workspace folder ${folderPath}:`, folderError);
+        }
+      }
+
+      console.log(`[SearchHandlers] Global search found ${allResults.length} total matches across all folders`);
+      return { success: true, results: allResults };
     } catch (error) {
       console.error('[SearchHandlers] Error in global search:', error);
       return { success: false, error: error.message };

@@ -135,6 +135,7 @@ const tagFilterChips = document.getElementById('tag-filter-chips');
 window.fileTreeView = fileTreeView;
 const newFolderBtn = document.getElementById('new-folder-btn');
 const changeDirectoryBtn = document.getElementById('change-directory-btn');
+const addWorkspaceFolderBtn = document.getElementById('add-workspace-folder-btn');
 const chatMessages = document.getElementById('chat-messages');
 
 // Find & Replace elements
@@ -7039,6 +7040,7 @@ changeDirectoryBtn.addEventListener('click', async () => {
             }
             showNotification(`Working directory changed`, 'success');
             // Refresh file tree to show new directory contents
+            fileTreeRendered = false;
             renderFileTree();
         } else if (!result.error?.includes('cancelled')) {
             showNotification(result.error, 'error');
@@ -7048,6 +7050,33 @@ changeDirectoryBtn.addEventListener('click', async () => {
         showNotification('Error changing working directory', 'error');
     }
 });
+
+// --- Add Workspace Folder Button Listener ---
+if (addWorkspaceFolderBtn) {
+    addWorkspaceFolderBtn.addEventListener('click', async () => {
+        console.log('[Renderer] Add Workspace Folder button clicked');
+        try {
+            const result = await window.electronAPI.invoke('add-workspace-folder');
+            if (result.success) {
+                // Update global settings cache with new folder
+                if (window.appSettings) {
+                    window.appSettings.workspaceFolders = result.workspaceFolders;
+                }
+                showNotification(`Folder added to workspace`, 'success');
+                // Refresh file tree to show new folder
+                fileTreeRendered = false;
+                renderFileTree();
+            } else if (result.cancelled) {
+                // User cancelled, no notification needed
+            } else if (result.error) {
+                showNotification(result.error, 'error');
+            }
+        } catch (error) {
+            console.error('[Renderer] Error adding workspace folder:', error);
+            showNotification('Error adding folder to workspace', 'error');
+        }
+    });
+}
 
 // --- Find & Replace Event Listeners ---
 // TODO: Find & Replace functionality is incomplete - variables and functions not defined
@@ -7372,7 +7401,8 @@ function switchStructureView(view) {
     if (tagSearchSection) tagSearchSection.style.display = 'none';
     newFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
-    
+    if (addWorkspaceFolderBtn) addWorkspaceFolderBtn.style.display = 'none';
+
     if (view === 'structure') {
         structurePaneTitle.textContent = 'Structure';
         showStructureBtn.classList.add('active');
@@ -7386,7 +7416,8 @@ function switchStructureView(view) {
         if (tagSearchSection) tagSearchSection.style.display = ''; // Show tag search
         newFolderBtn.style.display = ''; // Show New Folder button
         changeDirectoryBtn.style.display = ''; // Show Change Directory button
-        
+        if (addWorkspaceFolderBtn) addWorkspaceFolderBtn.style.display = ''; // Show Add Folder button
+
         // Initialize tag filtering system
         initializeTagFiltering();
         
@@ -7842,15 +7873,32 @@ async function renderFileTree() {
         
         // Render the file tree
         if (fileTree && fileTree.children) {
-            // Auto-expand the root directory and common folders on first load
-            if (window.expandedFolders.size === 0) {
-                expandCommonFolders(fileTree);
+            // Check if this is a multi-folder workspace
+            if (fileTree.isMultiFolder) {
+                console.log('[renderFileTree] Rendering multi-folder workspace');
+                // Render each folder as a separate root
+                for (const folderTree of fileTree.children) {
+                    // Auto-expand the folder on first load
+                    if (window.expandedFolders.size === 0) {
+                        expandCommonFolders(folderTree);
+                    }
+                    // Pre-process tags for visible markdown files
+                    await preProcessMarkdownTags(folderTree);
+                    // Render as a workspace folder root (depth 0)
+                    renderFileTreeNode(folderTree, fileTreeView, 0, folderTree.isWorkspaceFolder);
+                }
+            } else {
+                // Single folder mode (backward compatible)
+                // Auto-expand the root directory and common folders on first load
+                if (window.expandedFolders.size === 0) {
+                    expandCommonFolders(fileTree);
+                }
+
+                // Pre-process tags for visible markdown files
+                await preProcessMarkdownTags(fileTree);
+
+                renderFileTreeNode(fileTree, fileTreeView, 0);
             }
-            
-            // Pre-process tags for visible markdown files
-            await preProcessMarkdownTags(fileTree);
-            
-            renderFileTreeNode(fileTree, fileTreeView, 0);
         } else {
             fileTreeView.innerHTML = '<div class="no-files">No files found</div>';
         }
@@ -7870,12 +7918,15 @@ async function renderFileTree() {
     }
 }
 
-function renderFileTreeNode(node, container, depth) {
-    console.log(`[renderFileTreeNode] Rendering ${node.type}: ${node.name} at depth ${depth}`);
+function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false) {
+    console.log(`[renderFileTreeNode] Rendering ${node.type}: ${node.name} at depth ${depth}${isWorkspaceFolder ? ' (workspace folder)' : ''}`);
     const nodeElement = document.createElement('div');
     nodeElement.className = 'file-tree-item';
     nodeElement.style.paddingLeft = `${depth * 16}px`;
-    
+
+    // Track if this is a workspace folder root for context menu
+    const isWorkspaceFolderRoot = isWorkspaceFolder && depth === 0;
+
     const isFolder = node.type === 'folder' || node.type === 'directory';
     const hasChildren = isFolder && node.children && node.children.length > 0;
     const isExpanded = window.expandedFolders.has(node.path);
@@ -7888,7 +7939,15 @@ function renderFileTreeNode(node, container, depth) {
         expandArrow = '<span style="margin-right: 12px;"></span>'; // Spacing for empty folders
     }
     
-    const icon = isFolder ? '📁' : '📄';
+    // Use different icon for workspace folder roots
+    let icon;
+    if (isWorkspaceFolderRoot) {
+        icon = '📂'; // Open folder icon for workspace roots
+    } else if (isFolder) {
+        icon = '📁';
+    } else {
+        icon = '📄';
+    }
     const fileName = node.name;
     
     // Get tags for markdown files
@@ -7918,7 +7977,16 @@ function renderFileTreeNode(node, container, depth) {
         nodeElement.classList.add('folder');
         nodeElement.dataset.path = node.path;
         nodeElement.draggable = true;
-        
+
+        // Add special styling for workspace folder roots
+        if (isWorkspaceFolderRoot) {
+            nodeElement.classList.add('workspace-folder-root');
+            nodeElement.style.fontWeight = 'bold';
+            nodeElement.style.borderBottom = '1px solid var(--neutral-200, #e5e5e5)';
+            nodeElement.style.marginBottom = '4px';
+            nodeElement.style.paddingBottom = '4px';
+        }
+
         // Add click handler for folders to toggle expand/collapse
         nodeElement.addEventListener('click', (event) => {
             event.preventDefault();
@@ -7929,12 +7997,12 @@ function renderFileTreeNode(node, container, depth) {
                 debouncedRenderFileTree(); // Use debounced version to prevent rapid re-renders
             }
         });
-        
+
         // Add context menu for folders
         nodeElement.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             console.log(`[renderFileTree] Context menu requested for folder: ${node.path}`);
-            showFileContextMenu(event, node.path, true);
+            showFileContextMenu(event, node.path, true, isWorkspaceFolderRoot);
         });
     } else {
         nodeElement.classList.add('file', 'file-clickable');
@@ -8853,13 +8921,13 @@ function expandCommonFolders(rootNode) {
     }
 }
 
-function showFileContextMenu(event, filePath, isFolder) {
+function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = false) {
     // Remove any existing context menu
     const existingMenu = document.querySelector('.file-context-menu');
     if (existingMenu) {
         existingMenu.remove();
     }
-    
+
     // Create context menu
     const menu = document.createElement('div');
     menu.className = 'file-context-menu';
@@ -8876,10 +8944,10 @@ function showFileContextMenu(event, filePath, isFolder) {
         font-size: 13px;
         min-width: 150px;
     `;
-    
+
     // Create menu items based on whether it's a file or folder
     const menuItems = [];
-    
+
     if (isFolder) {
         menuItems.push(
             { label: 'Open in Finder', action: 'open-in-finder' },
@@ -8888,6 +8956,13 @@ function showFileContextMenu(event, filePath, isFolder) {
             { label: 'Rename Folder', action: 'rename' },
             { label: 'Delete Folder', action: 'delete' }
         );
+        // Add "Remove from Workspace" option for workspace folder roots (not the primary folder)
+        if (isWorkspaceFolderRoot) {
+            menuItems.push(
+                { separator: true },
+                { label: 'Remove from Workspace', action: 'remove-from-workspace' }
+            );
+        }
     } else {
         menuItems.push(
             { label: 'Open', action: 'open' },
@@ -8910,11 +8985,23 @@ function showFileContextMenu(event, filePath, isFolder) {
     }
     
     menuItems.forEach((item, index) => {
+        // Handle separator items
+        if (item.separator) {
+            const separator = document.createElement('div');
+            separator.style.cssText = `
+                height: 1px;
+                background: #e0e0e0;
+                margin: 4px 0;
+            `;
+            menu.appendChild(separator);
+            return;
+        }
+
         const menuItem = document.createElement('div');
         menuItem.style.cssText = `
             padding: 8px 12px;
             cursor: pointer;
-            border-bottom: ${index < menuItems.length - 1 ? '1px solid #f0f0f0' : 'none'};
+            border-bottom: ${index < menuItems.length - 1 && !menuItems[index + 1]?.separator ? '1px solid #f0f0f0' : 'none'};
         `;
         menuItem.textContent = item.label;
         menuItem.addEventListener('click', () => {
@@ -9154,6 +9241,32 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
                 showFolderNameModalWithParent(filePath);
             } else {
                 showNotification('New folder can only be created inside directories', 'error');
+            }
+            break;
+
+        case 'remove-from-workspace':
+            if (isFolder) {
+                const confirmRemove = confirm(`Remove this folder from workspace?\n\n${filePath}\n\nThis will only remove it from the file tree view, not delete the folder.`);
+                if (confirmRemove) {
+                    try {
+                        const result = await window.electronAPI.invoke('remove-workspace-folder', filePath);
+                        if (result.success) {
+                            // Update global settings cache
+                            if (window.appSettings) {
+                                window.appSettings.workspaceFolders = result.workspaceFolders;
+                            }
+                            showNotification('Folder removed from workspace', 'success');
+                            // Refresh file tree
+                            fileTreeRendered = false;
+                            renderFileTree();
+                        } else {
+                            showNotification(`Failed to remove folder: ${result.error}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('[handleFileContextMenuAction] Error removing workspace folder:', error);
+                        showNotification('Error removing folder from workspace', 'error');
+                    }
+                }
             }
             break;
 

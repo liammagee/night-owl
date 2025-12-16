@@ -202,10 +202,49 @@ function register(deps) {
   ipcMain.handle('request-file-tree', async (event) => {
     try {
       const workingDir = getWorkingDirectory();
+      const workspaceFolders = appSettings.workspaceFolders || [];
+
       console.log(`[FileHandlers] Building file tree for: ${workingDir}`);
-      
-      const fileTree = await buildFileTree(workingDir);
-      return fileTree;
+      console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
+
+      // Build trees for all folders
+      const trees = [];
+
+      // Primary working directory
+      const primaryTree = await buildFileTree(workingDir);
+      primaryTree.isPrimary = true; // Mark as primary folder
+      trees.push(primaryTree);
+
+      // Additional workspace folders
+      for (const folderPath of workspaceFolders) {
+        try {
+          // Verify folder exists
+          const fsSync = require('fs');
+          if (fsSync.existsSync(folderPath)) {
+            const folderTree = await buildFileTree(folderPath);
+            folderTree.isWorkspaceFolder = true; // Mark as workspace folder
+            trees.push(folderTree);
+          } else {
+            console.warn(`[FileHandlers] Workspace folder not found: ${folderPath}`);
+          }
+        } catch (folderError) {
+          console.error(`[FileHandlers] Error building tree for workspace folder ${folderPath}:`, folderError);
+        }
+      }
+
+      // If only one folder, return it directly for backward compatibility
+      if (trees.length === 1) {
+        return trees[0];
+      }
+
+      // Multiple folders - return a virtual root
+      return {
+        name: 'Workspace',
+        type: 'workspace-root',
+        path: null,
+        children: trees,
+        isMultiFolder: true
+      };
     } catch (error) {
       console.error('[FileHandlers] Error building file tree:', error);
       return {
@@ -219,10 +258,42 @@ function register(deps) {
   ipcMain.handle('get-available-files', async (event) => {
     try {
       const workingDir = getWorkingDirectory();
+      const workspaceFolders = appSettings.workspaceFolders || [];
+
       console.log(`[FileHandlers] Getting available files from: ${workingDir}`);
-      
-      const files = await getAvailableFiles(workingDir);
-      return files;
+      console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
+
+      // Get files from primary working directory
+      const primaryFiles = await getAvailableFiles(workingDir);
+      // Mark files with their source folder for UI differentiation
+      primaryFiles.forEach(file => {
+        file.sourceFolder = workingDir;
+        file.isPrimaryFolder = true;
+      });
+
+      // Aggregate files from all workspace folders
+      let allFiles = [...primaryFiles];
+
+      for (const folderPath of workspaceFolders) {
+        try {
+          if (fsSync.existsSync(folderPath)) {
+            const folderFiles = await getAvailableFiles(folderPath);
+            // Mark files with their source folder
+            folderFiles.forEach(file => {
+              file.sourceFolder = folderPath;
+              file.isWorkspaceFolder = true;
+            });
+            allFiles = allFiles.concat(folderFiles);
+          } else {
+            console.warn(`[FileHandlers] Workspace folder not found: ${folderPath}`);
+          }
+        } catch (folderError) {
+          console.error(`[FileHandlers] Error getting files from workspace folder ${folderPath}:`, folderError);
+        }
+      }
+
+      console.log(`[FileHandlers] Total available files across all folders: ${allFiles.length}`);
+      return allFiles;
     } catch (error) {
       console.error('[FileHandlers] Error getting available files:', error);
       return [];
@@ -270,12 +341,12 @@ function register(deps) {
   ipcMain.handle('change-working-directory', async () => {
     const { BrowserWindow } = require('electron');
     const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    
+
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for directory dialog');
       return { success: false, error: 'No main window available' };
     }
-    
+
     try {
       const result = await dialog.showOpenDialog(currentMainWindow, {
         properties: ['openDirectory'],
@@ -310,6 +381,117 @@ function register(deps) {
       console.error('[FileHandlers] Error changing working directory:', error);
       return { success: false, error: error.message };
     }
+  });
+
+  // Add a folder to workspace (multi-folder support)
+  ipcMain.handle('add-workspace-folder', async () => {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+    if (!currentMainWindow) {
+      console.error('[FileHandlers] No main window available for directory dialog');
+      return { success: false, error: 'No main window available' };
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(currentMainWindow, {
+        properties: ['openDirectory'],
+        title: 'Add Folder to Workspace',
+        defaultPath: appSettings.workingDirectory
+      });
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        const folderPath = result.filePaths[0];
+
+        // Check if folder is already in workspace
+        if (folderPath === appSettings.workingDirectory) {
+          return { success: false, error: 'This folder is already your primary working directory' };
+        }
+
+        if (!Array.isArray(appSettings.workspaceFolders)) {
+          appSettings.workspaceFolders = [];
+        }
+
+        if (appSettings.workspaceFolders.includes(folderPath)) {
+          return { success: false, error: 'This folder is already in your workspace' };
+        }
+
+        // Add to workspace folders
+        appSettings.workspaceFolders.push(folderPath);
+        saveSettings();
+
+        console.log(`[FileHandlers] Added workspace folder: ${folderPath}`);
+        console.log(`[FileHandlers] Total workspace folders: ${appSettings.workspaceFolders.length}`);
+
+        // Notify renderer about the settings change
+        const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+        if (win) {
+          win.webContents.send('settings-changed', {
+            workspaceFolders: appSettings.workspaceFolders
+          });
+          win.webContents.send('refresh-file-tree');
+        }
+
+        return {
+          success: true,
+          folderPath: folderPath,
+          workspaceFolders: appSettings.workspaceFolders
+        };
+      }
+
+      return { success: false, cancelled: true };
+    } catch (error) {
+      console.error('[FileHandlers] Error adding workspace folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Remove a folder from workspace
+  ipcMain.handle('remove-workspace-folder', async (event, folderPath) => {
+    try {
+      if (!Array.isArray(appSettings.workspaceFolders)) {
+        return { success: false, error: 'No workspace folders configured' };
+      }
+
+      const index = appSettings.workspaceFolders.indexOf(folderPath);
+      if (index === -1) {
+        return { success: false, error: 'Folder not found in workspace' };
+      }
+
+      // Remove from workspace folders
+      appSettings.workspaceFolders.splice(index, 1);
+      saveSettings();
+
+      console.log(`[FileHandlers] Removed workspace folder: ${folderPath}`);
+      console.log(`[FileHandlers] Remaining workspace folders: ${appSettings.workspaceFolders.length}`);
+
+      // Notify renderer about the settings change
+      const { BrowserWindow } = require('electron');
+      const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send('settings-changed', {
+          workspaceFolders: appSettings.workspaceFolders
+        });
+        win.webContents.send('refresh-file-tree');
+      }
+
+      return {
+        success: true,
+        folderPath: folderPath,
+        workspaceFolders: appSettings.workspaceFolders
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error removing workspace folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get workspace folders
+  ipcMain.handle('get-workspace-folders', () => {
+    return {
+      primaryFolder: appSettings.workingDirectory,
+      workspaceFolders: appSettings.workspaceFolders || []
+    };
   });
 
   // File Reading Operations
@@ -1386,22 +1568,25 @@ function register(deps) {
     }
   });
 
-  // Get all markdown files in the project
+  // Get all markdown files in the project (including all workspace folders)
   ipcMain.handle('get-markdown-files', async (event) => {
     try {
       const workingDir = getWorkingDirectory();
+      const workspaceFolders = appSettings.workspaceFolders || [];
+
       console.log(`[FileHandlers] Getting markdown files from: ${workingDir}`);
-      
+      console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
+
       const markdownFiles = [];
-      
+
       // Recursive function to find markdown files
       async function findMarkdownFiles(dir) {
         try {
           const entries = await fs.readdir(dir, { withFileTypes: true });
-          
+
           for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
-            
+
             if (entry.isDirectory()) {
               // Skip common non-content directories
               if (!['node_modules', '.git', '.vscode', 'dist', 'build', '.next', 'coverage'].includes(entry.name)) {
@@ -1415,19 +1600,33 @@ function register(deps) {
           console.warn(`[FileHandlers] Error reading directory ${dir}:`, dirError);
         }
       }
-      
+
+      // Search primary working directory
       await findMarkdownFiles(workingDir);
-      
-      console.log(`[FileHandlers] Found ${markdownFiles.length} markdown files`);
-      return { 
-        success: true, 
+
+      // Search all workspace folders
+      for (const folderPath of workspaceFolders) {
+        try {
+          if (fsSync.existsSync(folderPath)) {
+            await findMarkdownFiles(folderPath);
+          } else {
+            console.warn(`[FileHandlers] Workspace folder not found: ${folderPath}`);
+          }
+        } catch (folderError) {
+          console.error(`[FileHandlers] Error searching workspace folder ${folderPath}:`, folderError);
+        }
+      }
+
+      console.log(`[FileHandlers] Found ${markdownFiles.length} markdown files across all folders`);
+      return {
+        success: true,
         files: markdownFiles.sort() // Sort alphabetically
       };
     } catch (error) {
       console.error('[FileHandlers] Error getting markdown files:', error);
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message
       };
     }
   });
