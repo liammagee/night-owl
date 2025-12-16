@@ -397,22 +397,42 @@ function switchToMode(modeName) {
   } else if (modeName === 'library') {
     document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
-    const explorer =
-      (window.gamificationInstance && window.gamificationInstance.explorerView) ||
-      (window.gamificationManager && window.gamificationManager.explorerView) ||
-      null;
-    if (explorer && typeof explorer.ensureContainer === 'function') {
-      const container = explorer.ensureContainer();
-      if (container && typeof explorer.renderMaze === 'function') {
-        try {
-          const world =
-            explorer.currentWorldState &&
-            Object.keys(explorer.currentWorldState).length
-              ? explorer.currentWorldState
-              : explorer.gamification?.worldEngine?.getWorldState?.() || {};
-          explorer.renderMaze(world);
-        } catch (error) {
-          console.warn('[Mode Switching] Failed to render maze on library mode switch:', error);
+
+    // Try to use the plugin's maze mode first
+    const mazeMode = window.__techneAvailableModes?.['maze'] || window.__techneAvailableModes?.['library'];
+    const container = document.getElementById('library-mode-root');
+
+    if (mazeMode && container) {
+      // Use the plugin's mount function
+      if (!window._mazeViewInstance) {
+        mazeMode.mount(container, {
+          gamification: window.gamificationInstance || window.gamificationManager
+        }).then(view => {
+          window._mazeViewInstance = view;
+          console.log('[Mode Switching] Maze plugin mounted');
+        }).catch(err => {
+          console.warn('[Mode Switching] Failed to mount maze plugin:', err);
+        });
+      }
+    } else {
+      // Fallback to gamification explorerView if plugin not available
+      const explorer =
+        (window.gamificationInstance && window.gamificationInstance.explorerView) ||
+        (window.gamificationManager && window.gamificationManager.explorerView) ||
+        null;
+      if (explorer && typeof explorer.ensureContainer === 'function') {
+        const explorerContainer = explorer.ensureContainer();
+        if (explorerContainer && typeof explorer.renderMaze === 'function') {
+          try {
+            const world =
+              explorer.currentWorldState &&
+              Object.keys(explorer.currentWorldState).length
+                ? explorer.currentWorldState
+                : explorer.gamification?.worldEngine?.getWorldState?.() || {};
+            explorer.renderMaze(world);
+          } catch (error) {
+            console.warn('[Mode Switching] Failed to render maze on library mode switch:', error);
+          }
         }
       }
     }
@@ -522,12 +542,82 @@ function setupModeSwitching() {
 
   // Custom window controls removed - using native titlebar
 
+  // Setup plugin-aware mode button visibility
+  setupPluginModeButtons();
+
   console.log('[Mode Switching] Mode switching setup completed');
+}
+
+// Map plugin IDs to mode button IDs
+const pluginToModeButton = {
+  'techne-presentations': 'presentation-mode-btn',
+  'techne-network-diagram': 'network-mode-btn',
+  'techne-maze': 'library-mode-btn',
+  'techne-circle': 'circle-mode-btn'
+};
+
+// Update mode button visibility based on plugin state
+function updateModeButtonVisibility() {
+  if (!window.TechnePlugins) {
+    console.log('[Mode Switching] TechnePlugins not available yet');
+    return;
+  }
+
+  const enabledPlugins = window.TechnePlugins.getEnabled?.() || [];
+  console.log('[Mode Switching] Enabled plugins:', enabledPlugins);
+
+  for (const [pluginId, buttonId] of Object.entries(pluginToModeButton)) {
+    const button = document.getElementById(buttonId);
+    const isEnabled = enabledPlugins.includes(pluginId);
+    console.log(`[Mode Switching] Plugin ${pluginId}: enabled=${isEnabled}, button=${buttonId}, found=${!!button}`);
+    if (button) {
+      button.style.display = isEnabled ? '' : 'none';
+    }
+  }
+}
+
+// Setup listeners for plugin enable/disable events
+function setupPluginModeButtons() {
+  // Initial update after a short delay to ensure plugins are loaded
+  setTimeout(updateModeButtonVisibility, 100);
+
+  // Listen for plugin enable/disable events
+  if (window.TechnePlugins?.on) {
+    window.TechnePlugins.on('plugin:enabled', ({ id }) => {
+      console.log('[Mode Switching] Plugin enabled:', id);
+      updateModeButtonVisibility();
+    });
+
+    window.TechnePlugins.on('plugin:disabled', ({ id }) => {
+      console.log('[Mode Switching] Plugin disabled:', id);
+      // If we're in the mode that was disabled, switch to editor
+      const buttonId = pluginToModeButton[id];
+      if (buttonId) {
+        const modeMap = {
+          'presentation-mode-btn': 'presentation',
+          'network-mode-btn': 'network',
+          'library-mode-btn': 'library',
+          'circle-mode-btn': 'circle'
+        };
+        const mode = modeMap[buttonId];
+        if (currentMode === mode) {
+          switchToMode('editor');
+        }
+      }
+      updateModeButtonVisibility();
+    });
+
+    // Also listen for plugins:started to update initially
+    window.TechnePlugins.on('plugins:started', () => {
+      updateModeButtonVisibility();
+    });
+  }
 }
 
 // Export functions to global scope for backward compatibility
 window.switchToMode = switchToMode;
 window.setupModeSwitching = setupModeSwitching;
 window.restoreUIElementsAfterPresentation = restoreUIElementsAfterPresentation;
+window.updateModeButtonVisibility = updateModeButtonVisibility;
 window.currentMode = currentMode;
 window.presentationEditorContent = presentationEditorContent;

@@ -37,15 +37,15 @@ class GamificationManager {
             this.architectBridge = null;
         }
 
-        if (typeof BabelMazeView !== 'undefined') {
-            this.explorerView = new BabelMazeView(this);
-            this.explorerView.ensureContainer();
-        } else if (typeof LibraryExplorerView !== 'undefined') {
+        // BabelMazeView is now provided by the techne-maze plugin
+        // We'll connect to it via plugin events when the plugin loads
+        this.explorerView = null;
+        this._setupMazePluginListener();
+
+        // Fallback to LibraryExplorerView if available (legacy)
+        if (!this.explorerView && typeof LibraryExplorerView !== 'undefined') {
             this.explorerView = new LibraryExplorerView(this);
             this.explorerView.ensureContainer();
-        } else {
-            console.warn('[GamificationManager] LibraryExplorerView not available. Explorer UI disabled.');
-            this.explorerView = null;
         }
 
         this.activityTrackingInitialized = false;
@@ -144,13 +144,57 @@ class GamificationManager {
 
     initialize() {
         if (this.initialized) return;
-        
+
         this.setupEventListeners();
         this.updateGamificationUI(true);
         this.startActivityTracking();
         this.initialized = true;
-        
+
         console.log('[GamificationManager] Event listeners and UI initialized');
+    }
+
+    // Setup listener for the maze plugin to connect when it loads
+    _setupMazePluginListener() {
+        if (!window.TechnePlugins?.on) {
+            console.log('[GamificationManager] TechnePlugins not available, maze plugin listener not set up');
+            return;
+        }
+
+        // Listen for the maze mode becoming available
+        window.TechnePlugins.on('mode:available', (mode) => {
+            if (mode?.id === 'maze' || mode?.id === 'library') {
+                console.log('[GamificationManager] Maze plugin mode available:', mode.id);
+                // Store reference to the mode for later mounting
+                this._mazeMode = mode;
+            }
+        });
+
+        // Check if maze is already loaded
+        const mazePlugin = window.TechnePlugins.getPlugin?.('techne-maze');
+        if (mazePlugin) {
+            console.log('[GamificationManager] Maze plugin already loaded');
+            // The plugin's BabelMazeView is available globally after plugin init
+            if (typeof BabelMazeView !== 'undefined') {
+                this.explorerView = new BabelMazeView(this);
+                this.explorerView.ensureContainer();
+                console.log('[GamificationManager] BabelMazeView connected from plugin');
+            }
+        }
+    }
+
+    // Mount the maze view into a container (called when switching to library mode)
+    async mountMazeView(container) {
+        if (this._mazeMode?.mount) {
+            return await this._mazeMode.mount(container, { gamification: this });
+        }
+        // Fallback to direct instantiation if BabelMazeView is available
+        if (typeof BabelMazeView !== 'undefined' && !this.explorerView) {
+            this.explorerView = new BabelMazeView(this);
+        }
+        if (this.explorerView?.initialize) {
+            return await this.explorerView.initialize(container);
+        }
+        return null;
     }
 
     // === Session Management Delegations ===

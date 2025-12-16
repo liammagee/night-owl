@@ -260,16 +260,12 @@
     };
 
     const updateEnabled = (enabled) => {
-        log('updateEnabled called with:', enabled);
-        log('Current manifest:', state.manifest.map(p => p.id));
-
         // Handle array format: ['plugin-a', 'plugin-b']
         if (Array.isArray(enabled)) {
             for (const id of enabled) {
                 const norm = normalizeId(id);
                 if (norm) state.enabled.add(norm);
             }
-            log('After array update, enabled:', Array.from(state.enabled));
             return;
         }
 
@@ -282,13 +278,11 @@
                     .map((p) => normalizeId(p?.id))
                     .filter(Boolean)
             );
-            log('Defaults from manifest:', Array.from(defaults));
 
             // Apply saved settings on top of defaults
             for (const [id, config] of Object.entries(enabled)) {
                 const norm = normalizeId(id);
                 if (!norm) continue;
-                log(`Processing saved setting: ${id} = ${JSON.stringify(config)}`);
                 if (config?.enabled === true) {
                     defaults.add(norm);
                 } else if (config?.enabled === false) {
@@ -297,7 +291,6 @@
             }
 
             state.enabled = defaults;
-            log('After object update, enabled:', Array.from(state.enabled));
             return;
         }
 
@@ -308,7 +301,6 @@
                 .map((p) => normalizeId(p?.id))
                 .filter(Boolean);
             state.enabled = new Set(defaults);
-            log('Using defaults, enabled:', Array.from(state.enabled));
         }
     };
 

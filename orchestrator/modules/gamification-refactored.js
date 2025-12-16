@@ -23,15 +23,15 @@
     }
 
     // Array of module files to load in order
+    // Note: BabelMazeView is now loaded via the techne-maze plugin
     const moduleFiles = [
         'gamification/data/DataPersistence.js',
-        'gamification/core/WritingSession.js', 
+        'gamification/core/WritingSession.js',
         'gamification/core/FlowState.js',
         'gamification/timers/FocusTimer.js',
         'gamification/world/LibraryWorldEngine.js',
         'gamification/world/LibraryArchitectBridge.js',
         'gamification/world/LibraryExplorerView.js',
-        'gamification/world/BabelMazeView.js',
         'gamification/GamificationManager.js'
     ];
 

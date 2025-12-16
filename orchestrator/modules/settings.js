@@ -115,6 +115,60 @@ function createSettingsDialog() {
             closeSettingsDialog();
         }
     });
+
+    // Set up event delegation for plugin toggles on the content area
+    // This avoids timing issues with dynamically generated content
+    content.addEventListener('click', async (e) => {
+        // Check if this is a click on a plugin toggle
+        if (e.target.classList.contains('plugin-enabled-toggle')) {
+            const pluginId = e.target.dataset.pluginId;
+            const isEnabled = e.target.checked;
+            console.log(`[Settings] Plugin toggle clicked (delegated): ${pluginId} -> ${isEnabled}`);
+
+            const row = e.target.closest('.plugin-row');
+            const statusBadge = row?.querySelector('.status-badge:not(.status-default)');
+
+            try {
+                if (isEnabled) {
+                    console.log(`[Settings] Calling enablePlugin for ${pluginId}...`);
+                    await window.TechnePlugins?.enablePlugin?.(pluginId);
+                    console.log(`[Settings] Plugin enabled: ${pluginId}`);
+
+                    if (statusBadge) {
+                        statusBadge.className = 'status-badge status-loaded';
+                        statusBadge.textContent = 'Loaded';
+                    }
+                    window.showNotification?.(`Plugin "${pluginId}" enabled`, 'success');
+                } else {
+                    window.TechnePlugins?.disablePlugin?.(pluginId);
+                    console.log(`[Settings] Plugin disabled: ${pluginId}`);
+
+                    if (statusBadge) {
+                        statusBadge.className = 'status-badge status-not-loaded';
+                        statusBadge.textContent = 'Disabled';
+                    }
+                    window.showNotification?.(`Plugin "${pluginId}" disabled`, 'info');
+                }
+
+                // Save plugin state to settings
+                if (!window.appSettings) window.appSettings = {};
+                if (!window.appSettings.plugins) window.appSettings.plugins = {};
+                window.appSettings.plugins[pluginId] = { enabled: isEnabled };
+
+                // Persist to settings file
+                await window.electronAPI?.invoke?.('set-settings', window.appSettings);
+
+                // Update mode button visibility
+                if (window.updateModeButtonVisibility) {
+                    window.updateModeButtonVisibility();
+                }
+            } catch (error) {
+                console.error(`[Settings] Failed to toggle plugin "${pluginId}":`, error);
+                e.target.checked = !isEnabled;
+                window.showNotification?.(`Failed to ${isEnabled ? 'enable' : 'disable'} plugin`, 'error');
+            }
+        }
+    });
 }
 
 function createSettingsSidebar() {
@@ -193,10 +247,15 @@ function showSettingsCategory(category) {
     }
     
     // Generate content for the category
+    console.log(`[Settings] Generating content for category: ${category}`);
     content.innerHTML = generateSettingsContent(category);
-    
-    // Add event listeners for form elements
-    addSettingsEventListeners(category);
+
+    // Add event listeners for form elements after DOM has updated
+    // Use requestAnimationFrame to ensure the DOM has been painted
+    requestAnimationFrame(() => {
+        console.log(`[Settings] Adding event listeners for category: ${category}`);
+        addSettingsEventListeners(category);
+    });
 }
 
 function generateSettingsContent(category) {
@@ -593,9 +652,13 @@ function generatePluginsSettings() {
                 height: 24px;
             }
             .toggle-switch input {
+                position: absolute;
                 opacity: 0;
-                width: 0;
-                height: 0;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                cursor: pointer;
+                z-index: 1;
             }
             .toggle-slider {
                 position: absolute;
@@ -607,6 +670,7 @@ function generatePluginsSettings() {
                 background-color: #ccc;
                 transition: 0.3s;
                 border-radius: 24px;
+                pointer-events: none;
             }
             .toggle-slider:before {
                 position: absolute;
@@ -1557,7 +1621,13 @@ function generateAdvancedSettings() {
 
 function addSettingsEventListeners(category) {
     // Add specific event listeners based on category
-    
+    console.log(`[Settings] addSettingsEventListeners called for: ${category}`);
+
+    // Debug: Check what's in the settings content area
+    const settingsContent = document.getElementById('settings-content');
+    console.log(`[Settings] settings-content element:`, settingsContent);
+    console.log(`[Settings] settings-content innerHTML length:`, settingsContent?.innerHTML?.length);
+
     // Link preview mode dropdown
     const linkPreviewMode = document.getElementById('link-preview-mode');
     if (linkPreviewMode) {
@@ -2019,58 +2089,6 @@ function setupTTSEventListeners() {
         });
     }
 
-    // Plugin toggle event listeners
-    const pluginToggles = document.querySelectorAll('.plugin-enabled-toggle');
-    pluginToggles.forEach(toggle => {
-        toggle.addEventListener('change', async (e) => {
-            const pluginId = e.target.dataset.pluginId;
-            const isEnabled = e.target.checked;
-            const row = e.target.closest('.plugin-row');
-            const statusBadge = row?.querySelector('.status-badge:not(.status-default)');
-
-            try {
-                if (isEnabled) {
-                    // Enable plugin
-                    await window.TechnePlugins?.enablePlugin?.(pluginId);
-                    console.log(`[Settings] Plugin enabled: ${pluginId}`);
-
-                    // Update status badge
-                    if (statusBadge) {
-                        statusBadge.className = 'status-badge status-loaded';
-                        statusBadge.textContent = 'Loaded';
-                    }
-
-                    window.showNotification(`Plugin "${pluginId}" enabled`, 'success');
-                } else {
-                    // Disable plugin
-                    window.TechnePlugins?.disablePlugin?.(pluginId);
-                    console.log(`[Settings] Plugin disabled: ${pluginId}`);
-
-                    // Update status badge
-                    if (statusBadge) {
-                        statusBadge.className = 'status-badge status-not-loaded';
-                        statusBadge.textContent = 'Disabled';
-                    }
-
-                    window.showNotification(`Plugin "${pluginId}" disabled`, 'info');
-                }
-
-                // Save plugin state to settings
-                if (!window.appSettings) window.appSettings = {};
-                if (!window.appSettings.plugins) window.appSettings.plugins = {};
-                window.appSettings.plugins[pluginId] = { enabled: isEnabled };
-
-                // Persist to settings file
-                await window.electronAPI?.invoke?.('set-settings', window.appSettings);
-
-            } catch (error) {
-                console.error(`[Settings] Failed to toggle plugin "${pluginId}":`, error);
-                // Revert toggle state
-                e.target.checked = !isEnabled;
-                window.showNotification(`Failed to ${isEnabled ? 'enable' : 'disable'} plugin`, 'error');
-            }
-        });
-    });
 }
 
 // Inject CSS styles for assistant tabs

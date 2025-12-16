@@ -31,6 +31,6 @@ window.TECHNE_PLUGIN_MANIFEST = [
     {
         id: 'techne-maze',
         entry: 'plugins/techne-maze/plugin.js',
-        enabledByDefault: false
+        enabledByDefault: true
     }
 ];

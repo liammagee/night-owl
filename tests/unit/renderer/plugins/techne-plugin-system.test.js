@@ -87,14 +87,15 @@ describe('Techne plugin system', () => {
     const activation = window.TechnePlugins.start({ enabled: ['dummy-late'] });
 
     // Allow the loader to inject the script tag.
+    // Note: normalizePath adds '/' prefix in http:// protocol (Jest/jsdom)
     for (let i = 0; i < 5; i += 1) {
-      const script = document.head.querySelector('script[src="dummy-late.js"]');
+      const script = document.head.querySelector('script[src="/dummy-late.js"]');
       if (script) break;
       // eslint-disable-next-line no-await-in-loop
       await Promise.resolve();
     }
 
-    const script = document.head.querySelector('script[src="dummy-late.js"]');
+    const script = document.head.querySelector('script[src="/dummy-late.js"]');
     expect(script).toBeTruthy();
 
     window.TechnePlugins.register({
@@ -111,8 +112,9 @@ describe('Techne plugin system', () => {
   test('loadScript resolves when onload is triggered', async () => {
     require(pluginSystemPath);
 
+    // Note: normalizePath adds '/' prefix in http:// protocol (Jest/jsdom)
     const promise = window.TechnePlugins.loadScript('foo.js');
-    const script = document.head.querySelector('script[src="foo.js"]');
+    const script = document.head.querySelector('script[src="/foo.js"]');
     expect(script).toBeTruthy();
     script.onload();
 
@@ -120,14 +122,15 @@ describe('Techne plugin system', () => {
 
     const again = await window.TechnePlugins.loadScript('foo.js');
     expect(again).toBe(true);
-    expect(document.head.querySelectorAll('script[src="foo.js"]').length).toBe(1);
+    expect(document.head.querySelectorAll('script[src="/foo.js"]').length).toBe(1);
   });
 
   test('loadCSS resolves when onload is triggered', async () => {
     require(pluginSystemPath);
 
+    // Note: normalizePath adds '/' prefix in http:// protocol (Jest/jsdom)
     const promise = window.TechnePlugins.loadCSS('foo.css');
-    const link = document.head.querySelector('link[href="foo.css"]');
+    const link = document.head.querySelector('link[href="/foo.css"]');
     expect(link).toBeTruthy();
     link.onload();
 
@@ -135,6 +138,6 @@ describe('Techne plugin system', () => {
 
     const again = await window.TechnePlugins.loadCSS('foo.css');
     expect(again).toBe(true);
-    expect(document.head.querySelectorAll('link[href="foo.css"]').length).toBe(1);
+    expect(document.head.querySelectorAll('link[href="/foo.css"]').length).toBe(1);
   });
 });
