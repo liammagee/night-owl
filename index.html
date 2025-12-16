@@ -669,6 +669,29 @@
             background-color: rgba(234, 92, 0, 0.66);
         }
 
+        /* Custom Search Highlight (for findReplace.js) */
+        .monaco-editor .search-highlight {
+            background-color: rgba(255, 235, 59, 0.4);
+            border: 1px solid rgba(255, 193, 7, 0.6);
+            border-radius: 2px;
+        }
+
+        .monaco-editor .search-highlight-current {
+            background-color: rgba(255, 152, 0, 0.6);
+            border: 2px solid rgba(255, 87, 34, 0.8);
+            border-radius: 2px;
+        }
+
+        body.dark-mode .monaco-editor .search-highlight {
+            background-color: rgba(255, 235, 59, 0.25);
+            border-color: rgba(255, 193, 7, 0.4);
+        }
+
+        body.dark-mode .monaco-editor .search-highlight-current {
+            background-color: rgba(255, 152, 0, 0.4);
+            border-color: rgba(255, 87, 34, 0.6);
+        }
+
         /* Folder Name Dialog */
         #folder-name-modal {
             position: fixed;

@@ -94,25 +94,37 @@ function performSearch() {
     if (!window.editor || !window.editor.getModel()) {
         return;
     }
-    
+
     const regex = buildSearchQuery();
     if (!regex) {
         clearSearchHighlights();
         updateSearchStatus('');
         return;
     }
-    
+
     const model = window.editor.getModel();
-    const matches = model.findMatches(regex.source, false, regex.flags.includes('i') ? false : true, 
-                                    false, null, false);
-    
+    const isRegexMode = document.getElementById('regex-mode')?.checked || false;
+    const isCaseSensitive = document.getElementById('case-sensitive')?.checked || false;
+    const isWholeWord = document.getElementById('whole-word')?.checked || false;
+
+    // Monaco findMatches signature:
+    // findMatches(searchString, searchOnlyEditableRange, isRegex, matchCase, wordSeparators, captureMatches)
+    const matches = model.findMatches(
+        regex.source,           // searchString (pattern)
+        false,                  // searchOnlyEditableRange
+        isRegexMode,            // isRegex
+        isCaseSensitive,        // matchCase
+        isWholeWord ? null : null, // wordSeparators (null = use default)
+        true                    // captureMatches
+    );
+
     currentSearchResults = matches;
     currentSearchIndex = -1;
-    
+
     if (matches.length > 0) {
         highlightSearchResults(matches);
-        updateSearchStatus(`${matches.length} matches`);
-        
+        updateSearchStatus(`${matches.length} match${matches.length === 1 ? '' : 'es'}`);
+
         // Navigate to first match
         findNext();
     } else {
@@ -123,76 +135,106 @@ function performSearch() {
 
 function findNext() {
     if (currentSearchResults.length === 0) return;
-    
+
     currentSearchIndex = (currentSearchIndex + 1) % currentSearchResults.length;
     const match = currentSearchResults[currentSearchIndex];
-    
+
     // Navigate to the match
     window.editor.setSelection(match.range);
     window.editor.revealLineInCenter(match.range.startLineNumber);
-    
+
+    // Update highlight to show current match
+    updateCurrentHighlight();
+
     updateSearchStatus(`${currentSearchIndex + 1} of ${currentSearchResults.length}`);
 }
 
 function findPrevious() {
     if (currentSearchResults.length === 0) return;
-    
-    currentSearchIndex = currentSearchIndex <= 0 ? 
+
+    currentSearchIndex = currentSearchIndex <= 0 ?
         currentSearchResults.length - 1 : currentSearchIndex - 1;
     const match = currentSearchResults[currentSearchIndex];
-    
+
     // Navigate to the match
     window.editor.setSelection(match.range);
     window.editor.revealLineInCenter(match.range.startLineNumber);
-    
+
+    // Update highlight to show current match
+    updateCurrentHighlight();
+
     updateSearchStatus(`${currentSearchIndex + 1} of ${currentSearchResults.length}`);
 }
 
 function replaceNext() {
     const replaceInput = document.getElementById('replace-input');
     if (!replaceInput || currentSearchResults.length === 0) return;
-    
-    if (currentSearchIndex >= 0 && currentSearchIndex < currentSearchResults.length) {
+
+    // If no match is currently selected, select the first one
+    if (currentSearchIndex < 0) {
+        findNext();
+        return;
+    }
+
+    if (currentSearchIndex < currentSearchResults.length) {
         const match = currentSearchResults[currentSearchIndex];
         const replaceText = replaceInput.value;
-        
+
         // Perform the replacement
         window.editor.executeEdits('replace', [{
             range: match.range,
             text: replaceText
         }]);
-        
+
+        // Mark document as modified
+        if (window.markDocumentModified) {
+            window.markDocumentModified();
+        }
+
         // Update preview if available
         if (window.updatePreviewAndStructure) {
             window.updatePreviewAndStructure(window.editor.getValue());
         }
-        
-        // Refresh search to update positions
-        setTimeout(() => performSearch(), 10);
+
+        // Refresh search to update positions and move to next match
+        setTimeout(() => {
+            performSearch();
+            // After refresh, the index will be reset, so we stay at current position
+        }, 10);
     }
 }
 
 function replaceAll() {
     const replaceInput = document.getElementById('replace-input');
     if (!replaceInput || currentSearchResults.length === 0) return;
-    
+
     const replaceText = replaceInput.value;
-    const edits = currentSearchResults.map(match => ({
-        range: match.range,
-        text: replaceText
-    }));
-    
+    const replacedCount = currentSearchResults.length;
+
+    // Create edits in reverse order to preserve positions
+    const edits = currentSearchResults
+        .slice()
+        .reverse()
+        .map(match => ({
+            range: match.range,
+            text: replaceText
+        }));
+
     // Perform all replacements
     window.editor.executeEdits('replace-all', edits);
-    
+
+    // Mark document as modified
+    if (window.markDocumentModified) {
+        window.markDocumentModified();
+    }
+
     // Update preview if available
     if (window.updatePreviewAndStructure) {
         window.updatePreviewAndStructure(window.editor.getValue());
     }
-    
-    const replacedCount = currentSearchResults.length;
-    updateSearchStatus(`Replaced ${replacedCount} matches`);
-    
+
+    updateSearchStatus(`Replaced ${replacedCount} match${replacedCount === 1 ? '' : 'es'}`);
+
     // Clear search results
     clearSearchHighlights();
     currentSearchResults = [];
@@ -201,17 +243,24 @@ function replaceAll() {
 
 function highlightSearchResults(matches) {
     if (!window.editor) return;
-    
-    const decorations = matches.map(match => ({
+
+    const decorations = matches.map((match, index) => ({
         range: match.range,
         options: {
-            className: 'search-highlight',
+            className: index === currentSearchIndex ? 'search-highlight-current' : 'search-highlight',
             stickiness: 1 // monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
         }
     }));
-    
+
     // Clear previous decorations and add new ones
     currentDecorations = window.editor.deltaDecorations(currentDecorations, decorations);
+}
+
+function updateCurrentHighlight() {
+    // Update decorations to reflect current selection
+    if (currentSearchResults.length > 0) {
+        highlightSearchResults(currentSearchResults);
+    }
 }
 
 function clearSearchHighlights() {
