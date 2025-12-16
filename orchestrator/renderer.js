@@ -7754,7 +7754,8 @@ async function renderFileTree() {
                     // Pre-process tags for visible markdown files
                     await preProcessMarkdownTags(folderTree);
                     // Render as a workspace folder root (depth 0)
-                    renderFileTreeNode(folderTree, fileTreeView, 0, folderTree.isWorkspaceFolder);
+                    // Pass both isWorkspaceFolder and isPrimary flags
+                    renderFileTreeNode(folderTree, fileTreeView, 0, folderTree.isWorkspaceFolder, folderTree.isPrimary);
                 }
             } else {
                 // Single folder mode (backward compatible)
@@ -7787,14 +7788,14 @@ async function renderFileTree() {
     }
 }
 
-function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false) {
-    console.log(`[renderFileTreeNode] Rendering ${node.type}: ${node.name} at depth ${depth}${isWorkspaceFolder ? ' (workspace folder)' : ''}`);
+function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, isPrimary = false) {
     const nodeElement = document.createElement('div');
     nodeElement.className = 'file-tree-item';
     nodeElement.style.paddingLeft = `${depth * 16}px`;
 
     // Track if this is a workspace folder root for context menu
     const isWorkspaceFolderRoot = isWorkspaceFolder && depth === 0;
+    const isPrimaryRoot = isPrimary && depth === 0;
 
     const isFolder = node.type === 'folder' || node.type === 'directory';
     const hasChildren = isFolder && node.children && node.children.length > 0;
@@ -7810,7 +7811,9 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false) {
     
     // Use different icon for workspace folder roots
     let icon;
-    if (isWorkspaceFolderRoot) {
+    if (isPrimaryRoot) {
+        icon = '🏠'; // Home icon for primary folder
+    } else if (isWorkspaceFolderRoot) {
         icon = '📂'; // Open folder icon for workspace roots
     } else if (isFolder) {
         icon = '📁';
@@ -7847,8 +7850,15 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false) {
         nodeElement.dataset.path = node.path;
         nodeElement.draggable = true;
 
-        // Add special styling for workspace folder roots
-        if (isWorkspaceFolderRoot) {
+        // Add special styling for primary and workspace folder roots
+        if (isPrimaryRoot) {
+            nodeElement.classList.add('primary-folder-root');
+            nodeElement.style.fontWeight = 'bold';
+            nodeElement.style.borderBottom = '2px solid var(--primary-500, #ef4444)';
+            nodeElement.style.marginBottom = '6px';
+            nodeElement.style.paddingBottom = '6px';
+            nodeElement.style.background = 'linear-gradient(to right, var(--primary-50, #fef2f2), transparent)';
+        } else if (isWorkspaceFolderRoot) {
             nodeElement.classList.add('workspace-folder-root');
             nodeElement.style.fontWeight = 'bold';
             nodeElement.style.borderBottom = '1px solid var(--neutral-200, #e5e5e5)';

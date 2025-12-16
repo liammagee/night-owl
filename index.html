@@ -343,6 +343,51 @@
             opacity: 1;
         }
 
+        /* Workspace folder root styling */
+        .file-tree-item.workspace-folder-root {
+            background: linear-gradient(to right, var(--primary-50, #fef2f2), transparent);
+            border-left: 3px solid var(--primary-500, #ef4444);
+            padding-left: 8px;
+            margin-top: 8px;
+        }
+
+        .file-tree-item.workspace-folder-root:first-child {
+            margin-top: 0;
+        }
+
+        body.dark-mode .file-tree-item.workspace-folder-root {
+            background: linear-gradient(to right, rgba(239, 68, 68, 0.1), transparent);
+            border-left-color: var(--primary-400, #f87171);
+        }
+
+        .file-tree-item.workspace-folder-root .file-name::after {
+            content: ' (workspace)';
+            font-size: 10px;
+            font-weight: normal;
+            opacity: 0.6;
+            margin-left: 4px;
+        }
+
+        /* Primary folder root styling */
+        .file-tree-item.primary-folder-root {
+            background: linear-gradient(to right, var(--primary-100, #fee2e2), transparent);
+            border-left: 4px solid var(--primary-600, #dc2626);
+            padding-left: 8px;
+        }
+
+        body.dark-mode .file-tree-item.primary-folder-root {
+            background: linear-gradient(to right, rgba(220, 38, 38, 0.15), transparent);
+            border-left-color: var(--primary-500, #ef4444);
+        }
+
+        .file-tree-item.primary-folder-root .file-name::after {
+            content: ' (primary)';
+            font-size: 10px;
+            font-weight: normal;
+            opacity: 0.6;
+            margin-left: 4px;
+        }
+
         /* Tag search interface */
         #tag-search-input {
             transition: border-color 0.2s;
