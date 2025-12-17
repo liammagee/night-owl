@@ -16,7 +16,7 @@ let updateTimeout = null;
 
 // --- Configuration ---
 const config = {
-    enabled: true,
+    enabled: false, // Disabled by default - opt-in feature
     showImagePreviews: true,
     showFormattingDecorations: true,
     showLinkDecorations: true,
@@ -25,6 +25,17 @@ const config = {
     imageMaxHeight: 300,
     updateDebounceMs: 150
 };
+
+// --- Environment Detection ---
+// Detect if running in Electron or browser
+const isElectron = !!(window.electronAPI && window.electronAPI.isElectron);
+const isBrowserMode = !isElectron;
+
+// In browser mode, visual markdown is always disabled (read-only viewing)
+if (isBrowserMode) {
+    config.enabled = false;
+    console.log('[visualMarkdown] Browser mode detected - visual markdown disabled');
+}
 
 // --- Regex Patterns ---
 const patterns = {
@@ -598,6 +609,18 @@ function toggleImagePreviews(enabled) {
 function initializeVisualMarkdown(editor) {
     if (!editor) return;
 
+    // In browser mode, don't initialize at all
+    if (isBrowserMode) {
+        console.log('[visualMarkdown] Skipping initialization in browser mode');
+        return;
+    }
+
+    // Load setting from appSettings if available
+    if (window.appSettings && typeof window.appSettings.editor?.visualMarkdown === 'boolean') {
+        config.enabled = window.appSettings.editor.visualMarkdown;
+        console.log('[visualMarkdown] Loaded setting from appSettings:', config.enabled);
+    }
+
     // Set up content change listener
     editor.onDidChangeModelContent(() => {
         updateVisualMarkdown(editor);
@@ -606,10 +629,17 @@ function initializeVisualMarkdown(editor) {
     // Set up link click handler
     setupLinkClickHandler(editor);
 
-    // Initial update
-    updateVisualMarkdown(editor);
+    // Initial update (only if enabled)
+    if (config.enabled) {
+        updateVisualMarkdown(editor);
+    }
 
-    console.log('[visualMarkdown] Initialized visual markdown enhancements');
+    console.log('[visualMarkdown] Initialized visual markdown enhancements, enabled:', config.enabled);
+}
+
+// Check if visual markdown is available (not in browser mode)
+function isVisualMarkdownAvailable() {
+    return !isBrowserMode;
 }
 
 // --- Export Functions ---
@@ -618,6 +648,7 @@ window.updateVisualMarkdown = updateVisualMarkdown;
 window.cleanupVisualMarkdown = cleanupVisualMarkdown;
 window.setVisualMarkdownEnabled = setVisualMarkdownEnabled;
 window.toggleImagePreviews = toggleImagePreviews;
+window.isVisualMarkdownAvailable = isVisualMarkdownAvailable;
 window.visualMarkdownConfig = config;
 
 // Export for module systems if available
@@ -628,6 +659,7 @@ if (typeof module !== 'undefined' && module.exports) {
         cleanupVisualMarkdown,
         setVisualMarkdownEnabled,
         toggleImagePreviews,
+        isVisualMarkdownAvailable,
         config
     };
 }

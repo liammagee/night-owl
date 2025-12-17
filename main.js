@@ -1053,6 +1053,15 @@ function createFileMenuItems() {
       },
       { type: 'separator' },
       {
+        label: 'Import PDF as Markdown (Docling)',
+        click: async () => {
+          if (!mainWindow) return;
+          console.log('[main.js] Import PDF as Markdown menu item clicked.');
+          mainWindow.webContents.send('trigger-import-pdf');
+        }
+      },
+      { type: 'separator' },
+      {
         label: 'Save',
         accelerator: 'CmdOrCtrl+S',
         click: () => {
@@ -1268,10 +1277,14 @@ function createViewMenuItems() {
         label: 'Visual Markdown',
         accelerator: 'CmdOrCtrl+Shift+V',
         type: 'checkbox',
-        checked: true,
+        checked: appSettings.editor?.visualMarkdown || false,
         click: (menuItem) => {
           if (mainWindow) {
             console.log('[main.js] Toggling Visual Markdown:', menuItem.checked);
+            // Save the setting
+            if (!appSettings.editor) appSettings.editor = {};
+            appSettings.editor.visualMarkdown = menuItem.checked;
+            saveSettings();
             mainWindow.webContents.send('toggle-visual-markdown', menuItem.checked);
           }
         }

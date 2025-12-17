@@ -4412,9 +4412,83 @@ function updateAIChatContext(filePath) {
             }
         }
     }
-    
+
     console.log('[Renderer] AI chat context updated for file:', filePath);
 }
+
+// --- PDF to Markdown Import (Docling) ---
+async function importPdfAsMarkdown() {
+    console.log('[Renderer] Starting PDF import via Docling...');
+
+    // Show a loading indicator
+    const statusElement = document.getElementById('status-bar-text') || document.getElementById('status-text');
+    const originalStatus = statusElement?.textContent || '';
+    if (statusElement) {
+        statusElement.textContent = 'Importing PDF... (this may take a moment)';
+    }
+
+    try {
+        // Call the IPC handler to open file dialog and convert
+        const result = await window.electronAPI.invoke('import-pdf-as-markdown');
+
+        if (result.cancelled) {
+            console.log('[Renderer] PDF import cancelled by user');
+            if (statusElement) statusElement.textContent = originalStatus;
+            return;
+        }
+
+        if (!result.success) {
+            console.error('[Renderer] PDF import failed:', result.error);
+
+            // Show error dialog with install instructions if docling not available
+            let errorMessage = result.error || 'Unknown error occurred';
+            if (result.install_instructions) {
+                errorMessage += '\n\nTo install Docling, run:\n' + result.install_instructions.docling;
+            }
+
+            alert('PDF Import Failed\n\n' + errorMessage);
+            if (statusElement) statusElement.textContent = originalStatus;
+            return;
+        }
+
+        // Success - we have markdown content
+        console.log('[Renderer] PDF converted successfully:', result.metadata || {});
+
+        // Set the content in the editor
+        if (editor && typeof editor.setValue === 'function') {
+            editor.setValue(result.markdown);
+        }
+
+        // Mark as unsaved (this is new content, not yet saved)
+        if (typeof markDocumentModified === 'function') {
+            markDocumentModified();
+        }
+        window.hasUnsavedChanges = true;
+        window.currentFilePath = null; // No file path yet - user needs to save
+
+        // Update preview
+        if (typeof updatePreviewAndStructure === 'function') {
+            await updatePreviewAndStructure(result.markdown);
+        }
+
+        // Suggest saving
+        const suggestedName = result.suggestedFilename || 'converted.md';
+        if (statusElement) {
+            statusElement.textContent = `PDF imported! Save as: ${suggestedName}`;
+        }
+
+        // Show success notification
+        console.log(`[Renderer] PDF imported successfully. Suggested filename: ${suggestedName}`);
+
+    } catch (error) {
+        console.error('[Renderer] Error during PDF import:', error);
+        alert('PDF Import Error\n\n' + error.message);
+        if (statusElement) statusElement.textContent = originalStatus;
+    }
+}
+
+// Export for global access
+window.importPdfAsMarkdown = importPdfAsMarkdown;
 
 async function openFileInEditor(filePath, content, options = {}) {
     console.log('[openFileInEditor] Opening file:', filePath);
@@ -9651,6 +9725,11 @@ if (window.electronAPI && window.electronAPI.on) {
         if (typeof setVisualMarkdownEnabled === 'function') {
             setVisualMarkdownEnabled(enabled);
         }
+    });
+
+    window.electronAPI.on('trigger-import-pdf', async () => {
+        console.log('[renderer.js] Received trigger-import-pdf event');
+        await importPdfAsMarkdown();
     });
 }
 

@@ -125,6 +125,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
 
+  // PDF Import trigger
+  onTriggerImportPdf: (callback) => {
+    ipcRenderer.on('trigger-import-pdf', callback);
+  },
+
   // Utility functions
   isElectron: true,
   platform: process.platform,
@@ -149,6 +154,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('change-layout');
     ipcRenderer.removeAllListeners('toggle-gamification-panel');
     ipcRenderer.removeAllListeners('toggle-visual-markdown');
+    ipcRenderer.removeAllListeners('trigger-import-pdf');
   }
 });
 

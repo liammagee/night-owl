@@ -1661,6 +1661,229 @@ function register(deps) {
 
     return true;
   });
+
+  // --- Docling PDF to Markdown Conversion ---
+  // Convert PDF to Markdown using IBM's Docling library (requires Python)
+  ipcMain.handle('convert-pdf-to-markdown', async (event, pdfPath) => {
+    const { spawn } = require('child_process');
+
+    console.log(`[FileHandlers] Converting PDF to Markdown: ${pdfPath}`);
+
+    return new Promise((resolve) => {
+      // Path to the docling conversion script
+      const scriptPath = path.join(__dirname, '..', 'scripts', 'docling-convert.py');
+
+      // Try to find Python executable
+      const pythonCommands = ['python3', 'python'];
+
+      const tryPython = (pythonIdx) => {
+        if (pythonIdx >= pythonCommands.length) {
+          resolve({
+            success: false,
+            error: 'Python not found. Please install Python 3 and the docling package (pip install docling)',
+            install_instructions: {
+              python: 'https://www.python.org/downloads/',
+              docling: 'pip install docling'
+            }
+          });
+          return;
+        }
+
+        const pythonCmd = pythonCommands[pythonIdx];
+        const args = [scriptPath, pdfPath, '--json'];
+
+        console.log(`[FileHandlers] Trying: ${pythonCmd} ${args.join(' ')}`);
+
+        const proc = spawn(pythonCmd, args, {
+          timeout: 300000, // 5 minute timeout for large PDFs
+          env: { ...process.env }
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        proc.stdout.on('data', (data) => {
+          stdout += data.toString();
+        });
+
+        proc.stderr.on('data', (data) => {
+          stderr += data.toString();
+          console.log(`[FileHandlers] Docling: ${data.toString().trim()}`);
+        });
+
+        proc.on('error', (err) => {
+          if (err.code === 'ENOENT') {
+            // Python command not found, try next
+            tryPython(pythonIdx + 1);
+          } else {
+            resolve({
+              success: false,
+              error: `Failed to run docling converter: ${err.message}`
+            });
+          }
+        });
+
+        proc.on('close', (code) => {
+          if (code === 0) {
+            try {
+              const result = JSON.parse(stdout);
+              resolve(result);
+            } catch (parseErr) {
+              // If not JSON, treat stdout as raw markdown
+              resolve({
+                success: true,
+                markdown: stdout,
+                metadata: { source_file: pdfPath }
+              });
+            }
+          } else {
+            // Check if it's a "command not found" type error
+            if (stderr.includes('No such file') || stderr.includes('not found')) {
+              tryPython(pythonIdx + 1);
+            } else {
+              try {
+                const result = JSON.parse(stdout);
+                resolve(result);
+              } catch {
+                resolve({
+                  success: false,
+                  error: stderr || `Conversion failed with exit code ${code}`,
+                  stdout: stdout
+                });
+              }
+            }
+          }
+        });
+      };
+
+      tryPython(0);
+    });
+  });
+
+  // Open dialog to select PDF for conversion
+  ipcMain.handle('import-pdf-as-markdown', async (event) => {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+    if (!currentMainWindow) {
+      return { success: false, error: 'No main window available' };
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(currentMainWindow, {
+        properties: ['openFile'],
+        title: 'Select PDF to Convert to Markdown',
+        filters: [
+          { name: 'PDF Files', extensions: ['pdf'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, cancelled: true };
+      }
+
+      const pdfPath = result.filePaths[0];
+      console.log(`[FileHandlers] User selected PDF for import: ${pdfPath}`);
+
+      // Convert the PDF
+      const conversionResult = await new Promise((resolve) => {
+        // Emit the conversion event internally
+        const handler = ipcMain._events['convert-pdf-to-markdown'];
+        if (handler) {
+          // Call our handler directly
+          const { spawn } = require('child_process');
+          const scriptPath = path.join(__dirname, '..', 'scripts', 'docling-convert.py');
+
+          const proc = spawn('python3', [scriptPath, pdfPath, '--json'], {
+            timeout: 300000,
+            env: { ...process.env }
+          });
+
+          let stdout = '';
+          let stderr = '';
+
+          proc.stdout.on('data', (data) => { stdout += data.toString(); });
+          proc.stderr.on('data', (data) => {
+            stderr += data.toString();
+            console.log(`[FileHandlers] Docling: ${data.toString().trim()}`);
+          });
+
+          proc.on('error', (err) => {
+            resolve({
+              success: false,
+              error: `Failed to run docling: ${err.message}`,
+              install_instructions: {
+                docling: 'pip install docling'
+              }
+            });
+          });
+
+          proc.on('close', (code) => {
+            if (code === 0) {
+              try {
+                resolve(JSON.parse(stdout));
+              } catch {
+                resolve({ success: true, markdown: stdout });
+              }
+            } else {
+              try {
+                resolve(JSON.parse(stdout));
+              } catch {
+                resolve({
+                  success: false,
+                  error: stderr || `Exit code ${code}`,
+                  install_instructions: stderr.includes('docling') ? { docling: 'pip install docling' } : null
+                });
+              }
+            }
+          });
+        } else {
+          resolve({ success: false, error: 'Handler not available' });
+        }
+      });
+
+      return {
+        ...conversionResult,
+        sourcePath: pdfPath,
+        suggestedFilename: path.basename(pdfPath, '.pdf') + '.md'
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error importing PDF:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Check if docling is available
+  ipcMain.handle('check-docling-available', async () => {
+    const { spawn } = require('child_process');
+
+    return new Promise((resolve) => {
+      const proc = spawn('python3', ['-c', 'import docling; print(docling.__version__ if hasattr(docling, "__version__") else "installed")'], {
+        timeout: 10000
+      });
+
+      let stdout = '';
+
+      proc.stdout.on('data', (data) => { stdout += data.toString(); });
+
+      proc.on('error', () => {
+        resolve({ available: false, reason: 'Python not found' });
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve({ available: true, version: stdout.trim() });
+        } else {
+          resolve({
+            available: false,
+            reason: 'Docling not installed',
+            install_command: 'pip install docling'
+          });
+        }
+      });
+    });
+  });
 }
 
 module.exports = {
