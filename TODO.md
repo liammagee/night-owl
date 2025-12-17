@@ -97,10 +97,10 @@ Generated from codebase deep scan on 2025-12-17.
   - Added `citation-manager.test.js` - Tests citation validation, key generation, BibTeX parsing/generation, duplicate detection, filtering, sorting
   - All 249 unit tests passing
 
-- [ ] **Add Integration Tests**
-  - Test IPC handlers
-  - Test file operations
-  - Test plugin loading
+- [x] **Add Integration Tests** ✅ COMPLETED
+  - Added `ipc-handlers.test.js` - Tests settings, AI, citation, and file IPC handlers
+  - Added `plugin-loading.test.js` - Tests plugin discovery, manifest validation, settings, lifecycle
+  - All 80 integration tests passing
 
 ---
 
