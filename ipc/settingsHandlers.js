@@ -183,7 +183,7 @@ function register(deps) {
       return getSettings(category);
     } catch (error) {
       console.error('[SettingsHandlers] Error in get-settings:', error);
-      return {};
+      return { success: false, error: error.message };
     }
   });
   
@@ -204,7 +204,7 @@ function register(deps) {
       return { success: true };
     } catch (error) {
       console.error('[SettingsHandlers] Error in set-settings:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
@@ -214,7 +214,7 @@ function register(deps) {
       return getSettingsCategory(category);
     } catch (error) {
       console.error('[SettingsHandlers] Error in get-settings-category:', error);
-      return {};
+      return { success: false, error: error.message };
     }
   });
 
@@ -223,16 +223,17 @@ function register(deps) {
       return updateSettingsCategory(category, updates);
     } catch (error) {
       console.error('[SettingsHandlers] Error in update-settings-category:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
   ipcMain.handle('reset-settings-category', (event, category) => {
     try {
-      return resetSettingsCategory(category);
+      const result = resetSettingsCategory(category);
+      return result !== null ? result : { success: false, error: 'Category not found' };
     } catch (error) {
       console.error('[SettingsHandlers] Error in reset-settings-category:', error);
-      return null;
+      return { success: false, error: error.message };
     }
   });
 
@@ -241,7 +242,7 @@ function register(deps) {
       return exportSettings();
     } catch (error) {
       console.error('[SettingsHandlers] Error in export-settings:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
@@ -262,7 +263,7 @@ function register(deps) {
       return { success: true, content };
     } catch (error) {
       console.error('[SettingsHandlers] Error loading style file:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
@@ -273,16 +274,16 @@ function register(deps) {
       return { success: true };
     } catch (error) {
       console.error('[SettingsHandlers] Error saving user styles:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
   ipcMain.handle('load-user-styles', () => {
     try {
-      return appSettings.userStyles || {};
+      return { success: true, styles: appSettings.userStyles || {} };
     } catch (error) {
       console.error('[SettingsHandlers] Error loading user styles:', error);
-      return {};
+      return { success: false, error: error.message };
     }
   });
 
@@ -293,16 +294,16 @@ function register(deps) {
       return { success: true };
     } catch (error) {
       console.error('[SettingsHandlers] Error saving style preferences:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
   ipcMain.handle('load-style-preferences', () => {
     try {
-      return appSettings.stylePreferences || {};
+      return { success: true, preferences: appSettings.stylePreferences || {} };
     } catch (error) {
       console.error('[SettingsHandlers] Error loading style preferences:', error);
-      return {};
+      return { success: false, error: error.message };
     }
   });
 

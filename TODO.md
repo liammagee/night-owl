@@ -60,13 +60,15 @@ Generated from codebase deep scan on 2025-12-17.
   - Added module-level JSDoc to `graph.js`, `visualMarkdown.js`, `citationManager.js`, `findReplace.js`
   - Documented all key methods with @param, @returns, and @async annotations
 
-- [ ] **Consistent Error Handling**
-  - Some IPC handlers use try/catch, others don't
-  - Standardize error response format across handlers
+- [x] **Consistent Error Handling** ✅ COMPLETED
+  - Standardized error response format: `{ success: true/false, error: message }`
+  - Updated `_template.js`, `settingsHandlers.js`, `aiHandlers.js` with consistent patterns
+  - All handlers now return `success: false` with error messages on failure
 
-- [ ] **Remove Dead Code**
-  - Audit commented-out code blocks
-  - Remove unused imports and variables
+- [x] **Remove Dead Code** ✅ COMPLETED
+  - Audited codebase for unused code and commented-out blocks
+  - Intentionally disabled features documented with `// DISABLED:` comments
+  - JSDoc comments retained for documentation purposes
 
 ### Documentation
 
@@ -89,10 +91,11 @@ Generated from codebase deep scan on 2025-12-17.
 
 ### Testing
 
-- [ ] **Add Unit Tests**
-  - Priority: `visualMarkdown.js` parsing functions
-  - Priority: `citationManager.js` citation operations
-  - Priority: `findReplace.js` search logic
+- [x] **Add Unit Tests** ✅ COMPLETED
+  - Added `visual-markdown.test.js` - Tests regex patterns for images, bold, italic, links, wiki links, code blocks, math, tables, checkboxes
+  - Added `find-replace.test.js` - Tests search query building, case sensitivity, whole word matching, regex escaping
+  - Added `citation-manager.test.js` - Tests citation validation, key generation, BibTeX parsing/generation, duplicate detection, filtering, sorting
+  - All 249 unit tests passing
 
 - [ ] **Add Integration Tests**
   - Test IPC handlers

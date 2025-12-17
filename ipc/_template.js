@@ -30,13 +30,13 @@ function register(deps) {
   // Example handler
   ipcMain.handle('example-handler', async (event, data) => {
     console.log('[ExampleHandlers] example-handler called with:', data);
-    
+
     try {
       // Handler implementation here
       return { success: true, data: 'example response' };
     } catch (error) {
       console.error('[ExampleHandlers] Error in example-handler:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 

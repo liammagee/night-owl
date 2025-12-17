@@ -251,17 +251,18 @@ function register(deps) {
   // AI Provider Management
   ipcMain.handle('get-available-ai-providers', async (event) => {
     if (!aiService) {
-      return { providers: [], defaultProvider: null };
+      return { success: false, providers: [], defaultProvider: null, error: 'AI Service not available' };
     }
-    
+
     try {
       return {
+        success: true,
         providers: aiService.getAvailableProviders(),
         defaultProvider: aiService.getDefaultProvider()
       };
     } catch (error) {
       console.error('[AIHandlers] Error getting available providers:', error);
-      return { providers: [], defaultProvider: null };
+      return { success: false, providers: [], defaultProvider: null, error: error.message };
     }
   });
 
@@ -323,28 +324,28 @@ function register(deps) {
 
   ipcMain.handle('get-default-ai-provider', async (event) => {
     if (!aiService) {
-      return null;
+      return { success: false, provider: null, error: 'AI Service not available' };
     }
-    
+
     try {
-      return aiService.getDefaultProvider();
+      return { success: true, provider: aiService.getDefaultProvider() };
     } catch (error) {
       console.error('[AIHandlers] Error getting default provider:', error);
-      return null;
+      return { success: false, provider: null, error: error.message };
     }
   });
 
   ipcMain.handle('get-provider-models', async (event, provider) => {
     if (!aiService) {
-      return { models: [] };
+      return { success: false, models: [], error: 'AI Service not available' };
     }
-    
+
     try {
       const models = await aiService.getProviderModels(provider);
-      return { models };
+      return { success: true, models };
     } catch (error) {
       console.error('[AIHandlers] Error getting provider models:', error);
-      return { models: [] };
+      return { success: false, models: [], error: error.message };
     }
   });
 
@@ -365,43 +366,43 @@ function register(deps) {
   // Conversation Management
   ipcMain.handle('ai-clear-conversation', async (event) => {
     if (!aiService) {
-      return { error: 'AI Service not available' };
+      return { success: false, error: 'AI Service not available' };
     }
-    
+
     try {
       aiService.clearConversation();
       return { success: true, message: 'Conversation cleared' };
     } catch (error) {
       console.error('[AIHandlers] Error clearing conversation:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
   ipcMain.handle('ai-restart-conversation', async (event, systemMessage) => {
     if (!aiService) {
-      return { error: 'AI Service not available' };
+      return { success: false, error: 'AI Service not available' };
     }
-    
+
     try {
       aiService.restartConversation(systemMessage);
       return { success: true, message: 'Conversation restarted' };
     } catch (error) {
       console.error('[AIHandlers] Error restarting conversation:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
   ipcMain.handle('ai-get-conversation-history', async (event) => {
     if (!aiService) {
-      return { error: 'AI Service not available' };
+      return { success: false, error: 'AI Service not available' };
     }
-    
+
     try {
       const history = aiService.getConversationHistory();
       return { success: true, history };
     } catch (error) {
       console.error('[AIHandlers] Error getting conversation history:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
@@ -860,22 +861,22 @@ Generate the heading and bullet points only, nothing else.`;
   // Image generation handler
   ipcMain.handle('generate-image', async (event, options) => {
     if (!aiService) {
-      return { error: 'AI Service not available' };
+      return { success: false, error: 'AI Service not available' };
     }
-    
+
     console.log('[AIHandlers] 🎨 Image generation request:', {
       prompt: options.prompt?.substring(0, 100) + '...',
       size: options.size,
       provider: options.provider
     });
-    
+
     try {
       const result = await aiService.generateImage(options.prompt, options);
       console.log('[AIHandlers] ✅ Image generated successfully');
-      return result;
+      return { success: true, ...result };
     } catch (error) {
       console.error('[AIHandlers] ❌ Image generation failed:', error);
-      return { error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
