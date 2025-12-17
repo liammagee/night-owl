@@ -27,6 +27,7 @@ const config = {
     showLinkDecorations: true,
     showCodeBlockDecorations: true,
     showTablePreviews: true, // Show formatted table previews
+    enableWysiwygEditing: true, // Enable click-to-edit for formatted elements
     collapsibleCodeBlocks: true, // Enable collapse/expand for code blocks
     autoCollapseCodeBlocks: false, // Auto-collapse code blocks on load
     codeBlockCollapsedLines: 3, // Number of lines to show when collapsed
@@ -1068,6 +1069,426 @@ function updateTableDecorations(editor) {
     tableDecorations = editor.deltaDecorations(tableDecorations, decorations);
 }
 
+// --- WYSIWYG Click-to-Edit Functions ---
+
+// Track editable element ranges for click detection
+let editableRanges = [];
+
+// Find the editable element at a given position
+function findEditableElementAt(lineNumber, column, lines) {
+    const line = lines[lineNumber - 1];
+    if (!line) return null;
+
+    // Check for heading
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+        const hashLen = headingMatch[1].length;
+        const textStart = hashLen + 2; // After "# "
+        const textEnd = line.length + 1;
+        if (column >= textStart && column <= textEnd) {
+            return {
+                type: 'heading',
+                level: hashLen,
+                lineNumber: lineNumber,
+                contentStart: textStart,
+                contentEnd: textEnd,
+                content: headingMatch[2],
+                fullMatch: line
+            };
+        }
+    }
+
+    // Check for list items
+    const listMatch = line.match(/^(\s*)([-*+]|\d+\.)\s+(.+)$/);
+    if (listMatch) {
+        const prefixLen = listMatch[1].length + listMatch[2].length + 1;
+        const textStart = prefixLen + 1;
+        const textEnd = line.length + 1;
+        if (column >= textStart && column <= textEnd) {
+            return {
+                type: 'listItem',
+                ordered: /\d+\./.test(listMatch[2]),
+                lineNumber: lineNumber,
+                contentStart: textStart,
+                contentEnd: textEnd,
+                content: listMatch[3],
+                fullMatch: line
+            };
+        }
+    }
+
+    // Check for bold text
+    const boldRegex = /(\*\*|__)(.+?)\1/g;
+    let match;
+    while ((match = boldRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        const markerLen = match[1].length;
+        const contentStart = startCol + markerLen;
+        const contentEnd = endCol - markerLen;
+
+        if (column >= contentStart && column < contentEnd) {
+            return {
+                type: 'bold',
+                lineNumber: lineNumber,
+                contentStart: contentStart,
+                contentEnd: contentEnd,
+                fullStart: startCol,
+                fullEnd: endCol,
+                content: match[2],
+                marker: match[1]
+            };
+        }
+    }
+
+    // Check for italic text (but not bold)
+    const italicRegex = /(?<!\*|\w)(\*|_)(?!\s|\1)(.+?)(?<!\s)\1(?!\*|\w)/g;
+    while ((match = italicRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        const contentStart = startCol + 1;
+        const contentEnd = endCol - 1;
+
+        if (column >= contentStart && column < contentEnd) {
+            return {
+                type: 'italic',
+                lineNumber: lineNumber,
+                contentStart: contentStart,
+                contentEnd: contentEnd,
+                fullStart: startCol,
+                fullEnd: endCol,
+                content: match[2],
+                marker: match[1]
+            };
+        }
+    }
+
+    // Check for links
+    const linkRegex = /(?<!!)\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
+    while ((match = linkRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        const textStart = startCol + 1;
+        const textEnd = textStart + match[1].length;
+
+        // Check if clicking on the link text
+        if (column >= textStart && column < textEnd) {
+            return {
+                type: 'linkText',
+                lineNumber: lineNumber,
+                contentStart: textStart,
+                contentEnd: textEnd,
+                fullStart: startCol,
+                fullEnd: endCol,
+                content: match[1],
+                url: match[2],
+                title: match[3]
+            };
+        }
+
+        // Check if clicking on the URL
+        const urlStart = textEnd + 2; // After ](
+        const urlEnd = urlStart + match[2].length;
+        if (column >= urlStart && column < urlEnd) {
+            return {
+                type: 'linkUrl',
+                lineNumber: lineNumber,
+                contentStart: urlStart,
+                contentEnd: urlEnd,
+                fullStart: startCol,
+                fullEnd: endCol,
+                content: match[2],
+                text: match[1]
+            };
+        }
+    }
+
+    // Check for inline code
+    const codeRegex = /`([^`\n]+)`/g;
+    while ((match = codeRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        const contentStart = startCol + 1;
+        const contentEnd = endCol - 1;
+
+        if (column >= contentStart && column < contentEnd) {
+            return {
+                type: 'inlineCode',
+                lineNumber: lineNumber,
+                contentStart: contentStart,
+                contentEnd: contentEnd,
+                fullStart: startCol,
+                fullEnd: endCol,
+                content: match[1]
+            };
+        }
+    }
+
+    // Check for strikethrough
+    const strikeRegex = /~~(.+?)~~/g;
+    while ((match = strikeRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        const contentStart = startCol + 2;
+        const contentEnd = endCol - 2;
+
+        if (column >= contentStart && column < contentEnd) {
+            return {
+                type: 'strikethrough',
+                lineNumber: lineNumber,
+                contentStart: contentStart,
+                contentEnd: contentEnd,
+                fullStart: startCol,
+                fullEnd: endCol,
+                content: match[1]
+            };
+        }
+    }
+
+    return null;
+}
+
+// Handle double-click for WYSIWYG editing
+function setupWysiwygClickHandler(editor) {
+    // Double-click to edit formatted content
+    editor.onMouseDown((e) => {
+        if (!config.enabled || !config.enableWysiwygEditing) return;
+
+        // Only handle double-clicks
+        if (e.event.detail !== 2) return;
+
+        const position = e.target.position;
+        if (!position) return;
+
+        const model = editor.getModel();
+        if (!model) return;
+
+        const lines = model.getValue().split('\n');
+        const element = findEditableElementAt(position.lineNumber, position.column, lines);
+
+        if (element) {
+            e.event.preventDefault();
+            e.event.stopPropagation();
+
+            // Select the content portion for editing
+            editor.setSelection(new monaco.Range(
+                element.lineNumber,
+                element.contentStart,
+                element.lineNumber,
+                element.contentEnd
+            ));
+            editor.focus();
+
+            // Show visual feedback
+            showEditFeedback(editor, element);
+        }
+    });
+}
+
+// Show visual feedback when entering edit mode
+function showEditFeedback(editor, element) {
+    // Create a temporary decoration to highlight what's being edited
+    const decorationIds = editor.deltaDecorations([], [{
+        range: new monaco.Range(
+            element.lineNumber,
+            element.contentStart,
+            element.lineNumber,
+            element.contentEnd
+        ),
+        options: {
+            className: 'visual-md-editing',
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+        }
+    }]);
+
+    // Remove the highlight after a short delay
+    setTimeout(() => {
+        editor.deltaDecorations(decorationIds, []);
+    }, 1000);
+}
+
+// Insert formatting around selected text
+function insertFormatting(editor, formatType) {
+    if (!editor) return;
+
+    const selection = editor.getSelection();
+    if (!selection) return;
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    const selectedText = model.getValueInRange(selection);
+    let newText = '';
+    let cursorOffset = 0;
+
+    switch (formatType) {
+        case 'bold':
+            newText = `**${selectedText}**`;
+            cursorOffset = selectedText ? 0 : 2;
+            break;
+        case 'italic':
+            newText = `*${selectedText}*`;
+            cursorOffset = selectedText ? 0 : 1;
+            break;
+        case 'strikethrough':
+            newText = `~~${selectedText}~~`;
+            cursorOffset = selectedText ? 0 : 2;
+            break;
+        case 'code':
+            newText = `\`${selectedText}\``;
+            cursorOffset = selectedText ? 0 : 1;
+            break;
+        case 'link':
+            newText = `[${selectedText || 'text'}](url)`;
+            cursorOffset = selectedText ? selectedText.length + 3 : 1;
+            break;
+        case 'heading1':
+            newText = `# ${selectedText}`;
+            break;
+        case 'heading2':
+            newText = `## ${selectedText}`;
+            break;
+        case 'heading3':
+            newText = `### ${selectedText}`;
+            break;
+        case 'bulletList':
+            newText = `- ${selectedText}`;
+            break;
+        case 'numberedList':
+            newText = `1. ${selectedText}`;
+            break;
+        default:
+            return;
+    }
+
+    // Apply the edit
+    editor.executeEdits('format', [{
+        range: selection,
+        text: newText
+    }]);
+
+    // If no text was selected, position cursor appropriately
+    if (!selectedText && cursorOffset > 0) {
+        const newPosition = {
+            lineNumber: selection.startLineNumber,
+            column: selection.startColumn + cursorOffset
+        };
+        editor.setPosition(newPosition);
+    }
+
+    editor.focus();
+
+    // Mark document as modified
+    if (window.markDocumentModified) {
+        window.markDocumentModified();
+    }
+
+    // Update preview
+    if (window.updatePreviewAndStructure) {
+        window.updatePreviewAndStructure(editor.getValue());
+    }
+}
+
+// Remove formatting from selected text
+function removeFormatting(editor, formatType) {
+    if (!editor) return;
+
+    const selection = editor.getSelection();
+    if (!selection || selection.isEmpty()) return;
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    const lines = model.getValue().split('\n');
+    const lineNumber = selection.startLineNumber;
+    const line = lines[lineNumber - 1];
+    const column = selection.startColumn;
+
+    // Find the element at the cursor position
+    const element = findEditableElementAt(lineNumber, column, lines);
+    if (!element) return;
+
+    let newText = element.content;
+    let range;
+
+    // Determine the range to replace based on element type
+    if (element.fullStart && element.fullEnd) {
+        range = new monaco.Range(
+            lineNumber,
+            element.fullStart,
+            lineNumber,
+            element.fullEnd
+        );
+    } else if (element.type === 'heading') {
+        // For headings, we need to handle the whole line
+        const hashLen = element.level;
+        range = new monaco.Range(
+            lineNumber,
+            1,
+            lineNumber,
+            line.length + 1
+        );
+        newText = element.content; // Just the text without #
+    } else if (element.type === 'listItem') {
+        // For list items, preserve indentation but remove marker
+        const indentMatch = line.match(/^(\s*)/);
+        const indent = indentMatch ? indentMatch[1] : '';
+        range = new monaco.Range(
+            lineNumber,
+            1,
+            lineNumber,
+            line.length + 1
+        );
+        newText = indent + element.content;
+    } else {
+        return;
+    }
+
+    // Apply the edit
+    editor.executeEdits('remove-format', [{
+        range: range,
+        text: newText
+    }]);
+
+    editor.focus();
+
+    // Mark document as modified
+    if (window.markDocumentModified) {
+        window.markDocumentModified();
+    }
+
+    // Update preview
+    if (window.updatePreviewAndStructure) {
+        window.updatePreviewAndStructure(editor.getValue());
+    }
+}
+
+// Toggle formatting on selected text (add if not present, remove if present)
+function toggleFormatting(editor, formatType) {
+    if (!editor) return;
+
+    const selection = editor.getSelection();
+    if (!selection) return;
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    const lines = model.getValue().split('\n');
+    const lineNumber = selection.startLineNumber;
+    const column = selection.startColumn;
+
+    // Check if we're inside formatted text
+    const element = findEditableElementAt(lineNumber, column, lines);
+
+    if (element && element.type === formatType) {
+        // Remove formatting
+        removeFormatting(editor, formatType);
+    } else {
+        // Add formatting
+        insertFormatting(editor, formatType);
+    }
+}
+
 // --- Main Update Function ---
 function updateVisualMarkdown(editor) {
     if (!editor || !config.enabled) return;
@@ -1193,6 +1614,9 @@ function initializeVisualMarkdown(editor) {
     // Set up link click handler
     setupLinkClickHandler(editor);
 
+    // Set up WYSIWYG click-to-edit handler
+    setupWysiwygClickHandler(editor);
+
     // Initial update (only if enabled)
     if (config.enabled) {
         updateVisualMarkdown(editor);
@@ -1217,6 +1641,12 @@ window.collapseAllCodeBlocks = collapseAllCodeBlocks;
 window.expandAllCodeBlocks = expandAllCodeBlocks;
 window.visualMarkdownConfig = config;
 
+// WYSIWYG editing exports
+window.insertFormatting = insertFormatting;
+window.removeFormatting = removeFormatting;
+window.toggleFormatting = toggleFormatting;
+window.findEditableElementAt = findEditableElementAt;
+
 // Export for module systems if available
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -1228,6 +1658,10 @@ if (typeof module !== 'undefined' && module.exports) {
         isVisualMarkdownAvailable,
         collapseAllCodeBlocks,
         expandAllCodeBlocks,
+        insertFormatting,
+        removeFormatting,
+        toggleFormatting,
+        findEditableElementAt,
         config
     };
 }

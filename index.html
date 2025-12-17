@@ -970,6 +970,60 @@
             background-color: rgba(110, 118, 129, 0.08);
         }
 
+        /* WYSIWYG editing styles */
+        .monaco-editor .visual-md-editing {
+            background-color: rgba(56, 139, 253, 0.2);
+            border-radius: 2px;
+            animation: wysiwyg-pulse 0.5s ease-out;
+        }
+
+        @keyframes wysiwyg-pulse {
+            0% {
+                background-color: rgba(56, 139, 253, 0.4);
+                box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.4);
+            }
+            100% {
+                background-color: rgba(56, 139, 253, 0.2);
+                box-shadow: none;
+            }
+        }
+
+        /* Editable element hover effect */
+        .monaco-editor .visual-md-bold:hover,
+        .monaco-editor .visual-md-italic:hover,
+        .monaco-editor .visual-md-strikethrough:hover,
+        .monaco-editor .visual-md-link:hover,
+        .monaco-editor .visual-md-inline-code:hover,
+        .monaco-editor .visual-md-heading:hover {
+            cursor: pointer;
+            background-color: rgba(56, 139, 253, 0.1);
+            border-radius: 2px;
+        }
+
+        /* Visual hint for double-click editing */
+        .monaco-editor .visual-md-bold,
+        .monaco-editor .visual-md-italic,
+        .monaco-editor .visual-md-strikethrough,
+        .monaco-editor .visual-md-link,
+        .monaco-editor .visual-md-inline-code,
+        .monaco-editor .visual-md-heading {
+            transition: background-color 0.15s ease;
+        }
+
+        /* Dark mode WYSIWYG styles */
+        body.dark-mode .monaco-editor .visual-md-editing {
+            background-color: rgba(56, 139, 253, 0.25);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-bold:hover,
+        body.dark-mode .monaco-editor .visual-md-italic:hover,
+        body.dark-mode .monaco-editor .visual-md-strikethrough:hover,
+        body.dark-mode .monaco-editor .visual-md-link:hover,
+        body.dark-mode .monaco-editor .visual-md-inline-code:hover,
+        body.dark-mode .monaco-editor .visual-md-heading:hover {
+            background-color: rgba(56, 139, 253, 0.15);
+        }
+
         /* Folder Name Dialog */
         #folder-name-modal {
             position: fixed;
