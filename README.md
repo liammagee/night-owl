@@ -2,6 +2,90 @@
 
 Advanced Markdown editor and presentation app for philosophical writing and teaching.
 
+## Features
+
+### Core Editor
+- **Monaco Editor** - Full-featured code editor with Markdown syntax highlighting
+- **Split View** - Side-by-side editor and preview panes
+- **Find & Replace** - Regex, case sensitivity, and whole word matching
+- **Auto-save** - Configurable automatic saving with backup
+
+### Visual Markdown
+- **Inline Image Previews** - See images directly in the editor
+- **Collapsible Code Blocks** - Expand/collapse with syntax indicators
+- **Table Rendering** - Preview formatted tables with alignment
+- **WYSIWYG Editing** - Click-to-edit formatted elements
+- **Wiki Links** - `[[filename]]` syntax with Ctrl+Click navigation
+
+### File Management
+- **Multi-folder Workspaces** - Work with multiple directories
+- **Recent Files** - Quick access to recently opened files
+- **Drag & Drop** - Drop files into the editor
+- **File Tree** - Navigate your document structure
+
+### Presentation Mode
+- **Slide Presentations** - Create slides from Markdown
+- **Keyboard Navigation** - Arrow keys to navigate slides
+- **Fullscreen Mode** - Immersive presentation experience
+- **Presenter Notes** - Add notes visible only to the presenter
+
+### Graph Visualization
+- **Document Relationships** - Force-directed graph of your documents
+- **Heading Hierarchy** - Visual structure of document headings
+- **Tag Extraction** - See tags across your workspace
+- **Click Navigation** - Click nodes to navigate to content
+
+### Citation Management
+- **Citation Database** - SQLite-backed citation storage
+- **BibTeX Import/Export** - Standard bibliography format support
+- **Duplicate Detection** - Find and merge duplicate citations
+- **Batch Operations** - Export, assign projects, merge duplicates
+
+### PDF Import
+- **Text Extraction** - Import PDF content as Markdown
+- **Docling Support** - Advanced PDF-to-Markdown conversion
+
+## Keyboard Shortcuts
+
+### Editor
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+S` / `Cmd+S` | Save document |
+| `Ctrl+O` / `Cmd+O` | Open file |
+| `Ctrl+F` / `Cmd+F` | Find |
+| `Ctrl+H` / `Cmd+H` | Find & Replace |
+| `Ctrl+G` / `Cmd+G` | Go to line |
+| `Ctrl+/` / `Cmd+/` | Toggle comment |
+| `Ctrl+B` | Toggle bold |
+| `Ctrl+I` | Toggle italic |
+
+### Navigation
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+P` / `Cmd+P` | Quick file open |
+| `Ctrl+Tab` | Next tab |
+| `Ctrl+Shift+Tab` | Previous tab |
+| `Ctrl+Click` | Open wiki link |
+
+### Presentation
+| Shortcut | Action |
+|----------|--------|
+| `F5` | Start presentation |
+| `Escape` | Exit presentation |
+| `→` / `Space` | Next slide |
+| `←` | Previous slide |
+| `Home` | First slide |
+| `End` | Last slide |
+
+### View
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+\` | Toggle preview pane |
+| `Ctrl+Shift+G` | Toggle graph view |
+| `Ctrl+=` | Zoom in |
+| `Ctrl+-` | Zoom out |
+| `Ctrl+0` | Reset zoom |
+
 ## Running the Application
 
 ### Web Version

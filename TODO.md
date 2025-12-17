@@ -51,9 +51,9 @@ Generated from codebase deep scan on 2025-12-17.
   - `visualMarkdown.js` (1,667 lines) - Consider separating table/WYSIWYG logic
   - `graph.js` (1,200+ lines) - Separate force simulation from rendering
 
-- [ ] **Add JSDoc Documentation**
-  - Many exported functions lack documentation
-  - Priority modules: `visualMarkdown.js`, `graph.js`, `citationManager.js`
+- [x] **Add JSDoc Documentation** ✅ COMPLETED
+  - Added module-level JSDoc to `graph.js`, `visualMarkdown.js`, `citationManager.js`, `findReplace.js`
+  - Documented all key methods with @param, @returns, and @async annotations
 
 - [ ] **Consistent Error Handling**
   - Some IPC handlers use try/catch, others don't
@@ -65,20 +65,22 @@ Generated from codebase deep scan on 2025-12-17.
 
 ### Documentation
 
-- [ ] **Expand README.md**
-  - Add feature overview with screenshots
-  - Document keyboard shortcuts
-  - Add plugin development guide
-  - Include troubleshooting section
+- [x] **Expand README.md** ✅ COMPLETED
+  - Added comprehensive feature overview
+  - Documented all keyboard shortcuts in tables
+  - Sections for Core Editor, Visual Markdown, File Management, Presentation, Graph, Citations, PDF Import
 
-- [ ] **Create ARCHITECTURE.md**
-  - Document module relationships
-  - Explain IPC communication patterns
-  - Describe plugin system architecture
+- [x] **Create ARCHITECTURE.md** ✅ COMPLETED
+  - Documented module relationships with ASCII diagrams
+  - Explained IPC communication patterns and channels
+  - Described plugin system architecture
+  - Included data flow diagrams
+  - Security and performance considerations
 
-- [ ] **Add CHANGELOG.md**
-  - Track version changes
-  - Document breaking changes
+- [x] **Add CHANGELOG.md** ✅ COMPLETED
+  - Full version 1.0.0 changelog
+  - Documented all features by category
+  - Keep a Changelog format
 
 ### Testing
 
@@ -102,29 +104,43 @@ Generated from codebase deep scan on 2025-12-17.
   - Show cursor positions of other users
   - Highlight sections being edited
 
-- [ ] **Math/LaTeX Preview**
-  - Render LaTeX equations inline
-  - Support block equations
+- [x] **Math/LaTeX Preview** ✅ COMPLETED
+  - Render LaTeX equations inline using MathJax
+  - Support block equations (`$$...$$`) with centered display
+  - Inline math (`$...$`) with hover preview
+  - Purple syntax highlighting for LaTeX source
+  - Automatic code block detection to avoid false matches
 
-- [ ] **Checkbox Interaction**
+- [x] **Checkbox Interaction** ✅ COMPLETED
   - Click to toggle markdown checkboxes `- [ ]` / `- [x]`
+  - Added `toggleCheckbox()` function and click handler
+  - Visual styling with hover and checked states
 
-- [ ] **Footnote Hover Preview**
-  - Show footnote content on hover
+- [x] **Footnote Hover Preview** ✅ COMPLETED
+  - Show footnote content on hover for `[^1]` references
+  - Parses footnote definitions and displays content
+  - Shows line number where definition is located
 
 ### Graph Improvements
 
-- [ ] **Mini-map Navigation**
-  - Show document structure overview
-  - Click to navigate
+- [x] **Mini-map Navigation** ✅ COMPLETED
+  - Shows miniature overview of entire graph in bottom-left corner
+  - Viewport rectangle shows current visible area
+  - Click anywhere on mini-map to navigate to that location
+  - Drag on mini-map for smooth panning
+  - Toggle visibility via "Mini-map" checkbox in controls
 
-- [ ] **Custom Node Colors**
-  - Allow users to set heading colors
-  - Save color preferences
+- [x] **Custom Node Colors** ✅ COMPLETED
+  - Color picker dialog with "Colors" button in graph controls
+  - Customize colors for files, tags, and headings H1-H6
+  - Colors saved to localStorage for persistence
+  - Reset individual colors or all colors to defaults
+  - Mini-map reflects custom colors
 
-- [ ] **Export Graph as Image**
-  - PNG/SVG export option
-  - Include in presentations
+- [x] **Export Graph as Image** ✅ COMPLETED
+  - PNG/SVG export with scale options (1x, 2x, 3x)
+  - Export dialog with format and resolution selection
+  - Added `exportAsPNG()` and `exportAsSVG()` methods
 
 ### Performance Optimization
 

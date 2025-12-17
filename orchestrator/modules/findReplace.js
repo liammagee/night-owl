@@ -1,16 +1,29 @@
-// === Find & Replace Module ===
-// Handles in-editor find and replace functionality including:
-// - Find text within the current document
-// - Replace text with various options (case sensitivity, regex, whole word)
-// - Navigation through search results
-// - Highlight search matches
+/**
+ * Find & Replace Module
+ * Handles in-editor find and replace functionality including:
+ * - Find text within the current document
+ * - Replace text with various options (case sensitivity, regex, whole word)
+ * - Navigation through search results
+ * - Highlight search matches
+ *
+ * @module findReplace
+ */
 
-// --- Find & Replace Variables ---
+/** @type {Array<Object>} Array of current search match results */
 let currentSearchResults = [];
+
+/** @type {number} Index of currently selected search result (-1 if none) */
 let currentSearchIndex = -1;
+
+/** @type {Array<string>} Array of Monaco decoration IDs for search highlights */
 let currentDecorations = [];
 
-// --- Find & Replace Functions ---
+/**
+ * Show the find/replace dialog
+ * Optionally shows the replace input field and pre-fills with selected text
+ *
+ * @param {boolean} [showReplace=false] - Whether to show the replace input field
+ */
 function showFindReplaceDialog(showReplace = false) {
     const findReplaceDialog = document.getElementById('find-replace-dialog');
     const replaceInput = document.getElementById('replace-input');
@@ -42,6 +55,10 @@ function showFindReplaceDialog(showReplace = false) {
     }
 }
 
+/**
+ * Hide the find/replace dialog
+ * Clears search highlights and returns focus to the editor
+ */
 function hideFindReplaceDialog() {
     const findReplaceDialog = document.getElementById('find-replace-dialog');
     if (!findReplaceDialog) return;
@@ -54,6 +71,12 @@ function hideFindReplaceDialog() {
     }
 }
 
+/**
+ * Build a RegExp query from the current search options
+ * Handles case sensitivity, regex mode, and whole word matching
+ *
+ * @returns {RegExp|null} The search regex, or null if invalid/empty
+ */
 function buildSearchQuery() {
     const findInput = document.getElementById('find-input');
     const caseSensitive = document.getElementById('case-sensitive');
@@ -90,6 +113,11 @@ function buildSearchQuery() {
     }
 }
 
+/**
+ * Perform the search using current query and options
+ * Finds all matches in the document and highlights them
+ * Automatically navigates to the first match
+ */
 function performSearch() {
     if (!window.editor || !window.editor.getModel()) {
         return;
@@ -148,6 +176,10 @@ function performSearch() {
     }
 }
 
+/**
+ * Navigate to the next search result
+ * Wraps around to the first match after reaching the last
+ */
 function findNext() {
     if (currentSearchResults.length === 0) return;
 
@@ -164,6 +196,10 @@ function findNext() {
     updateSearchStatus(`${currentSearchIndex + 1} of ${currentSearchResults.length}`);
 }
 
+/**
+ * Navigate to the previous search result
+ * Wraps around to the last match when at the first
+ */
 function findPrevious() {
     if (currentSearchResults.length === 0) return;
 
@@ -181,6 +217,11 @@ function findPrevious() {
     updateSearchStatus(`${currentSearchIndex + 1} of ${currentSearchResults.length}`);
 }
 
+/**
+ * Replace the current match with the replacement text
+ * If no match is selected, selects the first match first
+ * After replacement, re-searches and moves to next match
+ */
 function replaceNext() {
     const replaceInput = document.getElementById('replace-input');
     if (!replaceInput || currentSearchResults.length === 0) return;
@@ -219,6 +260,10 @@ function replaceNext() {
     }
 }
 
+/**
+ * Replace all matches with the replacement text
+ * Processes replacements in reverse order to preserve positions
+ */
 function replaceAll() {
     const replaceInput = document.getElementById('replace-input');
     if (!replaceInput || currentSearchResults.length === 0) return;
@@ -256,6 +301,12 @@ function replaceAll() {
     currentSearchIndex = -1;
 }
 
+/**
+ * Apply highlight decorations to search matches
+ * Uses different styles for current vs other matches
+ *
+ * @param {Array<Object>} matches - Array of Monaco match objects with range property
+ */
 function highlightSearchResults(matches) {
     if (!window.editor) return;
 
@@ -271,6 +322,9 @@ function highlightSearchResults(matches) {
     currentDecorations = window.editor.deltaDecorations(currentDecorations, decorations);
 }
 
+/**
+ * Update highlight decorations to reflect the currently selected match
+ */
 function updateCurrentHighlight() {
     // Update decorations to reflect current selection
     if (currentSearchResults.length > 0) {
@@ -278,12 +332,20 @@ function updateCurrentHighlight() {
     }
 }
 
+/**
+ * Clear all search highlight decorations from the editor
+ */
 function clearSearchHighlights() {
     if (window.editor && currentDecorations.length > 0) {
         currentDecorations = window.editor.deltaDecorations(currentDecorations, []);
     }
 }
 
+/**
+ * Update the search status display with match count or message
+ *
+ * @param {string} message - Status message to display (e.g., "5 matches", "No matches")
+ */
 function updateSearchStatus(message) {
     const searchStatus = document.getElementById('find-replace-stats');
     if (searchStatus) {
@@ -291,7 +353,10 @@ function updateSearchStatus(message) {
     }
 }
 
-// --- Initialize Find & Replace ---
+/**
+ * Initialize the find/replace functionality
+ * Sets up event listeners for dialog inputs, buttons, and keyboard shortcuts
+ */
 function initializeFindReplace() {
     const findInput = document.getElementById('find-input');
     const replaceInput = document.getElementById('replace-input');

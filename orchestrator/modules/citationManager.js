@@ -1,24 +1,60 @@
-// === Citation Manager ===
-// Frontend citation management system
+/**
+ * Citation Manager Module
+ * Frontend citation management system for academic references.
+ * Provides functionality for:
+ * - Adding, editing, and deleting citations
+ * - Filtering and searching citations
+ * - Batch operations (export, assign project, find duplicates)
+ * - BibTeX import/export
+ * - SQL query interface for advanced filtering
+ *
+ * @module citationManager
+ */
 
 console.log('[Citation Manager] Script loading...');
 
+/**
+ * CitationManager class handles all citation-related operations
+ * @class
+ */
 class CitationManager {
+    /**
+     * Create a new CitationManager instance
+     * @constructor
+     */
     constructor() {
+        /** @type {Array<Object>} Array of citation objects */
         this.citations = [];
+        /** @type {Array<Object>} Array of project objects */
         this.projects = [];
+        /** @type {Object} Current filter settings */
         this.currentFilters = {};
+        /** @type {boolean} Whether the manager has been initialized */
         this.isInitialized = false;
+        /** @type {string|null} ID of citation currently being edited */
         this.currentEditingId = null;
+        /** @type {boolean} Whether event listeners have been set up */
         this.eventListenersSet = false;
+        /** @type {boolean} Whether action listeners have been set up */
         this.actionListenersSet = false;
-        this.lastNightowlSync = 0; // Timestamp to throttle sync
-        this.currentCitationSource = 'manual'; // Track the source of the current citation being created/edited
+        /** @type {number} Timestamp of last Nightowl sync to throttle requests */
+        this.lastNightowlSync = 0;
+        /** @type {string} Source of current citation being created/edited */
+        this.currentCitationSource = 'manual';
+        /** @type {boolean} Whether quick capture is processing */
         this.quickCaptureProcessing = false;
+        /** @type {number|null} Timeout ID for quick capture status */
         this.quickCaptureStatusTimeout = null;
     }
 
-    // Initialize the citation manager
+    /**
+     * Initialize the citation manager
+     * Sets up the backend service and loads initial data
+     *
+     * @async
+     * @returns {Promise<void>}
+     * @throws {Error} If initialization fails
+     */
     async initialize() {
         try {
             console.log('[Citation Manager] Initializing...');
@@ -47,7 +83,10 @@ class CitationManager {
         }
     }
 
-    // Set up event listeners for citation UI
+    /**
+     * Set up event listeners for citation UI
+     * Binds handlers for search, filters, SQL query panel, and other controls
+     */
     setupEventListeners() {
         console.log('[Citation Manager] Setting up event listeners...');
         
@@ -1897,7 +1936,13 @@ class CitationManager {
         }
     }
 
-    // Batch assign project to selected citations
+    /**
+     * Batch assign a project to all selected citations
+     * Shows a project selection dialog and updates each selected citation
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async assignProjectToSelected() {
         try {
             const selectedIds = this.getSelectedCitationIds();
@@ -2029,7 +2074,14 @@ class CitationManager {
         });
     }
 
-    // Find potential duplicate citations
+    /**
+     * Find potential duplicate citations in the database
+     * Checks for duplicates based on DOI match or title similarity
+     * Displays results in a modal for user to review and merge
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async findDuplicates() {
         try {
             this.showLoading('Scanning for duplicate citations...');
@@ -2177,7 +2229,13 @@ class CitationManager {
         document.body.appendChild(container.firstElementChild);
     }
 
-    // Merge duplicates (keep selected, delete others)
+    /**
+     * Merge duplicate citations by keeping selected ones and deleting others
+     * Uses the pendingDuplicateGroups populated by findDuplicates()
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async mergeDuplicates() {
         if (!this.pendingDuplicateGroups) return;
 

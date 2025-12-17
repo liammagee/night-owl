@@ -1,23 +1,57 @@
-// === Visual Markdown Module ===
-// Provides visual enhancements for markdown editing in Monaco editor:
-// - Inline image previews via content widgets
-// - Visual formatting decorations (bold, italic, strikethrough)
-// - Clickable links with hover preview
-// - Collapsible code blocks with syntax info
+/**
+ * Visual Markdown Module
+ * Provides visual enhancements for markdown editing in Monaco editor:
+ * - Inline image previews via content widgets
+ * - Visual formatting decorations (bold, italic, strikethrough)
+ * - Clickable links with hover preview
+ * - Wiki-style internal links [[filename]] navigation
+ * - Collapsible code blocks with syntax info
+ * - Table preview and WYSIWYG editing
+ *
+ * @module visualMarkdown
+ */
 
-// --- State Variables ---
+/** @type {Array<Object>} Array of Monaco image content widgets */
 let imageWidgets = [];
+
+/** @type {Array<string>} Array of formatting decoration IDs */
 let formatDecorations = [];
+
+/** @type {Array<string>} Array of link decoration IDs */
 let linkDecorations = [];
+
+/** @type {Array<string>} Array of code block decoration IDs */
 let codeBlockDecorations = [];
+
+/** @type {Array<Object>} Array of code block content widgets */
 let codeBlockWidgets = [];
-let collapsedCodeBlocks = new Set(); // Set of block IDs that are collapsed
+
+/** @type {Set<string>} Set of block IDs that are currently collapsed */
+let collapsedCodeBlocks = new Set();
+
+/** @type {Object|null} Current hover preview widget */
 let hoverWidget = null;
+
+/** @type {number|null} Timeout ID for debounced updates */
 let updateTimeout = null;
-let codeBlockRanges = []; // Track code block ranges for collapse functionality
-let tableWidgets = []; // Table preview widgets
-let tableDecorations = []; // Table decorations
-let tableRanges = []; // Track table ranges for editing
+
+/** @type {Array<Object>} Track code block ranges for collapse functionality */
+let codeBlockRanges = [];
+
+/** @type {Array<Object>} Table preview widgets */
+let tableWidgets = [];
+
+/** @type {Array<string>} Table decoration IDs */
+let tableDecorations = [];
+
+/** @type {Array<Object>} Track table ranges for editing */
+let tableRanges = [];
+
+/** @type {Array<Object>} Math preview widgets */
+let mathWidgets = [];
+
+/** @type {Array<string>} Math decoration IDs */
+let mathDecorations = [];
 
 // --- Configuration ---
 const config = {
@@ -27,7 +61,9 @@ const config = {
     showLinkDecorations: true,
     showCodeBlockDecorations: true,
     showTablePreviews: true, // Show formatted table previews
+    showMathPreviews: true, // Show rendered LaTeX/Math previews
     enableWysiwygEditing: true, // Enable click-to-edit for formatted elements
+    enableCheckboxToggle: true, // Enable click to toggle checkboxes
     collapsibleCodeBlocks: true, // Enable collapse/expand for code blocks
     autoCollapseCodeBlocks: false, // Auto-collapse code blocks on load
     codeBlockCollapsedLines: 3, // Number of lines to show when collapsed
@@ -69,6 +105,21 @@ const patterns = {
 
     // Wiki-style links: [[filename]] or [[filename|display text]]
     wikiLink: /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+
+    // Checkbox: - [ ] or - [x] or - [X] (also with * or + as list markers)
+    checkbox: /^(\s*[-*+]\s+)\[([ xX])\]/,
+
+    // Footnote reference: [^1] or [^note]
+    footnoteRef: /\[\^([^\]]+)\]/g,
+
+    // Footnote definition: [^1]: text
+    footnoteDef: /^\[\^([^\]]+)\]:\s*(.+)$/,
+
+    // Inline math: $...$ (single dollar signs, not inside code)
+    inlineMath: /(?<![`$\\])\$(?!\$)([^$\n]+?)\$(?!\$)/g,
+
+    // Block/display math: $$...$$ (can span multiple lines)
+    blockMath: /\$\$([\s\S]+?)\$\$/g,
 
     // Code blocks: ```language ... ```
     codeBlock: /^```(\w*)\s*\n([\s\S]*?)^```\s*$/gm,
@@ -333,6 +384,25 @@ function updateFormattingDecorations(editor) {
                 }
             });
         }
+
+        // Checkbox decorations - [ ] or - [x]
+        const checkboxMatch = line.match(patterns.checkbox);
+        if (checkboxMatch && config.enableCheckboxToggle) {
+            const prefixLen = checkboxMatch[1].length;
+            const isChecked = checkboxMatch[2].toLowerCase() === 'x';
+            const bracketStart = prefixLen + 1; // Position of [
+            const bracketEnd = prefixLen + 4;   // Position after ]
+
+            // Style the checkbox to look clickable
+            decorations.push({
+                range: new monaco.Range(lineNumber, bracketStart, lineNumber, bracketEnd),
+                options: {
+                    inlineClassName: isChecked ? 'visual-md-checkbox visual-md-checkbox-checked' : 'visual-md-checkbox',
+                    hoverMessage: { value: '*Click to toggle checkbox*' },
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                }
+            });
+        }
     });
 
     formatDecorations = editor.deltaDecorations(formatDecorations, decorations);
@@ -460,6 +530,47 @@ function updateLinkDecorations(editor) {
         }
     });
 
+    // Parse footnote definitions from the document
+    const footnoteDefinitions = new Map();
+    lines.forEach((line, lineIndex) => {
+        const defMatch = line.match(patterns.footnoteDef);
+        if (defMatch) {
+            const id = defMatch[1];
+            const content = defMatch[2].trim();
+            footnoteDefinitions.set(id, { content, lineNumber: lineIndex + 1 });
+        }
+    });
+
+    // Add footnote reference decorations with hover preview
+    lines.forEach((line, lineIndex) => {
+        const lineNumber = lineIndex + 1;
+        const footnoteRefRegex = new RegExp(patterns.footnoteRef.source, 'g');
+        let match;
+
+        while ((match = footnoteRefRegex.exec(line)) !== null) {
+            // Skip if this line is a footnote definition
+            if (line.match(patterns.footnoteDef)) continue;
+
+            const fullMatchStart = match.index + 1;
+            const fullMatchEnd = match.index + match[0].length + 1;
+            const footnoteId = match[1];
+            const definition = footnoteDefinitions.get(footnoteId);
+
+            let hoverContent = definition
+                ? `**Footnote [^${footnoteId}]:**\n\n${definition.content}\n\n*Line ${definition.lineNumber}*`
+                : `*Footnote [^${footnoteId}] not found*`;
+
+            decorations.push({
+                range: new monaco.Range(lineNumber, fullMatchStart, lineNumber, fullMatchEnd),
+                options: {
+                    inlineClassName: 'visual-md-footnote',
+                    hoverMessage: { value: hoverContent },
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                }
+            });
+        }
+    });
+
     linkDecorations = editor.deltaDecorations(linkDecorations, decorations);
 }
 
@@ -510,6 +621,76 @@ function setupLinkClickHandler(editor) {
             }
         }
     });
+
+    // Checkbox click handler (single click, no modifier required)
+    editor.onMouseDown((e) => {
+        if (!config.enabled || !config.enableCheckboxToggle) return;
+
+        // Only handle single clicks without modifiers
+        if (e.event.ctrlKey || e.event.metaKey || e.event.shiftKey) return;
+
+        const position = e.target.position;
+        if (!position) return;
+
+        const model = editor.getModel();
+        if (!model) return;
+
+        const line = model.getLineContent(position.lineNumber);
+        const checkboxMatch = line.match(patterns.checkbox);
+
+        if (checkboxMatch) {
+            const prefixLen = checkboxMatch[1].length;
+            const bracketStart = prefixLen + 1;
+            const bracketEnd = prefixLen + 4;
+
+            // Check if click is on the checkbox brackets
+            if (position.column >= bracketStart && position.column <= bracketEnd) {
+                toggleCheckbox(editor, position.lineNumber, checkboxMatch);
+                e.event.preventDefault();
+                e.event.stopPropagation();
+            }
+        }
+    });
+}
+
+/**
+ * Toggle a checkbox on the specified line
+ * @param {Object} editor - Monaco editor instance
+ * @param {number} lineNumber - The line number (1-based)
+ * @param {Array} checkboxMatch - The regex match result
+ */
+function toggleCheckbox(editor, lineNumber, checkboxMatch) {
+    const model = editor.getModel();
+    if (!model) return;
+
+    const line = model.getLineContent(lineNumber);
+    const prefixLen = checkboxMatch[1].length;
+    const currentState = checkboxMatch[2];
+    const isChecked = currentState.toLowerCase() === 'x';
+
+    // Toggle the checkbox state
+    const newState = isChecked ? ' ' : 'x';
+    const checkPos = prefixLen + 2; // Position of the x or space inside [ ]
+
+    // Create the edit
+    const range = new monaco.Range(lineNumber, checkPos, lineNumber, checkPos + 1);
+
+    editor.executeEdits('toggle-checkbox', [{
+        range: range,
+        text: newState
+    }]);
+
+    // Mark document as modified
+    if (window.markDocumentModified) {
+        window.markDocumentModified();
+    }
+
+    // Update preview if available
+    if (window.updatePreviewAndStructure) {
+        window.updatePreviewAndStructure(editor.getValue());
+    }
+
+    console.log(`[visualMarkdown] Toggled checkbox on line ${lineNumber}: ${isChecked ? 'unchecked' : 'checked'}`);
 }
 
 /**
@@ -544,6 +725,12 @@ function openWikiLink(filename) {
     navigateToInternalFile(targetFile, anchor);
 }
 
+/**
+ * Open a link from the markdown document
+ * Handles external URLs, internal markdown links, and anchors
+ *
+ * @param {string} url - The URL or path to open
+ */
 function openLink(url) {
     // Handle different link types
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -652,7 +839,11 @@ async function navigateToInternalFile(relativePath, anchor = null) {
 }
 
 /**
- * Resolve a relative path with parent directory references
+ * Resolve a relative path with parent directory references (..)
+ *
+ * @param {string} basePath - The base directory path
+ * @param {string} relativePath - The relative path to resolve
+ * @returns {string} The resolved absolute path
  */
 function resolveRelativePath(basePath, relativePath) {
     const baseParts = basePath.split('/').filter(p => p);
@@ -670,7 +861,10 @@ function resolveRelativePath(basePath, relativePath) {
 }
 
 /**
- * Normalize a file path
+ * Normalize a file path by removing redundant slashes and ./ references
+ *
+ * @param {string} path - The path to normalize
+ * @returns {string} The normalized path
  */
 function normalizePath(path) {
     return path
@@ -679,7 +873,12 @@ function normalizePath(path) {
 }
 
 /**
- * Try to find a file in the workspace by name
+ * Try to find a file in the workspace by filename
+ * Searches all markdown files for a matching filename
+ *
+ * @async
+ * @param {string} filename - The filename to search for
+ * @returns {Promise<string|null>} The full path if found, null otherwise
  */
 async function findFileInWorkspace(filename) {
     try {
@@ -705,7 +904,9 @@ async function findFileInWorkspace(filename) {
 }
 
 /**
- * Show a toast notification when file is not found
+ * Show a toast notification when a linked file is not found
+ *
+ * @param {string} filename - The filename that was not found
  */
 function showFileNotFoundToast(filename) {
     // Check if there's a toast system available
@@ -1360,6 +1561,261 @@ function updateTableDecorations(editor) {
     tableDecorations = editor.deltaDecorations(tableDecorations, decorations);
 }
 
+// --- Math/LaTeX Preview Functions ---
+
+/**
+ * Create a math preview widget for inline or block math
+ * @param {Object} editor - Monaco editor instance
+ * @param {string} mathContent - The LaTeX content to render
+ * @param {number} lineNumber - Line number for positioning
+ * @param {boolean} isBlock - Whether this is block (display) math
+ * @param {number} startLine - Start line for block math
+ * @param {number} endLine - End line for block math
+ * @returns {Object} Monaco content widget
+ */
+function createMathWidget(editor, mathContent, lineNumber, isBlock = false, startLine = null, endLine = null) {
+    const widgetId = `math-widget-${lineNumber}-${isBlock ? 'block' : 'inline'}-${Math.random().toString(36).substr(2, 9)}`;
+
+    const widget = {
+        getId: () => widgetId,
+        getDomNode: () => {
+            if (widget.domNode) return widget.domNode;
+
+            const container = document.createElement('div');
+            container.className = `visual-md-math-widget ${isBlock ? 'visual-md-math-block' : 'visual-md-math-inline'}`;
+            container.style.cssText = `
+                display: ${isBlock ? 'block' : 'inline-block'};
+                padding: ${isBlock ? '12px 16px' : '2px 4px'};
+                margin: ${isBlock ? '8px 0 8px 20px' : '0 2px'};
+                background: ${isBlock ? 'var(--bg-secondary, #f6f8fa)' : 'transparent'};
+                border-radius: ${isBlock ? '6px' : '3px'};
+                ${isBlock ? 'border: 1px solid var(--border-color, #e1e4e8);' : ''}
+                font-size: ${isBlock ? '1.1em' : '1em'};
+                overflow-x: auto;
+                max-width: calc(100% - 40px);
+            `;
+
+            // Create a placeholder while MathJax renders
+            const placeholder = document.createElement('span');
+            placeholder.className = 'math-placeholder';
+            placeholder.style.cssText = `
+                color: var(--text-muted, #6a737d);
+                font-style: italic;
+                font-size: 12px;
+            `;
+            placeholder.textContent = 'Rendering math...';
+            container.appendChild(placeholder);
+
+            // Render math using MathJax
+            renderMathContent(container, mathContent, isBlock);
+
+            widget.domNode = container;
+            return container;
+        },
+        getPosition: () => ({
+            position: {
+                lineNumber: isBlock ? (endLine || lineNumber) : lineNumber,
+                column: 1
+            },
+            preference: isBlock
+                ? [monaco.editor.ContentWidgetPositionPreference.BELOW]
+                : [monaco.editor.ContentWidgetPositionPreference.EXACT]
+        })
+    };
+
+    return widget;
+}
+
+/**
+ * Render math content using MathJax
+ * @param {HTMLElement} container - Container element for rendered math
+ * @param {string} mathContent - LaTeX content to render
+ * @param {boolean} isBlock - Whether this is display math
+ */
+async function renderMathContent(container, mathContent, isBlock) {
+    // Check if MathJax is available
+    if (!window.MathJax || !window.MathJax.tex2svg) {
+        // Wait for MathJax to load
+        const checkMathJax = setInterval(() => {
+            if (window.MathJax && window.MathJax.tex2svg) {
+                clearInterval(checkMathJax);
+                doRenderMath(container, mathContent, isBlock);
+            }
+        }, 100);
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+            clearInterval(checkMathJax);
+            if (!window.MathJax || !window.MathJax.tex2svg) {
+                container.innerHTML = `<span style="color: var(--error-color, #cb2431);">MathJax not available</span>`;
+            }
+        }, 5000);
+        return;
+    }
+
+    doRenderMath(container, mathContent, isBlock);
+}
+
+/**
+ * Actually render the math content once MathJax is available
+ * @param {HTMLElement} container - Container element
+ * @param {string} mathContent - LaTeX content
+ * @param {boolean} isBlock - Display math mode
+ */
+function doRenderMath(container, mathContent, isBlock) {
+    try {
+        // Use MathJax.tex2svg for rendering
+        const options = {
+            display: isBlock
+        };
+
+        const node = window.MathJax.tex2svg(mathContent, options);
+
+        // Clear placeholder and add rendered SVG
+        container.innerHTML = '';
+        container.appendChild(node);
+
+        // Style the SVG
+        const svg = container.querySelector('svg');
+        if (svg) {
+            svg.style.verticalAlign = isBlock ? 'middle' : 'baseline';
+            if (!isBlock) {
+                svg.style.display = 'inline';
+            }
+        }
+
+        // Add click-to-edit functionality
+        container.title = 'Double-click to edit LaTeX';
+        container.style.cursor = 'pointer';
+
+    } catch (error) {
+        console.error('[visualMarkdown] Math rendering error:', error);
+        container.innerHTML = `
+            <span style="color: var(--error-color, #cb2431); font-family: monospace; font-size: 12px;">
+                Error: ${error.message || 'Failed to render math'}
+            </span>
+        `;
+    }
+}
+
+/**
+ * Update math decorations and preview widgets
+ * @param {Object} editor - Monaco editor instance
+ */
+function updateMathDecorations(editor) {
+    if (!config.enabled || !config.showMathPreviews) return;
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    // Remove existing math widgets
+    mathWidgets.forEach(widget => {
+        try {
+            editor.removeContentWidget(widget);
+        } catch (e) {
+            // Widget may already be removed
+        }
+    });
+    mathWidgets = [];
+
+    const decorations = [];
+    const text = model.getValue();
+    const lines = text.split('\n');
+
+    // Track positions to avoid duplicates
+    const processedPositions = new Set();
+
+    // Find block math first ($$...$$) - can span multiple lines
+    const blockMathRegex = /\$\$([\s\S]+?)\$\$/g;
+    let blockMatch;
+
+    while ((blockMatch = blockMathRegex.exec(text)) !== null) {
+        const mathContent = blockMatch[1].trim();
+        const startIndex = blockMatch.index;
+        const endIndex = blockMatch.index + blockMatch[0].length;
+
+        // Calculate line numbers
+        const textBefore = text.substring(0, startIndex);
+        const startLine = (textBefore.match(/\n/g) || []).length + 1;
+        const matchLines = (blockMatch[0].match(/\n/g) || []).length;
+        const endLine = startLine + matchLines;
+
+        // Mark positions as processed
+        for (let i = startLine; i <= endLine; i++) {
+            processedPositions.add(`line-${i}`);
+        }
+
+        // Add decorations to dim the raw LaTeX
+        for (let i = startLine; i <= endLine; i++) {
+            if (i <= lines.length) {
+                decorations.push({
+                    range: new monaco.Range(i, 1, i, lines[i - 1].length + 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'visual-md-math-source',
+                        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                    }
+                });
+            }
+        }
+
+        // Create and add block math preview widget
+        const widget = createMathWidget(editor, mathContent, endLine, true, startLine, endLine);
+        mathWidgets.push(widget);
+        editor.addContentWidget(widget);
+    }
+
+    // Find inline math ($...$) - single line only
+    lines.forEach((line, lineIndex) => {
+        const lineNumber = lineIndex + 1;
+
+        // Skip lines that are part of block math
+        if (processedPositions.has(`line-${lineNumber}`)) return;
+
+        // Skip lines inside code blocks
+        if (isInsideCodeBlock(lineIndex, lines)) return;
+
+        const inlineMathRegex = /(?<![`$\\])\$(?!\$)([^$\n]+?)\$(?!\$)/g;
+        let match;
+
+        while ((match = inlineMathRegex.exec(line)) !== null) {
+            const mathContent = match[1];
+            const startCol = match.index + 1;
+            const endCol = match.index + match[0].length + 1;
+
+            // Add decoration to style the inline math
+            decorations.push({
+                range: new monaco.Range(lineNumber, startCol, lineNumber, endCol),
+                options: {
+                    inlineClassName: 'visual-md-math-inline-source',
+                    hoverMessage: {
+                        value: `**LaTeX:** \`${mathContent}\`\n\n*Click to see rendered preview*`
+                    },
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                }
+            });
+        }
+    });
+
+    mathDecorations = editor.deltaDecorations(mathDecorations, decorations);
+}
+
+/**
+ * Check if a line is inside a code block
+ * @param {number} lineIndex - Zero-based line index
+ * @param {Array<string>} lines - Array of document lines
+ * @returns {boolean} True if inside a code block
+ */
+function isInsideCodeBlock(lineIndex, lines) {
+    let inCodeBlock = false;
+    for (let i = 0; i <= lineIndex && i < lines.length; i++) {
+        if (lines[i].match(/^```/)) {
+            inCodeBlock = !inCodeBlock;
+        }
+    }
+    return inCodeBlock;
+}
+
 // --- WYSIWYG Click-to-Edit Functions ---
 
 // Track editable element ranges for click detection
@@ -1780,7 +2236,12 @@ function toggleFormatting(editor, formatType) {
     }
 }
 
-// --- Main Update Function ---
+/**
+ * Update all visual markdown enhancements
+ * Debounces updates and refreshes images, formatting, links, code blocks, and tables
+ *
+ * @param {Object} editor - Monaco editor instance
+ */
 function updateVisualMarkdown(editor) {
     if (!editor || !config.enabled) return;
 
@@ -1796,10 +2257,16 @@ function updateVisualMarkdown(editor) {
         updateLinkDecorations(editor);
         updateCodeBlockDecorations(editor);
         updateTableDecorations(editor);
+        updateMathDecorations(editor);
     }, config.updateDebounceMs);
 }
 
-// --- Cleanup Function ---
+/**
+ * Clean up all visual markdown enhancements
+ * Removes all widgets, decorations, and clears state
+ *
+ * @param {Object} editor - Monaco editor instance
+ */
 function cleanupVisualMarkdown(editor) {
     if (!editor) return;
 
@@ -1833,11 +2300,22 @@ function cleanupVisualMarkdown(editor) {
     });
     tableWidgets = [];
 
+    // Remove math widgets
+    mathWidgets.forEach(widget => {
+        try {
+            editor.removeContentWidget(widget);
+        } catch (e) {
+            // Ignore
+        }
+    });
+    mathWidgets = [];
+
     // Clear decorations
     formatDecorations = editor.deltaDecorations(formatDecorations, []);
     linkDecorations = editor.deltaDecorations(linkDecorations, []);
     codeBlockDecorations = editor.deltaDecorations(codeBlockDecorations, []);
     tableDecorations = editor.deltaDecorations(tableDecorations, []);
+    mathDecorations = editor.deltaDecorations(mathDecorations, []);
 
     // Clear code block state
     codeBlockRanges = [];
@@ -1853,7 +2331,11 @@ function cleanupVisualMarkdown(editor) {
     }
 }
 
-// --- Toggle Functions ---
+/**
+ * Enable or disable visual markdown enhancements
+ *
+ * @param {boolean} enabled - Whether to enable visual markdown
+ */
 function setVisualMarkdownEnabled(enabled) {
     config.enabled = enabled;
     if (window.editor) {
@@ -1865,6 +2347,11 @@ function setVisualMarkdownEnabled(enabled) {
     }
 }
 
+/**
+ * Toggle image preview display
+ *
+ * @param {boolean} enabled - Whether to show image previews
+ */
 function toggleImagePreviews(enabled) {
     config.showImagePreviews = enabled;
     if (window.editor && config.enabled) {
@@ -1881,7 +2368,12 @@ function toggleImagePreviews(enabled) {
     }
 }
 
-// --- Initialization ---
+/**
+ * Initialize visual markdown enhancements for an editor
+ * Sets up content change listeners and click handlers
+ *
+ * @param {Object} editor - Monaco editor instance
+ */
 function initializeVisualMarkdown(editor) {
     if (!editor) return;
 
@@ -1916,7 +2408,11 @@ function initializeVisualMarkdown(editor) {
     console.log('[visualMarkdown] Initialized visual markdown enhancements, enabled:', config.enabled);
 }
 
-// Check if visual markdown is available (not in browser mode)
+/**
+ * Check if visual markdown is available in the current environment
+ *
+ * @returns {boolean} True if running in Electron (not browser mode)
+ */
 function isVisualMarkdownAvailable() {
     return !isBrowserMode;
 }
