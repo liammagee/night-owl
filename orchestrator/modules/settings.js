@@ -513,6 +513,11 @@ function generateEditorSettings() {
                     <span>Enable Citation Autocomplete</span>
                     <small class="setting-description">Show suggestions when typing [@. Disables bracket auto-completion.</small>
                 </label>
+                <label>
+                    <input type="checkbox" id="enable-visual-markdown" ${currentSettings.editor?.visualMarkdown ? 'checked' : ''}>
+                    <span>Visual Markdown Mode</span>
+                    <small class="setting-description">Show inline formatting (bold, italic), image previews, and styled headings in the editor. Ctrl/Cmd+click to open links.</small>
+                </label>
             </div>
         </div>
     `;
@@ -2296,7 +2301,17 @@ function collectSettingsFromForm() {
         if (!updatedSettings.editor) updatedSettings.editor = {};
         updatedSettings.editor.enableCitationAutocomplete = enableCitationAutocomplete;
     }
-    
+
+    const enableVisualMarkdown = document.getElementById('enable-visual-markdown')?.checked;
+    if (enableVisualMarkdown !== undefined) {
+        if (!updatedSettings.editor) updatedSettings.editor = {};
+        updatedSettings.editor.visualMarkdown = enableVisualMarkdown;
+        // Apply visual markdown setting immediately
+        if (typeof setVisualMarkdownEnabled === 'function') {
+            setVisualMarkdownEnabled(enableVisualMarkdown);
+        }
+    }
+
     // Gamification settings
     const gamificationEnabled = document.getElementById('gamification-enabled')?.checked;
     if (gamificationEnabled !== undefined) {
