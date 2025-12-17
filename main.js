@@ -1289,6 +1289,22 @@ function createViewMenuItems() {
           }
         }
       },
+      {
+        label: 'Toggle Preview Pane',
+        accelerator: 'CmdOrCtrl+Shift+M',
+        type: 'checkbox',
+        checked: appSettings.editor?.showPreview !== false, // Default to true
+        click: (menuItem) => {
+          if (mainWindow) {
+            console.log('[main.js] Toggling Preview Pane:', menuItem.checked);
+            // Save the setting
+            if (!appSettings.editor) appSettings.editor = {};
+            appSettings.editor.showPreview = menuItem.checked;
+            saveSettings();
+            mainWindow.webContents.send('toggle-preview-pane', menuItem.checked);
+          }
+        }
+      },
       { type: 'separator' },
       { role: 'resetZoom' },
       { role: 'zoomIn' },

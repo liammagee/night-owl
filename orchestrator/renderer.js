@@ -7016,6 +7016,15 @@ function applyLayoutSettings(layout) {
         editorPane.style.flex = `0 0 ${defaultLayout.editorWidth}`;
         rightPane.style.flex = `0 0 ${defaultLayout.rightWidth}`;
     }
+
+    // Apply preview pane visibility from settings
+    // Note: appSettings.editor?.showPreview defaults to true if not set
+    const showPreview = appSettings?.editor?.showPreview !== false;
+    if (!showPreview && previewVisible) {
+        // Hide preview if setting says it should be hidden
+        console.log('[renderer.js] Hiding preview pane based on saved settings');
+        togglePreview();
+    }
 }
 
 // --- Settings Management ---
@@ -9724,6 +9733,14 @@ if (window.electronAPI && window.electronAPI.on) {
         console.log('[renderer.js] Received toggle-visual-markdown event:', enabled);
         if (typeof setVisualMarkdownEnabled === 'function') {
             setVisualMarkdownEnabled(enabled);
+        }
+    });
+
+    window.electronAPI.on('toggle-preview-pane', (visible) => {
+        console.log('[renderer.js] Received toggle-preview-pane event:', visible);
+        // Sync the previewVisible state with the incoming value
+        if (visible !== previewVisible) {
+            togglePreview();
         }
     });
 

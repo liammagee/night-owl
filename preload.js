@@ -125,6 +125,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
 
+  onTogglePreviewPane: (callback) => {
+    ipcRenderer.on('toggle-preview-pane', (_, visible) => {
+      callback(visible);
+    });
+  },
+
   // PDF Import trigger
   onTriggerImportPdf: (callback) => {
     ipcRenderer.on('trigger-import-pdf', callback);
@@ -154,6 +160,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('change-layout');
     ipcRenderer.removeAllListeners('toggle-gamification-panel');
     ipcRenderer.removeAllListeners('toggle-visual-markdown');
+    ipcRenderer.removeAllListeners('toggle-preview-pane');
     ipcRenderer.removeAllListeners('trigger-import-pdf');
   }
 });
