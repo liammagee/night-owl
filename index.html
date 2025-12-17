@@ -823,6 +823,57 @@
             color: #58a6ff;
         }
 
+        /* Collapsible code block styles */
+        .monaco-editor .visual-md-code-header {
+            background-color: rgba(175, 184, 193, 0.1);
+            border-radius: 4px;
+            margin-left: 4px;
+        }
+
+        .monaco-editor .visual-md-code-header:hover {
+            background-color: rgba(175, 184, 193, 0.2);
+        }
+
+        .monaco-editor .visual-md-collapse-btn {
+            display: inline-block;
+            width: 16px;
+            text-align: center;
+        }
+
+        .monaco-editor .visual-md-code-block-collapsed {
+            background-color: rgba(175, 184, 193, 0.05);
+            opacity: 0.6;
+        }
+
+        .monaco-editor .visual-md-collapsed-indicator {
+            color: var(--text-muted, #6a737d);
+            font-style: italic;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .monaco-editor .visual-md-code-fence-start {
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+        }
+
+        .monaco-editor .visual-md-code-fence-end {
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 6px;
+        }
+
+        body.dark-mode .monaco-editor .visual-md-code-header {
+            background-color: rgba(110, 118, 129, 0.15);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-code-header:hover {
+            background-color: rgba(110, 118, 129, 0.25);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-collapsed-indicator {
+            color: #8b949e;
+        }
+
         /* Image preview widget styles */
         .monaco-image-preview-widget {
             display: flex;

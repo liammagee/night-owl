@@ -3,16 +3,18 @@
 // - Inline image previews via content widgets
 // - Visual formatting decorations (bold, italic, strikethrough)
 // - Clickable links with hover preview
-// - Collapsible code blocks
+// - Collapsible code blocks with syntax info
 
 // --- State Variables ---
 let imageWidgets = [];
 let formatDecorations = [];
 let linkDecorations = [];
 let codeBlockDecorations = [];
-let collapsedCodeBlocks = new Set();
+let codeBlockWidgets = [];
+let collapsedCodeBlocks = new Set(); // Set of block IDs that are collapsed
 let hoverWidget = null;
 let updateTimeout = null;
+let codeBlockRanges = []; // Track code block ranges for collapse functionality
 
 // --- Configuration ---
 const config = {
@@ -21,6 +23,9 @@ const config = {
     showFormattingDecorations: true,
     showLinkDecorations: true,
     showCodeBlockDecorations: true,
+    collapsibleCodeBlocks: true, // Enable collapse/expand for code blocks
+    autoCollapseCodeBlocks: false, // Auto-collapse code blocks on load
+    codeBlockCollapsedLines: 3, // Number of lines to show when collapsed
     imageMaxWidth: 400,
     imageMaxHeight: 300,
     updateDebounceMs: 150
@@ -463,9 +468,21 @@ function updateCodeBlockDecorations(editor) {
     const text = model.getValue();
     const lines = text.split('\n');
 
+    // Clear existing code block widgets
+    codeBlockWidgets.forEach(widget => {
+        try {
+            editor.removeContentWidget(widget);
+        } catch (e) {
+            // Widget may already be removed
+        }
+    });
+    codeBlockWidgets = [];
+    codeBlockRanges = [];
+
     let inCodeBlock = false;
     let codeBlockStart = -1;
     let codeBlockLang = '';
+    let blockIndex = 0;
 
     lines.forEach((line, lineIndex) => {
         const lineNumber = lineIndex + 1;
@@ -482,27 +499,51 @@ function updateCodeBlockDecorations(editor) {
                     range: new monaco.Range(lineNumber, 1, lineNumber, line.length + 1),
                     options: {
                         isWholeLine: true,
-                        className: 'visual-md-code-fence',
+                        className: 'visual-md-code-fence visual-md-code-fence-start',
                         glyphMarginClassName: 'visual-md-code-glyph',
                         stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
                     }
                 });
             } else {
                 // End of code block
-                inCodeBlock = false;
+                const codeBlockEnd = lineNumber;
+                const blockId = `code-block-${codeBlockStart}`;
+                const isCollapsed = collapsedCodeBlocks.has(blockId);
+                const totalLines = codeBlockEnd - codeBlockStart - 1;
+
+                // Store code block range info
+                codeBlockRanges.push({
+                    id: blockId,
+                    startLine: codeBlockStart,
+                    endLine: codeBlockEnd,
+                    language: codeBlockLang,
+                    totalLines: totalLines
+                });
 
                 // Decorate the closing fence
                 decorations.push({
                     range: new monaco.Range(lineNumber, 1, lineNumber, line.length + 1),
                     options: {
                         isWholeLine: true,
-                        className: 'visual-md-code-fence',
+                        className: 'visual-md-code-fence visual-md-code-fence-end',
                         stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
                     }
                 });
 
-                // Add language badge to opening line if present
-                if (codeBlockLang && codeBlockStart > 0) {
+                // Add collapsible header widget with language badge
+                if (config.collapsibleCodeBlocks && totalLines > config.codeBlockCollapsedLines) {
+                    const headerWidget = createCodeBlockHeaderWidget(
+                        editor,
+                        blockId,
+                        codeBlockStart,
+                        codeBlockLang,
+                        totalLines,
+                        isCollapsed
+                    );
+                    codeBlockWidgets.push(headerWidget);
+                    editor.addContentWidget(headerWidget);
+                } else if (codeBlockLang) {
+                    // Just add language badge for small code blocks
                     decorations.push({
                         range: new monaco.Range(codeBlockStart, 1, codeBlockStart, 1),
                         options: {
@@ -514,23 +555,167 @@ function updateCodeBlockDecorations(editor) {
                     });
                 }
 
+                // Handle collapsed state - hide middle lines
+                if (isCollapsed && totalLines > config.codeBlockCollapsedLines) {
+                    // Show first few lines
+                    for (let i = 1; i <= Math.min(config.codeBlockCollapsedLines, totalLines); i++) {
+                        decorations.push({
+                            range: new monaco.Range(codeBlockStart + i, 1, codeBlockStart + i, lines[codeBlockStart + i - 1].length + 1),
+                            options: {
+                                isWholeLine: true,
+                                className: 'visual-md-code-block-line',
+                                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                            }
+                        });
+                    }
+
+                    // Hide remaining lines with collapsed indicator
+                    const hiddenCount = totalLines - config.codeBlockCollapsedLines;
+                    if (hiddenCount > 0) {
+                        // Add ellipsis decoration for hidden content
+                        decorations.push({
+                            range: new monaco.Range(codeBlockStart + config.codeBlockCollapsedLines + 1, 1, codeBlockEnd - 1, 1),
+                            options: {
+                                isWholeLine: true,
+                                className: 'visual-md-code-block-collapsed',
+                                after: {
+                                    content: `  ... ${hiddenCount} more line${hiddenCount > 1 ? 's' : ''} ...`,
+                                    inlineClassName: 'visual-md-collapsed-indicator'
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    // Show all code block lines
+                    for (let i = codeBlockStart + 1; i < codeBlockEnd; i++) {
+                        decorations.push({
+                            range: new monaco.Range(i, 1, i, lines[i - 1].length + 1),
+                            options: {
+                                isWholeLine: true,
+                                className: 'visual-md-code-block-line',
+                                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                            }
+                        });
+                    }
+                }
+
+                inCodeBlock = false;
                 codeBlockStart = -1;
                 codeBlockLang = '';
+                blockIndex++;
             }
-        } else if (inCodeBlock) {
-            // Inside code block - add subtle background
-            decorations.push({
-                range: new monaco.Range(lineNumber, 1, lineNumber, line.length + 1),
-                options: {
-                    isWholeLine: true,
-                    className: 'visual-md-code-block-line',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
         }
     });
 
     codeBlockDecorations = editor.deltaDecorations(codeBlockDecorations, decorations);
+}
+
+// Create a header widget for code blocks with collapse/expand functionality
+function createCodeBlockHeaderWidget(editor, blockId, lineNumber, language, totalLines, isCollapsed) {
+    const widgetId = `code-header-${blockId}`;
+
+    const widget = {
+        getId: () => widgetId,
+        getDomNode: () => {
+            if (widget.domNode) return widget.domNode;
+
+            const container = document.createElement('div');
+            container.className = 'visual-md-code-header';
+            container.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 2px 8px;
+                font-size: 12px;
+                cursor: pointer;
+                user-select: none;
+                position: relative;
+                z-index: 10;
+            `;
+
+            // Collapse/expand button
+            const toggleBtn = document.createElement('span');
+            toggleBtn.className = 'visual-md-collapse-btn';
+            toggleBtn.innerHTML = isCollapsed ? '▶' : '▼';
+            toggleBtn.style.cssText = `
+                font-size: 10px;
+                color: var(--text-muted, #6a737d);
+                transition: transform 0.2s;
+            `;
+            toggleBtn.title = isCollapsed ? 'Expand code block' : 'Collapse code block';
+            container.appendChild(toggleBtn);
+
+            // Language badge
+            if (language) {
+                const langBadge = document.createElement('span');
+                langBadge.className = 'visual-md-code-lang-badge';
+                langBadge.textContent = language;
+                langBadge.style.cssText = `
+                    background-color: rgba(56, 139, 253, 0.15);
+                    color: #0366d6;
+                    padding: 1px 6px;
+                    border-radius: 3px;
+                    font-size: 11px;
+                    font-weight: 500;
+                `;
+                container.appendChild(langBadge);
+            }
+
+            // Line count
+            const lineCount = document.createElement('span');
+            lineCount.className = 'visual-md-code-line-count';
+            lineCount.textContent = `${totalLines} line${totalLines > 1 ? 's' : ''}`;
+            lineCount.style.cssText = `
+                color: var(--text-muted, #6a737d);
+                font-size: 11px;
+            `;
+            container.appendChild(lineCount);
+
+            // Click handler for toggle
+            container.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleCodeBlockCollapse(blockId, editor);
+            });
+
+            widget.domNode = container;
+            return container;
+        },
+        getPosition: () => ({
+            position: { lineNumber: lineNumber, column: 4 }, // After the ```
+            preference: [monaco.editor.ContentWidgetPositionPreference.EXACT]
+        })
+    };
+
+    return widget;
+}
+
+// Toggle collapse/expand state for a code block
+function toggleCodeBlockCollapse(blockId, editor) {
+    if (collapsedCodeBlocks.has(blockId)) {
+        collapsedCodeBlocks.delete(blockId);
+    } else {
+        collapsedCodeBlocks.add(blockId);
+    }
+
+    // Refresh decorations
+    updateCodeBlockDecorations(editor);
+}
+
+// Collapse all code blocks
+function collapseAllCodeBlocks(editor) {
+    codeBlockRanges.forEach(block => {
+        if (block.totalLines > config.codeBlockCollapsedLines) {
+            collapsedCodeBlocks.add(block.id);
+        }
+    });
+    updateCodeBlockDecorations(editor);
+}
+
+// Expand all code blocks
+function expandAllCodeBlocks(editor) {
+    collapsedCodeBlocks.clear();
+    updateCodeBlockDecorations(editor);
 }
 
 // --- Main Update Function ---
@@ -565,10 +750,24 @@ function cleanupVisualMarkdown(editor) {
     });
     imageWidgets = [];
 
+    // Remove code block widgets
+    codeBlockWidgets.forEach(widget => {
+        try {
+            editor.removeContentWidget(widget);
+        } catch (e) {
+            // Ignore
+        }
+    });
+    codeBlockWidgets = [];
+
     // Clear decorations
     formatDecorations = editor.deltaDecorations(formatDecorations, []);
     linkDecorations = editor.deltaDecorations(linkDecorations, []);
     codeBlockDecorations = editor.deltaDecorations(codeBlockDecorations, []);
+
+    // Clear code block state
+    codeBlockRanges = [];
+    collapsedCodeBlocks.clear();
 
     // Clear timeout
     if (updateTimeout) {
@@ -649,6 +848,8 @@ window.cleanupVisualMarkdown = cleanupVisualMarkdown;
 window.setVisualMarkdownEnabled = setVisualMarkdownEnabled;
 window.toggleImagePreviews = toggleImagePreviews;
 window.isVisualMarkdownAvailable = isVisualMarkdownAvailable;
+window.collapseAllCodeBlocks = collapseAllCodeBlocks;
+window.expandAllCodeBlocks = expandAllCodeBlocks;
 window.visualMarkdownConfig = config;
 
 // Export for module systems if available
@@ -660,6 +861,8 @@ if (typeof module !== 'undefined' && module.exports) {
         setVisualMarkdownEnabled,
         toggleImagePreviews,
         isVisualMarkdownAvailable,
+        collapseAllCodeBlocks,
+        expandAllCodeBlocks,
         config
     };
 }
