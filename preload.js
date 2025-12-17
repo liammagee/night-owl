@@ -118,6 +118,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('toggle-gamification-panel', callback);
   },
 
+  // Visual Markdown toggle
+  onToggleVisualMarkdown: (callback) => {
+    ipcRenderer.on('toggle-visual-markdown', (_, enabled) => {
+      callback(enabled);
+    });
+  },
+
   // Utility functions
   isElectron: true,
   platform: process.platform,
@@ -141,6 +148,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('reset-zoom');
     ipcRenderer.removeAllListeners('change-layout');
     ipcRenderer.removeAllListeners('toggle-gamification-panel');
+    ipcRenderer.removeAllListeners('toggle-visual-markdown');
   }
 });
 

@@ -692,6 +692,155 @@
             border-color: rgba(255, 87, 34, 0.6);
         }
 
+        /* Visual Markdown Editor Styles */
+        .monaco-editor .visual-md-bold {
+            font-weight: 700;
+        }
+
+        .monaco-editor .visual-md-italic {
+            font-style: italic;
+        }
+
+        .monaco-editor .visual-md-strikethrough {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .monaco-editor .visual-md-inline-code {
+            background-color: rgba(175, 184, 193, 0.2);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+
+        .monaco-editor .visual-md-marker {
+            opacity: 0.35;
+            color: var(--text-muted, #888);
+        }
+
+        .monaco-editor .visual-md-heading {
+            font-weight: 600;
+        }
+
+        .monaco-editor .visual-md-h1 {
+            font-size: 1.8em;
+            color: var(--heading-color, #2c3e50);
+        }
+
+        .monaco-editor .visual-md-h2 {
+            font-size: 1.5em;
+            color: var(--heading-color, #2c3e50);
+        }
+
+        .monaco-editor .visual-md-h3 {
+            font-size: 1.25em;
+            color: var(--heading-color, #2c3e50);
+        }
+
+        .monaco-editor .visual-md-h4,
+        .monaco-editor .visual-md-h5,
+        .monaco-editor .visual-md-h6 {
+            font-size: 1.1em;
+            color: var(--heading-color, #2c3e50);
+        }
+
+        .monaco-editor .visual-md-heading-marker {
+            font-size: 0.8em;
+        }
+
+        .monaco-editor .visual-md-link {
+            color: #0366d6;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .monaco-editor .visual-md-link:hover {
+            color: #0056b3;
+        }
+
+        .monaco-editor .visual-md-link-url {
+            font-size: 0.85em;
+        }
+
+        .monaco-editor .visual-md-code-fence {
+            background-color: rgba(175, 184, 193, 0.15);
+            border-top: 1px solid rgba(175, 184, 193, 0.3);
+            border-bottom: 1px solid rgba(175, 184, 193, 0.3);
+        }
+
+        .monaco-editor .visual-md-code-block-line {
+            background-color: rgba(175, 184, 193, 0.08);
+        }
+
+        .monaco-editor .visual-md-code-lang-badge {
+            background-color: rgba(56, 139, 253, 0.15);
+            color: #0366d6;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .monaco-editor .visual-md-code-glyph {
+            background-color: rgba(56, 139, 253, 0.3);
+        }
+
+        /* Dark mode overrides for visual markdown */
+        body.dark-mode .monaco-editor .visual-md-inline-code {
+            background-color: rgba(110, 118, 129, 0.3);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-h1,
+        body.dark-mode .monaco-editor .visual-md-h2,
+        body.dark-mode .monaco-editor .visual-md-h3,
+        body.dark-mode .monaco-editor .visual-md-h4,
+        body.dark-mode .monaco-editor .visual-md-h5,
+        body.dark-mode .monaco-editor .visual-md-h6 {
+            color: var(--heading-color-dark, #e1e4e8);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-link {
+            color: #58a6ff;
+        }
+
+        body.dark-mode .monaco-editor .visual-md-link:hover {
+            color: #79b8ff;
+        }
+
+        body.dark-mode .monaco-editor .visual-md-code-fence {
+            background-color: rgba(110, 118, 129, 0.2);
+            border-color: rgba(110, 118, 129, 0.4);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-code-block-line {
+            background-color: rgba(110, 118, 129, 0.1);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-code-lang-badge {
+            background-color: rgba(56, 139, 253, 0.2);
+            color: #58a6ff;
+        }
+
+        /* Image preview widget styles */
+        .monaco-image-preview-widget {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            background: var(--bg-secondary, #f6f8fa);
+            border: 1px solid var(--border-color, #d0d7de);
+            border-radius: 6px;
+            margin: 4px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        body.dark-mode .monaco-image-preview-widget {
+            background: var(--bg-secondary-dark, #21262d);
+            border-color: var(--border-color-dark, #30363d);
+        }
+
         /* Folder Name Dialog */
         #folder-name-modal {
             position: fixed;
@@ -2772,6 +2921,7 @@
     <script src="orchestrator/modules/export.js" defer></script>
     <script src="orchestrator/modules/search.js" defer></script>
     <script src="orchestrator/modules/findReplace.js" defer></script>
+    <script src="orchestrator/modules/visualMarkdown.js" defer></script>
     <script src="orchestrator/modules/navigation.js" defer></script>
     <script src="orchestrator/modules/commandPalette.js" defer></script>
     <script src="orchestrator/modules/kanban.js" defer></script>

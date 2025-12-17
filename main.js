@@ -1264,6 +1264,18 @@ function createViewMenuItems() {
           }
         }
       },
+      {
+        label: 'Visual Markdown',
+        accelerator: 'CmdOrCtrl+Shift+V',
+        type: 'checkbox',
+        checked: true,
+        click: (menuItem) => {
+          if (mainWindow) {
+            console.log('[main.js] Toggling Visual Markdown:', menuItem.checked);
+            mainWindow.webContents.send('toggle-visual-markdown', menuItem.checked);
+          }
+        }
+      },
       { type: 'separator' },
       { role: 'resetZoom' },
       { role: 'zoomIn' },

@@ -3186,6 +3186,10 @@ async function initializeMonacoEditor() {
                 addKeyboardShortcutsButton();
                 addAISummarizationAction();
                 addCommandPaletteAction();
+                // Initialize visual markdown enhancements
+                if (typeof initializeVisualMarkdown === 'function') {
+                    initializeVisualMarkdown(editor);
+                }
             }, 100);
             
             const editorContent = editor.getValue() || '';
@@ -9639,6 +9643,13 @@ if (window.electronAPI && window.electronAPI.on) {
         console.log('[renderer.js] Received show-command-palette event');
         if (window.showCommandPalette) {
             window.showCommandPalette();
+        }
+    });
+
+    window.electronAPI.on('toggle-visual-markdown', (enabled) => {
+        console.log('[renderer.js] Received toggle-visual-markdown event:', enabled);
+        if (typeof setVisualMarkdownEnabled === 'function') {
+            setVisualMarkdownEnabled(enabled);
         }
     });
 }
