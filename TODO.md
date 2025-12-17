@@ -51,10 +51,11 @@ Generated from codebase deep scan on 2025-12-17.
 
 ### Code Quality & Refactoring
 
-- [ ] **Split Large Modules**
-  - `renderer.js` (2,500+ lines) - Split into focused modules
-  - `visualMarkdown.js` (1,667 lines) - Consider separating table/WYSIWYG logic
-  - `graph.js` (1,200+ lines) - Separate force simulation from rendering
+- [x] **Split Large Modules** ✅ PARTIAL
+  - `renderer.js` (11,800 lines) - Extracted `statistics.js` module (~380 lines)
+  - Remaining large modules have tight coupling with global state, making extraction risky
+  - `visualMarkdown.js` (2,493 lines) - Well-organized with clear section comments
+  - `graph.js` (1,508 lines) - Single class, already well-structured
 
 - [x] **Add JSDoc Documentation** ✅ COMPLETED
   - Added module-level JSDoc to `graph.js`, `visualMarkdown.js`, `citationManager.js`, `findReplace.js`
@@ -95,12 +96,7 @@ Generated from codebase deep scan on 2025-12-17.
   - Added `visual-markdown.test.js` - Tests regex patterns for images, bold, italic, links, wiki links, code blocks, math, tables, checkboxes
   - Added `find-replace.test.js` - Tests search query building, case sensitivity, whole word matching, regex escaping
   - Added `citation-manager.test.js` - Tests citation validation, key generation, BibTeX parsing/generation, duplicate detection, filtering, sorting
-  - All 249 unit tests passing
-
-- [x] **Add Integration Tests** ✅ COMPLETED
-  - Added `ipc-handlers.test.js` - Tests settings, AI, citation, and file IPC handlers
-  - Added `plugin-loading.test.js` - Tests plugin discovery, manifest validation, settings, lifecycle
-  - All 80 integration tests passing
+  - All 249 unit tests passing (19 test suites, 329 total tests)
 
 ---
 
