@@ -67,6 +67,9 @@ const patterns = {
     // Links: [text](url) or [text](url "title")
     link: /(?<!!)\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
 
+    // Wiki-style links: [[filename]] or [[filename|display text]]
+    wikiLink: /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+
     // Code blocks: ```language ... ```
     codeBlock: /^```(\w*)\s*\n([\s\S]*?)^```\s*$/gm,
 
@@ -348,6 +351,8 @@ function updateLinkDecorations(editor) {
 
     lines.forEach((line, lineIndex) => {
         const lineNumber = lineIndex + 1;
+
+        // Standard markdown links [text](url)
         const linkRegex = new RegExp(patterns.link.source, 'g');
         let match;
 
@@ -366,7 +371,7 @@ function updateLinkDecorations(editor) {
                 range: new monaco.Range(lineNumber, textStart, lineNumber, textEnd),
                 options: {
                     inlineClassName: 'visual-md-link',
-                    hoverMessage: { value: `**Link:** [${linkUrl}](${linkUrl})` },
+                    hoverMessage: { value: `**Link:** [${linkUrl}](${linkUrl})\n\n*Ctrl+Click to open*` },
                     stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
                 }
             });
@@ -387,6 +392,72 @@ function updateLinkDecorations(editor) {
                 }
             });
         }
+
+        // Wiki-style links [[filename]] or [[filename|display]]
+        const wikiLinkRegex = new RegExp(patterns.wikiLink.source, 'g');
+
+        while ((match = wikiLinkRegex.exec(line)) !== null) {
+            const fullMatchStart = match.index + 1;
+            const fullMatchEnd = match.index + match[0].length + 1;
+            const filename = match[1].trim();
+            const displayText = match[2] ? match[2].trim() : filename;
+
+            // The display text position (either custom or filename)
+            // [[filename]] -> display after [[
+            // [[filename|display]] -> display is after |
+            const bracketLen = 2; // [[
+            let textStart, textEnd;
+
+            if (match[2]) {
+                // Has display text: [[filename|display]]
+                textStart = fullMatchStart + bracketLen + filename.length + 1; // +1 for |
+                textEnd = textStart + displayText.length;
+            } else {
+                // No display text: [[filename]]
+                textStart = fullMatchStart + bracketLen;
+                textEnd = textStart + filename.length;
+            }
+
+            // Make the display text look like a link
+            decorations.push({
+                range: new monaco.Range(lineNumber, textStart, lineNumber, textEnd),
+                options: {
+                    inlineClassName: 'visual-md-link visual-md-wiki-link',
+                    hoverMessage: { value: `**Wiki Link:** ${filename}\n\n*Ctrl+Click to open*` },
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                }
+            });
+
+            // Dim the opening brackets [[
+            decorations.push({
+                range: new monaco.Range(lineNumber, fullMatchStart, lineNumber, fullMatchStart + bracketLen),
+                options: {
+                    inlineClassName: 'visual-md-marker',
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                }
+            });
+
+            // Dim the closing brackets ]]
+            decorations.push({
+                range: new monaco.Range(lineNumber, fullMatchEnd - bracketLen, lineNumber, fullMatchEnd),
+                options: {
+                    inlineClassName: 'visual-md-marker',
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                }
+            });
+
+            // If there's a pipe and filename part, dim them too
+            if (match[2]) {
+                // Dim the filename and pipe: [[filename|
+                decorations.push({
+                    range: new monaco.Range(lineNumber, fullMatchStart + bracketLen, lineNumber, textStart),
+                    options: {
+                        inlineClassName: 'visual-md-marker',
+                        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                    }
+                });
+            }
+        }
     });
 
     linkDecorations = editor.deltaDecorations(linkDecorations, decorations);
@@ -406,6 +477,8 @@ function setupLinkClickHandler(editor) {
         if (!model) return;
 
         const line = model.getLineContent(position.lineNumber);
+
+        // Check for standard markdown links [text](url)
         const linkRegex = new RegExp(patterns.link.source, 'g');
         let match;
 
@@ -420,7 +493,55 @@ function setupLinkClickHandler(editor) {
                 return;
             }
         }
+
+        // Check for wiki-style links [[filename]] or [[filename|display]]
+        const wikiLinkRegex = new RegExp(patterns.wikiLink.source, 'g');
+
+        while ((match = wikiLinkRegex.exec(line)) !== null) {
+            const startCol = match.index + 1;
+            const endCol = match.index + match[0].length + 1;
+
+            if (position.column >= startCol && position.column <= endCol) {
+                // match[1] is the filename, match[2] is optional display text
+                const filename = match[1].trim();
+                openWikiLink(filename);
+                e.event.preventDefault();
+                return;
+            }
+        }
     });
+}
+
+/**
+ * Open a wiki-style link [[filename]]
+ * @param {string} filename - The filename (without or with .md extension)
+ */
+function openWikiLink(filename) {
+    console.log('[visualMarkdown] Opening wiki link:', filename);
+
+    // Check if it contains anchor
+    let anchor = null;
+    let targetFile = filename;
+
+    if (filename.includes('#')) {
+        [targetFile, anchor] = filename.split('#');
+        targetFile = targetFile.trim();
+        anchor = anchor.trim();
+    }
+
+    // If it's just an anchor (e.g., [[#heading]]), scroll to it
+    if (!targetFile && anchor) {
+        scrollToHeading(anchor);
+        return;
+    }
+
+    // Ensure .md extension
+    if (!targetFile.endsWith('.md') && !targetFile.endsWith('.markdown')) {
+        targetFile = targetFile + '.md';
+    }
+
+    // Navigate to the file
+    navigateToInternalFile(targetFile, anchor);
 }
 
 function openLink(url) {
@@ -432,14 +553,184 @@ function openLink(url) {
         } else {
             window.open(url, '_blank');
         }
-    } else if (url.endsWith('.md')) {
-        // Internal markdown link - could navigate to file
-        console.log('Internal link navigation:', url);
-        // TODO: Implement internal file navigation
+    } else if (url.endsWith('.md') || url.endsWith('.markdown')) {
+        // Internal markdown link - navigate to file
+        navigateToInternalFile(url);
     } else if (url.startsWith('#')) {
         // Anchor link - scroll to heading
         const headingId = url.substring(1);
         scrollToHeading(headingId);
+    } else if (url.includes('#')) {
+        // File link with anchor (e.g., "other-file.md#heading")
+        const [filePart, anchor] = url.split('#');
+        if (filePart.endsWith('.md') || filePart.endsWith('.markdown')) {
+            navigateToInternalFile(filePart, anchor);
+        }
+    } else if (!url.includes(':') && !url.startsWith('/')) {
+        // Relative link without extension - try adding .md
+        navigateToInternalFile(url + '.md');
+    }
+}
+
+/**
+ * Navigate to an internal markdown file
+ * Resolves relative paths based on the current file's directory
+ * @param {string} relativePath - The relative path to the file
+ * @param {string} anchor - Optional anchor to scroll to after opening
+ */
+async function navigateToInternalFile(relativePath, anchor = null) {
+    console.log('[visualMarkdown] Navigating to internal file:', relativePath, anchor ? `#${anchor}` : '');
+
+    if (!window.electronAPI || !window.electronAPI.invoke) {
+        console.warn('[visualMarkdown] Electron API not available for internal file navigation');
+        return;
+    }
+
+    try {
+        // Get the current file's directory to resolve relative paths
+        let basePath = '';
+        if (window.currentFilePath) {
+            // Extract directory from current file path
+            const lastSlash = window.currentFilePath.lastIndexOf('/');
+            if (lastSlash !== -1) {
+                basePath = window.currentFilePath.substring(0, lastSlash);
+            }
+        } else {
+            // Fall back to working directory
+            const workingDir = await window.electronAPI.invoke('get-working-directory');
+            basePath = workingDir;
+        }
+
+        // Resolve the full path
+        let fullPath;
+        if (relativePath.startsWith('/')) {
+            // Absolute path from workspace root
+            const workingDir = await window.electronAPI.invoke('get-working-directory');
+            fullPath = workingDir + relativePath;
+        } else if (relativePath.startsWith('./')) {
+            // Explicit relative path
+            fullPath = basePath + '/' + relativePath.substring(2);
+        } else if (relativePath.startsWith('../')) {
+            // Parent directory navigation
+            fullPath = resolveRelativePath(basePath, relativePath);
+        } else {
+            // Simple relative path
+            fullPath = basePath + '/' + relativePath;
+        }
+
+        // Normalize the path (remove double slashes, etc.)
+        fullPath = normalizePath(fullPath);
+
+        console.log('[visualMarkdown] Resolved path:', fullPath);
+
+        // Check if file exists first
+        const fileCheck = await window.electronAPI.invoke('read-file-content', fullPath);
+        if (!fileCheck.success) {
+            console.warn('[visualMarkdown] File not found:', fullPath);
+            // Try to find the file in workspace
+            const foundPath = await findFileInWorkspace(relativePath);
+            if (foundPath) {
+                fullPath = foundPath;
+            } else {
+                showFileNotFoundToast(relativePath);
+                return;
+            }
+        }
+
+        // Open the file
+        await window.electronAPI.invoke('open-file', fullPath);
+
+        // If there's an anchor, scroll to it after the file loads
+        if (anchor) {
+            setTimeout(() => {
+                scrollToHeading(anchor);
+            }, 300);
+        }
+    } catch (error) {
+        console.error('[visualMarkdown] Error navigating to internal file:', error);
+    }
+}
+
+/**
+ * Resolve a relative path with parent directory references
+ */
+function resolveRelativePath(basePath, relativePath) {
+    const baseParts = basePath.split('/').filter(p => p);
+    const relParts = relativePath.split('/');
+
+    for (const part of relParts) {
+        if (part === '..') {
+            baseParts.pop();
+        } else if (part !== '.' && part !== '') {
+            baseParts.push(part);
+        }
+    }
+
+    return '/' + baseParts.join('/');
+}
+
+/**
+ * Normalize a file path
+ */
+function normalizePath(path) {
+    return path
+        .replace(/\/+/g, '/')  // Replace multiple slashes with single
+        .replace(/\/\.\//g, '/');  // Remove ./ references
+}
+
+/**
+ * Try to find a file in the workspace by name
+ */
+async function findFileInWorkspace(filename) {
+    try {
+        // Strip any path components, keep just the filename
+        const baseName = filename.split('/').pop();
+
+        // Get all markdown files in workspace
+        const result = await window.electronAPI.invoke('get-markdown-files');
+        if (!result.success || !result.files) return null;
+
+        // Find matching file
+        for (const filePath of result.files) {
+            if (filePath.endsWith('/' + baseName) || filePath.endsWith('\\' + baseName)) {
+                return filePath;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.error('[visualMarkdown] Error finding file in workspace:', error);
+        return null;
+    }
+}
+
+/**
+ * Show a toast notification when file is not found
+ */
+function showFileNotFoundToast(filename) {
+    // Check if there's a toast system available
+    if (window.showToast) {
+        window.showToast(`File not found: ${filename}`, 'warning');
+    } else {
+        // Create a simple toast notification
+        const toast = document.createElement('div');
+        toast.className = 'visual-md-toast';
+        toast.textContent = `File not found: ${filename}`;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ff9800;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            animation: toast-fade 3s ease-in-out;
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
     }
 }
 

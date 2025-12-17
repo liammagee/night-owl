@@ -8,21 +8,27 @@ Generated from codebase deep scan on 2025-12-17.
 
 ### Incomplete Features
 
-- [ ] **Graph Heading Navigation** - [graph.js:511](orchestrator/modules/graph.js#L511)
-  - TODO comment: "Add heading click navigation"
-  - Currently nodes are rendered but clicking doesn't navigate to the heading in the editor
+- [x] **Graph Heading Navigation** - [graph.js:511](orchestrator/modules/graph.js#L511) ✅ COMPLETED
+  - Click on heading nodes navigates to the heading in the editor
+  - Added `navigateToHeading()`, `highlightLine()` methods
+  - Includes visual feedback with animated highlight
 
-- [ ] **Internal File Navigation** - [visualMarkdown.js:438](orchestrator/modules/visualMarkdown.js#L438)
-  - TODO comment: "Handle internal file navigation for wiki-style links"
-  - Wiki-style links `[[filename]]` are detected but don't open the referenced file
+- [x] **Internal File Navigation** - [visualMarkdown.js:438](orchestrator/modules/visualMarkdown.js#L438) ✅ COMPLETED
+  - Wiki-style links `[[filename]]` now open referenced files (Ctrl+Click)
+  - Added support for `[[filename|display text]]` syntax
+  - Handles relative paths, anchors, and workspace search fallback
+  - Added visual decorations for wiki links (purple highlight)
 
-- [ ] **Citation Batch Operations** - Not implemented
-  - Bulk operations for citations (delete multiple, export selected, merge duplicates)
-  - Would improve workflow for academic document editing
+- [x] **Citation Batch Operations** ✅ COMPLETED
+  - Export selected citations (was showing "not implemented" message)
+  - Batch assign project to selected citations
+  - Find and merge duplicate citations (DOI and title similarity matching)
+  - Added UI buttons for new operations
 
-- [ ] **Find & Replace Whole Word Search** - [findReplace.js:117](orchestrator/modules/findReplace.js#L117)
-  - `wordSeparators` parameter is set to `null` even when whole word is checked
-  - Should pass proper word separators for whole word matching
+- [x] **Find & Replace Whole Word Search** - [findReplace.js:117](orchestrator/modules/findReplace.js#L117) ✅ COMPLETED
+  - Fixed `isWholeWord ? null : null` bug that did nothing
+  - Now properly uses `USUAL_WORD_SEPARATORS` for whole word matching
+  - Correctly enables regex mode when word boundaries are needed
 
 ### Bug Fixes
 

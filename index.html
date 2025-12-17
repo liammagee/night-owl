@@ -692,6 +692,22 @@
             border-color: rgba(255, 87, 34, 0.6);
         }
 
+        /* Graph heading navigation highlight */
+        .monaco-editor .graph-heading-highlight {
+            background-color: rgba(76, 175, 80, 0.3);
+            border-left: 3px solid #4CAF50;
+            animation: graph-heading-flash 1.5s ease-out;
+        }
+
+        @keyframes graph-heading-flash {
+            0% { background-color: rgba(76, 175, 80, 0.5); }
+            100% { background-color: rgba(76, 175, 80, 0.1); }
+        }
+
+        body.dark-mode .monaco-editor .graph-heading-highlight {
+            background-color: rgba(76, 175, 80, 0.25);
+        }
+
         /* Visual Markdown Editor Styles */
         .monaco-editor .visual-md-bold {
             font-weight: 700;
@@ -761,6 +777,28 @@
 
         .monaco-editor .visual-md-link-url {
             font-size: 0.85em;
+        }
+
+        .monaco-editor .visual-md-wiki-link {
+            color: #6f42c1;
+            background-color: rgba(111, 66, 193, 0.08);
+            border-radius: 2px;
+            padding: 0 2px;
+        }
+
+        .monaco-editor .visual-md-wiki-link:hover {
+            color: #5a32a3;
+            background-color: rgba(111, 66, 193, 0.15);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-wiki-link {
+            color: #a371f7;
+            background-color: rgba(163, 113, 247, 0.1);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-wiki-link:hover {
+            color: #c9a0ff;
+            background-color: rgba(163, 113, 247, 0.2);
         }
 
         .monaco-editor .visual-md-code-fence {
@@ -2339,7 +2377,7 @@
                         </label>
                     </div>
                     <small style="color: #666; margin-top: 4px; display: block;">
-                        Note: "Selected citations" feature coming soon. Currently exports all or filtered citations.
+                        Tip: Use checkboxes in the citation list to select specific citations for export.
                     </small>
                 </div>
                 
@@ -2488,6 +2526,12 @@
                             </button>
                             <button id="delete-selected-citations-btn" class="btn btn-error citation-btn" title="Delete Selected Citations">
                                 <span class="btn-icon">🗑️</span><span class="btn-label">Delete Selected</span>
+                            </button>
+                            <button id="assign-project-btn" class="btn citation-btn" title="Assign Selected to Project">
+                                <span class="btn-icon">📁</span><span class="btn-label">Assign Project</span>
+                            </button>
+                            <button id="find-duplicates-btn" class="btn citation-btn" title="Find Duplicate Citations">
+                                <span class="btn-icon">🔍</span><span class="btn-label">Find Duplicates</span>
                             </button>
                             <!-- Zotero Actions -->
                             <button id="export-to-zotero-btn" class="btn btn-primary citation-btn" title="Export Selected to Zotero">

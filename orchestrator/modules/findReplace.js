@@ -109,13 +109,28 @@ function performSearch() {
 
     // Monaco findMatches signature:
     // findMatches(searchString, searchOnlyEditableRange, isRegex, matchCase, wordSeparators, captureMatches)
+    //
+    // For whole word search:
+    // - If regex mode: word boundaries (\b) are already in the pattern from buildSearchQuery
+    // - If non-regex mode: use Monaco's wordSeparators parameter
+    //   When wordSeparators is a non-null string, Monaco treats it as the word separator chars
+    //   Using USUAL_WORD_SEPARATORS enables whole word matching
+
+    // Default word separators used by Monaco (same as VSCode)
+    const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
+
+    // Determine if we need to use regex mode for the search
+    // When whole word is enabled without regex mode, we've added \b boundaries in buildSearchQuery
+    // So we need to tell Monaco to interpret the pattern as a regex
+    const useRegexForSearch = isRegexMode || isWholeWord;
+
     const matches = model.findMatches(
-        regex.source,           // searchString (pattern)
-        false,                  // searchOnlyEditableRange
-        isRegexMode,            // isRegex
-        isCaseSensitive,        // matchCase
-        isWholeWord ? null : null, // wordSeparators (null = use default)
-        true                    // captureMatches
+        regex.source,                                    // searchString (pattern)
+        false,                                           // searchOnlyEditableRange
+        useRegexForSearch,                               // isRegex - true when using word boundaries
+        isCaseSensitive,                                 // matchCase
+        isWholeWord && !isRegexMode ? USUAL_WORD_SEPARATORS : null, // wordSeparators
+        true                                             // captureMatches
     );
 
     currentSearchResults = matches;

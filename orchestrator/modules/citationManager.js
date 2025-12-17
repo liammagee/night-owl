@@ -179,6 +179,26 @@ class CitationManager {
                 this.deleteSelectedCitations();
             });
         }
+
+        const assignProjectBtn = document.getElementById('assign-project-btn');
+        const findDuplicatesBtn = document.getElementById('find-duplicates-btn');
+
+        if (assignProjectBtn) {
+            assignProjectBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Assign Project button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.assignProjectToSelected();
+            });
+        }
+        if (findDuplicatesBtn) {
+            findDuplicatesBtn.addEventListener('click', (e) => {
+                console.log('[Citation Manager] Find Duplicates button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                this.findDuplicates();
+            });
+        }
         if (exportToZoteroBtn) {
             exportToZoteroBtn.addEventListener('click', (e) => {
                 console.log('[Citation Manager] Export to Zotero button clicked!');
@@ -1877,6 +1897,335 @@ class CitationManager {
         }
     }
 
+    // Batch assign project to selected citations
+    async assignProjectToSelected() {
+        try {
+            const selectedIds = this.getSelectedCitationIds();
+
+            if (selectedIds.length === 0) {
+                this.showError('Please select citations to assign to a project');
+                return;
+            }
+
+            // Show project selection dialog
+            const projectName = await this.promptForProject();
+            if (!projectName) return; // User cancelled
+
+            this.showLoading(`Assigning ${selectedIds.length} citations to project "${projectName}"...`);
+
+            // Update each citation's project
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const id of selectedIds) {
+                try {
+                    // Get current citation data
+                    const citation = this.citations.find(c => c.id === id);
+                    if (citation) {
+                        const result = await window.electronAPI.invoke('citations-update', id, {
+                            ...citation,
+                            project: projectName
+                        });
+                        if (result.success) {
+                            successCount++;
+                        } else {
+                            errorCount++;
+                        }
+                    }
+                } catch (error) {
+                    errorCount++;
+                }
+            }
+
+            this.hideLoading();
+
+            if (errorCount === 0) {
+                this.showSuccess(`Successfully assigned ${successCount} citations to "${projectName}"`);
+            } else {
+                this.showSuccess(`Assigned ${successCount} citations, ${errorCount} failed`);
+            }
+
+            // Refresh the list
+            await this.refreshCitationsWithSync(true);
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('[Citation Manager] Error assigning project:', error);
+            this.showError('Failed to assign project: ' + error.message);
+        }
+    }
+
+    // Prompt user to select or enter a project name
+    async promptForProject() {
+        return new Promise((resolve) => {
+            // Build options from existing projects
+            let options = '<option value="">-- Select or type a project --</option>';
+            this.projects.forEach(project => {
+                options += `<option value="${this.escapeHtml(project)}">${this.escapeHtml(project)}</option>`;
+            });
+
+            const dialogHtml = `
+                <div id="project-select-dialog" class="modal" style="display: flex;">
+                    <div class="modal-dialog" style="width: 400px;">
+                        <div class="modal-header">
+                            <h3 class="modal-title">Assign to Project</h3>
+                            <button type="button" class="modal-close" id="project-dialog-close">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label>Select Existing Project</label>
+                                <select id="project-select-dropdown" class="form-control">
+                                    ${options}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Or Create New Project</label>
+                                <input type="text" id="project-new-name" class="form-control" placeholder="Enter new project name">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn" id="project-dialog-cancel">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="project-dialog-confirm">Assign</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Add dialog to DOM
+            const container = document.createElement('div');
+            container.innerHTML = dialogHtml;
+            document.body.appendChild(container);
+
+            const dialog = document.getElementById('project-select-dialog');
+            const dropdown = document.getElementById('project-select-dropdown');
+            const newNameInput = document.getElementById('project-new-name');
+
+            // Event handlers
+            const cleanup = () => {
+                container.remove();
+            };
+
+            document.getElementById('project-dialog-close').addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            document.getElementById('project-dialog-cancel').addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            document.getElementById('project-dialog-confirm').addEventListener('click', () => {
+                const selectedProject = dropdown.value;
+                const newProject = newNameInput.value.trim();
+                const projectName = newProject || selectedProject;
+
+                cleanup();
+                resolve(projectName || null);
+            });
+
+            // Focus on new name input
+            newNameInput.focus();
+        });
+    }
+
+    // Find potential duplicate citations
+    async findDuplicates() {
+        try {
+            this.showLoading('Scanning for duplicate citations...');
+
+            // Get all citations
+            const result = await window.electronAPI.invoke('citations-get', {});
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+
+            const citations = result.citations;
+            const duplicates = [];
+            const checked = new Set();
+
+            // Check for duplicates based on title similarity or DOI match
+            for (let i = 0; i < citations.length; i++) {
+                if (checked.has(i)) continue;
+
+                const citation1 = citations[i];
+                const group = [citation1];
+
+                for (let j = i + 1; j < citations.length; j++) {
+                    if (checked.has(j)) continue;
+
+                    const citation2 = citations[j];
+
+                    // Check for DOI match (most reliable)
+                    if (citation1.doi && citation2.doi &&
+                        citation1.doi.toLowerCase() === citation2.doi.toLowerCase()) {
+                        group.push(citation2);
+                        checked.add(j);
+                        continue;
+                    }
+
+                    // Check for title similarity (normalized comparison)
+                    if (citation1.title && citation2.title) {
+                        const title1 = this.normalizeTitle(citation1.title);
+                        const title2 = this.normalizeTitle(citation2.title);
+
+                        if (title1 === title2 ||
+                            this.calculateSimilarity(title1, title2) > 0.85) {
+                            group.push(citation2);
+                            checked.add(j);
+                        }
+                    }
+                }
+
+                if (group.length > 1) {
+                    duplicates.push(group);
+                    checked.add(i);
+                }
+            }
+
+            this.hideLoading();
+
+            if (duplicates.length === 0) {
+                this.showSuccess('No duplicate citations found!');
+                return;
+            }
+
+            // Show duplicates in a modal
+            this.showDuplicatesModal(duplicates);
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('[Citation Manager] Error finding duplicates:', error);
+            this.showError('Failed to find duplicates: ' + error.message);
+        }
+    }
+
+    // Normalize title for comparison
+    normalizeTitle(title) {
+        return title
+            .toLowerCase()
+            .replace(/[^\w\s]/g, '') // Remove punctuation
+            .replace(/\s+/g, ' ')    // Normalize whitespace
+            .trim();
+    }
+
+    // Calculate simple similarity between two strings (Jaccard-like)
+    calculateSimilarity(str1, str2) {
+        const words1 = new Set(str1.split(' '));
+        const words2 = new Set(str2.split(' '));
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        const union = new Set([...words1, ...words2]);
+        return intersection.size / union.size;
+    }
+
+    // Show modal with duplicate citation groups
+    showDuplicatesModal(duplicateGroups) {
+        let html = `
+            <div id="duplicates-modal" class="modal" style="display: flex;">
+                <div class="modal-dialog" style="width: 700px; max-height: 80vh;">
+                    <div class="modal-header">
+                        <h3 class="modal-title">Potential Duplicate Citations (${duplicateGroups.length} groups)</h3>
+                        <button type="button" class="modal-close" onclick="document.getElementById('duplicates-modal').remove()">×</button>
+                    </div>
+                    <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        `;
+
+        duplicateGroups.forEach((group, groupIndex) => {
+            html += `
+                <div class="duplicate-group" style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0; color: #333;">Group ${groupIndex + 1} (${group.length} citations)</h4>
+            `;
+
+            group.forEach((citation, citIndex) => {
+                const isFirst = citIndex === 0;
+                html += `
+                    <div class="duplicate-item" style="padding: 10px; margin: 5px 0; background: ${isFirst ? '#e8f5e9' : '#fff'}; border: 1px solid #ddd; border-radius: 4px;">
+                        <label style="display: flex; align-items: flex-start; gap: 10px;">
+                            <input type="radio" name="keep-${groupIndex}" value="${citation.id}" ${isFirst ? 'checked' : ''}>
+                            <div>
+                                <strong>${this.escapeHtml(citation.title || 'Untitled')}</strong>
+                                <br><small style="color: #666;">
+                                    ${citation.authors || 'Unknown authors'} (${citation.year || 'n.d.'})
+                                    ${citation.doi ? `<br>DOI: ${citation.doi}` : ''}
+                                    <br>ID: ${citation.id} | Type: ${citation.type || 'unknown'}
+                                </small>
+                            </div>
+                        </label>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+        });
+
+        html += `
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn" onclick="document.getElementById('duplicates-modal').remove()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="citationManager.mergeDuplicates()">Keep Selected, Delete Others</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Store duplicate groups for later use
+        this.pendingDuplicateGroups = duplicateGroups;
+
+        // Add to DOM
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        document.body.appendChild(container.firstElementChild);
+    }
+
+    // Merge duplicates (keep selected, delete others)
+    async mergeDuplicates() {
+        if (!this.pendingDuplicateGroups) return;
+
+        const toDelete = [];
+
+        // For each group, find which ones to delete (not selected)
+        this.pendingDuplicateGroups.forEach((group, groupIndex) => {
+            const selectedRadio = document.querySelector(`input[name="keep-${groupIndex}"]:checked`);
+            const keepId = selectedRadio ? parseInt(selectedRadio.value) : group[0].id;
+
+            group.forEach(citation => {
+                if (citation.id !== keepId) {
+                    toDelete.push(citation.id);
+                }
+            });
+        });
+
+        if (toDelete.length === 0) {
+            document.getElementById('duplicates-modal').remove();
+            return;
+        }
+
+        // Confirm deletion
+        if (!confirm(`This will delete ${toDelete.length} duplicate citation${toDelete.length > 1 ? 's' : ''}. Continue?`)) {
+            return;
+        }
+
+        document.getElementById('duplicates-modal').remove();
+        this.showLoading(`Deleting ${toDelete.length} duplicate citations...`);
+
+        let successCount = 0;
+        for (const id of toDelete) {
+            try {
+                const result = await window.electronAPI.invoke('citations-delete', id);
+                if (result.success) successCount++;
+            } catch (error) {
+                console.error(`[Citation Manager] Error deleting citation ${id}:`, error);
+            }
+        }
+
+        this.hideLoading();
+        this.showSuccess(`Deleted ${successCount} duplicate citations`);
+        this.pendingDuplicateGroups = null;
+
+        // Refresh the list
+        await this.refreshCitationsWithSync(true);
+    }
+
     // Sync with Zotero
     async syncWithZotero() {
         try {
@@ -1941,7 +2290,7 @@ class CitationManager {
         try {
             const format = document.getElementById('export-format').value;
             const selection = document.querySelector('input[name="export-selection"]:checked').value;
-            
+
             // Get citation IDs based on selection
             let citationIds = [];
             if (selection === 'all') {
@@ -1951,10 +2300,13 @@ class CitationManager {
                 }
             } else if (selection === 'filtered') {
                 citationIds = this.citations.map(c => c.id);
-            } else {
-                // Selected citations - not implemented yet
-                this.showError('Selected citations export not yet implemented');
-                return;
+            } else if (selection === 'selected') {
+                // Export only selected citations (checked checkboxes)
+                citationIds = this.getSelectedCitationIds();
+                if (citationIds.length === 0) {
+                    this.showError('No citations selected. Please select citations using the checkboxes.');
+                    return;
+                }
             }
 
             if (citationIds.length === 0) {
@@ -1990,7 +2342,7 @@ class CitationManager {
             const format = document.getElementById('export-format').value;
             const selection = document.querySelector('input[name="export-selection"]:checked').value;
             const destination = document.querySelector('input[name="export-destination"]:checked').value;
-            
+
             // Get citation IDs based on selection
             let citationIds = [];
             if (selection === 'all') {
@@ -2000,10 +2352,13 @@ class CitationManager {
                 }
             } else if (selection === 'filtered') {
                 citationIds = this.citations.map(c => c.id);
-            } else {
-                // Selected citations - not implemented yet
-                this.showError('Selected citations export not yet implemented');
-                return;
+            } else if (selection === 'selected') {
+                // Export only selected citations (checked checkboxes)
+                citationIds = this.getSelectedCitationIds();
+                if (citationIds.length === 0) {
+                    this.showError('No citations selected. Please select citations using the checkboxes.');
+                    return;
+                }
             }
 
             if (citationIds.length === 0) {

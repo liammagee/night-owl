@@ -499,7 +499,7 @@ class GraphView {
 
     handleNodeClick(event, node) {
         event.stopPropagation();
-        
+
         if (node.type === 'file') {
             // Open the file in editor
             console.log(`[GraphView] Opening file: ${node.filePath}`);
@@ -507,9 +507,99 @@ class GraphView {
         } else if (node.type === 'heading') {
             // Open file and scroll to heading
             console.log(`[GraphView] Opening file at heading: ${node.filePath} - ${node.name}`);
-            window.electronAPI.invoke('open-file', node.filePath);
-            // TODO: Add heading navigation
+            window.electronAPI.invoke('open-file', node.filePath).then(() => {
+                // Wait for file to load, then navigate to heading
+                setTimeout(() => {
+                    this.navigateToHeading(node.name, node.level);
+                }, 300);
+            });
+        } else if (node.type === 'tag') {
+            // Search for documents with this tag
+            console.log(`[GraphView] Clicked tag: ${node.name}`);
+            // Could implement tag search in the future
         }
+    }
+
+    /**
+     * Navigate to a heading in the currently open document
+     * @param {string} headingText - The heading text to find
+     * @param {number} level - The heading level (1-6)
+     */
+    navigateToHeading(headingText, level) {
+        if (!window.editor || !window.editor.getModel()) {
+            console.warn('[GraphView] Editor not available for heading navigation');
+            return;
+        }
+
+        const model = window.editor.getModel();
+        const content = model.getValue();
+        const lines = content.split('\n');
+
+        // Build the heading pattern to search for
+        const hashPrefix = '#'.repeat(level);
+        const headingPattern = new RegExp(`^${hashPrefix}\\s+${this.escapeRegex(headingText)}\\s*$`);
+
+        // Find the line with the matching heading
+        for (let i = 0; i < lines.length; i++) {
+            if (headingPattern.test(lines[i])) {
+                const lineNumber = i + 1; // Monaco uses 1-based line numbers
+
+                console.log(`[GraphView] Found heading "${headingText}" at line ${lineNumber}`);
+
+                // Set cursor position and reveal the line
+                window.editor.setPosition({ lineNumber: lineNumber, column: 1 });
+                window.editor.revealLineInCenter(lineNumber);
+                window.editor.focus();
+
+                // Briefly highlight the heading line
+                this.highlightLine(lineNumber);
+                return;
+            }
+        }
+
+        // Fallback: try a more flexible search (in case heading text was modified)
+        const flexiblePattern = new RegExp(`^#{1,6}\\s+.*${this.escapeRegex(headingText.substring(0, 20))}`, 'i');
+        for (let i = 0; i < lines.length; i++) {
+            if (flexiblePattern.test(lines[i])) {
+                const lineNumber = i + 1;
+                console.log(`[GraphView] Found heading (flexible match) at line ${lineNumber}`);
+                window.editor.setPosition({ lineNumber: lineNumber, column: 1 });
+                window.editor.revealLineInCenter(lineNumber);
+                window.editor.focus();
+                this.highlightLine(lineNumber);
+                return;
+            }
+        }
+
+        console.warn(`[GraphView] Could not find heading "${headingText}" in document`);
+    }
+
+    /**
+     * Escape special regex characters in a string
+     */
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
+     * Briefly highlight a line in the editor
+     */
+    highlightLine(lineNumber) {
+        if (!window.editor) return;
+
+        const decorations = window.editor.deltaDecorations([], [{
+            range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+            options: {
+                isWholeLine: true,
+                className: 'graph-heading-highlight',
+                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+            }
+        }]);
+
+        // Remove highlight after 1.5 seconds
+        setTimeout(() => {
+            window.editor.deltaDecorations(decorations, []);
+        }, 1500);
     }
 
     handleNodeHover(event, node, isHover) {
