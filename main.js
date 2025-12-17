@@ -1,4 +1,13 @@
 // main.js - NightOwl Application
+
+// IMPORTANT: Unset ELECTRON_RUN_AS_NODE before anything else
+// This prevents conflicts when launched from environments like Claude Code
+// that set this variable, which would cause Electron to run as Node.js instead of GUI
+if (process.env.ELECTRON_RUN_AS_NODE) {
+  delete process.env.ELECTRON_RUN_AS_NODE;
+  console.log('[main.js] Cleared ELECTRON_RUN_AS_NODE environment variable');
+}
+
 console.log('--- main.js execution START ---');
 require('dotenv').config(); // Load .env file
 const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');

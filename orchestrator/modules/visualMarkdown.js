@@ -73,9 +73,48 @@ const config = {
 };
 
 // --- Environment Detection ---
-// Detect if running in Electron or browser
-const isElectron = !!(window.electronAPI && window.electronAPI.isElectron);
+// Detect if running in Electron or browser using multiple methods for reliability
+// This handles cases where window.electronAPI may not be available yet or detection fails
+
+/**
+ * Detect if running in Electron environment
+ * Uses multiple detection methods for reliability:
+ * 1. Check window.electronAPI.isElectron (preload script sets this)
+ * 2. Check for Electron-specific process object
+ * 3. Check navigator.userAgent for Electron
+ * 4. Check for Electron-specific window properties
+ * @returns {boolean} True if running in Electron
+ */
+function detectElectron() {
+    // Method 1: Check preload-exposed API (most reliable if available)
+    if (window.electronAPI && window.electronAPI.isElectron === true) {
+        return true;
+    }
+
+    // Method 2: Check for process.versions.electron (works in Node integration contexts)
+    if (typeof process !== 'undefined' && process.versions && process.versions.electron) {
+        return true;
+    }
+
+    // Method 3: Check userAgent for Electron
+    if (typeof navigator !== 'undefined' && navigator.userAgent &&
+        navigator.userAgent.toLowerCase().includes('electron')) {
+        return true;
+    }
+
+    // Method 4: Check for Electron-specific window properties
+    if (typeof window !== 'undefined' && window.process && window.process.type) {
+        return true;
+    }
+
+    return false;
+}
+
+const isElectron = detectElectron();
 const isBrowserMode = !isElectron;
+
+// Log detection result for debugging
+console.log(`[visualMarkdown] Environment detection: isElectron=${isElectron}, isBrowserMode=${isBrowserMode}`);
 
 // In browser mode, visual markdown is always disabled (read-only viewing)
 if (isBrowserMode) {

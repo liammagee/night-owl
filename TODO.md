@@ -32,13 +32,18 @@ Generated from codebase deep scan on 2025-12-17.
 
 ### Bug Fixes
 
-- [ ] **ELECTRON_RUN_AS_NODE Conflict**
-  - App crashes when launched from Claude Code due to environment variable
-  - Need to explicitly unset this variable in startup scripts
+- [x] **ELECTRON_RUN_AS_NODE Conflict** ✅ COMPLETED
+  - App crashed when launched from Claude Code due to environment variable
+  - Added code at top of `main.js` to delete `ELECTRON_RUN_AS_NODE` before Electron loads
+  - Prevents Electron from running as Node.js instead of GUI app
 
-- [ ] **Visual Markdown Browser Detection**
-  - Currently checks `window.electronAPI.isElectron` which may not be reliable in all contexts
-  - Consider more robust environment detection
+- [x] **Visual Markdown Browser Detection** ✅ COMPLETED
+  - Added `detectElectron()` function with 4 detection methods:
+    1. Check `window.electronAPI.isElectron` (preload script)
+    2. Check `process.versions.electron` (Node integration)
+    3. Check `navigator.userAgent` for "electron"
+    4. Check `window.process.type` (Electron-specific)
+  - Added debug logging for environment detection results
 
 ---
 
