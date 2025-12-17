@@ -892,6 +892,84 @@
             border-color: var(--border-color-dark, #30363d);
         }
 
+        /* Table preview widget styles */
+        .visual-md-table-widget {
+            margin: 8px 0 8px 24px;
+            max-width: calc(100% - 48px);
+            overflow-x: auto;
+        }
+
+        .visual-md-table {
+            border-collapse: collapse;
+            font-size: 13px;
+            min-width: 200px;
+            background: var(--bg-primary, #fff);
+            border: 1px solid var(--border-color, #e1e4e8);
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .visual-md-table th {
+            padding: 10px 14px;
+            background: var(--bg-secondary, #f6f8fa);
+            border-bottom: 2px solid var(--border-color, #e1e4e8);
+            font-weight: 600;
+            color: var(--text-primary, #24292e);
+            white-space: nowrap;
+        }
+
+        .visual-md-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-color, #e1e4e8);
+            color: var(--text-primary, #24292e);
+        }
+
+        .visual-md-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .visual-md-table tr:hover td {
+            background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+        }
+
+        .visual-md-table th:hover,
+        .visual-md-table td:hover {
+            outline: 2px solid var(--accent-color, #0366d6);
+            outline-offset: -2px;
+        }
+
+        /* Dim source table in editor */
+        .monaco-editor .visual-md-table-source {
+            opacity: 0.5;
+            background-color: rgba(175, 184, 193, 0.08);
+        }
+
+        /* Dark mode table styles */
+        body.dark-mode .visual-md-table {
+            background: var(--bg-primary-dark, #0d1117);
+            border-color: var(--border-color-dark, #30363d);
+        }
+
+        body.dark-mode .visual-md-table th {
+            background: var(--bg-secondary-dark, #161b22);
+            border-color: var(--border-color-dark, #30363d);
+            color: var(--text-primary-dark, #c9d1d9);
+        }
+
+        body.dark-mode .visual-md-table td {
+            border-color: var(--border-color-dark, #21262d);
+            color: var(--text-primary-dark, #c9d1d9);
+        }
+
+        body.dark-mode .visual-md-table tr:hover td {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        body.dark-mode .monaco-editor .visual-md-table-source {
+            background-color: rgba(110, 118, 129, 0.08);
+        }
+
         /* Folder Name Dialog */
         #folder-name-modal {
             position: fixed;

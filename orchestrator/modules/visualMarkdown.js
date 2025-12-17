@@ -15,6 +15,9 @@ let collapsedCodeBlocks = new Set(); // Set of block IDs that are collapsed
 let hoverWidget = null;
 let updateTimeout = null;
 let codeBlockRanges = []; // Track code block ranges for collapse functionality
+let tableWidgets = []; // Table preview widgets
+let tableDecorations = []; // Table decorations
+let tableRanges = []; // Track table ranges for editing
 
 // --- Configuration ---
 const config = {
@@ -23,6 +26,7 @@ const config = {
     showFormattingDecorations: true,
     showLinkDecorations: true,
     showCodeBlockDecorations: true,
+    showTablePreviews: true, // Show formatted table previews
     collapsibleCodeBlocks: true, // Enable collapse/expand for code blocks
     autoCollapseCodeBlocks: false, // Auto-collapse code blocks on load
     codeBlockCollapsedLines: 3, // Number of lines to show when collapsed
@@ -66,7 +70,13 @@ const patterns = {
     codeBlock: /^```(\w*)\s*\n([\s\S]*?)^```\s*$/gm,
 
     // Headings for reference
-    heading: /^(#{1,6})\s+(.+)$/gm
+    heading: /^(#{1,6})\s+(.+)$/gm,
+
+    // Table row: | cell | cell | cell |
+    tableRow: /^\|(.+)\|$/,
+
+    // Table separator: |---|---|---|
+    tableSeparator: /^\|[-:\s|]+\|$/
 };
 
 // --- Image Preview Functions ---
@@ -718,6 +728,346 @@ function expandAllCodeBlocks(editor) {
     updateCodeBlockDecorations(editor);
 }
 
+// --- Table Preview Functions ---
+
+// Parse a markdown table from an array of lines
+function parseMarkdownTable(lines) {
+    if (lines.length < 2) return null;
+
+    const table = {
+        headers: [],
+        alignments: [],
+        rows: [],
+        isValid: false
+    };
+
+    // Parse header row
+    const headerMatch = lines[0].match(patterns.tableRow);
+    if (!headerMatch) return null;
+
+    table.headers = headerMatch[1].split('|').map(cell => cell.trim());
+
+    // Parse separator row (second line)
+    if (lines.length < 2 || !patterns.tableSeparator.test(lines[1])) {
+        return null;
+    }
+
+    // Extract alignments from separator
+    const separatorCells = lines[1].replace(/^\||\|$/g, '').split('|');
+    table.alignments = separatorCells.map(cell => {
+        const trimmed = cell.trim();
+        if (trimmed.startsWith(':') && trimmed.endsWith(':')) return 'center';
+        if (trimmed.endsWith(':')) return 'right';
+        return 'left';
+    });
+
+    // Parse data rows
+    for (let i = 2; i < lines.length; i++) {
+        const rowMatch = lines[i].match(patterns.tableRow);
+        if (rowMatch) {
+            table.rows.push(rowMatch[1].split('|').map(cell => cell.trim()));
+        }
+    }
+
+    table.isValid = true;
+    return table;
+}
+
+// Find all tables in the document
+function findTables(lines) {
+    const tables = [];
+    let tableStart = -1;
+    let tableLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isTableRow = patterns.tableRow.test(line);
+        const isSeparator = patterns.tableSeparator.test(line);
+
+        if (isTableRow || isSeparator) {
+            if (tableStart === -1) {
+                tableStart = i;
+            }
+            tableLines.push(line);
+        } else {
+            // End of table or non-table line
+            if (tableStart !== -1 && tableLines.length >= 2) {
+                // Verify it's a valid table (has separator in second line)
+                if (patterns.tableSeparator.test(tableLines[1])) {
+                    const parsed = parseMarkdownTable(tableLines);
+                    if (parsed && parsed.isValid) {
+                        tables.push({
+                            startLine: tableStart + 1, // 1-indexed
+                            endLine: i, // 1-indexed (exclusive)
+                            lines: tableLines.slice(),
+                            parsed: parsed
+                        });
+                    }
+                }
+            }
+            tableStart = -1;
+            tableLines = [];
+        }
+    }
+
+    // Handle table at end of document
+    if (tableStart !== -1 && tableLines.length >= 2) {
+        if (patterns.tableSeparator.test(tableLines[1])) {
+            const parsed = parseMarkdownTable(tableLines);
+            if (parsed && parsed.isValid) {
+                tables.push({
+                    startLine: tableStart + 1,
+                    endLine: lines.length,
+                    lines: tableLines.slice(),
+                    parsed: parsed
+                });
+            }
+        }
+    }
+
+    return tables;
+}
+
+// Create a table preview widget
+function createTableWidget(editor, tableData, tableIndex) {
+    const widgetId = `table-widget-${tableData.startLine}`;
+
+    const widget = {
+        getId: () => widgetId,
+        getDomNode: () => {
+            if (widget.domNode) return widget.domNode;
+
+            const container = document.createElement('div');
+            container.className = 'visual-md-table-widget';
+            container.style.cssText = `
+                margin: 4px 0 4px 20px;
+                max-width: calc(100% - 40px);
+                overflow-x: auto;
+            `;
+
+            // Create the HTML table
+            const table = createHtmlTable(tableData.parsed, tableData.startLine);
+            container.appendChild(table);
+
+            widget.domNode = container;
+            return container;
+        },
+        getPosition: () => ({
+            position: { lineNumber: tableData.endLine, column: 1 },
+            preference: [monaco.editor.ContentWidgetPositionPreference.BELOW]
+        })
+    };
+
+    return widget;
+}
+
+// Create an HTML table element from parsed table data
+function createHtmlTable(parsed, startLine) {
+    const table = document.createElement('table');
+    table.className = 'visual-md-table';
+    table.style.cssText = `
+        border-collapse: collapse;
+        font-size: 13px;
+        min-width: 200px;
+        background: var(--bg-primary, #fff);
+        border: 1px solid var(--border-color, #e1e4e8);
+        border-radius: 4px;
+        overflow: hidden;
+    `;
+
+    // Create header row
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+
+    parsed.headers.forEach((header, colIndex) => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        th.style.cssText = `
+            padding: 8px 12px;
+            text-align: ${parsed.alignments[colIndex] || 'left'};
+            background: var(--bg-secondary, #f6f8fa);
+            border-bottom: 2px solid var(--border-color, #e1e4e8);
+            font-weight: 600;
+            color: var(--text-primary, #24292e);
+            white-space: nowrap;
+        `;
+
+        // Make header editable on double-click
+        th.addEventListener('dblclick', (e) => {
+            editTableCell(startLine, 0, colIndex, header, e.target);
+        });
+        th.title = 'Double-click to edit';
+        th.style.cursor = 'pointer';
+
+        headerRow.appendChild(th);
+    });
+
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    // Create body rows
+    const tbody = document.createElement('tbody');
+
+    parsed.rows.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        tr.style.cssText = `
+            transition: background-color 0.15s;
+        `;
+        tr.addEventListener('mouseenter', () => {
+            tr.style.backgroundColor = 'var(--bg-hover, rgba(0,0,0,0.04))';
+        });
+        tr.addEventListener('mouseleave', () => {
+            tr.style.backgroundColor = '';
+        });
+
+        row.forEach((cell, colIndex) => {
+            const td = document.createElement('td');
+            td.innerHTML = renderCellContent(cell);
+            td.style.cssText = `
+                padding: 8px 12px;
+                text-align: ${parsed.alignments[colIndex] || 'left'};
+                border-bottom: 1px solid var(--border-color, #e1e4e8);
+                color: var(--text-primary, #24292e);
+            `;
+
+            // Make cell editable on double-click
+            td.addEventListener('dblclick', (e) => {
+                editTableCell(startLine, rowIndex + 2, colIndex, cell, e.target);
+            });
+            td.title = 'Double-click to edit';
+            td.style.cursor = 'pointer';
+
+            tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+
+    return table;
+}
+
+// Render cell content with basic markdown support
+function renderCellContent(content) {
+    let html = content;
+
+    // Bold
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+    // Italic
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code style="background: rgba(175, 184, 193, 0.2); padding: 2px 4px; border-radius: 3px; font-size: 0.9em;">$1</code>');
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #0366d6; text-decoration: none;">$1</a>');
+
+    return html;
+}
+
+// Edit a table cell inline
+function editTableCell(tableStartLine, rowIndex, colIndex, currentValue, targetElement) {
+    if (!window.editor) return;
+
+    // Calculate the actual line in the editor
+    const lineNumber = tableStartLine + rowIndex;
+    const model = window.editor.getModel();
+    if (!model) return;
+
+    const lineContent = model.getLineContent(lineNumber);
+
+    // Parse the line to find the cell position
+    const cells = lineContent.split('|').slice(1, -1); // Remove first and last empty elements
+    if (colIndex >= cells.length) return;
+
+    // Calculate column position
+    let col = 2; // Start after first |
+    for (let i = 0; i < colIndex; i++) {
+        col += cells[i].length + 1; // +1 for |
+    }
+
+    // Find start and end of the cell content (trimmed)
+    const cellContent = cells[colIndex];
+    const trimmedStart = cellContent.length - cellContent.trimStart().length;
+    const trimmedEnd = cellContent.trimEnd().length;
+
+    const startCol = col + trimmedStart;
+    const endCol = col + trimmedEnd;
+
+    // Select the cell content in the editor
+    window.editor.setSelection(new monaco.Range(lineNumber, startCol, lineNumber, endCol));
+    window.editor.revealLineInCenter(lineNumber);
+    window.editor.focus();
+
+    // Show a hint to the user
+    if (targetElement) {
+        targetElement.style.outline = '2px solid var(--accent-color, #0366d6)';
+        setTimeout(() => {
+            targetElement.style.outline = '';
+        }, 500);
+    }
+}
+
+// Update table decorations and widgets
+function updateTableDecorations(editor) {
+    if (!config.enabled || !config.showTablePreviews) return;
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    // Remove existing table widgets
+    tableWidgets.forEach(widget => {
+        try {
+            editor.removeContentWidget(widget);
+        } catch (e) {
+            // Widget may already be removed
+        }
+    });
+    tableWidgets = [];
+    tableRanges = [];
+
+    const decorations = [];
+    const text = model.getValue();
+    const lines = text.split('\n');
+
+    // Find all tables
+    const tables = findTables(lines);
+
+    tables.forEach((tableData, index) => {
+        // Store table range for reference
+        tableRanges.push({
+            startLine: tableData.startLine,
+            endLine: tableData.endLine,
+            parsed: tableData.parsed
+        });
+
+        // Add decorations to dim the raw markdown table
+        for (let i = tableData.startLine; i <= tableData.endLine; i++) {
+            if (i <= lines.length) {
+                decorations.push({
+                    range: new monaco.Range(i, 1, i, lines[i - 1].length + 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'visual-md-table-source',
+                        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                    }
+                });
+            }
+        }
+
+        // Create and add table preview widget
+        const widget = createTableWidget(editor, tableData, index);
+        tableWidgets.push(widget);
+        editor.addContentWidget(widget);
+    });
+
+    tableDecorations = editor.deltaDecorations(tableDecorations, decorations);
+}
+
 // --- Main Update Function ---
 function updateVisualMarkdown(editor) {
     if (!editor || !config.enabled) return;
@@ -733,6 +1083,7 @@ function updateVisualMarkdown(editor) {
         updateFormattingDecorations(editor);
         updateLinkDecorations(editor);
         updateCodeBlockDecorations(editor);
+        updateTableDecorations(editor);
     }, config.updateDebounceMs);
 }
 
@@ -760,14 +1111,28 @@ function cleanupVisualMarkdown(editor) {
     });
     codeBlockWidgets = [];
 
+    // Remove table widgets
+    tableWidgets.forEach(widget => {
+        try {
+            editor.removeContentWidget(widget);
+        } catch (e) {
+            // Ignore
+        }
+    });
+    tableWidgets = [];
+
     // Clear decorations
     formatDecorations = editor.deltaDecorations(formatDecorations, []);
     linkDecorations = editor.deltaDecorations(linkDecorations, []);
     codeBlockDecorations = editor.deltaDecorations(codeBlockDecorations, []);
+    tableDecorations = editor.deltaDecorations(tableDecorations, []);
 
     // Clear code block state
     codeBlockRanges = [];
     collapsedCodeBlocks.clear();
+
+    // Clear table state
+    tableRanges = [];
 
     // Clear timeout
     if (updateTimeout) {
