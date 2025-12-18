@@ -3272,6 +3272,9 @@
 	    </script>
 	    <script src="./node_modules/monaco-editor/min/vs/loader.js" defer></script>
 
+	    <!-- Debug logger (load first) - set window.DEBUG_LEVEL before this to control verbosity -->
+	    <script src="js/debug-logger.js"></script>
+
 	    <!-- Techne plugin system -->
 	    <script>window.TECHNE_PLUGIN_AUTOSTART = false;</script>
 	    <script src="plugins/techne-plugin-system.js"></script>
