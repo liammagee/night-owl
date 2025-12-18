@@ -76,23 +76,23 @@
 
 /* Dark mode - sleek, modern, consistent */
 body.dark-mode {
-    /* Core colors - Slate/Zinc based for a sleek look */
-    --bg-color: #18181b;
-    --bg-secondary: #27272a;
-    --bg-tertiary: #3f3f46;
-    --text-color: #f4f4f5;
-    --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
-    --border-color: #3f3f46;
-    --border-strong: #52525b;
-    --hover-color: #27272a;
-    --active-color: #3f3f46;
+    /* Core colors - match Monaco vs-dark #1e1e1e for consistency */
+    --bg-color: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-tertiary: #333333;
+    --text-color: #d4d4d4;
+    --text-secondary: #9d9d9d;
+    --text-muted: #6b6b6b;
+    --border-color: #3c3c3c;
+    --border-strong: #4a4a4a;
+    --hover-color: #2a2a2a;
+    --active-color: #3c3c3c;
 
-    /* Surfaces */
-    --surface: #27272a;
-    --surface-variant: #18181b;
-    --surface-hover: #3f3f46;
-    --surface-active: #52525b;
+    /* Surfaces - match VS Code */
+    --surface: #252526;
+    --surface-variant: #1e1e1e;
+    --surface-hover: #2a2d2e;
+    --surface-active: #37373d;
 
     /* Primary accent - Indigo for dark mode */
     --primary: #818cf8;
@@ -100,48 +100,48 @@ body.dark-mode {
     --primary-light: rgba(129, 140, 248, 0.15);
     --text-on-primary: #18181b;
 
-    /* App backgrounds */
-    --app-bg: #09090b;
-    --panel-bg: #18181b;
-    --card-bg: #27272a;
-    --card-border: #3f3f46;
-    --card-header-bg: #27272a;
+    /* App backgrounds - match VS Code dark theme */
+    --app-bg: #181818;
+    --panel-bg: #1e1e1e;
+    --card-bg: #252526;
+    --card-border: #3c3c3c;
+    --card-header-bg: #252526;
 
-    /* Preview pane - dark mode */
-    --preview-bg: #18181b;
-    --preview-text: #f4f4f5;
+    /* Preview pane - match Monaco editor background exactly */
+    --preview-bg: #252526;
+    --preview-text: var(--text-color);
 
-    /* Toolbar and menu */
-    --toolbar-bg: #18181b;
-    --toolbar-border: #3f3f46;
-    --menu-bg: #27272a;
-    --menu-text-color: #f4f4f5;
-    --menu-content-bg: #18181b;
+    /* Toolbar and menu - match VS Code dark theme */
+    --toolbar-bg: #252526;
+    --toolbar-border: #3c3c3c;
+    --menu-bg: #252526;
+    --menu-text-color: #d4d4d4;
+    --menu-content-bg: #1e1e1e;
     --menu-header-bg: rgba(255, 255, 255, 0.05);
     --menu-header-hover-bg: rgba(255, 255, 255, 0.1);
 
     /* Buttons */
-    --button-bg: #27272a;
-    --button-border: #3f3f46;
-    --button-text: #f4f4f5;
-    --button-hover-bg: #3f3f46;
+    --button-bg: #3c3c3c;
+    --button-border: #4a4a4a;
+    --button-text: #d4d4d4;
+    --button-hover-bg: #4a4a4a;
     --button-muted-bg: rgba(255, 255, 255, 0.05);
     --button-muted-border: rgba(255, 255, 255, 0.1);
-    --button-muted-text: #a1a1aa;
+    --button-muted-text: #9d9d9d;
 
     /* Input fields */
-    --input-bg: #27272a;
-    --input-border: #3f3f46;
+    --input-bg: #3c3c3c;
+    --input-border: #4a4a4a;
     --input-focus-border: #818cf8;
 
     /* Code blocks */
-    --code-bg: #27272a;
-    --code-text: #f4f4f5;
+    --code-bg: #252526;
+    --code-text: #d4d4d4;
 
-    /* Scrollbar */
-    --scrollbar-track: #18181b;
-    --scrollbar-thumb: #3f3f46;
-    --scrollbar-thumb-hover: #52525b;
+    /* Scrollbar - match VS Code */
+    --scrollbar-track: #1e1e1e;
+    --scrollbar-thumb: #4a4a4a;
+    --scrollbar-thumb-hover: #5a5a5a;
 
     /* Shadows - subtle for dark mode */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -294,8 +294,14 @@ body.dark-mode #right-pane {
     background: var(--preview-bg) !important;
 }
 
-body.dark-mode #right-pane > div {
+body.dark-mode #right-pane > div,
+body.dark-mode #right-pane > div > div {
     background: var(--preview-bg) !important;
+}
+
+/* Ensure all nested divs in preview have consistent background */
+body.dark-mode #right-pane div:not(code):not(pre):not(.hljs) {
+    background-color: var(--preview-bg) !important;
 }
 
 body.dark-mode #preview-pane {
