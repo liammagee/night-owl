@@ -32,5 +32,10 @@ window.TECHNE_PLUGIN_MANIFEST = [
         id: 'techne-maze',
         entry: 'plugins/techne-maze/plugin.js',
         enabledByDefault: true
+    },
+    {
+        id: 'techne-ai-tutor',
+        entry: 'plugins/techne-ai-tutor/plugin.js',
+        enabledByDefault: false
     }
 ];
