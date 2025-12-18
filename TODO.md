@@ -162,17 +162,25 @@ Generated from codebase deep scan on 2025-12-17.
 
 ### Plugin System
 
-- [ ] **Plugin Settings Persistence**
-  - Save plugin-specific settings
-  - Restore on reload
+- [x] **Plugin Settings Persistence** ✅ COMPLETED
+  - Save plugin-specific settings via localStorage
+  - Restore on reload automatically
+  - Host provides `getSettings()`, `setSettings()`, `updateSettings()` bound to plugin context
+  - Events: `plugin:settings-changed`, `plugin:settings-cleared`
 
-- [ ] **Plugin Dependencies**
-  - Allow plugins to depend on other plugins
-  - Automatic dependency resolution
+- [x] **Plugin Dependencies** ✅ COMPLETED
+  - Manifest supports `dependencies: ['plugin-id']` array
+  - Automatic dependency resolution with topological sort
+  - Auto-enables required dependencies when enabling a plugin
+  - Prevents disabling plugins that others depend on
+  - API: `getDependencies(id)`, `getDependents(id)`
 
-- [ ] **Plugin Hot Reload**
-  - Reload plugins without app restart
-  - Development mode feature
+- [x] **Plugin Hot Reload** ✅ COMPLETED
+  - `setDevMode(true)` enables development mode
+  - `reloadPlugin(id)` reloads single plugin with cache busting
+  - `reloadAllPlugins()` reloads all enabled plugins
+  - Properly calls `destroy()` before reload
+  - Events: `plugin:reloading`, `plugin:reloaded`
 
 ---
 
