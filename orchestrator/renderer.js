@@ -7335,6 +7335,17 @@ function showRightPane(paneType) {
     showSpecificPane(paneType);
 }
 
+// Expose showPane globally for plugins (AI Tutor, etc.)
+window.showPane = function(paneType) {
+    // First make sure the right pane is visible
+    const rightPane = document.getElementById('right-pane');
+    if (rightPane && rightPane.style.display === 'none') {
+        togglePreview(); // This will show the right pane
+    }
+    // Then switch to the requested pane
+    showRightPane(paneType);
+};
+
 // --- Structure Pane / File Tree Functions ---
 
 /**
@@ -9942,20 +9953,26 @@ function toggleEditor() {
 function togglePreview() {
     const rightPane = document.getElementById('right-pane');
     const toggleBtn = document.getElementById('toggle-preview-btn');
-    
+
+    if (!rightPane) {
+        console.warn('[togglePreview] right-pane element not found');
+        return;
+    }
+
     if (previewVisible) {
         rightPane.style.display = 'none';
-        setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
+        if (toggleBtn) setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
         // Adjust editor to take full width
         const editorContainer = document.getElementById('editor-container');
         if (editorContainer) editorContainer.style.flex = '1';
     } else {
         rightPane.style.display = 'flex';
-        setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
+        if (toggleBtn) setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
         // Restore normal layout proportions
         refreshLayoutProportions();
     }
     previewVisible = !previewVisible;
+    console.log('[togglePreview] Preview visible:', previewVisible);
 }
 
 function refreshLayoutProportions() {
