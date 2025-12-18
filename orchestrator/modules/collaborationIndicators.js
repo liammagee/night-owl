@@ -13,6 +13,9 @@
  * @module collaborationIndicators
  */
 
+(function() {
+'use strict';
+
 // --- Configuration ---
 const config = {
     enabled: false,
@@ -779,3 +782,5 @@ window.CollaborationIndicators = {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = window.CollaborationIndicators;
 }
+
+})();
