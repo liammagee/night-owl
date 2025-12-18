@@ -1,7 +1,8 @@
 /* Techne Plugin System (portable core)
    - Lightweight plugin loader for both Electron apps and plain websites.
    - Plugins register themselves via `window.TechnePlugins.register({ id, init(host) { ... } })`.
-   - A manifest is provided by `window.TECHNE_PLUGIN_MANIFEST = [{ id, entry, enabledByDefault }]`.
+   - A manifest is provided by `window.TECHNE_PLUGIN_MANIFEST = [{ id, entry, enabledByDefault, dependencies }]`.
+   - Supports plugin-specific settings persistence, dependency resolution, and hot reload.
 */
 
 (function () {
@@ -17,7 +18,15 @@
         pending: new Map(),
         cssLoaded: new Set(),
         scriptLoaded: new Set(),
-        events: new Map()
+        events: new Map(),
+        // Plugin-specific settings storage
+        pluginSettings: new Map(),
+        // Track script URLs for hot reload
+        scriptUrls: new Map(),
+        // Development mode flag
+        devMode: false,
+        // Storage key prefix for persistence
+        storageKey: 'techne-plugin-settings'
     };
 
     const log = (...args) => console.log('[TechnePlugins]', ...args);
@@ -90,15 +99,18 @@
         });
     };
 
-    const loadScript = (src, { id, async = false, type = 'text/javascript' } = {}) => {
+    const loadScript = (src, { id, async = false, type = 'text/javascript', forceReload = false } = {}) => {
         const url = normalizePath(src);
         if (!url) return Promise.resolve(false);
-        if (state.scriptLoaded.has(url)) return Promise.resolve(true);
+
+        // Skip cache check if forcing reload (for hot reload)
+        if (!forceReload && state.scriptLoaded.has(url)) return Promise.resolve(true);
         state.scriptLoaded.add(url);
 
         return new Promise((resolve) => {
             const script = document.createElement('script');
-            script.src = url;
+            // Add cache-busting for hot reload
+            script.src = forceReload ? `${url}?t=${Date.now()}` : url;
             script.type = type;
             script.async = Boolean(async);
             if (id) script.id = String(id);
@@ -118,6 +130,231 @@
             }
         }
         return true;
+    };
+
+    // ==========================================
+    // Plugin Settings Persistence
+    // ==========================================
+
+    const loadPersistedSettings = () => {
+        try {
+            const stored = localStorage.getItem(state.storageKey);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed && typeof parsed === 'object') {
+                    for (const [pluginId, settings] of Object.entries(parsed)) {
+                        state.pluginSettings.set(pluginId, settings);
+                    }
+                    log('Loaded persisted plugin settings');
+                }
+            }
+        } catch (err) {
+            warn('Failed to load persisted plugin settings:', err);
+        }
+    };
+
+    const persistSettings = () => {
+        try {
+            const obj = {};
+            for (const [pluginId, settings] of state.pluginSettings) {
+                obj[pluginId] = settings;
+            }
+            localStorage.setItem(state.storageKey, JSON.stringify(obj));
+        } catch (err) {
+            warn('Failed to persist plugin settings:', err);
+        }
+    };
+
+    const getPluginSettings = (pluginId) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return null;
+        return state.pluginSettings.get(id) || null;
+    };
+
+    const setPluginSettings = (pluginId, settings) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return false;
+
+        const oldSettings = state.pluginSettings.get(id);
+        state.pluginSettings.set(id, settings);
+        persistSettings();
+
+        emit('plugin:settings-changed', { id, settings, oldSettings });
+        return true;
+    };
+
+    const updatePluginSettings = (pluginId, updates) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return false;
+
+        const current = state.pluginSettings.get(id) || {};
+        const newSettings = { ...current, ...updates };
+        return setPluginSettings(id, newSettings);
+    };
+
+    const clearPluginSettings = (pluginId) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return false;
+
+        state.pluginSettings.delete(id);
+        persistSettings();
+        emit('plugin:settings-cleared', { id });
+        return true;
+    };
+
+    // ==========================================
+    // Plugin Dependencies
+    // ==========================================
+
+    const resolveDependencies = (pluginId, visited = new Set()) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return [];
+
+        // Prevent circular dependencies
+        if (visited.has(id)) {
+            warn(`Circular dependency detected for plugin "${id}"`);
+            return [];
+        }
+        visited.add(id);
+
+        // Find manifest entry for this plugin
+        const entry = state.manifest.find(p => normalizeId(p?.id) === id);
+        if (!entry) return [];
+
+        const deps = Array.isArray(entry.dependencies) ? entry.dependencies : [];
+        const resolved = [];
+
+        for (const depId of deps) {
+            const normDep = normalizeId(depId);
+            if (!normDep) continue;
+
+            // Recursively resolve dependencies of dependencies
+            const subDeps = resolveDependencies(normDep, new Set(visited));
+            for (const subDep of subDeps) {
+                if (!resolved.includes(subDep)) {
+                    resolved.push(subDep);
+                }
+            }
+
+            // Add this dependency
+            if (!resolved.includes(normDep)) {
+                resolved.push(normDep);
+            }
+        }
+
+        return resolved;
+    };
+
+    const getDependencies = (pluginId) => {
+        return resolveDependencies(pluginId);
+    };
+
+    const getDependents = (pluginId) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return [];
+
+        const dependents = [];
+        for (const entry of state.manifest) {
+            const entryId = normalizeId(entry?.id);
+            if (!entryId || entryId === id) continue;
+
+            const deps = Array.isArray(entry.dependencies) ? entry.dependencies : [];
+            if (deps.some(d => normalizeId(d) === id)) {
+                dependents.push(entryId);
+            }
+        }
+        return dependents;
+    };
+
+    // ==========================================
+    // Hot Reload (Development Mode)
+    // ==========================================
+
+    const setDevMode = (enabled) => {
+        state.devMode = Boolean(enabled);
+        log(`Development mode ${state.devMode ? 'enabled' : 'disabled'}`);
+    };
+
+    const isDevMode = () => state.devMode;
+
+    const reloadPlugin = async (pluginId) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return { success: false, error: 'Invalid plugin ID' };
+
+        if (!state.devMode) {
+            warn(`Hot reload requires dev mode. Call setDevMode(true) first.`);
+            return { success: false, error: 'Dev mode not enabled' };
+        }
+
+        const plugin = state.plugins.get(id);
+        const entry = state.manifest.find(p => normalizeId(p?.id) === id);
+
+        if (!entry?.entry) {
+            return { success: false, error: `Plugin "${id}" not found in manifest` };
+        }
+
+        log(`Hot reloading plugin "${id}"...`);
+        emit('plugin:reloading', { id });
+
+        try {
+            // Call destroy if plugin has it
+            if (plugin?.destroy) {
+                try {
+                    await plugin.destroy();
+                } catch (err) {
+                    warn(`Error destroying plugin "${id}" during reload:`, err);
+                }
+            }
+
+            // Mark plugin as not initialized
+            if (plugin) {
+                plugin.__techneInited = false;
+            }
+
+            // Remove from loaded scripts to force reload
+            const scriptUrl = normalizePath(entry.entry);
+            state.scriptLoaded.delete(scriptUrl);
+
+            // Remove old plugin registration
+            state.plugins.delete(id);
+
+            // Reload the script with cache busting
+            const waitForPlugin = waitForRegistration(id);
+            const ok = await loadScript(scriptUrl, { async: false, forceReload: true });
+
+            if (!ok) {
+                return { success: false, error: `Failed to reload script for "${id}"` };
+            }
+
+            // Wait for re-registration
+            const newPlugin = await waitForPlugin;
+
+            // Re-initialize if enabled
+            if (state.enabled.has(id)) {
+                await initPluginIfEnabled(newPlugin);
+            }
+
+            log(`Hot reload complete for "${id}"`);
+            emit('plugin:reloaded', { id });
+
+            return { success: true };
+        } catch (err) {
+            error(`Hot reload failed for "${id}":`, err);
+            return { success: false, error: String(err?.message || err) };
+        }
+    };
+
+    const reloadAllPlugins = async () => {
+        if (!state.devMode) {
+            warn(`Hot reload requires dev mode. Call setDevMode(true) first.`);
+            return { success: false, error: 'Dev mode not enabled' };
+        }
+
+        const results = {};
+        for (const id of state.enabled) {
+            results[id] = await reloadPlugin(id);
+        }
+        return { success: true, results };
     };
 
     // Host capability adapters - can be extended by the consuming app
@@ -178,6 +415,10 @@
             log,
             warn,
             error,
+            // Plugin settings methods (bound to plugin context in init)
+            getSettings: (pluginId) => getPluginSettings(pluginId),
+            setSettings: (pluginId, settings) => setPluginSettings(pluginId, settings),
+            updateSettings: (pluginId, updates) => updatePluginSettings(pluginId, updates),
             // Host capabilities (can be extended)
             ...hostCapabilities
         };
@@ -220,7 +461,15 @@
 
         plugin.__techneInited = true;
         try {
-            await plugin.init(state.host);
+            // Pass plugin's persisted settings via host
+            const pluginHost = {
+                ...state.host,
+                // Convenience methods bound to this plugin
+                getSettings: () => getPluginSettings(id),
+                setSettings: (settings) => setPluginSettings(id, settings),
+                updateSettings: (updates) => updatePluginSettings(id, updates)
+            };
+            await plugin.init(pluginHost);
         } catch (err) {
             error(`Plugin init failed (${id}):`, err);
         }
@@ -312,7 +561,38 @@
             manifestById.set(id, entry);
         }
 
+        // Build load order based on dependencies
+        const loadOrder = [];
+        const processed = new Set();
+
+        const addWithDeps = (id) => {
+            if (processed.has(id)) return;
+            processed.add(id);
+
+            // First add all dependencies
+            const deps = resolveDependencies(id);
+            for (const depId of deps) {
+                if (!processed.has(depId)) {
+                    addWithDeps(depId);
+                }
+            }
+
+            // Then add the plugin itself
+            loadOrder.push(id);
+        };
+
         for (const id of Array.from(state.enabled)) {
+            addWithDeps(id);
+        }
+
+        // Load plugins in dependency order
+        for (const id of loadOrder) {
+            // Enable dependencies automatically if not already enabled
+            if (!state.enabled.has(id)) {
+                log(`Auto-enabling dependency "${id}"`);
+                state.enabled.add(id);
+            }
+
             const already = state.plugins.get(id);
             if (already) {
                 await initPluginIfEnabled(already);
@@ -325,6 +605,9 @@
                 warn(`Missing entry for enabled plugin "${id}"`);
                 continue;
             }
+
+            // Track script URL for hot reload
+            state.scriptUrls.set(id, scriptUrl);
 
             const waitForPlugin = waitForRegistration(id);
             const ok = await loadScript(scriptUrl, { async: false });
@@ -342,8 +625,14 @@
         }
     };
 
-    const start = async ({ manifest = null, enabled = null, appId = null, settings } = {}) => {
+    const start = async ({ manifest = null, enabled = null, appId = null, settings, devMode = false } = {}) => {
         state.startPromise = Promise.resolve(state.startPromise).then(async () => {
+            // Set dev mode
+            state.devMode = Boolean(devMode);
+
+            // Load persisted plugin settings from localStorage
+            loadPersistedSettings();
+
             if (!state.host) {
                 state.host = createHost({
                     appId: appId || 'techne',
@@ -393,10 +682,19 @@
         if (!pluginId) return false;
         if (state.enabled.has(pluginId)) return true; // Already enabled
 
+        // Auto-enable dependencies first
+        const deps = resolveDependencies(pluginId);
+        for (const depId of deps) {
+            if (!state.enabled.has(depId)) {
+                log(`Auto-enabling dependency "${depId}" for "${pluginId}"`);
+                state.enabled.add(depId);
+            }
+        }
+
         state.enabled.add(pluginId);
         if (state.started) {
             await loadEnabledPlugins();
-            emit('plugin:enabled', { id: pluginId });
+            emit('plugin:enabled', { id: pluginId, dependencies: deps });
         }
         return true;
     };
@@ -405,6 +703,13 @@
         const pluginId = String(id || '').trim();
         if (!pluginId) return false;
         if (!state.enabled.has(pluginId)) return true; // Already disabled
+
+        // Check if other plugins depend on this one
+        const dependents = getDependents(pluginId).filter(d => state.enabled.has(d));
+        if (dependents.length > 0) {
+            warn(`Cannot disable "${pluginId}" - required by: ${dependents.join(', ')}`);
+            return false;
+        }
 
         state.enabled.delete(pluginId);
         const plugin = state.plugins.get(pluginId);
@@ -435,7 +740,20 @@
         isEnabled,
         enablePlugin,
         disablePlugin,
-        extendHost
+        extendHost,
+        // Plugin settings persistence
+        getPluginSettings,
+        setPluginSettings,
+        updatePluginSettings,
+        clearPluginSettings,
+        // Dependency management
+        getDependencies,
+        getDependents,
+        // Hot reload (dev mode)
+        setDevMode,
+        isDevMode,
+        reloadPlugin,
+        reloadAllPlugins
     };
 
     const autostart = window.TECHNE_PLUGIN_AUTOSTART !== false;
