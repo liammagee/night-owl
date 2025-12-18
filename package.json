@@ -11,7 +11,10 @@
   "bugs": {
     "url": "https://github.com/liammagee/night-owl/issues"
   },
-  "author": "Liam Magee",
+  "author": {
+    "name": "Liam Magee",
+    "email": "liam.magee@gmail.com"
+  },
   "license": "Apache-2.0",
   "main": "main.js",
   "scripts": {
