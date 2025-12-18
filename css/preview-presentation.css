@@ -1,12 +1,12 @@
 /* Preview pane and presentation mode styles */
 
-/* Preview pane styling - override external CSS */
+/* Preview pane styling - uses CSS variables for theming */
 #right-pane {
     flex: 1 !important;
     min-width: 0 !important;
     display: flex !important;
     flex-direction: column !important;
-    background-color: #fefdfb !important;
+    background-color: var(--preview-bg, #fefdfb) !important;
 }
 
 /* Hidden state for pane toggle - needs !important to override above rule */
@@ -22,7 +22,7 @@
     min-height: 0 !important;
     overflow: hidden !important;
     height: 100% !important;
-    background-color: #fefdfb !important;
+    background-color: var(--preview-bg, #fefdfb) !important;
 }
 
 #preview-pane {
@@ -34,7 +34,7 @@
     overflow-x: hidden !important;
     flex: 1 !important;
     min-height: 0 !important;
-    background-color: #fefdfb !important;
+    background-color: var(--preview-bg, #fefdfb) !important;
 }
 
 #preview-content {
@@ -46,7 +46,8 @@
     box-sizing: border-box !important;
     line-height: 1.6 !important;
     height: auto !important;
-    background-color: #fefdfb !important;
+    background-color: var(--preview-bg, #fefdfb) !important;
+    color: var(--preview-text, #1e293b) !important;
 }
 
 /* Content pane styling */
@@ -57,7 +58,7 @@
     flex: 1 !important;
     min-height: 0 !important;
     position: relative !important;
-    background-color: #fefdfb !important;
+    background-color: var(--preview-bg, #fefdfb) !important;
 }
 
 /* Preview pane image constraints */

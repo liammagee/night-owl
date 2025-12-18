@@ -1,63 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <defs>
-    <clipPath id="clip">
-      <rect x="56" y="56" width="912" height="912" rx="208"/>
-    </clipPath>
+  <!-- Transparent background -->
+  <rect x="0" y="0" width="1024" height="1024" fill="none"/>
 
-    <linearGradient id="tile" x1="512" y1="56" x2="512" y2="968" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#e7e7e7"/>
-    </linearGradient>
+  <!-- Background - rounded square -->
+  <rect x="80" y="80" width="864" height="864" rx="160" fill="#fafafa"/>
 
-    <linearGradient id="ring" x1="352" y1="304" x2="704" y2="720" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff3d52"/>
-      <stop offset="0.55" stop-color="#e63946"/>
-      <stop offset="1" stop-color="#b60f1c"/>
-    </linearGradient>
+  <!-- Outer ring - solid red -->
+  <circle cx="512" cy="512" r="290" fill="none" stroke="#dc2626" stroke-width="32"/>
 
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="20" stdDeviation="28" flood-color="#000" flood-opacity="0.16"/>
-    </filter>
+  <!-- Triangle edges - dark charcoal -->
+  <line x1="512" y1="316" x2="340" y2="614" stroke="#1c1917" stroke-width="24" stroke-linecap="round"/>
+  <line x1="512" y1="316" x2="684" y2="614" stroke="#1c1917" stroke-width="24" stroke-linecap="round"/>
+  <line x1="340" y1="614" x2="684" y2="614" stroke="#1c1917" stroke-width="24" stroke-linecap="round"/>
 
-    <linearGradient id="glare" x1="256" y1="192" x2="760" y2="680" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
-      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
+  <!-- Top node -->
+  <circle cx="512" cy="316" r="44" fill="#fafafa"/>
+  <circle cx="512" cy="316" r="44" fill="none" stroke="#1c1917" stroke-width="12"/>
+  <circle cx="512" cy="316" r="44" fill="none" stroke="#dc2626" stroke-width="6"/>
+  <circle cx="512" cy="316" r="14" fill="#dc2626"/>
 
-  <g clip-path="url(#clip)" filter="url(#shadow)">
-    <rect x="56" y="56" width="912" height="912" rx="208" fill="url(#tile)"/>
+  <!-- Bottom-left node -->
+  <circle cx="340" cy="614" r="44" fill="#fafafa"/>
+  <circle cx="340" cy="614" r="44" fill="none" stroke="#1c1917" stroke-width="12"/>
+  <circle cx="340" cy="614" r="44" fill="none" stroke="#dc2626" stroke-width="6"/>
+  <circle cx="340" cy="614" r="14" fill="#dc2626"/>
 
-    <circle cx="512" cy="512" r="308" fill="none" stroke="url(#ring)" stroke-width="40"/>
+  <!-- Bottom-right node -->
+  <circle cx="684" cy="614" r="44" fill="#fafafa"/>
+  <circle cx="684" cy="614" r="44" fill="none" stroke="#1c1917" stroke-width="12"/>
+  <circle cx="684" cy="614" r="44" fill="none" stroke="#dc2626" stroke-width="6"/>
+  <circle cx="684" cy="614" r="14" fill="#dc2626"/>
 
-    <g fill="none" stroke="#141414" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M 512 324 L 352 660"/>
-      <path d="M 512 324 L 672 660"/>
-      <path d="M 352 660 L 672 660"/>
-    </g>
-
-    <g>
-      <g>
-        <circle cx="512" cy="324" r="52" fill="#ffffff" stroke="#141414" stroke-width="20"/>
-        <circle cx="512" cy="324" r="52" fill="none" stroke="url(#ring)" stroke-width="20"/>
-        <circle cx="512" cy="324" r="14" fill="url(#ring)"/>
-      </g>
-      <g>
-        <circle cx="352" cy="660" r="52" fill="#ffffff" stroke="#141414" stroke-width="20"/>
-        <circle cx="352" cy="660" r="52" fill="none" stroke="url(#ring)" stroke-width="20"/>
-        <circle cx="352" cy="660" r="14" fill="url(#ring)"/>
-      </g>
-      <g>
-        <circle cx="672" cy="660" r="52" fill="#ffffff" stroke="#141414" stroke-width="20"/>
-        <circle cx="672" cy="660" r="52" fill="none" stroke="url(#ring)" stroke-width="20"/>
-        <circle cx="672" cy="660" r="14" fill="url(#ring)"/>
-      </g>
-    </g>
-
-    <path d="M 156 224 C 244 140 380 108 512 132 C 644 156 744 208 820 292 C 868 344 896 408 908 484 C 816 392 700 328 576 304 C 452 280 304 308 208 392 C 164 432 132 476 116 520 C 116 392 124 296 156 224 Z" fill="url(#glare)" opacity="0.55"/>
-  </g>
-
-  <rect x="56" y="56" width="912" height="912" rx="208" fill="none" stroke="#141414" stroke-opacity="0.9" stroke-width="32"/>
+  <!-- Subtle border -->
+  <rect x="80" y="80" width="864" height="864" rx="160" fill="none" stroke="#d4d4d4" stroke-width="2"/>
 </svg>
-

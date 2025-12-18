@@ -11,38 +11,40 @@ body {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    background: var(--app-bg, #f1f5f9);
+    color: var(--text-color, #1e293b);
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling - light mode */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--scrollbar-track, #f1f1f1);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
+    background: var(--scrollbar-thumb, #888);
+    border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background: var(--scrollbar-thumb-hover, #555);
 }
 
-/* Dark mode scrollbar */
+/* Dark mode scrollbar - handled in theme.css with CSS variables */
 body.dark-mode ::-webkit-scrollbar-track {
-    background: #2d2d2d;
+    background: var(--scrollbar-track, #18181b);
 }
 
 body.dark-mode ::-webkit-scrollbar-thumb {
-    background: #555;
+    background: var(--scrollbar-thumb, #3f3f46);
 }
 
 body.dark-mode ::-webkit-scrollbar-thumb:hover {
-    background: #777;
+    background: var(--scrollbar-thumb-hover, #52525b);
 }
 
 /* Utility classes */

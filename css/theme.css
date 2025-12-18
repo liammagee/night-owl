@@ -1,135 +1,703 @@
 /* Theme and color variables */
 
 :root {
+    /* Light mode colors */
     --bg-color: #ffffff;
-    --text-color: #212529;
-    --border-color: #dee2e6;
-    --hover-color: #f8f9fa;
-    --app-bg: linear-gradient(135deg, #e0e0e0 0%, #a0a0a0 100%);
-    --panel-bg: #f8fafc;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text-color: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --hover-color: #f1f5f9;
+    --active-color: #e2e8f0;
+
+    /* Surfaces */
+    --surface: #ffffff;
+    --surface-variant: #f8fafc;
+    --surface-hover: #f1f5f9;
+    --surface-active: #e2e8f0;
+
+    /* Primary accent */
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --primary-light: #e0e7ff;
+    --text-on-primary: #ffffff;
+
+    /* App backgrounds */
+    --app-bg: #f1f5f9;
+    --panel-bg: #ffffff;
     --card-bg: #ffffff;
     --card-border: #e2e8f0;
-    --card-header-bg: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-    --text-primary: #2d3748;
-    --text-muted: #718096;
-    --accent-gradient: linear-gradient(90deg, #667eea, #764ba2);
-    --toolbar-bg: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
-    --menu-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --menu-header-bg: rgba(0, 0, 0, 0.1);
+    --card-header-bg: #f8fafc;
+
+    /* Preview pane - light warm background */
+    --preview-bg: #fefdfb;
+    --preview-text: #1e293b;
+
+    /* Toolbar and menu */
+    --toolbar-bg: #f8fafc;
+    --toolbar-border: #e2e8f0;
+    --menu-bg: #ffffff;
+    --menu-text-color: #1e293b;
+    --menu-content-bg: #ffffff;
+    --menu-header-bg: rgba(0, 0, 0, 0.05);
+    --menu-header-hover-bg: rgba(0, 0, 0, 0.1);
+
+    /* Buttons */
+    --button-bg: #f1f5f9;
+    --button-border: #e2e8f0;
+    --button-text: #475569;
+    --button-hover-bg: #e2e8f0;
+    --button-muted-bg: rgba(0, 0, 0, 0.05);
+    --button-muted-border: rgba(0, 0, 0, 0.1);
+    --button-muted-text: #475569;
+
+    /* Input fields */
+    --input-bg: #ffffff;
+    --input-border: #e2e8f0;
+    --input-focus-border: #6366f1;
+
+    /* Code blocks */
+    --code-bg: #f8fafc;
+    --code-text: #1e293b;
+
+    /* Scrollbar */
+    --scrollbar-track: #f1f5f9;
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-thumb-hover: #94a3b8;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode - sleek, modern, consistent */
+body.dark-mode {
+    /* Core colors - Slate/Zinc based for a sleek look */
+    --bg-color: #18181b;
+    --bg-secondary: #27272a;
+    --bg-tertiary: #3f3f46;
+    --text-color: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --border-color: #3f3f46;
+    --border-strong: #52525b;
+    --hover-color: #27272a;
+    --active-color: #3f3f46;
+
+    /* Surfaces */
+    --surface: #27272a;
+    --surface-variant: #18181b;
+    --surface-hover: #3f3f46;
+    --surface-active: #52525b;
+
+    /* Primary accent - Indigo for dark mode */
+    --primary: #818cf8;
+    --primary-hover: #6366f1;
+    --primary-light: rgba(129, 140, 248, 0.15);
+    --text-on-primary: #18181b;
+
+    /* App backgrounds */
+    --app-bg: #09090b;
+    --panel-bg: #18181b;
+    --card-bg: #27272a;
+    --card-border: #3f3f46;
+    --card-header-bg: #27272a;
+
+    /* Preview pane - dark mode */
+    --preview-bg: #18181b;
+    --preview-text: #f4f4f5;
+
+    /* Toolbar and menu */
+    --toolbar-bg: #18181b;
+    --toolbar-border: #3f3f46;
+    --menu-bg: #27272a;
+    --menu-text-color: #f4f4f5;
+    --menu-content-bg: #18181b;
+    --menu-header-bg: rgba(255, 255, 255, 0.05);
     --menu-header-hover-bg: rgba(255, 255, 255, 0.1);
-    --menu-text-color: #ffffff;
-    --menu-content-bg: #f8fafc;
-    --button-muted-bg: rgba(255, 255, 255, 0.15);
-    --button-muted-border: rgba(255, 255, 255, 0.25);
-    --button-muted-text: #ffffff;
-    --toggle-hover-bg: rgba(255, 255, 255, 0.25);
+
+    /* Buttons */
+    --button-bg: #27272a;
+    --button-border: #3f3f46;
+    --button-text: #f4f4f5;
+    --button-hover-bg: #3f3f46;
+    --button-muted-bg: rgba(255, 255, 255, 0.05);
+    --button-muted-border: rgba(255, 255, 255, 0.1);
+    --button-muted-text: #a1a1aa;
+
+    /* Input fields */
+    --input-bg: #27272a;
+    --input-border: #3f3f46;
+    --input-focus-border: #818cf8;
+
+    /* Code blocks */
+    --code-bg: #27272a;
+    --code-text: #f4f4f5;
+
+    /* Scrollbar */
+    --scrollbar-track: #18181b;
+    --scrollbar-thumb: #3f3f46;
+    --scrollbar-thumb-hover: #52525b;
+
+    /* Shadows - subtle for dark mode */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
 }
 
-.dark-mode {
-    --bg-color: #2d3748;
-    --text-color: #e2e8f0;
-    --border-color: #4a5568;
-    --hover-color: #4a5568;
-    --app-bg: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    --panel-bg: #0f172a;
-    --card-bg: #1f2937;
-    --card-border: rgba(148, 163, 184, 0.35);
-    --card-header-bg: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-    --text-primary: #e2e8f0;
-    --text-muted: #94a3b8;
-    --accent-gradient: linear-gradient(90deg, #38bdf8, #818cf8);
-    --toolbar-bg: linear-gradient(135deg, #4338ca 0%, #312e81 100%);
-    --menu-bg: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-    --menu-header-bg: rgba(255, 255, 255, 0.08);
-    --menu-header-hover-bg: rgba(255, 255, 255, 0.18);
-    --menu-text-color: #e2e8f0;
-    --menu-content-bg: #111827;
-    --button-muted-bg: rgba(15, 23, 42, 0.65);
-    --button-muted-border: rgba(148, 163, 184, 0.5);
-    --button-muted-text: #e2e8f0;
-    --toggle-hover-bg: rgba(148, 163, 184, 0.25);
+/* =====================================================
+   GLOBAL DARK MODE OVERRIDES
+   ===================================================== */
+
+/* Body and HTML */
+body.dark-mode,
+body.dark-mode html {
+    background: var(--app-bg) !important;
+    color: var(--text-color) !important;
 }
 
-/* Global surface alignment */
-body, html {
-    background: var(--app-bg, #0f172a);
-    color: var(--text-primary, #e2e8f0);
+/* Main content area */
+body.dark-mode #main-content {
+    background: var(--bg-color) !important;
 }
 
-#left-sidebar,
-.structure-pane {
-    background: var(--surface-variant, #111827) !important;
-    border-color: var(--border-color, rgba(148,163,184,0.35)) !important;
-    color: var(--text-primary, #e2e8f0) !important;
+/* =====================================================
+   SIDEBAR DARK MODE
+   ===================================================== */
+
+body.dark-mode #left-sidebar {
+    background: var(--panel-bg) !important;
+    border-color: var(--border-color) !important;
 }
 
-#left-sidebar .pane-toggle-button,
-#left-sidebar .pane-toggle-button:focus {
-    background: var(--surface, #1f2937) !important;
-    border: 1px solid var(--border, rgba(148,163,184,0.35)) !important;
-    color: var(--text-primary, #e2e8f0) !important;
-    box-shadow: none;
+body.dark-mode #left-sidebar .pane-toggle-button {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body.dark-mode #left-sidebar .pane-toggle-button:hover {
+    background: var(--button-hover-bg) !important;
 }
 
 body.dark-mode #left-sidebar .pane-toggle-button.active {
-    background: var(--primary, #38bdf8) !important;
-    border-color: transparent !important;
-    color: var(--text-on-primary, #0f172a) !important;
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: var(--text-on-primary) !important;
 }
 
-#file-tree-view,
-#structure-list,
-#structure-pane-header {
+body.dark-mode #file-tree-view,
+body.dark-mode #structure-list {
     background: transparent !important;
-    color: var(--text-primary, #e2e8f0) !important;
+    color: var(--text-color) !important;
 }
 
-.file-tree-item {
-    color: var(--text-primary, #e2e8f0);
-    border-radius: 6px;
-    padding: 4px 6px;
+body.dark-mode .file-tree-item {
+    color: var(--text-color) !important;
 }
 
-.file-tree-item:hover {
-    background: var(--surface-hover, rgba(148,163,184,0.18));
+body.dark-mode .file-tree-item:hover {
+    background: var(--surface-hover) !important;
 }
 
-#tag-search-input {
-    background: var(--surface, #1f2937);
-    border: 1px solid var(--border, rgba(148,163,184,0.35));
-    color: var(--text-primary, #e2e8f0);
+body.dark-mode #tag-search-input {
+    background: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+    color: var(--text-color) !important;
 }
 
-#tag-search-input::placeholder {
-    color: var(--text-muted, #94a3b8);
+body.dark-mode #tag-search-input::placeholder {
+    color: var(--text-muted) !important;
 }
 
-/* Dark mode editor toolbar */
-.dark-mode #editor-toolbar {
-    background: var(--bg-color, #2d3748) !important;
-    border-bottom-color: var(--border-color, #4a5568) !important;
-    color: var(--text-color, #e2e8f0) !important;
+/* =====================================================
+   MODE SWITCHER / TOP NAV DARK MODE
+   ===================================================== */
+
+body.dark-mode #mode-switcher {
+    background: var(--toolbar-bg) !important;
+    border-bottom-color: var(--toolbar-border) !important;
 }
 
-.dark-mode .toolbar-btn {
-    background: var(--bg-color, #4a5568) !important;
-    border-color: var(--border-color, #718096) !important;
-    color: var(--text-color, #e2e8f0) !important;
+body.dark-mode .mode-btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
 }
 
-/* Dark mode navigation */
-.dark-mode #mode-switcher {
-    background: var(--bg-color, #2d3748) !important;
-    border-bottom-color: var(--border-color, #4a5568) !important;
-    color: var(--text-color, #e2e8f0) !important;
+body.dark-mode .mode-btn:hover {
+    background: var(--button-hover-bg) !important;
 }
 
-.dark-mode .nav-btn {
-    background: var(--bg-color, #4a5568) !important;
-    border-color: var(--border-color, #718096) !important;
-    color: var(--text-color, #e2e8f0) !important;
+body.dark-mode .mode-btn.active {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: var(--text-on-primary) !important;
 }
 
-.dark-mode #current-file-name {
-    color: var(--text-color, #a0aec0) !important;
+body.dark-mode .nav-btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body.dark-mode .nav-btn:hover {
+    background: var(--button-hover-bg) !important;
+}
+
+body.dark-mode #current-file-name {
+    color: var(--text-secondary) !important;
+}
+
+/* =====================================================
+   EDITOR TOOLBAR DARK MODE
+   ===================================================== */
+
+body.dark-mode #editor-toolbar {
+    background: var(--toolbar-bg) !important;
+    border-bottom-color: var(--toolbar-border) !important;
+}
+
+body.dark-mode .toolbar-btn,
+body.dark-mode .toolbar-button {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body.dark-mode .toolbar-btn:hover,
+body.dark-mode .toolbar-button:hover {
+    background: var(--button-hover-bg) !important;
+    border-color: var(--border-strong) !important;
+}
+
+body.dark-mode .toolbar-btn.active,
+body.dark-mode .toolbar-button.active {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: var(--text-on-primary) !important;
+}
+
+body.dark-mode .toolbar-separator {
+    background: var(--border-color) !important;
+}
+
+/* =====================================================
+   PREVIEW PANE DARK MODE
+   ===================================================== */
+
+body.dark-mode #right-pane {
+    background: var(--preview-bg) !important;
+}
+
+body.dark-mode #right-pane > div {
+    background: var(--preview-bg) !important;
+}
+
+body.dark-mode #preview-pane {
+    background: var(--preview-bg) !important;
+}
+
+body.dark-mode #preview-content {
+    background: var(--preview-bg) !important;
+    color: var(--preview-text) !important;
+}
+
+body.dark-mode .content-pane {
+    background: var(--preview-bg) !important;
+    color: var(--preview-text) !important;
+}
+
+/* Preview content typography */
+body.dark-mode #preview-content h1,
+body.dark-mode #preview-content h2,
+body.dark-mode #preview-content h3,
+body.dark-mode #preview-content h4,
+body.dark-mode #preview-content h5,
+body.dark-mode #preview-content h6 {
+    color: var(--text-color) !important;
+}
+
+body.dark-mode #preview-content a {
+    color: var(--primary) !important;
+}
+
+body.dark-mode #preview-content a:hover {
+    color: var(--primary-hover) !important;
+}
+
+body.dark-mode #preview-content code {
+    background: var(--code-bg) !important;
+    color: var(--code-text) !important;
+}
+
+body.dark-mode #preview-content pre {
+    background: var(--code-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode #preview-content pre code {
+    background: transparent !important;
+}
+
+body.dark-mode #preview-content blockquote {
+    border-left-color: var(--primary) !important;
+    background: var(--primary-light) !important;
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode #preview-content table {
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode #preview-content th {
+    background: var(--surface) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode #preview-content td {
+    border-color: var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode #preview-content tr:nth-child(even) {
+    background: var(--surface-hover) !important;
+}
+
+body.dark-mode #preview-content hr {
+    border-color: var(--border-color) !important;
+}
+
+/* =====================================================
+   CHAT PANE DARK MODE
+   ===================================================== */
+
+body.dark-mode #chat-pane {
+    background: var(--panel-bg) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .chat-input-area,
+body.dark-mode #chat-input {
+    background: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode #chat-messages {
+    background: var(--panel-bg) !important;
+}
+
+body.dark-mode .terminal-header {
+    background: var(--surface) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .terminal-subtitle {
+    color: var(--text-secondary) !important;
+}
+
+/* =====================================================
+   RESIZER DARK MODE
+   ===================================================== */
+
+body.dark-mode .resizer {
+    background: var(--border-color) !important;
+}
+
+body.dark-mode .resizer:hover {
+    background: var(--primary) !important;
+}
+
+/* =====================================================
+   BOTTOM TAB BAR DARK MODE
+   ===================================================== */
+
+body.dark-mode .bottom-tabs,
+body.dark-mode .toggle-buttons {
+    background: var(--panel-bg) !important;
+    border-top-color: var(--border-color) !important;
+}
+
+body.dark-mode .bottom-tabs .tab-btn,
+body.dark-mode .toggle-btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body.dark-mode .bottom-tabs .tab-btn:hover,
+body.dark-mode .toggle-btn:hover {
+    background: var(--button-hover-bg) !important;
+}
+
+body.dark-mode .bottom-tabs .tab-btn.active,
+body.dark-mode .toggle-btn.active {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: var(--text-on-primary) !important;
+}
+
+/* =====================================================
+   MODAL / DIALOG DARK MODE
+   ===================================================== */
+
+body.dark-mode .modal-dialog,
+body.dark-mode .modal-content {
+    background: var(--card-bg) !important;
+    border-color: var(--card-border) !important;
+}
+
+body.dark-mode .modal-header {
+    background: var(--surface) !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+body.dark-mode .modal-header h3,
+body.dark-mode .modal-title {
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .modal-close {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .modal-close:hover {
+    background: var(--surface-hover) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .modal-body {
+    background: var(--card-bg) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .modal-footer {
+    background: var(--surface) !important;
+    border-top-color: var(--border-color) !important;
+}
+
+/* Settings dialog */
+body.dark-mode #settings-dialog {
+    background: var(--card-bg) !important;
+}
+
+body.dark-mode .settings-nav {
+    background: var(--panel-bg) !important;
+    border-right-color: var(--border-color) !important;
+}
+
+body.dark-mode .settings-nav-item {
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .settings-nav-item:hover {
+    background: var(--surface-hover) !important;
+}
+
+body.dark-mode .settings-nav-item.active {
+    background: var(--primary-light) !important;
+    color: var(--primary) !important;
+}
+
+body.dark-mode .settings-content {
+    background: var(--card-bg) !important;
+}
+
+body.dark-mode .settings-section h4 {
+    color: var(--text-color) !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+body.dark-mode .settings-label {
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .settings-input,
+body.dark-mode .settings-select {
+    background: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+    color: var(--text-color) !important;
+}
+
+/* =====================================================
+   COMMAND PALETTE DARK MODE
+   ===================================================== */
+
+body.dark-mode .command-palette-overlay {
+    background: rgba(0, 0, 0, 0.7) !important;
+}
+
+body.dark-mode .command-palette {
+    background: var(--card-bg) !important;
+    border-color: var(--card-border) !important;
+}
+
+body.dark-mode .command-palette-input {
+    background: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .command-palette-input::placeholder {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode .command-item {
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .command-item:hover,
+body.dark-mode .command-item.selected {
+    background: var(--surface-hover) !important;
+}
+
+body.dark-mode .command-item-shortcut {
+    color: var(--text-muted) !important;
+    background: var(--surface) !important;
+}
+
+/* =====================================================
+   SCROLLBAR DARK MODE
+   ===================================================== */
+
+body.dark-mode ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track) !important;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb) !important;
+    border-radius: 5px;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover) !important;
+}
+
+/* =====================================================
+   PANE VISIBILITY BUTTONS DARK MODE
+   ===================================================== */
+
+body.dark-mode .pane-visibility-btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body.dark-mode .pane-visibility-btn:hover {
+    background: var(--button-hover-bg) !important;
+}
+
+body.dark-mode .pane-visibility-btn.toggle-off {
+    background: var(--surface) !important;
+    color: var(--text-muted) !important;
+    opacity: 0.7;
+}
+
+/* =====================================================
+   FULLSCREEN BUTTON DARK MODE
+   ===================================================== */
+
+body.dark-mode .preview-fullscreen-toggle {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body.dark-mode .preview-fullscreen-toggle:hover {
+    background: var(--button-hover-bg) !important;
+}
+
+/* =====================================================
+   FORM ELEMENTS DARK MODE
+   ===================================================== */
+
+body.dark-mode input[type="text"],
+body.dark-mode input[type="password"],
+body.dark-mode input[type="email"],
+body.dark-mode input[type="number"],
+body.dark-mode input[type="search"],
+body.dark-mode textarea,
+body.dark-mode select {
+    background: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+    color: var(--text-muted) !important;
+}
+
+body.dark-mode input:focus,
+body.dark-mode textarea:focus,
+body.dark-mode select:focus {
+    border-color: var(--input-focus-border) !important;
+    outline: none;
+}
+
+/* Checkbox and toggle switches */
+body.dark-mode input[type="checkbox"] {
+    accent-color: var(--primary);
+}
+
+/* =====================================================
+   PLUGIN ROW DARK MODE
+   ===================================================== */
+
+body.dark-mode .plugin-row {
+    background: var(--surface) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .plugin-row:hover {
+    background: var(--surface-hover) !important;
+}
+
+body.dark-mode .plugin-name {
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .plugin-description {
+    color: var(--text-secondary) !important;
+}
+
+/* =====================================================
+   KEYBOARD SHORTCUTS DIALOG DARK MODE
+   ===================================================== */
+
+body.dark-mode .shortcuts-section h4 {
+    color: var(--text-color) !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+body.dark-mode .shortcut-description {
+    color: var(--text-secondary) !important;
+}
+
+body.dark-mode .shortcut-key {
+    background: var(--surface) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* =====================================================
+   STATUS BAR DARK MODE
+   ===================================================== */
+
+body.dark-mode #status-bar,
+body.dark-mode .status-bar {
+    background: var(--panel-bg) !important;
+    border-top-color: var(--border-color) !important;
+    color: var(--text-secondary) !important;
 }

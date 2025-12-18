@@ -4,24 +4,24 @@
 #editor-toolbar {
     display: flex;
     padding: 8px;
-    background: var(--surface-variant, #f8f8f8);
-    border-bottom: 1px solid var(--border, #ddd);
+    background: var(--toolbar-bg, #f8f8f8);
+    border-bottom: 1px solid var(--toolbar-border, #ddd);
     gap: 4px;
 }
 
 .toolbar-button {
     padding: 6px 10px;
-    background: var(--surface, #ffffff);
-    border: 1px solid var(--border, #ddd);
+    background: var(--button-bg, #ffffff);
+    border: 1px solid var(--button-border, #ddd);
     border-radius: 3px;
     cursor: pointer;
     font-size: 14px;
     transition: all 0.2s;
-    color: var(--text, #111827);
+    color: var(--button-text, #111827);
 }
 
 .toolbar-button:hover {
-    background: var(--surface-hover, #f0f0f0);
+    background: var(--button-hover-bg, #f0f0f0);
     border-color: var(--border-strong, #999);
 }
 
@@ -31,7 +31,7 @@
 
 .toolbar-separator {
     width: 1px;
-    background: var(--border, #ddd);
+    background: var(--border-color, #ddd);
     margin: 0 4px;
 }
 
@@ -84,6 +84,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    color: var(--text-color, inherit);
 }
 
 .file-tree li:hover {
@@ -121,19 +122,19 @@
 /* Toggle buttons */
 .toggle-buttons {
     display: flex;
-    background: var(--surface-variant, #f5f5f5);
-    border-bottom: 1px solid var(--border, #ddd);
+    background: var(--toolbar-bg, #f5f5f5);
+    border-bottom: 1px solid var(--border-color, #ddd);
 }
 
 .pane-toggle-button {
     flex: 1;
     padding: 10px;
-    background: var(--surface, #ffffff);
+    background: var(--button-bg, #ffffff);
     border: none;
-    border-right: 1px solid var(--border, #ddd);
+    border-right: 1px solid var(--border-color, #ddd);
     cursor: pointer;
     transition: all 0.2s;
-    color: var(--text-secondary, #334155);
+    color: var(--button-text, #334155);
 }
 
 .pane-toggle-button:last-child {
@@ -141,7 +142,7 @@
 }
 
 .pane-toggle-button:hover {
-    background: var(--surface-hover, #f0f0f0);
+    background: var(--button-hover-bg, #f0f0f0);
 }
 
 .pane-toggle-button.active {
@@ -152,20 +153,22 @@
 /* Search box */
 .search-box {
     padding: 10px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border-color, #ddd);
 }
 
 .search-box input {
     width: 100%;
     padding: 8px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--input-border, #ddd);
     border-radius: 4px;
     font-size: 14px;
+    background: var(--input-bg, #ffffff);
+    color: var(--text-color, inherit);
 }
 
 .search-box input:focus {
     outline: none;
-    border-color: var(--border-accent, #007acc);
+    border-color: var(--input-focus-border, #007acc);
 }
 
 /* Stats scope buttons */
@@ -181,20 +184,30 @@
 }
 
 /* Pane visibility toggle buttons (mode switcher right side) */
+.pane-visibility-btn {
+    background: var(--button-bg, #f1f5f9);
+    border: 1px solid var(--button-border, #e2e8f0);
+    color: var(--button-text, #475569);
+}
+
+.pane-visibility-btn:hover {
+    background: var(--button-hover-bg, #e2e8f0);
+}
+
 .pane-visibility-btn.toggle-off {
-    background: var(--surface-active);
-    border-color: var(--border);
-    color: var(--text-muted);
-    opacity: 0.8;
+    background: var(--surface-active, #e2e8f0);
+    border-color: var(--border-color, #cbd5e1);
+    color: var(--text-muted, #94a3b8);
+    opacity: 0.7;
 }
 
 /* Context menu */
 .context-menu {
     position: fixed;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--menu-bg, white);
+    border: 1px solid var(--border-color, #ddd);
     border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: var(--shadow-md, 0 2px 8px rgba(0,0,0,0.15));
     z-index: 10000;
     min-width: 150px;
     padding: 4px 0;
@@ -204,14 +217,33 @@
     padding: 8px 12px;
     cursor: pointer;
     font-size: 14px;
+    color: var(--text-color, inherit);
 }
 
 .context-menu-item:hover {
-    background: #f0f0f0;
+    background: var(--surface-hover, #f0f0f0);
 }
 
 .context-menu-separator {
     height: 1px;
-    background: #ddd;
+    background: var(--border-color, #ddd);
     margin: 4px 0;
+}
+
+/* Dark mode context menu */
+body.dark-mode .context-menu {
+    background: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-mode .context-menu-item {
+    color: var(--text-color) !important;
+}
+
+body.dark-mode .context-menu-item:hover {
+    background: var(--surface-hover) !important;
+}
+
+body.dark-mode .context-menu-separator {
+    background: var(--border-color) !important;
 }
