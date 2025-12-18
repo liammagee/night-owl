@@ -578,11 +578,22 @@ function updateModeButtonVisibility() {
 
 // Setup listeners for plugin enable/disable events
 function setupPluginModeButtons() {
+  // Initialize the available modes registry
+  window.__techneAvailableModes = window.__techneAvailableModes || {};
+
   // Initial update after a short delay to ensure plugins are loaded
   setTimeout(updateModeButtonVisibility, 100);
 
   // Listen for plugin enable/disable events
   if (window.TechnePlugins?.on) {
+    // Listen for mode:available events from plugins (e.g., techne-maze, techne-circle)
+    window.TechnePlugins.on('mode:available', (mode) => {
+      if (mode?.id) {
+        console.log('[Mode Switching] Mode available:', mode.id, mode.title);
+        window.__techneAvailableModes[mode.id] = mode;
+      }
+    });
+
     window.TechnePlugins.on('plugin:enabled', ({ id }) => {
       console.log('[Mode Switching] Plugin enabled:', id);
       updateModeButtonVisibility();
