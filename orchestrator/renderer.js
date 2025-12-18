@@ -7339,7 +7339,7 @@ function showRightPane(paneType) {
 window.showPane = function(paneType) {
     // First make sure the right pane is visible
     const rightPane = document.getElementById('right-pane');
-    if (rightPane && rightPane.style.display === 'none') {
+    if (rightPane && (rightPane.classList.contains('pane-hidden') || !previewVisible)) {
         togglePreview(); // This will show the right pane
     }
     // Then switch to the requested pane
@@ -9960,13 +9960,14 @@ function togglePreview() {
     }
 
     if (previewVisible) {
-        rightPane.style.display = 'none';
+        // Use CSS class to hide - inline display:none is overridden by CSS !important
+        rightPane.classList.add('pane-hidden');
         if (toggleBtn) setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
         // Adjust editor to take full width
         const editorContainer = document.getElementById('editor-container');
         if (editorContainer) editorContainer.style.flex = '1';
     } else {
-        rightPane.style.display = 'flex';
+        rightPane.classList.remove('pane-hidden');
         if (toggleBtn) setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
         // Restore normal layout proportions
         refreshLayoutProportions();
@@ -9974,6 +9975,9 @@ function togglePreview() {
     previewVisible = !previewVisible;
     console.log('[togglePreview] Preview visible:', previewVisible);
 }
+
+// Expose togglePreview globally for command palette
+window.togglePreview = togglePreview;
 
 function refreshLayoutProportions() {
     const editorPane = document.getElementById('editor-pane');
@@ -10069,17 +10073,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
     const toggleEditorBtn = document.getElementById('toggle-editor-btn');
     const togglePreviewBtn = document.getElementById('toggle-preview-btn');
-    
+
+    console.log('[Pane Toggles] Initializing. Found buttons:', {
+        sidebar: !!toggleSidebarBtn,
+        editor: !!toggleEditorBtn,
+        preview: !!togglePreviewBtn
+    });
+
     if (toggleSidebarBtn) {
-        toggleSidebarBtn.addEventListener('click', toggleSidebar);
+        toggleSidebarBtn.addEventListener('click', () => {
+            console.log('[Pane Toggles] Sidebar button clicked');
+            toggleSidebar();
+        });
     }
-    
+
     if (toggleEditorBtn) {
-        toggleEditorBtn.addEventListener('click', toggleEditor);
+        toggleEditorBtn.addEventListener('click', () => {
+            console.log('[Pane Toggles] Editor button clicked');
+            toggleEditor();
+        });
     }
-    
+
     if (togglePreviewBtn) {
-        togglePreviewBtn.addEventListener('click', togglePreview);
+        togglePreviewBtn.addEventListener('click', () => {
+            console.log('[Pane Toggles] Preview button clicked');
+            togglePreview();
+        });
     }
     
     // Wait for MathJax to be ready

@@ -9,6 +9,11 @@
     background-color: #fefdfb !important;
 }
 
+/* Hidden state for pane toggle - needs !important to override above rule */
+#right-pane.pane-hidden {
+    display: none !important;
+}
+
 /* Container for content panes - allow flex child to scroll */
 #right-pane > div:last-child {
     flex: 1 !important;
