@@ -3190,8 +3190,20 @@ async function initializeMonacoEditor() {
                 if (typeof initializeVisualMarkdown === 'function') {
                     initializeVisualMarkdown(editor);
                 }
+
+                // Initialize collaboration indicators (available for future real-time sync)
+                if (typeof window.CollaborationIndicators !== 'undefined') {
+                    window.CollaborationIndicators.initialize(editor, {
+                        showCursorLabel: true,
+                        cursorBlink: true
+                    });
+                    // Generate a local user ID for this session
+                    const localUserId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    window.CollaborationIndicators.setLocalUserId(localUserId);
+                    console.log('[renderer] Collaboration indicators initialized');
+                }
             }, 100);
-            
+
             const editorContent = editor.getValue() || '';
             await updatePreviewAndStructure(editorContent);
             
