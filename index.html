@@ -176,11 +176,6 @@
             background: var(--surface-hover, #f0f0f0) !important;
         }
         
-        .mode-btn.active {
-            background: var(--primary, #16a34a) !important;
-            color: var(--text-on-primary, #ffffff) !important;
-        }
-        
         /* Network visualization styles */
         #network-canvas svg {
             cursor: grab;
@@ -201,15 +196,34 @@
             width: 100%;
         }
         
-        /* Fix mode button highlighting */
-        .mode-btn.active {
-            background: var(--primary, #16a34a) !important;
-            color: var(--text-on-primary, #ffffff) !important;
+        /* WCAG AA compliant primary color - darker green for sufficient contrast with white */
+        :root {
+            --primary-wcag: #166534; /* Contrast ratio 6.26:1 with white */
         }
-        
+
+        /* Fix mode button highlighting - WCAG AA compliant colors */
+        #editor-mode-btn.active,
+        #presentation-mode-btn.active,
+        #network-mode-btn.active,
+        #library-mode-btn.active,
+        #circle-mode-btn.active,
+        .mode-btn.active {
+            background: var(--primary-wcag, #166534) !important;
+            color: #ffffff !important;
+        }
+
         .mode-btn:not(.active) {
             background: transparent !important;
-            color: var(--text-muted, #666) !important;
+            color: #4b5563 !important; /* Darker gray for WCAG AA compliance */
+        }
+
+        /* Fix pane toggle button contrast for WCAG AA compliance */
+        #show-preview-btn.active,
+        #show-chat-btn.active,
+        #show-speaker-notes-btn.active,
+        .pane-toggle-button.active {
+            background: var(--primary-wcag, #166534) !important;
+            color: #ffffff !important;
         }
         
         /* Add margins to sidebar headers */
@@ -2204,6 +2218,19 @@
                 background: rgba(45, 45, 45, 1);
             }
         }
+
+        /* Screen reader only - visually hidden but accessible */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
     </style>
 </head>
 <body>
@@ -2520,7 +2547,7 @@
     <!-- Main Application Container -->
     <div id="app-container">
         <!-- Left Sidebar (Always visible) -->
-        <div id="left-sidebar">
+        <nav id="left-sidebar" aria-label="File navigation and tools">
             <div id="structure-pane-header">
                 <div class="toggle-buttons structure-toggle-buttons" style="display: flex; gap: 2px; overflow: hidden;">
                     <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📁</button>
@@ -2765,13 +2792,15 @@
                 </div>
                 <!-- TEMP DEBUG: Test button -->
             </div>
-        </div>
+        </nav>
 
         <!-- Resizer for left sidebar -->
         <div id="sidebar-resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
 
         <!-- Main Content Area (Switches between editor and presentation) -->
-        <div id="main-content">
+        <main id="main-content" role="main">
+            <!-- Accessibility: Hidden H1 for screen readers -->
+            <h1 class="sr-only">NightOwl - Philosophical Writing & Teaching Application</h1>
             <!-- Content Mode Switcher -->
             <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; padding: 0 16px;">
                 <!-- Navigation Controls -->
@@ -2827,7 +2856,7 @@
                             <button id="format-color-btn" class="toolbar-btn toolbar-btn-color" title="Text Color">
                                 <span style="color: #FF6B35;">A</span>
                             </button>
-                            <input type="color" id="color-picker-input" style="position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer;" value="#FF6B35">
+                            <input type="color" id="color-picker-input" aria-label="Choose text color" style="position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer;" value="#FF6B35">
                         </div>
                         
                         <div class="toolbar-separator"></div>
@@ -3143,7 +3172,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Find & Replace Dialog -->

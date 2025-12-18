@@ -45,11 +45,13 @@ async function launchElectronApp() {
 
   try {
     const electronPath = require('electron');
+    // Create clean environment without ELECTRON_RUN_AS_NODE (conflicts with Electron GUI mode)
+    const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
 
     sharedElectronApp = await electron.launch({
       executablePath: electronPath,
       args: [APP_PATH, '--dev'],
-      env: { ...process.env, NODE_ENV: 'test' },
+      env: { ...cleanEnv, NODE_ENV: 'test' },
       timeout: 30000
     });
 

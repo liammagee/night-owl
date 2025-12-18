@@ -7,10 +7,12 @@ test.describe('Hegel Pedagogy AI - User Workflows', () => {
 
   test.beforeEach(async () => {
     // Launch Electron app
+    // Create clean environment without ELECTRON_RUN_AS_NODE (conflicts with Electron GUI mode)
+    const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
     app = await electron.launch({
       args: [path.join(__dirname, '../..')],
       env: {
-        ...process.env,
+        ...cleanEnv,
         NODE_ENV: 'test'
       }
     });
@@ -28,7 +30,7 @@ test.describe('Hegel Pedagogy AI - User Workflows', () => {
 
   test('app launches with correct title', async () => {
     const title = await window.title();
-    expect(title).toContain('Hegel Pedagogy AI');
+    expect(title).toContain('NightOwl');
   });
 
   test('file tree loads and displays files', async () => {

@@ -11,9 +11,11 @@ class ElectronTestHelper {
     const appPath = path.join(__dirname, '../../');
     
     return new Promise((resolve, reject) => {
+      // Create clean environment without ELECTRON_RUN_AS_NODE (conflicts with Electron GUI mode)
+      const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
       this.electronProcess = spawn(electronPath, [appPath, '--dev'], {
         stdio: 'pipe',
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { ...cleanEnv, NODE_ENV: 'test' }
       });
       
       this.electronProcess.stdout.on('data', (data) => {

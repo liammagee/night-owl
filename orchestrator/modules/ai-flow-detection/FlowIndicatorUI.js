@@ -37,11 +37,15 @@ class FlowIndicatorUI {
         this.indicator = document.createElement('div');
         this.indicator.id = 'flow-indicator';
         this.indicator.className = 'flow-indicator';
-        
+        // Accessibility: This decorative status indicator doesn't need to be in a landmark
+        this.indicator.setAttribute('role', 'status');
+        this.indicator.setAttribute('aria-live', 'polite');
+        this.indicator.setAttribute('aria-label', 'Flow state indicator');
+
         this.indicator.innerHTML = `
-            <div class="flow-icon">🌊</div>
+            <div class="flow-icon" aria-hidden="true">🌊</div>
             <div class="flow-text">Flow State</div>
-            <div class="flow-close" title="Dismiss">×</div>
+            <div class="flow-close" title="Dismiss" aria-label="Dismiss flow indicator">×</div>
         `;
 
         // Apply default styles

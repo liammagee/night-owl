@@ -6,7 +6,9 @@ test.describe('Citation Management System', () => {
 
   test.beforeAll(async () => {
     // Launch the Electron app
-    electronApp = await electron.launch({ args: ['.'] });
+    // Create clean environment without ELECTRON_RUN_AS_NODE (conflicts with Electron GUI mode)
+    const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
+    electronApp = await electron.launch({ args: ['.'], env: { ...cleanEnv, NODE_ENV: 'test' } });
     window = await electronApp.firstWindow();
     await window.waitForLoadState('domcontentloaded');
   });

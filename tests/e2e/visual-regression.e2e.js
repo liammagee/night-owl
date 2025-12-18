@@ -6,9 +6,11 @@ test.describe('Visual Regression Tests', () => {
   let window;
 
   test.beforeEach(async () => {
+    // Create clean environment without ELECTRON_RUN_AS_NODE (conflicts with Electron GUI mode)
+    const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
     app = await electron.launch({
       args: [path.join(__dirname, '../..')],
-      env: { ...process.env, NODE_ENV: 'test' }
+      env: { ...cleanEnv, NODE_ENV: 'test' }
     });
     
     window = await app.firstWindow();
