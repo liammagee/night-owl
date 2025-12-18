@@ -8532,11 +8532,22 @@ function expandCommonFolders(rootNode) {
     }
 }
 
-function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = false) {
+async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = false) {
     // Remove any existing context menu
     const existingMenu = document.querySelector('.file-context-menu');
     if (existingMenu) {
         existingMenu.remove();
+    }
+
+    // Check if folder is part of a git repository
+    let gitInfo = null;
+    if (isFolder && window.electronAPI) {
+        try {
+            gitInfo = await window.electronAPI.invoke('git-find-repo', filePath);
+            console.log('[showFileContextMenu] Git info:', gitInfo);
+        } catch (error) {
+            console.log('[showFileContextMenu] Git check failed:', error);
+        }
     }
 
     // Create context menu
@@ -8546,8 +8557,9 @@ function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = 
         position: fixed;
         left: ${event.pageX}px;
         top: ${event.pageY}px;
-        background: white;
-        border: 1px solid #ddd;
+        background: var(--surface, white);
+        color: var(--text-color, #333);
+        border: 1px solid var(--border-color, #ddd);
         border-radius: 4px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         z-index: 10000;
@@ -8574,6 +8586,13 @@ function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = 
                 { label: 'Remove from Workspace', action: 'remove-from-workspace' }
             );
         }
+        // Add git publish option if folder is in a git repo
+        if (gitInfo && gitInfo.success) {
+            menuItems.push(
+                { separator: true },
+                { label: 'Publish to Git...', action: 'publish-git', gitInfo }
+            );
+        }
     } else {
         menuItems.push(
             { label: 'Open', action: 'open' },
@@ -8595,13 +8614,19 @@ function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = 
         }
     }
     
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const hoverBg = isDarkMode ? '#3c3c3c' : '#f0f0f0';
+    const normalBg = isDarkMode ? 'var(--surface, #252526)' : 'white';
+    const separatorColor = isDarkMode ? '#4a4a4a' : '#e0e0e0';
+    const borderColor = isDarkMode ? '#3c3c3c' : '#f0f0f0';
+
     menuItems.forEach((item, index) => {
         // Handle separator items
         if (item.separator) {
             const separator = document.createElement('div');
             separator.style.cssText = `
                 height: 1px;
-                background: #e0e0e0;
+                background: ${separatorColor};
                 margin: 4px 0;
             `;
             menu.appendChild(separator);
@@ -8612,18 +8637,18 @@ function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = 
         menuItem.style.cssText = `
             padding: 8px 12px;
             cursor: pointer;
-            border-bottom: ${index < menuItems.length - 1 && !menuItems[index + 1]?.separator ? '1px solid #f0f0f0' : 'none'};
+            border-bottom: ${index < menuItems.length - 1 && !menuItems[index + 1]?.separator ? `1px solid ${borderColor}` : 'none'};
         `;
         menuItem.textContent = item.label;
         menuItem.addEventListener('click', () => {
-            handleFileContextMenuAction(item.action, filePath, isFolder);
+            handleFileContextMenuAction(item.action, filePath, isFolder, item.gitInfo);
             menu.remove();
         });
         menuItem.addEventListener('mouseenter', () => {
-            menuItem.style.background = '#f0f0f0';
+            menuItem.style.background = hoverBg;
         });
         menuItem.addEventListener('mouseleave', () => {
-            menuItem.style.background = 'white';
+            menuItem.style.background = normalBg;
         });
         menu.appendChild(menuItem);
     });
@@ -8642,8 +8667,8 @@ function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = 
     }, 10);
 }
 
-async function handleFileContextMenuAction(action, filePath, isFolder) {
-    console.log(`[handleFileContextMenuAction] Action: ${action}, Path: ${filePath}, IsFolder: ${isFolder}`);
+async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo = null) {
+    console.log(`[handleFileContextMenuAction] Action: ${action}, Path: ${filePath}, IsFolder: ${isFolder}, GitInfo: ${gitInfo ? 'present' : 'null'}`);
     
     switch (action) {
         case 'open':
@@ -8877,6 +8902,35 @@ async function handleFileContextMenuAction(action, filePath, isFolder) {
                         console.error('[handleFileContextMenuAction] Error removing workspace folder:', error);
                         showNotification('Error removing folder from workspace', 'error');
                     }
+                }
+            }
+            break;
+
+        case 'publish-git':
+            if (isFolder && gitInfo) {
+                try {
+                    // Show the git publish dialog
+                    const result = await showGitPublishDialog(filePath, gitInfo);
+
+                    if (result) {
+                        // User confirmed, execute git publish
+                        showNotification('Publishing changes...', 'info');
+
+                        const publishResult = await window.electronAPI.invoke('git-publish', {
+                            repoRoot: result.gitInfo.repoRoot,
+                            subfolder: result.gitInfo.relativePath,
+                            message: result.message
+                        });
+
+                        if (publishResult.success) {
+                            showNotification(`Published successfully! Commit: ${publishResult.commitHash}`, 'success');
+                        } else {
+                            showNotification(`Publish failed: ${publishResult.error}`, 'error');
+                        }
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error in git publish:', error);
+                    showNotification('Error publishing to Git', 'error');
                 }
             }
             break;
@@ -10473,6 +10527,182 @@ async function saveAsFile() {
         console.error('[renderer.js] Manual save-as error:', error);
         showNotification('Save-as error: ' + error.message, 'error');
     }
+}
+
+// --- Git Publish Dialog ---
+
+async function showGitPublishDialog(folderPath, gitInfo) {
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const bgColor = isDarkMode ? '#252526' : 'white';
+    const textColor = isDarkMode ? '#d4d4d4' : '#333';
+    const secondaryColor = isDarkMode ? '#9d9d9d' : '#666';
+    const borderColor = isDarkMode ? '#4a4a4a' : '#ddd';
+    const inputBg = isDarkMode ? '#3c3c3c' : 'white';
+
+    // Fetch git status
+    let changes = [];
+    try {
+        const statusResult = await window.electronAPI.invoke('git-status', {
+            repoRoot: gitInfo.repoRoot,
+            subfolder: gitInfo.relativePath
+        });
+        if (statusResult.success) {
+            changes = statusResult.changes;
+        }
+    } catch (error) {
+        console.error('[showGitPublishDialog] Error fetching status:', error);
+    }
+
+    return new Promise((resolve) => {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: ${bgColor};
+            color: ${textColor};
+            border-radius: 8px;
+            padding: 24px;
+            min-width: 500px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        const folderName = folderPath.split('/').pop();
+        const repoName = gitInfo.repoRoot.split('/').pop();
+
+        // Build changes list HTML
+        let changesHtml = '';
+        if (changes.length === 0) {
+            changesHtml = `<p style="color: ${secondaryColor}; font-style: italic; margin: 8px 0;">No changes to commit</p>`;
+        } else {
+            changesHtml = `
+                <div style="max-height: 150px; overflow-y: auto; border: 1px solid ${borderColor}; border-radius: 4px; margin: 8px 0;">
+                    ${changes.map(c => {
+                        const statusColor = c.status === 'added' ? '#22c55e' :
+                                           c.status === 'deleted' ? '#ef4444' :
+                                           c.status === 'untracked' ? '#3b82f6' : '#f59e0b';
+                        return `<div style="padding: 6px 10px; border-bottom: 1px solid ${borderColor}; font-family: monospace; font-size: 12px;">
+                            <span style="color: ${statusColor}; font-weight: 500;">[${c.status}]</span>
+                            <span style="margin-left: 8px;">${c.file}</span>
+                        </div>`;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        dialog.innerHTML = `
+            <h3 style="margin: 0 0 8px 0; font-size: 18px;">Publish to Git</h3>
+            <p style="margin: 0 0 16px 0; color: ${secondaryColor}; font-size: 13px;">
+                <strong>${folderName}</strong> in <em>${repoName}</em>
+            </p>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    Changes (${changes.length} file${changes.length !== 1 ? 's' : ''}):
+                </label>
+                ${changesHtml}
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
+                    Commit message:
+                </label>
+                <textarea id="git-commit-message" style="
+                    width: 100%;
+                    height: 80px;
+                    padding: 10px 12px;
+                    border: 1px solid ${borderColor};
+                    border-radius: 4px;
+                    font-size: 14px;
+                    font-family: monospace;
+                    box-sizing: border-box;
+                    resize: vertical;
+                    background: ${inputBg};
+                    color: ${textColor};
+                " placeholder="Enter commit message..." ${changes.length === 0 ? 'disabled' : ''}></textarea>
+            </div>
+
+            <div style="text-align: right;">
+                <button id="git-cancel" class="btn btn-ghost" style="margin-right: 10px;">Cancel</button>
+                <button id="git-publish" class="btn btn-primary" ${changes.length === 0 ? 'disabled' : ''}>
+                    Commit & Push
+                </button>
+            </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        // Focus textarea
+        const textarea = dialog.querySelector('#git-commit-message');
+        if (changes.length > 0) {
+            textarea.focus();
+        }
+
+        // Handle events
+        const handlePublish = async () => {
+            const message = textarea.value.trim();
+            if (!message) {
+                textarea.style.borderColor = '#ef4444';
+                textarea.focus();
+                return;
+            }
+
+            // Disable buttons and show loading state
+            const publishBtn = dialog.querySelector('#git-publish');
+            const cancelBtn = dialog.querySelector('#git-cancel');
+            publishBtn.disabled = true;
+            publishBtn.textContent = 'Publishing...';
+            cancelBtn.disabled = true;
+
+            document.body.removeChild(overlay);
+            resolve({ message, gitInfo });
+        };
+
+        const handleCancel = () => {
+            document.body.removeChild(overlay);
+            resolve(null);
+        };
+
+        dialog.querySelector('#git-publish').onclick = handlePublish;
+        dialog.querySelector('#git-cancel').onclick = handleCancel;
+
+        // Handle Ctrl+Enter to publish
+        textarea.onkeydown = (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                handlePublish();
+            } else if (e.key === 'Escape') {
+                handleCancel();
+            }
+        };
+
+        // Close on overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                handleCancel();
+            }
+        };
+    });
 }
 
 // --- Text Extraction Feature ---
