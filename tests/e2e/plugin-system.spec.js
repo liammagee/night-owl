@@ -287,7 +287,7 @@ test.describe('Plugin System', () => {
 
       // Ensure maze plugin is enabled
       const isMazeEnabled = await sharedWindow.evaluate(() => {
-        return window.TechnePlugins?.isPluginEnabled?.('techne-maze') ?? false;
+        return window.TechnePlugins?.isEnabled?.('techne-maze') ?? false;
       });
 
       if (!isMazeEnabled) {
@@ -569,7 +569,7 @@ test.describe('Plugin System', () => {
     test('should register maze mode when plugin is enabled', async () => {
       // First ensure maze is enabled
       await sharedWindow.evaluate(async () => {
-        if (!window.TechnePlugins?.isPluginEnabled?.('techne-maze')) {
+        if (!window.TechnePlugins?.isEnabled?.('techne-maze')) {
           await window.TechnePlugins?.enablePlugin?.('techne-maze');
         }
       });
