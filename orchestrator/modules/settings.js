@@ -118,12 +118,13 @@ function createSettingsDialog() {
 
     // Set up event delegation for plugin toggles on the content area
     // This avoids timing issues with dynamically generated content
-    content.addEventListener('click', async (e) => {
-        // Check if this is a click on a plugin toggle
+    // Use 'change' event which fires reliably on checkbox state change
+    content.addEventListener('change', async (e) => {
+        // Check if this is a change on a plugin toggle checkbox
         if (e.target.classList.contains('plugin-enabled-toggle')) {
             const pluginId = e.target.dataset.pluginId;
             const isEnabled = e.target.checked;
-            console.log(`[Settings] Plugin toggle clicked (delegated): ${pluginId} -> ${isEnabled}`);
+            console.log(`[Settings] Plugin toggle changed: ${pluginId} -> ${isEnabled}`);
 
             const row = e.target.closest('.plugin-row');
             const statusBadge = row?.querySelector('.status-badge:not(.status-default)');
