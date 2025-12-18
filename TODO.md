@@ -148,17 +148,24 @@ Generated from codebase deep scan on 2025-12-17.
 
 ### Performance Optimization
 
-- [ ] **Virtual Scrolling for Large Documents**
-  - Only render visible content
-  - Improve performance for 10k+ line documents
+- [x] **Virtual Scrolling for Large Documents** ✅ COMPLETED
+  - Only processes visible viewport lines (plus configurable buffer)
+  - `config.largeDocumentThreshold` (500 lines) triggers virtual scrolling
+  - `config.viewportBuffer` (50 lines) for pre-rendering nearby content
+  - Scroll listener updates decorations on viewport change
+  - Widgets outside visible range are removed to free memory
 
-- [ ] **Lazy Load Plugins**
-  - Load plugins on-demand
-  - Reduce initial startup time
+- [x] **Lazy Load Plugins** ✅ COMPLETED
+  - Manifest supports `lazy: true` flag for on-demand loading
+  - `loadPlugin(id)` triggers deferred loading with dependency resolution
+  - `isLazy(id)` and `getLazyPlugins()` for querying lazy state
+  - Events: `plugin:loading`, `plugin:loaded`
 
-- [ ] **Cache Parsed Markdown**
-  - Avoid re-parsing unchanged sections
-  - Improve update performance
+- [x] **Cache Parsed Markdown** ✅ COMPLETED
+  - Per-line decoration cache with content hash validation
+  - Cache automatically invalidated when line content changes
+  - Console logging of cache hit/miss ratio for large documents
+  - `clearDecorationCaches()` for manual cache clearing
 
 ### Plugin System
 

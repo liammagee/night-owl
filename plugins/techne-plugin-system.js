@@ -26,7 +26,11 @@
         // Development mode flag
         devMode: false,
         // Storage key prefix for persistence
-        storageKey: 'techne-plugin-settings'
+        storageKey: 'techne-plugin-settings',
+        // Lazy loading: track which plugins are lazy and not yet loaded
+        lazyPlugins: new Set(),
+        // Track plugins that have been loaded (script loaded, regardless of init)
+        loadedPlugins: new Set()
     };
 
     const log = (...args) => console.log('[TechnePlugins]', ...args);
@@ -593,13 +597,21 @@
                 state.enabled.add(id);
             }
 
+            const entry = manifestById.get(id);
+
+            // Check if this is a lazy plugin - defer loading until explicitly requested
+            if (entry?.lazy === true && !state.loadedPlugins.has(id)) {
+                state.lazyPlugins.add(id);
+                log(`Deferring lazy plugin "${id}" - will load on demand`);
+                continue;
+            }
+
             const already = state.plugins.get(id);
             if (already) {
                 await initPluginIfEnabled(already);
                 continue;
             }
 
-            const entry = manifestById.get(id);
             const scriptUrl = normalizePath(entry?.entry);
             if (!scriptUrl) {
                 warn(`Missing entry for enabled plugin "${id}"`);
@@ -616,6 +628,8 @@
                 continue;
             }
 
+            state.loadedPlugins.add(id);
+
             try {
                 const plugin = await waitForPlugin;
                 await initPluginIfEnabled(plugin);
@@ -624,6 +638,97 @@
             }
         }
     };
+
+    /**
+     * Load a lazy plugin on demand
+     * @param {string} pluginId - ID of the plugin to load
+     * @returns {Promise<{success: boolean, plugin?: Object, error?: string}>}
+     */
+    const loadPlugin = async (pluginId) => {
+        const id = String(pluginId || '').trim();
+        if (!id) return { success: false, error: 'Invalid plugin ID' };
+
+        // Already loaded and initialized
+        const existing = state.plugins.get(id);
+        if (existing && existing.__techneInited) {
+            return { success: true, plugin: existing };
+        }
+
+        // Find manifest entry
+        const entry = state.manifest.find(p => normalizeId(p?.id) === id);
+        if (!entry?.entry) {
+            return { success: false, error: `Plugin "${id}" not found in manifest` };
+        }
+
+        // Check if enabled
+        if (!state.enabled.has(id)) {
+            return { success: false, error: `Plugin "${id}" is not enabled` };
+        }
+
+        log(`Loading lazy plugin "${id}" on demand...`);
+        emit('plugin:loading', { id });
+
+        try {
+            // Load dependencies first
+            const deps = resolveDependencies(id);
+            for (const depId of deps) {
+                if (!state.loadedPlugins.has(depId)) {
+                    const depResult = await loadPlugin(depId);
+                    if (!depResult.success) {
+                        return { success: false, error: `Failed to load dependency "${depId}": ${depResult.error}` };
+                    }
+                }
+            }
+
+            const scriptUrl = normalizePath(entry.entry);
+            state.scriptUrls.set(id, scriptUrl);
+
+            // If already loaded script but not initialized
+            if (existing) {
+                await initPluginIfEnabled(existing);
+                state.lazyPlugins.delete(id);
+                emit('plugin:loaded', { id });
+                return { success: true, plugin: existing };
+            }
+
+            // Load the script
+            const waitForPlugin = waitForRegistration(id);
+            const ok = await loadScript(scriptUrl, { async: false });
+            if (!ok) {
+                return { success: false, error: `Failed to load script for "${id}"` };
+            }
+
+            state.loadedPlugins.add(id);
+            state.lazyPlugins.delete(id);
+
+            const plugin = await waitForPlugin;
+            await initPluginIfEnabled(plugin);
+
+            emit('plugin:loaded', { id });
+            log(`Lazy plugin "${id}" loaded successfully`);
+
+            return { success: true, plugin };
+        } catch (err) {
+            error(`Failed to load lazy plugin "${id}":`, err);
+            return { success: false, error: String(err?.message || err) };
+        }
+    };
+
+    /**
+     * Check if a plugin is lazy (enabled but not yet loaded)
+     * @param {string} pluginId - ID of the plugin to check
+     * @returns {boolean}
+     */
+    const isLazy = (pluginId) => {
+        const id = String(pluginId || '').trim();
+        return state.lazyPlugins.has(id);
+    };
+
+    /**
+     * Get list of lazy plugins that haven't been loaded yet
+     * @returns {string[]}
+     */
+    const getLazyPlugins = () => Array.from(state.lazyPlugins);
 
     const start = async ({ manifest = null, enabled = null, appId = null, settings, devMode = false } = {}) => {
         state.startPromise = Promise.resolve(state.startPromise).then(async () => {
@@ -749,6 +854,10 @@
         // Dependency management
         getDependencies,
         getDependents,
+        // Lazy loading
+        loadPlugin,
+        isLazy,
+        getLazyPlugins,
         // Hot reload (dev mode)
         setDevMode,
         isDevMode,

@@ -69,8 +69,163 @@ const config = {
     codeBlockCollapsedLines: 3, // Number of lines to show when collapsed
     imageMaxWidth: 400,
     imageMaxHeight: 300,
-    updateDebounceMs: 150
+    updateDebounceMs: 150,
+    // Virtual scrolling settings
+    virtualScrolling: true, // Enable viewport-based rendering for large documents
+    viewportBuffer: 50, // Extra lines to render above/below viewport
+    largeDocumentThreshold: 500, // Line count above which virtual scrolling activates
+    scrollDebounceMs: 50 // Debounce time for scroll updates
 };
+
+// --- Virtual Scrolling State ---
+/** @type {{startLine: number, endLine: number}} Current visible range */
+let visibleRange = { startLine: 1, endLine: 100 };
+
+/** @type {number|null} Scroll update timeout */
+let scrollTimeout = null;
+
+/** @type {boolean} Whether document is large enough for virtual scrolling */
+let isLargeDocument = false;
+
+// --- Parsed Markdown Cache ---
+/**
+ * Cache for parsed markdown decorations per line
+ * Key: line number, Value: { hash: string, decorations: array }
+ */
+const lineDecorationCache = new Map();
+
+/**
+ * Cache for code block boundaries (multi-line structures)
+ * Key: 'codeblocks', Value: { hash: string, ranges: array }
+ */
+const structureCache = new Map();
+
+/**
+ * Simple hash function for line content
+ * @param {string} str - String to hash
+ * @returns {string}
+ */
+function hashLine(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(36);
+}
+
+/**
+ * Get cached decorations for a line or null if cache miss
+ * @param {number} lineNumber - Line number
+ * @param {string} lineContent - Current line content
+ * @returns {Array|null}
+ */
+function getCachedLineDecorations(lineNumber, lineContent) {
+    const cached = lineDecorationCache.get(lineNumber);
+    if (!cached) return null;
+
+    const currentHash = hashLine(lineContent);
+    if (cached.hash !== currentHash) return null;
+
+    return cached.decorations;
+}
+
+/**
+ * Store decorations in cache for a line
+ * @param {number} lineNumber - Line number
+ * @param {string} lineContent - Line content
+ * @param {Array} decorations - Decorations for this line
+ */
+function cacheLineDecorations(lineNumber, lineContent, decorations) {
+    lineDecorationCache.set(lineNumber, {
+        hash: hashLine(lineContent),
+        decorations: decorations
+    });
+}
+
+/**
+ * Invalidate cache entries for lines that have changed
+ * @param {number} startLine - First changed line
+ * @param {number} endLine - Last changed line (or Infinity for all after start)
+ */
+function invalidateCacheRange(startLine, endLine = Infinity) {
+    for (const [lineNum] of lineDecorationCache) {
+        if (lineNum >= startLine && lineNum <= endLine) {
+            lineDecorationCache.delete(lineNum);
+        }
+    }
+}
+
+/**
+ * Clear all caches
+ */
+function clearDecorationCaches() {
+    lineDecorationCache.clear();
+    structureCache.clear();
+}
+
+/**
+ * Get the visible line range with buffer for the current viewport
+ * @param {Object} editor - Monaco editor instance
+ * @returns {{startLine: number, endLine: number, isLarge: boolean}}
+ */
+function getVisibleRange(editor) {
+    if (!editor) return { startLine: 1, endLine: 100, isLarge: false };
+
+    const model = editor.getModel();
+    if (!model) return { startLine: 1, endLine: 100, isLarge: false };
+
+    const lineCount = model.getLineCount();
+    const isLarge = lineCount > config.largeDocumentThreshold;
+
+    // For small documents, render everything
+    if (!config.virtualScrolling || !isLarge) {
+        return { startLine: 1, endLine: lineCount, isLarge: false };
+    }
+
+    // Get visible ranges from Monaco
+    const ranges = editor.getVisibleRanges();
+    if (!ranges || ranges.length === 0) {
+        return { startLine: 1, endLine: Math.min(100, lineCount), isLarge };
+    }
+
+    // Find the full visible range (union of all visible ranges)
+    let minLine = lineCount;
+    let maxLine = 1;
+    for (const range of ranges) {
+        minLine = Math.min(minLine, range.startLineNumber);
+        maxLine = Math.max(maxLine, range.endLineNumber);
+    }
+
+    // Add buffer
+    const buffer = config.viewportBuffer;
+    const startLine = Math.max(1, minLine - buffer);
+    const endLine = Math.min(lineCount, maxLine + buffer);
+
+    return { startLine, endLine, isLarge };
+}
+
+/**
+ * Check if a line is within the visible range
+ * @param {number} lineNumber - Line number to check
+ * @returns {boolean}
+ */
+function isLineVisible(lineNumber) {
+    if (!isLargeDocument) return true;
+    return lineNumber >= visibleRange.startLine && lineNumber <= visibleRange.endLine;
+}
+
+/**
+ * Check if a range overlaps with the visible range
+ * @param {number} startLine - Start line of range
+ * @param {number} endLine - End line of range
+ * @returns {boolean}
+ */
+function isRangeVisible(startLine, endLine) {
+    if (!isLargeDocument) return true;
+    return !(endLine < visibleRange.startLine || startLine > visibleRange.endLine);
+}
 
 // --- Environment Detection ---
 // Detect if running in Electron or browser using multiple methods for reliability
@@ -246,35 +401,182 @@ function resolveImagePath(imageUrl) {
 function updateImagePreviews(editor) {
     if (!config.enabled || !config.showImagePreviews) return;
 
-    // Remove existing widgets
-    imageWidgets.forEach(widget => {
-        try {
-            editor.removeContentWidget(widget);
-        } catch (e) {
-            // Widget may already be removed
-        }
-    });
-    imageWidgets = [];
-
     const model = editor.getModel();
     if (!model) return;
+
+    // For virtual scrolling, only remove widgets outside visible range
+    if (isLargeDocument) {
+        const widgetsToKeep = [];
+        const widgetsToRemove = [];
+
+        imageWidgets.forEach(widget => {
+            const lineNum = widget._lineNumber;
+            if (lineNum && isLineVisible(lineNum)) {
+                widgetsToKeep.push(widget);
+            } else {
+                widgetsToRemove.push(widget);
+            }
+        });
+
+        widgetsToRemove.forEach(widget => {
+            try { editor.removeContentWidget(widget); } catch (e) {}
+        });
+
+        imageWidgets = widgetsToKeep;
+    } else {
+        // Small document: remove all and rebuild
+        imageWidgets.forEach(widget => {
+            try { editor.removeContentWidget(widget); } catch (e) {}
+        });
+        imageWidgets = [];
+    }
 
     const text = model.getValue();
     const lines = text.split('\n');
 
-    lines.forEach((line, lineIndex) => {
+    // Only process visible lines for large documents
+    const startIdx = isLargeDocument ? visibleRange.startLine - 1 : 0;
+    const endIdx = isLargeDocument ? Math.min(visibleRange.endLine, lines.length) : lines.length;
+
+    // Track existing widget line numbers to avoid duplicates
+    const existingLines = new Set(imageWidgets.map(w => w._lineNumber));
+
+    for (let lineIndex = startIdx; lineIndex < endIdx; lineIndex++) {
+        const lineNumber = lineIndex + 1;
+
+        // Skip if already have widget for this line
+        if (existingLines.has(lineNumber)) continue;
+
+        const line = lines[lineIndex];
         const regex = new RegExp(patterns.image.source, 'g');
         let match;
 
         while ((match = regex.exec(line)) !== null) {
             const widget = createImageWidget(editor, match, lineIndex, match.index);
+            widget._lineNumber = lineNumber; // Track line number for virtual scrolling
             imageWidgets.push(widget);
             editor.addContentWidget(widget);
         }
-    });
+    }
 }
 
 // --- Formatting Decorations ---
+
+/**
+ * Parse formatting decorations for a single line
+ * @param {string} line - Line content
+ * @param {number} lineNumber - Line number (1-based)
+ * @returns {Array} Array of decoration objects
+ */
+function parseLineFormattingDecorations(line, lineNumber) {
+    const decorations = [];
+
+    // Bold decorations
+    let boldRegex = new RegExp(patterns.bold.source, 'g');
+    let match;
+    while ((match = boldRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        const markerLen = match[1].length;
+
+        decorations.push({
+            range: new monaco.Range(lineNumber, startCol + markerLen, lineNumber, endCol - markerLen),
+            options: { inlineClassName: 'visual-md-bold', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+        decorations.push({
+            range: new monaco.Range(lineNumber, startCol, lineNumber, startCol + markerLen),
+            options: { inlineClassName: 'visual-md-marker', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+        decorations.push({
+            range: new monaco.Range(lineNumber, endCol - markerLen, lineNumber, endCol),
+            options: { inlineClassName: 'visual-md-marker', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+    }
+
+    // Italic decorations
+    let italicRegex = new RegExp(patterns.italic.source, 'g');
+    while ((match = italicRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        decorations.push({
+            range: new monaco.Range(lineNumber, startCol + 1, lineNumber, endCol - 1),
+            options: { inlineClassName: 'visual-md-italic', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+        decorations.push({
+            range: new monaco.Range(lineNumber, startCol, lineNumber, startCol + 1),
+            options: { inlineClassName: 'visual-md-marker', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+        decorations.push({
+            range: new monaco.Range(lineNumber, endCol - 1, lineNumber, endCol),
+            options: { inlineClassName: 'visual-md-marker', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+    }
+
+    // Strikethrough decorations
+    let strikeRegex = new RegExp(patterns.strikethrough.source, 'g');
+    while ((match = strikeRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        decorations.push({
+            range: new monaco.Range(lineNumber, startCol + 2, lineNumber, endCol - 2),
+            options: { inlineClassName: 'visual-md-strikethrough', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+        decorations.push({
+            range: new monaco.Range(lineNumber, startCol, lineNumber, startCol + 2),
+            options: { inlineClassName: 'visual-md-marker', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+        decorations.push({
+            range: new monaco.Range(lineNumber, endCol - 2, lineNumber, endCol),
+            options: { inlineClassName: 'visual-md-marker', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+    }
+
+    // Inline code decorations
+    let codeRegex = new RegExp(patterns.inlineCode.source, 'g');
+    while ((match = codeRegex.exec(line)) !== null) {
+        const startCol = match.index + 1;
+        const endCol = match.index + match[0].length + 1;
+        decorations.push({
+            range: new monaco.Range(lineNumber, startCol, lineNumber, endCol),
+            options: { inlineClassName: 'visual-md-inline-code', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+    }
+
+    // Heading decorations
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+        const level = headingMatch[1].length;
+        const hashEnd = headingMatch[1].length + 1;
+        decorations.push({
+            range: new monaco.Range(lineNumber, hashEnd + 1, lineNumber, line.length + 1),
+            options: { inlineClassName: `visual-md-heading visual-md-h${level}`, stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+        decorations.push({
+            range: new monaco.Range(lineNumber, 1, lineNumber, hashEnd + 1),
+            options: { inlineClassName: 'visual-md-marker visual-md-heading-marker', stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+        });
+    }
+
+    // Checkbox decorations
+    const checkboxMatch = line.match(patterns.checkbox);
+    if (checkboxMatch && config.enableCheckboxToggle) {
+        const prefixLen = checkboxMatch[1].length;
+        const isChecked = checkboxMatch[2].toLowerCase() === 'x';
+        const bracketStart = prefixLen + 1;
+        const bracketEnd = prefixLen + 4;
+        decorations.push({
+            range: new monaco.Range(lineNumber, bracketStart, lineNumber, bracketEnd),
+            options: {
+                inlineClassName: isChecked ? 'visual-md-checkbox visual-md-checkbox-checked' : 'visual-md-checkbox',
+                hoverMessage: { value: '*Click to toggle checkbox*' },
+                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+            }
+        });
+    }
+
+    return decorations;
+}
+
 function updateFormattingDecorations(editor) {
     if (!config.enabled || !config.showFormattingDecorations) return;
 
@@ -285,164 +587,36 @@ function updateFormattingDecorations(editor) {
     const text = model.getValue();
     const lines = text.split('\n');
 
-    lines.forEach((line, lineIndex) => {
+    // Only process visible lines for large documents
+    const startIdx = isLargeDocument ? visibleRange.startLine - 1 : 0;
+    const endIdx = isLargeDocument ? Math.min(visibleRange.endLine, lines.length) : lines.length;
+
+    let cacheHits = 0;
+    let cacheMisses = 0;
+
+    for (let lineIndex = startIdx; lineIndex < endIdx; lineIndex++) {
+        const line = lines[lineIndex];
         const lineNumber = lineIndex + 1;
 
-        // Bold decorations
-        let boldRegex = new RegExp(patterns.bold.source, 'g');
-        let match;
-        while ((match = boldRegex.exec(line)) !== null) {
-            const startCol = match.index + 1;
-            const endCol = match.index + match[0].length + 1;
-            const markerLen = match[1].length;
-
-            // Style the content (not the markers)
-            decorations.push({
-                range: new monaco.Range(lineNumber, startCol + markerLen, lineNumber, endCol - markerLen),
-                options: {
-                    inlineClassName: 'visual-md-bold',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-
-            // Dim the markers
-            decorations.push({
-                range: new monaco.Range(lineNumber, startCol, lineNumber, startCol + markerLen),
-                options: {
-                    inlineClassName: 'visual-md-marker',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-            decorations.push({
-                range: new monaco.Range(lineNumber, endCol - markerLen, lineNumber, endCol),
-                options: {
-                    inlineClassName: 'visual-md-marker',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
+        // Try to get from cache first
+        const cached = getCachedLineDecorations(lineNumber, line);
+        if (cached) {
+            decorations.push(...cached);
+            cacheHits++;
+            continue;
         }
 
-        // Italic decorations (avoiding bold markers)
-        let italicRegex = new RegExp(patterns.italic.source, 'g');
-        while ((match = italicRegex.exec(line)) !== null) {
-            const startCol = match.index + 1;
-            const endCol = match.index + match[0].length + 1;
+        // Parse and cache
+        const lineDecorations = parseLineFormattingDecorations(line, lineNumber);
+        cacheLineDecorations(lineNumber, line, lineDecorations);
+        decorations.push(...lineDecorations);
+        cacheMisses++;
+    }
 
-            decorations.push({
-                range: new monaco.Range(lineNumber, startCol + 1, lineNumber, endCol - 1),
-                options: {
-                    inlineClassName: 'visual-md-italic',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-
-            // Dim markers
-            decorations.push({
-                range: new monaco.Range(lineNumber, startCol, lineNumber, startCol + 1),
-                options: {
-                    inlineClassName: 'visual-md-marker',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-            decorations.push({
-                range: new monaco.Range(lineNumber, endCol - 1, lineNumber, endCol),
-                options: {
-                    inlineClassName: 'visual-md-marker',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-        }
-
-        // Strikethrough decorations
-        let strikeRegex = new RegExp(patterns.strikethrough.source, 'g');
-        while ((match = strikeRegex.exec(line)) !== null) {
-            const startCol = match.index + 1;
-            const endCol = match.index + match[0].length + 1;
-
-            decorations.push({
-                range: new monaco.Range(lineNumber, startCol + 2, lineNumber, endCol - 2),
-                options: {
-                    inlineClassName: 'visual-md-strikethrough',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-
-            // Dim markers
-            decorations.push({
-                range: new monaco.Range(lineNumber, startCol, lineNumber, startCol + 2),
-                options: {
-                    inlineClassName: 'visual-md-marker',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-            decorations.push({
-                range: new monaco.Range(lineNumber, endCol - 2, lineNumber, endCol),
-                options: {
-                    inlineClassName: 'visual-md-marker',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-        }
-
-        // Inline code decorations
-        let codeRegex = new RegExp(patterns.inlineCode.source, 'g');
-        while ((match = codeRegex.exec(line)) !== null) {
-            const startCol = match.index + 1;
-            const endCol = match.index + match[0].length + 1;
-
-            decorations.push({
-                range: new monaco.Range(lineNumber, startCol, lineNumber, endCol),
-                options: {
-                    inlineClassName: 'visual-md-inline-code',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-        }
-
-        // Heading decorations
-        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-        if (headingMatch) {
-            const level = headingMatch[1].length;
-            const hashEnd = headingMatch[1].length + 1;
-
-            // Style the heading text
-            decorations.push({
-                range: new monaco.Range(lineNumber, hashEnd + 1, lineNumber, line.length + 1),
-                options: {
-                    inlineClassName: `visual-md-heading visual-md-h${level}`,
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-
-            // Dim the hash marks
-            decorations.push({
-                range: new monaco.Range(lineNumber, 1, lineNumber, hashEnd + 1),
-                options: {
-                    inlineClassName: 'visual-md-marker visual-md-heading-marker',
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-        }
-
-        // Checkbox decorations - [ ] or - [x]
-        const checkboxMatch = line.match(patterns.checkbox);
-        if (checkboxMatch && config.enableCheckboxToggle) {
-            const prefixLen = checkboxMatch[1].length;
-            const isChecked = checkboxMatch[2].toLowerCase() === 'x';
-            const bracketStart = prefixLen + 1; // Position of [
-            const bracketEnd = prefixLen + 4;   // Position after ]
-
-            // Style the checkbox to look clickable
-            decorations.push({
-                range: new monaco.Range(lineNumber, bracketStart, lineNumber, bracketEnd),
-                options: {
-                    inlineClassName: isChecked ? 'visual-md-checkbox visual-md-checkbox-checked' : 'visual-md-checkbox',
-                    hoverMessage: { value: '*Click to toggle checkbox*' },
-                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                }
-            });
-        }
-    });
+    // Log cache performance for large documents
+    if (isLargeDocument && (cacheHits > 0 || cacheMisses > 0)) {
+        console.log(`[visualMarkdown] Cache: ${cacheHits} hits, ${cacheMisses} misses`);
+    }
 
     formatDecorations = editor.deltaDecorations(formatDecorations, decorations);
 }
@@ -458,7 +632,12 @@ function updateLinkDecorations(editor) {
     const text = model.getValue();
     const lines = text.split('\n');
 
-    lines.forEach((line, lineIndex) => {
+    // Only process visible lines for large documents
+    const startIdx = isLargeDocument ? visibleRange.startLine - 1 : 0;
+    const endIdx = isLargeDocument ? Math.min(visibleRange.endLine, lines.length) : lines.length;
+
+    for (let lineIndex = startIdx; lineIndex < endIdx; lineIndex++) {
+        const line = lines[lineIndex];
         const lineNumber = lineIndex + 1;
 
         // Standard markdown links [text](url)
@@ -567,9 +746,9 @@ function updateLinkDecorations(editor) {
                 });
             }
         }
-    });
+    }
 
-    // Parse footnote definitions from the document
+    // Parse footnote definitions from the document (need to scan all for complete lookup)
     const footnoteDefinitions = new Map();
     lines.forEach((line, lineIndex) => {
         const defMatch = line.match(patterns.footnoteDef);
@@ -580,8 +759,9 @@ function updateLinkDecorations(editor) {
         }
     });
 
-    // Add footnote reference decorations with hover preview
-    lines.forEach((line, lineIndex) => {
+    // Add footnote reference decorations with hover preview (only visible lines)
+    for (let lineIndex = startIdx; lineIndex < endIdx; lineIndex++) {
+        const line = lines[lineIndex];
         const lineNumber = lineIndex + 1;
         const footnoteRefRegex = new RegExp(patterns.footnoteRef.source, 'g');
         let match;
@@ -608,7 +788,7 @@ function updateLinkDecorations(editor) {
                 }
             });
         }
-    });
+    }
 
     linkDecorations = editor.deltaDecorations(linkDecorations, decorations);
 }
@@ -2278,15 +2458,27 @@ function toggleFormatting(editor, formatType) {
 /**
  * Update all visual markdown enhancements
  * Debounces updates and refreshes images, formatting, links, code blocks, and tables
+ * Uses virtual scrolling for large documents (only processes visible viewport)
  *
  * @param {Object} editor - Monaco editor instance
+ * @param {boolean} [scrollUpdate=false] - Whether this is a scroll-triggered update
  */
-function updateVisualMarkdown(editor) {
+function updateVisualMarkdown(editor, scrollUpdate = false) {
     if (!editor || !config.enabled) return;
 
     // Clear any pending update
     if (updateTimeout) {
         clearTimeout(updateTimeout);
+    }
+
+    // Update visible range for virtual scrolling
+    const range = getVisibleRange(editor);
+    visibleRange = { startLine: range.startLine, endLine: range.endLine };
+    isLargeDocument = range.isLarge;
+
+    // Log performance info for large documents
+    if (isLargeDocument && !scrollUpdate) {
+        console.log(`[visualMarkdown] Virtual scrolling active: rendering lines ${visibleRange.startLine}-${visibleRange.endLine}`);
     }
 
     // Debounce updates
@@ -2298,6 +2490,35 @@ function updateVisualMarkdown(editor) {
         updateTableDecorations(editor);
         updateMathDecorations(editor);
     }, config.updateDebounceMs);
+}
+
+/**
+ * Handle scroll events for virtual scrolling
+ * Updates decorations/widgets when viewport changes in large documents
+ *
+ * @param {Object} editor - Monaco editor instance
+ */
+function handleScrollUpdate(editor) {
+    if (!editor || !config.enabled || !isLargeDocument) return;
+
+    // Clear pending scroll update
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+
+    // Debounce scroll updates
+    scrollTimeout = setTimeout(() => {
+        const newRange = getVisibleRange(editor);
+
+        // Only update if visible range changed significantly (by more than 10 lines)
+        const rangeChanged =
+            Math.abs(newRange.startLine - visibleRange.startLine) > 10 ||
+            Math.abs(newRange.endLine - visibleRange.endLine) > 10;
+
+        if (rangeChanged) {
+            updateVisualMarkdown(editor, true);
+        }
+    }, config.scrollDebounceMs);
 }
 
 /**
@@ -2363,11 +2584,22 @@ function cleanupVisualMarkdown(editor) {
     // Clear table state
     tableRanges = [];
 
-    // Clear timeout
+    // Clear timeouts
     if (updateTimeout) {
         clearTimeout(updateTimeout);
         updateTimeout = null;
     }
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = null;
+    }
+
+    // Reset virtual scrolling state
+    visibleRange = { startLine: 1, endLine: 100 };
+    isLargeDocument = false;
+
+    // Clear decoration caches
+    clearDecorationCaches();
 }
 
 /**
@@ -2409,7 +2641,7 @@ function toggleImagePreviews(enabled) {
 
 /**
  * Initialize visual markdown enhancements for an editor
- * Sets up content change listeners and click handlers
+ * Sets up content change listeners, scroll handlers, and click handlers
  *
  * @param {Object} editor - Monaco editor instance
  */
@@ -2431,6 +2663,11 @@ function initializeVisualMarkdown(editor) {
     // Set up content change listener
     editor.onDidChangeModelContent(() => {
         updateVisualMarkdown(editor);
+    });
+
+    // Set up scroll listener for virtual scrolling
+    editor.onDidScrollChange(() => {
+        handleScrollUpdate(editor);
     });
 
     // Set up link click handler
