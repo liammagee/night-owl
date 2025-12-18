@@ -1,264 +1,149 @@
 # NightOwl
 
-Advanced Markdown editor and presentation app for philosophical writing and teaching.
+**Advanced Markdown editor and presentation app for philosophical writing and teaching.**
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Release](https://img.shields.io/github/v/release/liammagee/night-owl)](https://github.com/liammagee/night-owl/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/liammagee/night-owl/releases)
+
+NightOwl is a desktop application built with Electron that combines a powerful Monaco-based Markdown editor with presentation capabilities, AI integration, and a unique "Babel Maze" exploration mode for navigating interconnected documents.
+
+Part of the [Machine Spirits](https://machinespirits.org) project.
+
+## Download
+
+Download the latest release for your platform:
+
+| Platform | Download |
+|----------|----------|
+| macOS (Intel) | [NightOwl-x64.dmg](https://github.com/liammagee/night-owl/releases/latest) |
+| macOS (Apple Silicon) | [NightOwl-arm64.dmg](https://github.com/liammagee/night-owl/releases/latest) |
+| Windows | [NightOwl-Setup.exe](https://github.com/liammagee/night-owl/releases/latest) |
+| Linux | [NightOwl.AppImage](https://github.com/liammagee/night-owl/releases/latest) |
 
 ## Features
 
-### Core Editor
-- **Monaco Editor** - Full-featured code editor with Markdown syntax highlighting
-- **Split View** - Side-by-side editor and preview panes
-- **Find & Replace** - Regex, case sensitivity, and whole word matching
-- **Auto-save** - Configurable automatic saving with backup
+- **Monaco Editor** - Full-featured code editor with Markdown syntax highlighting and split preview
+- **Visual Markdown** - Inline image previews, collapsible code blocks, wiki-style `[[links]]`
+- **Presentation Mode** - Create and present slides directly from Markdown
+- **Babel Maze** - MUD-style exploration of interconnected Markdown documents
+- **AI Integration** - Chat, summarization, and note extraction with multiple AI providers
+- **Citation Management** - SQLite-backed citation database with BibTeX support
+- **Graph Visualization** - Force-directed graph of document relationships
+- **Plugin System** - Extensible via Techne plugins
 
-### Visual Markdown
-- **Inline Image Previews** - See images directly in the editor
-- **Collapsible Code Blocks** - Expand/collapse with syntax indicators
-- **Table Rendering** - Preview formatted tables with alignment
-- **WYSIWYG Editing** - Click-to-edit formatted elements
-- **Wiki Links** - `[[filename]]` syntax with Ctrl+Click navigation
-
-### File Management
-- **Multi-folder Workspaces** - Work with multiple directories
-- **Recent Files** - Quick access to recently opened files
-- **Drag & Drop** - Drop files into the editor
-- **File Tree** - Navigate your document structure
-
-### Presentation Mode
-- **Slide Presentations** - Create slides from Markdown
-- **Keyboard Navigation** - Arrow keys to navigate slides
-- **Fullscreen Mode** - Immersive presentation experience
-- **Presenter Notes** - Add notes visible only to the presenter
-
-### Graph Visualization
-- **Document Relationships** - Force-directed graph of your documents
-- **Heading Hierarchy** - Visual structure of document headings
-- **Tag Extraction** - See tags across your workspace
-- **Click Navigation** - Click nodes to navigate to content
-
-### Citation Management
-- **Citation Database** - SQLite-backed citation storage
-- **BibTeX Import/Export** - Standard bibliography format support
-- **Duplicate Detection** - Find and merge duplicate citations
-- **Batch Operations** - Export, assign projects, merge duplicates
-
-### PDF Import
-- **Text Extraction** - Import PDF content as Markdown
-- **Docling Support** - Advanced PDF-to-Markdown conversion
-
-## Keyboard Shortcuts
-
-### Editor
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+S` / `Cmd+S` | Save document |
-| `Ctrl+O` / `Cmd+O` | Open file |
-| `Ctrl+F` / `Cmd+F` | Find |
-| `Ctrl+H` / `Cmd+H` | Find & Replace |
-| `Ctrl+G` / `Cmd+G` | Go to line |
-| `Ctrl+/` / `Cmd+/` | Toggle comment |
-| `Ctrl+B` | Toggle bold |
-| `Ctrl+I` | Toggle italic |
-
-### Navigation
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+P` / `Cmd+P` | Quick file open |
-| `Ctrl+Tab` | Next tab |
-| `Ctrl+Shift+Tab` | Previous tab |
-| `Ctrl+Click` | Open wiki link |
-
-### Presentation
-| Shortcut | Action |
-|----------|--------|
-| `F5` | Start presentation |
-| `Escape` | Exit presentation |
-| `→` / `Space` | Next slide |
-| `←` | Previous slide |
-| `Home` | First slide |
-| `End` | Last slide |
-
-### View
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+\` | Toggle preview pane |
-| `Ctrl+Shift+G` | Toggle graph view |
-| `Ctrl+=` | Zoom in |
-| `Ctrl+-` | Zoom out |
-| `Ctrl+0` | Reset zoom |
-
-## Running the Application
-
-### Web Version
-To run the web version in development mode:
+## Quick Start
 
 ```bash
-npm run dev
-```
+# Clone the repository
+git clone https://github.com/liammagee/night-owl.git
+cd night-owl
 
-This will start the application using tsx and you can access it in your browser.
+# Install dependencies
+npm install
 
-### Electron Version
-To run the Electron desktop application:
-
-#### Development Mode
-```bash
+# Run in development mode
 npm run electron-dev
-```
 
-#### Production Mode
-```bash
-npm run electron
-```
-
-### Building for Distribution
-
-To build the Electron app for distribution:
-
-```bash
-npm run build
-```
-
-Or to build without publishing:
-
-```bash
+# Or build for production
 npm run dist
 ```
 
-## Installation
+## AI Configuration
 
-### Basic Setup
+NightOwl supports multiple AI providers. To enable AI features:
 
-First, install dependencies:
+1. Copy `.env.example` to `.env`
+2. Add your API key(s) for the provider(s) you want to use:
 
 ```bash
-npm install
+# OpenAI - https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-your-key-here
+
+# Anthropic - https://console.anthropic.com/
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# Google Gemini - https://makersuite.google.com/app/apikey
+GOOGLE_API_KEY=your-key-here
+
+# Groq - https://console.groq.com/
+GROQ_API_KEY=gsk_your-key-here
+
+# OpenRouter - https://openrouter.ai/keys
+OPENROUTER_API_KEY=sk-or-your-key-here
 ```
 
-### Testing Setup
+You only need to configure the providers you plan to use. The application auto-detects available providers.
 
-To run tests, you'll also need to install Playwright browsers:
+### AI Settings
+
+Configure AI behavior in the Settings dialog or via `settings.json`:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `preferredProvider` | Which AI to use (`auto`, `openai`, `anthropic`, `gemini`, `groq`, `openrouter`) | `auto` |
+| `temperature` | Response creativity (0.0 - 2.0) | `0.7` |
+| `maxTokens` | Maximum response length | `2000` |
+
+Settings are stored in:
+- **macOS**: `~/Library/Application Support/NightOwl/settings.json`
+- **Windows**: `%APPDATA%/NightOwl/settings.json`
+- **Linux**: `~/.config/NightOwl/settings.json`
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl+S` | Save |
+| `Cmd/Ctrl+O` | Open file |
+| `Cmd/Ctrl+P` | Quick file open |
+| `Cmd/Ctrl+Shift+P` | Command palette |
+| `Cmd/Ctrl+\` | Toggle preview |
+| `F5` | Start presentation |
+| `Cmd/Ctrl+Click` | Follow wiki link |
+
+## Versioning
+
+NightOwl follows [Semantic Versioning](https://semver.org/):
+
+- **MAJOR** (x.0.0): Breaking changes
+- **MINOR** (0.x.0): New features, backwards compatible
+- **PATCH** (0.0.x): Bug fixes
+
+Pre-release versions use suffixes: `1.0.0-beta.1`, `1.0.0-alpha.2`
+
+## Reporting Issues
+
+Found a bug or have a feature request?
+
+1. Check [existing issues](https://github.com/liammagee/night-owl/issues)
+2. Create a [new issue](https://github.com/liammagee/night-owl/issues/new) with:
+   - NightOwl version and OS
+   - Steps to reproduce
+   - Expected vs actual behavior
+   - Screenshots if applicable
+
+## Contributing
+
+Contributions welcome! Please read our contributing guidelines before submitting PRs.
 
 ```bash
-npx playwright install
-```
+# Run tests
+npm run test:all
 
-Then follow the running instructions above for your preferred version.
-
-## Testing
-
-This project includes comprehensive test coverage with unit tests, integration tests, and end-to-end (E2E) tests.
-
-### Test Types
-
-- **Unit Tests**: Test individual functions and components in isolation
-- **Integration Tests**: Test IPC communication and file operations
-- **E2E Tests**: Test complete user workflows in the actual Electron app
-
-### Running Tests
-
-#### Quick Test Setup Verification
-```bash
-npm run test:basic
-```
-
-#### Unit Tests Only
-```bash
-npm run test:unit
-```
-
-#### Integration Tests Only
-```bash
-npm run test:integration
-```
-
-#### End-to-End Tests (requires Playwright installation)
-```bash
+# Run E2E tests (requires display)
 npm run test:e2e
 ```
 
-**Note**: E2E tests are currently configured as simple demonstration tests. For comprehensive Electron app testing, you would need to manually launch the app (`npm run electron-dev`) and connect Playwright to the running instance.
+## Related Projects
 
-#### All Tests
-```bash
-npm run test:all
-```
+- [Machine Spirits](https://machinespirits.org) - AI-augmented Learning Management System
+- [Techne Plugins](https://github.com/liammagee/techne-plugins) - Shared plugin ecosystem
 
-#### Watch Mode (for development)
-```bash
-npm run test:watch
-```
+## License
 
-### Test Requirements
+[Apache License 2.0](LICENSE)
 
-- **Unit & Integration Tests**: No additional setup required (uses Jest with mocked Electron APIs)
-- **E2E Tests**: Requires Playwright browsers to be installed (`npx playwright install`)
+---
 
-### Troubleshooting Tests
-
-If you encounter issues:
-
-1. Ensure all dependencies are installed: `npm install`
-2. For E2E tests, install Playwright browsers: `npx playwright install`
-3. Run basic tests first to verify setup: `npm run test:basic`
-4. Check the test setup guide: `tests/test-setup-guide.md`
-
-The test infrastructure covers critical functionality including:
-- Monaco editor integration
-- File save/load operations
-- Internal links processing (prevents regression of critical bug)
-- IPC communication between main and renderer processes
-- UI interactions and user workflows
-
-## Configuration
-
-### AI Settings Storage
-
-AI settings are stored persistently in the application's user data directory as part of the main settings system.
-
-**Storage Location:**
-- Settings file: `settings.json` in the app's user data directory
-- **macOS**: `~/Library/Application Support/Hegel Pedagogy AI/settings.json`
-- **Windows**: `%APPDATA%/Hegel Pedagogy AI/settings.json`
-- **Linux**: `~/.config/Hegel Pedagogy AI/settings.json`
-
-**AI Configuration Structure:**
-```javascript
-{
-  "ai": {
-    "preferredProvider": "auto",  // 'auto', 'openai', 'anthropic', 'groq', 'openrouter'
-    "models": {
-      "openai": "gpt-4o",
-      "anthropic": "claude-3-5-sonnet-20241022",
-      "groq": "llama-3.1-70b-versatile",
-      "openrouter": "anthropic/claude-3.5-sonnet"
-    },
-    "temperature": 0.7,           // 0.0 - 2.0 (automatically clamped)
-    "maxTokens": 2000,
-    "enableChat": true,
-    "enableSummarization": true,
-    "enableNoteExtraction": true,
-    "chatHistory": {
-      "persist": true,
-      "maxEntries": 100,
-      "autoSave": true
-    },
-    "responseFormat": "markdown"  // 'plain', 'markdown', 'html'
-  }
-}
-```
-
-**How it works:**
-1. Settings are automatically loaded on application startup
-2. Changes persist across app restarts
-3. Settings can be modified through the application's Settings dialog
-4. The main process validates settings (e.g., temperature values are clamped between 0-2)
-5. IPC handlers manage settings operations:
-   - `get-settings` - retrieves current settings
-   - `set-settings` - saves updated settings
-   - Settings export/import functionality available through the UI
-
-**Provider Configuration:**
-- Set your preferred AI provider or use "auto" for automatic selection
-- Configure specific models for each provider
-- Enable/disable individual AI features (chat, summarization, note extraction)
-- Customize response formatting and chat history behavior
+Built with [Electron](https://www.electronjs.org/), [Monaco Editor](https://microsoft.github.io/monaco-editor/), and [marked](https://marked.js.org/).
