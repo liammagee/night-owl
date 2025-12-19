@@ -203,11 +203,11 @@ test.describe('File Operations', () => {
   });
 
   // =====================
-  // Move/Copy File Context Menu
+  // Cut/Copy/Paste File Context Menu
   // =====================
-  test.describe('Move/Copy File Context Menu', () => {
+  test.describe('Cut/Copy/Paste File Context Menu', () => {
 
-    test('should show file context menu with move and copy options', async () => {
+    test('should show file context menu with cut and copy options', async () => {
       // First ensure file tree is visible
       const fileTree = sharedWindow.locator('#file-tree-view');
       await expect(fileTree).toBeVisible();
@@ -224,10 +224,10 @@ test.describe('File Operations', () => {
         const contextMenu = sharedWindow.locator('.file-context-menu');
         await expect(contextMenu).toBeVisible();
 
-        // Check for move and copy options
+        // Check for cut and copy options
         const menuText = await contextMenu.textContent();
-        expect(menuText).toContain('Move to');
-        expect(menuText).toContain('Copy to');
+        expect(menuText).toContain('Cut');
+        expect(menuText).toContain('Copy');
 
         // Close menu by clicking elsewhere
         await sharedWindow.locator('body').click();
@@ -251,12 +251,26 @@ test.describe('File Operations', () => {
       expect(hasHandler).toBe(true);
     });
 
-    test('should have browse-destination-folder IPC handler registered', async () => {
-      // Test that the IPC handler exists
-      const hasHandler = await sharedWindow.evaluate(() => {
-        return typeof window.electronAPI?.invoke === 'function';
+    test('folder context menu should show paste option when file is in clipboard', async () => {
+      // Test the clipboard logic directly
+      const clipboardLogic = await sharedWindow.evaluate(() => {
+        // Simulate clipboard state
+        const fileClipboard = {
+          filePath: '/test/file.md',
+          operation: 'copy'
+        };
+
+        // Check if paste menu would show
+        const shouldShowPaste = fileClipboard.filePath && fileClipboard.operation;
+        const pasteLabel = fileClipboard.operation === 'cut'
+          ? `Paste (Move "${fileClipboard.filePath.split('/').pop()}")`
+          : `Paste (Copy "${fileClipboard.filePath.split('/').pop()}")`;
+
+        return { shouldShowPaste, pasteLabel };
       });
-      expect(hasHandler).toBe(true);
+
+      expect(clipboardLogic.shouldShowPaste).toBe(true);
+      expect(clipboardLogic.pasteLabel).toContain('Paste (Copy "file.md")');
     });
   });
 

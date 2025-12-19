@@ -156,7 +156,85 @@ function register(deps) {
     }
   });
 
-  console.log('[GitHandlers] Registered 3 git handlers');
+  /**
+   * Get current branch name
+   */
+  ipcMain.handle('git-get-branch', async (event, repoRoot) => {
+    try {
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        timeout: 5000
+      }).trim();
+
+      return { success: true, branch };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Get quick status summary (counts of changes)
+   */
+  ipcMain.handle('git-status-summary', async (event, repoRoot) => {
+    try {
+      // Get status in porcelain format
+      const statusOutput = execSync('git status --porcelain', {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        timeout: 10000
+      });
+
+      const lines = statusOutput.split('\n').filter(line => line.trim());
+
+      let staged = 0;
+      let modified = 0;
+      let untracked = 0;
+
+      for (const line of lines) {
+        const index = line[0];
+        const worktree = line[1];
+
+        if (index === '?' && worktree === '?') {
+          untracked++;
+        } else {
+          if (index !== ' ' && index !== '?') {
+            staged++;
+          }
+          if (worktree !== ' ' && worktree !== '?') {
+            modified++;
+          }
+        }
+      }
+
+      // Check if there are unpushed commits
+      let ahead = 0;
+      try {
+        const aheadOutput = execSync('git rev-list --count @{u}..HEAD', {
+          cwd: repoRoot,
+          encoding: 'utf8',
+          timeout: 5000
+        }).trim();
+        ahead = parseInt(aheadOutput, 10) || 0;
+      } catch (e) {
+        // No upstream configured or other error - ignore
+      }
+
+      return {
+        success: true,
+        staged,
+        modified,
+        untracked,
+        total: lines.length,
+        ahead,
+        clean: lines.length === 0 && ahead === 0
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[GitHandlers] Registered 5 git handlers');
 }
 
 module.exports = { register };

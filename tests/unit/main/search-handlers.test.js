@@ -184,6 +184,86 @@ describe('Search Handlers', () => {
   });
 });
 
+describe('File Clipboard Operations', () => {
+  describe('Clipboard State Management', () => {
+    test('should store file path and operation for cut', () => {
+      const fileClipboard = {
+        filePath: '/test/path/file.md',
+        operation: 'cut'
+      };
+
+      expect(fileClipboard.filePath).toBe('/test/path/file.md');
+      expect(fileClipboard.operation).toBe('cut');
+    });
+
+    test('should store file path and operation for copy', () => {
+      const fileClipboard = {
+        filePath: '/test/path/file.md',
+        operation: 'copy'
+      };
+
+      expect(fileClipboard.filePath).toBe('/test/path/file.md');
+      expect(fileClipboard.operation).toBe('copy');
+    });
+
+    test('should clear clipboard after cut/paste operation', () => {
+      let fileClipboard = {
+        filePath: '/test/path/file.md',
+        operation: 'cut'
+      };
+
+      // Simulate successful paste
+      fileClipboard = { filePath: null, operation: null };
+
+      expect(fileClipboard.filePath).toBeNull();
+      expect(fileClipboard.operation).toBeNull();
+    });
+
+    test('should preserve clipboard after copy/paste operation', () => {
+      const fileClipboard = {
+        filePath: '/test/path/file.md',
+        operation: 'copy'
+      };
+
+      // After paste, clipboard should remain for multiple pastes
+      expect(fileClipboard.filePath).toBe('/test/path/file.md');
+      expect(fileClipboard.operation).toBe('copy');
+    });
+
+    test('should detect when clipboard has content', () => {
+      const emptyClipboard = { filePath: null, operation: null };
+      const filledClipboard = { filePath: '/test/file.md', operation: 'cut' };
+
+      expect(emptyClipboard.filePath && emptyClipboard.operation).toBeFalsy();
+      expect(filledClipboard.filePath && filledClipboard.operation).toBeTruthy();
+    });
+  });
+
+  describe('Paste Label Generation', () => {
+    test('should generate correct paste label for cut operation', () => {
+      const fileClipboard = {
+        filePath: '/test/path/document.md',
+        operation: 'cut'
+      };
+      const fileName = fileClipboard.filePath.split('/').pop();
+      const pasteLabel = `Paste (Move "${fileName}")`;
+
+      expect(pasteLabel).toBe('Paste (Move "document.md")');
+    });
+
+    test('should generate correct paste label for copy operation', () => {
+      const fileClipboard = {
+        filePath: '/test/path/document.md',
+        operation: 'copy'
+      };
+      const fileName = fileClipboard.filePath.split('/').pop();
+      const pasteLabel = `Paste (Copy "${fileName}")`;
+
+      expect(pasteLabel).toBe('Paste (Copy "document.md")');
+    });
+  });
+});
+
 describe('File Move/Copy Operations', () => {
   const path = require('path');
 

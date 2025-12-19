@@ -172,6 +172,12 @@ let folderCreationParentPath = '';
 // Track parent folder for context menu file creation
 let fileCreationParentPath = '';
 
+// File clipboard for cut/copy/paste operations
+let fileClipboard = {
+    filePath: null,
+    operation: null  // 'cut' or 'copy'
+};
+
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
 const loadEditorToChatBtn = document.getElementById('load-editor-to-chat-btn'); // Get the new button
@@ -302,6 +308,264 @@ function processSpeakerNotes(content) {
     currentSpeakerNotes = extractedNotes;
     
     return processedContent;
+}
+
+// --- Git Status Indicator ---
+let gitStatusCache = {
+    repoRoot: null,
+    branch: null,
+    status: null,
+    lastCheck: 0
+};
+
+async function updateGitStatusIndicator() {
+    const indicator = document.getElementById('git-status-indicator');
+    if (!indicator || !window.electronAPI) return;
+
+    const workingDir = window.appSettings?.workingDirectory;
+    if (!workingDir) {
+        indicator.style.display = 'none';
+        return;
+    }
+
+    try {
+        // Check if working directory is in a git repo
+        const repoResult = await window.electronAPI.invoke('git-find-repo', workingDir);
+        if (!repoResult.success) {
+            indicator.style.display = 'none';
+            gitStatusCache.repoRoot = null;
+            return;
+        }
+
+        const repoRoot = repoResult.repoRoot;
+        gitStatusCache.repoRoot = repoRoot;
+
+        // Get branch name
+        const branchResult = await window.electronAPI.invoke('git-get-branch', repoRoot);
+        const branch = branchResult.success ? branchResult.branch : 'unknown';
+        gitStatusCache.branch = branch;
+
+        // Get status summary
+        const statusResult = await window.electronAPI.invoke('git-status-summary', repoRoot);
+
+        if (statusResult.success) {
+            gitStatusCache.status = statusResult;
+            gitStatusCache.lastCheck = Date.now();
+
+            // Build indicator text
+            let statusText = `⎇ ${branch}`;
+            const parts = [];
+
+            if (statusResult.staged > 0) {
+                parts.push(`+${statusResult.staged}`);
+            }
+            if (statusResult.modified > 0) {
+                parts.push(`~${statusResult.modified}`);
+            }
+            if (statusResult.untracked > 0) {
+                parts.push(`?${statusResult.untracked}`);
+            }
+            if (statusResult.ahead > 0) {
+                parts.push(`↑${statusResult.ahead}`);
+            }
+
+            if (parts.length > 0) {
+                statusText += ` [${parts.join(' ')}]`;
+            } else if (statusResult.clean) {
+                statusText += ' ✓';
+            }
+
+            indicator.textContent = statusText;
+            indicator.style.display = 'inline';
+
+            // Color based on state
+            if (statusResult.clean) {
+                indicator.style.color = '#22c55e'; // green
+            } else if (statusResult.staged > 0) {
+                indicator.style.color = '#f59e0b'; // amber - staged changes
+            } else {
+                indicator.style.color = '#6366f1'; // indigo - has changes
+            }
+
+            // Update tooltip
+            let tooltip = `Branch: ${branch}`;
+            if (statusResult.staged > 0) tooltip += `\nStaged: ${statusResult.staged}`;
+            if (statusResult.modified > 0) tooltip += `\nModified: ${statusResult.modified}`;
+            if (statusResult.untracked > 0) tooltip += `\nUntracked: ${statusResult.untracked}`;
+            if (statusResult.ahead > 0) tooltip += `\nUnpushed commits: ${statusResult.ahead}`;
+            if (statusResult.clean) tooltip += `\n✓ Working tree clean`;
+            tooltip += `\n\nClick to publish changes`;
+            indicator.title = tooltip;
+        } else {
+            indicator.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('[Git] Error updating status indicator:', error);
+        indicator.style.display = 'none';
+    }
+}
+
+// Initialize git status indicator click handler
+function initGitStatusIndicator() {
+    const indicator = document.getElementById('git-status-indicator');
+    if (!indicator) return;
+
+    indicator.addEventListener('click', async () => {
+        if (!gitStatusCache.repoRoot) return;
+
+        // Show git publish dialog for the repo root
+        try {
+            const result = await showGitPublishDialog(gitStatusCache);
+            if (result && result.confirmed) {
+                showNotification('Publishing changes...', 'info');
+
+                const publishResult = await window.electronAPI.invoke('git-publish', {
+                    repoRoot: gitStatusCache.repoRoot,
+                    subfolder: '.',
+                    message: result.message
+                });
+
+                if (publishResult.success) {
+                    showNotification(`Published successfully! Commit: ${publishResult.commitHash}`, 'success');
+                    // Refresh status
+                    await updateGitStatusIndicator();
+                } else {
+                    showNotification(`Publish failed: ${publishResult.error}`, 'error');
+                }
+            }
+        } catch (error) {
+            console.error('[Git] Error in publish:', error);
+            showNotification('Error publishing to Git', 'error');
+        }
+    });
+
+    // Initial check
+    updateGitStatusIndicator();
+
+    // Refresh every 30 seconds
+    setInterval(updateGitStatusIndicator, 30000);
+}
+
+async function showGitPublishDialog(gitInfo) {
+    return new Promise((resolve) => {
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        const status = gitInfo.status || {};
+
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: ${isDarkMode ? '#1e1e1e' : 'white'};
+            color: ${isDarkMode ? '#e0e0e0' : '#333'};
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 400px;
+            max-width: 500px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        // Build status summary
+        let statusHtml = '';
+        if (status.total > 0) {
+            const items = [];
+            if (status.staged > 0) items.push(`<span style="color: #22c55e;">+${status.staged} staged</span>`);
+            if (status.modified > 0) items.push(`<span style="color: #f59e0b;">~${status.modified} modified</span>`);
+            if (status.untracked > 0) items.push(`<span style="color: #6366f1;">?${status.untracked} untracked</span>`);
+            statusHtml = items.join(' &nbsp;|&nbsp; ');
+        } else {
+            statusHtml = '<span style="color: #22c55e;">✓ No changes to commit</span>';
+        }
+
+        dialog.innerHTML = `
+            <h3 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">📤</span>
+                Publish to Git
+            </h3>
+            <div style="margin-bottom: 15px; padding: 10px; background: ${isDarkMode ? '#2d2d2d' : '#f5f5f5'}; border-radius: 4px;">
+                <div style="font-size: 12px; color: ${isDarkMode ? '#aaa' : '#666'}; margin-bottom: 4px;">Branch</div>
+                <div style="font-weight: 500;">⎇ ${gitInfo.branch || 'unknown'}</div>
+            </div>
+            <div style="margin-bottom: 15px; padding: 10px; background: ${isDarkMode ? '#2d2d2d' : '#f5f5f5'}; border-radius: 4px;">
+                <div style="font-size: 12px; color: ${isDarkMode ? '#aaa' : '#666'}; margin-bottom: 4px;">Changes</div>
+                <div>${statusHtml}</div>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 500;">Commit Message</label>
+                <textarea id="git-commit-message" style="
+                    width: 100%;
+                    height: 80px;
+                    padding: 8px;
+                    border: 1px solid ${isDarkMode ? '#3c3c3c' : '#ddd'};
+                    border-radius: 4px;
+                    background: ${isDarkMode ? '#2d2d2d' : 'white'};
+                    color: ${isDarkMode ? '#e0e0e0' : '#333'};
+                    font-family: inherit;
+                    font-size: 13px;
+                    resize: vertical;
+                    box-sizing: border-box;
+                " placeholder="Describe your changes..."></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="git-cancel" class="btn btn-sm btn-ghost">Cancel</button>
+                <button id="git-publish" class="btn btn-sm btn-primary" ${status.total === 0 ? 'disabled' : ''}>
+                    Commit & Push
+                </button>
+            </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const messageInput = dialog.querySelector('#git-commit-message');
+        const publishBtn = dialog.querySelector('#git-publish');
+        const cancelBtn = dialog.querySelector('#git-cancel');
+
+        messageInput.focus();
+
+        const handlePublish = () => {
+            const message = messageInput.value.trim();
+            if (!message) {
+                messageInput.style.borderColor = '#ef4444';
+                return;
+            }
+            document.body.removeChild(overlay);
+            resolve({ confirmed: true, message, gitInfo });
+        };
+
+        const handleCancel = () => {
+            document.body.removeChild(overlay);
+            resolve({ confirmed: false });
+        };
+
+        publishBtn.addEventListener('click', handlePublish);
+        cancelBtn.addEventListener('click', handleCancel);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) handleCancel();
+        });
+
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                handlePublish();
+            } else if (e.key === 'Escape') {
+                handleCancel();
+            }
+        });
+    });
 }
 
 // Internal links processing is handled by the internalLinks.js module
@@ -6878,6 +7142,10 @@ async function performAppInitialization() {
     } else {
         console.warn('[renderer.js] Export handlers initialization function not found');
     }
+
+    // Initialize Git status indicator
+    console.log('[renderer.js] Initializing Git status indicator...');
+    initGitStatusIndicator();
 }
 
 // Emergency fallback - create a basic editor immediately if nothing else works
@@ -8579,6 +8847,17 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             { label: 'Rename Folder', action: 'rename' },
             { label: 'Delete Folder', action: 'delete' }
         );
+        // Add Paste option if there's a file in the clipboard
+        if (fileClipboard.filePath && fileClipboard.operation) {
+            const clipboardFileName = fileClipboard.filePath.split('/').pop();
+            const pasteLabel = fileClipboard.operation === 'cut'
+                ? `Paste (Move "${clipboardFileName}")`
+                : `Paste (Copy "${clipboardFileName}")`;
+            menuItems.push(
+                { separator: true },
+                { label: pasteLabel, action: 'paste-file' }
+            );
+        }
         // Add "Remove from Workspace" option for workspace folder roots (not the primary folder)
         if (isWorkspaceFolderRoot) {
             menuItems.push(
@@ -8598,8 +8877,8 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             { label: 'Open', action: 'open' },
             { label: 'Rename File', action: 'rename' },
             { separator: true },
-            { label: 'Move to...', action: 'move-file' },
-            { label: 'Copy to...', action: 'copy-file' },
+            { label: 'Cut', action: 'cut-file' },
+            { label: 'Copy', action: 'copy-file-to-clipboard' },
             { separator: true },
             { label: 'Delete File', action: 'delete' },
             { label: 'Copy Path', action: 'copy-path' }
@@ -8939,110 +9218,104 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             }
             break;
 
-        case 'move-file':
+        case 'cut-file':
             if (!isFolder) {
+                fileClipboard = {
+                    filePath: filePath,
+                    operation: 'cut'
+                };
+                const fileName = filePath.split('/').pop();
+                showNotification(`Cut "${fileName}" - right-click a folder to paste`, 'info');
+            }
+            break;
+
+        case 'copy-file-to-clipboard':
+            if (!isFolder) {
+                fileClipboard = {
+                    filePath: filePath,
+                    operation: 'copy'
+                };
+                const fileName = filePath.split('/').pop();
+                showNotification(`Copied "${fileName}" - right-click a folder to paste`, 'info');
+            }
+            break;
+
+        case 'paste-file':
+            if (isFolder && fileClipboard.filePath && fileClipboard.operation) {
                 try {
-                    const fileName = filePath.split('/').pop();
-                    const currentDir = filePath.substring(0, filePath.lastIndexOf('/'));
+                    const sourceFilePath = fileClipboard.filePath;
+                    const fileName = sourceFilePath.split('/').pop();
+                    const currentDir = sourceFilePath.substring(0, sourceFilePath.lastIndexOf('/'));
+                    const destinationFolder = filePath;
 
-                    // Show in-app folder picker
-                    const browseResult = await showFolderPickerDialog(
-                        `Move "${fileName}"`,
-                        filePath,
-                        'move'
-                    );
-
-                    if (browseResult.canceled || !browseResult.success) {
-                        break;
-                    }
-
-                    const destinationPath = browseResult.folderPath + '/' + fileName;
-
-                    // Check if trying to move to same location
-                    if (currentDir === browseResult.folderPath) {
+                    // Check if trying to paste to same location for move operation
+                    if (fileClipboard.operation === 'cut' && currentDir === destinationFolder) {
                         showNotification('File is already in this folder', 'info');
                         break;
                     }
 
-                    // Perform the move
-                    const moveResult = await window.electronAPI.invoke('move-file', {
-                        source: filePath,
-                        destination: destinationPath
-                    });
+                    let destinationPath = destinationFolder + '/' + fileName;
 
-                    if (moveResult.success) {
-                        showNotification(`Moved to ${browseResult.folderPath.split('/').pop()}`, 'success');
-
-                        // If this was the currently open file, update the path
-                        if (window.currentFilePath === filePath) {
-                            window.currentFilePath = moveResult.newPath;
-                            const currentFileNameEl = document.getElementById('current-file-name');
-                            if (currentFileNameEl) {
-                                currentFileNameEl.textContent = fileName;
-                            }
-                        }
-
-                        // Refresh file tree
-                        if (window.renderFileTree) {
-                            window.renderFileTree();
-                        }
-                    } else {
-                        showNotification(`Failed to move file: ${moveResult.error}`, 'error');
-                    }
-                } catch (error) {
-                    console.error('[handleFileContextMenuAction] Error moving file:', error);
-                    showNotification('Error moving file', 'error');
-                }
-            }
-            break;
-
-        case 'copy-file':
-            if (!isFolder) {
-                try {
-                    const fileName = filePath.split('/').pop();
-                    const currentDir = filePath.substring(0, filePath.lastIndexOf('/'));
-
-                    // Show in-app folder picker
-                    const browseResult = await showFolderPickerDialog(
-                        `Copy "${fileName}"`,
-                        filePath,
-                        'copy'
-                    );
-
-                    if (browseResult.canceled || !browseResult.success) {
-                        break;
-                    }
-
-                    let destinationPath = browseResult.folderPath + '/' + fileName;
-
-                    // Check if same directory - if so, create a copy with different name
-                    if (currentDir === browseResult.folderPath) {
+                    // For copy operation to same directory, add "(copy)" suffix
+                    if (fileClipboard.operation === 'copy' && currentDir === destinationFolder) {
                         const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
                         const ext = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';
-                        destinationPath = browseResult.folderPath + '/' + baseName + ' (copy)' + ext;
+                        destinationPath = destinationFolder + '/' + baseName + ' (copy)' + ext;
                     }
 
-                    // Perform the copy
-                    const copyResult = await window.electronAPI.invoke('copy-file-to', {
-                        source: filePath,
-                        destination: destinationPath
-                    });
+                    if (fileClipboard.operation === 'cut') {
+                        // Perform move
+                        const moveResult = await window.electronAPI.invoke('move-file', {
+                            source: sourceFilePath,
+                            destination: destinationPath
+                        });
 
-                    if (copyResult.success) {
-                        const destFileName = destinationPath.split('/').pop();
-                        const destFolderName = browseResult.folderPath.split('/').pop();
-                        showNotification(`Copied to ${destFolderName}/${destFileName}`, 'success');
+                        if (moveResult.success) {
+                            showNotification(`Moved "${fileName}" to ${destinationFolder.split('/').pop()}`, 'success');
 
-                        // Refresh file tree
-                        if (window.renderFileTree) {
-                            window.renderFileTree();
+                            // Clear clipboard after successful cut/paste
+                            fileClipboard = { filePath: null, operation: null };
+
+                            // If this was the currently open file, update the path
+                            if (window.currentFilePath === sourceFilePath) {
+                                window.currentFilePath = moveResult.newPath;
+                                const currentFileNameEl = document.getElementById('current-file-name');
+                                if (currentFileNameEl) {
+                                    currentFileNameEl.textContent = fileName;
+                                }
+                            }
+
+                            // Refresh file tree
+                            if (window.renderFileTree) {
+                                window.renderFileTree();
+                            }
+                        } else {
+                            showNotification(`Failed to move file: ${moveResult.error}`, 'error');
                         }
                     } else {
-                        showNotification(`Failed to copy file: ${copyResult.error}`, 'error');
+                        // Perform copy
+                        const copyResult = await window.electronAPI.invoke('copy-file-to', {
+                            source: sourceFilePath,
+                            destination: destinationPath
+                        });
+
+                        if (copyResult.success) {
+                            const destFileName = destinationPath.split('/').pop();
+                            showNotification(`Copied "${fileName}" to ${destinationFolder.split('/').pop()}`, 'success');
+
+                            // Keep clipboard for copy (allows multiple pastes)
+
+                            // Refresh file tree
+                            if (window.renderFileTree) {
+                                window.renderFileTree();
+                            }
+                        } else {
+                            showNotification(`Failed to copy file: ${copyResult.error}`, 'error');
+                        }
                     }
                 } catch (error) {
-                    console.error('[handleFileContextMenuAction] Error copying file:', error);
-                    showNotification('Error copying file', 'error');
+                    console.error('[handleFileContextMenuAction] Error pasting file:', error);
+                    showNotification('Error pasting file', 'error');
                 }
             }
             break;
@@ -10365,7 +10638,10 @@ async function saveFile() {
                 window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
-                
+
+                // Refresh git status after save
+                updateGitStatusIndicator();
+
                 // Update file tree and current file info if this was a new file save
                 if (result.filePath && !window.currentFilePath) {
                     window.currentFilePath = result.filePath;
@@ -10906,316 +11182,6 @@ function showCustomPrompt(title, message, defaultValue = '') {
                 handleCancel();
             }
         };
-    });
-}
-
-/**
- * Show a folder picker dialog for move/copy operations
- * Displays workspace folders and allows navigation through the file tree
- * @param {string} title - Dialog title
- * @param {string} currentPath - Current file path (to highlight current location)
- * @param {string} operation - 'move' or 'copy'
- * @returns {Promise<{success: boolean, folderPath?: string, canceled?: boolean}>}
- */
-async function showFolderPickerDialog(title, currentPath, operation = 'move') {
-    return new Promise(async (resolve) => {
-        const isDarkMode = document.body.classList.contains('dark-mode');
-        const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
-
-        // Get workspace folders
-        const workingDir = window.appSettings?.workingDirectory || '';
-        const workspaceFolders = window.appSettings?.workspaceFolders || [];
-        const allRoots = [workingDir, ...workspaceFolders].filter(f => f);
-
-        // Create overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-
-        // Create dialog
-        const dialog = document.createElement('div');
-        dialog.style.cssText = `
-            background: ${isDarkMode ? '#1e1e1e' : 'white'};
-            color: ${isDarkMode ? '#e0e0e0' : '#333'};
-            border-radius: 8px;
-            padding: 20px;
-            min-width: 500px;
-            max-width: 600px;
-            max-height: 70vh;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            display: flex;
-            flex-direction: column;
-        `;
-
-        let selectedFolder = null;
-
-        // Build folder tree HTML
-        async function buildFolderTree() {
-            let html = '';
-
-            for (const rootPath of allRoots) {
-                const rootName = rootPath.split('/').pop();
-                const isCurrentRoot = currentDir.startsWith(rootPath);
-
-                html += `
-                    <div class="folder-tree-root" data-path="${rootPath}">
-                        <div class="folder-item root-folder ${isCurrentRoot ? 'expanded' : ''}"
-                             data-path="${rootPath}"
-                             style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px; margin-bottom: 2px; background: ${isDarkMode ? '#2d2d2d' : '#f0f0f0'};">
-                            <span class="folder-arrow" style="width: 16px; text-align: center;">${isCurrentRoot ? '▼' : '▶'}</span>
-                            <span style="font-size: 16px;">📁</span>
-                            <span style="flex: 1; font-weight: 500;">${rootName}</span>
-                            ${rootPath === workingDir ? '<span style="font-size: 10px; background: #6366f1; color: white; padding: 2px 6px; border-radius: 10px;">Primary</span>' : ''}
-                        </div>
-                        <div class="folder-children" style="margin-left: 20px; display: ${isCurrentRoot ? 'block' : 'none'};">
-                            <!-- Children loaded dynamically -->
-                        </div>
-                    </div>
-                `;
-            }
-
-            return html;
-        }
-
-        // Load subfolders for a path
-        async function loadSubfolders(parentPath) {
-            try {
-                const result = await window.electronAPI.invoke('list-directory-files', parentPath);
-                if (!result.success) return [];
-
-                return result.files
-                    .filter(f => f.isDirectory && !f.name.startsWith('.'))
-                    .sort((a, b) => a.name.localeCompare(b.name));
-            } catch (error) {
-                console.error('[FolderPicker] Error loading subfolders:', error);
-                return [];
-            }
-        }
-
-        // Render subfolder items
-        function renderSubfolders(subfolders, parentPath, level = 1) {
-            const isInCurrentPath = currentDir.startsWith(parentPath);
-
-            return subfolders.map(folder => {
-                const folderPath = `${parentPath}/${folder.name}`;
-                const isCurrentFolder = currentDir === folderPath;
-                const isParentOfCurrent = currentDir.startsWith(folderPath + '/');
-
-                return `
-                    <div class="folder-tree-item" data-path="${folderPath}">
-                        <div class="folder-item ${isCurrentFolder ? 'current-folder' : ''}"
-                             data-path="${folderPath}"
-                             style="padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px; margin-bottom: 2px;
-                                    ${isCurrentFolder ? `background: ${isDarkMode ? '#3c3c3c' : '#e3f2fd'}; border: 1px solid ${isDarkMode ? '#6366f1' : '#2196f3'};` : ''}">
-                            <span class="folder-arrow" style="width: 16px; text-align: center; color: ${isDarkMode ? '#888' : '#666'};">▶</span>
-                            <span style="font-size: 14px;">📁</span>
-                            <span style="flex: 1;">${folder.name}</span>
-                            ${isCurrentFolder ? '<span style="font-size: 10px; color: #888;">(current)</span>' : ''}
-                        </div>
-                        <div class="folder-children" style="margin-left: 20px; display: none;"></div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        const folderTreeHtml = await buildFolderTree();
-
-        dialog.innerHTML = `
-            <h3 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 20px;">${operation === 'move' ? '📦' : '📋'}</span>
-                ${title}
-            </h3>
-            <p style="margin: 0 0 10px 0; color: ${isDarkMode ? '#aaa' : '#666'}; font-size: 13px;">
-                Select a destination folder:
-            </p>
-            <div id="folder-tree-container" style="
-                flex: 1;
-                overflow-y: auto;
-                max-height: 400px;
-                border: 1px solid ${isDarkMode ? '#3c3c3c' : '#ddd'};
-                border-radius: 4px;
-                padding: 8px;
-                margin-bottom: 15px;
-                background: ${isDarkMode ? '#252526' : '#fafafa'};
-            ">
-                ${folderTreeHtml}
-            </div>
-            <div id="selected-path" style="
-                padding: 8px 12px;
-                background: ${isDarkMode ? '#2d2d2d' : '#f5f5f5'};
-                border-radius: 4px;
-                margin-bottom: 15px;
-                font-size: 12px;
-                color: ${isDarkMode ? '#aaa' : '#666'};
-                word-break: break-all;
-            ">
-                <strong>Selected:</strong> <span id="selected-path-text">None</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <button id="browse-system" class="btn btn-sm btn-ghost" style="font-size: 12px;">
-                    📂 Browse System...
-                </button>
-                <div>
-                    <button id="folder-cancel" class="btn btn-sm btn-ghost" style="margin-right: 10px;">Cancel</button>
-                    <button id="folder-ok" class="btn btn-sm btn-primary" disabled>${operation === 'move' ? 'Move Here' : 'Copy Here'}</button>
-                </div>
-            </div>
-        `;
-
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-
-        const treeContainer = dialog.querySelector('#folder-tree-container');
-        const selectedPathText = dialog.querySelector('#selected-path-text');
-        const okButton = dialog.querySelector('#folder-ok');
-
-        // Update selected path display
-        function updateSelectedPath(path) {
-            selectedFolder = path;
-            if (path) {
-                selectedPathText.textContent = path;
-                okButton.disabled = false;
-            } else {
-                selectedPathText.textContent = 'None';
-                okButton.disabled = true;
-            }
-        }
-
-        // Handle folder item clicks
-        treeContainer.addEventListener('click', async (e) => {
-            const folderItem = e.target.closest('.folder-item');
-            if (!folderItem) return;
-
-            const folderPath = folderItem.dataset.path;
-            const arrow = folderItem.querySelector('.folder-arrow');
-            const parentDiv = folderItem.closest('.folder-tree-root, .folder-tree-item');
-            const childrenDiv = parentDiv?.querySelector(':scope > .folder-children');
-
-            // Toggle expand/collapse on arrow click
-            if (e.target.classList.contains('folder-arrow') || e.target === arrow) {
-                if (childrenDiv) {
-                    const isExpanded = childrenDiv.style.display !== 'none';
-                    if (isExpanded) {
-                        childrenDiv.style.display = 'none';
-                        arrow.textContent = '▶';
-                    } else {
-                        // Load children if not loaded
-                        if (childrenDiv.innerHTML.trim() === '' || childrenDiv.innerHTML.includes('<!--')) {
-                            const subfolders = await loadSubfolders(folderPath);
-                            childrenDiv.innerHTML = renderSubfolders(subfolders, folderPath);
-                        }
-                        childrenDiv.style.display = 'block';
-                        arrow.textContent = '▼';
-                    }
-                }
-                return;
-            }
-
-            // Select folder
-            treeContainer.querySelectorAll('.folder-item').forEach(item => {
-                item.style.background = '';
-                item.style.border = '';
-            });
-
-            folderItem.style.background = isDarkMode ? '#3c3c3c' : '#e3f2fd';
-            folderItem.style.border = `1px solid ${isDarkMode ? '#6366f1' : '#2196f3'}`;
-
-            updateSelectedPath(folderPath);
-
-            // Also expand if it has children
-            if (childrenDiv && childrenDiv.style.display === 'none') {
-                const subfolders = await loadSubfolders(folderPath);
-                if (subfolders.length > 0) {
-                    childrenDiv.innerHTML = renderSubfolders(subfolders, folderPath);
-                    childrenDiv.style.display = 'block';
-                    arrow.textContent = '▼';
-                }
-            }
-        });
-
-        // Double-click to expand without selecting
-        treeContainer.addEventListener('dblclick', async (e) => {
-            const folderItem = e.target.closest('.folder-item');
-            if (!folderItem) return;
-
-            const folderPath = folderItem.dataset.path;
-            const arrow = folderItem.querySelector('.folder-arrow');
-            const parentDiv = folderItem.closest('.folder-tree-root, .folder-tree-item');
-            const childrenDiv = parentDiv?.querySelector(':scope > .folder-children');
-
-            if (childrenDiv) {
-                const subfolders = await loadSubfolders(folderPath);
-                if (subfolders.length > 0) {
-                    childrenDiv.innerHTML = renderSubfolders(subfolders, folderPath);
-                    childrenDiv.style.display = 'block';
-                    arrow.textContent = '▼';
-                }
-            }
-        });
-
-        // Load initial children for expanded roots
-        for (const rootPath of allRoots) {
-            if (currentDir.startsWith(rootPath)) {
-                const rootDiv = treeContainer.querySelector(`.folder-tree-root[data-path="${rootPath}"]`);
-                if (rootDiv) {
-                    const childrenDiv = rootDiv.querySelector('.folder-children');
-                    const subfolders = await loadSubfolders(rootPath);
-                    childrenDiv.innerHTML = renderSubfolders(subfolders, rootPath);
-                }
-            }
-        }
-
-        // Handle buttons
-        const handleOK = () => {
-            document.body.removeChild(overlay);
-            resolve({ success: true, folderPath: selectedFolder });
-        };
-
-        const handleCancel = () => {
-            document.body.removeChild(overlay);
-            resolve({ success: false, canceled: true });
-        };
-
-        const handleBrowseSystem = async () => {
-            document.body.removeChild(overlay);
-            // Fall back to system dialog
-            const result = await window.electronAPI.invoke('browse-destination-folder', {
-                title: title,
-                defaultPath: currentDir
-            });
-            resolve(result);
-        };
-
-        dialog.querySelector('#folder-ok').onclick = handleOK;
-        dialog.querySelector('#folder-cancel').onclick = handleCancel;
-        dialog.querySelector('#browse-system').onclick = handleBrowseSystem;
-
-        // Handle overlay click
-        overlay.onclick = (e) => {
-            if (e.target === overlay) {
-                handleCancel();
-            }
-        };
-
-        // Handle Escape key
-        const handleKeydown = (e) => {
-            if (e.key === 'Escape') {
-                handleCancel();
-                document.removeEventListener('keydown', handleKeydown);
-            }
-        };
-        document.addEventListener('keydown', handleKeydown);
     });
 }
 

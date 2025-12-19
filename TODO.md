@@ -243,6 +243,12 @@ Generated from codebase deep scan on 2025-12-17.
 - [x] Plugin manifest support
 - [x] Harness integration
 
+### Git Integration
+- [x] Git status indicator in status bar
+- [x] Publish to Git from folder context menu
+- [x] Branch display with change counts
+- [x] Commit and push dialog
+
 ### PDF Import
 - [x] Basic PDF text extraction (pdf-parse)
 - [x] Advanced PDF conversion (Docling)
@@ -254,6 +260,23 @@ Generated from codebase deep scan on 2025-12-17.
 - [x] Auto-save toggle
 - [x] Visual Markdown toggle
 - [x] Preview pane toggle
+
+---
+
+## Future Enhancements
+
+### Git Integration Roadmap
+- [ ] **Branch Switching** - Switch between branches from the UI
+- [ ] **Commit History View** - View recent commits with diffs
+- [ ] **Dedicated Git Panel** - Full git panel in sidebar with:
+  - Staged/unstaged changes view
+  - Diff viewer for each file
+  - Stage/unstage individual files
+  - Discard changes option
+- [ ] **Git Stash Support** - Stash and apply changes
+- [ ] **Pull Changes** - Fetch and pull from remote
+- [ ] **Merge Conflict Resolution** - Visual merge conflict editor
+- [ ] **Git Blame** - Show line-by-line commit info in gutter
 
 ---
 
