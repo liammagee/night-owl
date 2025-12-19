@@ -1,7 +1,7 @@
 // === File System IPC Handlers ===
 // Handles all file system operations, directory management, and file I/O
 
-const { ipcMain, dialog } = require('electron');
+const { ipcMain, dialog, BrowserWindow } = require('electron');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
@@ -1646,9 +1646,14 @@ function register(deps) {
 
   // Browse for destination folder
   ipcMain.handle('browse-destination-folder', async (event, { title, defaultPath }) => {
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+    if (!currentMainWindow) {
+      return { success: false, error: 'No window available for dialog' };
+    }
+
     try {
-      const { dialog } = require('electron');
-      const result = await dialog.showOpenDialog(mainWindow, {
+      const result = await dialog.showOpenDialog(currentMainWindow, {
         title: title || 'Select Destination Folder',
         defaultPath: defaultPath || getWorkingDirectory(),
         properties: ['openDirectory', 'createDirectory']
