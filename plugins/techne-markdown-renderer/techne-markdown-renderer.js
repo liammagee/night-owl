@@ -184,17 +184,29 @@
         previewZoom = window.previewZoom || null,
         renderMathInContent = null,
         renderMermaidDiagrams = null,
-        updateSpeakerNotesDisplay = null
+        updateSpeakerNotesDisplay = null,
+        renderCitations = true
     } = {}) => {
         if (!previewElement) return '';
 
-        const html = await renderToHtml(markdownContent, {
+        let html = await renderToHtml(markdownContent, {
             filePath,
             baseDir,
             processAnnotations,
             processInternalLinksHTML,
             previewZoom
         });
+
+        // Process citations and add bibliography if citation renderer is available
+        if (renderCitations && window.TechneCitationRenderer) {
+            try {
+                html = window.TechneCitationRenderer.renderCitations(html, {
+                    includeBibliography: true
+                });
+            } catch (err) {
+                console.warn('[TechneMarkdownRenderer] Citation rendering failed:', err);
+            }
+        }
 
         previewElement.innerHTML = html;
 
