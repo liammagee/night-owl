@@ -26,21 +26,91 @@ function register(deps) {
     }));
   }
 
+  /**
+   * Convert a glob pattern to a regex for filename matching
+   * Supports: *.ext, file*, *pattern*, file.ext
+   */
+  function globToRegex(pattern) {
+    // Escape regex special chars except * and ?
+    let regexStr = pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+    return new RegExp(`^${regexStr}$`, 'i');
+  }
+
+  /**
+   * Check if a query looks like a file pattern search
+   */
+  function isFilePatternQuery(query) {
+    // Patterns that indicate file search: *.ext, file.*, *name*
+    return /^\*\.[a-zA-Z0-9]+$/.test(query) ||  // *.bib, *.md
+           /^[^*]+\.\*$/.test(query) ||          // file.*
+           /^\*[^*]+\*$/.test(query) ||          // *pattern*
+           /^\*[^*]+$/.test(query) ||            // *suffix
+           /^[^*]+\*$/.test(query);              // prefix*
+  }
+
+  /**
+   * Search for files by name pattern (glob-style)
+   */
+  async function searchFilesByPattern(dir, pattern, maxResults = 100) {
+    const files = [];
+    const regex = globToRegex(pattern);
+
+    async function scanDirectory(currentDir) {
+      if (files.length >= maxResults) return;
+
+      try {
+        const entries = await fs.readdir(currentDir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          if (files.length >= maxResults) break;
+
+          const fullPath = path.join(currentDir, entry.name);
+
+          if (entry.isDirectory()) {
+            // Skip hidden directories, node_modules, .git
+            if (!entry.name.startsWith('.') &&
+                entry.name !== 'node_modules' &&
+                entry.name !== '__pycache__') {
+              await scanDirectory(fullPath);
+            }
+          } else if (entry.isFile()) {
+            // Check if filename matches the pattern
+            if (regex.test(entry.name)) {
+              files.push({
+                path: fullPath,
+                name: entry.name,
+                relativePath: path.relative(dir, fullPath)
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`[SearchHandlers] Could not scan directory ${currentDir}:`, error.message);
+      }
+    }
+
+    await scanDirectory(dir);
+    return files;
+  }
+
   async function getSearchableFiles(dir) {
     const files = [];
     const searchableExtensions = ['.md', '.markdown', '.txt', '.text'];
-    
+
     async function scanDirectory(currentDir) {
       try {
         const entries = await fs.readdir(currentDir, { withFileTypes: true });
-        
+
         for (const entry of entries) {
           const fullPath = path.join(currentDir, entry.name);
-          
+
           if (entry.isDirectory()) {
             // Skip hidden directories, node_modules, .git
-            if (!entry.name.startsWith('.') && 
-                entry.name !== 'node_modules' && 
+            if (!entry.name.startsWith('.') &&
+                entry.name !== 'node_modules' &&
                 entry.name !== '__pycache__') {
               await scanDirectory(fullPath);
             }
@@ -55,7 +125,7 @@ function register(deps) {
         console.warn(`[SearchHandlers] Could not scan directory ${currentDir}:`, error.message);
       }
     }
-    
+
     await scanDirectory(dir);
     return files;
   }
@@ -241,7 +311,46 @@ function register(deps) {
         return { success: false, error: 'Search query is required' };
       }
 
-      // Search primary working directory
+      // Check if this is a file pattern search (e.g., *.bib, *.md)
+      const isPatternSearch = isFilePatternQuery(query);
+
+      if (isPatternSearch) {
+        console.log(`[SearchHandlers] Detected file pattern search: "${query}"`);
+
+        // Search for files by pattern
+        let fileMatches = await searchFilesByPattern(workingDir, query, 100);
+        fileMatches.forEach(file => {
+          file.sourceFolder = workingDir;
+          file.isPrimaryFolder = true;
+        });
+
+        // Search workspace folders too
+        for (const folderPath of workspaceFolders) {
+          try {
+            const fsSync = require('fs');
+            if (fsSync.existsSync(folderPath)) {
+              const folderMatches = await searchFilesByPattern(folderPath, query, 100);
+              folderMatches.forEach(file => {
+                file.sourceFolder = folderPath;
+                file.isWorkspaceFolder = true;
+              });
+              fileMatches = fileMatches.concat(folderMatches);
+            }
+          } catch (folderError) {
+            console.error(`[SearchHandlers] Error searching workspace folder ${folderPath}:`, folderError);
+          }
+        }
+
+        console.log(`[SearchHandlers] File pattern search found ${fileMatches.length} matching files`);
+        return {
+          success: true,
+          results: [],  // No content results for file pattern search
+          fileMatches: fileMatches,
+          isFilePatternSearch: true
+        };
+      }
+
+      // Regular content search
       let allResults = await performGlobalSearch(query, workingDir, options);
 
       // Add source folder info to primary results

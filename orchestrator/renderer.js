@@ -8597,10 +8597,14 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
         menuItems.push(
             { label: 'Open', action: 'open' },
             { label: 'Rename File', action: 'rename' },
+            { separator: true },
+            { label: 'Move to...', action: 'move-file' },
+            { label: 'Copy to...', action: 'copy-file' },
+            { separator: true },
             { label: 'Delete File', action: 'delete' },
             { label: 'Copy Path', action: 'copy-path' }
         );
-        
+
         // Add tag editing option for markdown files
         if (filePath.endsWith('.md')) {
             menuItems.push({ label: 'Edit Tags', action: 'edit-tags' });
@@ -8931,6 +8935,121 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                 } catch (error) {
                     console.error('[handleFileContextMenuAction] Error in git publish:', error);
                     showNotification('Error publishing to Git', 'error');
+                }
+            }
+            break;
+
+        case 'move-file':
+            if (!isFolder) {
+                try {
+                    const fileName = filePath.split('/').pop();
+                    const currentDir = filePath.substring(0, filePath.lastIndexOf('/'));
+
+                    // Browse for destination folder
+                    const browseResult = await window.electronAPI.invoke('browse-destination-folder', {
+                        title: `Move "${fileName}" to...`,
+                        defaultPath: currentDir
+                    });
+
+                    if (browseResult.canceled) {
+                        // User cancelled
+                        break;
+                    }
+
+                    if (!browseResult.success) {
+                        showNotification(`Error selecting folder: ${browseResult.error}`, 'error');
+                        break;
+                    }
+
+                    const destinationPath = browseResult.folderPath + '/' + fileName;
+
+                    // Confirm the move
+                    const confirmMove = confirm(`Move file to:\n${destinationPath}\n\nContinue?`);
+                    if (!confirmMove) break;
+
+                    // Perform the move
+                    const moveResult = await window.electronAPI.invoke('move-file', {
+                        source: filePath,
+                        destination: destinationPath
+                    });
+
+                    if (moveResult.success) {
+                        showNotification(`File moved to ${browseResult.folderPath}`, 'success');
+
+                        // If this was the currently open file, update the path
+                        if (window.currentFilePath === filePath) {
+                            window.currentFilePath = moveResult.newPath;
+                            const currentFileNameEl = document.getElementById('current-file-name');
+                            if (currentFileNameEl) {
+                                currentFileNameEl.textContent = fileName;
+                            }
+                        }
+
+                        // Refresh file tree
+                        if (window.renderFileTree) {
+                            window.renderFileTree();
+                        }
+                    } else {
+                        showNotification(`Failed to move file: ${moveResult.error}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error moving file:', error);
+                    showNotification('Error moving file', 'error');
+                }
+            }
+            break;
+
+        case 'copy-file':
+            if (!isFolder) {
+                try {
+                    const fileName = filePath.split('/').pop();
+                    const currentDir = filePath.substring(0, filePath.lastIndexOf('/'));
+
+                    // Browse for destination folder
+                    const browseResult = await window.electronAPI.invoke('browse-destination-folder', {
+                        title: `Copy "${fileName}" to...`,
+                        defaultPath: currentDir
+                    });
+
+                    if (browseResult.canceled) {
+                        // User cancelled
+                        break;
+                    }
+
+                    if (!browseResult.success) {
+                        showNotification(`Error selecting folder: ${browseResult.error}`, 'error');
+                        break;
+                    }
+
+                    let destinationPath = browseResult.folderPath + '/' + fileName;
+
+                    // Check if same directory - if so, create a copy with different name
+                    if (currentDir === browseResult.folderPath) {
+                        const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+                        const ext = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';
+                        destinationPath = browseResult.folderPath + '/' + baseName + ' (copy)' + ext;
+                    }
+
+                    // Perform the copy
+                    const copyResult = await window.electronAPI.invoke('copy-file-to', {
+                        source: filePath,
+                        destination: destinationPath
+                    });
+
+                    if (copyResult.success) {
+                        const destFileName = destinationPath.split('/').pop();
+                        showNotification(`File copied as "${destFileName}"`, 'success');
+
+                        // Refresh file tree
+                        if (window.renderFileTree) {
+                            window.renderFileTree();
+                        }
+                    } else {
+                        showNotification(`Failed to copy file: ${copyResult.error}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error copying file:', error);
+                    showNotification('Error copying file', 'error');
                 }
             }
             break;

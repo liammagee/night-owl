@@ -1568,6 +1568,103 @@ function register(deps) {
     }
   });
 
+  // Move file to a new location
+  ipcMain.handle('move-file', async (event, { source, destination }) => {
+    try {
+      console.log(`[FileHandlers] Moving file from ${source} to ${destination}`);
+
+      // Check if source exists
+      try {
+        await fs.access(source);
+      } catch {
+        return { success: false, error: 'Source file does not exist' };
+      }
+
+      // Check if destination already exists
+      try {
+        await fs.access(destination);
+        return { success: false, error: 'A file with that name already exists at the destination' };
+      } catch {
+        // File doesn't exist, which is what we want
+      }
+
+      // Ensure destination directory exists
+      const destDir = path.dirname(destination);
+      await fs.mkdir(destDir, { recursive: true });
+
+      // Move the file (rename works across same filesystem, copy+delete for different)
+      try {
+        await fs.rename(source, destination);
+      } catch (renameError) {
+        // If rename fails (different filesystems), copy then delete
+        await fs.copyFile(source, destination);
+        await fs.unlink(source);
+      }
+
+      console.log(`[FileHandlers] Successfully moved file to ${destination}`);
+      return { success: true, newPath: destination };
+    } catch (error) {
+      console.error('[FileHandlers] Error moving file:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Copy file to a new location (with new name support)
+  ipcMain.handle('copy-file-to', async (event, { source, destination }) => {
+    try {
+      console.log(`[FileHandlers] Copying file from ${source} to ${destination}`);
+
+      // Check if source exists
+      try {
+        await fs.access(source);
+      } catch {
+        return { success: false, error: 'Source file does not exist' };
+      }
+
+      // Check if destination already exists
+      try {
+        await fs.access(destination);
+        return { success: false, error: 'A file with that name already exists at the destination' };
+      } catch {
+        // File doesn't exist, which is what we want
+      }
+
+      // Ensure destination directory exists
+      const destDir = path.dirname(destination);
+      await fs.mkdir(destDir, { recursive: true });
+
+      // Copy the file
+      await fs.copyFile(source, destination);
+
+      console.log(`[FileHandlers] Successfully copied file to ${destination}`);
+      return { success: true, newPath: destination };
+    } catch (error) {
+      console.error('[FileHandlers] Error copying file:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Browse for destination folder
+  ipcMain.handle('browse-destination-folder', async (event, { title, defaultPath }) => {
+    try {
+      const { dialog } = require('electron');
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: title || 'Select Destination Folder',
+        defaultPath: defaultPath || getWorkingDirectory(),
+        properties: ['openDirectory', 'createDirectory']
+      });
+
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+
+      return { success: true, folderPath: result.filePaths[0] };
+    } catch (error) {
+      console.error('[FileHandlers] Error browsing for folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Get all markdown files in the project (including all workspace folders)
   ipcMain.handle('get-markdown-files', async (event) => {
     try {

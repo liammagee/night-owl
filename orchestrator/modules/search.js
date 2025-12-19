@@ -152,14 +152,20 @@ async function performGlobalSearch() {
         
         // Perform regular content search
         const result = await window.electronAPI.invoke('global-search', { query, options });
-        
+
         if (result.success) {
-            globalSearchResults = result.results;
-            displaySearchResultsWithTags(result.results, tagResults, query);
-            
-            const totalMatches = result.results.length + 
-                (tagResults.reduce((sum, tr) => sum + tr.count, 0));
-            showSearchStatus(`Found ${totalMatches} matches`);
+            // Check if this is a file pattern search
+            if (result.isFilePatternSearch && result.fileMatches) {
+                displayFilePatternResults(result.fileMatches, query);
+                showSearchStatus(`Found ${result.fileMatches.length} file${result.fileMatches.length !== 1 ? 's' : ''} matching "${query}"`);
+            } else {
+                globalSearchResults = result.results;
+                displaySearchResultsWithTags(result.results, tagResults, query);
+
+                const totalMatches = result.results.length +
+                    (tagResults.reduce((sum, tr) => sum + tr.count, 0));
+                showSearchStatus(`Found ${totalMatches} matches`);
+            }
         } else {
             // Even if content search fails, show tag results if any
             if (tagResults.length > 0) {
@@ -190,9 +196,141 @@ function showSearchStatus(message) {
     }
 }
 
+/**
+ * Display file pattern search results (e.g., *.bib files)
+ */
+function displayFilePatternResults(fileMatches, query) {
+    if (!searchResults) return;
+
+    clearSearchResults();
+
+    if (!fileMatches || fileMatches.length === 0) {
+        searchResults.innerHTML = `<div class="no-results">No files matching "${escapeHtml(query)}" found</div>`;
+        return;
+    }
+
+    // Create header
+    const resultsHeader = document.createElement('div');
+    resultsHeader.className = 'search-results-header';
+    resultsHeader.innerHTML = `
+        <div style="margin-bottom: 12px; font-weight: bold; color: #333;">
+            Found ${fileMatches.length} file${fileMatches.length !== 1 ? 's' : ''} matching "<span style="color: #0066cc;">${escapeHtml(query)}</span>"
+        </div>
+    `;
+    searchResults.appendChild(resultsHeader);
+
+    // Create file list section
+    const fileSection = document.createElement('div');
+    fileSection.className = 'search-file-pattern-section';
+    fileSection.style.cssText = 'padding: 8px; background: #f8f9fa; border-radius: 4px;';
+
+    const fileHeader = document.createElement('div');
+    fileHeader.style.cssText = 'font-weight: bold; margin-bottom: 8px; color: #6366f1; display: flex; align-items: center; gap: 8px;';
+    fileHeader.innerHTML = '📁 Matching Files';
+    fileSection.appendChild(fileHeader);
+
+    // Group by source folder
+    const byFolder = {};
+    fileMatches.forEach(file => {
+        const folder = file.sourceFolder || 'Unknown';
+        if (!byFolder[folder]) byFolder[folder] = [];
+        byFolder[folder].push(file);
+    });
+
+    Object.entries(byFolder).forEach(([folder, files]) => {
+        const folderGroup = document.createElement('div');
+        folderGroup.style.cssText = 'margin-bottom: 12px;';
+
+        // Show folder name if multiple folders
+        if (Object.keys(byFolder).length > 1) {
+            const folderLabel = document.createElement('div');
+            folderLabel.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px; font-style: italic;';
+            folderLabel.textContent = folder;
+            folderGroup.appendChild(folderLabel);
+        }
+
+        const fileList = document.createElement('div');
+        fileList.style.cssText = 'margin-left: 8px;';
+
+        files.forEach(file => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'search-file-match-item';
+            fileItem.style.cssText = 'padding: 6px 10px; margin: 4px 0; cursor: pointer; font-size: 13px; color: #0066cc; background: white; border-radius: 4px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px;';
+
+            const icon = getFileIcon(file.name);
+            const relativePath = file.relativePath || file.name;
+
+            fileItem.innerHTML = `
+                <span style="font-size: 16px;">${icon}</span>
+                <div style="flex: 1; overflow: hidden;">
+                    <div style="font-weight: 500;">${escapeHtml(file.name)}</div>
+                    <div style="font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(relativePath)}</div>
+                </div>
+            `;
+
+            fileItem.onclick = async () => {
+                try {
+                    const result = await window.electronAPI.invoke('open-file-path', file.path);
+                    if (result.success && window.openFileInEditor) {
+                        await window.openFileInEditor(result.filePath, result.content);
+                    }
+                } catch (error) {
+                    console.error('[Search] Error opening file:', error);
+                    if (window.showNotification) {
+                        window.showNotification('Failed to open file', 'error');
+                    }
+                }
+            };
+
+            fileItem.addEventListener('mouseenter', () => {
+                fileItem.style.background = '#f0f9ff';
+                fileItem.style.borderColor = '#6366f1';
+            });
+            fileItem.addEventListener('mouseleave', () => {
+                fileItem.style.background = 'white';
+                fileItem.style.borderColor = '#e2e8f0';
+            });
+
+            fileList.appendChild(fileItem);
+        });
+
+        folderGroup.appendChild(fileList);
+        fileSection.appendChild(folderGroup);
+    });
+
+    searchResults.appendChild(fileSection);
+}
+
+/**
+ * Get an appropriate icon for a file based on its extension
+ */
+function getFileIcon(filename) {
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const icons = {
+        'md': '📝',
+        'markdown': '📝',
+        'txt': '📄',
+        'bib': '📚',
+        'json': '📋',
+        'yaml': '📋',
+        'yml': '📋',
+        'js': '📜',
+        'ts': '📜',
+        'css': '🎨',
+        'html': '🌐',
+        'pdf': '📕',
+        'png': '🖼️',
+        'jpg': '🖼️',
+        'jpeg': '🖼️',
+        'gif': '🖼️',
+        'svg': '🖼️'
+    };
+    return icons[ext] || '📄';
+}
+
 function displaySearchResultsWithTags(contentResults, tagResults, query) {
     if (!searchResults) return;
-    
+
     clearSearchResults();
     
     const hasContentResults = contentResults && contentResults.length > 0;
