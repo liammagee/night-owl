@@ -1,4 +1,5 @@
 // Preview zoom-based text abstraction module
+// Supports both Electron (via electronAPI) and web (via configurable AI service)
 class PreviewZoom {
     constructor() {
         this.isEnabled = false;
@@ -17,7 +18,11 @@ class PreviewZoom {
         this.scrollCooldown = false; // Prevent rapid scroll transitions
         this.keyListener = null; // Store keyboard listener for cleanup
         this.keyCooldown = false; // Prevent rapid key transitions
-        
+
+        // Pluggable AI summary generator - can be set by host application
+        // Should be an async function: (content, filePath) => { paragraph, sentence }
+        this.aiSummaryGenerator = null;
+
         // Summary caching system (shared between preview and circle views)
         if (!window.sharedSummaryCache) {
             window.sharedSummaryCache = new Map(); // filePath -> { contentHash, summaries, timestamp }
@@ -26,6 +31,24 @@ class PreviewZoom {
         this.summaryCache = window.sharedSummaryCache;
         this.cacheExpiryMs = 7 * 24 * 60 * 60 * 1000; // 7 days (longer for persistent cache)
         this.changeThreshold = 0.15; // 15% content change triggers refresh
+    }
+
+    /**
+     * Set a custom AI summary generator for web contexts
+     * @param {Function} generator - async (content, filePath) => { paragraph, sentence }
+     */
+    setAISummaryGenerator(generator) {
+        if (typeof generator === 'function') {
+            this.aiSummaryGenerator = generator;
+            console.log('[PreviewZoom] Custom AI summary generator configured');
+        }
+    }
+
+    /**
+     * Check if AI summarization is available (Electron or custom generator)
+     */
+    isAISummarizationAvailable() {
+        return !!(window.electronAPI?.invoke || this.aiSummaryGenerator);
     }
 
     initialize() {
@@ -572,15 +595,52 @@ class PreviewZoom {
             });
 
             const startTime = Date.now();
-            
-            // Request AI summaries from the main process
-            const summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
-                content: textContent,
-                filePath: this.currentFilePath
-            });
-            
+
+            // Try multiple AI backends in order of preference
+            let summaryResult = null;
+
+            // 1. Try custom AI generator (web contexts)
+            if (this.aiSummaryGenerator) {
+                try {
+                    console.log('[PreviewZoom] Using custom AI summary generator');
+                    const result = await this.aiSummaryGenerator(textContent, this.currentFilePath);
+                    if (result && (result.paragraph || result.sentence)) {
+                        summaryResult = {
+                            success: true,
+                            paragraph: result.paragraph,
+                            sentence: result.sentence
+                        };
+                    }
+                } catch (err) {
+                    console.warn('[PreviewZoom] Custom generator failed:', err);
+                }
+            }
+
+            // 2. Try Electron API (desktop app)
+            if (!summaryResult && window.electronAPI?.invoke) {
+                try {
+                    console.log('[PreviewZoom] Using Electron API for summaries');
+                    summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
+                        content: textContent,
+                        filePath: this.currentFilePath
+                    });
+                } catch (err) {
+                    console.warn('[PreviewZoom] Electron API failed:', err);
+                }
+            }
+
+            // 3. Try global AI service (web fallback)
+            if (!summaryResult && window.generateDocumentSummaries) {
+                try {
+                    console.log('[PreviewZoom] Using global generateDocumentSummaries');
+                    summaryResult = await window.generateDocumentSummaries(textContent, this.currentFilePath);
+                } catch (err) {
+                    console.warn('[PreviewZoom] Global AI service failed:', err);
+                }
+            }
+
             const duration = Date.now() - startTime;
-            
+
             console.log('[PreviewZoom] 📥 Received API response:', {
                 duration: `${duration}ms`,
                 success: summaryResult?.success,
@@ -588,7 +648,7 @@ class PreviewZoom {
                 hasSentence: !!summaryResult?.sentence,
                 error: summaryResult?.error
             });
-            
+
             if (summaryResult && summaryResult.success) {
                 this.summaryParagraph = summaryResult.paragraph;
                 this.summarySentence = summaryResult.sentence;
