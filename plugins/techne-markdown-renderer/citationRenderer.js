@@ -10,9 +10,110 @@
  * - Citations with page numbers: [@smith2023, p. 42]
  * - Citations with prefixes: [see @smith2023]
  * - Citations with suffixes: [@smith2023, emphasis added]
+ *
+ * Features lazy caching for performance in multi-user web contexts.
  */
 (function() {
     if (window.TechneCitationRenderer) return;
+
+    // === Citation Cache ===
+    // Caches rendered HTML to avoid re-processing unchanged content
+    const cache = {
+        entries: new Map(),  // Map<cacheKey, { html, timestamp, citedKeys }>
+        maxEntries: 100,     // Max cache entries (LRU eviction)
+        maxAge: 5 * 60 * 1000, // Cache TTL: 5 minutes
+        bibEntriesVersion: 0   // Incremented when bibEntries changes
+    };
+
+    /**
+     * Simple hash function for cache keys
+     */
+    function hashContent(content) {
+        let hash = 0;
+        for (let i = 0; i < content.length; i++) {
+            const char = content.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return hash.toString(36);
+    }
+
+    /**
+     * Generate a cache key from content, style, and bibEntries version
+     */
+    function getCacheKey(html, options = {}) {
+        const contentHash = hashContent(html);
+        const styleKey = currentStyle;
+        const bibVersion = cache.bibEntriesVersion;
+        const includeBib = options.includeBibliography !== false ? '1' : '0';
+        return `${contentHash}-${styleKey}-${bibVersion}-${includeBib}`;
+    }
+
+    /**
+     * Get cached result if valid
+     */
+    function getFromCache(key) {
+        const entry = cache.entries.get(key);
+        if (!entry) return null;
+
+        // Check if expired
+        if (Date.now() - entry.timestamp > cache.maxAge) {
+            cache.entries.delete(key);
+            return null;
+        }
+
+        return entry;
+    }
+
+    /**
+     * Store result in cache with LRU eviction
+     */
+    function setInCache(key, html, citedKeys) {
+        // LRU eviction if at capacity
+        if (cache.entries.size >= cache.maxEntries) {
+            const oldestKey = cache.entries.keys().next().value;
+            cache.entries.delete(oldestKey);
+        }
+
+        cache.entries.set(key, {
+            html,
+            citedKeys,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * Invalidate cache (call when bibEntries changes)
+     */
+    function invalidateCache() {
+        cache.bibEntriesVersion++;
+        cache.entries.clear();
+        console.log('[TechneCitationRenderer] Cache invalidated, version:', cache.bibEntriesVersion);
+    }
+
+    /**
+     * Clear expired entries from cache
+     */
+    function pruneCache() {
+        const now = Date.now();
+        for (const [key, entry] of cache.entries) {
+            if (now - entry.timestamp > cache.maxAge) {
+                cache.entries.delete(key);
+            }
+        }
+    }
+
+    /**
+     * Get cache statistics (for debugging)
+     */
+    function getCacheStats() {
+        return {
+            size: cache.entries.size,
+            maxEntries: cache.maxEntries,
+            version: cache.bibEntriesVersion,
+            maxAge: cache.maxAge
+        };
+    }
 
     // Citation styles
     const STYLES = {
@@ -275,23 +376,45 @@
 
     /**
      * Process HTML content: replace citations and append bibliography
+     * Uses caching for performance - results are cached by content hash
      */
     function renderCitations(html, options = {}) {
-        const { includeBibliography = true } = options;
+        const { includeBibliography = true, useCache = true } = options;
 
         // Check if we have any citations to process
         if (!html.includes('[@')) {
             return html;
         }
 
-        const { html: processedHtml, citedKeys } = processCitations(html);
-
-        if (includeBibliography && citedKeys.length > 0) {
-            const bibliography = generateBibliography(citedKeys);
-            return processedHtml + bibliography;
+        // Check cache first
+        if (useCache) {
+            const cacheKey = getCacheKey(html, options);
+            const cached = getFromCache(cacheKey);
+            if (cached) {
+                console.log('[TechneCitationRenderer] Cache hit');
+                return cached.html;
+            }
         }
 
-        return processedHtml;
+        // Process citations
+        const { html: processedHtml, citedKeys } = processCitations(html);
+
+        let result;
+        if (includeBibliography && citedKeys.length > 0) {
+            const bibliography = generateBibliography(citedKeys);
+            result = processedHtml + bibliography;
+        } else {
+            result = processedHtml;
+        }
+
+        // Store in cache
+        if (useCache) {
+            const cacheKey = getCacheKey(html, options);
+            setInCache(cacheKey, result, citedKeys);
+            console.log('[TechneCitationRenderer] Cache miss, stored result');
+        }
+
+        return result;
     }
 
     /**
@@ -378,6 +501,9 @@ body.dark-mode .bibliography-item {
 `;
     }
 
+    // Prune cache periodically (every 2 minutes)
+    setInterval(pruneCache, 2 * 60 * 1000);
+
     // Export the module
     window.TechneCitationRenderer = {
         renderCitations,
@@ -386,8 +512,12 @@ body.dark-mode .bibliography-item {
         setStyle,
         getStyles,
         getCSS,
-        STYLES
+        STYLES,
+        // Cache management
+        invalidateCache,
+        getCacheStats,
+        pruneCache
     };
 
-    console.log('[TechneCitationRenderer] Citation renderer loaded');
+    console.log('[TechneCitationRenderer] Citation renderer loaded with caching');
 })();

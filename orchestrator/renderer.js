@@ -2808,6 +2808,8 @@ function registerBibTeXLanguage() {
 
 // --- Citation Autocomplete Functionality ---
 let bibEntries = [];
+// Expose bibEntries to window for citation renderer plugin
+window.bibEntries = bibEntries;
 
 function computeCitationKey(citation) {
     if (citation.key && typeof citation.key === 'string') {
@@ -2854,32 +2856,43 @@ function parseBibTeX(content, sourceLabel = '') {
     const entries = [];
     const entryRegex = /@(\w+)\s*\{\s*([^,\s\}]+)\s*,([^\}]*)\}/g;
     let match;
-    
+
+    // Helper to extract a field value from BibTeX fields string
+    const extractField = (fields, fieldName) => {
+        // Handle various BibTeX formats: {value}, "value", or bare value
+        const regex = new RegExp(`${fieldName}\\s*=\\s*(?:\\{([^}]*)\\}|"([^"]*)"|'([^']*)'|(\\d+))`, 'i');
+        const fieldMatch = fields.match(regex);
+        if (fieldMatch) {
+            return (fieldMatch[1] || fieldMatch[2] || fieldMatch[3] || fieldMatch[4] || '').trim();
+        }
+        return '';
+    };
+
     while ((match = entryRegex.exec(content)) !== null) {
         const type = match[1];
         const key = match[2];
         const fields = match[3];
-        
-        // Extract title and author for better display
-        const titleMatch = fields.match(/title\s*=\s*[{"']([^\}"']*)[\\}"']/i);
-        const authorMatch = fields.match(/author\s*=\s*[{"']([^\}"']*)[\\}"']/i);
-        const yearMatch = fields.match(/year\s*=\s*[{"']?(\d{4})[\\}"']?/i);
-        
-        const title = titleMatch ? titleMatch[1] : '';
-        const author = authorMatch ? authorMatch[1] : '';
-        const year = yearMatch ? yearMatch[1] : '';
-        
+
         entries.push({
             key: key,
             type: type,
-            title: title,
-            author: author,
-            year: year,
+            title: extractField(fields, 'title'),
+            author: extractField(fields, 'author'),
+            year: extractField(fields, 'year'),
+            journal: extractField(fields, 'journal'),
+            booktitle: extractField(fields, 'booktitle'),
+            publisher: extractField(fields, 'publisher'),
+            volume: extractField(fields, 'volume'),
+            issue: extractField(fields, 'number') || extractField(fields, 'issue'),
+            pages: extractField(fields, 'pages'),
+            doi: extractField(fields, 'doi'),
+            url: extractField(fields, 'url'),
+            abstract: extractField(fields, 'abstract'),
             source: 'bibtex',
             sourceDetail: sourceLabel
         });
     }
-    
+
     return entries;
 }
 
@@ -3058,7 +3071,15 @@ async function loadBibTeXFiles() {
         // Combine BibTeX and database entries into the global bibEntries array
         bibEntries.push(...dbEntries);
         console.log(`[renderer.js] Total entries: ${bibEntries.length} (${bibEntries.length - dbEntries.length} from BibTeX + ${dbEntries.length} from database)`);
-        
+
+        // Update window reference for citation renderer plugin
+        window.bibEntries = bibEntries;
+
+        // Invalidate citation cache since bibEntries changed
+        if (window.TechneCitationRenderer?.invalidateCache) {
+            window.TechneCitationRenderer.invalidateCache();
+        }
+
         return bibEntries;
     } catch (error) {
         console.error('[renderer.js] Error loading BibTeX files:', error);
