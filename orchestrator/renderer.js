@@ -8945,27 +8945,24 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     const fileName = filePath.split('/').pop();
                     const currentDir = filePath.substring(0, filePath.lastIndexOf('/'));
 
-                    // Browse for destination folder
-                    const browseResult = await window.electronAPI.invoke('browse-destination-folder', {
-                        title: `Move "${fileName}" to...`,
-                        defaultPath: currentDir
-                    });
+                    // Show in-app folder picker
+                    const browseResult = await showFolderPickerDialog(
+                        `Move "${fileName}"`,
+                        filePath,
+                        'move'
+                    );
 
-                    if (browseResult.canceled) {
-                        // User cancelled
-                        break;
-                    }
-
-                    if (!browseResult.success) {
-                        showNotification(`Error selecting folder: ${browseResult.error}`, 'error');
+                    if (browseResult.canceled || !browseResult.success) {
                         break;
                     }
 
                     const destinationPath = browseResult.folderPath + '/' + fileName;
 
-                    // Confirm the move
-                    const confirmMove = confirm(`Move file to:\n${destinationPath}\n\nContinue?`);
-                    if (!confirmMove) break;
+                    // Check if trying to move to same location
+                    if (currentDir === browseResult.folderPath) {
+                        showNotification('File is already in this folder', 'info');
+                        break;
+                    }
 
                     // Perform the move
                     const moveResult = await window.electronAPI.invoke('move-file', {
@@ -8974,7 +8971,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     });
 
                     if (moveResult.success) {
-                        showNotification(`File moved to ${browseResult.folderPath}`, 'success');
+                        showNotification(`Moved to ${browseResult.folderPath.split('/').pop()}`, 'success');
 
                         // If this was the currently open file, update the path
                         if (window.currentFilePath === filePath) {
@@ -9005,19 +9002,14 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     const fileName = filePath.split('/').pop();
                     const currentDir = filePath.substring(0, filePath.lastIndexOf('/'));
 
-                    // Browse for destination folder
-                    const browseResult = await window.electronAPI.invoke('browse-destination-folder', {
-                        title: `Copy "${fileName}" to...`,
-                        defaultPath: currentDir
-                    });
+                    // Show in-app folder picker
+                    const browseResult = await showFolderPickerDialog(
+                        `Copy "${fileName}"`,
+                        filePath,
+                        'copy'
+                    );
 
-                    if (browseResult.canceled) {
-                        // User cancelled
-                        break;
-                    }
-
-                    if (!browseResult.success) {
-                        showNotification(`Error selecting folder: ${browseResult.error}`, 'error');
+                    if (browseResult.canceled || !browseResult.success) {
                         break;
                     }
 
@@ -9038,7 +9030,8 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
 
                     if (copyResult.success) {
                         const destFileName = destinationPath.split('/').pop();
-                        showNotification(`File copied as "${destFileName}"`, 'success');
+                        const destFolderName = browseResult.folderPath.split('/').pop();
+                        showNotification(`Copied to ${destFolderName}/${destFileName}`, 'success');
 
                         // Refresh file tree
                         if (window.renderFileTree) {
@@ -10913,6 +10906,316 @@ function showCustomPrompt(title, message, defaultValue = '') {
                 handleCancel();
             }
         };
+    });
+}
+
+/**
+ * Show a folder picker dialog for move/copy operations
+ * Displays workspace folders and allows navigation through the file tree
+ * @param {string} title - Dialog title
+ * @param {string} currentPath - Current file path (to highlight current location)
+ * @param {string} operation - 'move' or 'copy'
+ * @returns {Promise<{success: boolean, folderPath?: string, canceled?: boolean}>}
+ */
+async function showFolderPickerDialog(title, currentPath, operation = 'move') {
+    return new Promise(async (resolve) => {
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
+
+        // Get workspace folders
+        const workingDir = window.appSettings?.workingDirectory || '';
+        const workspaceFolders = window.appSettings?.workspaceFolders || [];
+        const allRoots = [workingDir, ...workspaceFolders].filter(f => f);
+
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: ${isDarkMode ? '#1e1e1e' : 'white'};
+            color: ${isDarkMode ? '#e0e0e0' : '#333'};
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 500px;
+            max-width: 600px;
+            max-height: 70vh;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+        `;
+
+        let selectedFolder = null;
+
+        // Build folder tree HTML
+        async function buildFolderTree() {
+            let html = '';
+
+            for (const rootPath of allRoots) {
+                const rootName = rootPath.split('/').pop();
+                const isCurrentRoot = currentDir.startsWith(rootPath);
+
+                html += `
+                    <div class="folder-tree-root" data-path="${rootPath}">
+                        <div class="folder-item root-folder ${isCurrentRoot ? 'expanded' : ''}"
+                             data-path="${rootPath}"
+                             style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px; margin-bottom: 2px; background: ${isDarkMode ? '#2d2d2d' : '#f0f0f0'};">
+                            <span class="folder-arrow" style="width: 16px; text-align: center;">${isCurrentRoot ? '▼' : '▶'}</span>
+                            <span style="font-size: 16px;">📁</span>
+                            <span style="flex: 1; font-weight: 500;">${rootName}</span>
+                            ${rootPath === workingDir ? '<span style="font-size: 10px; background: #6366f1; color: white; padding: 2px 6px; border-radius: 10px;">Primary</span>' : ''}
+                        </div>
+                        <div class="folder-children" style="margin-left: 20px; display: ${isCurrentRoot ? 'block' : 'none'};">
+                            <!-- Children loaded dynamically -->
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        // Load subfolders for a path
+        async function loadSubfolders(parentPath) {
+            try {
+                const result = await window.electronAPI.invoke('list-directory-files', parentPath);
+                if (!result.success) return [];
+
+                return result.files
+                    .filter(f => f.isDirectory && !f.name.startsWith('.'))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+            } catch (error) {
+                console.error('[FolderPicker] Error loading subfolders:', error);
+                return [];
+            }
+        }
+
+        // Render subfolder items
+        function renderSubfolders(subfolders, parentPath, level = 1) {
+            const isInCurrentPath = currentDir.startsWith(parentPath);
+
+            return subfolders.map(folder => {
+                const folderPath = `${parentPath}/${folder.name}`;
+                const isCurrentFolder = currentDir === folderPath;
+                const isParentOfCurrent = currentDir.startsWith(folderPath + '/');
+
+                return `
+                    <div class="folder-tree-item" data-path="${folderPath}">
+                        <div class="folder-item ${isCurrentFolder ? 'current-folder' : ''}"
+                             data-path="${folderPath}"
+                             style="padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px; margin-bottom: 2px;
+                                    ${isCurrentFolder ? `background: ${isDarkMode ? '#3c3c3c' : '#e3f2fd'}; border: 1px solid ${isDarkMode ? '#6366f1' : '#2196f3'};` : ''}">
+                            <span class="folder-arrow" style="width: 16px; text-align: center; color: ${isDarkMode ? '#888' : '#666'};">▶</span>
+                            <span style="font-size: 14px;">📁</span>
+                            <span style="flex: 1;">${folder.name}</span>
+                            ${isCurrentFolder ? '<span style="font-size: 10px; color: #888;">(current)</span>' : ''}
+                        </div>
+                        <div class="folder-children" style="margin-left: 20px; display: none;"></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const folderTreeHtml = await buildFolderTree();
+
+        dialog.innerHTML = `
+            <h3 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">${operation === 'move' ? '📦' : '📋'}</span>
+                ${title}
+            </h3>
+            <p style="margin: 0 0 10px 0; color: ${isDarkMode ? '#aaa' : '#666'}; font-size: 13px;">
+                Select a destination folder:
+            </p>
+            <div id="folder-tree-container" style="
+                flex: 1;
+                overflow-y: auto;
+                max-height: 400px;
+                border: 1px solid ${isDarkMode ? '#3c3c3c' : '#ddd'};
+                border-radius: 4px;
+                padding: 8px;
+                margin-bottom: 15px;
+                background: ${isDarkMode ? '#252526' : '#fafafa'};
+            ">
+                ${folderTreeHtml}
+            </div>
+            <div id="selected-path" style="
+                padding: 8px 12px;
+                background: ${isDarkMode ? '#2d2d2d' : '#f5f5f5'};
+                border-radius: 4px;
+                margin-bottom: 15px;
+                font-size: 12px;
+                color: ${isDarkMode ? '#aaa' : '#666'};
+                word-break: break-all;
+            ">
+                <strong>Selected:</strong> <span id="selected-path-text">None</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button id="browse-system" class="btn btn-sm btn-ghost" style="font-size: 12px;">
+                    📂 Browse System...
+                </button>
+                <div>
+                    <button id="folder-cancel" class="btn btn-sm btn-ghost" style="margin-right: 10px;">Cancel</button>
+                    <button id="folder-ok" class="btn btn-sm btn-primary" disabled>${operation === 'move' ? 'Move Here' : 'Copy Here'}</button>
+                </div>
+            </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const treeContainer = dialog.querySelector('#folder-tree-container');
+        const selectedPathText = dialog.querySelector('#selected-path-text');
+        const okButton = dialog.querySelector('#folder-ok');
+
+        // Update selected path display
+        function updateSelectedPath(path) {
+            selectedFolder = path;
+            if (path) {
+                selectedPathText.textContent = path;
+                okButton.disabled = false;
+            } else {
+                selectedPathText.textContent = 'None';
+                okButton.disabled = true;
+            }
+        }
+
+        // Handle folder item clicks
+        treeContainer.addEventListener('click', async (e) => {
+            const folderItem = e.target.closest('.folder-item');
+            if (!folderItem) return;
+
+            const folderPath = folderItem.dataset.path;
+            const arrow = folderItem.querySelector('.folder-arrow');
+            const parentDiv = folderItem.closest('.folder-tree-root, .folder-tree-item');
+            const childrenDiv = parentDiv?.querySelector(':scope > .folder-children');
+
+            // Toggle expand/collapse on arrow click
+            if (e.target.classList.contains('folder-arrow') || e.target === arrow) {
+                if (childrenDiv) {
+                    const isExpanded = childrenDiv.style.display !== 'none';
+                    if (isExpanded) {
+                        childrenDiv.style.display = 'none';
+                        arrow.textContent = '▶';
+                    } else {
+                        // Load children if not loaded
+                        if (childrenDiv.innerHTML.trim() === '' || childrenDiv.innerHTML.includes('<!--')) {
+                            const subfolders = await loadSubfolders(folderPath);
+                            childrenDiv.innerHTML = renderSubfolders(subfolders, folderPath);
+                        }
+                        childrenDiv.style.display = 'block';
+                        arrow.textContent = '▼';
+                    }
+                }
+                return;
+            }
+
+            // Select folder
+            treeContainer.querySelectorAll('.folder-item').forEach(item => {
+                item.style.background = '';
+                item.style.border = '';
+            });
+
+            folderItem.style.background = isDarkMode ? '#3c3c3c' : '#e3f2fd';
+            folderItem.style.border = `1px solid ${isDarkMode ? '#6366f1' : '#2196f3'}`;
+
+            updateSelectedPath(folderPath);
+
+            // Also expand if it has children
+            if (childrenDiv && childrenDiv.style.display === 'none') {
+                const subfolders = await loadSubfolders(folderPath);
+                if (subfolders.length > 0) {
+                    childrenDiv.innerHTML = renderSubfolders(subfolders, folderPath);
+                    childrenDiv.style.display = 'block';
+                    arrow.textContent = '▼';
+                }
+            }
+        });
+
+        // Double-click to expand without selecting
+        treeContainer.addEventListener('dblclick', async (e) => {
+            const folderItem = e.target.closest('.folder-item');
+            if (!folderItem) return;
+
+            const folderPath = folderItem.dataset.path;
+            const arrow = folderItem.querySelector('.folder-arrow');
+            const parentDiv = folderItem.closest('.folder-tree-root, .folder-tree-item');
+            const childrenDiv = parentDiv?.querySelector(':scope > .folder-children');
+
+            if (childrenDiv) {
+                const subfolders = await loadSubfolders(folderPath);
+                if (subfolders.length > 0) {
+                    childrenDiv.innerHTML = renderSubfolders(subfolders, folderPath);
+                    childrenDiv.style.display = 'block';
+                    arrow.textContent = '▼';
+                }
+            }
+        });
+
+        // Load initial children for expanded roots
+        for (const rootPath of allRoots) {
+            if (currentDir.startsWith(rootPath)) {
+                const rootDiv = treeContainer.querySelector(`.folder-tree-root[data-path="${rootPath}"]`);
+                if (rootDiv) {
+                    const childrenDiv = rootDiv.querySelector('.folder-children');
+                    const subfolders = await loadSubfolders(rootPath);
+                    childrenDiv.innerHTML = renderSubfolders(subfolders, rootPath);
+                }
+            }
+        }
+
+        // Handle buttons
+        const handleOK = () => {
+            document.body.removeChild(overlay);
+            resolve({ success: true, folderPath: selectedFolder });
+        };
+
+        const handleCancel = () => {
+            document.body.removeChild(overlay);
+            resolve({ success: false, canceled: true });
+        };
+
+        const handleBrowseSystem = async () => {
+            document.body.removeChild(overlay);
+            // Fall back to system dialog
+            const result = await window.electronAPI.invoke('browse-destination-folder', {
+                title: title,
+                defaultPath: currentDir
+            });
+            resolve(result);
+        };
+
+        dialog.querySelector('#folder-ok').onclick = handleOK;
+        dialog.querySelector('#folder-cancel').onclick = handleCancel;
+        dialog.querySelector('#browse-system').onclick = handleBrowseSystem;
+
+        // Handle overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                handleCancel();
+            }
+        };
+
+        // Handle Escape key
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+                document.removeEventListener('keydown', handleKeydown);
+            }
+        };
+        document.addEventListener('keydown', handleKeydown);
     });
 }
 
