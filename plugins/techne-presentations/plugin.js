@@ -36,7 +36,8 @@
                 const scripts = [
                     `${BASE}/ttsService.js`,
                     `${BASE}/videoRecordingService.js`,
-                    `${BASE}/speaker-notes.js`
+                    `${BASE}/speaker-notes.js`,
+                    `${BASE}/touch-gestures.js`
                 ];
 
                 const hasGlobalReact = Boolean(window.React && window.ReactDOM);

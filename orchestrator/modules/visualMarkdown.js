@@ -388,15 +388,76 @@ function createImageWidget(editor, match, lineNumber, startColumn) {
 }
 
 function resolveImagePath(imageUrl) {
-    // Handle relative paths
-    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://') && !imageUrl.startsWith('data:')) {
-        // Check if we have a current directory context (try both variable names)
-        const currentDir = window.currentFileDirectory || window.currentDirectory;
-        if (currentDir) {
-            return `file://${currentDir}/${imageUrl}`;
-        }
+    // Handle absolute URLs and data URIs as-is
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('data:')) {
+        return imageUrl;
     }
-    return imageUrl;
+
+    // Handle file:// URLs as-is
+    if (imageUrl.startsWith('file://')) {
+        return imageUrl;
+    }
+
+    // Get the current file's directory for resolving relative paths
+    const currentDir = window.currentFileDirectory || window.currentDirectory;
+    const workingDir = window.appSettings?.workingDirectory;
+
+    // Handle absolute paths (starting with /)
+    if (imageUrl.startsWith('/')) {
+        // Check if it's already an absolute filesystem path (macOS/Linux)
+        if (imageUrl.match(/^\/Users|^\/home|^\/var|^\/tmp|^\/opt|^\/private/)) {
+            return `file://${imageUrl}`;
+        }
+
+        // For root-relative paths like /markdown/images/..., we need to find the project root
+        // First, try to derive it from the current file path
+        if (currentDir) {
+            // Look for common project indicators in the path to find the root
+            // e.g., /Users/user/Dev/my-website/markdown/courses/479 -> /Users/user/Dev/my-website
+            const pathParts = currentDir.split('/');
+            let projectRoot = null;
+
+            // Walk up the path looking for the segment that contains 'markdown' or similar
+            // The project root would be the parent of that
+            for (let i = pathParts.length - 1; i >= 0; i--) {
+                if (pathParts[i] === 'markdown' || pathParts[i] === 'content' || pathParts[i] === 'docs') {
+                    // Found a common content directory, project root is probably the parent
+                    projectRoot = pathParts.slice(0, i).join('/');
+                    break;
+                }
+            }
+
+            if (projectRoot) {
+                const cleanPath = imageUrl.substring(1); // Remove leading slash
+                return `file://${projectRoot}/${cleanPath}`;
+            }
+        }
+
+        // Fallback to working directory if available
+        if (workingDir) {
+            const cleanPath = imageUrl.substring(1); // Remove leading slash
+            return `file://${workingDir}/${cleanPath}`;
+        }
+
+        // Last resort: treat as absolute path (will likely fail but at least won't break)
+        return `file://${imageUrl}`;
+    }
+
+    // Handle relative paths (not starting with /)
+    if (currentDir) {
+        // Ensure no double slashes
+        const cleanDir = currentDir.endsWith('/') ? currentDir.slice(0, -1) : currentDir;
+        return `file://${cleanDir}/${imageUrl}`;
+    }
+
+    // Fallback: try working directory
+    if (workingDir) {
+        const cleanDir = workingDir.endsWith('/') ? workingDir.slice(0, -1) : workingDir;
+        return `file://${cleanDir}/${imageUrl}`;
+    }
+
+    // Fallback: return as-is with file:// prefix
+    return `file://${imageUrl}`;
 }
 
 function updateImagePreviews(editor) {

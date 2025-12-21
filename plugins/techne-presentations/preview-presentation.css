@@ -471,3 +471,289 @@ body.is-presenting ol ol ol,
     margin: 0.2em 0 !important;
     padding-left: 1.8em !important;
 }
+
+/* ============================================================================
+   MOBILE RESPONSIVE STYLES FOR PRESENTATION VIEW
+   ============================================================================ */
+
+/* Mobile breakpoint - tablets and phones */
+@media screen and (max-width: 1000px) {
+    /* Scale down slides for smaller screens */
+    #presentation-root .slide,
+    .presentation-slide {
+        width: calc(100vw - 40px) !important;
+        max-width: 600px !important;
+        height: auto !important;
+        min-height: 280px !important;
+        padding: 16px !important;
+    }
+
+    /* Reduce slide content font sizes */
+    #presentation-root .slide-content h1,
+    .presentation-slide h1 {
+        font-size: 1.5rem !important;
+    }
+
+    #presentation-root .slide-content h2,
+    .presentation-slide h2 {
+        font-size: 1.25rem !important;
+    }
+
+    #presentation-root .slide-content h3,
+    .presentation-slide h3 {
+        font-size: 1.1rem !important;
+    }
+
+    #presentation-root .slide-content p,
+    #presentation-root .slide-content li,
+    .presentation-slide p,
+    .presentation-slide li {
+        font-size: 0.9rem !important;
+        line-height: 1.5 !important;
+    }
+
+    /* Smaller images on mobile */
+    #presentation-root img,
+    .slide-content img {
+        max-width: 90% !important;
+        max-height: 40vh !important;
+        margin: 10px auto !important;
+    }
+
+    /* Compact presentation tables */
+    .presentation-table {
+        font-size: 12px !important;
+    }
+
+    .presentation-table th,
+    .presentation-table td {
+        padding: 4px 8px !important;
+    }
+
+    /* Stack control buttons vertically on mobile */
+    #presentation-root .absolute.top-4.right-4 {
+        flex-direction: column !important;
+        gap: 4px !important;
+        right: 8px !important;
+        top: 8px !important;
+    }
+
+    #presentation-root .absolute.top-4.left-4 {
+        left: 8px !important;
+        top: 8px !important;
+    }
+
+    /* Hide non-essential controls in presentation mode on mobile */
+    body.is-presenting #presentation-root .absolute.top-4.right-4 button:not(:last-child) {
+        display: none !important;
+    }
+
+    /* Show only Exit button prominently */
+    body.is-presenting #presentation-root .absolute.top-4.right-4 {
+        flex-direction: row !important;
+    }
+
+    /* Bottom navigation - make it touch-friendly */
+    #presentation-root .fixed.bottom-4 {
+        bottom: 8px !important;
+        padding: 8px !important;
+        gap: 8px !important;
+    }
+
+    #presentation-root .fixed.bottom-4 button {
+        padding: 12px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+    }
+
+    /* Hide slide dots on mobile - too small to tap */
+    #presentation-root .fixed.bottom-4 .flex.gap-1 {
+        display: none !important;
+    }
+
+    /* Larger navigation arrows for touch */
+    #presentation-root .fixed.bottom-4 button svg {
+        width: 28px !important;
+        height: 28px !important;
+    }
+
+    /* Speaker notes panel - collapsible bottom sheet */
+    body.is-presenting #speaker-notes-panel {
+        height: 100px !important;
+        max-height: 30vh !important;
+        min-height: 60px !important;
+    }
+
+    body.is-presenting #speaker-notes-panel[style*="display: block"] {
+        border-radius: 16px 16px 0 0 !important;
+    }
+
+    /* Speaker notes content - more compact */
+    #speaker-notes-content {
+        padding: 8px 12px !important;
+    }
+
+    #speaker-notes-content h3 {
+        font-size: 14px !important;
+        margin-bottom: 6px !important;
+    }
+
+    #speaker-notes-content p {
+        font-size: 13px !important;
+        margin-bottom: 6px !important;
+    }
+
+    /* Speaker notes header - more compact */
+    .speaker-notes-header {
+        padding-bottom: 6px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .speaker-notes-header h3 {
+        font-size: 14px !important;
+    }
+
+    /* Presentation root height adjustment for mobile speaker notes */
+    body.is-presenting #presentation-root {
+        height: calc(100vh - 110px) !important;
+    }
+
+    body.is-presenting.speaker-notes-visible #presentation-root {
+        height: calc(100vh - 110px) !important;
+    }
+
+    /* Layout selector - full width on mobile */
+    #presentation-root select {
+        font-size: 14px !important;
+        padding: 8px 12px !important;
+    }
+}
+
+/* Small phone breakpoint */
+@media screen and (max-width: 480px) {
+    /* Even smaller slides */
+    #presentation-root .slide,
+    .presentation-slide {
+        width: calc(100vw - 24px) !important;
+        min-height: 220px !important;
+        padding: 12px !important;
+    }
+
+    #presentation-root .slide-content h1,
+    .presentation-slide h1 {
+        font-size: 1.25rem !important;
+    }
+
+    #presentation-root .slide-content h2,
+    .presentation-slide h2 {
+        font-size: 1.1rem !important;
+    }
+
+    #presentation-root .slide-content p,
+    #presentation-root .slide-content li,
+    .presentation-slide p,
+    .presentation-slide li {
+        font-size: 0.85rem !important;
+    }
+
+    /* Minimal controls on small phones */
+    #presentation-root .absolute.top-4.right-4 {
+        gap: 2px !important;
+        right: 4px !important;
+        top: 4px !important;
+    }
+
+    #presentation-root .absolute.top-4.right-4 button {
+        padding: 6px !important;
+    }
+
+    /* Bottom navigation - even more touch-friendly */
+    #presentation-root .fixed.bottom-4 {
+        bottom: 4px !important;
+        width: calc(100% - 16px) !important;
+        left: 8px !important;
+        transform: none !important;
+        justify-content: space-between !important;
+    }
+
+    #presentation-root .fixed.bottom-4 button {
+        padding: 14px !important;
+        min-width: 48px !important;
+        min-height: 48px !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Slide counter - centered and minimal */
+    #presentation-root .fixed.bottom-4 .flex.items-center.gap-2 {
+        padding: 8px 12px !important;
+        flex: 1 !important;
+        justify-content: center !important;
+    }
+
+    /* Speaker notes - minimal on small phones */
+    body.is-presenting #speaker-notes-panel {
+        height: 80px !important;
+        max-height: 25vh !important;
+    }
+
+    #speaker-notes-content p {
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+    }
+
+    body.is-presenting #presentation-root {
+        height: calc(100vh - 90px) !important;
+    }
+
+    body.is-presenting.speaker-notes-visible #presentation-root {
+        height: calc(100vh - 90px) !important;
+    }
+}
+
+/* Touch-friendly tap targets - enforce minimum sizes */
+@media (pointer: coarse) {
+    #presentation-root button,
+    #speaker-notes-panel button,
+    .speaker-notes-header button {
+        min-width: 44px !important;
+        min-height: 44px !important;
+    }
+
+    /* Larger resize handle for touch */
+    #speaker-notes-resizer,
+    #speaker-notes-resize-handle {
+        height: 16px !important;
+    }
+
+    /* Better touch feedback */
+    #presentation-root button:active {
+        transform: scale(0.95) !important;
+        opacity: 0.9 !important;
+    }
+}
+
+/* Landscape mobile - optimize for wider but shorter screens */
+@media screen and (max-width: 900px) and (orientation: landscape) {
+    #presentation-root .slide,
+    .presentation-slide {
+        width: calc(70vw) !important;
+        max-width: 500px !important;
+        min-height: 200px !important;
+        height: auto !important;
+    }
+
+    /* Hide speaker notes in landscape on mobile - takes too much vertical space */
+    body.is-presenting #speaker-notes-panel {
+        height: 60px !important;
+        max-height: 20vh !important;
+    }
+
+    body.is-presenting #presentation-root {
+        height: calc(100vh - 70px) !important;
+    }
+
+    /* Slide counter hidden in landscape to save space */
+    #presentation-root .fixed.bottom-4 .flex.items-center.gap-2 .text-sm {
+        display: none !important;
+    }
+}
