@@ -58,7 +58,8 @@ describe('techne-presentations plugin', () => {
     expect(scriptsArg).toEqual([
       'plugins/techne-presentations/ttsService.js',
       'plugins/techne-presentations/videoRecordingService.js',
-      'plugins/techne-presentations/speaker-notes.js'
+      'plugins/techne-presentations/speaker-notes.js',
+      'plugins/techne-presentations/touch-gestures.js'
     ]);
 
     expect(document.body.querySelector('#speaker-notes-panel')).toBeTruthy();
