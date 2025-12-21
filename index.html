@@ -2837,7 +2837,7 @@
             </div>
 
             <!-- Editor Content -->
-            <div id="editor-content" class="content-view active">
+            <div id="editor-content" class="content-view active" style="display: flex; flex-direction: column;">
                 <!-- Editor Toolbar (spans both editor and preview panes) -->
                 <div id="editor-toolbar">
                         <!-- Markdown Formatting Tools -->
@@ -2965,20 +2965,6 @@
                     <div id="editor-pane">
                         <div id="editor-container" style="width: 100%; flex: 1;"></div>
                         <textarea id="fallback-editor" style="display: none; width: 100%; flex: 1; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
-                        <!-- Status Bar -->
-                        <div id="editor-status-bar" style="height: 24px; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; color: #666; flex-shrink: 0;">
-                            <div id="status-left" style="display: flex; align-items: center; gap: 12px;">
-                                <span id="word-count">Words: 0</span>
-                                <span id="char-count">Characters: 0</span>
-                                <span id="line-count">Lines: 1</span>
-                            </div>
-                            <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
-                                <span id="git-status-indicator" style="display: none; cursor: pointer;" title="Click for Git options"></span>
-                                <span id="cursor-position">Ln 1, Col 1</span>
-                                <span id="file-status">Markdown (.md)</span>
-                                <span id="progress-status">Next shard: 30 words</span>
-                            </div>
-                        </div>
                     </div>
                     <div id="resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
                     <div id="right-pane">
@@ -3125,6 +3111,21 @@
                     </div>
                 </div>
                 </div> <!-- End panes-container -->
+
+                <!-- Status Bar - spans full width of editor and preview -->
+                <div id="editor-status-bar" style="height: 24px; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; color: #666; flex-shrink: 0;">
+                    <div id="status-left" style="display: flex; align-items: center; gap: 12px;">
+                        <span id="word-count">Words: 0</span>
+                        <span id="char-count">Characters: 0</span>
+                        <span id="line-count">Lines: 1</span>
+                    </div>
+                    <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
+                        <span id="git-status-indicator" style="display: none; cursor: pointer;" title="Click for Git options"></span>
+                        <span id="cursor-position">Ln 1, Col 1</span>
+                        <span id="file-status">Markdown (.md)</span>
+                        <span id="progress-status">Next shard: 30 words</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Presentation Content -->

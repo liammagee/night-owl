@@ -10,6 +10,11 @@
     flex: 1;
 }
 
+/* Editor content needs column layout for status bar at bottom */
+#editor-content.active {
+    flex-direction: column;
+}
+
 /* Ensure presentation content is visible when active */
 #presentation-content.active {
     background: #1a1a1a !important;
