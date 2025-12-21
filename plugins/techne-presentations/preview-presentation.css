@@ -473,287 +473,553 @@ body.is-presenting ol ol ol,
 }
 
 /* ============================================================================
-   MOBILE RESPONSIVE STYLES FOR PRESENTATION VIEW
+   MOBILE PRESENTATION MODE - FULLSCREEN SINGLE-SLIDE VIEW
+   ============================================================================
+
+   On mobile devices, we completely restructure the presentation to show:
+   - One slide at a time, filling the viewport
+   - Simple prev/next navigation at the bottom
+   - Minimal top toolbar (exit button, notes toggle)
+   - No zoom/pan/canvas - just direct slide viewing
+
    ============================================================================ */
 
 /* Mobile breakpoint - tablets and phones */
 @media screen and (max-width: 1000px) {
-    /* Scale down slides for smaller screens */
-    #presentation-root .slide,
-    .presentation-slide {
-        width: calc(100vw - 40px) !important;
-        max-width: 600px !important;
-        height: auto !important;
-        min-height: 280px !important;
-        padding: 16px !important;
+
+    /* ========== HIDE EVERYTHING EXCEPT THE PRESENTATION ========== */
+
+    /* Hide content toolbar completely during presentation */
+    body.is-presenting #contentToolbarRoot,
+    body.is-presenting .content-toolbar,
+    body.is-presenting #right-pane > div:first-child,
+    body.is-presenting .resizer {
+        display: none !important;
     }
 
-    /* Reduce slide content font sizes */
-    #presentation-root .slide-content h1,
-    .presentation-slide h1 {
-        font-size: 1.5rem !important;
+    /* Hide main navigation and sidebars */
+    body.is-presenting #left-sidebar,
+    body.is-presenting #sidebar-resizer,
+    body.is-presenting #editor-container,
+    body.is-presenting #mode-switcher,
+    body.is-presenting #editor-toolbar,
+    body.is-presenting header,
+    body.is-presenting nav,
+    body.is-presenting .hamburger-menu {
+        display: none !important;
     }
 
-    #presentation-root .slide-content h2,
-    .presentation-slide h2 {
-        font-size: 1.25rem !important;
+    /* Hide speaker notes by default */
+    #speaker-notes-panel {
+        display: none !important;
     }
 
-    #presentation-root .slide-content h3,
-    .presentation-slide h3 {
-        font-size: 1.1rem !important;
+    /* ========== PRESENTATION ROOT - FULLSCREEN ========== */
+
+    body.is-presenting {
+        overflow: hidden !important;
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
+        top: 0 !important;
+        left: 0 !important;
     }
 
-    #presentation-root .slide-content p,
-    #presentation-root .slide-content li,
-    .presentation-slide p,
-    .presentation-slide li {
-        font-size: 0.9rem !important;
-        line-height: 1.5 !important;
+    body.is-presenting #presentation-root {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        z-index: 9999 !important;
+        background: #1a1a2e !important;
+        overflow: hidden !important;
     }
 
-    /* Smaller images on mobile */
-    #presentation-root img,
-    .slide-content img {
-        max-width: 90% !important;
-        max-height: 40vh !important;
-        margin: 10px auto !important;
+    /* ========== HIDE THE PREZI-STYLE CANVAS/ZOOM INFRASTRUCTURE ========== */
+
+    /* Hide the zoom/pan canvas layer on mobile */
+    body.is-presenting #presentation-root > div:first-child > div[style*="transform"] {
+        transform: none !important;
+        transition: none !important;
     }
 
-    /* Compact presentation tables */
-    .presentation-table {
-        font-size: 12px !important;
+    /* Hide connection lines between slides */
+    body.is-presenting #presentation-root svg {
+        display: none !important;
     }
 
-    .presentation-table th,
-    .presentation-table td {
-        padding: 4px 8px !important;
+    /* Hide all slides except the current one */
+    /* Non-current slides have opacity: 0.1 and z-index: 0 set by React */
+    body.is-presenting #presentation-root .slide {
+        display: none !important;
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        opacity: 1 !important;
+        z-index: 10 !important;
     }
 
-    /* Stack control buttons vertically on mobile */
-    #presentation-root .absolute.top-4.right-4 {
+    /* Show only the current/active slide - match React's inline styles */
+    /* Current slide gets: ring-4, ring-green-500, z-index: 999, opacity: 1 */
+    body.is-presenting #presentation-root .slide.ring-green-500,
+    body.is-presenting #presentation-root .slide.ring-purple-500,
+    body.is-presenting #presentation-root .slide[style*="z-index: 999"],
+    body.is-presenting #presentation-root .slide[style*="zIndex: 999"] {
+        display: flex !important;
         flex-direction: column !important;
-        gap: 4px !important;
-        right: 8px !important;
-        top: 8px !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        opacity: 1 !important;
     }
 
-    #presentation-root .absolute.top-4.left-4 {
-        left: 8px !important;
-        top: 8px !important;
-    }
-
-    /* Hide non-essential controls in presentation mode on mobile */
-    body.is-presenting #presentation-root .absolute.top-4.right-4 button:not(:last-child) {
+    /* Ensure non-current slides stay hidden even if they have some opacity */
+    body.is-presenting #presentation-root .slide[style*="opacity: 0.1"],
+    body.is-presenting #presentation-root .slide[style*="z-index: 0"],
+    body.is-presenting #presentation-root .slide[style*="zIndex: 0"] {
         display: none !important;
+        opacity: 0 !important;
     }
 
-    /* Show only Exit button prominently */
-    body.is-presenting #presentation-root .absolute.top-4.right-4 {
-        flex-direction: row !important;
+    /* ========== SINGLE SLIDE STYLING ========== */
+
+    body.is-presenting #presentation-root .slide,
+    body.is-presenting .presentation-slide {
+        width: calc(100vw - 32px) !important;
+        max-width: none !important;
+        height: auto !important;
+        max-height: calc(100vh - 140px) !important;
+        max-height: calc(100dvh - 140px) !important;
+        min-height: 200px !important;
+        padding: 20px !important;
+        margin: 0 !important;
+        border-radius: 12px !important;
+        background: white !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
     }
 
-    /* Bottom navigation - make it touch-friendly */
-    #presentation-root .fixed.bottom-4 {
-        bottom: 8px !important;
+    /* Slide content container */
+    body.is-presenting .slide-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+    }
+
+    /* ========== TYPOGRAPHY FOR MOBILE SLIDES ========== */
+
+    body.is-presenting .slide-content h1 {
+        font-size: 1.5rem !important;
+        line-height: 1.3 !important;
+        margin-bottom: 0.75rem !important;
+    }
+
+    body.is-presenting .slide-content h2 {
+        font-size: 1.25rem !important;
+        line-height: 1.3 !important;
+        margin-bottom: 0.6rem !important;
+    }
+
+    body.is-presenting .slide-content h3 {
+        font-size: 1.1rem !important;
+        line-height: 1.3 !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    body.is-presenting .slide-content p,
+    body.is-presenting .slide-content li {
+        font-size: 0.95rem !important;
+        line-height: 1.5 !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    body.is-presenting .slide-content ul,
+    body.is-presenting .slide-content ol {
+        padding-left: 1.5em !important;
+        margin-bottom: 0.75rem !important;
+    }
+
+    /* Images scale properly */
+    body.is-presenting .slide-content img {
+        max-width: 100% !important;
+        max-height: 45vh !important;
+        height: auto !important;
+        width: auto !important;
+        margin: 0.5rem auto !important;
+        display: block !important;
+        object-fit: contain !important;
+    }
+
+    /* Tables responsive */
+    body.is-presenting .presentation-table {
+        font-size: 11px !important;
+        width: 100% !important;
+        display: block !important;
+        overflow-x: auto !important;
+    }
+
+    body.is-presenting .presentation-table th,
+    body.is-presenting .presentation-table td {
+        padding: 4px 6px !important;
+        white-space: nowrap !important;
+    }
+
+    /* Blockquotes */
+    body.is-presenting .presentation-blockquote {
+        padding: 12px 16px !important;
+        margin: 0.75rem 0 !important;
+        font-size: 0.9rem !important;
+    }
+
+    /* Code blocks */
+    body.is-presenting .slide-content pre {
+        font-size: 0.75rem !important;
         padding: 8px !important;
-        gap: 8px !important;
+        overflow-x: auto !important;
+        max-width: 100% !important;
     }
 
-    #presentation-root .fixed.bottom-4 button {
-        padding: 12px !important;
-        min-width: 44px !important;
-        min-height: 44px !important;
+    body.is-presenting .slide-content code {
+        font-size: 0.8rem !important;
     }
 
-    /* Hide slide dots on mobile - too small to tap */
-    #presentation-root .fixed.bottom-4 .flex.gap-1 {
+    /* ========== HIDE DESKTOP CONTROL BARS ========== */
+
+    /* Hide the top-left desktop controls (zoom, reset, etc.) */
+    body.is-presenting #presentation-root .absolute.top-4.left-4,
+    body.is-presenting #presentation-root > div:first-child > .absolute.top-4.left-4 {
         display: none !important;
     }
 
-    /* Larger navigation arrows for touch */
-    #presentation-root .fixed.bottom-4 button svg {
+    /* Hide layout selector */
+    body.is-presenting #presentation-root select {
+        display: none !important;
+    }
+
+    /* ========== MOBILE TOP TOOLBAR ========== */
+
+    body.is-presenting #presentation-root .absolute.top-4.right-4,
+    body.is-presenting #presentation-root > div:first-child > .absolute.top-4.right-4 {
+        position: fixed !important;
+        top: 12px !important;
+        right: 12px !important;
+        left: 12px !important;
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        z-index: 10000 !important;
+        gap: 8px !important;
+        background: transparent !important;
+    }
+
+    /* Hide all control buttons except specific ones we want */
+    body.is-presenting #presentation-root .absolute.top-4.right-4 button {
+        display: none !important;
+    }
+
+    /* Show Exit button (last button) and Notes toggle */
+    body.is-presenting #presentation-root .absolute.top-4.right-4 button:last-child {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: rgba(255, 255, 255, 0.95) !important;
+        color: #1a1a2e !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        min-width: 80px !important;
+        min-height: 44px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    body.is-presenting #presentation-root .absolute.top-4.right-4 button:last-child:active {
+        transform: scale(0.95) !important;
+        background: rgba(255, 255, 255, 0.85) !important;
+    }
+
+    /* ========== MOBILE BOTTOM NAVIGATION ========== */
+
+    body.is-presenting #presentation-root .fixed.bottom-4,
+    body.is-presenting #presentation-root > div:first-child > .fixed.bottom-4 {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        transform: none !important;
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 12px 16px !important;
+        background: linear-gradient(to top, rgba(26, 26, 46, 0.95), rgba(26, 26, 46, 0.8)) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        z-index: 10000 !important;
+        gap: 12px !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* Navigation buttons */
+    body.is-presenting #presentation-root .fixed.bottom-4 button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        color: white !important;
+        border: 2px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 50% !important;
+        width: 56px !important;
+        height: 56px !important;
+        min-width: 56px !important;
+        min-height: 56px !important;
+        padding: 0 !important;
+        flex-shrink: 0 !important;
+        transition: all 0.15s ease !important;
+    }
+
+    body.is-presenting #presentation-root .fixed.bottom-4 button:active {
+        transform: scale(0.92) !important;
+        background: rgba(255, 255, 255, 0.25) !important;
+    }
+
+    body.is-presenting #presentation-root .fixed.bottom-4 button:disabled {
+        opacity: 0.3 !important;
+    }
+
+    /* Navigation arrow icons */
+    body.is-presenting #presentation-root .fixed.bottom-4 button svg {
         width: 28px !important;
         height: 28px !important;
+        stroke-width: 2.5 !important;
     }
 
-    /* Speaker notes panel - collapsible bottom sheet */
-    body.is-presenting #speaker-notes-panel {
-        height: 100px !important;
+    /* Hide slide dots - they don't work well on mobile */
+    body.is-presenting #presentation-root .fixed.bottom-4 .flex.gap-1 {
+        display: none !important;
+    }
+
+    /* Slide counter in center */
+    body.is-presenting #presentation-root .fixed.bottom-4 .flex.items-center.gap-2,
+    body.is-presenting #presentation-root .fixed.bottom-4 > div:not(:first-child):not(:last-child) {
+        flex: 1 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        color: white !important;
+        font-size: 16px !important;
+        font-weight: 500 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+    }
+
+    /* ========== SPEAKER NOTES - BOTTOM SHEET STYLE ========== */
+
+    #speaker-notes-panel.mobile-visible {
+        display: block !important;
+        position: fixed !important;
+        bottom: 80px !important;
+        left: 8px !important;
+        right: 8px !important;
+        width: auto !important;
+        height: auto !important;
         max-height: 30vh !important;
-        min-height: 60px !important;
+        background: rgba(255, 255, 255, 0.98) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2) !important;
+        z-index: 9998 !important;
+        overflow: hidden !important;
     }
 
-    body.is-presenting #speaker-notes-panel[style*="display: block"] {
-        border-radius: 16px 16px 0 0 !important;
-    }
-
-    /* Speaker notes content - more compact */
-    #speaker-notes-content {
-        padding: 8px 12px !important;
-    }
-
-    #speaker-notes-content h3 {
-        font-size: 14px !important;
-        margin-bottom: 6px !important;
-    }
-
-    #speaker-notes-content p {
+    #speaker-notes-panel.mobile-visible #current-slide-notes {
+        padding: 12px 16px !important;
         font-size: 13px !important;
-        margin-bottom: 6px !important;
+        line-height: 1.5 !important;
+        max-height: calc(30vh - 40px) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
     }
 
-    /* Speaker notes header - more compact */
-    .speaker-notes-header {
-        padding-bottom: 6px !important;
-        margin-bottom: 8px !important;
+    /* Hide resize handle on mobile notes */
+    #speaker-notes-panel.mobile-visible #speaker-notes-resize-handle {
+        display: none !important;
     }
 
-    .speaker-notes-header h3 {
-        font-size: 14px !important;
+    /* Notes header compact */
+    #speaker-notes-panel.mobile-visible > div:first-child {
+        padding: 8px 16px !important;
+        background: #f5f5f5 !important;
+        border-bottom: 1px solid #e0e0e0 !important;
     }
 
-    /* Presentation root height adjustment for mobile speaker notes */
-    body.is-presenting #presentation-root {
-        height: calc(100vh - 110px) !important;
+    #speaker-notes-panel.mobile-visible h4 {
+        font-size: 12px !important;
+        margin: 0 !important;
     }
 
-    body.is-presenting.speaker-notes-visible #presentation-root {
-        height: calc(100vh - 110px) !important;
-    }
-
-    /* Layout selector - full width on mobile */
-    #presentation-root select {
-        font-size: 14px !important;
-        padding: 8px 12px !important;
+    /* Adjust slide position when notes are visible */
+    body.is-presenting.speaker-notes-visible #presentation-root .slide {
+        max-height: calc(100vh - 200px) !important;
+        max-height: calc(100dvh - 200px) !important;
     }
 }
 
-/* Small phone breakpoint */
+/* ========== SMALL PHONE SPECIFIC (< 480px) ========== */
+
 @media screen and (max-width: 480px) {
-    /* Even smaller slides */
-    #presentation-root .slide,
-    .presentation-slide {
-        width: calc(100vw - 24px) !important;
-        min-height: 220px !important;
-        padding: 12px !important;
+
+    body.is-presenting #presentation-root .slide {
+        width: calc(100vw - 20px) !important;
+        max-height: calc(100vh - 130px) !important;
+        max-height: calc(100dvh - 130px) !important;
+        padding: 16px !important;
+        border-radius: 10px !important;
     }
 
-    #presentation-root .slide-content h1,
-    .presentation-slide h1 {
-        font-size: 1.25rem !important;
+    body.is-presenting .slide-content h1 {
+        font-size: 1.3rem !important;
     }
 
-    #presentation-root .slide-content h2,
-    .presentation-slide h2 {
-        font-size: 1.1rem !important;
+    body.is-presenting .slide-content h2 {
+        font-size: 1.15rem !important;
     }
 
-    #presentation-root .slide-content p,
-    #presentation-root .slide-content li,
-    .presentation-slide p,
-    .presentation-slide li {
+    body.is-presenting .slide-content h3 {
+        font-size: 1rem !important;
+    }
+
+    body.is-presenting .slide-content p,
+    body.is-presenting .slide-content li {
+        font-size: 0.9rem !important;
+    }
+
+    /* Smaller navigation buttons */
+    body.is-presenting #presentation-root .fixed.bottom-4 button {
+        width: 50px !important;
+        height: 50px !important;
+        min-width: 50px !important;
+        min-height: 50px !important;
+    }
+
+    body.is-presenting #presentation-root .fixed.bottom-4 button svg {
+        width: 24px !important;
+        height: 24px !important;
+    }
+
+    /* Smaller slide counter */
+    body.is-presenting #presentation-root .fixed.bottom-4 .flex.items-center.gap-2,
+    body.is-presenting #presentation-root .fixed.bottom-4 > div:not(:first-child):not(:last-child) {
+        font-size: 14px !important;
+    }
+
+    /* Compact exit button */
+    body.is-presenting #presentation-root .absolute.top-4.right-4 button:last-child {
+        padding: 8px 12px !important;
+        font-size: 13px !important;
+        min-width: 70px !important;
+    }
+
+    /* Smaller notes panel */
+    #speaker-notes-panel.mobile-visible {
+        max-height: 25vh !important;
+        bottom: 70px !important;
+    }
+
+    #speaker-notes-panel.mobile-visible #current-slide-notes {
+        font-size: 12px !important;
+        padding: 10px 12px !important;
+    }
+}
+
+/* ========== LANDSCAPE MOBILE ========== */
+
+@media screen and (max-width: 900px) and (orientation: landscape) {
+
+    body.is-presenting #presentation-root .slide {
+        max-height: calc(100vh - 100px) !important;
+        max-height: calc(100dvh - 100px) !important;
+        width: calc(100vw - 120px) !important;
+        max-width: 600px !important;
+    }
+
+    body.is-presenting .slide-content h1 {
+        font-size: 1.2rem !important;
+    }
+
+    body.is-presenting .slide-content h2 {
+        font-size: 1.05rem !important;
+    }
+
+    body.is-presenting .slide-content p,
+    body.is-presenting .slide-content li {
         font-size: 0.85rem !important;
     }
 
-    /* Minimal controls on small phones */
-    #presentation-root .absolute.top-4.right-4 {
-        gap: 2px !important;
-        right: 4px !important;
-        top: 4px !important;
+    body.is-presenting .slide-content img {
+        max-height: 35vh !important;
     }
 
-    #presentation-root .absolute.top-4.right-4 button {
-        padding: 6px !important;
+    /* Smaller navigation in landscape */
+    body.is-presenting #presentation-root .fixed.bottom-4 {
+        padding: 8px 16px !important;
     }
 
-    /* Bottom navigation - even more touch-friendly */
-    #presentation-root .fixed.bottom-4 {
-        bottom: 4px !important;
-        width: calc(100% - 16px) !important;
-        left: 8px !important;
-        transform: none !important;
-        justify-content: space-between !important;
-    }
-
-    #presentation-root .fixed.bottom-4 button {
-        padding: 14px !important;
-        min-width: 48px !important;
-        min-height: 48px !important;
-        flex: 0 0 auto !important;
-    }
-
-    /* Slide counter - centered and minimal */
-    #presentation-root .fixed.bottom-4 .flex.items-center.gap-2 {
-        padding: 8px 12px !important;
-        flex: 1 !important;
-        justify-content: center !important;
-    }
-
-    /* Speaker notes - minimal on small phones */
-    body.is-presenting #speaker-notes-panel {
-        height: 80px !important;
-        max-height: 25vh !important;
-    }
-
-    #speaker-notes-content p {
-        font-size: 12px !important;
-        line-height: 1.4 !important;
-    }
-
-    body.is-presenting #presentation-root {
-        height: calc(100vh - 90px) !important;
-    }
-
-    body.is-presenting.speaker-notes-visible #presentation-root {
-        height: calc(100vh - 90px) !important;
-    }
-}
-
-/* Touch-friendly tap targets - enforce minimum sizes */
-@media (pointer: coarse) {
-    #presentation-root button,
-    #speaker-notes-panel button,
-    .speaker-notes-header button {
+    body.is-presenting #presentation-root .fixed.bottom-4 button {
+        width: 44px !important;
+        height: 44px !important;
         min-width: 44px !important;
         min-height: 44px !important;
     }
 
-    /* Larger resize handle for touch */
-    #speaker-notes-resizer,
-    #speaker-notes-resize-handle {
-        height: 16px !important;
-    }
-
-    /* Better touch feedback */
-    #presentation-root button:active {
-        transform: scale(0.95) !important;
-        opacity: 0.9 !important;
+    /* Hide notes in landscape - too little vertical space */
+    #speaker-notes-panel.mobile-visible {
+        display: none !important;
     }
 }
 
-/* Landscape mobile - optimize for wider but shorter screens */
-@media screen and (max-width: 900px) and (orientation: landscape) {
-    #presentation-root .slide,
-    .presentation-slide {
-        width: calc(70vw) !important;
-        max-width: 500px !important;
-        min-height: 200px !important;
-        height: auto !important;
+/* ========== TOUCH-FRIENDLY TAP TARGETS ========== */
+
+@media (pointer: coarse) {
+    body.is-presenting #presentation-root button {
+        min-width: 44px !important;
+        min-height: 44px !important;
     }
 
-    /* Hide speaker notes in landscape on mobile - takes too much vertical space */
-    body.is-presenting #speaker-notes-panel {
-        height: 60px !important;
-        max-height: 20vh !important;
+    body.is-presenting #presentation-root button:active {
+        transform: scale(0.95) !important;
     }
 
-    body.is-presenting #presentation-root {
-        height: calc(100vh - 70px) !important;
+    /* Swipe hint on first load - fades out */
+    body.is-presenting #presentation-root::after {
+        content: "← Swipe to navigate →";
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+        padding: 8px 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 20px;
+        opacity: 1;
+        animation: fadeOutHint 3s ease-out 2s forwards;
+        pointer-events: none;
+        z-index: 9999;
     }
+}
 
-    /* Slide counter hidden in landscape to save space */
-    #presentation-root .fixed.bottom-4 .flex.items-center.gap-2 .text-sm {
-        display: none !important;
+@keyframes fadeOutHint {
+    to {
+        opacity: 0;
+        visibility: hidden;
     }
 }

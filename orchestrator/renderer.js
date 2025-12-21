@@ -1255,6 +1255,19 @@ function removePreviewOverflowConstraints() {
     }
 }
 
+// Debounced version of updatePreviewAndStructure for use during typing
+// This prevents preview updates on every keystroke which causes sluggishness
+let previewUpdateTimeout = null;
+function debouncedUpdatePreviewAndStructure(markdownContent, delay = 150) {
+    if (previewUpdateTimeout) {
+        clearTimeout(previewUpdateTimeout);
+    }
+    previewUpdateTimeout = setTimeout(() => {
+        updatePreviewAndStructure(markdownContent);
+        previewUpdateTimeout = null;
+    }, delay);
+}
+
 function createCustomMarkdownRenderer() {
     const renderer = new marked.Renderer();
     const originalHeading = renderer.heading.bind(renderer);
@@ -3587,7 +3600,8 @@ async function initializeMonacoEditor() {
                 console.log('[Monaco onDidChangeModelContent] 📝 Content changed, updating preview and scheduling autosave:', autosaveStatus);
                 debugLog('info', '📝 Monaco content changed - scheduling autosave', autosaveStatus);
 
-                await updatePreviewAndStructure(currentContent);
+                // Use debounced preview update to prevent sluggishness during rapid typing
+                debouncedUpdatePreviewAndStructure(currentContent);
                 if (window.scheduleAutoSave) {
                     console.log('[Monaco onDidChangeModelContent] ✅ Calling window.scheduleAutoSave()');
                     debugLog('info', '✅ Calling window.scheduleAutoSave() from Monaco content change');
@@ -9694,25 +9708,47 @@ async function showCitationDialog() {
     searchInput.focus();
 }
 
-// Function to pre-process tags for markdown files in the tree
-async function preProcessMarkdownTags(node) {
-    if (!window.tagManager || !window.electronAPI) return;
-    
-    // Process this node if it's a markdown file
+// Collect all markdown file paths from a tree node
+function collectMarkdownPaths(node, paths = []) {
     if (node.type === 'file' && node.name.endsWith('.md')) {
-        try {
-            const result = await window.electronAPI.invoke('read-file-content-only', node.path);
-            if (result.success && result.content) {
-                window.tagManager.processFile(node.path, result.content);
-            }
-        } catch (error) {
-            console.warn('[preProcessMarkdownTags] Error processing file:', node.path, error);
+        paths.push(node.path);
+    }
+    if (node.children) {
+        for (const child of node.children) {
+            collectMarkdownPaths(child, paths);
         }
     }
-    
-    // Recursively process children
-    if (node.children) {
-        await Promise.all(node.children.map(child => preProcessMarkdownTags(child)));
+    return paths;
+}
+
+// Function to pre-process tags for markdown files in the tree (optimized batch version)
+async function preProcessMarkdownTags(node) {
+    if (!window.tagManager || !window.electronAPI) return;
+
+    // Collect all markdown file paths
+    const markdownPaths = collectMarkdownPaths(node);
+
+    if (markdownPaths.length === 0) return;
+
+    console.log(`[preProcessMarkdownTags] Processing ${markdownPaths.length} markdown files...`);
+    const startTime = performance.now();
+
+    try {
+        // Use batch frontmatter reading - much faster than reading full files
+        const results = await window.electronAPI.invoke('batch-read-frontmatter', markdownPaths);
+
+        for (const result of results) {
+            if (result.success && result.hasFrontmatter && result.content) {
+                // Process the frontmatter content
+                window.tagManager.processFile(result.filePath, result.content);
+            }
+        }
+
+        const elapsed = performance.now() - startTime;
+        console.log(`[preProcessMarkdownTags] Processed ${markdownPaths.length} files in ${elapsed.toFixed(0)}ms`);
+    } catch (error) {
+        console.warn('[preProcessMarkdownTags] Error batch processing files:', error);
+        // Fall back to no tags rather than slow individual processing
     }
 }
 

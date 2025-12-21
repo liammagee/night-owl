@@ -38,10 +38,15 @@ function cleanAIResponse(response) {
 }
 
 // Set app name immediately - before anything else
-app.setName('NightOwl');
-process.title = 'NightOwl';
-console.log(`[main.js] App name set to: ${app.getName()}`);
-console.log(`[main.js] Process title set to: ${process.title}`);
+if (app && typeof app.setName === 'function') {
+    app.setName('NightOwl');
+    process.title = 'NightOwl';
+    console.log(`[main.js] App name set to: ${app.getName()}`);
+    console.log(`[main.js] Process title set to: ${process.title}`);
+} else {
+    console.log('[main.js] Running in Node.js mode - skipping Electron app setup');
+    process.exit(0);
+}
 
 // Enable hot reload for electron app in development
 if (process.argv.includes('--dev')) {

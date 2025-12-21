@@ -707,11 +707,132 @@ function register(deps) {
     }
   });
 
+  // Read only frontmatter from a markdown file (much faster for tag processing)
+  ipcMain.handle('read-frontmatter-only', async (event, filePath) => {
+    try {
+      const fsSync = require('fs');
+      const readline = require('readline');
+
+      return new Promise((resolve) => {
+        const lines = [];
+        let inFrontmatter = false;
+        let foundEnd = false;
+
+        const readStream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
+        const rl = readline.createInterface({ input: readStream, crlfDelay: Infinity });
+
+        rl.on('line', (line) => {
+          if (!inFrontmatter && line.trim() === '---') {
+            inFrontmatter = true;
+            lines.push(line);
+          } else if (inFrontmatter && line.trim() === '---') {
+            lines.push(line);
+            foundEnd = true;
+            rl.close();
+            readStream.destroy();
+          } else if (inFrontmatter) {
+            lines.push(line);
+            // Safety limit - frontmatter shouldn't be more than 50 lines
+            if (lines.length > 50) {
+              rl.close();
+              readStream.destroy();
+            }
+          } else if (!inFrontmatter && lines.length === 0) {
+            // No frontmatter at start
+            rl.close();
+            readStream.destroy();
+          }
+        });
+
+        rl.on('close', () => {
+          resolve({
+            success: true,
+            content: foundEnd ? lines.join('\n') + '\n' : '',
+            filePath: filePath,
+            hasFrontmatter: foundEnd
+          });
+        });
+
+        rl.on('error', (error) => {
+          resolve({
+            success: false,
+            error: error.message,
+            filePath: filePath
+          });
+        });
+      });
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        filePath: filePath
+      };
+    }
+  });
+
+  // Batch read frontmatter for multiple files (much faster than individual reads)
+  ipcMain.handle('batch-read-frontmatter', async (event, filePaths) => {
+    const results = await Promise.all(
+      filePaths.map(async (filePath) => {
+        try {
+          const fsSync = require('fs');
+          const readline = require('readline');
+
+          return new Promise((resolve) => {
+            const lines = [];
+            let inFrontmatter = false;
+            let foundEnd = false;
+
+            const readStream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
+            const rl = readline.createInterface({ input: readStream, crlfDelay: Infinity });
+
+            rl.on('line', (line) => {
+              if (!inFrontmatter && line.trim() === '---') {
+                inFrontmatter = true;
+                lines.push(line);
+              } else if (inFrontmatter && line.trim() === '---') {
+                lines.push(line);
+                foundEnd = true;
+                rl.close();
+                readStream.destroy();
+              } else if (inFrontmatter) {
+                lines.push(line);
+                if (lines.length > 50) {
+                  rl.close();
+                  readStream.destroy();
+                }
+              } else if (!inFrontmatter && lines.length === 0) {
+                rl.close();
+                readStream.destroy();
+              }
+            });
+
+            rl.on('close', () => {
+              resolve({
+                success: true,
+                content: foundEnd ? lines.join('\n') + '\n' : '',
+                filePath: filePath,
+                hasFrontmatter: foundEnd
+              });
+            });
+
+            rl.on('error', () => {
+              resolve({ success: false, filePath: filePath });
+            });
+          });
+        } catch {
+          return { success: false, filePath: filePath };
+        }
+      })
+    );
+    return results;
+  });
+
   ipcMain.handle('perform-open-file', async (event, filename) => {
     try {
       const workingDir = getWorkingDirectory();
       const filePath = path.join(workingDir, filename);
-      
+
       console.log(`[FileHandlers] Performing open file: ${filePath}`);
       
       // Check if file exists
