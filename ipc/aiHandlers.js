@@ -880,7 +880,183 @@ Generate the heading and bullet points only, nothing else.`;
     }
   });
 
-  console.log('[AIHandlers] Registered 19 AI service handlers');
+  // Thumbnail generation handler using Nano Banana (Gemini Image)
+  ipcMain.handle('generate-thumbnail', async (event, options) => {
+    const { spawn } = require('child_process');
+
+    console.log('[AIHandlers] 🖼️ Thumbnail generation request:', {
+      input: options.input,
+      style: options.style || 'illustration',
+      size: options.size || 'medium'
+    });
+
+    return new Promise((resolve) => {
+      const scriptPath = path.join(__dirname, '..', 'scripts', 'generate-thumbnail.mjs');
+
+      // Build arguments
+      const args = [scriptPath, options.input, '--json'];
+
+      if (options.output) {
+        args.push('--output', options.output);
+      }
+      if (options.style) {
+        args.push('--style', options.style);
+      }
+      if (options.size) {
+        args.push('--size', options.size);
+      }
+      if (options.format) {
+        args.push('--format', options.format);
+      }
+      if (options.recursive) {
+        args.push('--recursive');
+      }
+
+      console.log('[AIHandlers] Running:', 'node', args.join(' '));
+
+      const proc = spawn('node', args, {
+        timeout: 120000, // 2 minute timeout
+        env: { ...process.env }
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data) => {
+        stderr += data.toString();
+        console.log('[AIHandlers] Thumbnail script:', data.toString().trim());
+      });
+
+      proc.on('error', (err) => {
+        console.error('[AIHandlers] ❌ Thumbnail generation failed:', err);
+        resolve({
+          success: false,
+          error: `Failed to run thumbnail generator: ${err.message}`
+        });
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(stdout);
+            console.log('[AIHandlers] ✅ Thumbnail generation completed:', result.successful, 'successful');
+            resolve({ success: true, ...result });
+          } catch (parseErr) {
+            console.log('[AIHandlers] ✅ Thumbnail generation completed (non-JSON output)');
+            resolve({ success: true, output: stdout });
+          }
+        } else {
+          console.error('[AIHandlers] ❌ Thumbnail generation failed with exit code:', code);
+          resolve({
+            success: false,
+            error: stderr || `Process exited with code ${code}`,
+            stdout
+          });
+        }
+      });
+    });
+  });
+
+  // Open dialog to generate thumbnail for current file or selected folder
+  ipcMain.handle('generate-thumbnail-dialog', async (event, currentFilePath) => {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+    if (!currentMainWindow) {
+      return { success: false, error: 'No main window available' };
+    }
+
+    try {
+      // Ask user what to generate thumbnail for
+      const choice = await dialog.showMessageBox(currentMainWindow, {
+        type: 'question',
+        buttons: ['Current File', 'Select File...', 'Select Folder...', 'Cancel'],
+        defaultId: 0,
+        cancelId: 3,
+        title: 'Generate Thumbnail',
+        message: 'Generate AI thumbnail for:',
+        detail: currentFilePath ? `Current file: ${path.basename(currentFilePath)}` : 'Select a file or folder'
+      });
+
+      if (choice.response === 3) {
+        return { success: false, cancelled: true };
+      }
+
+      let inputPath = null;
+      let recursive = false;
+
+      if (choice.response === 0 && currentFilePath) {
+        // Use current file
+        inputPath = currentFilePath;
+      } else if (choice.response === 1) {
+        // Select file
+        const result = await dialog.showOpenDialog(currentMainWindow, {
+          properties: ['openFile'],
+          title: 'Select Markdown File for Thumbnail',
+          filters: [
+            { name: 'Markdown Files', extensions: ['md'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, cancelled: true };
+        }
+        inputPath = result.filePaths[0];
+      } else if (choice.response === 2) {
+        // Select folder
+        const result = await dialog.showOpenDialog(currentMainWindow, {
+          properties: ['openDirectory'],
+          title: 'Select Folder for Thumbnail Generation'
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, cancelled: true };
+        }
+        inputPath = result.filePaths[0];
+        recursive = true;
+      } else {
+        return { success: false, error: 'No file selected' };
+      }
+
+      // Ask for style
+      const styleChoice = await dialog.showMessageBox(currentMainWindow, {
+        type: 'question',
+        buttons: ['Illustration', 'Photo', 'Abstract', 'Minimal', 'Cancel'],
+        defaultId: 0,
+        cancelId: 4,
+        title: 'Thumbnail Style',
+        message: 'Choose thumbnail style:'
+      });
+
+      if (styleChoice.response === 4) {
+        return { success: false, cancelled: true };
+      }
+
+      const styles = ['illustration', 'photo', 'abstract', 'minimal'];
+      const style = styles[styleChoice.response];
+
+      console.log('[AIHandlers] 🖼️ Generating thumbnail for:', inputPath, 'style:', style);
+
+      // Trigger the actual generation
+      // We'll emit an event back to the renderer to handle progress
+      return {
+        success: true,
+        pending: true,
+        input: inputPath,
+        style,
+        recursive
+      };
+
+    } catch (error) {
+      console.error('[AIHandlers] Error in thumbnail dialog:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[AIHandlers] Registered 21 AI service handlers');
 }
 
 module.exports = {

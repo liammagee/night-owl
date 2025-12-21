@@ -4863,6 +4863,86 @@ async function importWordAsMarkdown() {
 // Export for global access
 window.importWordAsMarkdown = importWordAsMarkdown;
 
+// --- Thumbnail Generation (Nano Banana) ---
+async function generateThumbnail(options = {}) {
+    console.log('[Renderer] Starting thumbnail generation...');
+
+    // Show a loading indicator
+    const statusElement = document.getElementById('status-bar-text') || document.getElementById('status-text');
+    const originalStatus = statusElement?.textContent || '';
+
+    try {
+        // If no options provided, show the dialog
+        if (!options.input) {
+            const dialogResult = await window.electronAPI.invoke('generate-thumbnail-dialog', window.currentFilePath);
+
+            if (dialogResult.cancelled) {
+                console.log('[Renderer] Thumbnail generation cancelled by user');
+                return;
+            }
+
+            if (!dialogResult.success) {
+                console.error('[Renderer] Thumbnail dialog failed:', dialogResult.error);
+                alert('Thumbnail Generation Error\n\n' + dialogResult.error);
+                return;
+            }
+
+            // Use the dialog results
+            options = {
+                input: dialogResult.input,
+                style: dialogResult.style,
+                recursive: dialogResult.recursive
+            };
+        }
+
+        if (statusElement) {
+            statusElement.textContent = 'Generating thumbnail...';
+        }
+
+        // Call the thumbnail generation handler
+        const result = await window.electronAPI.invoke('generate-thumbnail', options);
+
+        if (!result.success) {
+            console.error('[Renderer] Thumbnail generation failed:', result.error);
+            alert('Thumbnail Generation Failed\n\n' + result.error);
+            if (statusElement) statusElement.textContent = originalStatus;
+            return;
+        }
+
+        // Success
+        console.log('[Renderer] Thumbnail generated successfully:', result);
+
+        const successCount = result.successful || 1;
+        const outputPaths = result.results?.filter(r => r.success).map(r => r.output) || [];
+
+        if (statusElement) {
+            statusElement.textContent = `Thumbnail generated! (${successCount} file${successCount > 1 ? 's' : ''})`;
+        }
+
+        // Show success notification with paths
+        if (outputPaths.length > 0) {
+            const pathList = outputPaths.slice(0, 3).join('\n');
+            const moreCount = outputPaths.length > 3 ? `\n...and ${outputPaths.length - 3} more` : '';
+            console.log(`[Renderer] Generated thumbnails:\n${pathList}${moreCount}`);
+        }
+
+        // Reset status after a delay
+        setTimeout(() => {
+            if (statusElement && statusElement.textContent.includes('Thumbnail generated')) {
+                statusElement.textContent = originalStatus;
+            }
+        }, 5000);
+
+    } catch (error) {
+        console.error('[Renderer] Error during thumbnail generation:', error);
+        alert('Thumbnail Generation Error\n\n' + error.message);
+        if (statusElement) statusElement.textContent = originalStatus;
+    }
+}
+
+// Export for global access
+window.generateThumbnail = generateThumbnail;
+
 async function openFileInEditor(filePath, content, options = {}) {
     console.log('[openFileInEditor] Opening file:', filePath);
     if (options.isInternalLinkPreview) {
@@ -9933,6 +10013,11 @@ if (window.electronAPI && window.electronAPI.on) {
     window.electronAPI.on('trigger-import-word', async () => {
         console.log('[renderer.js] Received trigger-import-word event');
         await importWordAsMarkdown();
+    });
+
+    window.electronAPI.on('trigger-generate-thumbnail', async () => {
+        console.log('[renderer.js] Received trigger-generate-thumbnail event');
+        await generateThumbnail();
     });
 }
 

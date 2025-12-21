@@ -30,7 +30,8 @@
     "test:integration": "jest --testPathPattern=tests/integration",
     "test:e2e": "playwright test",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "thumbnail": "node scripts/generate-thumbnail.mjs"
   },
   "dependencies": {
     "@electron/remote": "^2.1.3",

@@ -1077,6 +1077,15 @@ function createFileMenuItems() {
           mainWindow.webContents.send('trigger-import-word');
         }
       },
+      {
+        label: 'Generate Thumbnail (Nano Banana)',
+        accelerator: 'CmdOrCtrl+Shift+T',
+        click: async () => {
+          if (!mainWindow) return;
+          console.log('[main.js] Generate Thumbnail menu item clicked.');
+          mainWindow.webContents.send('trigger-generate-thumbnail');
+        }
+      },
       { type: 'separator' },
       {
         label: 'Save',

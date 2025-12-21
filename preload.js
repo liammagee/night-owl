@@ -141,6 +141,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('trigger-import-word', callback);
   },
 
+  // Thumbnail generation trigger
+  onTriggerGenerateThumbnail: (callback) => {
+    ipcRenderer.on('trigger-generate-thumbnail', callback);
+  },
+
   // Utility functions
   isElectron: true,
   platform: process.platform,
@@ -168,6 +173,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('toggle-preview-pane');
     ipcRenderer.removeAllListeners('trigger-import-pdf');
     ipcRenderer.removeAllListeners('trigger-import-word');
+    ipcRenderer.removeAllListeners('trigger-generate-thumbnail');
   }
 });
 
