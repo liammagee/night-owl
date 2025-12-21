@@ -136,6 +136,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('trigger-import-pdf', callback);
   },
 
+  // Word Import trigger
+  onTriggerImportWord: (callback) => {
+    ipcRenderer.on('trigger-import-word', callback);
+  },
+
   // Utility functions
   isElectron: true,
   platform: process.platform,
@@ -162,6 +167,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('toggle-visual-markdown');
     ipcRenderer.removeAllListeners('toggle-preview-pane');
     ipcRenderer.removeAllListeners('trigger-import-pdf');
+    ipcRenderer.removeAllListeners('trigger-import-word');
   }
 });
 

@@ -4787,6 +4787,82 @@ async function importPdfAsMarkdown() {
 // Export for global access
 window.importPdfAsMarkdown = importPdfAsMarkdown;
 
+// --- Word to Markdown Import (Pandoc) ---
+async function importWordAsMarkdown() {
+    console.log('[Renderer] Starting Word document import via Pandoc...');
+
+    // Show a loading indicator
+    const statusElement = document.getElementById('status-bar-text') || document.getElementById('status-text');
+    const originalStatus = statusElement?.textContent || '';
+    if (statusElement) {
+        statusElement.textContent = 'Importing Word document...';
+    }
+
+    try {
+        // Call the IPC handler to open file dialog and convert
+        const result = await window.electronAPI.invoke('import-word-as-markdown');
+
+        if (result.cancelled) {
+            console.log('[Renderer] Word import cancelled by user');
+            if (statusElement) statusElement.textContent = originalStatus;
+            return;
+        }
+
+        if (!result.success) {
+            console.error('[Renderer] Word import failed:', result.error);
+
+            // Show error dialog with install instructions if pandoc not available
+            let errorMessage = result.error || 'Unknown error occurred';
+            if (result.install_instructions) {
+                const platform = window.electronAPI?.platform || 'unknown';
+                const installCmd = result.install_instructions[platform] || result.install_instructions.macos;
+                errorMessage += '\n\nTo install Pandoc:\n' + installCmd;
+            }
+
+            alert('Word Import Failed\n\n' + errorMessage);
+            if (statusElement) statusElement.textContent = originalStatus;
+            return;
+        }
+
+        // Success - we have markdown content
+        console.log('[Renderer] Word document converted successfully:', result.metadata || {});
+
+        // Set the content in the editor
+        if (editor && typeof editor.setValue === 'function') {
+            editor.setValue(result.markdown);
+        }
+
+        // Mark as unsaved (this is new content, not yet saved)
+        if (typeof markDocumentModified === 'function') {
+            markDocumentModified();
+        }
+        window.hasUnsavedChanges = true;
+        window.currentFilePath = null; // No file path yet - user needs to save
+
+        // Update preview
+        if (typeof updatePreviewAndStructure === 'function') {
+            await updatePreviewAndStructure(result.markdown);
+        }
+
+        // Suggest saving
+        const suggestedName = result.suggestedFilename || 'converted.md';
+        if (statusElement) {
+            statusElement.textContent = `Word document imported! Save as: ${suggestedName}`;
+        }
+
+        // Show success notification
+        console.log(`[Renderer] Word document imported successfully. Suggested filename: ${suggestedName}`);
+
+    } catch (error) {
+        console.error('[Renderer] Error during Word import:', error);
+        alert('Word Import Error\n\n' + error.message);
+        if (statusElement) statusElement.textContent = originalStatus;
+    }
+}
+
+// Export for global access
+window.importWordAsMarkdown = importWordAsMarkdown;
+
 async function openFileInEditor(filePath, content, options = {}) {
     console.log('[openFileInEditor] Opening file:', filePath);
     if (options.isInternalLinkPreview) {
@@ -9852,6 +9928,11 @@ if (window.electronAPI && window.electronAPI.on) {
     window.electronAPI.on('trigger-import-pdf', async () => {
         console.log('[renderer.js] Received trigger-import-pdf event');
         await importPdfAsMarkdown();
+    });
+
+    window.electronAPI.on('trigger-import-word', async () => {
+        console.log('[renderer.js] Received trigger-import-word event');
+        await importWordAsMarkdown();
     });
 }
 

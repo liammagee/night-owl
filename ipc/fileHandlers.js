@@ -1986,6 +1986,257 @@ function register(deps) {
       });
     });
   });
+
+  // --- Pandoc Word to Markdown Conversion ---
+  // Convert DOCX to Markdown using Pandoc (requires pandoc to be installed)
+  ipcMain.handle('convert-word-to-markdown', async (event, docxPath, options = {}) => {
+    const { spawn } = require('child_process');
+
+    console.log(`[FileHandlers] Converting Word document to Markdown: ${docxPath}`);
+
+    // Default options
+    const {
+      extractMedia = true,        // Extract embedded images
+      markdownFlavor = 'gfm',     // Use GitHub-Flavored Markdown
+      wrapText = 'none'           // Don't wrap text
+    } = options;
+
+    return new Promise((resolve) => {
+      // Build pandoc arguments
+      const args = [
+        '-f', 'docx',
+        '-t', markdownFlavor,
+        '--wrap=' + wrapText
+      ];
+
+      // Extract media to a folder next to the output file
+      if (extractMedia) {
+        const mediaDir = path.join(path.dirname(docxPath), 'media');
+        args.push('--extract-media=' + mediaDir);
+      }
+
+      // Input file
+      args.push(docxPath);
+
+      console.log(`[FileHandlers] Running: pandoc ${args.join(' ')}`);
+
+      const proc = spawn('pandoc', args, {
+        timeout: 120000, // 2 minute timeout
+        env: { ...process.env }
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data) => {
+        stderr += data.toString();
+        console.log(`[FileHandlers] Pandoc: ${data.toString().trim()}`);
+      });
+
+      proc.on('error', (err) => {
+        if (err.code === 'ENOENT') {
+          resolve({
+            success: false,
+            error: 'Pandoc not found. Please install Pandoc to convert Word documents.',
+            install_instructions: {
+              macos: 'brew install pandoc',
+              windows: 'https://pandoc.org/installing.html',
+              linux: 'sudo apt-get install pandoc'
+            }
+          });
+        } else {
+          resolve({
+            success: false,
+            error: `Failed to run pandoc: ${err.message}`
+          });
+        }
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          // Get metadata from the document
+          const metadata = {
+            source_file: docxPath,
+            converted_at: new Date().toISOString(),
+            converter: 'pandoc',
+            markdown_flavor: markdownFlavor
+          };
+
+          resolve({
+            success: true,
+            markdown: stdout,
+            metadata
+          });
+        } else {
+          resolve({
+            success: false,
+            error: stderr || `Pandoc conversion failed with exit code ${code}`,
+            stdout: stdout
+          });
+        }
+      });
+    });
+  });
+
+  // Open dialog to select Word document for conversion
+  ipcMain.handle('import-word-as-markdown', async (event) => {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+    if (!currentMainWindow) {
+      return { success: false, error: 'No main window available' };
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(currentMainWindow, {
+        properties: ['openFile'],
+        title: 'Select Word Document to Convert to Markdown',
+        filters: [
+          { name: 'Word Documents', extensions: ['docx', 'doc'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, cancelled: true };
+      }
+
+      const docxPath = result.filePaths[0];
+      console.log(`[FileHandlers] User selected Word document for import: ${docxPath}`);
+
+      // Check if it's an old .doc format
+      if (docxPath.toLowerCase().endsWith('.doc') && !docxPath.toLowerCase().endsWith('.docx')) {
+        return {
+          success: false,
+          error: 'Legacy .doc format is not fully supported. Please save as .docx in Word first.',
+          sourcePath: docxPath
+        };
+      }
+
+      // Convert the Word document
+      const conversionResult = await new Promise((resolve) => {
+        const { spawn } = require('child_process');
+
+        const mediaDir = path.join(path.dirname(docxPath), 'media');
+        const args = [
+          '-f', 'docx',
+          '-t', 'gfm',
+          '--wrap=none',
+          '--extract-media=' + mediaDir,
+          docxPath
+        ];
+
+        console.log(`[FileHandlers] Running: pandoc ${args.join(' ')}`);
+
+        const proc = spawn('pandoc', args, {
+          timeout: 120000,
+          env: { ...process.env }
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        proc.stdout.on('data', (data) => { stdout += data.toString(); });
+        proc.stderr.on('data', (data) => {
+          stderr += data.toString();
+          console.log(`[FileHandlers] Pandoc: ${data.toString().trim()}`);
+        });
+
+        proc.on('error', (err) => {
+          if (err.code === 'ENOENT') {
+            resolve({
+              success: false,
+              error: 'Pandoc not found. Please install Pandoc.',
+              install_instructions: {
+                macos: 'brew install pandoc',
+                windows: 'https://pandoc.org/installing.html',
+                linux: 'sudo apt-get install pandoc'
+              }
+            });
+          } else {
+            resolve({
+              success: false,
+              error: `Failed to run pandoc: ${err.message}`
+            });
+          }
+        });
+
+        proc.on('close', (code) => {
+          if (code === 0) {
+            resolve({
+              success: true,
+              markdown: stdout,
+              metadata: {
+                source_file: docxPath,
+                converted_at: new Date().toISOString()
+              }
+            });
+          } else {
+            resolve({
+              success: false,
+              error: stderr || `Exit code ${code}`
+            });
+          }
+        });
+      });
+
+      return {
+        ...conversionResult,
+        sourcePath: docxPath,
+        suggestedFilename: path.basename(docxPath).replace(/\.docx?$/i, '') + '.md'
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error importing Word document:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Check if pandoc is available
+  ipcMain.handle('check-pandoc-available', async () => {
+    const { spawn } = require('child_process');
+
+    return new Promise((resolve) => {
+      const proc = spawn('pandoc', ['--version'], {
+        timeout: 10000
+      });
+
+      let stdout = '';
+
+      proc.stdout.on('data', (data) => { stdout += data.toString(); });
+
+      proc.on('error', () => {
+        resolve({
+          available: false,
+          reason: 'Pandoc not found',
+          install_instructions: {
+            macos: 'brew install pandoc',
+            windows: 'https://pandoc.org/installing.html',
+            linux: 'sudo apt-get install pandoc'
+          }
+        });
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          // Extract version from first line
+          const versionMatch = stdout.match(/pandoc\s+([\d.]+)/i);
+          resolve({
+            available: true,
+            version: versionMatch ? versionMatch[1] : 'unknown'
+          });
+        } else {
+          resolve({
+            available: false,
+            reason: 'Pandoc check failed'
+          });
+        }
+      });
+    });
+  });
 }
 
 module.exports = {

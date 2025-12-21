@@ -1069,6 +1069,14 @@ function createFileMenuItems() {
           mainWindow.webContents.send('trigger-import-pdf');
         }
       },
+      {
+        label: 'Import Word as Markdown (Pandoc)',
+        click: async () => {
+          if (!mainWindow) return;
+          console.log('[main.js] Import Word as Markdown menu item clicked.');
+          mainWindow.webContents.send('trigger-import-word');
+        }
+      },
       { type: 'separator' },
       {
         label: 'Save',
