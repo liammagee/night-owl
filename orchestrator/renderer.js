@@ -111,6 +111,11 @@ let tagFilteringInitialized = false;
 let fileTreeRendered = false;
 let isRenderingFileTree = false; // Prevent concurrent renders
 
+// Multi-select state for file tree
+let selectedFiles = new Set();        // Currently selected file paths
+let lastSelectedFile = null;          // Last clicked file (for Shift+click range selection)
+let allVisibleFiles = [];             // Ordered list of all visible file paths (for range selection)
+
 // Speaker notes variables
 let currentSpeakerNotes = [];
 let speakerNotesVisible = false;
@@ -5227,6 +5232,152 @@ async function generateThumbnailsForFolder(folderPath) {
     });
 }
 
+// Generate synthesized thumbnail from multiple selected files
+async function generateThumbnailForMultipleFiles(filePaths) {
+    console.log('[Renderer] Generating synthesized thumbnail for', filePaths.length, 'files');
+
+    const styles = ['photo', 'illustration', 'abstract', 'minimal'];
+    const styleLabels = {
+        'photo': '📷 Photo (realistic)',
+        'illustration': '🎨 Illustration (artistic)',
+        'abstract': '🌀 Abstract (conceptual)',
+        'minimal': '⬜ Minimal (clean)'
+    };
+
+    const styleDialog = document.createElement('div');
+    styleDialog.className = 'modal-overlay';
+    styleDialog.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+    `;
+
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const bgColor = isDarkMode ? '#2d2d2d' : 'white';
+    const textColor = isDarkMode ? '#e0e0e0' : '#333';
+    const borderColor = isDarkMode ? '#444' : '#ddd';
+
+    // Get common directory for the output
+    const commonDir = filePaths[0].substring(0, filePaths[0].lastIndexOf('/'));
+    const dirName = commonDir.split('/').pop();
+
+    styleDialog.innerHTML = `
+        <div style="background: ${bgColor}; color: ${textColor}; padding: 20px; border-radius: 8px; min-width: 350px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <h3 style="margin: 0 0 16px 0; font-size: 16px;">🎨 Generate Synthesized Thumbnail</h3>
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
+                Combine ${filePaths.length} selected files into a single thumbnail:
+            </p>
+            <p style="margin: 0 0 16px 0; font-size: 12px; font-family: monospace; background: ${isDarkMode ? '#1a1a1a' : '#f5f5f5'}; padding: 6px 8px; border-radius: 4px; max-height: 60px; overflow-y: auto;">
+                ${filePaths.map(f => f.split('/').pop()).join(', ')}
+            </p>
+            <p style="margin: 0 0 12px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
+                Choose a style:
+            </p>
+            <div id="style-options" style="display: flex; flex-direction: column; gap: 8px;">
+                ${styles.map((style, i) => `
+                    <button class="style-option-btn" data-style="${style}" style="
+                        padding: 10px 16px;
+                        border: 1px solid ${borderColor};
+                        border-radius: 4px;
+                        background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                        color: ${textColor};
+                        cursor: pointer;
+                        text-align: left;
+                        font-size: 13px;
+                    ">${styleLabels[style]}</button>
+                `).join('')}
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button id="cancel-thumbnail-btn" style="padding: 8px 16px; border: 1px solid ${borderColor}; border-radius: 4px; background: transparent; color: ${textColor}; cursor: pointer;">Cancel</button>
+                <button id="generate-thumbnail-btn" style="padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;">Generate</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(styleDialog);
+
+    let selectedStyle = 'photo';
+
+    styleDialog.querySelectorAll('.style-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            styleDialog.querySelectorAll('.style-option-btn').forEach(b => {
+                b.style.background = 'transparent';
+            });
+            btn.style.background = isDarkMode ? '#3a3a3a' : '#f0f0f0';
+            selectedStyle = btn.dataset.style;
+        });
+    });
+
+    return new Promise((resolve) => {
+        const cancelBtn = styleDialog.querySelector('#cancel-thumbnail-btn');
+        const generateBtn = styleDialog.querySelector('#generate-thumbnail-btn');
+
+        cancelBtn.addEventListener('click', () => {
+            styleDialog.remove();
+            resolve();
+        });
+
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                styleDialog.remove();
+                document.removeEventListener('keydown', handleEscape);
+                resolve();
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        generateBtn.addEventListener('click', async () => {
+            styleDialog.remove();
+            document.removeEventListener('keydown', handleEscape);
+
+            try {
+                showNotification('Synthesizing content from selected files...', 'info');
+
+                // Use the common directory as input with synthesize flag
+                // The script will use the files list to synthesize
+                const result = await window.electronAPI.invoke('generate-thumbnail', {
+                    input: commonDir,
+                    style: selectedStyle,
+                    synthesize: true,
+                    files: filePaths  // Pass the specific files to synthesize
+                });
+
+                if (!result.success) {
+                    console.error('[Renderer] Multi-file thumbnail generation failed:', result.error);
+                    showNotification('Thumbnail generation failed: ' + result.error, 'error');
+                    resolve();
+                    return;
+                }
+
+                console.log('[Renderer] Synthesized thumbnail generated:', result);
+                const outputPath = result.results?.[0]?.output || 'thumbnail';
+                const fileName = outputPath.split('/').pop();
+                showNotification(`Synthesized thumbnail: ${fileName}`, 'success');
+
+                // Clear selection after success
+                clearFileSelection();
+
+                // Refresh file tree
+                fileTreeRendered = false;
+                renderFileTree();
+
+                resolve();
+            } catch (error) {
+                console.error('[Renderer] Error generating synthesized thumbnail:', error);
+                showNotification('Error generating thumbnail: ' + error.message, 'error');
+                resolve();
+            }
+        });
+    });
+}
+
 async function openFileInEditor(filePath, content, options = {}) {
     console.log('[openFileInEditor] Opening file:', filePath);
     if (options.isInternalLinkPreview) {
@@ -6986,7 +7137,16 @@ function setupPDFEventHandlers() {
         if (!document.getElementById('pdf-canvas') || document.getElementById('pdf-canvas').style.display === 'none') {
             return;
         }
-        
+
+        // Don't intercept keys when user is typing in input fields
+        const activeElement = document.activeElement;
+        const isInputFocused = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.isContentEditable ||
+            activeElement.classList.contains('monaco-editor')
+        );
+
         if (e.ctrlKey || e.metaKey) {
             if (e.key === 'f') {
                 e.preventDefault();
@@ -6997,17 +7157,19 @@ function setupPDFEventHandlers() {
                 }
             }
         }
-        
-        // Arrow key navigation
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            if (pdfViewerState.currentPage > 1) {
-                renderPage(pdfViewerState.currentPage - 1);
-            }
-        } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-            e.preventDefault();
-            if (pdfViewerState.currentPage < pdfViewerState.totalPages) {
-                renderPage(pdfViewerState.currentPage + 1);
+
+        // Arrow key navigation - only when not in an input field
+        if (!isInputFocused) {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (pdfViewerState.currentPage > 1) {
+                    renderPage(pdfViewerState.currentPage - 1);
+                }
+            } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (pdfViewerState.currentPage < pdfViewerState.totalPages) {
+                    renderPage(pdfViewerState.currentPage + 1);
+                }
             }
         }
     });
@@ -8197,7 +8359,10 @@ async function renderFileTree() {
         if (fileTreeView.id === 'file-tree-view') {
             fileTreeView.innerHTML = '';
         }
-        
+
+        // Reset visible files list for multi-select range selection
+        allVisibleFiles = [];
+
         // Mark tree as rendered
         fileTreeRendered = true;
         
@@ -8348,17 +8513,68 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         nodeElement.classList.add('file', 'file-clickable');
         nodeElement.dataset.path = node.path;
         nodeElement.draggable = true;
-        nodeElement.addEventListener('click', async () => {
+
+        // Track this file in the visible files list for range selection
+        allVisibleFiles.push(node.path);
+
+        // Apply selected styling if this file is in the selection
+        if (selectedFiles.has(node.path)) {
+            nodeElement.classList.add('file-selected');
+        }
+
+        nodeElement.addEventListener('click', async (event) => {
             try {
-                console.log(`[renderFileTree] Opening file: ${node.path}`);
-                
+                const filePath = node.path;
+                console.log(`[renderFileTree] File clicked: ${filePath}, Shift: ${event.shiftKey}, Alt: ${event.altKey}`);
+
+                // Handle multi-select with modifier keys
+                if (event.shiftKey && lastSelectedFile) {
+                    // Shift+click: Select range from last selected to current
+                    event.preventDefault();
+                    const startIndex = allVisibleFiles.indexOf(lastSelectedFile);
+                    const endIndex = allVisibleFiles.indexOf(filePath);
+
+                    if (startIndex !== -1 && endIndex !== -1) {
+                        const start = Math.min(startIndex, endIndex);
+                        const end = Math.max(startIndex, endIndex);
+
+                        // Add all files in range to selection
+                        for (let i = start; i <= end; i++) {
+                            selectedFiles.add(allVisibleFiles[i]);
+                        }
+                        updateFileSelectionUI();
+                        console.log(`[renderFileTree] Range selected: ${selectedFiles.size} files`);
+                    }
+                    return; // Don't open the file on Shift+click
+                } else if (event.altKey || event.metaKey) {
+                    // Alt/Option+click (or Cmd+click on Mac): Toggle individual file selection
+                    event.preventDefault();
+                    if (selectedFiles.has(filePath)) {
+                        selectedFiles.delete(filePath);
+                    } else {
+                        selectedFiles.add(filePath);
+                    }
+                    lastSelectedFile = filePath;
+                    updateFileSelectionUI();
+                    console.log(`[renderFileTree] Toggle selection: ${selectedFiles.size} files selected`);
+                    return; // Don't open the file on Alt/Cmd+click
+                }
+
+                // Regular click - clear selection and open file
+                selectedFiles.clear();
+                selectedFiles.add(filePath);
+                lastSelectedFile = filePath;
+                updateFileSelectionUI();
+
+                console.log(`[renderFileTree] Opening file: ${filePath}`);
+
                 // Check if it's an image file
                 const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico'];
-                const fileExtension = node.path.toLowerCase().substring(node.path.lastIndexOf('.'));
-                
+                const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+
                 if (imageExtensions.includes(fileExtension)) {
-                    console.log(`[renderFileTree] Opening image file: ${node.path}`);
-                    showImageViewer(node.path);
+                    console.log(`[renderFileTree] Opening image file: ${filePath}`);
+                    showImageViewer(filePath);
                 } else {
                     // Trigger autosave before switching files
                     console.log('[renderFileTree] Autosave check before file switch:', {
@@ -8366,7 +8582,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                         hasCurrentFilePath: !!window.currentFilePath,
                         hasUnsavedChanges: window.hasUnsavedChanges,
                         currentFilePath: window.currentFilePath,
-                        newFilePath: node.path
+                        newFilePath: filePath
                     });
 
                     if (window.performAutoSave && window.currentFilePath && window.hasUnsavedChanges) {
@@ -8383,7 +8599,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                     }
 
                     // Regular file opening logic
-                    const result = await window.electronAPI.invoke('open-file-path', node.path);
+                    const result = await window.electronAPI.invoke('open-file-path', filePath);
                     console.log(`[renderFileTree] IPC result:`, result);
                     if (result.success && window.openFileInEditor) {
                         console.log(`[renderFileTree] Calling openFileInEditor with:`, result.filePath, result.content ? result.content.substring(0, 100) + '...' : 'NO CONTENT');
@@ -8397,12 +8613,22 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                 console.error('[renderFileTree] Error opening file:', error);
             }
         });
-        
+
         // Add context menu for files
         nodeElement.addEventListener('contextmenu', (event) => {
             event.preventDefault();
-            console.log(`[renderFileTree] Context menu requested for file: ${node.path}`);
-            showFileContextMenu(event, node.path, false);
+            const filePath = node.path;
+            console.log(`[renderFileTree] Context menu requested for file: ${filePath}`);
+
+            // If right-clicking on a file that's not in the selection, select it
+            if (!selectedFiles.has(filePath)) {
+                selectedFiles.clear();
+                selectedFiles.add(filePath);
+                lastSelectedFile = filePath;
+                updateFileSelectionUI();
+            }
+
+            showFileContextMenu(event, filePath, false);
         });
     }
     
@@ -8426,6 +8652,56 @@ function toggleFolderExpansion(folderPath) {
         console.log(`[toggleFolderExpansion] Expanded folder: ${folderPath}`);
     }
 }
+
+// Update visual selection state for all file elements
+function updateFileSelectionUI() {
+    const fileTreeView = document.getElementById('file-tree-view');
+    if (!fileTreeView) return;
+
+    // Get all file elements
+    const fileElements = fileTreeView.querySelectorAll('.file-tree-item.file');
+
+    fileElements.forEach(element => {
+        const filePath = element.dataset.path;
+        if (selectedFiles.has(filePath)) {
+            element.classList.add('file-selected');
+        } else {
+            element.classList.remove('file-selected');
+        }
+    });
+
+    // Update status bar with selection count
+    updateSelectionStatus();
+}
+
+// Update status bar to show selection count
+function updateSelectionStatus() {
+    const count = selectedFiles.size;
+    if (count > 1) {
+        // Show selection count in a subtle way
+        const statusElement = document.getElementById('file-status');
+        if (statusElement) {
+            statusElement.textContent = `${count} files selected`;
+        }
+    }
+}
+
+// Clear file selection
+function clearFileSelection() {
+    selectedFiles.clear();
+    lastSelectedFile = null;
+    updateFileSelectionUI();
+}
+
+// Get array of selected file paths
+function getSelectedFiles() {
+    return Array.from(selectedFiles);
+}
+
+// Expose selection functions globally
+window.selectedFiles = selectedFiles;
+window.getSelectedFiles = getSelectedFiles;
+window.clearFileSelection = clearFileSelection;
 
 // Tag filtering and file tree functions use variables declared at top of file
 
@@ -9336,21 +9612,47 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             );
         }
     } else {
-        menuItems.push(
-            { label: 'Open', action: 'open' },
-            { label: 'Rename File', action: 'rename' },
-            { separator: true },
-            { label: 'Cut', action: 'cut-file' },
-            { label: 'Copy', action: 'copy-file-to-clipboard' },
-            { separator: true },
-            { label: 'Delete File', action: 'delete' },
-            { label: 'Copy Path', action: 'copy-path' }
-        );
+        // Check if multiple files are selected
+        const multipleSelected = selectedFiles.size > 1 && selectedFiles.has(filePath);
 
-        // Add tag editing option for markdown files
-        if (filePath.endsWith('.md')) {
-            menuItems.push({ label: 'Edit Tags', action: 'edit-tags' });
-            menuItems.push({ label: '🎨 Generate Thumbnail', action: 'generate-thumbnail' });
+        if (multipleSelected) {
+            // Multi-file selection menu
+            const fileCount = selectedFiles.size;
+            menuItems.push(
+                { label: `${fileCount} files selected`, action: 'none', disabled: true },
+                { separator: true },
+                { label: `Delete ${fileCount} Files`, action: 'delete-multiple' },
+                { label: 'Copy Paths', action: 'copy-paths-multiple' },
+                { separator: true },
+                { label: 'Clear Selection', action: 'clear-selection' }
+            );
+
+            // Check if all selected are markdown files for thumbnail generation
+            const allMarkdown = Array.from(selectedFiles).every(f => f.endsWith('.md'));
+            if (allMarkdown) {
+                menuItems.push(
+                    { separator: true },
+                    { label: '🎨 Generate Synthesized Thumbnail', action: 'generate-thumbnail-multiple' }
+                );
+            }
+        } else {
+            // Single file menu
+            menuItems.push(
+                { label: 'Open', action: 'open' },
+                { label: 'Rename File', action: 'rename' },
+                { separator: true },
+                { label: 'Cut', action: 'cut-file' },
+                { label: 'Copy', action: 'copy-file-to-clipboard' },
+                { separator: true },
+                { label: 'Delete File', action: 'delete' },
+                { label: 'Copy Path', action: 'copy-path' }
+            );
+
+            // Add tag editing option for markdown files
+            if (filePath.endsWith('.md')) {
+                menuItems.push({ label: 'Edit Tags', action: 'edit-tags' });
+                menuItems.push({ label: '🎨 Generate Thumbnail', action: 'generate-thumbnail' });
+            }
         }
 
         // Add insert option for image files
@@ -9517,7 +9819,91 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                 }
             }
             break;
-            
+
+        case 'clear-selection':
+            clearFileSelection();
+            showNotification('Selection cleared', 'info');
+            break;
+
+        case 'copy-paths-multiple':
+            if (selectedFiles.size > 0) {
+                try {
+                    const paths = Array.from(selectedFiles).join('\n');
+                    await navigator.clipboard.writeText(paths);
+                    showNotification(`${selectedFiles.size} paths copied to clipboard`, 'success');
+                } catch (error) {
+                    console.error('[handleFileContextMenuAction] Error copying paths:', error);
+                    showNotification('Error copying paths', 'error');
+                }
+            }
+            break;
+
+        case 'delete-multiple':
+            if (selectedFiles.size > 0) {
+                const fileCount = selectedFiles.size;
+                const fileList = Array.from(selectedFiles).slice(0, 5).map(f => f.split('/').pop()).join('\n');
+                const moreText = fileCount > 5 ? `\n...and ${fileCount - 5} more` : '';
+                const confirmDelete = confirm(`Are you sure you want to delete ${fileCount} files?\n\n${fileList}${moreText}\n\nThis action cannot be undone.`);
+
+                if (confirmDelete) {
+                    let deletedCount = 0;
+                    let failedCount = 0;
+
+                    for (const path of selectedFiles) {
+                        try {
+                            const result = await window.electronAPI.invoke('delete-item', {
+                                path: path,
+                                type: 'file',
+                                name: path.split('/').pop()
+                            });
+                            if (result.success) {
+                                deletedCount++;
+                                // If we deleted the currently open file, clear the editor
+                                if (window.currentFilePath === path) {
+                                    if (window.editor) {
+                                        window.editor.setValue('');
+                                    }
+                                    window.currentFilePath = null;
+                                    window.editorFileName = null;
+                                    const currentFileNameEl = document.getElementById('current-file-name');
+                                    if (currentFileNameEl) {
+                                        currentFileNameEl.textContent = 'No file selected';
+                                    }
+                                }
+                            } else {
+                                failedCount++;
+                            }
+                        } catch (error) {
+                            console.error('[handleFileContextMenuAction] Error deleting file:', path, error);
+                            failedCount++;
+                        }
+                    }
+
+                    // Clear selection after delete
+                    clearFileSelection();
+
+                    if (failedCount === 0) {
+                        showNotification(`Deleted ${deletedCount} files`, 'success');
+                    } else {
+                        showNotification(`Deleted ${deletedCount} files, ${failedCount} failed`, 'warning');
+                    }
+
+                    // Refresh file tree
+                    if (window.renderFileTree) {
+                        fileTreeRendered = false;
+                        window.renderFileTree();
+                    }
+                }
+            }
+            break;
+
+        case 'generate-thumbnail-multiple':
+            if (selectedFiles.size > 0) {
+                // Generate synthesized thumbnail from multiple selected markdown files
+                await generateThumbnailForMultipleFiles(Array.from(selectedFiles));
+            }
+            break;
+
         case 'edit-tags':
             if (!isFolder && filePath.endsWith('.md')) {
                 await showTagEditDialog(filePath);
@@ -12375,7 +12761,7 @@ async function loadCommandPaletteFiles() {
 // Get all project files recursively from current working directory
 async function getAllProjectFiles() {
     try {
-        const workingDir = window.currentDirectory || '.';
+        const workingDir = window.currentFileDirectory || window.currentDirectory || window.appSettings?.workingDirectory || '.';
         const files = [];
         await scanDirectoryRecursively(workingDir, files, workingDir);
         return files;

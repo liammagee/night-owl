@@ -390,9 +390,10 @@ function createImageWidget(editor, match, lineNumber, startColumn) {
 function resolveImagePath(imageUrl) {
     // Handle relative paths
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://') && !imageUrl.startsWith('data:')) {
-        // Check if we have a current directory context
-        if (window.currentDirectory) {
-            return `file://${window.currentDirectory}/${imageUrl}`;
+        // Check if we have a current directory context (try both variable names)
+        const currentDir = window.currentFileDirectory || window.currentDirectory;
+        if (currentDir) {
+            return `file://${currentDir}/${imageUrl}`;
         }
     }
     return imageUrl;

@@ -36,10 +36,31 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configuration
+// Load environment variables first so we can use them in CONFIG
+function loadEnvEarly() {
+    const envPath = path.join(__dirname, '..', '.env');
+    if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf-8');
+        for (const line of content.split('\n')) {
+            const match = line.match(/^([^=]+)=(.*)$/);
+            if (match && !process.env[match[1]]) {
+                process.env[match[1]] = match[2].replace(/^["']|["']$/g, '');
+            }
+        }
+    }
+}
+loadEnvEarly();
+
+// Configuration - use environment variables with fallbacks
 const CONFIG = {
-    model: 'gemini-2.5-flash-preview-05-20',  // Image generation model
-    imageModel: 'imagen-3.0-generate-002',     // Imagen model for actual image generation
+    // Text model for analyzing content and generating prompts
+    // Use GOOGLE_MODEL or GEMINI_MODEL from env, fallback to gemini-2.0-flash
+    model: process.env.GOOGLE_MODEL || process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    // Image generation model - must be a model that supports image generation
+    // Gemini 3 Pro Image (nano banana) or gemini-2.0-flash-exp for image gen
+    imageGenModel: process.env.IMAGE_GEN_MODEL || 'gemini-2.0-flash-exp',
+    // Imagen model for actual image generation (if available via API)
+    imageModel: process.env.IMAGEN_MODEL || 'imagen-3.0-generate-002',
     sizes: {
         small: { width: 256, height: 256 },
         medium: { width: 512, height: 512 },
@@ -124,19 +145,7 @@ Examples:
 `);
 }
 
-// Load environment variables
-function loadEnv() {
-    const envPath = path.join(__dirname, '..', '.env');
-    if (fs.existsSync(envPath)) {
-        const content = fs.readFileSync(envPath, 'utf-8');
-        for (const line of content.split('\n')) {
-            const match = line.match(/^([^=]+)=(.*)$/);
-            if (match && !process.env[match[1]]) {
-                process.env[match[1]] = match[2].replace(/^["']|["']$/g, '');
-            }
-        }
-    }
-}
+// loadEnv is called early at module load time (see loadEnvEarly above)
 
 // Find markdown files
 function findMarkdownFiles(inputPath, recursive = false) {
@@ -349,12 +358,13 @@ async function generateThumbnail(ai, prompt, options) {
 
         throw new Error('No image data in response');
     } catch (error) {
-        // If Imagen fails, try using Gemini Flash with image generation
-        console.error('Imagen generation failed, trying Gemini Flash:', error.message);
+        // If Imagen fails, try using a Gemini model that supports image generation
+        console.error('Imagen generation failed, trying Gemini image gen model:', error.message);
+        console.log(`Fallback model: ${CONFIG.imageGenModel}`);
 
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-preview-05-20',
+                model: CONFIG.imageGenModel,
                 contents: `Generate an image: ${prompt}`,
                 config: {
                     responseModalities: ['IMAGE', 'TEXT']
@@ -367,11 +377,12 @@ async function generateThumbnail(ai, prompt, options) {
                     return Buffer.from(part.inlineData.data, 'base64');
                 }
             }
-        } catch (flashError) {
-            console.error('Gemini Flash generation also failed:', flashError.message);
-        }
 
-        throw error;
+            throw new Error('No image data in Gemini response');
+        } catch (fallbackError) {
+            console.error('Gemini image generation also failed:', fallbackError.message);
+            throw new Error(`Image generation failed. Imagen error: ${error.message}. Gemini fallback error: ${fallbackError.message}`);
+        }
     }
 }
 
@@ -523,7 +534,7 @@ async function processSynthesized(ai, files, options) {
 
 // Main function
 async function main() {
-    loadEnv();
+    // Environment is already loaded at module init time (loadEnvEarly)
 
     const args = process.argv.slice(2);
     const options = parseArgs(args);
@@ -534,12 +545,16 @@ async function main() {
         process.exit(1);
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY;
     if (!apiKey) {
-        console.error('Error: GEMINI_API_KEY environment variable is required.');
+        console.error('Error: GEMINI_API_KEY or GOOGLE_API_KEY environment variable is required.');
         console.error('Set it in your .env file or export it in your shell.');
         process.exit(1);
     }
+
+    // Log which models we're using
+    console.log(`Text analysis model: ${CONFIG.model}`);
+    console.log(`Image generation model: ${CONFIG.imageGenModel}`);
 
     // Validate input path
     if (!fs.existsSync(options.input)) {
