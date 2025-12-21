@@ -911,6 +911,9 @@ Generate the heading and bullet points only, nothing else.`;
       if (options.recursive) {
         args.push('--recursive');
       }
+      if (options.synthesize) {
+        args.push('--synthesize');
+      }
 
       console.log('[AIHandlers] Running:', 'node', args.join(' '));
 

@@ -4943,6 +4943,290 @@ async function generateThumbnail(options = {}) {
 // Export for global access
 window.generateThumbnail = generateThumbnail;
 
+// Generate thumbnail for a specific file (called from context menu)
+async function generateThumbnailForFile(filePath) {
+    console.log('[Renderer] Generating thumbnail for file:', filePath);
+
+    // Show style selection dialog
+    const styles = ['photo', 'illustration', 'abstract', 'minimal'];
+    const styleLabels = {
+        'photo': '📷 Photo (realistic)',
+        'illustration': '🎨 Illustration (artistic)',
+        'abstract': '🌀 Abstract (conceptual)',
+        'minimal': '⬜ Minimal (clean)'
+    };
+
+    // Create a simple style picker dialog
+    const styleDialog = document.createElement('div');
+    styleDialog.className = 'modal-overlay';
+    styleDialog.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+    `;
+
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const bgColor = isDarkMode ? '#2d2d2d' : 'white';
+    const textColor = isDarkMode ? '#e0e0e0' : '#333';
+    const borderColor = isDarkMode ? '#444' : '#ddd';
+
+    styleDialog.innerHTML = `
+        <div style="background: ${bgColor}; color: ${textColor}; padding: 20px; border-radius: 8px; min-width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <h3 style="margin: 0 0 16px 0; font-size: 16px;">🎨 Generate Thumbnail</h3>
+            <p style="margin: 0 0 16px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
+                Choose a style for the AI-generated thumbnail:
+            </p>
+            <div id="style-options" style="display: flex; flex-direction: column; gap: 8px;">
+                ${styles.map((style, i) => `
+                    <button class="style-option-btn" data-style="${style}" style="
+                        padding: 10px 16px;
+                        border: 1px solid ${borderColor};
+                        border-radius: 4px;
+                        background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                        color: ${textColor};
+                        cursor: pointer;
+                        text-align: left;
+                        font-size: 13px;
+                    ">${styleLabels[style]}</button>
+                `).join('')}
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button id="cancel-thumbnail-btn" style="padding: 8px 16px; border: 1px solid ${borderColor}; border-radius: 4px; background: transparent; color: ${textColor}; cursor: pointer;">Cancel</button>
+                <button id="generate-thumbnail-btn" style="padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;">Generate</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(styleDialog);
+
+    let selectedStyle = 'photo';
+
+    // Handle style selection
+    styleDialog.querySelectorAll('.style-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            styleDialog.querySelectorAll('.style-option-btn').forEach(b => {
+                b.style.background = 'transparent';
+            });
+            btn.style.background = isDarkMode ? '#3a3a3a' : '#f0f0f0';
+            selectedStyle = btn.dataset.style;
+        });
+    });
+
+    // Return a promise that resolves when user confirms or cancels
+    return new Promise((resolve) => {
+        const cancelBtn = styleDialog.querySelector('#cancel-thumbnail-btn');
+        const generateBtn = styleDialog.querySelector('#generate-thumbnail-btn');
+
+        cancelBtn.addEventListener('click', () => {
+            styleDialog.remove();
+            resolve();
+        });
+
+        // Close on escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                styleDialog.remove();
+                document.removeEventListener('keydown', handleEscape);
+                resolve();
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        generateBtn.addEventListener('click', async () => {
+            styleDialog.remove();
+            document.removeEventListener('keydown', handleEscape);
+
+            // Now generate the thumbnail
+            try {
+                showNotification('Generating thumbnail with AI...', 'info');
+
+                const result = await window.electronAPI.invoke('generate-thumbnail', {
+                    input: filePath,
+                    style: selectedStyle
+                });
+
+                if (!result.success) {
+                    console.error('[Renderer] Thumbnail generation failed:', result.error);
+                    showNotification('Thumbnail generation failed: ' + result.error, 'error');
+                    resolve();
+                    return;
+                }
+
+                // Success
+                console.log('[Renderer] Thumbnail generated:', result);
+                const outputPath = result.results?.[0]?.output || 'thumbnail';
+                showNotification(`Thumbnail generated: ${outputPath.split('/').pop()}`, 'success');
+
+                // Refresh file tree to show new thumbnail
+                fileTreeRendered = false;
+                renderFileTree();
+
+                resolve();
+            } catch (error) {
+                console.error('[Renderer] Error generating thumbnail:', error);
+                showNotification('Error generating thumbnail: ' + error.message, 'error');
+                resolve();
+            }
+        });
+    });
+}
+
+// Generate thumbnails for all markdown files in a folder
+async function generateThumbnailsForFolder(folderPath) {
+    console.log('[Renderer] Generating thumbnails for folder:', folderPath);
+
+    // Show style selection dialog (similar to single file but with batch options)
+    const styles = ['photo', 'illustration', 'abstract', 'minimal'];
+    const styleLabels = {
+        'photo': '📷 Photo (realistic)',
+        'illustration': '🎨 Illustration (artistic)',
+        'abstract': '🌀 Abstract (conceptual)',
+        'minimal': '⬜ Minimal (clean)'
+    };
+
+    const styleDialog = document.createElement('div');
+    styleDialog.className = 'modal-overlay';
+    styleDialog.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+    `;
+
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const bgColor = isDarkMode ? '#2d2d2d' : 'white';
+    const textColor = isDarkMode ? '#e0e0e0' : '#333';
+    const borderColor = isDarkMode ? '#444' : '#ddd';
+    const folderName = folderPath.split('/').pop();
+
+    styleDialog.innerHTML = `
+        <div style="background: ${bgColor}; color: ${textColor}; padding: 20px; border-radius: 8px; min-width: 350px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <h3 style="margin: 0 0 16px 0; font-size: 16px;">🎨 Generate Folder Thumbnail</h3>
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
+                Synthesize all Markdown files into a single thumbnail for:
+            </p>
+            <p style="margin: 0 0 16px 0; font-size: 12px; font-family: monospace; background: ${isDarkMode ? '#1a1a1a' : '#f5f5f5'}; padding: 6px 8px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis;">
+                ${folderName}/
+            </p>
+            <p style="margin: 0 0 12px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
+                Choose a style:
+            </p>
+            <div id="style-options" style="display: flex; flex-direction: column; gap: 8px;">
+                ${styles.map((style, i) => `
+                    <button class="style-option-btn" data-style="${style}" style="
+                        padding: 10px 16px;
+                        border: 1px solid ${borderColor};
+                        border-radius: 4px;
+                        background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                        color: ${textColor};
+                        cursor: pointer;
+                        text-align: left;
+                        font-size: 13px;
+                    ">${styleLabels[style]}</button>
+                `).join('')}
+            </div>
+            <div style="margin-top: 12px;">
+                <label style="display: flex; align-items: center; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="include-subdirs" style="margin-right: 8px;">
+                    Include subdirectories
+                </label>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button id="cancel-thumbnail-btn" style="padding: 8px 16px; border: 1px solid ${borderColor}; border-radius: 4px; background: transparent; color: ${textColor}; cursor: pointer;">Cancel</button>
+                <button id="generate-thumbnail-btn" style="padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;">Generate Thumbnail</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(styleDialog);
+
+    let selectedStyle = 'photo';
+
+    // Handle style selection
+    styleDialog.querySelectorAll('.style-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            styleDialog.querySelectorAll('.style-option-btn').forEach(b => {
+                b.style.background = 'transparent';
+            });
+            btn.style.background = isDarkMode ? '#3a3a3a' : '#f0f0f0';
+            selectedStyle = btn.dataset.style;
+        });
+    });
+
+    return new Promise((resolve) => {
+        const cancelBtn = styleDialog.querySelector('#cancel-thumbnail-btn');
+        const generateBtn = styleDialog.querySelector('#generate-thumbnail-btn');
+        const includeSubdirs = styleDialog.querySelector('#include-subdirs');
+
+        cancelBtn.addEventListener('click', () => {
+            styleDialog.remove();
+            resolve();
+        });
+
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                styleDialog.remove();
+                document.removeEventListener('keydown', handleEscape);
+                resolve();
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        generateBtn.addEventListener('click', async () => {
+            const recursive = includeSubdirs.checked;
+            styleDialog.remove();
+            document.removeEventListener('keydown', handleEscape);
+
+            try {
+                showNotification('Synthesizing folder content into thumbnail... This may take a moment.', 'info');
+
+                const result = await window.electronAPI.invoke('generate-thumbnail', {
+                    input: folderPath,
+                    style: selectedStyle,
+                    recursive: recursive,
+                    synthesize: true  // Combine all files into one thumbnail
+                });
+
+                if (!result.success) {
+                    console.error('[Renderer] Folder thumbnail generation failed:', result.error);
+                    showNotification('Thumbnail generation failed: ' + result.error, 'error');
+                    resolve();
+                    return;
+                }
+
+                // Success - synthesize mode creates a single thumbnail
+                console.log('[Renderer] Folder thumbnail generated:', result);
+                const outputPath = result.results?.[0]?.output || 'thumbnail';
+                const fileName = outputPath.split('/').pop();
+                showNotification(`Folder thumbnail generated: ${fileName}`, 'success');
+
+                // Refresh file tree
+                fileTreeRendered = false;
+                renderFileTree();
+
+                resolve();
+            } catch (error) {
+                console.error('[Renderer] Error generating folder thumbnail:', error);
+                showNotification('Error generating thumbnail: ' + error.message, 'error');
+                resolve();
+            }
+        });
+    });
+}
+
 async function openFileInEditor(filePath, content, options = {}) {
     console.log('[openFileInEditor] Opening file:', filePath);
     if (options.isInternalLinkPreview) {
@@ -9022,7 +9306,9 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             { label: 'New File in Folder', action: 'new-file' },
             { label: 'New Folder', action: 'new-subfolder' },
             { label: 'Rename Folder', action: 'rename' },
-            { label: 'Delete Folder', action: 'delete' }
+            { label: 'Delete Folder', action: 'delete' },
+            { separator: true },
+            { label: '🎨 Generate Folder Thumbnail', action: 'generate-thumbnails-batch' }
         );
         // Add Paste option if there's a file in the clipboard
         if (fileClipboard.filePath && fileClipboard.operation) {
@@ -9064,6 +9350,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
         // Add tag editing option for markdown files
         if (filePath.endsWith('.md')) {
             menuItems.push({ label: 'Edit Tags', action: 'edit-tags' });
+            menuItems.push({ label: '🎨 Generate Thumbnail', action: 'generate-thumbnail' });
         }
 
         // Add insert option for image files
@@ -9237,6 +9524,12 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             }
             break;
 
+        case 'generate-thumbnail':
+            if (!isFolder && filePath.endsWith('.md')) {
+                await generateThumbnailForFile(filePath);
+            }
+            break;
+
         case 'insert-image':
             if (!isFolder) {
                 try {
@@ -9392,6 +9685,12 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     console.error('[handleFileContextMenuAction] Error in git publish:', error);
                     showNotification('Error publishing to Git', 'error');
                 }
+            }
+            break;
+
+        case 'generate-thumbnails-batch':
+            if (isFolder) {
+                await generateThumbnailsForFolder(filePath);
             }
             break;
 

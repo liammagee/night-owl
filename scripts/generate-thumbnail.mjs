@@ -14,6 +14,7 @@
  *   --style          Style: photo, illustration, abstract, minimal (default: illustration)
  *   --format, -f     Output format: png, jpg, webp (default: png)
  *   --recursive, -r  Process folders recursively
+ *   --synthesize     For folders: combine all files into a single synthesized thumbnail
  *   --dry-run        Show what would be generated without creating files
  *   --json           Output results as JSON (for programmatic use)
  *
@@ -23,6 +24,7 @@
  * Examples:
  *   node scripts/generate-thumbnail.js ./markdown/lectures/week-01.md
  *   node scripts/generate-thumbnail.js ./markdown/lectures -r --style abstract
+ *   node scripts/generate-thumbnail.js ./docs --synthesize --style minimal
  *   node scripts/generate-thumbnail.js ./docs --output ./thumbnails --size large
  */
 
@@ -60,6 +62,7 @@ function parseArgs(args) {
         style: 'illustration',
         format: 'png',
         recursive: false,
+        synthesize: false,
         dryRun: false,
         json: false
     };
@@ -77,6 +80,8 @@ function parseArgs(args) {
             options.format = args[++i];
         } else if (arg === '--recursive' || arg === '-r') {
             options.recursive = true;
+        } else if (arg === '--synthesize') {
+            options.synthesize = true;
         } else if (arg === '--dry-run') {
             options.dryRun = true;
         } else if (arg === '--json') {
@@ -104,6 +109,7 @@ Options:
   --style          Style: photo, illustration, abstract, minimal
   --format, -f     Output format: png, jpg, webp
   --recursive, -r  Process folders recursively
+  --synthesize     Combine all files into a single synthesized thumbnail
   --dry-run        Show what would be generated without creating files
   --json           Output results as JSON
   --help, -h       Show this help message
@@ -204,6 +210,82 @@ function extractContentSummary(markdown) {
         headings: headings.slice(0, 5),
         excerpt: paragraphs.slice(0, 500),
         keyTerms
+    };
+}
+
+// Synthesize content from multiple markdown files into a unified summary
+function synthesizeMultipleFiles(files) {
+    const allTitles = [];
+    const allHeadings = [];
+    const allKeyTerms = {};
+    const allExcerpts = [];
+
+    for (const filePath of files) {
+        try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const summary = extractContentSummary(content);
+
+            if (summary.title) {
+                allTitles.push(summary.title);
+            }
+
+            allHeadings.push(...summary.headings);
+
+            // Aggregate key terms with counts
+            for (const term of summary.keyTerms) {
+                allKeyTerms[term] = (allKeyTerms[term] || 0) + 1;
+            }
+
+            if (summary.excerpt) {
+                allExcerpts.push(summary.excerpt.slice(0, 200));
+            }
+        } catch (error) {
+            console.error(`Error reading ${filePath}:`, error.message);
+        }
+    }
+
+    // Create a synthesized title that represents the collection
+    let synthesizedTitle = 'Collection';
+    if (allTitles.length > 0) {
+        // Find common themes in titles
+        const titleWords = allTitles.join(' ').toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
+        const titleWordCounts = {};
+        for (const word of titleWords) {
+            titleWordCounts[word] = (titleWordCounts[word] || 0) + 1;
+        }
+        const commonTitleWords = Object.entries(titleWordCounts)
+            .filter(([_, count]) => count >= 2)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([word]) => word);
+
+        if (commonTitleWords.length > 0) {
+            synthesizedTitle = commonTitleWords.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
+        } else if (allTitles.length <= 3) {
+            synthesizedTitle = allTitles.join(', ');
+        } else {
+            synthesizedTitle = `${allTitles[0]} and ${allTitles.length - 1} more`;
+        }
+    }
+
+    // Get top key terms across all files
+    const topKeyTerms = Object.entries(allKeyTerms)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15)
+        .map(([term]) => term);
+
+    // Get unique headings (deduplicated)
+    const uniqueHeadings = [...new Set(allHeadings)].slice(0, 10);
+
+    // Combine excerpts into a synthesis
+    const combinedExcerpt = allExcerpts.slice(0, 5).join('\n\n').slice(0, 800);
+
+    return {
+        title: synthesizedTitle,
+        headings: uniqueHeadings,
+        excerpt: combinedExcerpt,
+        keyTerms: topKeyTerms,
+        fileCount: files.length
     };
 }
 
@@ -360,6 +442,85 @@ async function processFile(ai, filePath, options) {
     return result;
 }
 
+// Process multiple files into a single synthesized thumbnail
+async function processSynthesized(ai, files, options) {
+    const result = {
+        input: files,
+        inputCount: files.length,
+        output: null,
+        prompt: null,
+        success: false,
+        error: null
+    };
+
+    try {
+        // Synthesize content from all files
+        const synthesizedSummary = synthesizeMultipleFiles(files);
+
+        if (!options.json) {
+            console.log(`\n📚 Synthesizing ${files.length} files...`);
+            console.log(`   Theme: ${synthesizedSummary.title}`);
+            console.log(`   Key topics: ${synthesizedSummary.keyTerms.slice(0, 5).join(', ')}`);
+        }
+
+        // Generate image prompt from synthesized content
+        const imagePrompt = await generateImagePrompt(ai, synthesizedSummary, options.style);
+        result.prompt = imagePrompt;
+
+        if (!options.json) {
+            console.log(`   Prompt: ${imagePrompt.slice(0, 100)}...`);
+        }
+
+        if (options.dryRun) {
+            result.success = true;
+            result.output = '[dry run]';
+            return result;
+        }
+
+        // Generate the thumbnail
+        const imageBuffer = await generateThumbnail(ai, imagePrompt, options);
+
+        // Determine output path - use the input folder name for the thumbnail
+        const inputPath = options.input;
+        const stat = fs.statSync(inputPath);
+        let outputDir, baseName;
+
+        if (stat.isDirectory()) {
+            outputDir = options.output || inputPath;
+            baseName = path.basename(inputPath);
+        } else {
+            // If input was a file, use its directory
+            outputDir = options.output || path.dirname(inputPath);
+            baseName = 'collection';
+        }
+
+        const outputPath = path.join(outputDir, `${baseName}-thumbnail.${options.format}`);
+
+        // Ensure output directory exists
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        // Write image
+        fs.writeFileSync(outputPath, imageBuffer);
+
+        result.output = outputPath;
+        result.success = true;
+
+        if (!options.json) {
+            console.log(`   ✅ Synthesized thumbnail: ${outputPath}`);
+        }
+
+    } catch (error) {
+        result.error = error.message;
+        if (!options.json) {
+            console.error(`   ❌ Error: ${error.message}`);
+        }
+    }
+
+    return result;
+}
+
 // Main function
 async function main() {
     loadEnv();
@@ -413,12 +574,39 @@ async function main() {
         console.log(`   Style: ${options.style}`);
         console.log(`   Size: ${options.size}`);
         console.log(`   Files: ${files.length}`);
+        if (options.synthesize && files.length > 1) {
+            console.log(`   Mode: SYNTHESIZE (single thumbnail from all files)`);
+        }
         if (options.dryRun) {
             console.log(`   Mode: DRY RUN`);
         }
     }
 
-    // Process each file
+    // Handle synthesize mode - combine all files into one thumbnail
+    if (options.synthesize && files.length > 1) {
+        const result = await processSynthesized(ai, files, options);
+
+        if (options.json) {
+            console.log(JSON.stringify({
+                total: files.length,
+                successful: result.success ? 1 : 0,
+                failed: result.success ? 0 : 1,
+                synthesized: true,
+                results: [result]
+            }, null, 2));
+        } else {
+            if (result.success) {
+                console.log(`\n✅ Synthesized thumbnail generated from ${files.length} files`);
+                console.log(`   Output: ${result.output}`);
+            } else {
+                console.log(`\n❌ Failed to generate synthesized thumbnail: ${result.error}`);
+            }
+        }
+
+        process.exit(result.success ? 0 : 1);
+    }
+
+    // Process each file individually
     const results = [];
     for (const file of files) {
         const result = await processFile(ai, file, options);
@@ -450,4 +638,4 @@ main().catch(error => {
 });
 
 // Export for programmatic use
-export { processFile, extractContentSummary, generateImagePrompt, CONFIG };
+export { processFile, processSynthesized, extractContentSummary, synthesizeMultipleFiles, generateImagePrompt, CONFIG };
