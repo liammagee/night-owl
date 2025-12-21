@@ -5595,13 +5595,29 @@ async function openFileInEditor(filePath, content, options = {}) {
     }
     
     // Close image viewer if it's currently open
-    if (window.imageViewerOriginalContent) {
+    const imageViewer = document.getElementById('image-viewer-container');
+    const wasImageViewerOpen = !!imageViewer;
+    if (imageViewer) {
         console.log('[openFileInEditor] Closing image viewer to show file content');
-        const mainContent = document.getElementById('main-content');
-        if (mainContent) {
-            mainContent.innerHTML = window.imageViewerOriginalContent;
-            delete window.imageViewerOriginalContent;
+        imageViewer.remove();
+        // Show the panes container and mode switcher again
+        const panesContainer = document.getElementById('panes-container');
+        const modeSwitcher = document.getElementById('mode-switcher');
+        if (panesContainer) {
+            panesContainer.style.display = '';
         }
+        if (modeSwitcher) {
+            modeSwitcher.style.display = '';
+        }
+    }
+
+    // Force Monaco editor to recalculate its layout (especially important after image viewer was open)
+    if (wasImageViewerOpen && typeof editor !== 'undefined' && editor && typeof editor.layout === 'function') {
+        // Use setTimeout to ensure DOM has fully updated before layout recalculation
+        setTimeout(() => {
+            console.log('[openFileInEditor] Forcing editor layout after image viewer close');
+            editor.layout();
+        }, 0);
     }
     
     // Detect file type
@@ -5940,10 +5956,16 @@ async function handleEditableFile(filePath, content, fileTypes) {
                 const newModel = monaco.editor.createModel(content, 'markdown');
                 editor.setModel(newModel);
             }
-            
-            // Force a layout update
+
+            // Force a layout update immediately and after a short delay
+            // (needed when returning from image viewer where panes were hidden)
             editor.layout();
-            
+            setTimeout(() => {
+                if (editor && typeof editor.layout === 'function') {
+                    editor.layout();
+                }
+            }, 50);
+
         } catch (error) {
             console.error('[openFileInEditor] Error setting editor content:', error);
             // Fallback to basic setValue
@@ -13366,21 +13388,28 @@ function moveSectionDown(heading, index) {
 // Image Viewer Function
 function showImageViewer(imagePath) {
     console.log('[ImageViewer] Opening image:', imagePath);
-    
+
     // Get the main content area
     const mainContent = document.getElementById('main-content');
     if (!mainContent) {
         console.error('[ImageViewer] Main content area not found');
         return;
     }
-    
-    // Store the current content to restore later
-    const originalContent = mainContent.innerHTML;
-    window.imageViewerOriginalContent = originalContent;
-    
+
+    // Hide the panes container instead of replacing content
+    const panesContainer = document.getElementById('panes-container');
+    const modeSwitcher = document.getElementById('mode-switcher');
+    if (panesContainer) {
+        panesContainer.style.display = 'none';
+    }
+    if (modeSwitcher) {
+        modeSwitcher.style.display = 'none';
+    }
+
     // Create image viewer container
     const viewerContainer = document.createElement('div');
     viewerContainer.className = 'image-viewer-container';
+    viewerContainer.id = 'image-viewer-container';
     viewerContainer.style.cssText = `
         height: 100%;
         display: flex;
@@ -13508,13 +13537,32 @@ function showImageViewer(imagePath) {
     
     // Event handlers
     const closeViewer = () => {
-        mainContent.innerHTML = window.imageViewerOriginalContent;
-        delete window.imageViewerOriginalContent;
+        // Remove the image viewer
+        const viewerToRemove = document.getElementById('image-viewer-container');
+        if (viewerToRemove) {
+            viewerToRemove.remove();
+        }
+
+        // Show the panes container and mode switcher again
+        const panesContainer = document.getElementById('panes-container');
+        const modeSwitcher = document.getElementById('mode-switcher');
+        if (panesContainer) {
+            panesContainer.style.display = '';
+        }
+        if (modeSwitcher) {
+            modeSwitcher.style.display = '';
+        }
+
+        // Re-layout the Monaco editor since it may have been hidden
+        if (typeof editor !== 'undefined' && editor && typeof editor.layout === 'function') {
+            setTimeout(() => editor.layout(), 50);
+        }
+
         console.log('[ImageViewer] Image viewer closed - restored editor');
     };
-    
+
     closeBtn.addEventListener('click', closeViewer);
-    
+
     // Close on Escape key
     const keyHandler = (e) => {
         if (e.key === 'Escape') {
@@ -13523,9 +13571,8 @@ function showImageViewer(imagePath) {
         }
     };
     document.addEventListener('keydown', keyHandler);
-    
-    // Replace main content with image viewer
-    mainContent.innerHTML = '';
+
+    // Append image viewer to main content (don't replace)
     mainContent.appendChild(viewerContainer);
 }
 
