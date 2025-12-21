@@ -902,6 +902,12 @@ Generate the heading and bullet points only, nothing else.`;
       if (options.style) {
         args.push('--style', options.style);
       }
+      if (options.colorMode) {
+        args.push('--color-mode', options.colorMode);
+      }
+      if (options.referenceImage) {
+        args.push('--reference', options.referenceImage);
+      }
       if (options.size) {
         args.push('--size', options.size);
       }

@@ -4961,6 +4961,14 @@ async function generateThumbnailForFile(filePath) {
         'minimal': '⬜ Minimal (clean)'
     };
 
+    const colorModes = ['color', 'bw', 'sepia', 'duotone'];
+    const colorLabels = {
+        'color': '🌈 Full Color',
+        'bw': '⬛ Black & White',
+        'sepia': '🟤 Sepia',
+        'duotone': '🔵 Duotone'
+    };
+
     // Create a simple style picker dialog
     const styleDialog = document.createElement('div');
     styleDialog.className = 'modal-overlay';
@@ -4981,28 +4989,76 @@ async function generateThumbnailForFile(filePath) {
     const bgColor = isDarkMode ? '#2d2d2d' : 'white';
     const textColor = isDarkMode ? '#e0e0e0' : '#333';
     const borderColor = isDarkMode ? '#444' : '#ddd';
+    const labelColor = isDarkMode ? '#aaa' : '#666';
 
     styleDialog.innerHTML = `
-        <div style="background: ${bgColor}; color: ${textColor}; padding: 20px; border-radius: 8px; min-width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="background: ${bgColor}; color: ${textColor}; padding: 20px; border-radius: 8px; min-width: 380px; max-width: 450px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
             <h3 style="margin: 0 0 16px 0; font-size: 16px;">🎨 Generate Thumbnail</h3>
-            <p style="margin: 0 0 16px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
-                Choose a style for the AI-generated thumbnail:
-            </p>
-            <div id="style-options" style="display: flex; flex-direction: column; gap: 8px;">
-                ${styles.map((style, i) => `
-                    <button class="style-option-btn" data-style="${style}" style="
-                        padding: 10px 16px;
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; color: ${labelColor}; margin-bottom: 6px; font-weight: 500;">Style</label>
+                <div id="style-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    ${styles.map((style, i) => `
+                        <button class="style-option-btn" data-style="${style}" style="
+                            padding: 8px 12px;
+                            border: 1px solid ${borderColor};
+                            border-radius: 4px;
+                            background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                            color: ${textColor};
+                            cursor: pointer;
+                            text-align: left;
+                            font-size: 12px;
+                        ">${styleLabels[style]}</button>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; color: ${labelColor}; margin-bottom: 6px; font-weight: 500;">Color Mode</label>
+                <div id="color-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    ${colorModes.map((mode, i) => `
+                        <button class="color-option-btn" data-color="${mode}" style="
+                            padding: 8px 12px;
+                            border: 1px solid ${borderColor};
+                            border-radius: 4px;
+                            background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                            color: ${textColor};
+                            cursor: pointer;
+                            text-align: left;
+                            font-size: 12px;
+                        ">${colorLabels[mode]}</button>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; color: ${labelColor}; margin-bottom: 6px; font-weight: 500;">Reference Image (optional)</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="reference-image-path" placeholder="Path to reference image..." style="
+                        flex: 1;
+                        padding: 8px 12px;
                         border: 1px solid ${borderColor};
                         border-radius: 4px;
-                        background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                        background: ${isDarkMode ? '#1e1e1e' : '#fff'};
+                        color: ${textColor};
+                        font-size: 12px;
+                    ">
+                    <button id="browse-reference-btn" style="
+                        padding: 8px 12px;
+                        border: 1px solid ${borderColor};
+                        border-radius: 4px;
+                        background: transparent;
                         color: ${textColor};
                         cursor: pointer;
-                        text-align: left;
-                        font-size: 13px;
-                    ">${styleLabels[style]}</button>
-                `).join('')}
+                        font-size: 12px;
+                    ">Browse...</button>
+                </div>
+                <p style="margin: 4px 0 0 0; font-size: 11px; color: ${labelColor};">
+                    AI will analyze the reference image and match its color palette and style.
+                </p>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid ${borderColor};">
                 <button id="cancel-thumbnail-btn" style="padding: 8px 16px; border: 1px solid ${borderColor}; border-radius: 4px; background: transparent; color: ${textColor}; cursor: pointer;">Cancel</button>
                 <button id="generate-thumbnail-btn" style="padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;">Generate</button>
             </div>
@@ -5012,6 +5068,8 @@ async function generateThumbnailForFile(filePath) {
     document.body.appendChild(styleDialog);
 
     let selectedStyle = 'photo';
+    let selectedColorMode = 'color';
+    let referenceImagePath = '';
 
     // Handle style selection
     styleDialog.querySelectorAll('.style-option-btn').forEach(btn => {
@@ -5022,6 +5080,36 @@ async function generateThumbnailForFile(filePath) {
             btn.style.background = isDarkMode ? '#3a3a3a' : '#f0f0f0';
             selectedStyle = btn.dataset.style;
         });
+    });
+
+    // Handle color mode selection
+    styleDialog.querySelectorAll('.color-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            styleDialog.querySelectorAll('.color-option-btn').forEach(b => {
+                b.style.background = 'transparent';
+            });
+            btn.style.background = isDarkMode ? '#3a3a3a' : '#f0f0f0';
+            selectedColorMode = btn.dataset.color;
+        });
+    });
+
+    // Handle reference image browse
+    const browseBtn = styleDialog.querySelector('#browse-reference-btn');
+    const referenceInput = styleDialog.querySelector('#reference-image-path');
+    browseBtn.addEventListener('click', async () => {
+        try {
+            const result = await window.electronAPI.invoke('select-image-file');
+            if (result && result.filePath) {
+                referenceInput.value = result.filePath;
+                referenceImagePath = result.filePath;
+            }
+        } catch (error) {
+            console.error('[Renderer] Error selecting reference image:', error);
+        }
+    });
+
+    referenceInput.addEventListener('input', (e) => {
+        referenceImagePath = e.target.value;
     });
 
     // Return a promise that resolves when user confirms or cancels
@@ -5052,10 +5140,17 @@ async function generateThumbnailForFile(filePath) {
             try {
                 showNotification('Generating thumbnail with AI...', 'info');
 
-                const result = await window.electronAPI.invoke('generate-thumbnail', {
+                const options = {
                     input: filePath,
-                    style: selectedStyle
-                });
+                    style: selectedStyle,
+                    colorMode: selectedColorMode
+                };
+
+                if (referenceImagePath) {
+                    options.referenceImage = referenceImagePath;
+                }
+
+                const result = await window.electronAPI.invoke('generate-thumbnail', options);
 
                 if (!result.success) {
                     console.error('[Renderer] Thumbnail generation failed:', result.error);
@@ -5096,6 +5191,14 @@ async function generateThumbnailsForFolder(folderPath) {
         'minimal': '⬜ Minimal (clean)'
     };
 
+    const colorModes = ['color', 'bw', 'sepia', 'duotone'];
+    const colorLabels = {
+        'color': '🌈 Full Color',
+        'bw': '⬛ Black & White',
+        'sepia': '🟤 Sepia',
+        'duotone': '🔵 Duotone'
+    };
+
     const styleDialog = document.createElement('div');
     styleDialog.className = 'modal-overlay';
     styleDialog.style.cssText = `
@@ -5115,41 +5218,86 @@ async function generateThumbnailsForFolder(folderPath) {
     const bgColor = isDarkMode ? '#2d2d2d' : 'white';
     const textColor = isDarkMode ? '#e0e0e0' : '#333';
     const borderColor = isDarkMode ? '#444' : '#ddd';
+    const labelColor = isDarkMode ? '#aaa' : '#666';
     const folderName = folderPath.split('/').pop();
 
     styleDialog.innerHTML = `
-        <div style="background: ${bgColor}; color: ${textColor}; padding: 20px; border-radius: 8px; min-width: 350px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="background: ${bgColor}; color: ${textColor}; padding: 20px; border-radius: 8px; min-width: 380px; max-width: 450px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
             <h3 style="margin: 0 0 16px 0; font-size: 16px;">🎨 Generate Folder Thumbnail</h3>
-            <p style="margin: 0 0 8px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: ${labelColor};">
                 Synthesize all Markdown files into a single thumbnail for:
             </p>
             <p style="margin: 0 0 16px 0; font-size: 12px; font-family: monospace; background: ${isDarkMode ? '#1a1a1a' : '#f5f5f5'}; padding: 6px 8px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis;">
                 ${folderName}/
             </p>
-            <p style="margin: 0 0 12px 0; font-size: 13px; color: ${isDarkMode ? '#aaa' : '#666'};">
-                Choose a style:
-            </p>
-            <div id="style-options" style="display: flex; flex-direction: column; gap: 8px;">
-                ${styles.map((style, i) => `
-                    <button class="style-option-btn" data-style="${style}" style="
-                        padding: 10px 16px;
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; color: ${labelColor}; margin-bottom: 6px; font-weight: 500;">Style</label>
+                <div id="style-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    ${styles.map((style, i) => `
+                        <button class="style-option-btn" data-style="${style}" style="
+                            padding: 8px 12px;
+                            border: 1px solid ${borderColor};
+                            border-radius: 4px;
+                            background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                            color: ${textColor};
+                            cursor: pointer;
+                            text-align: left;
+                            font-size: 12px;
+                        ">${styleLabels[style]}</button>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; color: ${labelColor}; margin-bottom: 6px; font-weight: 500;">Color Mode</label>
+                <div id="color-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    ${colorModes.map((mode, i) => `
+                        <button class="color-option-btn" data-color="${mode}" style="
+                            padding: 8px 12px;
+                            border: 1px solid ${borderColor};
+                            border-radius: 4px;
+                            background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                            color: ${textColor};
+                            cursor: pointer;
+                            text-align: left;
+                            font-size: 12px;
+                        ">${colorLabels[mode]}</button>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; color: ${labelColor}; margin-bottom: 6px; font-weight: 500;">Reference Image (optional)</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="reference-image-path" placeholder="Path to reference image..." style="
+                        flex: 1;
+                        padding: 8px 12px;
                         border: 1px solid ${borderColor};
                         border-radius: 4px;
-                        background: ${i === 0 ? (isDarkMode ? '#3a3a3a' : '#f0f0f0') : 'transparent'};
+                        background: ${isDarkMode ? '#1e1e1e' : '#fff'};
+                        color: ${textColor};
+                        font-size: 12px;
+                    ">
+                    <button id="browse-reference-btn" style="
+                        padding: 8px 12px;
+                        border: 1px solid ${borderColor};
+                        border-radius: 4px;
+                        background: transparent;
                         color: ${textColor};
                         cursor: pointer;
-                        text-align: left;
-                        font-size: 13px;
-                    ">${styleLabels[style]}</button>
-                `).join('')}
+                        font-size: 12px;
+                    ">Browse...</button>
+                </div>
             </div>
-            <div style="margin-top: 12px;">
+
+            <div style="margin-bottom: 12px;">
                 <label style="display: flex; align-items: center; font-size: 13px; cursor: pointer;">
                     <input type="checkbox" id="include-subdirs" style="margin-right: 8px;">
                     Include subdirectories
                 </label>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid ${borderColor};">
                 <button id="cancel-thumbnail-btn" style="padding: 8px 16px; border: 1px solid ${borderColor}; border-radius: 4px; background: transparent; color: ${textColor}; cursor: pointer;">Cancel</button>
                 <button id="generate-thumbnail-btn" style="padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;">Generate Thumbnail</button>
             </div>
@@ -5159,6 +5307,8 @@ async function generateThumbnailsForFolder(folderPath) {
     document.body.appendChild(styleDialog);
 
     let selectedStyle = 'photo';
+    let selectedColorMode = 'color';
+    let referenceImagePath = '';
 
     // Handle style selection
     styleDialog.querySelectorAll('.style-option-btn').forEach(btn => {
@@ -5169,6 +5319,36 @@ async function generateThumbnailsForFolder(folderPath) {
             btn.style.background = isDarkMode ? '#3a3a3a' : '#f0f0f0';
             selectedStyle = btn.dataset.style;
         });
+    });
+
+    // Handle color mode selection
+    styleDialog.querySelectorAll('.color-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            styleDialog.querySelectorAll('.color-option-btn').forEach(b => {
+                b.style.background = 'transparent';
+            });
+            btn.style.background = isDarkMode ? '#3a3a3a' : '#f0f0f0';
+            selectedColorMode = btn.dataset.color;
+        });
+    });
+
+    // Handle reference image browse
+    const browseBtn = styleDialog.querySelector('#browse-reference-btn');
+    const referenceInput = styleDialog.querySelector('#reference-image-path');
+    browseBtn.addEventListener('click', async () => {
+        try {
+            const result = await window.electronAPI.invoke('select-image-file');
+            if (result && result.filePath) {
+                referenceInput.value = result.filePath;
+                referenceImagePath = result.filePath;
+            }
+        } catch (error) {
+            console.error('[Renderer] Error selecting reference image:', error);
+        }
+    });
+
+    referenceInput.addEventListener('input', (e) => {
+        referenceImagePath = e.target.value;
     });
 
     return new Promise((resolve) => {
@@ -5198,12 +5378,19 @@ async function generateThumbnailsForFolder(folderPath) {
             try {
                 showNotification('Synthesizing folder content into thumbnail... This may take a moment.', 'info');
 
-                const result = await window.electronAPI.invoke('generate-thumbnail', {
+                const options = {
                     input: folderPath,
                     style: selectedStyle,
+                    colorMode: selectedColorMode,
                     recursive: recursive,
                     synthesize: true  // Combine all files into one thumbnail
-                });
+                };
+
+                if (referenceImagePath) {
+                    options.referenceImage = referenceImagePath;
+                }
+
+                const result = await window.electronAPI.invoke('generate-thumbnail', options);
 
                 if (!result.success) {
                     console.error('[Renderer] Folder thumbnail generation failed:', result.error);

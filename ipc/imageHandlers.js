@@ -288,7 +288,50 @@ function register(deps) {
     console.error('[ImageHandlers] Error registering fetch-url-title handler:', error);
   }
 
-  console.log('[ImageHandlers] Successfully registered 4 image handlers: paste-image-from-clipboard, save-image-data, copy-local-image-file, fetch-url-title');
+  // Register handler for selecting an image file via dialog
+  try {
+    const { dialog, BrowserWindow } = require('electron');
+
+    ipcMain.handle('select-image-file', async (event) => {
+      console.log('[ImageHandlers] Opening image file selection dialog');
+
+      try {
+        const currentWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+        const result = await dialog.showOpenDialog(currentWindow, {
+          title: 'Select Reference Image',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
+        });
+
+        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+          return { success: false, cancelled: true };
+        }
+
+        const filePath = result.filePaths[0];
+        console.log('[ImageHandlers] Image file selected:', filePath);
+
+        return {
+          success: true,
+          filePath: filePath
+        };
+      } catch (error) {
+        console.error('[ImageHandlers] Error selecting image file:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    });
+    console.log('[ImageHandlers] Registered select-image-file handler successfully');
+  } catch (error) {
+    console.error('[ImageHandlers] Error registering select-image-file handler:', error);
+  }
+
+  console.log('[ImageHandlers] Successfully registered 5 image handlers: paste-image-from-clipboard, save-image-data, copy-local-image-file, fetch-url-title, select-image-file');
 }
 
 module.exports = { register };

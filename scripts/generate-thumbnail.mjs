@@ -71,6 +71,12 @@ const CONFIG = {
         illustration: 'digital illustration, clean lines, modern style',
         abstract: 'abstract art, geometric shapes, vibrant colors',
         minimal: 'minimalist design, simple shapes, limited color palette'
+    },
+    colorModes: {
+        color: '',  // No modifier - full color
+        bw: 'black and white, monochrome, grayscale',
+        sepia: 'sepia toned, vintage brown tones',
+        duotone: 'duotone, two-color palette'
     }
 };
 
@@ -81,6 +87,8 @@ function parseArgs(args) {
         output: null,
         size: 'medium',
         style: 'illustration',
+        colorMode: 'color',
+        referenceImage: null,
         format: 'png',
         recursive: false,
         synthesize: false,
@@ -97,6 +105,10 @@ function parseArgs(args) {
             options.size = args[++i];
         } else if (arg === '--style') {
             options.style = args[++i];
+        } else if (arg === '--color-mode' || arg === '--color') {
+            options.colorMode = args[++i];
+        } else if (arg === '--reference' || arg === '--ref') {
+            options.referenceImage = args[++i];
         } else if (arg === '--format' || arg === '-f') {
             options.format = args[++i];
         } else if (arg === '--recursive' || arg === '-r') {
@@ -128,6 +140,8 @@ Options:
   --output, -o     Output directory for thumbnails (default: same as input)
   --size, -s       Image size: small (256), medium (512), large (1024)
   --style          Style: photo, illustration, abstract, minimal
+  --color-mode     Color mode: color (default), bw, sepia, duotone
+  --reference      Path to reference image for style/color matching
   --format, -f     Output format: png, jpg, webp
   --recursive, -r  Process folders recursively
   --synthesize     Combine all files into a single synthesized thumbnail
@@ -298,9 +312,70 @@ function synthesizeMultipleFiles(files) {
     };
 }
 
+// Analyze reference image to extract style and color information
+async function analyzeReferenceImage(ai, imagePath) {
+    try {
+        const imageBuffer = fs.readFileSync(imagePath);
+        const base64Image = imageBuffer.toString('base64');
+        const mimeType = imagePath.endsWith('.png') ? 'image/png' :
+                        imagePath.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+
+        const response = await ai.models.generateContent({
+            model: CONFIG.model,
+            contents: [
+                {
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: base64Image
+                    }
+                },
+                {
+                    text: `Analyze this image and describe its visual style in a way that can be used as a style reference for generating a new image. Focus on:
+1. Color palette (specific colors, warm/cool tones, saturation level)
+2. Art style (photorealistic, illustration, watercolor, sketch, etc.)
+3. Mood and atmosphere
+4. Lighting characteristics
+5. Texture and detail level
+
+Provide a concise style description (2-3 sentences) that captures the essence of this image's visual style. Do not describe the subject matter, only the artistic style.`
+                }
+            ]
+        });
+
+        const styleDescription = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        return styleDescription || null;
+    } catch (error) {
+        console.error('Error analyzing reference image:', error.message);
+        return null;
+    }
+}
+
 // Generate image prompt from content analysis
-async function generateImagePrompt(ai, contentSummary, style) {
+async function generateImagePrompt(ai, contentSummary, options) {
+    const style = options.style || 'illustration';
+    const colorMode = options.colorMode || 'color';
+
     const styleDescription = CONFIG.styles[style] || CONFIG.styles.illustration;
+    const colorDescription = CONFIG.colorModes[colorMode] || '';
+
+    // Analyze reference image if provided
+    let referenceStyleDescription = '';
+    if (options.referenceImage && fs.existsSync(options.referenceImage)) {
+        console.log(`   Analyzing reference image: ${options.referenceImage}`);
+        const refStyle = await analyzeReferenceImage(ai, options.referenceImage);
+        if (refStyle) {
+            referenceStyleDescription = `\n\nIMPORTANT: Match the visual style of this reference: ${refStyle}`;
+        }
+    }
+
+    // Build color and style requirements
+    let styleRequirements = `The image should be ${styleDescription}`;
+    if (colorDescription) {
+        styleRequirements += `, rendered in ${colorDescription}`;
+    }
+    if (referenceStyleDescription) {
+        styleRequirements += `.${referenceStyleDescription}`;
+    }
 
     const analysisPrompt = `Analyze this document content and suggest a single compelling visual concept for a thumbnail image.
 
@@ -310,7 +385,7 @@ Key Terms: ${contentSummary.keyTerms.join(', ') || 'None'}
 Excerpt: ${contentSummary.excerpt || 'No content'}
 
 Create a brief (1-2 sentence) image generation prompt that captures the essence of this document.
-The image should be ${styleDescription}.
+${styleRequirements}.
 Focus on abstract or symbolic representation rather than literal text.
 Do not include any text or words in the image.
 
@@ -322,12 +397,18 @@ Respond with ONLY the image prompt, nothing else.`;
             contents: analysisPrompt
         });
 
-        const promptText = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        return promptText || `${styleDescription} representing ${contentSummary.title || 'a document'}`;
+        let promptText = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+        // Ensure color mode is included in the prompt
+        if (promptText && colorDescription && !promptText.toLowerCase().includes('black and white') && colorMode !== 'color') {
+            promptText = `${promptText}, ${colorDescription}`;
+        }
+
+        return promptText || `${styleDescription} representing ${contentSummary.title || 'a document'}${colorDescription ? `, ${colorDescription}` : ''}`;
     } catch (error) {
         console.error('Error generating prompt:', error.message);
         // Fallback to basic prompt
-        return `${styleDescription} representing ${contentSummary.title || 'knowledge and learning'}`;
+        return `${styleDescription} representing ${contentSummary.title || 'knowledge and learning'}${colorDescription ? `, ${colorDescription}` : ''}`;
     }
 }
 
@@ -403,13 +484,16 @@ async function processFile(ai, filePath, options) {
         // Extract summary
         const summary = extractContentSummary(content);
 
-        // Generate image prompt
-        const imagePrompt = await generateImagePrompt(ai, summary, options.style);
+        // Generate image prompt (pass full options for color mode and reference image)
+        const imagePrompt = await generateImagePrompt(ai, summary, options);
         result.prompt = imagePrompt;
 
         if (!options.json) {
             console.log(`\n📄 ${path.basename(filePath)}`);
             console.log(`   Title: ${summary.title || 'Untitled'}`);
+            if (options.colorMode && options.colorMode !== 'color') {
+                console.log(`   Color: ${options.colorMode}`);
+            }
             console.log(`   Prompt: ${imagePrompt.slice(0, 80)}...`);
         }
 
@@ -472,10 +556,13 @@ async function processSynthesized(ai, files, options) {
             console.log(`\n📚 Synthesizing ${files.length} files...`);
             console.log(`   Theme: ${synthesizedSummary.title}`);
             console.log(`   Key topics: ${synthesizedSummary.keyTerms.slice(0, 5).join(', ')}`);
+            if (options.colorMode && options.colorMode !== 'color') {
+                console.log(`   Color: ${options.colorMode}`);
+            }
         }
 
-        // Generate image prompt from synthesized content
-        const imagePrompt = await generateImagePrompt(ai, synthesizedSummary, options.style);
+        // Generate image prompt from synthesized content (pass full options for color mode and reference image)
+        const imagePrompt = await generateImagePrompt(ai, synthesizedSummary, options);
         result.prompt = imagePrompt;
 
         if (!options.json) {
