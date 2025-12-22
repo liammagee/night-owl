@@ -1453,6 +1453,24 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         console.log('[Presentation] Hidden sidebar speaker notes pane on presentation start');
       }
 
+      // Hide content toolbar (high z-index floating elements on right side)
+      document.querySelectorAll('[class*="z-[12"]').forEach(function (el) {
+        el.dataset.hiddenByPresentation = 'true';
+        el.style.display = 'none';
+      });
+      // Also hide by checking fixed elements on right side with buttons
+      document.querySelectorAll('body > div').forEach(function (el) {
+        var style = window.getComputedStyle(el);
+        var right = parseInt(style.right) || 999;
+        var zIndex = parseInt(style.zIndex) || 0;
+        var buttons = el.querySelectorAll('button');
+        if (style.position === 'fixed' && right < 50 && zIndex > 1000 && buttons.length >= 3) {
+          el.dataset.hiddenByPresentation = 'true';
+          el.style.display = 'none';
+        }
+      });
+      console.log('[Presentation] Hidden content toolbar');
+
       // Create speaker notes data if it doesn't exist (after flag reset, this should work properly)
       console.log('[Presentation] DEBUG: Checking speaker notes data creation:', {
         hasSpeakerNotesData: !!window.speakerNotesData,
@@ -1529,6 +1547,13 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     } else {
       document.body.classList.remove('is-presenting');
       console.log('[Presentation] Removed is-presenting class from body');
+
+      // Restore content toolbar and other hidden elements
+      document.querySelectorAll('[data-hidden-by-presentation="true"]').forEach(function (el) {
+        el.style.display = '';
+        delete el.dataset.hiddenByPresentation;
+      });
+      console.log('[Presentation] Restored content toolbar');
     }
   }, [isPresenting]);
 
