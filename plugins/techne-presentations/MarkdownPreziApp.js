@@ -235,6 +235,28 @@ var SpeakerOff = function SpeakerOff() {
     y2: "23"
   }));
 };
+var LoadingSpinner = function LoadingSpinner() {
+  return /*#__PURE__*/React.createElement("svg", {
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    className: "animate-spin",
+    style: {
+      display: 'inline-block'
+    }
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "12",
+    cy: "12",
+    r: "10",
+    strokeOpacity: "0.25"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M12 2a10 10 0 0 1 10 10",
+    strokeLinecap: "round"
+  }));
+};
 var RecordIcon = function RecordIcon() {
   return /*#__PURE__*/React.createElement("svg", {
     width: "16",
@@ -406,6 +428,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     _useState28 = _slicedToArray(_useState27, 2),
     isSpeaking = _useState28[0],
     setIsSpeaking = _useState28[1];
+  var _useState29 = useState(false),
+    _useState30 = _slicedToArray(_useState29, 2),
+    isLoadingTTS = _useState30[0],
+    setIsLoadingTTS = _useState30[1];
+  var _useState31 = useState('sarah'),
+    _useState32 = _slicedToArray(_useState31, 2),
+    selectedVoice = _useState32[0],
+    setSelectedVoice = _useState32[1]; // Default voice
   var ttsStateRef = useRef({
     isAdvancing: false,
     currentSpeakingSlide: -1
@@ -414,18 +444,18 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var MAX_ZOOM = 3;
 
   // Video recording state
-  var _useState29 = useState(false),
-    _useState30 = _slicedToArray(_useState29, 2),
-    isRecording = _useState30[0],
-    setIsRecording = _useState30[1];
-  var _useState31 = useState(false),
-    _useState32 = _slicedToArray(_useState31, 2),
-    isPaused = _useState32[0],
-    setIsPaused = _useState32[1];
-  var _useState33 = useState(0),
+  var _useState33 = useState(false),
     _useState34 = _slicedToArray(_useState33, 2),
-    recordingDuration = _useState34[0],
-    setRecordingDuration = _useState34[1];
+    isRecording = _useState34[0],
+    setIsRecording = _useState34[1];
+  var _useState35 = useState(false),
+    _useState36 = _slicedToArray(_useState35, 2),
+    isPaused = _useState36[0],
+    setIsPaused = _useState36[1];
+  var _useState37 = useState(0),
+    _useState38 = _slicedToArray(_useState37, 2),
+    recordingDuration = _useState38[0],
+    setRecordingDuration = _useState38[1];
   var recordingTimerRef = useRef(null);
 
   // Current slides and slide index state
@@ -1798,7 +1828,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Speak text using TTS with auto-advance
   var speakText = /*#__PURE__*/function () {
     var _ref3 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(text, slideIndex) {
-      var completionHandled, handleCompletion, ttsPromise, pollCount, maxPollCount, _checkCompletion;
+      var completionHandled, handleCompletion, ttsOptions, ttsPromise, pollCount, maxPollCount, _checkCompletion;
       return _regenerator().w(function (_context2) {
         while (1) switch (_context2.n) {
           case 0:
@@ -1827,6 +1857,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               window.ttsService.stop();
             }
             console.log('[PRESENTATION-TTS] Text preview:', text.substring(0, 100) + '...');
+            setIsLoadingTTS(true); // Show loading indicator while fetching audio
             setIsSpeaking(true);
             ttsStateRef.current.currentSpeakingSlide = slideIndex;
 
@@ -1876,18 +1907,24 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                   } else {
                     console.log('[PRESENTATION-TTS] 🏁 Reached end or TTS disabled - slideIndex:', slideIndex, 'slides.length:', slides.length, 'ttsEnabled:', ttsEnabled);
                   }
-                }; // Start the TTS - try with callback first, fallback to polling
-                if (window.ttsService.speak.length > 1) {
-                  // TTS service supports callbacks
-                  console.log('[PRESENTATION-TTS] 📞 Using callback-based TTS');
-                  ttsPromise = window.ttsService.speak(text, handleCompletion);
-                } else {
-                  // No callback support, use polling method
-                  console.log('[PRESENTATION-TTS] 📊 Using polling-based TTS');
-                  ttsPromise = window.ttsService.speak(text);
-                }
-
-                // Only use polling if no callback support
+                }; // Start the TTS with options including voice and callbacks
+                ttsOptions = {
+                  voice: selectedVoice,
+                  onStart: function onStart() {
+                    console.log('[PRESENTATION-TTS] 🎵 Audio started playing - clearing loading state');
+                    setIsLoadingTTS(false);
+                  },
+                  onEnd: handleCompletion,
+                  onError: function onError(err) {
+                    console.error('[PRESENTATION-TTS] ❌ TTS error:', err);
+                    setIsLoadingTTS(false);
+                    handleCompletion();
+                  }
+                };
+                console.log('[PRESENTATION-TTS] 📞 Starting TTS with options:', {
+                  voice: selectedVoice
+                });
+                ttsPromise = window.ttsService.speak(text, ttsOptions); // Only use polling if no callback support
                 if (window.ttsService.speak.length <= 1) {
                   // Poll the TTS service to check when it's done speaking (fallback method)
                   pollCount = 0;
@@ -1911,6 +1948,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                   if (isSpeaking) {
                     console.log('[PRESENTATION-TTS] 🚨 Maximum timeout reached, forcing completion');
                     setIsSpeaking(false);
+                    setIsLoadingTTS(false);
                     ttsStateRef.current.isAdvancing = false;
                     ttsStateRef.current.currentSpeakingSlide = -1;
                   }
@@ -1918,12 +1956,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               } catch (error) {
                 console.error('[PRESENTATION-TTS] ❌ Exception:', error);
                 setIsSpeaking(false);
+                setIsLoadingTTS(false);
                 ttsStateRef.current.isAdvancing = false;
                 ttsStateRef.current.currentSpeakingSlide = -1;
               }
             } else {
               console.error('[PRESENTATION-TTS] TTS service not available!');
               setIsSpeaking(false);
+              setIsLoadingTTS(false);
               ttsStateRef.current.currentSpeakingSlide = -1;
             }
           case 3:
@@ -2157,12 +2197,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       return _regenerator().w(function (_context4) {
         while (1) switch (_context4.p = _context4.n) {
           case 0:
-            console.log('[TOGGLE DEBUG] Starting toggle - speakerNotesWindowVisible:', speakerNotesWindowVisible);
             if (!(!isPresenting || !window.electronAPI)) {
               _context4.n = 1;
               break;
             }
-            console.log('[TOGGLE DEBUG] Cannot toggle - isPresenting:', isPresenting, 'hasElectronAPI:', !!window.electronAPI);
             return _context4.a(2);
           case 1:
             if (!speakerNotesWindowVisible) {
@@ -2187,7 +2225,6 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             if (window.panelVisibilityMonitor) {
               clearInterval(window.panelVisibilityMonitor);
               window.panelVisibilityMonitor = null;
-              console.log('[Panel Monitor] Stopped - switching to inline panel');
             }
 
             // Show the inline panel with current slide notes - recreate if needed
@@ -2198,7 +2235,6 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               if (presentationContent) {
                 presentationContent.insertAdjacentHTML('beforeend', window.speakerNotesPanel_HTML);
                 panel = document.getElementById('speaker-notes-panel');
-                console.log('[React Presentation] Recreated panel from stored HTML');
               }
             }
             if (panel && window.speakerNotesData) {
@@ -2215,7 +2251,6 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 }
               }
             }
-            console.log('[React Presentation] Switched to inline panel');
             _context4.n = 5;
             break;
           case 4:
@@ -2228,29 +2263,24 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             window.REACT_CONTROLLED_TOGGLE = false;
             return _context4.f(5);
           case 6:
-            _context4.n = 14;
+            _context4.n = 13;
             break;
           case 7:
-            // Switch from inline panel to separate window
-            console.log('[TOGGLE DEBUG] Switching from inline panel to separate window');
-            _context4.p = 8;
+            _context4.p = 7;
             // Set controlled toggle flag for this direction too
             window.REACT_CONTROLLED_TOGGLE = true;
-            // COMPLETELY REMOVE the inline panel from DOM (nuclear option)
+            // COMPLETELY REMOVE the inline panel from DOM
             _panel = document.getElementById('speaker-notes-panel');
-            console.log('[TOGGLE DEBUG] Found panel element:', !!_panel);
             if (_panel) {
               // Store panel HTML for later restoration if needed
               window.speakerNotesPanel_HTML = _panel.outerHTML;
               _panel.remove();
-              console.log('[TOGGLE DEBUG] REMOVED inline panel from DOM');
             }
 
             // ALSO hide the sidebar speaker notes pane if it's visible
             sidebarPane = document.getElementById('speaker-notes-pane');
             if (sidebarPane) {
               sidebarPane.style.display = 'none';
-              console.log('[React Presentation] Hidden sidebar speaker notes pane');
             }
 
             // Ensure we have speaker notes data, recreate if needed
@@ -2272,45 +2302,30 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
             // Open the separate window with current slide data
             if (!window.speakerNotesData) {
-              _context4.n = 10;
+              _context4.n = 9;
               break;
             }
-            console.log('[TOGGLE DEBUG] Opening separate window with data:', {
-              totalSlides: window.speakerNotesData.allNotes.length,
-              currentSlide: currentSlide,
-              currentSlideHasNotes: !!window.speakerNotesData.allNotes[currentSlide],
-              allNotesPreview: window.speakerNotesData.allNotes.map(function (note, i) {
-                return {
-                  slideIndex: i,
-                  hasNotes: !!note,
-                  preview: note ? note.substring(0, 30) + '...' : 'empty'
-                };
-              })
-            });
             _currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
             if (_currentSlideNotes) {
               if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {
                 formattedNotes = window.markdownToHtml(_currentSlideNotes);
-                console.log('[TOGGLE DEBUG] Formatted notes with markdownToHtml:', formattedNotes.substring(0, 100));
               } else {
                 formattedNotes = _currentSlideNotes.split('\n').map(function (line) {
                   return line.trim();
                 }).filter(function (line) {
                   return line;
                 }).join('<br>');
-                console.log('[TOGGLE DEBUG] Formatted notes with simple formatting:', formattedNotes.substring(0, 100));
               }
             } else {
               formattedNotes = '<em>No speaker notes for this slide.</em>';
-              console.log('[TOGGLE DEBUG] No notes for current slide, using fallback');
             }
-            _context4.n = 9;
+            _context4.n = 8;
             return window.electronAPI.invoke('open-speaker-notes-window', {
               notes: formattedNotes,
               slideNumber: currentSlide + 1,
               allNotes: window.speakerNotesData.allNotes
             });
-          case 9:
+          case 8:
             setSpeakerNotesWindowVisible(true);
             // Set a flag to prevent useEffect from showing inline panel
             window.explicitlySeparateWindow = true;
@@ -2319,18 +2334,15 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             setTimeout(function () {
               if (window.electronAPI && window.electronAPI.invoke) {
                 window.electronAPI.invoke('focus-main-window');
-                console.log('[TOGGLE DEBUG] Focused main window after opening separate speaker notes window');
               }
             }, 100); // Short delay to ensure window has opened
             // Clear inline panel flag
             window.REACT_READY_FOR_INLINE = false;
-            console.log('[TOGGLE DEBUG] *** SET STATE AND FLAG - speakerNotesWindowVisible: true, explicitlySeparateWindow: true ***');
 
             // Immediately hide any visible panel before starting monitoring
             _panel2 = document.getElementById('speaker-notes-panel');
             if (_panel2) {
               _panel2.style.setProperty('display', 'none', 'important');
-              console.log('[TOGGLE DEBUG] Immediately hidden panel before starting monitor');
             }
 
             // Start monitoring for panel visibility and force hide it when in separate window mode
@@ -2344,40 +2356,37 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                   var computedStyle = window.getComputedStyle(_panel3);
                   if (computedStyle.display !== 'none') {
                     _panel3.style.setProperty('display', 'none', 'important');
-                    console.log('[Panel Monitor] Force hidden panel - separate window is active (was computed:', computedStyle.display, ')');
                   }
                 }
               }
             }, 100); // Check every 100ms
-            _context4.n = 11;
+            _context4.n = 10;
             break;
-          case 10:
+          case 9:
             console.warn('[React Presentation] No speaker notes data available for separate window');
             // Still set the state to indicate separate window should be visible
             setSpeakerNotesWindowVisible(true);
-          case 11:
-            console.log('[React Presentation] Switched to separate window');
-            _context4.n = 13;
+          case 10:
+            _context4.n = 12;
             break;
-          case 12:
-            _context4.p = 12;
+          case 11:
+            _context4.p = 11;
             _t4 = _context4.v;
             console.error('[React Presentation] Failed to switch to separate window:', _t4);
             // Ensure panel stays hidden even if separate window fails
             _panel4 = document.getElementById('speaker-notes-panel');
             if (_panel4) {
               _panel4.style.setProperty('display', 'none', 'important');
-              console.log('[React Presentation] Ensured panel stays hidden after error');
             }
-          case 13:
-            _context4.p = 13;
+          case 12:
+            _context4.p = 12;
             // Ensure flag is cleared even if there was an error
             window.REACT_CONTROLLED_TOGGLE = false;
-            return _context4.f(13);
-          case 14:
+            return _context4.f(12);
+          case 13:
             return _context4.a(2);
         }
-      }, _callee4, null, [[8, 12, 13, 14], [2, 4, 5, 6]]);
+      }, _callee4, null, [[7, 11, 12, 13], [2, 4, 5, 6]]);
     }));
     return function toggleSpeakerNotesWindow() {
       return _ref5.apply(this, arguments);
@@ -2487,27 +2496,35 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       return goToSlide(currentSlide - 1);
     },
     disabled: currentSlide === 0,
-    className: "p-3 bg-cream hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
+    className: "p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg",
+    style: {
+      background: 'var(--techne-off-white, #fafafa)',
+      color: 'var(--techne-black, #0a0a0a)',
+      border: '2px solid var(--techne-black, #0a0a0a)',
+      boxShadow: '3px 3px 0 var(--techne-black, rgba(0,0,0,0.8))'
+    }
   }, /*#__PURE__*/React.createElement(ChevronLeft, null)), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 px-4 py-2 bg-cream rounded-lg shadow-lg border text-gray-900"
+    className: "flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg",
+    style: {
+      background: 'var(--techne-off-white, #fafafa)',
+      color: 'var(--techne-black, #0a0a0a)',
+      border: '2px solid var(--techne-black, #0a0a0a)',
+      boxShadow: '3px 3px 0 var(--techne-black, rgba(0,0,0,0.8))'
+    }
   }, /*#__PURE__*/React.createElement("span", {
-    className: "text-sm"
-  }, currentSlide + 1, " / ", slides.length), slides.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1 ml-2"
-  }, slides.map(function (_, index) {
-    return /*#__PURE__*/React.createElement("button", {
-      key: index,
-      onClick: function onClick() {
-        return goToSlide(index);
-      },
-      className: "w-2 h-2 rounded-full transition-colors ".concat(index === currentSlide ? 'bg-green-500' : 'bg-gray-400')
-    });
-  }))), /*#__PURE__*/React.createElement("button", {
+    className: "text-sm font-medium"
+  }, currentSlide + 1, " / ", slides.length)), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return goToSlide(currentSlide + 1);
     },
     disabled: currentSlide === slides.length - 1,
-    className: "p-3 bg-cream hover:bg-gray-100 disabled:bg-gray-300 disabled:opacity-50 rounded-full transition-colors shadow-lg border text-gray-900"
+    className: "p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg",
+    style: {
+      background: 'var(--techne-accent, #E63946)',
+      color: 'var(--techne-white, #ffffff)',
+      border: '2px solid var(--techne-black, #0a0a0a)',
+      boxShadow: '3px 3px 0 var(--techne-black, rgba(0,0,0,0.8))'
+    }
   }, /*#__PURE__*/React.createElement(ChevronRight, null))), isPresenting && /*#__PURE__*/React.createElement("div", {
     className: "absolute top-4 right-4 z-10 flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
@@ -2532,8 +2549,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     title: "Export as PNG"
   }, "\uD83D\uDCF8"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      console.log('[BUTTON DEBUG] Button clicked - current state speakerNotesWindowVisible:', speakerNotesWindowVisible);
-      toggleSpeakerNotesWindow();
+      return toggleSpeakerNotesWindow();
     },
     className: "p-2 rounded-lg transition-colors shadow-lg border ".concat(speakerNotesWindowVisible ? 'bg-green-600 hover:bg-green-700 text-white border-green-700' : 'bg-cream hover:bg-gray-100 text-gray-900'),
     title: speakerNotesWindowVisible ? "Switch to Bottom Panel" : "Switch to Separate Window"
@@ -2546,9 +2562,37 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     onClick: function onClick() {
       return handleTtsToggle();
     },
-    className: "p-2 rounded-lg transition-colors shadow-lg border ".concat(ttsEnabled ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-700' : 'bg-cream hover:bg-gray-100 text-gray-900'),
-    title: ttsEnabled ? "Disable Text-to-Speech" : "Enable Text-to-Speech"
-  }, ttsEnabled ? /*#__PURE__*/React.createElement(Speaker, null) : /*#__PURE__*/React.createElement(SpeakerOff, null)), !isRecording ? /*#__PURE__*/React.createElement("button", {
+    className: "p-2 rounded-lg transition-colors shadow-lg border ".concat(isLoadingTTS ? 'tts-loading-indicator' : ttsEnabled ? '' : 'bg-cream hover:bg-gray-100 text-gray-900'),
+    style: isLoadingTTS ? {
+      background: 'var(--techne-accent, #E63946)',
+      color: 'white',
+      borderColor: 'var(--techne-black, #0a0a0a)'
+    } : ttsEnabled ? {
+      background: 'var(--techne-accent, #E63946)',
+      color: 'white',
+      borderColor: 'var(--techne-black, #0a0a0a)'
+    } : {},
+    title: isLoadingTTS ? "Loading audio..." : ttsEnabled ? "Disable Text-to-Speech" : "Enable Text-to-Speech",
+    disabled: isLoadingTTS
+  }, isLoadingTTS ? /*#__PURE__*/React.createElement(LoadingSpinner, null) : ttsEnabled ? /*#__PURE__*/React.createElement(Speaker, null) : /*#__PURE__*/React.createElement(SpeakerOff, null)), /*#__PURE__*/React.createElement("select", {
+    value: selectedVoice,
+    onChange: function onChange(e) {
+      return setSelectedVoice(e.target.value);
+    },
+    className: "px-2 py-1 text-sm rounded-lg bg-cream hover:bg-gray-100 text-gray-900 border shadow-lg cursor-pointer",
+    title: "Select TTS Voice",
+    style: {
+      maxWidth: '90px'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "sarah"
+  }, "Sarah"), /*#__PURE__*/React.createElement("option", {
+    value: "john"
+  }, "John"), /*#__PURE__*/React.createElement("option", {
+    value: "emily"
+  }, "Emily"), /*#__PURE__*/React.createElement("option", {
+    value: "michael"
+  }, "Michael")), !isRecording ? /*#__PURE__*/React.createElement("button", {
     onClick: startRecording,
     className: "p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg border border-red-700",
     title: "Start Recording"

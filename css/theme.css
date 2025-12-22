@@ -349,11 +349,11 @@ body.dark-mode #preview-content h6 {
 }
 
 body.dark-mode #preview-content a {
-    color: var(--primary) !important;
+    color: #60a5fa !important; /* Brighter blue for better dark mode contrast */
 }
 
 body.dark-mode #preview-content a:hover {
-    color: var(--primary-hover) !important;
+    color: #93c5fd !important;
 }
 
 body.dark-mode #preview-content code {

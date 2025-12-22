@@ -1,5 +1,33 @@
 /* Preview pane and presentation mode styles */
 
+/* ========== ANIMATIONS ========== */
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* TTS Loading indicator - make it visible */
+.tts-loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--techne-accent, #E63946) !important;
+  color: white !important;
+  border-radius: 8px;
+  padding: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.95); }
+}
+
 /* Preview pane styling - override external CSS */
 #right-pane {
     flex: 1 !important;
@@ -509,100 +537,154 @@ body.is-presenting ol ol ol,
         display: none !important;
     }
 
-    /* Hide speaker notes by default */
-    #speaker-notes-panel {
+    /* Hide ALL speaker notes elements by default on mobile */
+    #speaker-notes-panel,
+    #web-speaker-notes-panel,
+    #speaker-notes-pane,
+    .speaker-notes-panel,
+    [id*="speaker-notes"]:not(.mobile-visible),
+    [class*="speaker-notes"]:not(.mobile-visible):not(.speaker-notes-block):not(.speaker-notes-header):not(.speaker-notes-content) {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        left: -9999px !important;
+    }
+
+    /* Also hide notes toggle buttons */
+    #notes-toggle-btn,
+    #tts-toggle-btn,
+    .notes-toggle {
         display: none !important;
     }
 
-    /* ========== PRESENTATION ROOT - FULLSCREEN ========== */
+    /* ========== HIDE CONTENT TOOLBAR ON MOBILE ========== */
+
+    /* Hide the right-side floating content toolbar (bookmark/glossary/etc) on mobile */
+    /* This toolbar uses createPortal to document.body, so we need high specificity */
+    body [data-content-toolbar],
+    body [data-content-toolbar="true"],
+    body > [data-content-toolbar],
+    html body div[data-content-toolbar] {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
+        position: absolute !important;
+        left: -9999px !important;
+    }
+
+    /* ========== MOBILE CONTROLS BEFORE PRESENTATION MODE ========== */
+    /*
+     * These rules style the controls when viewing the presentation preview.
+     * Since #presentation-root may not exist, we target the classes directly.
+     */
+
+    /* Make the Present button more prominent on mobile - use theme colors */
+    .presentation-present-btn {
+        background: var(--techne-accent, var(--primary, #E63946)) !important;
+        color: var(--techne-white, #ffffff) !important;
+        padding: 12px 20px !important;
+        font-size: 16px !important;
+        min-height: 48px !important;
+        z-index: 15000 !important;
+        border: 2px solid var(--techne-black, #0a0a0a) !important;
+        box-shadow: 3px 3px 0 var(--techne-black, rgba(0,0,0,0.8)) !important;
+    }
+
+    /* Hide layout selector on mobile - keep it simple */
+    .cursor-grab .absolute.top-4.left-4,
+    .h-screen .absolute.top-4.left-4 {
+        display: none !important;
+    }
+
+    /* ========== MOBILE PREVIEW MODE (NOT YET PRESENTING) ========== */
+    /*
+     * NOTE: The presentation component doesn't have id="presentation-root"
+     * so we can't reliably restructure it via CSS. Instead, we:
+     * 1. Leave the Prezi canvas view as-is in preview mode
+     * 2. Just hide the content toolbar and show the Present button
+     * 3. Only take over layout when actually presenting (is-presenting class)
+     */
+
+    /* Hide SVG connection lines on mobile - they're distracting */
+    .cursor-grab svg,
+    .h-screen svg {
+        display: none !important;
+    }
+
+    /* ========== PRESENTATION MODE - FULLSCREEN ========== */
+    /*
+     * Note: #presentation-root may not exist - the React component doesn't always
+     * have this ID. We target .slide elements directly and use body.is-presenting
+     * as the trigger for presentation mode styles.
+     */
 
     body.is-presenting {
         overflow: hidden !important;
         position: fixed !important;
-        width: 100% !important;
-        height: 100% !important;
-        top: 0 !important;
-        left: 0 !important;
-    }
-
-    body.is-presenting #presentation-root {
-        position: fixed !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
         top: 0 !important;
         left: 0 !important;
         right: 0 !important;
         bottom: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        height: 100dvh !important;
-        z-index: 9999 !important;
-        background: #1a1a2e !important;
-        overflow: hidden !important;
+        background: var(--techne-black, #0a0a0a) !important;
     }
 
-    /* ========== HIDE THE PREZI-STYLE CANVAS/ZOOM INFRASTRUCTURE ========== */
-
-    /* Hide the zoom/pan canvas layer on mobile */
-    body.is-presenting #presentation-root > div:first-child > div[style*="transform"] {
-        transform: none !important;
-        transition: none !important;
-    }
-
-    /* Hide connection lines between slides */
-    body.is-presenting #presentation-root svg {
+    /* Hide connection lines/SVG in presentation mode */
+    body.is-presenting svg {
         display: none !important;
     }
 
-    /* Hide all slides except the current one */
-    /* Non-current slides have opacity: 0.1 and z-index: 0 set by React */
-    body.is-presenting #presentation-root .slide {
+    /* Hide ALL slides by default on mobile - JS will show the current one */
+    body.is-presenting .slide {
         display: none !important;
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        opacity: 1 !important;
-        z-index: 10 !important;
-    }
-
-    /* Show only the current/active slide - match React's inline styles */
-    /* Current slide gets: ring-4, ring-green-500, z-index: 999, opacity: 1 */
-    body.is-presenting #presentation-root .slide.ring-green-500,
-    body.is-presenting #presentation-root .slide.ring-purple-500,
-    body.is-presenting #presentation-root .slide[style*="z-index: 999"],
-    body.is-presenting #presentation-root .slide[style*="zIndex: 999"] {
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: flex-start !important;
-        align-items: center !important;
-        opacity: 1 !important;
-    }
-
-    /* Ensure non-current slides stay hidden even if they have some opacity */
-    body.is-presenting #presentation-root .slide[style*="opacity: 0.1"],
-    body.is-presenting #presentation-root .slide[style*="z-index: 0"],
-    body.is-presenting #presentation-root .slide[style*="zIndex: 0"] {
-        display: none !important;
+        visibility: hidden !important;
         opacity: 0 !important;
     }
 
-    /* ========== SINGLE SLIDE STYLING ========== */
-
-    body.is-presenting #presentation-root .slide,
-    body.is-presenting .presentation-slide {
-        width: calc(100vw - 32px) !important;
-        max-width: none !important;
+    /* Show the slide marked as mobile-current by JavaScript */
+    body.is-presenting .slide.mobile-current-slide {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: fixed !important;
+        top: 60px !important;  /* Leave room for exit button */
+        left: 16px !important;
+        right: 16px !important;
+        bottom: 80px !important;  /* Leave room for nav controls */
+        transform: none !important;
+        z-index: 100 !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        align-items: stretch !important;
+        width: auto !important;
+        max-width: calc(100vw - 32px) !important;
         height: auto !important;
         max-height: calc(100vh - 140px) !important;
         max-height: calc(100dvh - 140px) !important;
-        min-height: 200px !important;
-        padding: 20px !important;
-        margin: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding: 16px !important;
         border-radius: 12px !important;
         background: white !important;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
         -webkit-overflow-scrolling: touch !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Ensure slide inner content wraps properly */
+    body.is-presenting .slide.mobile-current-slide > * {
+        max-width: 100% !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
     }
 
     /* Slide content container */
@@ -693,133 +775,27 @@ body.is-presenting ol ol ol,
     /* ========== HIDE DESKTOP CONTROL BARS ========== */
 
     /* Hide the top-left desktop controls (zoom, reset, etc.) */
-    body.is-presenting #presentation-root .absolute.top-4.left-4,
-    body.is-presenting #presentation-root > div:first-child > .absolute.top-4.left-4 {
+    body.is-presenting .absolute.top-4.left-4 {
         display: none !important;
     }
 
     /* Hide layout selector */
-    body.is-presenting #presentation-root select {
+    body.is-presenting select {
         display: none !important;
     }
 
-    /* ========== MOBILE TOP TOOLBAR ========== */
+    /* ========== HIDE REACT'S TOP TOOLBAR - WE USE OUR OWN EXIT BUTTON ========== */
 
-    body.is-presenting #presentation-root .absolute.top-4.right-4,
-    body.is-presenting #presentation-root > div:first-child > .absolute.top-4.right-4 {
-        position: fixed !important;
-        top: 12px !important;
-        right: 12px !important;
-        left: 12px !important;
-        display: flex !important;
-        flex-direction: row !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        z-index: 10000 !important;
-        gap: 8px !important;
-        background: transparent !important;
-    }
-
-    /* Hide all control buttons except specific ones we want */
-    body.is-presenting #presentation-root .absolute.top-4.right-4 button {
+    body.is-presenting .absolute.top-4.right-4 {
         display: none !important;
+        visibility: hidden !important;
     }
 
-    /* Show Exit button (last button) and Notes toggle */
-    body.is-presenting #presentation-root .absolute.top-4.right-4 button:last-child {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        background: rgba(255, 255, 255, 0.95) !important;
-        color: #1a1a2e !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 10px 16px !important;
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        min-width: 80px !important;
-        min-height: 44px !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
-    }
+    /* ========== HIDE REACT'S BOTTOM NAVIGATION - WE USE OUR OWN ========== */
 
-    body.is-presenting #presentation-root .absolute.top-4.right-4 button:last-child:active {
-        transform: scale(0.95) !important;
-        background: rgba(255, 255, 255, 0.85) !important;
-    }
-
-    /* ========== MOBILE BOTTOM NAVIGATION ========== */
-
-    body.is-presenting #presentation-root .fixed.bottom-4,
-    body.is-presenting #presentation-root > div:first-child > .fixed.bottom-4 {
-        position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        transform: none !important;
-        display: flex !important;
-        flex-direction: row !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        padding: 12px 16px !important;
-        background: linear-gradient(to top, rgba(26, 26, 46, 0.95), rgba(26, 26, 46, 0.8)) !important;
-        backdrop-filter: blur(10px) !important;
-        -webkit-backdrop-filter: blur(10px) !important;
-        z-index: 10000 !important;
-        gap: 12px !important;
-        border-radius: 0 !important;
-        box-shadow: none !important;
-    }
-
-    /* Navigation buttons */
-    body.is-presenting #presentation-root .fixed.bottom-4 button {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        background: rgba(255, 255, 255, 0.15) !important;
-        color: white !important;
-        border: 2px solid rgba(255, 255, 255, 0.3) !important;
-        border-radius: 50% !important;
-        width: 56px !important;
-        height: 56px !important;
-        min-width: 56px !important;
-        min-height: 56px !important;
-        padding: 0 !important;
-        flex-shrink: 0 !important;
-        transition: all 0.15s ease !important;
-    }
-
-    body.is-presenting #presentation-root .fixed.bottom-4 button:active {
-        transform: scale(0.92) !important;
-        background: rgba(255, 255, 255, 0.25) !important;
-    }
-
-    body.is-presenting #presentation-root .fixed.bottom-4 button:disabled {
-        opacity: 0.3 !important;
-    }
-
-    /* Navigation arrow icons */
-    body.is-presenting #presentation-root .fixed.bottom-4 button svg {
-        width: 28px !important;
-        height: 28px !important;
-        stroke-width: 2.5 !important;
-    }
-
-    /* Hide slide dots - they don't work well on mobile */
-    body.is-presenting #presentation-root .fixed.bottom-4 .flex.gap-1 {
+    body.is-presenting .fixed.bottom-4 {
         display: none !important;
-    }
-
-    /* Slide counter in center */
-    body.is-presenting #presentation-root .fixed.bottom-4 .flex.items-center.gap-2,
-    body.is-presenting #presentation-root .fixed.bottom-4 > div:not(:first-child):not(:last-child) {
-        flex: 1 !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        color: white !important;
-        font-size: 16px !important;
-        font-weight: 500 !important;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+        visibility: hidden !important;
     }
 
     /* ========== SPEAKER NOTES - BOTTOM SHEET STYLE ========== */
@@ -867,7 +843,7 @@ body.is-presenting ol ol ol,
     }
 
     /* Adjust slide position when notes are visible */
-    body.is-presenting.speaker-notes-visible #presentation-root .slide {
+    body.is-presenting.speaker-notes-visible .slide {
         max-height: calc(100vh - 200px) !important;
         max-height: calc(100dvh - 200px) !important;
     }
@@ -877,7 +853,7 @@ body.is-presenting ol ol ol,
 
 @media screen and (max-width: 480px) {
 
-    body.is-presenting #presentation-root .slide {
+    body.is-presenting .slide.mobile-current-slide {
         width: calc(100vw - 20px) !important;
         max-height: calc(100vh - 130px) !important;
         max-height: calc(100dvh - 130px) !important;
@@ -944,7 +920,7 @@ body.is-presenting ol ol ol,
 
 @media screen and (max-width: 900px) and (orientation: landscape) {
 
-    body.is-presenting #presentation-root .slide {
+    body.is-presenting .slide.mobile-current-slide {
         max-height: calc(100vh - 100px) !important;
         max-height: calc(100dvh - 100px) !important;
         width: calc(100vw - 120px) !important;
@@ -1022,4 +998,159 @@ body.is-presenting ol ol ol,
         opacity: 0;
         visibility: hidden;
     }
+}
+
+/* ============================================================================
+   RESPONSIVE VIEWPORT SCALING
+   ============================================================================
+
+   Better scaling for different viewport widths, especially for the preview canvas
+   and slide content when resizing the browser window.
+
+   ============================================================================ */
+
+/* Container fills available space */
+.cursor-grab,
+.h-screen.w-full {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+}
+
+/* Slide scaling for different viewport widths */
+@media screen and (max-width: 1400px) {
+    /* Scale down slides on narrower viewports */
+    .slide {
+        transform-origin: center center !important;
+    }
+
+    .slide-content {
+        font-size: 0.95em !important;
+    }
+
+    .slide-content h1 {
+        font-size: clamp(1.5rem, 4vw, 2.5rem) !important;
+    }
+
+    .slide-content h2 {
+        font-size: clamp(1.25rem, 3.5vw, 2rem) !important;
+    }
+
+    .slide-content h3 {
+        font-size: clamp(1.1rem, 3vw, 1.5rem) !important;
+    }
+}
+
+@media screen and (max-width: 1200px) {
+    .slide-content {
+        font-size: 0.9em !important;
+    }
+
+    .slide-content p,
+    .slide-content li {
+        font-size: clamp(0.85rem, 2vw, 1rem) !important;
+    }
+
+    /* Adjust image sizes */
+    .slide-content img {
+        max-width: 90% !important;
+        max-height: 50vh !important;
+    }
+}
+
+@media screen and (max-width: 1000px) {
+    .slide-content {
+        font-size: 0.85em !important;
+        padding: 12px !important;
+    }
+
+    .slide-content h1 {
+        font-size: clamp(1.2rem, 3.5vw, 1.8rem) !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .slide-content h2 {
+        font-size: clamp(1.1rem, 3vw, 1.5rem) !important;
+        margin-bottom: 0.4rem !important;
+    }
+
+    .slide-content p,
+    .slide-content li {
+        font-size: clamp(0.8rem, 1.8vw, 0.95rem) !important;
+        line-height: 1.4 !important;
+    }
+
+    .slide-content ul,
+    .slide-content ol {
+        padding-left: 1.2em !important;
+        margin: 0.5rem 0 !important;
+    }
+}
+
+/* Very narrow viewports (preview pane squeezed) */
+@media screen and (max-width: 600px) {
+    .slide-content {
+        font-size: 0.75em !important;
+        padding: 8px !important;
+    }
+
+    .slide-content h1 {
+        font-size: clamp(1rem, 3vw, 1.4rem) !important;
+    }
+
+    .slide-content h2 {
+        font-size: clamp(0.9rem, 2.5vw, 1.2rem) !important;
+    }
+
+    .slide-content p,
+    .slide-content li {
+        font-size: clamp(0.7rem, 1.5vw, 0.85rem) !important;
+    }
+
+    /* Hide less important elements on very narrow screens */
+    .slide-content img {
+        max-height: 35vh !important;
+    }
+}
+
+/* Presentation canvas - ensure it uses all available space */
+#presentation-content,
+.presentation-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+/* Better slide container scaling */
+.slide {
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+/* Ensure slide content doesn't overflow */
+.slide-content {
+    width: 100% !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+    overflow: auto !important;
+}
+
+/* Tables should be responsive */
+.slide-content table,
+.presentation-table {
+    max-width: 100% !important;
+    display: block !important;
+    overflow-x: auto !important;
+    font-size: inherit !important;
+}
+
+/* Code blocks scale properly */
+.slide-content pre {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    font-size: clamp(0.65rem, 1.2vw, 0.85rem) !important;
+}
+
+.slide-content code {
+    font-size: inherit !important;
 }

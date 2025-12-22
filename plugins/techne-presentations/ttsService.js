@@ -116,37 +116,59 @@ class TTSService {
     if (this.availabilityChecked) {
       return;
     }
-    
+
     this.availabilityChecked = true;
-    
+
+    // Check Electron API first
     if (window.electronAPI && window.electronAPI.invoke) {
       try {
         // First test if any IPC is working
         console.log('[TTS] Testing IPC connection...');
         const testResult = await window.electronAPI.invoke('tts-test');
         console.log('[TTS] Test result:', testResult);
-        
+
         // If TTS test works but settings weren't loaded, try to load them now
         if (!this.settings || !this.settings.lemonfox) {
           console.log('[TTS] TTS handlers available, retrying settings load...');
           await this.loadSettings();
         }
-        
+
         const result = await window.electronAPI.invoke('tts-check-availability');
         console.log('[TTS] Availability check result:', result);
         if (result.success && result.available) {
           this.useLemonfox = true;
-          console.log('[TTS] Lemonfox.ai TTS is available and will be used');
+          this.useWebApi = false;
+          console.log('[TTS] Lemonfox.ai TTS is available via Electron and will be used');
+          return;
         } else {
-          console.log('[TTS] Lemonfox.ai not configured, using Web Speech API');
+          console.log('[TTS] Lemonfox.ai not configured in Electron');
         }
       } catch (error) {
-        console.error('[TTS] Error checking Lemonfox availability:', error);
-        console.log('[TTS] Will use Web Speech API as fallback');
+        console.error('[TTS] Error checking Lemonfox availability via Electron:', error);
       }
-    } else {
-      console.log('[TTS] Not in Electron environment, using Web Speech API');
     }
+
+    // Check web API endpoint (for non-Electron environments)
+    try {
+      console.log('[TTS] Checking web API endpoint for TTS...');
+      const response = await fetch('/api/tts/status');
+      if (response.ok) {
+        const status = await response.json();
+        console.log('[TTS] Web API status:', status);
+        if (status.lemonfox && status.lemonfox.available) {
+          this.useLemonfox = true;
+          this.useWebApi = true;
+          console.log('[TTS] Lemonfox.ai TTS is available via web API and will be used');
+          return;
+        }
+      }
+    } catch (error) {
+      console.log('[TTS] Web API not available:', error.message);
+    }
+
+    console.log('[TTS] Using Web Speech API as fallback');
+    this.useLemonfox = false;
+    this.useWebApi = false;
   }
 
   initializeVoices() {
@@ -295,14 +317,20 @@ class TTSService {
     // Create abort controller for this speech operation
     this.currentSpeechController = new AbortController();
     const signal = this.currentSpeechController.signal;
-    
+
     try {
-      // Use Lemonfox if available and in Electron
+      // Use Lemonfox via Electron if available
       if (this.useLemonfox && window.electronAPI && window.electronAPI.invoke) {
-        console.log('[TTS] Using Lemonfox.ai provider');
+        console.log('[TTS] Using Lemonfox.ai provider via Electron');
         return await this.speakWithLemonfoxImmediate(text, options, signal);
       }
-      
+
+      // Use Lemonfox via Web API if available
+      if (this.useLemonfox && this.useWebApi) {
+        console.log('[TTS] Using Lemonfox.ai provider via Web API');
+        return await this.speakWithWebApiLemonfox(text, options, signal);
+      }
+
       // Fall back to Web Speech API
       if (!window.speechSynthesis) {
         console.warn('[TTS] speechSynthesis not available');
@@ -311,7 +339,7 @@ class TTSService {
 
       console.log('[TTS] Using Web Speech API provider');
       return await this.speakWithWebSpeechImmediate(text, options, signal);
-      
+
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log('[TTS] Speech was aborted');
@@ -321,6 +349,106 @@ class TTSService {
     } finally {
       this.currentSpeechController = null;
     }
+  }
+
+  async speakWithWebApiLemonfox(text, options = {}, signal) {
+    console.log('[TTS-WEB-API] === Starting Lemonfox speech via Web API ===');
+    console.log('[TTS-WEB-API] Text preview:', text.substring(0, 50) + '...');
+
+    return new Promise(async (resolve, reject) => {
+      let audioUrl = null;
+      let audio = null;
+
+      try {
+        // Check for abort before starting
+        if (signal && signal.aborted) {
+          console.log('[TTS-WEB-API] Already aborted before starting');
+          return resolve();
+        }
+
+        // Call the web API to generate speech
+        const response = await fetch('/api/tts/speak', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text: text,
+            voice: this.lemonfoxVoice || 'sarah'
+          }),
+          signal: signal
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'TTS API request failed');
+        }
+
+        // Get audio data as blob
+        const audioBlob = await response.blob();
+        audioUrl = URL.createObjectURL(audioBlob);
+
+        // Create audio element
+        audio = new Audio(audioUrl);
+        audio.volume = this.volume || 1.0;
+        this.currentAudio = audio;
+        this.activeAudioElements.add(audio);
+        this.isSpeaking = true;
+
+        // Handle abort
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            console.log('[TTS-WEB-API] Speech aborted by signal');
+            if (audio) {
+              audio.pause();
+              audio.currentTime = 0;
+            }
+            this.isSpeaking = false;
+            if (audioUrl) URL.revokeObjectURL(audioUrl);
+            resolve();
+          });
+        }
+
+        // Set up event handlers
+        audio.onended = () => {
+          console.log('[TTS-WEB-API] Speech completed');
+          this.isSpeaking = false;
+          this.activeAudioElements.delete(audio);
+          if (audioUrl) URL.revokeObjectURL(audioUrl);
+          if (options.onEnd) options.onEnd();
+          resolve();
+        };
+
+        audio.onerror = (e) => {
+          console.error('[TTS-WEB-API] Audio playback error:', e);
+          this.isSpeaking = false;
+          this.activeAudioElements.delete(audio);
+          if (audioUrl) URL.revokeObjectURL(audioUrl);
+          if (options.onError) options.onError(e);
+          reject(e);
+        };
+
+        // Start playback
+        console.log('[TTS-WEB-API] Starting audio playback');
+        await audio.play();
+        if (options.onStart) options.onStart();
+
+      } catch (error) {
+        console.error('[TTS-WEB-API] Error:', error);
+        this.isSpeaking = false;
+        if (audio) this.activeAudioElements.delete(audio);
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+
+        // Fall back to Web Speech API on error
+        console.log('[TTS-WEB-API] Falling back to Web Speech API');
+        try {
+          return await this.speakWithWebSpeechImmediate(text, options, signal);
+        } catch (fallbackError) {
+          if (options.onError) options.onError(error);
+          reject(error);
+        }
+      }
+    });
   }
 
   async speakWithLemonfoxImmediate(text, options = {}, signal) {

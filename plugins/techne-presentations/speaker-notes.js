@@ -304,19 +304,19 @@ async function updateSpeakerNotes(slideIndex, content) {
     }
   }
   
-  // Also update inline panel if it's visible
+  // Always update inline panel (it may be shown later or visible now)
   const notesContainer = document.getElementById('current-slide-notes');
-  if (notesContainer && notesContainer.parentElement.style.display !== 'none') {
+  if (notesContainer) {
     const allNotes = extractSpeakerNotes(content);
     const currentSlideNotes = allNotes[slideIndex] || '';
-    
+
     if (currentSlideNotes) {
       notesContainer.innerHTML = markdownToHtml(currentSlideNotes);
     } else {
       notesContainer.innerHTML = '<em>No speaker notes for this slide.</em>';
     }
-    
-    console.log('[Speaker Notes] Updated inline panel for slide', slideIndex, ':', currentSlideNotes);
+
+    console.log('[Speaker Notes] Updated inline panel for slide', slideIndex);
   }
 }
 

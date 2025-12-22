@@ -1,6 +1,9 @@
 (function () {
     const PLUGIN_ID = 'techne-presentations';
     const BASE = 'plugins/techne-presentations';
+    const VERSION = '20241222b'; // Bump this to bust cache
+
+    const cacheBust = (url) => `${url}?v=${VERSION}`;
 
     const ensureSpeakerNotesPanel = () => {
         if (document.getElementById('speaker-notes-panel')) return;
@@ -30,19 +33,19 @@
             init: async (host) => {
                 ensureSpeakerNotesPanel();
 
-                await host.loadCSS(`${BASE}/preview-presentation.css`, { id: `${PLUGIN_ID}-preview-css` });
-                await host.loadCSS(`${BASE}/speaker-notes.css`, { id: `${PLUGIN_ID}-notes-css` });
+                await host.loadCSS(cacheBust(`${BASE}/preview-presentation.css`), { id: `${PLUGIN_ID}-preview-css` });
+                await host.loadCSS(cacheBust(`${BASE}/speaker-notes.css`), { id: `${PLUGIN_ID}-notes-css` });
 
                 const scripts = [
-                    `${BASE}/ttsService.js`,
-                    `${BASE}/videoRecordingService.js`,
-                    `${BASE}/speaker-notes.js`,
-                    `${BASE}/touch-gestures.js`
+                    cacheBust(`${BASE}/ttsService.js`),
+                    cacheBust(`${BASE}/videoRecordingService.js`),
+                    cacheBust(`${BASE}/speaker-notes.js`),
+                    cacheBust(`${BASE}/touch-gestures.js`)
                 ];
 
                 const hasGlobalReact = Boolean(window.React && window.ReactDOM);
                 if (hasGlobalReact && !window.MarkdownPreziApp) {
-                    scripts.push(`${BASE}/MarkdownPreziApp.js`);
+                    scripts.push(cacheBust(`${BASE}/MarkdownPreziApp.js`));
                 }
 
                 await host.loadScriptsSequential(scripts);

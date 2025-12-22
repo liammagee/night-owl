@@ -3403,7 +3403,28 @@ async function initializeMonacoEditor() {
         
         // Register BibTeX language support
         registerBibTeXLanguage();
-        
+
+        // Define custom themes with better link colors for markdown
+        monaco.editor.defineTheme('markdown-dark', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [
+                { token: 'string.link', foreground: '60a5fa' },  // Bright blue for markdown links
+                { token: 'string.target', foreground: '60a5fa' }  // For {target} style links
+            ],
+            colors: {}
+        });
+
+        monaco.editor.defineTheme('markdown-light', {
+            base: 'vs',
+            inherit: true,
+            rules: [
+                { token: 'string.link', foreground: '2563eb' },  // Blue for markdown links
+                { token: 'string.target', foreground: '2563eb' }  // For {target} style links
+            ],
+            colors: {}
+        });
+
         try {
             // IMPORTANT: Only use specific content if there's a file to restore
             // Otherwise, start with empty content to avoid overwriting user files
@@ -3441,7 +3462,7 @@ async function initializeMonacoEditor() {
             editor = monaco.editor.create(editorContainer, {
                 value: initialContent,
                 language: 'markdown',
-                theme: 'vs', // Will be updated based on settings after creation
+                theme: 'markdown-light', // Will be updated based on settings after creation
                 automaticLayout: true,
                 wordWrap: 'on',
                 // Conditionally disable auto-closing brackets based on citation autocomplete setting
@@ -3968,7 +3989,7 @@ async function initializeMonacoEditor() {
             
             // Explicitly set Monaco theme immediately after creation
             if (monaco.editor && editor) {
-                editor.updateOptions({ theme: isDark ? 'vs-dark' : 'vs' });
+                editor.updateOptions({ theme: isDark ? 'markdown-dark' : 'markdown-light' });
             }
 
             // Helper to strip lingering snippet placeholders like "$0" that Monaco may introduce
@@ -6004,12 +6025,12 @@ async function handleEditableFile(filePath, content, fileTypes) {
                 console.log('[Renderer] Configured editor for BibTeX file with', isDarkTheme ? 'dark' : 'light', 'theme');
             } else if (fileTypes.isHTML) {
                 monaco.editor.setModelLanguage(currentModel, 'html');
-                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'vs-dark' : 'vs' });
+                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'markdown-dark' : 'markdown-light' });
                 console.log('[Renderer] Configured editor for HTML file');
             } else {
                 // Default to markdown for .md files and others
                 monaco.editor.setModelLanguage(currentModel, 'markdown');
-                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'vs-dark' : 'vs' });
+                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'markdown-dark' : 'markdown-light' });
                 console.log('[Renderer] Configured editor for Markdown file');
             }
         }
@@ -10805,7 +10826,7 @@ function applyTheme(themeOrIsDark) {
 
     // Sync Monaco theme
     if (window.monaco && monaco.editor) {
-        monaco.editor.setTheme(appliedDark ? 'vs-dark' : 'vs');
+        monaco.editor.setTheme(appliedDark ? 'markdown-dark' : 'markdown-light');
     }
 
     // Notify listeners (network/library/etc)
