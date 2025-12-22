@@ -1,7 +1,7 @@
 (function () {
     const PLUGIN_ID = 'techne-presentations';
     const BASE = 'plugins/techne-presentations';
-    const VERSION = '20241222b'; // Bump this to bust cache
+    const VERSION = '20251222g'; // Bump this to bust cache
 
     const cacheBust = (url) => `${url}?v=${VERSION}`;
 

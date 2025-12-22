@@ -1956,12 +1956,16 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                   maxPollCount = 120; // 120 * 500ms = 60 seconds max
                   _checkCompletion = function checkCompletion() {
                     pollCount++;
-                    console.log('[PRESENTATION-TTS] 🔍 Polling completion - count:', pollCount, 'isSpeaking:', window.ttsService.isSpeaking);
-                    if (!window.ttsService.isSpeaking || pollCount >= maxPollCount) {
+                    var ttsIsSpeaking = window.ttsService.isSpeaking;
+                    var ttsIsLoading = window.ttsService.isLoading;
+                    console.log('[PRESENTATION-TTS] 🔍 Polling completion - count:', pollCount, 'isSpeaking:', ttsIsSpeaking, 'isLoading:', ttsIsLoading);
+
+                    // Only consider complete if NOT speaking AND NOT loading
+                    if (!ttsIsSpeaking && !ttsIsLoading || pollCount >= maxPollCount) {
                       if (completionHandled) return; // Callback already handled it
                       handleCompletion(); // Use the same completion handler
                     } else {
-                      // Still speaking, check again in 500ms
+                      // Still speaking or loading, check again in 500ms
                       setTimeout(_checkCompletion, 500);
                     }
                   }; // Start checking for completion after a brief delay
