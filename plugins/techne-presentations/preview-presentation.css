@@ -1123,10 +1123,19 @@ body.is-presenting ol ol ol,
     overflow: hidden !important;
 }
 
+/* Force navigation controls to stay inside container */
+#plugin-container .fixed.bottom-4,
+.plugin-view-content .fixed.bottom-4,
+.presentation-root .fixed.bottom-4 {
+    position: absolute !important;
+    bottom: 1rem !important;
+}
+
 /* Better slide container scaling */
 .slide {
     box-sizing: border-box !important;
     overflow: hidden !important;
+    background: var(--slide-bg, #ffffff) !important;
 }
 
 /* Ensure slide content doesn't overflow */
@@ -1135,6 +1144,8 @@ body.is-presenting ol ol ol,
     height: 100% !important;
     box-sizing: border-box !important;
     overflow: auto !important;
+    background: var(--slide-content-bg, #ffffff) !important;
+    padding: 1.5rem !important;
 }
 
 /* Tables should be responsive */

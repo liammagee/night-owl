@@ -855,8 +855,11 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
         console.log('[Touch Gestures] Skipping mobile setup - not a mobile device');
       }
     } else {
-      // Exiting presentation mode
-      cleanupMobilePresentation();
+      // Exiting presentation mode - only clean up if we're on mobile
+      // (desktop never ran setupMobilePresentation, so no cleanup needed)
+      if (isMobile()) {
+        cleanupMobilePresentation();
+      }
       if (window.mobileNotesPanelMonitor) {
         clearInterval(window.mobileNotesPanelMonitor);
         window.mobileNotesPanelMonitor = null;

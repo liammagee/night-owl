@@ -847,8 +847,13 @@ class BabelMazeView {
     }
 
     handleGlobalKeyDown(event) {
+        // Check if maze is active - either through library-content active class (legacy)
+        // or by checking if our container is visible in the DOM
         const libraryActive = document.getElementById('library-content')?.classList?.contains('active');
-        if (!libraryActive) return;
+        const mazeVisible = this.container &&
+            this.container.offsetParent !== null &&
+            this.container.closest('#plugin-container, #library-mode-root, .maze-container');
+        if (!libraryActive && !mazeVisible) return;
         if (!this.container || !this.graphReady) return;
 
         const target = event.target;

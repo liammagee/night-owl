@@ -56,6 +56,31 @@
                         host.warn('setupSpeakerNotesResize failed:', error);
                     }
                 }
+
+                // Emit mode:available if MarkdownPreziApp is loaded
+                if (window.MarkdownPreziApp) {
+                    host.log(`[${PLUGIN_ID}] MarkdownPreziApp loaded, registering mode`);
+                    host.emit('mode:available', {
+                        id: 'presentations',
+                        title: 'Presentations',
+                        icon: '🎭',
+                        mount: async (container, options = {}) => {
+                            const root = window.ReactDOM.createRoot(container);
+                            const content = options.content || '# Slide 1\n\nContent here\n\n---\n\n# Slide 2\n\nMore content';
+                            root.render(window.React.createElement(window.MarkdownPreziApp, {
+                                markdown: content,
+                                onClose: options.onClose || (() => {})
+                            }));
+                            return { root, container };
+                        },
+                        unmount: (view) => {
+                            if (view && view.root) {
+                                view.root.unmount();
+                            }
+                        }
+                    });
+                }
+
                 host.emit('presentations:ready', { id: PLUGIN_ID });
             }
         });

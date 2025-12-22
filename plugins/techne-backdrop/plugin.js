@@ -24,6 +24,12 @@
             }
             scripts.push(resolve('techne-backdrop.js'));
             await host.loadScriptsSequential(scripts);
+        },
+        destroy() {
+            // Clean up the backdrop when plugin is disabled
+            if (window.TechneBackdrop?.destroy) {
+                window.TechneBackdrop.destroy();
+            }
         }
     });
 })();

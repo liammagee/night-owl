@@ -1347,9 +1347,16 @@ Be concise, friendly, and practical. Focus on the current feature. Use markdown 
         },
 
         initWebTutor(host) {
+            // Detect if this is the test app or a real app
+            const isTestApp = window.TechnePlugins?.getAppId?.()?.includes('test') ||
+                              document.title.includes('Test App') ||
+                              document.querySelector('.plugin-list') !== null;
+
+            const appName = isTestApp ? 'Techne Plugin Test App' : 'Machine Spirits';
+
             const adapter = {
                 async sendAIMessage(question, context) {
-                    const systemPrompt = `You are an AI tutor helping a user learn Machine Spirits.
+                    const systemPrompt = `You are an AI tutor helping a user learn ${appName}.
 Context: Step ${context.stepIndex + 1}/${context.totalSteps} - "${context.currentStep?.title}"
 Mode: ${context.tourMode} tour, ${context.isPaused ? 'paused' : 'active'}
 
@@ -1369,6 +1376,10 @@ Be concise and supportive. Guide toward deeper learning.`;
                         throw new Error('API request failed');
                     } catch (error) {
                         console.error('[AI Tutor] Web AI error:', error);
+                        // For test app, return a helpful fallback instead of throwing
+                        if (isTestApp) {
+                            return 'AI assistance is currently unavailable in the test environment. This would normally provide contextual help about the current step.';
+                        }
                         throw error;
                     }
                 },
@@ -1385,10 +1396,10 @@ Be concise and supportive. Guide toward deeper learning.`;
             };
 
             TutorCore.init({
-                appName: 'Machine Spirits',
+                appName,
                 appType: 'web',
                 adapter,
-                tourSteps: this.getMachineSpiritsTourSteps()
+                tourSteps: isTestApp ? this.getTestAppTourSteps() : this.getMachineSpiritsTourSteps()
             });
         },
 
@@ -1775,6 +1786,68 @@ Be concise and supportive. Guide toward deeper learning.`;
                     position: 'right',
                     spotlight: false,
                     aiPrompts: ['What should I try first?', 'Any writing tips?']
+                }
+            ];
+        },
+
+        // ====================================================================
+        // TEST APP TOUR STEPS
+        // ====================================================================
+        getTestAppTourSteps() {
+            return [
+                {
+                    id: 'welcome',
+                    target: 'header',
+                    title: 'Welcome to the Plugin Test App',
+                    content: 'This application lets you test all Techne plugins in isolation. Each plugin can be enabled, disabled, and tested.',
+                    position: 'bottom',
+                    spotlight: false,
+                    aiPrompts: ['What plugins are available?', 'How do I test a plugin?']
+                },
+                {
+                    id: 'plugin-list',
+                    target: '.plugin-list',
+                    title: 'Plugin Selection',
+                    content: 'Choose a plugin from this list. Icons indicate the type: 🖼️ views, 🎨 backgrounds, 🔧 utilities, 📋 overlays.',
+                    position: 'right',
+                    spotlight: true,
+                    aiPrompts: ['What types of plugins are there?', 'Which plugins have visual views?']
+                },
+                {
+                    id: 'plugin-view',
+                    target: '.plugin-view',
+                    title: 'Plugin View Area',
+                    content: 'When you mount a plugin with a visual interface, it renders here. Not all plugins have visual output.',
+                    position: 'top',
+                    spotlight: true,
+                    aiPrompts: ['Why do some plugins show empty?', 'How do I interact with the view?']
+                },
+                {
+                    id: 'actions',
+                    target: '.actions',
+                    title: 'Plugin Controls',
+                    content: 'Enable/disable plugins, mount their views, and unmount them using these controls.',
+                    position: 'bottom',
+                    spotlight: true,
+                    aiPrompts: ['What happens when I disable a plugin?', 'Can I have multiple plugins active?']
+                },
+                {
+                    id: 'logs',
+                    target: '.logs',
+                    title: 'Activity Logs',
+                    content: 'Plugin events and errors appear here. Useful for debugging and understanding plugin lifecycle.',
+                    position: 'top',
+                    spotlight: true,
+                    aiPrompts: ['What events should I expect?', 'How do I debug errors?']
+                },
+                {
+                    id: 'complete',
+                    target: 'header',
+                    title: 'Ready to Test!',
+                    content: 'Select a plugin, enable it, and mount its view to begin testing. The ? button is always here for guidance.',
+                    position: 'bottom',
+                    spotlight: false,
+                    aiPrompts: ['Which plugin should I test first?', 'What features are most important?']
                 }
             ];
         },

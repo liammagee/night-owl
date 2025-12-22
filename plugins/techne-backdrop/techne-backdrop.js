@@ -1,13 +1,20 @@
 /* Techne Backdrop Layers
    - Mounts shapes + rotating shapes + fauna overlay into #techne-background
    - Uses FaunaOverlay when available
+   - Exposes window.TechneBackdrop for cleanup/destroy
 */
 
 (function () {
+    // Cleanup any previous instance
+    if (window.TechneBackdrop?.destroy) {
+        window.TechneBackdrop.destroy();
+    }
+
     const backdropRoot = document.getElementById('techne-background') || document.body;
     if (!backdropRoot) return;
 
-    if (backdropRoot.dataset.techneBackdropReady === 'true') return;
+    // Clear any existing ready flag so we can reinitialize
+    delete backdropRoot.dataset.techneBackdropReady;
     backdropRoot.dataset.techneBackdropReady = 'true';
 
     const html = window.TECHNE_BACKDROP_LAYERS_HTML;
@@ -18,9 +25,18 @@
         document.getElementById('fauna-overlay')
     );
 
+    // Track elements we create for cleanup
+    const createdElements = [];
+
     if (!hasExistingLayers) {
         if (typeof html === 'string' && html.trim()) {
-            backdropRoot.insertAdjacentHTML('beforeend', html);
+            // Create a temporary container to parse the HTML
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            while (temp.firstChild) {
+                createdElements.push(temp.firstChild);
+                backdropRoot.appendChild(temp.firstChild);
+            }
         } else {
             console.warn('[techne-backdrop] Missing markup: window.TECHNE_BACKDROP_LAYERS_HTML');
         }
@@ -39,6 +55,8 @@
 
     let faunaInstance = null;
     let faunaRunning = false;
+    let animationFrameId = null;
+    let isDestroyed = false;
 
     const getAccent = () =>
         document.body.classList.contains('techne-accent-orange') || document.body.classList.contains('theme-orange')
@@ -46,7 +64,7 @@
             : 'red';
 
     const startFauna = () => {
-        if (faunaRunning) return;
+        if (faunaRunning || isDestroyed) return;
         if (!faunaOverlayEl || !faunaCanvas) return;
         if (prefersReducedMotion) return;
 
@@ -86,6 +104,7 @@
     };
 
     const syncVisibility = () => {
+        if (isDestroyed) return;
         const techneOn =
             document.body.classList.contains('techne-theme') ||
             document.body.classList.contains('theme-dark') ||
@@ -117,20 +136,20 @@
     let mouseX = 0.5;
     let mouseY = 0.5;
 
-    window.addEventListener(
-        'pointermove',
-        (event) => {
-            if (!event) return;
-            const w = window.innerWidth || 1;
-            const h = window.innerHeight || 1;
-            mouseX = Math.max(0, Math.min(1, (event.clientX || 0) / w));
-            mouseY = Math.max(0, Math.min(1, (event.clientY || 0) / h));
-        },
-        { passive: true }
-    );
+    const onPointerMove = (event) => {
+        if (!event || isDestroyed) return;
+        const w = window.innerWidth || 1;
+        const h = window.innerHeight || 1;
+        mouseX = Math.max(0, Math.min(1, (event.clientX || 0) / w));
+        mouseY = Math.max(0, Math.min(1, (event.clientY || 0) / h));
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
 
     let lastTime = performance.now();
     const animate = (now) => {
+        if (isDestroyed) return;
+
         const techneOn =
             document.body.classList.contains('techne-theme') ||
             document.body.classList.contains('theme-dark') ||
@@ -165,10 +184,62 @@
             }
         }
 
-        requestAnimationFrame(animate);
+        animationFrameId = requestAnimationFrame(animate);
     };
 
-    requestAnimationFrame(animate);
+    animationFrameId = requestAnimationFrame(animate);
 
     syncVisibility();
+
+    // Expose destroy function for cleanup
+    window.TechneBackdrop = {
+        destroy: () => {
+            if (isDestroyed) return;
+            isDestroyed = true;
+
+            // Stop animation loop
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            // Stop fauna overlay
+            stopFauna();
+            if (faunaInstance) {
+                faunaInstance = null;
+            }
+
+            // Disconnect observer
+            bodyObserver.disconnect();
+
+            // Remove event listener
+            window.removeEventListener('pointermove', onPointerMove);
+
+            // Remove created DOM elements
+            for (const el of createdElements) {
+                el.remove?.();
+            }
+
+            // Also remove any layers that might have been created before tracking
+            const layersToRemove = [
+                document.getElementById('shapesLayer'),
+                document.querySelector('.shapes-layer'),
+                document.querySelector('.rotating-shapes-layer'),
+                document.getElementById('fauna-overlay')
+            ].filter(Boolean);
+
+            for (const el of layersToRemove) {
+                el.remove?.();
+            }
+
+            // Clear ready flag
+            if (backdropRoot) {
+                delete backdropRoot.dataset.techneBackdropReady;
+            }
+
+            // Clear global reference
+            delete window.TechneBackdrop;
+        },
+        isActive: () => !isDestroyed
+    };
 })();

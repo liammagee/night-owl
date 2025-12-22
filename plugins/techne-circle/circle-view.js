@@ -292,7 +292,7 @@ class CircleView {
             .attr('text-anchor', 'middle')
             .attr('font-size', '12px')
             .attr('font-weight', 'bold')
-            .attr('fill', 'white')
+            .attr('class', 'light-text')
             .style('pointer-events', 'none')
             .text('Understanding');
     }
@@ -547,7 +547,7 @@ class CircleView {
             .attr('y', 55)
             .attr('text-anchor', 'middle')
             .attr('font-size', '12px')
-            .attr('fill', 'white')
+            .attr('class', 'light-text')
             .style('pointer-events', 'none')
             .text('←');
 
@@ -681,7 +681,7 @@ class CircleView {
             .attr('text-anchor', 'middle')
             .attr('font-size', '16px')
             .attr('font-weight', 'bold')
-            .attr('fill', 'white')
+            .attr('class', 'light-text')
             .style('pointer-events', 'none')
             .text('−');
 
@@ -702,7 +702,7 @@ class CircleView {
             .attr('text-anchor', 'middle')
             .attr('font-size', '16px')
             .attr('font-weight', 'bold')
-            .attr('fill', 'white')
+            .attr('class', 'light-text')
             .style('pointer-events', 'none')
             .text('+');
 

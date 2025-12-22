@@ -3,10 +3,22 @@
 #circle-container {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow: hidden;
+    background: #fafafa;
+    color: #333;
 }
 
 #circle-container svg {
     display: block;
+}
+
+/* Ensure SVG text elements have proper contrast */
+#circle-container svg text {
+    fill: #333;
+}
+
+/* Override for white text on colored backgrounds (buttons/controls) */
+#circle-container svg text.light-text {
+    fill: white;
 }
 
 /* Control panel positioning */
