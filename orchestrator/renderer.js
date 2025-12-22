@@ -3409,10 +3409,12 @@ async function initializeMonacoEditor() {
             base: 'vs-dark',
             inherit: true,
             rules: [
-                { token: 'string.link', foreground: '60a5fa' },  // Bright blue for markdown links
-                { token: 'string.target', foreground: '60a5fa' }  // For {target} style links
+                { token: 'string.link', foreground: '93c5fd' },  // Light blue for link brackets/URLs
+                { token: 'string.target', foreground: '93c5fd' }  // For {target} style links
             ],
-            colors: {}
+            colors: {
+                'editorLink.activeForeground': '#93c5fd'
+            }
         });
 
         monaco.editor.defineTheme('markdown-light', {
@@ -3422,7 +3424,9 @@ async function initializeMonacoEditor() {
                 { token: 'string.link', foreground: '2563eb' },  // Blue for markdown links
                 { token: 'string.target', foreground: '2563eb' }  // For {target} style links
             ],
-            colors: {}
+            colors: {
+                'editorLink.activeForeground': '#2563eb'
+            }
         });
 
         try {

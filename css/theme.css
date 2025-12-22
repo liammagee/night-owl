@@ -274,6 +274,25 @@ body.dark-mode #current-file-name {
 }
 
 /* =====================================================
+   MONACO EDITOR LINK COLORS FOR DARK MODE
+   ===================================================== */
+
+/* Monaco detected/clickable links */
+body.dark-mode .monaco-editor .detected-link,
+body.dark-mode .monaco-editor .detected-link a,
+body.dark-mode .monaco-editor a,
+body.dark-mode .monaco-editor .link,
+body.dark-mode .monaco-editor .link-text {
+    color: #93c5fd !important;
+}
+
+/* Target underlined text in Monaco (markdown link text) */
+body.dark-mode .monaco-editor span[style*="text-decoration: underline"],
+body.dark-mode .monaco-editor .mtku {
+    color: #93c5fd !important;
+}
+
+/* =====================================================
    EDITOR TOOLBAR DARK MODE
    ===================================================== */
 
