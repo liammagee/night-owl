@@ -512,8 +512,10 @@ body.is-presenting ol ol ol,
 
    ============================================================================ */
 
-/* Mobile breakpoint - tablets and phones */
-@media screen and (max-width: 1000px) {
+/* Mobile breakpoint - tablets and phones
+   IMPORTANT: Requires BOTH small screen AND coarse pointer (touch device)
+   to avoid breaking desktop Electron when window is narrower than 1000px */
+@media screen and (max-width: 1000px) and (pointer: coarse) {
 
     /* ========== HIDE EVERYTHING EXCEPT THE PRESENTATION ========== */
 
@@ -851,7 +853,7 @@ body.is-presenting ol ol ol,
 
 /* ========== SMALL PHONE SPECIFIC (< 480px) ========== */
 
-@media screen and (max-width: 480px) {
+@media screen and (max-width: 480px) and (pointer: coarse) {
 
     body.is-presenting .slide.mobile-current-slide {
         width: calc(100vw - 20px) !important;
@@ -918,7 +920,7 @@ body.is-presenting ol ol ol,
 
 /* ========== LANDSCAPE MOBILE ========== */
 
-@media screen and (max-width: 900px) and (orientation: landscape) {
+@media screen and (max-width: 900px) and (orientation: landscape) and (pointer: coarse) {
 
     body.is-presenting .slide.mobile-current-slide {
         max-height: calc(100vh - 100px) !important;

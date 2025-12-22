@@ -847,8 +847,13 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
 
     if (currentlyPresenting) {
       // Entering presentation mode on mobile - hide speaker notes
-      console.log('[Touch Gestures] Calling setupMobilePresentation...');
-      setupMobilePresentation();
+      // Only run mobile-specific setup on actual mobile devices
+      if (isMobile()) {
+        console.log('[Touch Gestures] Calling setupMobilePresentation...');
+        setupMobilePresentation();
+      } else {
+        console.log('[Touch Gestures] Skipping mobile setup - not a mobile device');
+      }
     } else {
       // Exiting presentation mode
       cleanupMobilePresentation();
