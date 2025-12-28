@@ -1088,11 +1088,20 @@ async function updatePreviewAndStructure(markdownContent) {
     // Check if this should be rendered as a Kanban board (async)
     const currentFilePath = window.currentFilePath;
     // Check for Kanban rendering
-    
+
     if (currentFilePath) {
-        // Handle Kanban check asynchronously
-        window.electronAPI.invoke('get-settings')
-            .then(async settings => {
+        // Use cached settings to avoid IPC overhead on every preview update
+        // Settings are cached in window.appSettings and refreshed when changed
+        const settings = window.appSettings || {};
+
+        // Only fetch settings if not cached (first load)
+        const settingsPromise = window.appSettings
+            ? Promise.resolve(settings)
+            : window.electronAPI.invoke('get-settings');
+
+        settingsPromise.then(async settings => {
+            // Cache for future use
+            if (!window.appSettings) window.appSettings = settings;
                 if (shouldRenderAsKanban(currentFilePath, settings)) {
                     // Title remains consistent - don't change document title for Kanban files
                     
@@ -1124,8 +1133,6 @@ async function updatePreviewAndStructure(markdownContent) {
                         setTimeout(() => {
                             forceKanbanHorizontalScroll();
                         }, 100);
-                    } else {
-                        console.log('[renderer.js] Kanban board unchanged, skipping render-dependent operations');
                     }
                     
                     // Update status bar with Kanban stats
@@ -1194,8 +1201,6 @@ function restoreNormalLayout() {
             previewPane.style.removeProperty('overflow-x');
             previewPane.style.removeProperty('overflow-y');
         }, 10);
-        
-        console.log('[renderer.js] Restored normal layout and removed Kanban constraints');
     }
     
     return { editorPane, previewPane };
@@ -3273,13 +3278,18 @@ function registerCitationAutocomplete() {
 let availableFiles = [];
 
 // Function to update the available files list
-async function updateAvailableFiles() {
-    if (!window.electronAPI) {
+async function updateAvailableFiles(fileTreeOverride = null) {
+    if (!fileTreeOverride && !window.fileTreeData && !window.electronAPI) {
         return;
     }
     
     try {
-        const fileTree = await window.electronAPI.invoke('request-file-tree');
+        const fileTree = fileTreeOverride || window.fileTreeData || await window.electronAPI.invoke('request-file-tree');
+        if (!fileTree) {
+            return;
+        }
+
+        window.fileTreeData = fileTree;
         availableFiles = [];
         
         // Recursively extract all files from the tree
@@ -3495,8 +3505,19 @@ async function initializeMonacoEditor() {
             
             // Make editor available globally for formatting functions
             window.editor = editor;
-            console.log('[renderer.js] Monaco editor instance created and assigned to window.editor.');
-            
+
+            // If we loaded a restored file directly into Monaco, update the navigation/filename display
+            if (window.restoredFileContent && window.currentFilePath) {
+                const fileName = window.currentFilePath.split('/').pop();
+                if (typeof addToNavigationHistory === 'function') {
+                    addToNavigationHistory(window.currentFilePath, fileName);
+                } else if (typeof window.updateCurrentFileName === 'function') {
+                    window.updateCurrentFileName(fileName);
+                }
+                // Clear the restored content since we've used it
+                window.restoredFileContent = null;
+            }
+
             // Setup editor context menu for text extraction
             setupEditorContextMenu();
             
@@ -3552,89 +3573,32 @@ async function initializeMonacoEditor() {
                 }
 
                 const currentContent = editor.getValue();
-                
-                // Process content changes for AI writing companion
-                console.log('[Editor] 📝 Content change detected, current length:', currentContent.length, 'previous length:', previousContent.length);
-                
-                // CRITICAL: Only process for AI companion if this is NOT a programmatic change
+
+                // Process content changes for AI writing companion (silent - no logging)
                 if (window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function' && !suppressAutoSave) {
-                    console.log('[Editor] 🤖 AI Companion available, processing changes...');
-                    
-                    // Extract changes from Monaco's event if available
                     if (event && event.changes && event.changes.length > 0) {
-                        console.log('[Editor] 🔍 Processing Monaco change events, count:', event.changes.length);
-                        
-                        // Process each change in the event
                         for (const change of event.changes) {
-                            console.log('[Editor] 📋 Change details:', {
-                                text: change.text,
-                                textLength: change.text?.length,
-                                range: change.range
-                            });
-                            
                             if (change.text && change.text.length > 0) {
-                                console.log('[Editor] ✅ Sending to AI Companion:', JSON.stringify(change.text));
-                                // This is new text being added
                                 window.aiCompanion.processNewWriting(change.text);
-                            } else {
-                                console.log('[Editor] ⚠️ Change event has no text or empty text');
                             }
                         }
-                    } else {
-                        console.log('[Editor] 🔄 Using fallback change detection...');
-                        console.log('[Editor] 🔄 Event details:', { 
-                            hasEvent: !!event, 
-                            hasChanges: !!(event && event.changes), 
-                            changesLength: event && event.changes ? event.changes.length : 'N/A' 
-                        });
-                        
-                        // Fallback: detect simple additions
-                        if (currentContent.length > previousContent.length) {
-                            const newText = currentContent.slice(previousContent.length);
-                            console.log('[Editor] 📝 Fallback detected new text:', JSON.stringify(newText));
-                            
-                            if (newText.length > 0) {
-                                console.log('[Editor] ✅ Sending fallback text to AI Companion');
-                                window.aiCompanion.processNewWriting(newText);
-                            }
-                        } else if (currentContent.length < previousContent.length) {
-                            console.log('[Editor] ✂️ Text was deleted (length decreased)');
-                        } else {
-                            console.log('[Editor] ❌ No change in content length');
+                    } else if (currentContent.length > previousContent.length) {
+                        const newText = currentContent.slice(previousContent.length);
+                        if (newText.length > 0) {
+                            window.aiCompanion.processNewWriting(newText);
                         }
                     }
-                } else {
-                    console.log('[Editor] ❌ AI Companion not available:', {
-                        hasWindow: !!window.aiCompanion,
-                        hasMethod: !!(window.aiCompanion && typeof window.aiCompanion.processNewWriting === 'function')
-                    });
                 }
-                
+
                 // Update for next change detection
                 previousContent = currentContent;
-
-                const autosaveStatus = {
-                    hasWindowScheduleAutoSave: !!window.scheduleAutoSave,
-                    hasLocalScheduleAutoSave: typeof scheduleAutoSave !== 'undefined',
-                    currentContentLength: currentContent.length,
-                    previousContentLength: previousContent.length,
-                    hasUnsavedChanges: window.hasUnsavedChanges,
-                    currentFilePath: window.currentFilePath
-                };
-
-                console.log('[Monaco onDidChangeModelContent] 📝 Content changed, updating preview and scheduling autosave:', autosaveStatus);
-                debugLog('info', '📝 Monaco content changed - scheduling autosave', autosaveStatus);
 
                 // Use debounced preview update to prevent sluggishness during rapid typing
                 debouncedUpdatePreviewAndStructure(currentContent);
                 if (window.scheduleAutoSave) {
-                    console.log('[Monaco onDidChangeModelContent] ✅ Calling window.scheduleAutoSave()');
-                    debugLog('info', '✅ Calling window.scheduleAutoSave() from Monaco content change');
-                    window.scheduleAutoSave(); // Schedule auto-save when content changes
+                    window.scheduleAutoSave();
                 } else {
-                    console.log('[Monaco onDidChangeModelContent] ⚠️ Fallback to local scheduleAutoSave()');
-                    debugLog('warn', '⚠️ Using fallback local scheduleAutoSave() - window.scheduleAutoSave not available');
-                    scheduleAutoSave(); // Fallback to local function
+                    scheduleAutoSave();
                 }
             });
             
@@ -5605,58 +5569,29 @@ async function generateThumbnailForMultipleFiles(filePaths) {
 }
 
 async function openFileInEditor(filePath, content, options = {}) {
-    console.log('[openFileInEditor] Opening file:', filePath);
-    if (options.isInternalLinkPreview) {
-        console.log('[openFileInEditor] Internal link preview mode');
-    }
-
     // Trigger autosave before switching files (unless this is an internal link preview)
-    console.log('[openFileInEditor] Autosave check:', {
-        isInternalLinkPreview: options.isInternalLinkPreview,
-        hasPerformAutoSave: !!window.performAutoSave,
-        hasCurrentFilePath: !!window.currentFilePath,
-        hasUnsavedChanges: window.hasUnsavedChanges,
-        currentFilePath: window.currentFilePath,
-        newFilePath: filePath
-    });
-
     if (!options.isInternalLinkPreview && window.performAutoSave && window.currentFilePath && window.hasUnsavedChanges) {
-        console.log('[openFileInEditor] ✅ Triggering autosave before opening new file');
         try {
             await window.performAutoSave();
-            console.log('[openFileInEditor] ✅ Autosave completed successfully');
         } catch (error) {
-            console.warn('[openFileInEditor] ❌ Autosave failed during file switch:', error);
-            // Continue with file opening even if autosave fails
+            console.warn('[openFileInEditor] Autosave failed during file switch:', error);
         }
-    } else {
-        console.log('[openFileInEditor] ℹ️ Skipping autosave - conditions not met');
     }
     
     // Close image viewer if it's currently open
     const imageViewer = document.getElementById('image-viewer-container');
     const wasImageViewerOpen = !!imageViewer;
     if (imageViewer) {
-        console.log('[openFileInEditor] Closing image viewer to show file content');
         imageViewer.remove();
-        // Show the panes container and mode switcher again
         const panesContainer = document.getElementById('panes-container');
         const modeSwitcher = document.getElementById('mode-switcher');
-        if (panesContainer) {
-            panesContainer.style.display = '';
-        }
-        if (modeSwitcher) {
-            modeSwitcher.style.display = '';
-        }
+        if (panesContainer) panesContainer.style.display = '';
+        if (modeSwitcher) modeSwitcher.style.display = '';
     }
 
-    // Force Monaco editor to recalculate its layout (especially important after image viewer was open)
+    // Force Monaco editor to recalculate its layout
     if (wasImageViewerOpen && typeof editor !== 'undefined' && editor && typeof editor.layout === 'function') {
-        // Use setTimeout to ensure DOM has fully updated before layout recalculation
-        setTimeout(() => {
-            console.log('[openFileInEditor] Forcing editor layout after image viewer close');
-            editor.layout();
-        }, 0);
+        setTimeout(() => editor.layout(), 0);
     }
     
     // Detect file type
@@ -5670,13 +5605,10 @@ async function openFileInEditor(filePath, content, options = {}) {
         exitPDFOnlyMode();
     }
     
-    // CRITICAL FIX: Only set current file path if this is NOT an internal link preview
+    // Only set current file path if this is NOT an internal link preview
     if (!options.isInternalLinkPreview) {
-        console.log('[FILEPATH TRACE] Setting currentFilePath FROM:', window.currentFilePath, 'TO:', filePath);
         window.currentFilePath = filePath;
-        window.editorFileName = filePath; // Also set editorFileName for AI Chat context
-    } else {
-        console.log('[FILEPATH TRACE] SKIPPING currentFilePath change (internal link preview)');
+        window.editorFileName = filePath;
     }
     
     // Only update UI state if this is NOT an internal link preview
@@ -5696,10 +5628,8 @@ async function openFileInEditor(filePath, content, options = {}) {
     
     // Store current file directory for image path resolution (only for real file opens)
     if (!options.isInternalLinkPreview) {
-        // Extract directory from file path
         const lastSlash = filePath.lastIndexOf('/');
         window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
-        console.log('[Renderer] Set current file directory:', window.currentFileDirectory);
     }
     
     // Handle PDF files
@@ -5935,23 +5865,14 @@ async function handleHTMLFile(filePath, content) {
 
 // Handle editable files (Markdown, BibTeX, HTML)
 async function handleEditableFile(filePath, content, fileTypes) {
-    console.log('[Renderer] Handling editable file:', filePath, fileTypes);
-    
     // Exit PDF-only mode when opening editable files
     exitPDFOnlyMode();
-    console.log('[Renderer] handleEditableFile content length:', content ? content.length : 'NO CONTENT');
-    console.log('[Renderer] Editor available:', !!editor, 'setValue function:', typeof editor?.setValue);
-    
+
     // Process tags for markdown files
     if (fileTypes.isMarkdown && content && window.tagManager) {
         try {
             const fileData = window.tagManager.processFile(filePath, content);
-            console.log('[TagManager] Processed file:', filePath, 'Tags:', fileData.tags, 'Metadata:', fileData.metadata);
-            
-            // Store file data for later use
             window.currentFileData = fileData;
-            
-            // Trigger file tree update to show new tags (if UI is ready)
             if (window.updateFileTreeWithTags) {
                 window.updateFileTreeWithTags();
             }
@@ -5959,29 +5880,25 @@ async function handleEditableFile(filePath, content, fileTypes) {
             console.error('[TagManager] Error processing file tags:', error);
         }
     }
-    
+
     // Set up internal link click handler if not already done
     if (!window.internalLinkHandlerSetup) {
         document.addEventListener('click', (event) => {
-            // Use window reference to ensure function is available
             if (window.handleInternalLinkClick && typeof window.handleInternalLinkClick === 'function') {
                 window.handleInternalLinkClick(event);
             }
         });
         window.internalLinkHandlerSetup = true;
-        console.log('[Renderer] Internal link click handler set up');
     }
-    
+
     // Set up link preview handlers if not already done
     if (!window.linkPreviewHandlerSetup) {
         setupLinkPreviewHandlers();
         window.linkPreviewHandlerSetup = true;
-        console.log('[Renderer] Link preview handlers set up');
     }
-    
+
     // Set editor content and language (Monaco or fallback)
     if (editor && typeof editor.setValue === 'function') {
-        console.log('[openFileInEditor] Setting content in Monaco editor');
         
         // Temporarily suppress auto-save during programmatic content setting
         suppressAutoSave = true;
@@ -6017,50 +5934,41 @@ async function handleEditableFile(filePath, content, fileTypes) {
         
         suppressAutoSave = false;
         
-        // Configure language and theme based on file type  
+        // Configure language and theme based on file type
         const currentModel = editor.getModel();
         if (currentModel) {
             if (fileTypes.isBibTeX) {
                 monaco.editor.setModelLanguage(currentModel, 'bibtex');
-                // Apply appropriate BibTeX theme based on current theme
-                const isDarkTheme = editor._themeService?.getColorTheme()?.type === 'dark' || 
+                const isDarkTheme = editor._themeService?.getColorTheme()?.type === 'dark' ||
                                   window.currentTheme === 'dark';
                 editor.updateOptions({ theme: isDarkTheme ? 'bibtex-dark' : 'bibtex-light' });
-                console.log('[Renderer] Configured editor for BibTeX file with', isDarkTheme ? 'dark' : 'light', 'theme');
             } else if (fileTypes.isHTML) {
                 monaco.editor.setModelLanguage(currentModel, 'html');
                 editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'markdown-dark' : 'markdown-light' });
-                console.log('[Renderer] Configured editor for HTML file');
             } else {
-                // Default to markdown for .md files and others
                 monaco.editor.setModelLanguage(currentModel, 'markdown');
                 editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'markdown-dark' : 'markdown-light' });
-                console.log('[Renderer] Configured editor for Markdown file');
             }
         }
     } else if (fallbackEditor) {
-        console.log('[openFileInEditor] Using fallback editor');
         fallbackEditor.value = content;
     } else {
-        console.error('[openFileInEditor] ERROR: No editor available (neither Monaco nor fallback)');
+        console.error('[handleEditableFile] No editor available');
     }
-    
+
     // Update last saved content for auto-save tracking
     lastSavedContent = content;
     window.hasUnsavedChanges = false;
     updateUnsavedIndicator(false);
-    
-    // Clear AI companion buffers when opening new file to prevent stale analysis
+
+    // Clear AI companion buffers when opening new file
     if (window.aiCompanion && typeof window.aiCompanion.clearAllBuffers === 'function') {
         window.aiCompanion.clearAllBuffers();
     }
-    
+
     // Update preview and structure (unless suppressed)
     if (!window.suppressNextPreviewUpdate && !window.suppressPreviewUpdateCount) {
         await updatePreviewAndStructure(content);
-    } else {
-        console.log('[Renderer] Skipping preview update in handleEditableFile due to suppression');
-        // Don't clear the flags here - let updatePreviewAndStructure handle the counters
     }
     
     // Sync content to presentation view (if available)
@@ -6436,40 +6344,6 @@ function updateFallbackCursorPosition() {
     const columnNumber = lines[lines.length - 1].length + 1;
     
     cursorPosEl.textContent = `Ln ${lineNumber}, Col ${columnNumber}`;
-}
-
-// Fallback editor in case Monaco fails to load
-async function createFallbackEditor() {
-    console.log('[renderer.js] Creating fallback textarea editor...');
-    const textarea = document.createElement('textarea');
-    fallbackEditor = textarea;
-    window.fallbackEditor = textarea; // Make available globally for debugging
-    
-    // Use restored file content if available, otherwise use default content if no file was being restored OR if restoration failed
-    if (window.restoredFileContent) {
-        if (window.restoredFileContent.isPDF) {
-            // For PDFs, don't try to load binary content into textarea, handle as PDF
-            console.log('[renderer.js] Restored file was a PDF - handling PDF restoration');
-            handlePDFFile(window.restoredFileContent.path);
-            window.restoredFileContent = null;
-            return; // Exit early, PDF doesn't need fallback editor
-        } else {
-            textarea.value = window.restoredFileContent.content;
-            console.log('[renderer.js] Fallback editor populated with restored content:', window.restoredFileContent.path);
-            window.restoredFileContent = null;
-        }
-    }
-    
-    // Complete fallback editor setup
-    textarea.id = 'fallback-editor';
-    textarea.className = 'fallback-editor';
-    textarea.addEventListener('input', updateFallbackCursorPosition);
-    textarea.addEventListener('selectionchange', updateFallbackCursorPosition);
-    textarea.addEventListener('keyup', updateFallbackCursorPosition);
-    textarea.addEventListener('click', updateFallbackCursorPosition);
-    
-    editorContainer.innerHTML = '';
-    editorContainer.appendChild(textarea);
 }
 
 // Global text selector instance and permanent highlights
@@ -7505,14 +7379,20 @@ async function createFallbackEditor() {
     if (window.restoredFileContent) {
         if (window.restoredFileContent.isPDF) {
             // For PDFs, don't try to load binary content into textarea, handle as PDF
-            console.log('[renderer.js] Restored file was a PDF - handling PDF restoration');
             handlePDFFile(window.restoredFileContent.path);
             window.restoredFileContent = null;
             return; // Exit early, PDF doesn't need fallback editor
         } else {
             textarea.value = window.restoredFileContent.content;
-            console.log('[renderer.js] Using restored file content for fallback editor');
-            // Clear the restored content flag
+            // Update navigation/filename display for restored file
+            if (window.currentFilePath) {
+                const fileName = window.currentFilePath.split('/').pop();
+                if (typeof addToNavigationHistory === 'function') {
+                    addToNavigationHistory(window.currentFilePath, fileName);
+                } else if (typeof window.updateCurrentFileName === 'function') {
+                    window.updateCurrentFileName(fileName);
+                }
+            }
             window.restoredFileContent = null;
         }
     } else if (!window.hasFileToRestore || window.useDefaultContentFallback) {
@@ -8596,6 +8476,7 @@ async function renderFileTree() {
         isRenderingFileTree = true;
         
         const fileTree = await window.electronAPI.invoke('request-file-tree');
+        window.fileTreeData = fileTree;
         
         if (!fileTreeView) {
             console.warn('[renderFileTree] fileTreeView element not found');
@@ -8649,7 +8530,7 @@ async function renderFileTree() {
         
         
         // Update available files for autocomplete
-        updateAvailableFiles();
+        updateAvailableFiles(fileTree);
     } catch (error) {
         console.error('[renderFileTree] Error loading file tree:', error);
         if (fileTreeView) {
@@ -8740,14 +8621,47 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
             nodeElement.style.paddingBottom = '4px';
         }
 
-        // Add click handler for folders to toggle expand/collapse
-        nodeElement.addEventListener('click', (event) => {
+        // Add click handler for folders to toggle expand/collapse in place
+        nodeElement.addEventListener('click', async (event) => {
             event.preventDefault();
-            if (hasChildren) {
+            if (hasChildren || isFolder) {
+                const wasExpanded = window.expandedFolders.has(node.path);
                 toggleFolderExpansion(node.path);
-                // Reset the flag to allow re-render
-                fileTreeRendered = false;
-                debouncedRenderFileTree(); // Use debounced version to prevent rapid re-renders
+                const isNowExpanded = window.expandedFolders.has(node.path);
+
+                // Find or create children container
+                let childrenContainer = nodeElement.nextElementSibling;
+                if (!childrenContainer || !childrenContainer.classList.contains('folder-children')) {
+                    childrenContainer = document.createElement('div');
+                    childrenContainer.className = 'folder-children';
+                    childrenContainer.dataset.folderPath = node.path;
+                    nodeElement.parentNode.insertBefore(childrenContainer, nodeElement.nextSibling);
+                }
+
+                // Update the arrow icon
+                const arrow = nodeElement.querySelector('.expand-arrow');
+                if (arrow) {
+                    arrow.textContent = isNowExpanded ? '▼' : '▶';
+                }
+
+                if (isNowExpanded) {
+                    // Refresh folder contents when expanding
+                    try {
+                        const result = await window.electronAPI.invoke('get-folder-contents', node.path);
+                        if (result.success && result.children) {
+                            // Clear and re-render children
+                            childrenContainer.innerHTML = '';
+                            for (const child of result.children) {
+                                renderFileTreeNode(child, childrenContainer, depth + 1);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[FileTree] Error refreshing folder contents:', error);
+                    }
+                    childrenContainer.style.display = 'block';
+                } else {
+                    childrenContainer.style.display = 'none';
+                }
             }
         });
 
@@ -8881,12 +8795,21 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
     }
     
     container.appendChild(nodeElement);
-    
-    // Render children only if it's a folder, has children, and is expanded
+
+    // Create children container for folders - only render children if already expanded
+    // (collapsed folders will fetch fresh contents when expanded)
     if (hasChildren && isExpanded) {
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'folder-children';
+        childrenContainer.dataset.folderPath = node.path;
+        childrenContainer.style.display = 'block';
+
+        // Render children into the container
         for (const child of node.children) {
-            renderFileTreeNode(child, container, depth + 1);
+            renderFileTreeNode(child, childrenContainer, depth + 1);
         }
+
+        container.appendChild(childrenContainer);
     }
 }
 

@@ -128,7 +128,10 @@ function register(deps) {
   ipcMain.handle('create-folder', async (event, folderName, parentPath = '') => {
     try {
       const workingDir = getWorkingDirectory();
-      const basePath = parentPath ? path.join(workingDir, parentPath) : workingDir;
+      // If parentPath is already absolute, use it directly; otherwise join with workingDir
+      const basePath = parentPath
+        ? (path.isAbsolute(parentPath) ? parentPath : path.join(workingDir, parentPath))
+        : workingDir;
       const folderPath = path.join(basePath, folderName);
       
       console.log(`[FileHandlers] Creating folder: ${folderPath}`);
@@ -165,7 +168,10 @@ function register(deps) {
   ipcMain.handle('create-file', async (event, fileName, parentPath = '', content = '') => {
     try {
       const workingDir = getWorkingDirectory();
-      const basePath = parentPath ? path.join(workingDir, parentPath) : workingDir;
+      // If parentPath is already absolute, use it directly; otherwise join with workingDir
+      const basePath = parentPath
+        ? (path.isAbsolute(parentPath) ? parentPath : path.join(workingDir, parentPath))
+        : workingDir;
       const filePath = path.join(basePath, fileName);
 
       console.log(`[FileHandlers] Creating file: ${filePath}`);
@@ -255,6 +261,27 @@ function register(deps) {
     }
   });
 
+  // Get contents of a specific folder for lazy loading/refresh
+  ipcMain.handle('get-folder-contents', async (event, folderPath) => {
+    try {
+      if (!folderPath || !path.isAbsolute(folderPath)) {
+        console.warn(`[FileHandlers] Invalid folder path: ${folderPath}`);
+        return { success: false, error: 'Invalid folder path' };
+      }
+
+      console.log(`[FileHandlers] Getting folder contents: ${folderPath}`);
+
+      const folderTree = await buildFileTree(folderPath);
+      return {
+        success: true,
+        children: folderTree.children || []
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error getting folder contents:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('get-available-files', async (event) => {
     try {
       const workingDir = getWorkingDirectory();
@@ -307,7 +334,10 @@ function register(deps) {
   ipcMain.handle('list-directory-files', async (event, relativePath) => {
     try {
       const workingDir = getWorkingDirectory();
-      const targetDir = relativePath ? path.join(workingDir, relativePath) : workingDir;
+      // If relativePath is already absolute, use it directly; otherwise join with workingDir
+      const targetDir = relativePath
+        ? (path.isAbsolute(relativePath) ? relativePath : path.join(workingDir, relativePath))
+        : workingDir;
       
       console.log(`[FileHandlers] Listing files in directory: ${targetDir}`);
       

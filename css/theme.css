@@ -207,8 +207,7 @@ body.dark-mode .file-tree-item:hover {
 /* Multi-select styling for files */
 .file-tree-item.file-selected {
     background: rgba(0, 122, 204, 0.15) !important;
-    border-left: 3px solid #007acc !important;
-    padding-left: calc(var(--padding-left, 8px) - 3px) !important;
+    box-shadow: inset 3px 0 0 #007acc !important;
 }
 
 .file-tree-item.file-selected:hover {
@@ -217,7 +216,7 @@ body.dark-mode .file-tree-item:hover {
 
 body.dark-mode .file-tree-item.file-selected {
     background: rgba(0, 122, 204, 0.25) !important;
-    border-left: 3px solid #4fc3f7 !important;
+    box-shadow: inset 3px 0 0 #4fc3f7 !important;
 }
 
 body.dark-mode .file-tree-item.file-selected:hover {

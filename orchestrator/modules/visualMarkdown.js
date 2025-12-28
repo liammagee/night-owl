@@ -166,6 +166,90 @@ function clearDecorationCaches() {
 }
 
 /**
+ * Get document lines from Monaco without re-splitting full text when possible.
+ * @param {Object} model - Monaco editor model
+ * @returns {Array<string>}
+ */
+function getLinesFromModel(model) {
+    if (!model) return [];
+    if (typeof model.getLinesContent === 'function') {
+        return model.getLinesContent();
+    }
+    return model.getValue().split('\n');
+}
+
+/**
+ * Snapshot editor content for a single update cycle.
+ * @param {Object} editor - Monaco editor instance
+ * @param {{includeText?: boolean}} options
+ * @returns {{model: Object, lines: Array<string>, text: string|null}|null}
+ */
+function getDocumentSnapshot(editor, options = {}) {
+    if (!editor) return null;
+
+    const model = editor.getModel();
+    if (!model) return null;
+
+    const lines = getLinesFromModel(model);
+    const text = options.includeText ? model.getValue() : null;
+
+    return { model, lines, text };
+}
+
+/**
+ * Build a quick lookup of code block lines for inline-math skipping.
+ * @param {Array<string>} lines
+ * @returns {{ranges: Array<Object>, lineStates: Array<boolean>}}
+ */
+function buildCodeBlockIndex(lines) {
+    const ranges = [];
+    const lineStates = new Array(lines.length).fill(false);
+    let inCodeBlock = false;
+    let codeBlockStart = -1;
+    let codeBlockLang = '';
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const fenceMatch = line.match(/^```(\w*)\s*$/);
+        if (fenceMatch) {
+            if (!inCodeBlock) {
+                inCodeBlock = true;
+                codeBlockStart = i + 1;
+                codeBlockLang = fenceMatch[1] || '';
+                lineStates[i] = true;
+            } else {
+                const codeBlockEnd = i + 1;
+                ranges.push({
+                    startLine: codeBlockStart,
+                    endLine: codeBlockEnd,
+                    language: codeBlockLang
+                });
+                for (let j = codeBlockStart; j <= codeBlockEnd; j++) {
+                    lineStates[j - 1] = true;
+                }
+                inCodeBlock = false;
+                codeBlockStart = -1;
+                codeBlockLang = '';
+            }
+            continue;
+        }
+
+        if (inCodeBlock) {
+            lineStates[i] = true;
+        }
+    }
+
+    // Handle unterminated code block by marking remaining lines.
+    if (inCodeBlock && codeBlockStart > 0) {
+        for (let j = codeBlockStart; j <= lines.length; j++) {
+            lineStates[j - 1] = true;
+        }
+    }
+
+    return { ranges, lineStates };
+}
+
+/**
  * Get the visible line range with buffer for the current viewport
  * @param {Object} editor - Monaco editor instance
  * @returns {{startLine: number, endLine: number, isLarge: boolean}}
@@ -460,10 +544,10 @@ function resolveImagePath(imageUrl) {
     return `file://${imageUrl}`;
 }
 
-function updateImagePreviews(editor) {
+function updateImagePreviews(editor, doc) {
     if (!config.enabled || !config.showImagePreviews) return;
 
-    const model = editor.getModel();
+    const model = doc?.model || editor.getModel();
     if (!model) return;
 
     // For virtual scrolling, only remove widgets outside visible range
@@ -493,8 +577,7 @@ function updateImagePreviews(editor) {
         imageWidgets = [];
     }
 
-    const text = model.getValue();
-    const lines = text.split('\n');
+    const lines = doc?.lines || getLinesFromModel(model);
 
     // Only process visible lines for large documents
     const startIdx = isLargeDocument ? visibleRange.startLine - 1 : 0;
@@ -639,15 +722,14 @@ function parseLineFormattingDecorations(line, lineNumber) {
     return decorations;
 }
 
-function updateFormattingDecorations(editor) {
+function updateFormattingDecorations(editor, doc) {
     if (!config.enabled || !config.showFormattingDecorations) return;
 
-    const model = editor.getModel();
+    const model = doc?.model || editor.getModel();
     if (!model) return;
 
     const decorations = [];
-    const text = model.getValue();
-    const lines = text.split('\n');
+    const lines = doc?.lines || getLinesFromModel(model);
 
     // Only process visible lines for large documents
     const startIdx = isLargeDocument ? visibleRange.startLine - 1 : 0;
@@ -684,15 +766,14 @@ function updateFormattingDecorations(editor) {
 }
 
 // --- Link Decorations and Hover ---
-function updateLinkDecorations(editor) {
+function updateLinkDecorations(editor, doc) {
     if (!config.enabled || !config.showLinkDecorations) return;
 
-    const model = editor.getModel();
+    const model = doc?.model || editor.getModel();
     if (!model) return;
 
     const decorations = [];
-    const text = model.getValue();
-    const lines = text.split('\n');
+    const lines = doc?.lines || getLinesFromModel(model);
 
     // Only process visible lines for large documents
     const startIdx = isLargeDocument ? visibleRange.startLine - 1 : 0;
@@ -1242,15 +1323,14 @@ function scrollToHeading(headingId) {
 }
 
 // --- Code Block Decorations ---
-function updateCodeBlockDecorations(editor) {
+function updateCodeBlockDecorations(editor, doc) {
     if (!config.enabled || !config.showCodeBlockDecorations) return;
 
-    const model = editor.getModel();
+    const model = doc?.model || editor.getModel();
     if (!model) return;
 
     const decorations = [];
-    const text = model.getValue();
-    const lines = text.split('\n');
+    const lines = doc?.lines || getLinesFromModel(model);
 
     // Clear existing code block widgets
     codeBlockWidgets.forEach(widget => {
@@ -1787,10 +1867,10 @@ function editTableCell(tableStartLine, rowIndex, colIndex, currentValue, targetE
 }
 
 // Update table decorations and widgets
-function updateTableDecorations(editor) {
+function updateTableDecorations(editor, doc) {
     if (!config.enabled || !config.showTablePreviews) return;
 
-    const model = editor.getModel();
+    const model = doc?.model || editor.getModel();
     if (!model) return;
 
     // Remove existing table widgets
@@ -1805,8 +1885,7 @@ function updateTableDecorations(editor) {
     tableRanges = [];
 
     const decorations = [];
-    const text = model.getValue();
-    const lines = text.split('\n');
+    const lines = doc?.lines || getLinesFromModel(model);
 
     // Find all tables
     const tables = findTables(lines);
@@ -1983,10 +2062,10 @@ function doRenderMath(container, mathContent, isBlock) {
  * Update math decorations and preview widgets
  * @param {Object} editor - Monaco editor instance
  */
-function updateMathDecorations(editor) {
+function updateMathDecorations(editor, doc, codeBlockInfo) {
     if (!config.enabled || !config.showMathPreviews) return;
 
-    const model = editor.getModel();
+    const model = doc?.model || editor.getModel();
     if (!model) return;
 
     // Remove existing math widgets
@@ -2000,8 +2079,8 @@ function updateMathDecorations(editor) {
     mathWidgets = [];
 
     const decorations = [];
-    const text = model.getValue();
-    const lines = text.split('\n');
+    const lines = doc?.lines || getLinesFromModel(model);
+    const text = doc?.text || model.getValue();
 
     // Track positions to avoid duplicates
     const processedPositions = new Set();
@@ -2054,7 +2133,11 @@ function updateMathDecorations(editor) {
         if (processedPositions.has(`line-${lineNumber}`)) return;
 
         // Skip lines inside code blocks
-        if (isInsideCodeBlock(lineIndex, lines)) return;
+        if (codeBlockInfo?.lineStates) {
+            if (codeBlockInfo.lineStates[lineIndex]) return;
+        } else if (isInsideCodeBlock(lineIndex, lines)) {
+            return;
+        }
 
         const inlineMathRegex = /(?<![`$\\])\$(?!\$)([^$\n]+?)\$(?!\$)/g;
         let match;
@@ -2545,12 +2628,16 @@ function updateVisualMarkdown(editor, scrollUpdate = false) {
 
     // Debounce updates
     updateTimeout = setTimeout(() => {
-        updateImagePreviews(editor);
-        updateFormattingDecorations(editor);
-        updateLinkDecorations(editor);
-        updateCodeBlockDecorations(editor);
-        updateTableDecorations(editor);
-        updateMathDecorations(editor);
+        const doc = getDocumentSnapshot(editor, { includeText: config.showMathPreviews });
+        if (!doc) return;
+        const codeBlockInfo = config.showMathPreviews ? buildCodeBlockIndex(doc.lines) : null;
+
+        updateImagePreviews(editor, doc);
+        updateFormattingDecorations(editor, doc);
+        updateLinkDecorations(editor, doc);
+        updateCodeBlockDecorations(editor, doc);
+        updateTableDecorations(editor, doc);
+        updateMathDecorations(editor, doc, codeBlockInfo);
     }, config.updateDebounceMs);
 }
 
@@ -2723,7 +2810,35 @@ function initializeVisualMarkdown(editor) {
     }
 
     // Set up content change listener
-    editor.onDidChangeModelContent(() => {
+    editor.onDidChangeModelContent((event) => {
+        if (event && Array.isArray(event.changes) && event.changes.length > 0) {
+            let minLine = Infinity;
+            let maxLine = 0;
+            let invalidateToEnd = false;
+
+            event.changes.forEach(change => {
+                const startLine = change.range.startLineNumber;
+                const endLine = change.range.endLineNumber;
+                const insertedLines = change.text ? (change.text.split('\n').length - 1) : 0;
+                const affectsLineCount = insertedLines > 0 || startLine !== endLine;
+
+                minLine = Math.min(minLine, startLine);
+
+                if (affectsLineCount) {
+                    invalidateToEnd = true;
+                } else {
+                    const changeEndLine = Math.max(endLine, startLine + insertedLines);
+                    maxLine = Math.max(maxLine, changeEndLine);
+                }
+            });
+
+            if (minLine !== Infinity) {
+                invalidateCacheRange(minLine, invalidateToEnd ? Infinity : maxLine);
+            }
+        } else {
+            clearDecorationCaches();
+        }
+
         updateVisualMarkdown(editor);
     });
 

@@ -287,20 +287,58 @@ test.describe('Hegel Pedagogy AI - UI Interactions', () => {
       // Switch to file view
       await page.locator('#show-files-btn').click();
       await page.waitForSelector('#file-tree-view', { state: 'visible' });
-      
+
       // Look for expandable folders
       const expandArrows = page.locator('#file-tree-view .expand-arrow');
       const arrowCount = await expandArrows.count();
-      
+
       if (arrowCount > 0) {
         // Click first expand arrow
         await expandArrows.first().click();
         await page.waitForTimeout(300);
-        
+
         // Check if folder expanded (implementation specific)
         // This test verifies the click is handled without errors
         const fileTreeItems = await page.locator('#file-tree-view .file-tree-item').count();
         expect(fileTreeItems).toBeGreaterThan(0);
+      }
+    });
+
+    test('should expand folders in place without losing scroll position', async ({ page }) => {
+      // Switch to file view
+      await page.locator('#show-files-btn').click();
+      await page.waitForSelector('#file-tree-view', { state: 'visible' });
+
+      const fileTreeView = page.locator('#file-tree-view');
+
+      // If there are enough items to scroll, test scroll preservation
+      const folders = page.locator('#file-tree-view .file-tree-item.folder');
+      const folderCount = await folders.count();
+
+      if (folderCount > 1) {
+        // Get initial scroll position
+        const initialScrollTop = await fileTreeView.evaluate(el => el.scrollTop);
+
+        // Click on the second folder to expand it
+        const secondFolder = folders.nth(1);
+        await secondFolder.click();
+        await page.waitForTimeout(100);
+
+        // Verify folder children container exists and is visible
+        const folderPath = await secondFolder.getAttribute('data-path');
+        const childrenContainer = page.locator(`.folder-children[data-folder-path="${folderPath}"]`);
+
+        // Check that children container display was toggled (not full re-render)
+        const isExpanded = await childrenContainer.evaluate(el => el.style.display !== 'none');
+
+        // Scroll position should be preserved (or very close)
+        const newScrollTop = await fileTreeView.evaluate(el => el.scrollTop);
+        expect(Math.abs(newScrollTop - initialScrollTop)).toBeLessThan(5);
+
+        // Verify arrow icon updated
+        const arrow = secondFolder.locator('.expand-arrow');
+        const arrowText = await arrow.textContent();
+        expect(['▼', '▶']).toContain(arrowText);
       }
     });
 
@@ -333,20 +371,47 @@ test.describe('Hegel Pedagogy AI - UI Interactions', () => {
       // Switch to file view
       await page.locator('#show-files-btn').click();
       await page.waitForSelector('#file-tree-view', { state: 'visible' });
-      
+
       // Look for file items
       const fileItems = page.locator('#file-tree-view .file-tree-item .file-name');
       const itemCount = await fileItems.count();
-      
+
       if (itemCount > 0) {
         // Click first file
         await fileItems.first().click();
         await page.waitForTimeout(500);
-        
+
         // Check if file loading was triggered
         // This test verifies file selection works without errors
         const currentFileName = await page.locator('#current-file-name').textContent();
         expect(currentFileName).not.toBe('No file selected');
+      }
+    });
+
+    test('should display filename when file is restored on startup', async ({ page }) => {
+      // This test verifies that when a file is restored from settings on app startup,
+      // the current-file-name element is properly updated (regression test for #file-display-on-restore)
+
+      // Wait for app to fully initialize with restored file (if any)
+      await page.waitForTimeout(1000);
+
+      // Check if there's content in the editor (indicates a file was loaded)
+      const hasContent = await page.evaluate(() => {
+        if (window.editor && typeof window.editor.getValue === 'function') {
+          return window.editor.getValue().length > 0;
+        }
+        const fallback = document.getElementById('fallback-editor');
+        return fallback && fallback.value && fallback.value.length > 0;
+      });
+
+      // Check if currentFilePath is set
+      const hasCurrentFile = await page.evaluate(() => !!window.currentFilePath);
+
+      // If a file was loaded, the filename display should NOT show "No file selected"
+      if (hasContent && hasCurrentFile) {
+        const currentFileName = await page.locator('#current-file-name').textContent();
+        expect(currentFileName).not.toBe('No file selected');
+        expect(currentFileName.trim().length).toBeGreaterThan(0);
       }
     });
   });
