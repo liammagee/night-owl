@@ -700,18 +700,40 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
     // Fix image paths - convert relative paths to absolute file:// URLs
     html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (match, altText, imagePath) {
-      // Check if this is a relative path
-      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://')) {
+      // Trim whitespace and handle title attribute if present
+      var cleanPath = imagePath.split(/\s+["']/)[0].trim();
+
+      // Check if this is a relative path (not http, not absolute, not file://)
+      var isRelative = cleanPath &&
+        !cleanPath.startsWith('http://') &&
+        !cleanPath.startsWith('https://') &&
+        !cleanPath.startsWith('file://') &&
+        !cleanPath.startsWith('data:');
+
+      if (isRelative) {
         var _window$appSettings;
         // Use current file directory if available, otherwise fallback to working directory
-        var baseDir = window.currentFileDirectory || ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory);
+        var baseDir = window.currentFileDirectory ||
+          ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory) ||
+          window.currentDirectory;
+
         if (baseDir) {
-          var fullPath = "file://".concat(baseDir, "/").concat(imagePath);
-          console.log("[React Presentation] Converting image path: ".concat(imagePath, " -> ").concat(fullPath));
-          return "<img src=\"".concat(fullPath, "\" alt=\"").concat(altText, "\" />");
+          // Handle ./ prefix
+          var normalizedPath = cleanPath.replace(/^\.\//, '');
+          // Handle absolute paths (starting with /)
+          var fullPath;
+          if (cleanPath.startsWith('/')) {
+            fullPath = "file://".concat(cleanPath);
+          } else {
+            fullPath = "file://".concat(baseDir, "/").concat(normalizedPath);
+          }
+          console.log("[React Presentation] Converting image path: ".concat(cleanPath, " -> ").concat(fullPath));
+          return "<img src=\"".concat(fullPath, "\" alt=\"").concat(altText, "\" loading=\"lazy\" />");
+        } else {
+          console.warn("[React Presentation] No base directory available for relative image: ".concat(cleanPath));
         }
       }
-      return "<img src=\"".concat(imagePath, "\" alt=\"").concat(altText, "\" />");
+      return "<img src=\"".concat(cleanPath, "\" alt=\"").concat(altText, "\" loading=\"lazy\" />");
     });
 
     // Process math expressions before other markdown to preserve them

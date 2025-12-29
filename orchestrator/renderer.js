@@ -1292,9 +1292,12 @@ function createCustomMarkdownRenderer() {
 
     // Override the image method to fix relative paths
     renderer.image = (href, title, text) => {
-        if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('file://')) {
+        if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('file://') && !href.startsWith('data:')) {
             const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-            const fullPath = `file://${baseDir}/${href}`;
+            // Handle ./ prefix
+            const normalizedHref = href.replace(/^\.\//, '');
+            const fullPath = `file://${baseDir}/${normalizedHref}`;
+            console.log(`[Renderer] Image path resolution: ${href} -> ${fullPath} (baseDir: ${baseDir})`);
             return originalImage(fullPath, title, text);
         }
         return originalImage(href, title, text);
@@ -3514,6 +3517,10 @@ async function initializeMonacoEditor() {
                 } else if (typeof window.updateCurrentFileName === 'function') {
                     window.updateCurrentFileName(fileName);
                 }
+                // Set currentFileDirectory for image path resolution
+                const lastSlash = window.currentFilePath.lastIndexOf('/');
+                window.currentFileDirectory = lastSlash >= 0 ? window.currentFilePath.substring(0, lastSlash) : '';
+                console.log('[Renderer] Set currentFileDirectory from restored file:', window.currentFileDirectory);
                 // Clear the restored content since we've used it
                 window.restoredFileContent = null;
             }
@@ -7392,6 +7399,9 @@ async function createFallbackEditor() {
                 } else if (typeof window.updateCurrentFileName === 'function') {
                     window.updateCurrentFileName(fileName);
                 }
+                // Set currentFileDirectory for image path resolution
+                const lastSlash = window.currentFilePath.lastIndexOf('/');
+                window.currentFileDirectory = lastSlash >= 0 ? window.currentFilePath.substring(0, lastSlash) : '';
             }
             window.restoredFileContent = null;
         }
@@ -10870,8 +10880,10 @@ if (window.electronAPI && window.electronAPI.on) {
 
     window.electronAPI.on('toggle-visual-markdown', (enabled) => {
         console.log('[renderer.js] Received toggle-visual-markdown event:', enabled);
-        if (typeof setVisualMarkdownEnabled === 'function') {
-            setVisualMarkdownEnabled(enabled);
+        if (typeof window.setVisualMarkdownEnabled === 'function') {
+            window.setVisualMarkdownEnabled(enabled);
+        } else {
+            console.warn('[renderer.js] setVisualMarkdownEnabled not available');
         }
     });
 

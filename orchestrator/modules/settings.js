@@ -2308,8 +2308,11 @@ function collectSettingsFromForm() {
         if (!updatedSettings.editor) updatedSettings.editor = {};
         updatedSettings.editor.visualMarkdown = enableVisualMarkdown;
         // Apply visual markdown setting immediately
-        if (typeof setVisualMarkdownEnabled === 'function') {
-            setVisualMarkdownEnabled(enableVisualMarkdown);
+        if (typeof window.setVisualMarkdownEnabled === 'function') {
+            console.log('[Settings] Toggling visual markdown:', enableVisualMarkdown);
+            window.setVisualMarkdownEnabled(enableVisualMarkdown);
+        } else {
+            console.warn('[Settings] setVisualMarkdownEnabled not available');
         }
     }
 

@@ -2757,13 +2757,24 @@ function cleanupVisualMarkdown(editor) {
  * @param {boolean} enabled - Whether to enable visual markdown
  */
 function setVisualMarkdownEnabled(enabled) {
+    console.log(`[visualMarkdown] setVisualMarkdownEnabled called with: ${enabled}`);
+    const wasEnabled = config.enabled;
     config.enabled = enabled;
+
     if (window.editor) {
-        if (enabled) {
+        if (enabled && !wasEnabled) {
+            // Enabling - update decorations
+            console.log('[visualMarkdown] Enabling visual markdown');
             updateVisualMarkdown(window.editor);
-        } else {
+        } else if (!enabled && wasEnabled) {
+            // Disabling - cleanup all decorations
+            console.log('[visualMarkdown] Disabling visual markdown');
             cleanupVisualMarkdown(window.editor);
+            // Force editor to refresh layout
+            window.editor.layout();
         }
+    } else {
+        console.warn('[visualMarkdown] No editor available for toggle');
     }
 }
 
