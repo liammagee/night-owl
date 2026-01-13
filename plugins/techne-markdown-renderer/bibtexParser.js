@@ -151,11 +151,41 @@
     }
 
     /**
-     * Load and parse a BibTeX file from URL
+     * Load and parse a BibTeX file from URL or path
      */
     async function loadFromFile(url) {
         try {
-            const response = await fetch(url);
+            let resolvedUrl = url;
+
+            // If this is a relative or absolute path (not already a full URL), resolve it
+            if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
+                // Get the working directory from various sources
+                const workingDir = window.appSettings?.workingDirectory ||
+                    window.currentDirectory ||
+                    window.electronAPI?.getWorkingDirectory?.();
+
+                if (workingDir) {
+                    // Remove leading slash from path if present, as workingDir already has the full path
+                    const cleanPath = url.replace(/^\//, '');
+                    resolvedUrl = `file://${workingDir}/${cleanPath}`;
+                } else {
+                    // Fallback: try using electronAPI to read the file directly
+                    if (window.electronAPI?.invoke) {
+                        // Construct a likely path based on the url
+                        const filePath = url.startsWith('/') ? url : `/${url}`;
+                        console.log(`[TechneBibtexParser] Attempting to load via IPC: ${filePath}`);
+                        const result = await window.electronAPI.invoke('read-file', filePath);
+                        if (result.success && result.content) {
+                            return parse(result.content);
+                        }
+                    }
+                    console.warn(`[TechneBibtexParser] No working directory available for: ${url}`);
+                    return [];
+                }
+            }
+
+            console.log(`[TechneBibtexParser] Loading: ${resolvedUrl}`);
+            const response = await fetch(resolvedUrl);
             if (!response.ok) {
                 throw new Error(`Failed to load BibTeX file: ${response.status}`);
             }
