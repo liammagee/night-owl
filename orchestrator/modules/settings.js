@@ -328,6 +328,19 @@ function generateGeneralSettings() {
                 </label>
             </div>
         </div>
+
+        <div class="settings-section">
+            <h3>Notifications</h3>
+            <div class="settings-group">
+                <label>
+                    <input type="checkbox" id="disable-notifications" ${currentSettings.notifications?.enabled === false ? 'checked' : ''}>
+                    <span>Distraction-free mode (disable all notifications)</span>
+                </label>
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    Turn this on to hide toast notifications and other in-app alerts while you work.
+                </p>
+            </div>
+        </div>
         
         <div class="settings-section">
             <h3>Internal Links</h3>
@@ -2247,6 +2260,12 @@ function collectSettingsFromForm() {
     if (autoSaveInterval) {
         if (!updatedSettings.autoSave) updatedSettings.autoSave = {};
         updatedSettings.autoSave.interval = parseInt(autoSaveInterval);
+    }
+
+    const disableNotifications = document.getElementById('disable-notifications')?.checked;
+    if (disableNotifications !== undefined) {
+        if (!updatedSettings.notifications) updatedSettings.notifications = {};
+        updatedSettings.notifications.enabled = !disableNotifications;
     }
     
     // Theme settings

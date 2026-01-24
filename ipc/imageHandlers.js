@@ -25,8 +25,40 @@ function register(deps) {
   }
 
   // Helper function to ensure images directory exists
-  async function ensureImagesDirectory() {
+  function normalizePathInput(inputPath, workingDir) {
+    if (!inputPath || typeof inputPath !== 'string') return null;
+    const cleaned = inputPath.replace(/^file:\/\//, '');
+    if (path.isAbsolute(cleaned)) return cleaned;
+    if (workingDir && path.isAbsolute(workingDir)) {
+      return path.join(workingDir, cleaned);
+    }
+    return cleaned;
+  }
+
+  function getImagesBaseDir(context = {}) {
     const workingDir = getWorkingDirectory();
+    const sourceDirInput = normalizePathInput(context?.sourceFileDirectory, workingDir);
+    if (sourceDirInput) {
+      return sourceDirInput;
+    }
+
+    const sourceFileInput = normalizePathInput(context?.sourceFilePath, workingDir);
+    if (sourceFileInput) {
+      return path.dirname(sourceFileInput);
+    }
+
+    const settingsFile = normalizePathInput(appSettings?.currentFile, workingDir);
+    if (settingsFile) {
+      return path.dirname(settingsFile);
+    }
+
+    return workingDir;
+  }
+
+  async function ensureImagesDirectory(baseDir = null) {
+    const workingDir = baseDir && path.isAbsolute(baseDir)
+      ? baseDir
+      : getWorkingDirectory();
     const imagesDir = path.join(workingDir, 'images');
     
     try {
@@ -48,7 +80,7 @@ function register(deps) {
   }
 
   // Handle pasting images from clipboard
-  ipcMain.handle('paste-image-from-clipboard', async (event) => {
+  ipcMain.handle('paste-image-from-clipboard', async (event, context = {}) => {
     try {
       
       // Get image from clipboard
@@ -61,8 +93,8 @@ function register(deps) {
         };
       }
 
-      // Ensure images directory exists
-      const imagesDir = await ensureImagesDirectory();
+      const baseDir = getImagesBaseDir(context);
+      const imagesDir = await ensureImagesDirectory(baseDir);
       
       // Generate filename and full path
       const filename = generateImageFilename('png');
@@ -76,7 +108,18 @@ function register(deps) {
       
       
       // Return the relative path for markdown
-      const relativePath = `images/${filename}`;
+      const defaultRelativePath = `images/${filename}`;
+      let relativePath = path.relative(baseDir, filePath) || defaultRelativePath;
+      relativePath = relativePath.replace(/\\/g, '/');
+
+      console.log('[ImageHandlers] Pasted image saved:', {
+        baseDir,
+        imagesDir,
+        filePath,
+        relativePath,
+        sourceFilePath: context?.sourceFilePath || null,
+        sourceFileDirectory: context?.sourceFileDirectory || null
+      });
       
       return {
         success: true,

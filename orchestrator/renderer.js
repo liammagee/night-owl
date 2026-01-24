@@ -2834,6 +2834,10 @@ function registerBibTeXLanguage() {
 
 // --- Citation Autocomplete Functionality ---
 let bibEntries = [];
+let currentBibLoadToken = 0;
+let lastBibliographyConfig = { filePath: null, signature: null };
+let bibliographyRefreshTimer = null;
+let bibliographyStatusTimer = null;
 // Expose bibEntries to window for citation renderer plugin
 window.bibEntries = bibEntries;
 
@@ -2920,6 +2924,243 @@ function parseBibTeX(content, sourceLabel = '') {
     }
 
     return entries;
+}
+
+function extractFrontmatter(content) {
+    if (!content || typeof content !== 'string') {
+        return null;
+    }
+
+    const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*/);
+    return match ? match[1] : null;
+}
+
+function normalizeBibliographyValue(value) {
+    if (!value || typeof value !== 'string') {
+        return '';
+    }
+    return value.trim().replace(/^['"]|['"]$/g, '').trim();
+}
+
+function parseBibliographyFromFrontmatter(frontmatter) {
+    if (!frontmatter) {
+        return [];
+    }
+
+    const lines = frontmatter.split(/\r?\n/);
+    const bibFiles = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = line.match(/^\s*bibliography\s*:\s*(.*)$/);
+        if (!match) {
+            continue;
+        }
+
+        const value = match[1].trim();
+        if (value) {
+            if (value.startsWith('[') && value.endsWith(']')) {
+                const list = value.slice(1, -1).split(',');
+                list.forEach(item => {
+                    const cleaned = normalizeBibliographyValue(item);
+                    if (cleaned) {
+                        bibFiles.push(cleaned);
+                    }
+                });
+            } else {
+                const cleaned = normalizeBibliographyValue(value);
+                if (cleaned) {
+                    bibFiles.push(cleaned);
+                }
+            }
+        } else {
+            for (let j = i + 1; j < lines.length; j++) {
+                const nextLine = lines[j];
+                const listMatch = nextLine.match(/^\s*-\s*(.+)$/);
+                if (listMatch) {
+                    const cleaned = normalizeBibliographyValue(listMatch[1]);
+                    if (cleaned) {
+                        bibFiles.push(cleaned);
+                    }
+                    continue;
+                }
+                if (/^\s*\w[\w-]*\s*:/.test(nextLine)) {
+                    break;
+                }
+                if (!nextLine.trim()) {
+                    continue;
+                }
+                break;
+            }
+        }
+        break;
+    }
+
+    return bibFiles;
+}
+
+function showBibliographyStatus(message, duration = 2000) {
+    const statusEl = document.getElementById('bib-status');
+    if (!statusEl) {
+        return;
+    }
+
+    statusEl.textContent = message;
+    statusEl.style.display = '';
+
+    if (bibliographyStatusTimer) {
+        clearTimeout(bibliographyStatusTimer);
+    }
+
+    bibliographyStatusTimer = setTimeout(() => {
+        statusEl.textContent = '';
+        statusEl.style.display = 'none';
+        bibliographyStatusTimer = null;
+    }, duration);
+}
+
+function formatBibliographyStatus(bibliographyFiles) {
+    if (!Array.isArray(bibliographyFiles) || bibliographyFiles.length === 0) {
+        return 'Bibliography: workspace';
+    }
+    if (bibliographyFiles.length === 1) {
+        return `Bibliography: ${bibliographyFiles[0]}`;
+    }
+    return `Bibliography: ${bibliographyFiles.length} files`;
+}
+
+function getBibliographySignature(filePath, bibliographyFiles) {
+    if (!bibliographyFiles || bibliographyFiles.length === 0) {
+        return null;
+    }
+
+    const normalized = bibliographyFiles
+        .map(normalizeBibliographyValue)
+        .filter(Boolean);
+
+    if (normalized.length === 0) {
+        return null;
+    }
+
+    return `${filePath || ''}::${normalized.join('|')}`;
+}
+
+function updateLastBibliographyConfig(filePath, signature) {
+    lastBibliographyConfig = {
+        filePath: filePath || null,
+        signature: signature || null
+    };
+}
+
+function resolveBibliographyPath(bibPath, baseDir) {
+    if (!bibPath || typeof bibPath !== 'string') {
+        return null;
+    }
+
+    let cleaned = bibPath.trim().replace(/^file:\/\//, '');
+    if (/^[A-Za-z]:[\\/]/.test(cleaned) || cleaned.startsWith('/')) {
+        return cleaned;
+    }
+
+    cleaned = cleaned.replace(/^\.\//, '');
+    if (!baseDir) {
+        return cleaned;
+    }
+
+    const normalizedBase = baseDir.replace(/\/$/, '');
+    return `${normalizedBase}/${cleaned}`;
+}
+
+async function loadBibliographyForMarkdownFile(filePath, content) {
+    const frontmatter = extractFrontmatter(content);
+    const bibliographyFiles = parseBibliographyFromFrontmatter(frontmatter);
+    const signature = getBibliographySignature(filePath, bibliographyFiles);
+    updateLastBibliographyConfig(filePath, signature);
+
+    if (!bibliographyFiles.length) {
+        return false;
+    }
+
+    const baseDir = window.currentFileDirectory || filePath?.substring(0, filePath.lastIndexOf('/')) || '';
+    const token = ++currentBibLoadToken;
+    const entries = [];
+
+    for (const bibPath of bibliographyFiles) {
+        const resolvedPath = resolveBibliographyPath(bibPath, baseDir);
+        if (!resolvedPath) {
+            continue;
+        }
+
+        try {
+            const response = await window.electronAPI.invoke('read-file', resolvedPath);
+            if (!response.success) {
+                console.warn(`[renderer.js] Failed to read bibliography file: ${resolvedPath}`, response.error);
+                continue;
+            }
+
+            const parsed = parseBibTeX(response.content, bibPath);
+            if (parsed.length > 0) {
+                entries.push(...parsed);
+                console.log(`[renderer.js] Loaded ${parsed.length} entries from ${bibPath}`);
+            }
+        } catch (error) {
+            console.warn(`[renderer.js] Error loading bibliography file: ${resolvedPath}`, error);
+        }
+    }
+
+    if (token !== currentBibLoadToken) {
+        return true;
+    }
+
+    bibEntries.length = 0;
+    bibEntries.push(...entries);
+
+    const dbEntries = await loadDatabaseCitations();
+    bibEntries.push(...dbEntries);
+
+    window.bibEntries = bibEntries;
+    if (window.TechneCitationRenderer?.invalidateCache) {
+        window.TechneCitationRenderer.invalidateCache();
+    }
+
+    console.log(`[renderer.js] Bibliography set from frontmatter (${entries.length} bib entries + ${dbEntries.length} database)`);
+    showBibliographyStatus(formatBibliographyStatus(bibliographyFiles));
+    return true;
+}
+
+async function refreshBibliographyFromContent(filePath, content) {
+    const frontmatter = extractFrontmatter(content);
+    const bibliographyFiles = parseBibliographyFromFrontmatter(frontmatter);
+    const signature = getBibliographySignature(filePath, bibliographyFiles);
+    const sameFile = lastBibliographyConfig.filePath === filePath;
+
+    if (sameFile && signature === lastBibliographyConfig.signature) {
+        return;
+    }
+
+    updateLastBibliographyConfig(filePath, signature);
+
+    if (bibliographyFiles.length > 0) {
+        await loadBibliographyForMarkdownFile(filePath, content);
+    } else {
+        await loadBibTeXFiles();
+        showBibliographyStatus(formatBibliographyStatus([]));
+    }
+}
+
+function scheduleBibliographyRefresh(filePath, content) {
+    if (!filePath) {
+        return;
+    }
+
+    if (bibliographyRefreshTimer) {
+        clearTimeout(bibliographyRefreshTimer);
+    }
+
+    bibliographyRefreshTimer = setTimeout(() => {
+        bibliographyRefreshTimer = null;
+        refreshBibliographyFromContent(filePath, content);
+    }, 400);
 }
 
 // Load database citations and convert to BibTeX-like format
@@ -3607,6 +3848,15 @@ async function initializeMonacoEditor() {
                 } else {
                     scheduleAutoSave();
                 }
+
+                if (!suppressAutoSave) {
+                    const currentFilePath = window.currentFilePath;
+                    const isMarkdownFile = currentFilePath &&
+                        (currentFilePath.endsWith('.md') || currentFilePath.endsWith('.markdown'));
+                    if (isMarkdownFile) {
+                        scheduleBibliographyRefresh(currentFilePath, currentContent);
+                    }
+                }
             });
             
             // Clear fallback editor since Monaco loaded successfully
@@ -3782,7 +4032,10 @@ async function initializeMonacoEditor() {
 
                 try {
                     // First, try to detect if there are images using Electron's clipboard API
-                    const imageResult = await window.electronAPI.invoke('paste-image-from-clipboard');
+                    const imageResult = await window.electronAPI.invoke('paste-image-from-clipboard', {
+                        sourceFilePath: window.currentFilePath || null,
+                        sourceFileDirectory: window.currentFileDirectory || null
+                    });
 
                     if (imageResult.success) {
                         // We have an image, handle it
@@ -3901,7 +4154,10 @@ async function initializeMonacoEditor() {
                         
                         try {
                             console.log('[Editor] Calling paste-image-from-clipboard IPC...');
-                            const result = await window.electronAPI.invoke('paste-image-from-clipboard');
+                            const result = await window.electronAPI.invoke('paste-image-from-clipboard', {
+                                sourceFilePath: window.currentFilePath || null,
+                                sourceFileDirectory: window.currentFileDirectory || null
+                            });
                             
                             if (result.success) {
                                 
@@ -5655,6 +5911,13 @@ async function openFileInEditor(filePath, content, options = {}) {
     
     // Handle editable files (Markdown, BibTeX)
     await handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
+
+    if (isMarkdown && !options.isInternalLinkPreview) {
+        const loaded = await loadBibliographyForMarkdownFile(filePath, content);
+        if (!loaded) {
+            await loadBibTeXFiles();
+        }
+    }
     
     // Update AI chat context when file changes
     updateAIChatContext(filePath);
@@ -11202,7 +11465,15 @@ function saveCurrentLayout() {
 
 
 
+function notificationsEnabled() {
+    return window.appSettings?.notifications?.enabled !== false;
+}
+
 function showNotification(message, type = 'info', isHTML = false) {
+    if (!notificationsEnabled()) {
+        return;
+    }
+
     // Remove any existing notification
     const existingNotification = document.querySelector('.notification');
     if (existingNotification) {
@@ -12645,6 +12916,7 @@ if (document.readyState === 'loading') {
     initializeFileTreeNavigation();
 }
 window.showNotification = showNotification;
+window.notificationsEnabled = notificationsEnabled;
 window.updateAvailableFiles = updateAvailableFiles;
 window.saveFile = saveFile;
 window.saveAsFile = saveAsFile;

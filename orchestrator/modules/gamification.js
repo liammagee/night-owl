@@ -3713,6 +3713,13 @@ class WritingGamification {
     }
     
     showLevelUpModal(oldLevel, newLevel) {
+        const notificationsAllowed = typeof window.notificationsEnabled === 'function'
+            ? window.notificationsEnabled()
+            : window.appSettings?.notifications?.enabled !== false;
+        if (!notificationsAllowed) {
+            return;
+        }
+
         const levelInfo = this.xpSystem.levelDefinitions[newLevel];
         
         const modal = document.createElement('div');
@@ -3781,6 +3788,13 @@ class WritingGamification {
     }
     
     showXPGainNotification(amount, reason) {
+        const notificationsAllowed = typeof window.notificationsEnabled === 'function'
+            ? window.notificationsEnabled()
+            : window.appSettings?.notifications?.enabled !== false;
+        if (!notificationsAllowed) {
+            return;
+        }
+
         // Create floating XP notification
         const notification = document.createElement('div');
         notification.style.cssText = `

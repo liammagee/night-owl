@@ -1271,6 +1271,13 @@ async function findFileInWorkspace(filename) {
  * @param {string} filename - The filename that was not found
  */
 function showFileNotFoundToast(filename) {
+    const notificationsAllowed = typeof window.notificationsEnabled === 'function'
+        ? window.notificationsEnabled()
+        : window.appSettings?.notifications?.enabled !== false;
+    if (!notificationsAllowed) {
+        return;
+    }
+
     // Check if there's a toast system available
     if (window.showToast) {
         window.showToast(`File not found: ${filename}`, 'warning');
