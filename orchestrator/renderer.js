@@ -201,6 +201,34 @@ if (typeof require !== 'undefined') {
 }
 
 // --- Status Bar Update Function ---
+function countWordsAndLines(text) {
+    let words = 0;
+    let lines = text.length > 0 ? 1 : 0;
+    let inWord = false;
+
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        if (ch === '\n') {
+            lines += 1;
+        }
+        if (
+            ch === ' ' ||
+            ch === '\n' ||
+            ch === '\r' ||
+            ch === '\t' ||
+            ch === '\f' ||
+            ch === '\v'
+        ) {
+            inWord = false;
+        } else if (!inWord) {
+            inWord = true;
+            words += 1;
+        }
+    }
+
+    return { words, lines: lines || 1 };
+}
+
 function updateStatusBar(content) {
     const wordCountEl = document.getElementById('word-count');
     const charCountEl = document.getElementById('char-count');
@@ -225,15 +253,8 @@ function updateStatusBar(content) {
     const contentToAnalyze = isSelection ? selectedText : content;
     const prefix = isSelection ? 'Sel: ' : '';
     
-    // Count words (split by whitespace, filter empty strings)
-    const words = contentToAnalyze.trim().split(/\s+/).filter(word => word.length > 0);
-    const wordCount = contentToAnalyze.trim() === '' ? 0 : words.length;
-    
-    // Count characters
+    const { words: wordCount, lines: lineCount } = countWordsAndLines(contentToAnalyze);
     const charCount = contentToAnalyze.length;
-    
-    // Count lines
-    const lineCount = contentToAnalyze === '' ? 1 : contentToAnalyze.split('\n').length;
     
     // Update status bar elements with consistent styling
     if (wordCountEl) {
@@ -1064,11 +1085,17 @@ async function updatePreviewAndStructure(markdownContent) {
         if (window.suppressPreviewUpdateCount > 0) {
             window.suppressPreviewUpdateCount--;
         }
+        if (activeFileLoadToken) {
+            finishLargeFileIndicator(activeFileLoadToken);
+        }
         return;
     }
     
     if (!previewContent) {
         console.error('[renderer.js] previewContent element not found!');
+        if (activeFileLoadToken) {
+            finishLargeFileIndicator(activeFileLoadToken);
+        }
         return; // Don't proceed if the element is missing
     }
     
@@ -1103,6 +1130,10 @@ async function updatePreviewAndStructure(markdownContent) {
             // Cache for future use
             if (!window.appSettings) window.appSettings = settings;
                 if (shouldRenderAsKanban(currentFilePath, settings)) {
+                    const loadToken = activeFileLoadToken;
+                    if (loadToken) {
+                        updateLargeFileIndicator(loadToken, 'Rendering board…');
+                    }
                     // Title remains consistent - don't change document title for Kanban files
                     
                     // Parse Kanban data
@@ -1154,6 +1185,9 @@ async function updatePreviewAndStructure(markdownContent) {
                         previewPane.style.flex = '1'; // Preview takes remaining space
                     }
                     
+                    if (loadToken) {
+                        finishLargeFileIndicator(loadToken);
+                    }
                     return; // Exit early for Kanban rendering
                 }
                 
@@ -1424,6 +1458,12 @@ async function renderRegularMarkdown(markdownContent) {
     // Update status bar with current content
     updateStatusBar(markdownContent);
 
+    const loadToken = activeFileLoadToken;
+    if (loadToken) {
+        updateLargeFileIndicator(loadToken, 'Rendering preview…');
+        await waitForNextPaint();
+    }
+
     try {
         await renderMarkdownContent(markdownContent);
     } catch (error) {
@@ -1431,8 +1471,18 @@ async function renderRegularMarkdown(markdownContent) {
         previewContent.innerHTML = '<p>Error rendering Markdown preview.</p>';
     }
 
-    // Update structure pane (ensure this happens after preview update)
-    updateStructurePane(markdownContent);
+    const finalizeStructure = () => {
+        updateStructurePane(markdownContent);
+        if (loadToken) {
+            finishLargeFileIndicator(loadToken);
+        }
+    };
+
+    if (loadToken) {
+        setTimeout(finalizeStructure, 0);
+    } else {
+        finalizeStructure();
+    }
 }
 
 // --- Structure Pane Logic ---
@@ -2838,6 +2888,9 @@ let currentBibLoadToken = 0;
 let lastBibliographyConfig = { filePath: null, signature: null };
 let bibliographyRefreshTimer = null;
 let bibliographyStatusTimer = null;
+let fileLoadIndicatorTimer = null;
+let activeFileLoadToken = 0;
+const LARGE_MARKDOWN_CHAR_THRESHOLD = 200000;
 // Expose bibEntries to window for citation renderer plugin
 window.bibEntries = bibEntries;
 
@@ -2881,43 +2934,248 @@ function computeCitationKey(citation) {
     return key;
 }
 
-// Parse BibTeX entries from content
+// Parse BibTeX entries from content (handles nested braces/quotes)
 function parseBibTeX(content, sourceLabel = '') {
     const entries = [];
-    const entryRegex = /@(\w+)\s*\{\s*([^,\s\}]+)\s*,([^\}]*)\}/g;
-    let match;
 
-    // Helper to extract a field value from BibTeX fields string
-    const extractField = (fields, fieldName) => {
-        // Handle various BibTeX formats: {value}, "value", or bare value
-        const regex = new RegExp(`${fieldName}\\s*=\\s*(?:\\{([^}]*)\\}|"([^"]*)"|'([^']*)'|(\\d+))`, 'i');
-        const fieldMatch = fields.match(regex);
-        if (fieldMatch) {
-            return (fieldMatch[1] || fieldMatch[2] || fieldMatch[3] || fieldMatch[4] || '').trim();
+    if (!content || typeof content !== 'string') {
+        return entries;
+    }
+
+    const isNameChar = (ch) => /[A-Za-z0-9_\-:]/.test(ch);
+
+    const parseFields = (fieldsStr) => {
+        const fields = {};
+        let i = 0;
+        const len = fieldsStr.length;
+
+        while (i < len) {
+            while (i < len && /[\s,]/.test(fieldsStr[i])) {
+                i += 1;
+            }
+            if (i >= len) {
+                break;
+            }
+
+            const nameStart = i;
+            while (i < len && isNameChar(fieldsStr[i])) {
+                i += 1;
+            }
+            const name = fieldsStr.slice(nameStart, i).trim().toLowerCase();
+            if (!name) {
+                break;
+            }
+
+            while (i < len && /\s/.test(fieldsStr[i])) {
+                i += 1;
+            }
+            if (fieldsStr[i] !== '=') {
+                while (i < len && fieldsStr[i] !== ',') {
+                    i += 1;
+                }
+                if (fieldsStr[i] === ',') {
+                    i += 1;
+                }
+                continue;
+            }
+
+            i += 1;
+            while (i < len && /\s/.test(fieldsStr[i])) {
+                i += 1;
+            }
+
+            let value = '';
+            if (fieldsStr[i] === '{') {
+                i += 1;
+                const start = i;
+                let depth = 1;
+                let escaped = false;
+                while (i < len && depth > 0) {
+                    const ch = fieldsStr[i];
+                    if (escaped) {
+                        escaped = false;
+                        i += 1;
+                        continue;
+                    }
+                    if (ch === '\\') {
+                        escaped = true;
+                        i += 1;
+                        continue;
+                    }
+                    if (ch === '{') {
+                        depth += 1;
+                    } else if (ch === '}') {
+                        depth -= 1;
+                    }
+                    if (depth > 0) {
+                        i += 1;
+                    }
+                }
+                value = fieldsStr.slice(start, i);
+                i += 1; // skip closing brace
+            } else if (fieldsStr[i] === '"') {
+                i += 1;
+                const start = i;
+                let escaped = false;
+                while (i < len) {
+                    const ch = fieldsStr[i];
+                    if (escaped) {
+                        escaped = false;
+                        i += 1;
+                        continue;
+                    }
+                    if (ch === '\\') {
+                        escaped = true;
+                        i += 1;
+                        continue;
+                    }
+                    if (ch === '"') {
+                        break;
+                    }
+                    i += 1;
+                }
+                value = fieldsStr.slice(start, i);
+                i += 1; // skip closing quote
+            } else {
+                const start = i;
+                while (i < len && fieldsStr[i] !== ',' && fieldsStr[i] !== '\n' && fieldsStr[i] !== '\r') {
+                    i += 1;
+                }
+                value = fieldsStr.slice(start, i).trim();
+            }
+
+            if (name) {
+                fields[name] = value.trim();
+            }
+
+            while (i < len && fieldsStr[i] !== ',') {
+                i += 1;
+            }
+            if (fieldsStr[i] === ',') {
+                i += 1;
+            }
         }
-        return '';
+
+        return fields;
     };
 
-    while ((match = entryRegex.exec(content)) !== null) {
-        const type = match[1];
-        const key = match[2];
-        const fields = match[3];
+    let i = 0;
+    const len = content.length;
+
+    while (i < len) {
+        const at = content.indexOf('@', i);
+        if (at === -1) {
+            break;
+        }
+
+        i = at + 1;
+        while (i < len && /\s/.test(content[i])) {
+            i += 1;
+        }
+
+        const typeStart = i;
+        while (i < len && /[A-Za-z]/.test(content[i])) {
+            i += 1;
+        }
+        const type = content.slice(typeStart, i).trim().toLowerCase();
+        if (!type) {
+            continue;
+        }
+
+        while (i < len && /\s/.test(content[i])) {
+            i += 1;
+        }
+
+        const openChar = content[i];
+        if (openChar !== '{' && openChar !== '(') {
+            continue;
+        }
+        const closeChar = openChar === '{' ? '}' : ')';
+        i += 1;
+
+        while (i < len && /\s/.test(content[i])) {
+            i += 1;
+        }
+
+        const keyStart = i;
+        while (i < len && content[i] !== ',' && content[i] !== closeChar) {
+            i += 1;
+        }
+        const key = content.slice(keyStart, i).trim();
+
+        if (!key || type === 'comment' || type === 'preamble') {
+            while (i < len && content[i] !== closeChar) {
+                i += 1;
+            }
+            i += 1;
+            continue;
+        }
+
+        if (content[i] === ',') {
+            i += 1;
+        }
+
+        const fieldsStart = i;
+        let depth = 0;
+        let inQuotes = false;
+        let escaped = false;
+
+        for (; i < len; i += 1) {
+            const ch = content[i];
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (ch === '\\') {
+                escaped = true;
+                continue;
+            }
+            if (inQuotes) {
+                if (ch === '"') {
+                    inQuotes = false;
+                }
+                continue;
+            }
+            if (ch === '"') {
+                inQuotes = true;
+                continue;
+            }
+            if (ch === '{') {
+                depth += 1;
+                continue;
+            }
+            if (ch === '}') {
+                if (closeChar === '}' && depth === 0) {
+                    break;
+                }
+                depth = Math.max(0, depth - 1);
+                continue;
+            }
+            if (ch === ')' && closeChar === ')' && depth === 0 && !inQuotes) {
+                break;
+            }
+        }
+
+        const fieldsStr = content.slice(fieldsStart, i);
+        i += 1;
+
+        const fields = parseFields(fieldsStr);
 
         entries.push({
             key: key,
             type: type,
-            title: extractField(fields, 'title'),
-            author: extractField(fields, 'author'),
-            year: extractField(fields, 'year'),
-            journal: extractField(fields, 'journal'),
-            booktitle: extractField(fields, 'booktitle'),
-            publisher: extractField(fields, 'publisher'),
-            volume: extractField(fields, 'volume'),
-            issue: extractField(fields, 'number') || extractField(fields, 'issue'),
-            pages: extractField(fields, 'pages'),
-            doi: extractField(fields, 'doi'),
-            url: extractField(fields, 'url'),
-            abstract: extractField(fields, 'abstract'),
+            title: fields.title || '',
+            author: fields.author || '',
+            year: fields.year || '',
+            journal: fields.journal || '',
+            booktitle: fields.booktitle || '',
+            publisher: fields.publisher || '',
+            volume: fields.volume || '',
+            issue: fields.number || fields.issue || '',
+            pages: fields.pages || '',
+            doi: fields.doi || '',
+            url: fields.url || '',
+            abstract: fields.abstract || '',
             source: 'bibtex',
             sourceDetail: sourceLabel
         });
@@ -2931,8 +3189,34 @@ function extractFrontmatter(content) {
         return null;
     }
 
-    const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*/);
-    return match ? match[1] : null;
+    let normalized = content;
+    if (normalized.charCodeAt(0) === 0xFEFF) {
+        normalized = normalized.slice(1);
+    }
+
+    const lines = normalized.split(/\r?\n/);
+    let i = 0;
+
+    // Allow leading blank lines before frontmatter.
+    while (i < lines.length && lines[i].trim() === '') {
+        i += 1;
+    }
+
+    if (i >= lines.length || lines[i].trim() !== '---') {
+        return null;
+    }
+
+    i += 1;
+    const frontmatterLines = [];
+    for (; i < lines.length; i += 1) {
+        const line = lines[i];
+        if (line.trim() === '---') {
+            return frontmatterLines.join('\n');
+        }
+        frontmatterLines.push(line);
+    }
+
+    return null;
 }
 
 function normalizeBibliographyValue(value) {
@@ -2961,6 +3245,14 @@ function parseBibliographyFromFrontmatter(frontmatter) {
         if (value) {
             if (value.startsWith('[') && value.endsWith(']')) {
                 const list = value.slice(1, -1).split(',');
+                list.forEach(item => {
+                    const cleaned = normalizeBibliographyValue(item);
+                    if (cleaned) {
+                        bibFiles.push(cleaned);
+                    }
+                });
+            } else if (value.includes(',')) {
+                const list = value.split(',');
                 list.forEach(item => {
                     const cleaned = normalizeBibliographyValue(item);
                     if (cleaned) {
@@ -3027,6 +3319,82 @@ function formatBibliographyStatus(bibliographyFiles) {
         return `Bibliography: ${bibliographyFiles[0]}`;
     }
     return `Bibliography: ${bibliographyFiles.length} files`;
+}
+
+function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes)) {
+        return '';
+    }
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+        return `${Math.round(kb)} KB`;
+    }
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+}
+
+function waitForNextPaint() {
+    return new Promise(resolve => {
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => resolve());
+        } else {
+            setTimeout(resolve, 0);
+        }
+    });
+}
+
+function startLargeFileIndicator(filePath, contentLength) {
+    const statusEl = document.getElementById('load-status');
+    if (!statusEl) {
+        return 0;
+    }
+
+    const token = ++activeFileLoadToken;
+    const fileName = filePath ? filePath.split('/').pop() : 'file';
+    const sizeLabel = formatFileSize(contentLength);
+    const baseMessage = sizeLabel ? `Loading ${fileName} (${sizeLabel})…` : `Loading ${fileName}…`;
+
+    if (fileLoadIndicatorTimer) {
+        clearTimeout(fileLoadIndicatorTimer);
+    }
+
+    fileLoadIndicatorTimer = setTimeout(() => {
+        if (activeFileLoadToken !== token) {
+            return;
+        }
+        statusEl.textContent = baseMessage;
+        statusEl.style.display = '';
+    }, 120);
+
+    return token;
+}
+
+function updateLargeFileIndicator(token, message) {
+    const statusEl = document.getElementById('load-status');
+    if (!statusEl || token === 0 || activeFileLoadToken !== token) {
+        return;
+    }
+    statusEl.textContent = message;
+    statusEl.style.display = '';
+}
+
+function finishLargeFileIndicator(token) {
+    const statusEl = document.getElementById('load-status');
+    if (!statusEl || token === 0 || activeFileLoadToken !== token) {
+        return;
+    }
+
+    if (fileLoadIndicatorTimer) {
+        clearTimeout(fileLoadIndicatorTimer);
+        fileLoadIndicatorTimer = null;
+    }
+
+    statusEl.textContent = '';
+    statusEl.style.display = 'none';
+    activeFileLoadToken = 0;
 }
 
 function getBibliographySignature(filePath, bibliographyFiles) {
@@ -4943,8 +5311,9 @@ function updateAIChatContext(filePath) {
             if (window.editor && typeof window.editor.getValue === 'function') {
                 const content = window.editor.getValue();
                 if (content) {
-                    const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-                    const lineCount = content.split('\n').length;
+                    const counts = countWordsAndLines(content);
+                    const wordCount = counts.words;
+                    const lineCount = counts.lines;
                     stats = ` (${lineCount} lines, ${wordCount} words)`;
                 }
             }
@@ -4969,8 +5338,9 @@ function updateAIChatContext(filePath) {
                 if (window.editor && typeof window.editor.getValue === 'function') {
                     const content = window.editor.getValue();
                     if (content) {
-                        const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-                        const lineCount = content.split('\n').length;
+                        const counts = countWordsAndLines(content);
+                        const wordCount = counts.words;
+                        const lineCount = counts.lines;
                         stats = ` (${lineCount} lines, ${wordCount} words)`;
                     }
                 }
@@ -5862,6 +6232,7 @@ async function openFileInEditor(filePath, content, options = {}) {
     const isHTML = filePath.endsWith('.html') || filePath.endsWith('.htm');
     const isBibTeX = filePath.endsWith('.bib');
     const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+    const isLargeMarkdown = isMarkdown && content && content.length >= LARGE_MARKDOWN_CHAR_THRESHOLD;
     
     // Exit PDF-only mode if we're opening a non-PDF file
     if (!isPDF && !options.isInternalLinkPreview) {
@@ -5909,8 +6280,13 @@ async function openFileInEditor(filePath, content, options = {}) {
         return;
     }
     
-    // Handle editable files (Markdown, BibTeX)
-    await handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
+    let loadToken = 0;
+    if (isLargeMarkdown && !options.isInternalLinkPreview) {
+        loadToken = startLargeFileIndicator(filePath, content.length);
+        if (loadToken) {
+            await waitForNextPaint();
+        }
+    }
 
     if (isMarkdown && !options.isInternalLinkPreview) {
         const loaded = await loadBibliographyForMarkdownFile(filePath, content);
@@ -5918,6 +6294,9 @@ async function openFileInEditor(filePath, content, options = {}) {
             await loadBibTeXFiles();
         }
     }
+
+    // Handle editable files (Markdown, BibTeX)
+    await handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
     
     // Update AI chat context when file changes
     updateAIChatContext(filePath);
@@ -8828,6 +9207,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
     const isFolder = node.type === 'folder' || node.type === 'directory';
     const hasChildren = isFolder && node.children && node.children.length > 0;
     const isExpanded = window.expandedFolders.has(node.path);
+
     
     // Create expand/collapse arrow for folders with children
     let expandArrow = '';
@@ -8871,6 +9251,13 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         </div>
         ${tagsDisplay}
     `;
+
+    if (isFolder && node.path) {
+        const mainRow = nodeElement.querySelector('.file-tree-main');
+        if (mainRow) {
+            mainRow.title = node.path;
+        }
+    }
     
     // Add appropriate classes and properties
     if (isFolder) {

@@ -31,6 +31,20 @@ function register(deps) {
     return textChanged || filesChanged || timestampsChanged;
   }
 
+  function getLocalModelMissingResponse(error, contextLabel) {
+    const message = error?.message;
+    const isMissingModel = error?.code === 'LOCAL_AI_NO_MODEL' ||
+      (typeof message === 'string' && message.toLowerCase().includes('no models loaded'));
+    if (!isMissingModel) return null;
+
+    const friendlyMessage = error?.code === 'LOCAL_AI_NO_MODEL'
+      ? error.message
+      : 'Local AI has no models loaded. Load a model in the developer page or run "lms load".';
+
+    console.warn(`[AIHandlers] ${contextLabel}: ${friendlyMessage}`);
+    return { error: friendlyMessage, code: 'LOCAL_AI_NO_MODEL' };
+  }
+
   // AI Chat handlers
   ipcMain.handle('send-chat-message', async (event, userMessage, assistantConfig) => {
     if (!aiService || aiService.getAvailableProviders().length === 0) {
@@ -85,6 +99,8 @@ function register(deps) {
         usage: response.usage
       };
     } catch (error) {
+      const localModelResponse = getLocalModelMissingResponse(error, 'send-chat-message');
+      if (localModelResponse) return localModelResponse;
       console.error('[AIHandlers] Error in send-chat-message:', error);
       return { error: error.message || 'An error occurred while processing your request.' };
     }
@@ -117,6 +133,8 @@ function register(deps) {
         usage: response.usage
       };
     } catch (error) {
+      const localModelResponse = getLocalModelMissingResponse(error, 'send-chat-message-with-options');
+      if (localModelResponse) return localModelResponse;
       console.error('[AIHandlers] Error in send-chat-message-with-options:', error);
       return { error: error.message || 'An error occurred while processing your request.' };
     }
@@ -177,6 +195,8 @@ function register(deps) {
         confidence: response.confidence || 0.8
       };
     } catch (error) {
+      const localModelResponse = getLocalModelMissingResponse(error, 'ai-chat');
+      if (localModelResponse) return localModelResponse;
       console.error('[AIHandlers] Error in ai-chat:', error);
       return { error: error.message || 'An error occurred while processing your request.' };
     }
@@ -243,6 +263,8 @@ function register(deps) {
         usage: response.usage
       };
     } catch (error) {
+      const localModelResponse = getLocalModelMissingResponse(error, 'send-chat-message-with-context');
+      if (localModelResponse) return localModelResponse;
       console.error('[AIHandlers] Error in send-chat-message-with-context:', error);
       return { error: error.message || 'An error occurred while processing your request.' };
     }

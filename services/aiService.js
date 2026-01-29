@@ -266,6 +266,11 @@ class AIService {
         this.conversationHistory.pop();
       }
       
+      if (error.code === 'LOCAL_AI_NO_MODEL') {
+        console.warn('[AIService] Local AI has no models loaded.');
+        throw error;
+      }
+
       console.error(`[AIService] Error with ${provider}:`, error.message);
       console.error(`[AIService] Full error:`, error);
       
@@ -893,7 +898,27 @@ class LocalAIProvider extends BaseProvider {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Local AI API request failed: ${response.status} ${response.statusText}\n${errorText}`);
+        let parsedError = null;
+        let apiMessage = errorText;
+        try {
+          parsedError = JSON.parse(errorText);
+          if (parsedError?.error?.message) {
+            apiMessage = parsedError.error.message;
+          }
+        } catch (parseError) {
+          // Ignore JSON parse errors and use raw response text
+        }
+
+        const normalizedMessage = typeof apiMessage === 'string' ? apiMessage : JSON.stringify(apiMessage);
+        if (normalizedMessage && normalizedMessage.toLowerCase().includes('no models loaded')) {
+          const noModelError = new Error('Local AI has no models loaded. Load a model in the developer page or run "lms load".');
+          noModelError.code = 'LOCAL_AI_NO_MODEL';
+          throw noModelError;
+        }
+
+        const requestError = new Error(`Local AI API request failed: ${response.status} ${response.statusText}${normalizedMessage ? `\n${normalizedMessage}` : ''}`);
+        requestError.code = 'LOCAL_AI_API_ERROR';
+        throw requestError;
       }
 
       const data = await response.json();
@@ -909,6 +934,10 @@ class LocalAIProvider extends BaseProvider {
         usage: data.usage
       };
     } catch (error) {
+      if (error.code === 'LOCAL_AI_NO_MODEL') {
+        console.warn('[LocalAIProvider] No local models loaded.');
+        throw error;
+      }
       console.error(`[LocalAIProvider] API call failed:`, error.message);
       console.error(`[LocalAIProvider] Target URL:`, this.apiUrl);
       console.error(`[LocalAIProvider] Base URL:`, this.baseUrl);
