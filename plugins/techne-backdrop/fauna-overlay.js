@@ -1,5 +1,5 @@
 /**
- * GENERATIVE FAUNA OVERLAY (Techne plugin vendor)
+ * GENERATIVE FAUNA OVERLAY
  * Five totems: Kookaburra, Snake, Octopus, Wallaby, Echidna
  *
  * Usage:
@@ -24,6 +24,7 @@ class FaunaOverlay {
       entityCount: options.entityCount || [20, 30],
       lineWidthRange: options.lineWidth || [1.0, 2.0],
       driftAmount: options.driftAmount || [8, 28],
+      sizeRange: options.sizeRange || [0.4, 1.6], // creature size variation
       parallaxMultiplier: options.parallaxMultiplier || 1.0,
       seed: options.seed || Math.random() * 999999,
       // Swiss palette mode: uses red/black instead of earthy tones
@@ -596,9 +597,10 @@ class FaunaOverlay {
     const [opacityMin, opacityMax] = this.config.opacityRange;
     const [lineWidthMin, lineWidthMax] = this.config.lineWidthRange;
     const [driftMin, driftMax] = this.config.driftAmount;
+    const [sizeMin, sizeMax] = this.config.sizeRange;
 
     const baseX = this.rand(seed + 10000) * this.width;
-    const scale = 0.6 + this.randGauss(seed + 10002) * 1.0;
+    const scale = sizeMin + this.randGauss(seed + 10002) * (sizeMax - sizeMin);
     const rotation = (this.rand(seed + 10003) - 0.5) * 0.45;
     const parallaxSpeed = (0.08 + this.rand(seed + 10004) * 0.5) * this.config.parallaxMultiplier;
 

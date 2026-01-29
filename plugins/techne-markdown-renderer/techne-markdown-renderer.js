@@ -78,55 +78,37 @@
         return processed;
     };
 
-    const createCustomMarkdownRenderer = ({ baseDir } = {}) => {
-        const markedApi = getMarked();
-        if (!markedApi?.Renderer) return null;
+    // Create renderer extensions for marked v13+ (using marked.use() API)
+    const createRendererExtensions = ({ baseDir } = {}) => {
+        return {
+            renderer: {
+                // Heading with auto-generated IDs
+                heading({ text, depth, raw }) {
+                    const id = `heading-${slugify(raw || text)}`;
+                    if (id === 'heading-') {
+                        return `<h${depth}>${text}</h${depth}>\n`;
+                    }
+                    return `<h${depth} id="${id}">${text}</h${depth}>\n`;
+                },
 
-        const renderer = new markedApi.Renderer();
-        const originalHeading = typeof renderer.heading === 'function' ? renderer.heading.bind(renderer) : null;
-        const originalImage = typeof renderer.image === 'function' ? renderer.image.bind(renderer) : null;
-        const originalList = typeof renderer.list === 'function' ? renderer.list.bind(renderer) : null;
-        const originalListitem = typeof renderer.listitem === 'function' ? renderer.listitem.bind(renderer) : null;
-
-        renderer.heading = (text, level, raw) => {
-            const html = originalHeading
-                ? originalHeading(text, level, raw)
-                : `<h${level}>${text}</h${level}>\n`;
-
-            const id = `heading-${slugify(raw || text)}`;
-            if (id === 'heading-') return html;
-            return String(html).replace(/^(<h[1-6])/, `$1 id="${id}"`);
-        };
-
-        renderer.image = (href, title, text) => {
-            const resolved = resolveImageHref(href, { baseDir });
-            if (originalImage) return originalImage(resolved, title, text);
-            const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-            return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text)}"${titleAttr} />`;
-        };
-
-        renderer.list = (body, ordered, start) => {
-            if (!originalList) {
-                const type = ordered ? 'ol' : 'ul';
-                const startAttr = ordered && start !== 1 ? ` start="${start}"` : '';
-                return `<${type}${startAttr} class="markdown-list">\n${body}</${type}>\n`;
+                // Image with baseDir resolution
+                image({ href, title, text }) {
+                    const resolved = resolveImageHref(href, { baseDir });
+                    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+                    return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || '')}"${titleAttr} />`;
+                }
+                // Note: list/listitem use default marked rendering; classes added via addListClasses post-processing
             }
-
-            const type = ordered ? 'ol' : 'ul';
-            const startAttr = ordered && start !== 1 ? ` start="${start}"` : '';
-            return `<${type}${startAttr} class="markdown-list">\n${body}</${type}>\n`;
         };
+    };
 
-        renderer.listitem = (text, task, checked) => {
-            if (task) {
-                const checkedAttr = checked ? ' checked=""' : '';
-                return `<li class="task-list-item markdown-list-item"><input type="checkbox"${checkedAttr} disabled=""> ${text}</li>\n`;
-            }
-            if (originalListitem) return `<li class="markdown-list-item">${text}</li>\n`;
-            return `<li class="markdown-list-item">${text}</li>\n`;
-        };
-
-        return renderer;
+    // Post-process HTML to add custom classes to lists
+    const addListClasses = (html) => {
+        return html
+            .replace(/<ul>/g, '<ul class="markdown-list">')
+            .replace(/<ol>/g, '<ol class="markdown-list">')
+            .replace(/<ol start=/g, '<ol class="markdown-list" start=')
+            .replace(/<li>/g, '<li class="markdown-list-item">');
     };
 
     const processMarkdownContent = (markdownContent, { processAnnotations } = {}) => {
@@ -147,15 +129,21 @@
         }
 
         const processed = processMarkdownContent(markdownContent, options);
-        const renderer = createCustomMarkdownRenderer(options);
 
-        let html = markedApi.parse(processed, {
-            renderer: renderer || undefined,
-            gfm: true,
-            breaks: true,
-            pedantic: false,
-            smartLists: true
-        });
+        // For marked v13+, use marked.use() with renderer extensions
+        if (markedApi.use) {
+            const extensions = createRendererExtensions(options);
+            markedApi.use({
+                ...extensions,
+                gfm: true,
+                breaks: true,
+            });
+        }
+
+        let html = markedApi.parse(processed);
+
+        // Add custom classes to lists (post-processing since marked v13+ tokens don't have body)
+        html = addListClasses(html);
 
         if (typeof options.processInternalLinksHTML === 'function') {
             html = await options.processInternalLinksHTML(html);
