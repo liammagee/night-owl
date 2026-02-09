@@ -266,17 +266,24 @@ Generated from codebase deep scan on 2025-12-17.
 ## Future Enhancements
 
 ### Git Integration Roadmap
-- [ ] **Branch Switching** - Switch between branches from the UI
-- [ ] **Commit History View** - View recent commits with diffs
-- [ ] **Dedicated Git Panel** - Full git panel in sidebar with:
+- [x] **Branch Switching** - ✅ Switch between branches, create new branches, filter/search
+- [x] **Commit History View** - ✅ Lazy-loaded recent commits with file stats, click-through to diffs
+- [x] **Dedicated Git Panel** - ✅ Full git panel in sidebar with:
   - Staged/unstaged changes view
-  - Diff viewer for each file
+  - Monaco diff viewer for each file (side-by-side + inline toggle)
   - Stage/unstage individual files
   - Discard changes option
-- [ ] **Git Stash Support** - Stash and apply changes
-- [ ] **Pull Changes** - Fetch and pull from remote
-- [ ] **Merge Conflict Resolution** - Visual merge conflict editor
-- [ ] **Git Blame** - Show line-by-line commit info in gutter
+  - Commit with message (Ctrl+Enter shortcut)
+  - Push/pull buttons
+- [x] **Git Stash Support** - ✅ Save, apply, pop, drop stashes
+- [x] **Pull Changes** - ✅ Fetch + pull with auto-conflict detection
+- [x] **Merge Conflict Resolution** - ✅ Visual merge editor with Accept Ours/Theirs/Both + Mark Resolved
+- [x] **Git Blame** - ✅ Inline blame decorations via command palette
+- [x] **Ahead/Behind Indicator** - ✅ Shows ↑N ↓N next to branch name
+- [x] **Amend Commit** - ✅ Checkbox to amend previous commit, auto-fills last message
+- [x] **File Tree Git Decorations** - ✅ Color-coded filenames by git status (M/A/D/U)
+- [x] **Editor Gutter Change Indicators** - ✅ Green/blue/red bars for added/modified/deleted lines
+- [x] **Hunk Staging** - ✅ Stage individual diff hunks from the diff viewer
 
 ---
 
