@@ -196,6 +196,44 @@
             width: 100%;
         }
         
+        /* Custom styled tooltip (JS-positioned, appended to body) */
+        .app-tooltip {
+            position: fixed;
+            background: #1f2937;
+            color: #f9fafb;
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 1.3;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.15s ease, visibility 0.15s ease;
+            z-index: 100000;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        }
+        .app-tooltip.visible {
+            visibility: visible;
+            opacity: 1;
+        }
+        .app-tooltip::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+        }
+        .app-tooltip.above::after {
+            top: 100%;
+            border-top-color: #1f2937;
+        }
+        .app-tooltip.below::after {
+            bottom: 100%;
+            border-bottom-color: #1f2937;
+        }
+
         /* WCAG AA compliant primary color - darker green for sufficient contrast with white */
         :root {
             --primary-wcag: #166534; /* Contrast ratio 6.26:1 with white */
@@ -228,8 +266,8 @@
         
         /* Add margins to sidebar headers */
         #structure-pane-header {
-            padding: 8px 12px !important;
-            margin-top: 4px !important;
+            padding: 4px 8px !important;
+            margin-top: 2px !important;
         }
         
         #structure-pane-title {
@@ -748,12 +786,92 @@
             font-size: 11px;
             opacity: 0.5;
         }
+        /* Gutter change indicators */
+        .git-gutter-added {
+            background: #22c55e;
+            width: 3px !important;
+            margin-left: 3px;
+        }
+        .git-gutter-modified {
+            background: #3b82f6;
+            width: 3px !important;
+            margin-left: 3px;
+        }
+        .git-gutter-deleted {
+            background: #ef4444;
+            width: 3px !important;
+            margin-left: 3px;
+            border-bottom: 4px solid #ef4444;
+        }
         /* Blame decorations */
         .git-blame-decoration {
             opacity: 0.5;
             font-style: italic;
             padding-left: 16px;
             font-size: 11px;
+        }
+        /* Hunk staging diff view */
+        .git-hunk {
+            border-bottom: 1px solid var(--neutral-200, #eee);
+        }
+        .git-hunk-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 12px;
+            background: var(--neutral-50, #f8f8f8);
+            border-bottom: 1px solid var(--neutral-200, #eee);
+        }
+        body.dark-mode .git-hunk-header {
+            background: var(--neutral-800, #2a2a2a);
+            border-color: var(--neutral-700, #444);
+        }
+        .git-hunk-context {
+            font-size: 11px;
+            opacity: 0.7;
+            font-family: monospace;
+        }
+        .git-hunk-stage-btn {
+            font-size: 11px;
+            padding: 2px 8px;
+        }
+        .git-hunk-diff {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-x: auto;
+        }
+        .diff-line {
+            padding: 0 12px;
+            white-space: pre;
+        }
+        .diff-line.diff-add {
+            background: rgba(34, 197, 94, 0.15);
+            color: #16a34a;
+        }
+        .diff-line.diff-del {
+            background: rgba(239, 68, 68, 0.15);
+            color: #dc2626;
+        }
+        .diff-line.diff-hdr {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        body.dark-mode .diff-line.diff-add {
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+        }
+        body.dark-mode .diff-line.diff-del {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+        }
+        body.dark-mode .diff-line.diff-hdr {
+            background: rgba(59, 130, 246, 0.08);
+            color: #60a5fa;
+        }
+        body.dark-mode .git-hunk {
+            border-color: var(--neutral-700, #444);
         }
         /* Conflict resolution buttons */
         .git-conflict-actions {
@@ -2916,14 +3034,14 @@
         <!-- Left Sidebar (Always visible) -->
         <nav id="left-sidebar" aria-label="File navigation and tools">
             <div id="structure-pane-header">
-                <div class="toggle-buttons structure-toggle-buttons" style="display: flex; gap: 2px; overflow: hidden;">
-                    <button id="show-files-btn" class="btn pane-toggle-button" title="Show File Tree" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📁</button>
-                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Show Document Structure" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">🏗️</button>
-                    <button id="show-search-btn" class="btn pane-toggle-button" title="Global Search" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">🔍</button>
-                    <button id="show-stats-btn" class="btn pane-toggle-button" title="Presentation Statistics" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📊</button>
-                    <button id="show-citations-btn" class="btn pane-toggle-button" title="Citation Manager" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📚</button>
-                    <button id="show-footnotes-btn" class="btn pane-toggle-button" title="Footnote Manager" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">📝</button>
-                    <button id="show-git-btn" class="btn pane-toggle-button" title="Git Source Control" style="padding: 4px 6px; font-size: 14px; min-width: 32px;">🔀</button>
+                <div class="toggle-buttons structure-toggle-buttons" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;">
+                    <button id="show-files-btn" class="btn pane-toggle-button" title="Files" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📁</button>
+                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Structure" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">🏗️</button>
+                    <button id="show-search-btn" class="btn pane-toggle-button" title="Search" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">🔍</button>
+                    <button id="show-stats-btn" class="btn pane-toggle-button" title="Statistics" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📊</button>
+                    <button id="show-citations-btn" class="btn pane-toggle-button" title="Citations" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📚</button>
+                    <button id="show-footnotes-btn" class="btn pane-toggle-button" title="Footnotes" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📝</button>
+                    <button id="show-git-btn" class="btn pane-toggle-button" title="Git" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">🔀</button>
                 </div>
                 <!-- Tag search interface (only visible in Files view) -->
                 <div id="tag-search-section" style="display: none; margin-top: 4px;">
@@ -2987,8 +3105,8 @@
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <h3 style="margin: 0; color: var(--primary, #007bff); font-size: 16px;">📊 Statistics</h3>
                             <div style="display: flex; gap: 4px; background: var(--surface-variant, #f8f9fa); border: 1px solid var(--border, #ddd); border-radius: 6px; padding: 2px;">
-                                <button id="stats-scope-document" class="btn btn-sm btn-ghost stats-scope-btn active">Document</button>
-                                <button id="stats-scope-project" class="btn btn-sm btn-ghost stats-scope-btn">Project</button>
+                                <button id="stats-scope-document" class="btn btn-sm btn-ghost stats-scope-btn active" title="Statistics for Current Document">Document</button>
+                                <button id="stats-scope-project" class="btn btn-sm btn-ghost stats-scope-btn" title="Statistics for Entire Project">Project</button>
                             </div>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
@@ -3135,12 +3253,12 @@
                     <div id="citations-sql-panel" style="display: none; margin: 6px 0; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
                         <div style="margin-bottom: 4px; font-size: 11px; color: #666; display: flex; justify-content: space-between; align-items: center;">
                             <span>🔍 Advanced SQL Query (SELECT only)</span>
-                            <button id="citations-sql-examples" class="btn btn-sm btn-ghost">Examples</button>
+                            <button id="citations-sql-examples" class="btn btn-sm btn-ghost" title="Show Example SQL Queries">Examples</button>
                         </div>
                         <div style="display: flex; gap: 4px;">
                             <textarea id="citations-sql-input" placeholder="SELECT * FROM citations WHERE title LIKE '%search%'" 
                                       style="flex: 1; padding: 4px; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; font-size: 11px; min-height: 40px; resize: vertical;"></textarea>
-                            <button id="citations-sql-execute" class="btn btn-sm btn-primary" style="white-space: nowrap;">Execute</button>
+                            <button id="citations-sql-execute" class="btn btn-sm btn-primary" title="Execute SQL Query" style="white-space: nowrap;">Execute</button>
                         </div>
                     </div>
                     
@@ -3173,6 +3291,7 @@
                     <div id="git-panel-header" style="padding: 8px 12px; border-bottom: 1px solid var(--neutral-200, #e5e5e5); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
                         <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
                             <span id="git-branch-name" style="font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Click to switch branch">main</span>
+                            <span id="git-sync-indicator" style="font-size: 11px; font-weight: 500; opacity: 0.7; white-space: nowrap;"></span>
                         </div>
                         <div style="display: flex; gap: 4px; flex-shrink: 0;">
                             <button id="git-refresh-btn" class="btn" title="Refresh" style="padding: 2px 6px; font-size: 12px;">↻</button>
@@ -3183,8 +3302,11 @@
                     <!-- Commit input -->
                     <div id="git-commit-area" style="padding: 8px 12px; border-bottom: 1px solid var(--neutral-200, #e5e5e5); flex-shrink: 0;">
                         <textarea id="git-commit-message" placeholder="Commit message" rows="2" style="width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--neutral-300, #ccc); border-radius: 4px; font-size: 12px; font-family: inherit; resize: vertical; min-height: 32px;"></textarea>
-                        <div style="display: flex; gap: 4px; margin-top: 4px;">
-                            <button id="git-commit-btn" class="btn btn-primary" style="padding: 4px 12px; font-size: 12px; flex: 1;">Commit</button>
+                        <div style="display: flex; gap: 4px; margin-top: 4px; align-items: center;">
+                            <label style="font-size: 11px; display: flex; align-items: center; gap: 3px; cursor: pointer; white-space: nowrap; opacity: 0.7;">
+                                <input type="checkbox" id="git-amend-checkbox" style="margin: 0;"> Amend
+                            </label>
+                            <button id="git-commit-btn" class="btn btn-primary" title="Commit Staged Changes (Ctrl+Enter)" style="padding: 4px 12px; font-size: 12px; flex: 1;">Commit</button>
                         </div>
                     </div>
                     <!-- Changes area (scrollable) -->
@@ -3253,11 +3375,11 @@
                 
                 <!-- Mode Switcher -->
                 <div style="display: flex; gap: 4px; padding: 4px; background: #fefdfb; border: 1px solid #ddd; border-radius: 6px;">
-                    <button id="editor-mode-btn" class="mode-btn active">Editor</button>
-                    <button id="presentation-mode-btn" class="mode-btn">Presentation</button>
-	                    <button id="network-mode-btn" class="mode-btn">Network</button>
-	                    <button id="library-mode-btn" class="mode-btn">Maze</button>
-	                    <button id="circle-mode-btn" class="mode-btn">Circle</button>
+                    <button id="editor-mode-btn" class="mode-btn active" title="Editor View">Editor</button>
+                    <button id="presentation-mode-btn" class="mode-btn" title="Presentation View">Presentation</button>
+	                    <button id="network-mode-btn" class="mode-btn" title="Network Visualization">Network</button>
+	                    <button id="library-mode-btn" class="mode-btn" title="Maze View">Maze</button>
+	                    <button id="circle-mode-btn" class="mode-btn" title="Circle View">Circle</button>
 	                </div>
                 
                 <!-- Pane Toggle Controls -->
@@ -3532,19 +3654,19 @@
                             </div>
                             
                             <div class="wholepart-controls" style="display: flex; justify-content: center; gap: 6px; padding: 8px 8px; border-top: 1px solid #e0e0e0; flex-wrap: wrap;">
-                                <button id="wholepart-animate" class="btn" style="padding: 4px 8px; font-size: 11px;">▶️ Animate</button>
-                                <button id="wholepart-reset" class="btn" style="padding: 4px 8px; font-size: 11px;">🔄 Reset</button>
-                                <button id="wholepart-export-png" class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;">📸 Export</button>
-                                <button id="wholepart-zoom-in" class="btn" style="padding: 4px 6px; font-size: 11px;">+</button>
-                                <button id="wholepart-zoom-out" class="btn" style="padding: 4px 6px; font-size: 11px;">-</button>
+                                <button id="wholepart-animate" class="btn" title="Animate Relations" style="padding: 4px 8px; font-size: 11px;">▶️ Animate</button>
+                                <button id="wholepart-reset" class="btn" title="Reset View" style="padding: 4px 8px; font-size: 11px;">🔄 Reset</button>
+                                <button id="wholepart-export-png" class="btn btn-primary" title="Export as Image" style="padding: 4px 8px; font-size: 11px;">📸 Export</button>
+                                <button id="wholepart-zoom-in" class="btn" title="Zoom In" style="padding: 4px 6px; font-size: 11px;">+</button>
+                                <button id="wholepart-zoom-out" class="btn" title="Zoom Out" style="padding: 4px 6px; font-size: 11px;">-</button>
                             </div>
                         </div>
                     </div>
                     <div class="toggle-buttons" style="padding: 4px 8px; border-top: 1px solid #ddd; display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; min-height: 32px; max-height: 40px;">
-                        <button id="show-preview-btn" class="btn pane-toggle-button active" style="padding: 6px 8px; font-size: 12px;">Preview</button>
-                        <button id="show-chat-btn" class="btn pane-toggle-button" style="padding: 6px 8px; font-size: 12px;">AI Chat</button>
-                        <button id="show-speaker-notes-btn" class="btn pane-toggle-button" style="padding: 6px 8px; font-size: 12px;">📝 Notes</button>
-                        <button id="show-wholepart-btn" class="btn pane-toggle-button" style="padding: 6px 8px; font-size: 12px;">🔗 Relations</button>
+                        <button id="show-preview-btn" class="btn pane-toggle-button active" title="Show Preview" style="padding: 6px 8px; font-size: 12px;">Preview</button>
+                        <button id="show-chat-btn" class="btn pane-toggle-button" title="AI Chat Assistant" style="padding: 6px 8px; font-size: 12px;">AI Chat</button>
+                        <button id="show-speaker-notes-btn" class="btn pane-toggle-button" title="Speaker Notes" style="padding: 6px 8px; font-size: 12px;">📝 Notes</button>
+                        <button id="show-wholepart-btn" class="btn pane-toggle-button" title="Whole-Part Relations" style="padding: 6px 8px; font-size: 12px;">🔗 Relations</button>
                     </div>
                 </div>
                 </div> <!-- End panes-container -->
@@ -3646,10 +3768,10 @@
         </div>
         
         <div class="find-replace-actions">
-            <button class="find-replace-btn find-replace-primary" id="find-next">Find Next</button>
-            <button class="find-replace-btn" id="find-previous">Find Previous</button>
-            <button class="find-replace-btn" id="replace-current">Replace</button>
-            <button class="find-replace-btn" id="replace-all">Replace All</button>
+            <button class="find-replace-btn find-replace-primary" id="find-next" title="Find Next Match (Enter)">Find Next</button>
+            <button class="find-replace-btn" id="find-previous" title="Find Previous Match (Shift+Enter)">Find Previous</button>
+            <button class="find-replace-btn" id="replace-current" title="Replace Current Match">Replace</button>
+            <button class="find-replace-btn" id="replace-all" title="Replace All Matches">Replace All</button>
         </div>
         
         <div class="find-replace-stats" id="find-replace-stats">
@@ -3861,6 +3983,96 @@
     <script src="orchestrator/modules/unifiedNetwork.js" defer></script>
     <script src="js/editor-utils.js" defer></script>
     <script src="js/app-init.js" defer></script>
+
+    <!-- Styled tooltip system — positions tooltip on document.body to avoid overflow clipping -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var tip = document.createElement('div');
+        tip.className = 'app-tooltip';
+        document.body.appendChild(tip);
+        var showTimer = null, hideTimer = null;
+
+        function convertTitles(root) {
+            var els = (root || document).querySelectorAll('[title]');
+            els.forEach(function(el) {
+                if (!el.dataset.tooltip) {
+                    el.dataset.tooltip = el.getAttribute('title');
+                    el.removeAttribute('title');
+                }
+            });
+        }
+
+        function showTip(el) {
+            clearTimeout(hideTimer);
+            var text = el.dataset.tooltip;
+            if (!text) return;
+            tip.textContent = text;
+            // Reset: remove visible/position classes, show offscreen to measure
+            tip.className = 'app-tooltip';
+            tip.style.left = '-9999px';
+            tip.style.top = '0';
+            var rect = el.getBoundingClientRect();
+            var tipW = tip.offsetWidth;
+            var tipH = tip.offsetHeight;
+            var left = rect.left + rect.width / 2 - tipW / 2;
+            if (left < 4) left = 4;
+            if (left + tipW > window.innerWidth - 4) left = window.innerWidth - 4 - tipW;
+            var top, pos;
+            if (rect.top > tipH + 10) {
+                top = rect.top - tipH - 6;
+                pos = 'above';
+            } else {
+                top = rect.bottom + 6;
+                pos = 'below';
+            }
+            tip.style.left = left + 'px';
+            tip.style.top = top + 'px';
+            tip.classList.add(pos, 'visible');
+        }
+
+        function hideTip() {
+            tip.classList.remove('visible');
+        }
+
+        convertTitles();
+
+        var currentEl = null;
+        document.addEventListener('mouseover', function(e) {
+            var el = e.target.closest('[data-tooltip]');
+            if (el === currentEl) return;
+            clearTimeout(showTimer);
+            if (currentEl) hideTip();
+            currentEl = el;
+            if (!el) return;
+            showTimer = setTimeout(function() { showTip(el); }, 400);
+        });
+
+        document.addEventListener('mouseout', function(e) {
+            var el = e.target.closest('[data-tooltip]');
+            if (!el) return;
+            var related = e.relatedTarget;
+            if (related && el.contains(related)) return;
+            clearTimeout(showTimer);
+            currentEl = null;
+            hideTip();
+        });
+
+        // Convert dynamically added elements
+        new MutationObserver(function(mutations) {
+            mutations.forEach(function(m) {
+                m.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) {
+                        if (node.getAttribute && node.getAttribute('title')) {
+                            node.dataset.tooltip = node.getAttribute('title');
+                            node.removeAttribute('title');
+                        }
+                        if (node.querySelectorAll) convertTitles(node);
+                    }
+                });
+            });
+        }).observe(document.body, { childList: true, subtree: true });
+    });
+    </script>
 
     <!-- Zotero Collections Browser Modal -->
     <div id="collections-browser-modal-overlay" class="modal-overlay">
