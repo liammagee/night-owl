@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WEBSITE_DIR="${1:-$HOME/Dev/my-website}"
+WEBSITE_DIR="${1:-$HOME/Dev/machinespirits-website}"
 
 if [[ ! -d "$WEBSITE_DIR" ]]; then
   echo "Error: website dir not found: $WEBSITE_DIR" >&2
@@ -28,7 +28,7 @@ cp -f "$WEBSITE_DIR/fauna-overlay.js" "$PLUGIN_DIR/fauna-overlay.js"
 cat > "$PLUGIN_DIR/techne-backdrop-layers.css" <<'EOF'
 /* Techne backdrop layers
    - Shapes layer + rotating shapes + fauna overlay
-   - Source of truth is ~/Dev/my-website (sync via ./scripts/sync-techne-backdrop-from-website.sh)
+   - Source of truth is ~/Dev/machinespirits-website (sync via ./scripts/sync-techne-backdrop-from-website.sh)
 */
 
 EOF
@@ -40,7 +40,7 @@ printf "\n\n" >> "$PLUGIN_DIR/techne-backdrop-layers.css"
 awk 'BEGIN{p=0} /\/\* ========== LAYER 8: FAUNA OVERLAY ========== \*\//{p=1} p{print} /\/\* ========== NAVIGATION ========== \*\//{if(p){exit}}' "$WEBSITE_DIR/index.html" >> "$PLUGIN_DIR/techne-backdrop-layers.css"
 
 cat > "$PLUGIN_DIR/techne-backdrop-markup.js" <<'EOF'
-/* Techne backdrop markup (synced from ~/Dev/my-website/index.html)
+/* Techne backdrop markup (synced from ~/Dev/machinespirits-website/index.html)
    Update via: ./scripts/sync-techne-backdrop-from-website.sh
 */
 

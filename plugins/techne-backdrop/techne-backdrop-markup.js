@@ -1,4 +1,4 @@
-/* Techne backdrop markup (synced from ~/Dev/my-website/index.html)
+/* Techne backdrop markup (synced from ~/Dev/machinespirits-website/index.html)
    Update via: ./scripts/sync-techne-backdrop-from-website.sh
 */
 

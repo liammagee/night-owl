@@ -3987,6 +3987,96 @@ function registerFileLinkAutocomplete() {
     console.log('[renderer.js] File link autocomplete provider registered successfully.');
 }
 
+// --- Inline AI Completion Provider (Ghost Text) ---
+let inlineCompletionEnabled = false;
+let inlineCompletionDebounceTimer = null;
+const INLINE_COMPLETION_DELAY = 800; // ms pause before requesting
+
+function registerInlineAICompletions() {
+    console.log('[InlineAI] Registering inline AI completion provider...');
+
+    monaco.languages.registerInlineCompletionsProvider('markdown', {
+        provideInlineCompletions: async (model, position, context, token) => {
+            // Check if feature is enabled
+            if (!inlineCompletionEnabled) return { items: [] };
+
+            // Only trigger on automatic invocations (typing pause)
+            if (context.triggerKind !== monaco.languages.InlineCompletionTriggerKind.Automatic) {
+                // Also allow explicit trigger
+            }
+
+            // Get surrounding context
+            const lineContent = model.getLineContent(position.lineNumber);
+            const textBefore = lineContent.substring(0, position.column - 1);
+
+            // Don't trigger on empty lines, very short text, or in code blocks
+            if (textBefore.trim().length < 10) return { items: [] };
+
+            // Get a few lines of context before cursor
+            const startLine = Math.max(1, position.lineNumber - 15);
+            const contextLines = [];
+            for (let i = startLine; i <= position.lineNumber; i++) {
+                contextLines.push(model.getLineContent(i));
+            }
+            const contextText = contextLines.join('\n');
+
+            // Debounce — wait for typing to stop
+            return new Promise((resolve) => {
+                clearTimeout(inlineCompletionDebounceTimer);
+                inlineCompletionDebounceTimer = setTimeout(async () => {
+                    if (token.isCancellationRequested) {
+                        resolve({ items: [] });
+                        return;
+                    }
+
+                    try {
+                        const result = await window.electronAPI.invoke('send-chat-message', {
+                            message: `Continue this markdown text naturally. Output ONLY the continuation (1-2 sentences max, no explanation). Do not repeat any existing text:\n\n${contextText}`,
+                            systemMessage: 'You are a ghost-text writing assistant. Complete the text naturally and concisely. Output ONLY the continuation text, nothing else. Keep it brief (1-2 sentences).',
+                            newConversation: true
+                        });
+
+                        if (token.isCancellationRequested || !result || result.error) {
+                            resolve({ items: [] });
+                            return;
+                        }
+
+                        let completion = (result.response || '').trim();
+                        // Remove any quotes or code blocks the AI might wrap around the response
+                        completion = completion.replace(/^["'`]+|["'`]+$/g, '');
+                        if (!completion) { resolve({ items: [] }); return; }
+
+                        resolve({
+                            items: [{
+                                insertText: completion,
+                                range: new monaco.Range(
+                                    position.lineNumber, position.column,
+                                    position.lineNumber, position.column
+                                )
+                            }]
+                        });
+                    } catch (error) {
+                        console.warn('[InlineAI] Completion error:', error);
+                        resolve({ items: [] });
+                    }
+                }, INLINE_COMPLETION_DELAY);
+            });
+        },
+        freeInlineCompletions: () => {}
+    });
+
+    console.log('[InlineAI] Inline AI completion provider registered.');
+}
+
+// Toggle inline AI completions
+function toggleInlineAICompletions() {
+    inlineCompletionEnabled = !inlineCompletionEnabled;
+    if (window.showNotification) {
+        window.showNotification(`AI ghost text ${inlineCompletionEnabled ? 'enabled' : 'disabled'}`, 'info');
+    }
+}
+window.toggleInlineAICompletions = toggleInlineAICompletions;
+
 // --- Initialize Monaco Editor ---
 async function initializeMonacoEditor() {
     console.log('[renderer.js] *** initializeMonacoEditor() CALLED ***');
@@ -4211,6 +4301,7 @@ async function initializeMonacoEditor() {
 
                 // Use debounced preview update to prevent sluggishness during rapid typing
                 debouncedUpdatePreviewAndStructure(currentContent);
+                updateSlideThumbnails(currentContent);
                 if (window.scheduleAutoSave) {
                     window.scheduleAutoSave();
                 } else {
@@ -4229,7 +4320,10 @@ async function initializeMonacoEditor() {
             
             // Clear fallback editor since Monaco loaded successfully
             fallbackEditor = null;
-            
+
+            // Register inline AI completions provider
+            registerInlineAICompletions();
+
             // Make editor globally accessible for debugging
             window.editor = editor;
             
@@ -6250,6 +6344,9 @@ async function openFileInEditor(filePath, content, options = {}) {
         // Highlight the currently opened file in the file tree
         highlightCurrentFileInTree(filePath);
 
+        // Update breadcrumb navigation
+        updateBreadcrumb(filePath);
+
         // Add to navigation history and recent files (unless we're navigating history)
         const fileName = filePath.split('/').pop();
         addToNavigationHistory(filePath, fileName);
@@ -8120,10 +8217,10 @@ document.addEventListener('keydown', async (e) => {
         return;
     }
     
-    // Ctrl+P or Cmd+P: Open Command Palette (VS Code style file picker)
-    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+    // Ctrl+P or Cmd+P: Quick-open file picker
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'p') {
         e.preventDefault();
-        showCommandPalette();
+        showQuickOpen();
         return;
     }
     
@@ -8143,6 +8240,35 @@ document.addEventListener('keydown', async (e) => {
         return;
     }
     
+    // Alt+Z: Toggle word wrap
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'z') {
+        e.preventDefault();
+        if (window.editor && window.editor.updateOptions) {
+            const wrapOn = window.editor.getRawOptions().wordWrap === 'on';
+            window.editor.updateOptions({ wordWrap: wrapOn ? 'off' : 'on' });
+            if (window.showNotification) {
+                window.showNotification(`Word wrap ${wrapOn ? 'off' : 'on'}`, 'info');
+            }
+        }
+        return;
+    }
+
+    // Cmd+Shift+Enter: Toggle Zen Mode
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Enter') {
+        e.preventDefault();
+        toggleZenMode();
+        return;
+    }
+
+    // F2: Rename current file
+    if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (window.currentFilePath) {
+            e.preventDefault();
+            handleFileContextMenuAction('rename', window.currentFilePath, false, false);
+            return;
+        }
+    }
+
     // Ctrl+Shift+F or Cmd+Shift+F: Open Global Search
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
         e.preventDefault();
@@ -8759,6 +8885,16 @@ if (showCitationsBtn) {
     });
 }
 
+// Footnotes button event listener
+const showFootnotesBtn2 = document.getElementById('show-footnotes-btn');
+if (showFootnotesBtn2) {
+    showFootnotesBtn2.addEventListener('click', () => {
+        if (window.currentStructureView !== 'footnotes') {
+            switchStructureView('footnotes');
+        }
+    });
+}
+
 // Refresh statistics button event listener
 const refreshStatsBtn = document.getElementById('refresh-statistics-btn');
 if (refreshStatsBtn) {
@@ -9037,7 +9173,9 @@ function switchStructureView(view) {
     if (showStatsBtn) showStatsBtn.classList.remove('active');
     const showCitationsBtn = document.getElementById('show-citations-btn');
     if (showCitationsBtn) showCitationsBtn.classList.remove('active');
-    
+    const showFootnotesBtn = document.getElementById('show-footnotes-btn');
+    if (showFootnotesBtn) showFootnotesBtn.classList.remove('active');
+
     structureList.style.display = 'none';
     if (fileTreeView) fileTreeView.style.display = 'none';
     if (searchPane) searchPane.style.display = 'none';
@@ -9045,6 +9183,8 @@ function switchStructureView(view) {
     if (statisticsPane) statisticsPane.style.display = 'none';
     const citationsPane = document.getElementById('citations-pane');
     if (citationsPane) citationsPane.style.display = 'none';
+    const footnotesPane = document.getElementById('footnotes-pane');
+    if (footnotesPane) footnotesPane.style.display = 'none';
     if (tagSearchSection) tagSearchSection.style.display = 'none';
     newFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
@@ -9094,6 +9234,13 @@ function switchStructureView(view) {
             if (window.citationManager) {
                 window.citationManager.showCitationsPanel();
             }
+        }
+    } else if (view === 'footnotes') {
+        structurePaneTitle.textContent = 'Footnotes';
+        if (showFootnotesBtn) showFootnotesBtn.classList.add('active');
+        if (footnotesPane) {
+            footnotesPane.style.display = 'flex';
+            updateFootnotesPanel();
         }
     }
 }
@@ -9252,12 +9399,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         ${tagsDisplay}
     `;
 
-    if (isFolder && node.path) {
-        const mainRow = nodeElement.querySelector('.file-tree-main');
-        if (mainRow) {
-            mainRow.title = node.path;
-        }
-    }
+    // data-path is set below and used by CSS tooltip on hover
     
     // Add appropriate classes and properties
     if (isFolder) {
@@ -9335,6 +9477,8 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         nodeElement.classList.add('file', 'file-clickable');
         nodeElement.dataset.path = node.path;
         nodeElement.draggable = true;
+
+        // data-path is set above and used by CSS tooltip on hover
 
         // Track this file in the visible files list for range selection
         allVisibleFiles.push(node.path);
@@ -10641,12 +10785,9 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                             }
                             window.currentFilePath = null;
                             window.editorFileName = null; // Also clear editorFileName
-                            const currentFileNameEl = document.getElementById('current-file-name');
-                            if (currentFileNameEl) {
-                                currentFileNameEl.textContent = 'No file selected';
-                            }
+                            updateBreadcrumb(null);
                         }
-                        
+
                         // Refresh file tree to show the file is gone
                         if (window.renderFileTree) {
                             window.renderFileTree();
@@ -10718,10 +10859,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                                     }
                                     window.currentFilePath = null;
                                     window.editorFileName = null;
-                                    const currentFileNameEl = document.getElementById('current-file-name');
-                                    if (currentFileNameEl) {
-                                        currentFileNameEl.textContent = 'No file selected';
-                                    }
+                                    updateBreadcrumb(null);
                                 }
                             } else {
                                 failedCount++;
@@ -10994,10 +11132,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                             // If this was the currently open file, update the path
                             if (window.currentFilePath === sourceFilePath) {
                                 window.currentFilePath = moveResult.newPath;
-                                const currentFileNameEl = document.getElementById('current-file-name');
-                                if (currentFileNameEl) {
-                                    currentFileNameEl.textContent = fileName;
-                                }
+                                updateBreadcrumb(moveResult.newPath);
                             }
 
                             // Refresh file tree
@@ -11463,11 +11598,10 @@ if (window.electronAPI) {
         // Update AI chat context for new file
         updateAIChatContext(null);
         
-        // Update file name display to show "Untitled"
-        const currentFileNameEl = document.getElementById('current-file-name');
-        if (currentFileNameEl) {
-            currentFileNameEl.textContent = 'Untitled';
-        }
+        // Update breadcrumb for untitled file
+        updateBreadcrumb(null);
+        const nav = document.getElementById('breadcrumb-nav');
+        if (nav) nav.innerHTML = '<span class="breadcrumb-segment current-file">Untitled</span>';
         
         // Ensure structure view is active (optional, good UX)
         if (window.currentStructureView !== 'structure') {
@@ -11981,15 +12115,72 @@ async function performAutoSave() {
     }
 }
 
+// Update breadcrumb navigation to show full file path
+function updateBreadcrumb(filePath) {
+    const nav = document.getElementById('breadcrumb-nav');
+    if (!nav) return;
+
+    if (!filePath) {
+        nav.innerHTML = '<span class="breadcrumb-segment" style="color: #999;">No file selected</span>';
+        return;
+    }
+
+    const parts = filePath.split('/').filter(Boolean);
+    // Show last N parts to keep it compact; show at least folder + file
+    const maxParts = 4;
+    const displayParts = parts.length > maxParts
+        ? ['...', ...parts.slice(-maxParts)]
+        : parts;
+
+    const html = displayParts.map((part, i) => {
+        const isLast = i === displayParts.length - 1;
+        const isEllipsis = part === '...';
+
+        // Build the full path for this segment (for click-to-reveal in tree)
+        let segmentPath = '';
+        if (!isEllipsis) {
+            const realIndex = parts.length - displayParts.length + i;
+            segmentPath = '/' + parts.slice(0, realIndex + 1).join('/');
+        }
+
+        let segmentHtml;
+        if (isEllipsis) {
+            segmentHtml = `<span class="breadcrumb-segment" title="${'/' + parts.join('/')}" style="color: #aaa;">…</span>`;
+        } else if (isLast) {
+            segmentHtml = `<span class="breadcrumb-segment current-file" title="${filePath}">${part}</span>`;
+        } else {
+            segmentHtml = `<span class="breadcrumb-segment clickable" data-path="${segmentPath}" title="${segmentPath}">${part}</span>`;
+        }
+
+        const separator = isLast ? '' : '<span class="breadcrumb-separator">›</span>';
+        return segmentHtml + separator;
+    }).join('');
+
+    nav.innerHTML = html;
+
+    // Add click handlers for folder segments to expand in file tree
+    nav.querySelectorAll('.breadcrumb-segment.clickable').forEach(el => {
+        el.addEventListener('click', () => {
+            const folderPath = el.dataset.path;
+            if (folderPath && window.expandedFolders) {
+                window.expandedFolders.add(folderPath);
+                if (window.renderFileTree) {
+                    window.renderFileTree();
+                }
+            }
+        });
+    });
+}
+
 // Update the unsaved changes indicator
 function updateUnsavedIndicator(hasUnsaved) {
-    const currentFileName = document.getElementById('current-file-name');
-    if (currentFileName) {
-        const text = currentFileName.textContent;
+    const currentFileEl = document.querySelector('#breadcrumb-nav .current-file');
+    if (currentFileEl) {
+        const text = currentFileEl.textContent;
         if (hasUnsaved && !text.includes('●')) {
-            currentFileName.textContent = '● ' + text;
+            currentFileEl.textContent = '● ' + text;
         } else if (!hasUnsaved && text.includes('●')) {
-            currentFileName.textContent = text.replace('● ', '');
+            currentFileEl.textContent = text.replace('● ', '');
         }
     }
 }
@@ -12152,6 +12343,398 @@ function togglePreview() {
 
 // Expose togglePreview globally for command palette
 window.togglePreview = togglePreview;
+
+// --- Zen Mode (Distraction-Free) ---
+let zenModeActive = false;
+let zenModeState = {}; // Stores previous visibility state
+
+function toggleZenMode() {
+    const sidebar = document.getElementById('left-sidebar');
+    const modeSwitcher = document.getElementById('mode-switcher');
+    const editorToolbar = document.getElementById('editor-toolbar');
+    const rightPane = document.getElementById('right-pane');
+    const gamificationPanel = document.getElementById('gamification-panel');
+    const statusBar = document.getElementById('status-bar');
+
+    if (!zenModeActive) {
+        // Enter zen mode — save current state and hide everything except editor
+        zenModeState = {
+            sidebarHidden: sidebar?.classList.contains('pane-hidden'),
+            previewVisible: previewVisible,
+            gamificationHidden: gamificationPanel?.classList.contains('pane-hidden'),
+        };
+
+        if (sidebar) sidebar.classList.add('pane-hidden');
+        if (modeSwitcher) modeSwitcher.style.display = 'none';
+        if (editorToolbar) editorToolbar.style.display = 'none';
+        if (rightPane) rightPane.classList.add('pane-hidden');
+        if (gamificationPanel) gamificationPanel.classList.add('pane-hidden');
+        if (statusBar) statusBar.style.display = 'none';
+
+        // Give editor full width
+        const editorContainer = document.getElementById('editor-container');
+        if (editorContainer) editorContainer.style.flex = '1';
+
+        previewVisible = false;
+        zenModeActive = true;
+        document.body.classList.add('zen-mode');
+
+        if (window.showNotification) {
+            window.showNotification('Zen mode — press Cmd+Shift+Enter or Esc to exit', 'info');
+        }
+    } else {
+        // Exit zen mode — restore previous state
+        if (modeSwitcher) modeSwitcher.style.display = '';
+        if (editorToolbar) editorToolbar.style.display = '';
+        if (statusBar) statusBar.style.display = '';
+
+        if (sidebar && !zenModeState.sidebarHidden) {
+            sidebar.classList.remove('pane-hidden');
+        }
+        if (rightPane && zenModeState.previewVisible) {
+            rightPane.classList.remove('pane-hidden');
+            previewVisible = true;
+            refreshLayoutProportions();
+        }
+        if (gamificationPanel && !zenModeState.gamificationHidden) {
+            gamificationPanel.classList.remove('pane-hidden');
+        }
+
+        zenModeActive = false;
+        document.body.classList.remove('zen-mode');
+    }
+
+    // Re-layout editor
+    if (window.editor && window.editor.layout) {
+        setTimeout(() => window.editor.layout(), 50);
+    }
+}
+window.toggleZenMode = toggleZenMode;
+
+// Esc key exits zen mode
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && zenModeActive) {
+        toggleZenMode();
+    }
+});
+
+// --- Quick Open File Picker (Cmd+P) ---
+let quickOpenOverlay = null;
+
+async function showQuickOpen() {
+    if (quickOpenOverlay) {
+        hideQuickOpen();
+        return;
+    }
+
+    // Fetch recent files and workspace files in parallel
+    let recentFiles = [];
+    let workspaceFiles = [];
+    try {
+        [recentFiles, workspaceFiles] = await Promise.all([
+            window.electronAPI.invoke('get-recent-files').catch(() => []),
+            window.electronAPI.invoke('get-markdown-files').catch(() => [])
+        ]);
+    } catch (err) {
+        console.warn('[QuickOpen] Error fetching files:', err);
+    }
+
+    // Build combined list: recent files first, then workspace files (deduplicated)
+    const recentSet = new Set(recentFiles);
+    const allFiles = [
+        ...recentFiles.map(f => ({ path: f, isRecent: true })),
+        ...workspaceFiles.filter(f => !recentSet.has(f)).map(f => ({ path: f, isRecent: false }))
+    ];
+
+    quickOpenOverlay = document.createElement('div');
+    quickOpenOverlay.className = 'command-palette-overlay';
+    quickOpenOverlay.innerHTML = `
+        <div class="command-palette">
+            <div class="command-palette-input-container">
+                <input type="text" class="command-palette-input" placeholder="Search files by name..." autocomplete="off" spellcheck="false">
+                <div class="command-palette-shortcut">Cmd+P</div>
+            </div>
+            <div class="command-palette-results" id="quick-open-results"></div>
+        </div>
+    `;
+    document.body.appendChild(quickOpenOverlay);
+
+    const input = quickOpenOverlay.querySelector('.command-palette-input');
+    const results = quickOpenOverlay.querySelector('#quick-open-results');
+    let selectedIdx = 0;
+
+    function renderResults(query) {
+        const q = query.toLowerCase();
+        const filtered = allFiles
+            .filter(f => {
+                const name = f.path.split('/').pop().toLowerCase();
+                const fullPath = f.path.toLowerCase();
+                return name.includes(q) || fullPath.includes(q);
+            })
+            .slice(0, 30);
+
+        results.innerHTML = filtered.map((f, i) => {
+            const name = f.path.split('/').pop();
+            const dir = f.path.substring(0, f.path.length - name.length - 1).split('/').slice(-2).join('/');
+            const recentBadge = f.isRecent ? '<span style="font-size:9px;color:#999;margin-left:6px;">recent</span>' : '';
+            return `<div class="command-item ${i === selectedIdx ? 'selected' : ''}" data-file-path="${f.path}">
+                <div class="command-label">${highlightFileMatch(name, query)}${recentBadge}</div>
+                <div class="command-shortcut" style="font-size:10px;color:#999;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${dir}</div>
+            </div>`;
+        }).join('');
+
+        if (filtered.length === 0) {
+            results.innerHTML = '<div style="padding:12px;color:#999;text-align:center;">No matching files</div>';
+        }
+
+        // Click handlers
+        results.querySelectorAll('.command-item').forEach(item => {
+            item.addEventListener('click', () => {
+                openQuickOpenFile(item.dataset.filePath);
+            });
+        });
+    }
+
+    function highlightFileMatch(text, query) {
+        if (!query) return text;
+        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        return text.replace(regex, '<mark>$1</mark>');
+    }
+
+    async function openQuickOpenFile(filePath) {
+        hideQuickOpen();
+        try {
+            const result = await window.electronAPI.invoke('read-file', filePath);
+            if (result.success) {
+                await openFileInEditor(filePath, result.content);
+            }
+        } catch (error) {
+            console.error('[QuickOpen] Error opening file:', error);
+        }
+    }
+
+    renderResults('');
+    setTimeout(() => input.focus(), 10);
+
+    input.addEventListener('input', (e) => {
+        selectedIdx = 0;
+        renderResults(e.target.value);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        const items = results.querySelectorAll('.command-item');
+        switch (e.key) {
+            case 'Escape':
+                e.preventDefault();
+                hideQuickOpen();
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                selectedIdx = Math.min(selectedIdx + 1, items.length - 1);
+                items.forEach((item, i) => item.classList.toggle('selected', i === selectedIdx));
+                items[selectedIdx]?.scrollIntoView({ block: 'nearest' });
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                selectedIdx = Math.max(selectedIdx - 1, 0);
+                items.forEach((item, i) => item.classList.toggle('selected', i === selectedIdx));
+                items[selectedIdx]?.scrollIntoView({ block: 'nearest' });
+                break;
+            case 'Enter':
+                e.preventDefault();
+                const sel = items[selectedIdx];
+                if (sel) openQuickOpenFile(sel.dataset.filePath);
+                break;
+        }
+    });
+
+    quickOpenOverlay.addEventListener('click', (e) => {
+        if (e.target === quickOpenOverlay) hideQuickOpen();
+    });
+}
+
+function hideQuickOpen() {
+    if (quickOpenOverlay) {
+        document.body.removeChild(quickOpenOverlay);
+        quickOpenOverlay = null;
+        if (window.editor) setTimeout(() => window.editor.focus(), 10);
+    }
+}
+window.showQuickOpen = showQuickOpen;
+
+// --- Slide Preview Thumbnails ---
+let slideThumbnailTimer = null;
+function updateSlideThumbnails(content) {
+    clearTimeout(slideThumbnailTimer);
+    slideThumbnailTimer = setTimeout(() => renderSlideThumbnails(content), 500);
+}
+
+function renderSlideThumbnails(content) {
+    const strip = document.getElementById('slide-thumbnails-strip');
+    if (!strip) return;
+
+    // Split on slide separators (--- on its own line)
+    const slides = content.split(/\n---[ \t]*\n/).map(s => s.trim()).filter(Boolean);
+
+    // Only show if there are 2+ slides
+    if (slides.length < 2) {
+        strip.style.display = 'none';
+        return;
+    }
+
+    strip.style.display = 'block';
+
+    // Find which slide the cursor is in
+    let activeSlide = 0;
+    if (window.editor) {
+        const cursorLine = window.editor.getPosition()?.lineNumber || 1;
+        const lines = content.split('\n');
+        let slideIdx = 0;
+        for (let i = 0; i < lines.length && i < cursorLine; i++) {
+            if (lines[i].match(/^---\s*$/) && i > 0) slideIdx++;
+        }
+        activeSlide = Math.min(slideIdx, slides.length - 1);
+    }
+
+    // Render thumbnails using marked if available
+    const renderHTML = (md) => {
+        // Strip speaker notes
+        const clean = md.replace(/```notes\s*\n[\s\S]*?\n```/g, '').trim();
+        if (window.marked) {
+            try { return window.marked.parse(clean); } catch (e) { /* fall through */ }
+        }
+        return clean.replace(/\n/g, '<br>');
+    };
+
+    strip.innerHTML = slides.map((slide, i) => {
+        const html = renderHTML(slide);
+        return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}">
+            <div class="slide-thumb-content">${html}</div>
+            <span class="slide-thumb-label">${i + 1}</span>
+        </div>`;
+    }).join('');
+
+    // Click to navigate to slide in editor
+    strip.querySelectorAll('.slide-thumb').forEach(thumb => {
+        thumb.addEventListener('click', () => {
+            const idx = parseInt(thumb.dataset.slideIndex);
+            navigateToSlide(idx, content);
+        });
+    });
+
+    // Auto-scroll to active thumbnail
+    const activeEl = strip.querySelector('.slide-thumb.active');
+    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+function navigateToSlide(slideIndex, content) {
+    if (!window.editor) return;
+    const lines = content.split('\n');
+    let slideIdx = 0;
+    let targetLine = 1;
+    for (let i = 0; i < lines.length; i++) {
+        if (slideIdx === slideIndex) { targetLine = i + 1; break; }
+        if (lines[i].match(/^---\s*$/) && i > 0) {
+            slideIdx++;
+            if (slideIdx === slideIndex) { targetLine = i + 2; break; }
+        }
+    }
+    window.editor.revealLineInCenter(targetLine);
+    window.editor.setPosition({ lineNumber: targetLine, column: 1 });
+    window.editor.focus();
+}
+
+// --- Footnote Management Panel ---
+function updateFootnotesPanel() {
+    const list = document.getElementById('footnotes-list');
+    const stats = document.getElementById('footnotes-stats');
+    if (!list) return;
+
+    const content = window.editor ? window.editor.getValue() : '';
+    if (!content) {
+        list.innerHTML = '<div style="color: #999; padding: 12px; text-align: center;">No document open</div>';
+        if (stats) stats.textContent = '';
+        return;
+    }
+
+    const lines = content.split('\n');
+
+    // Parse footnote definitions
+    const definitions = new Map();
+    lines.forEach((line, i) => {
+        const match = line.match(/^\[\^([^\]]+)\]:\s*(.+)$/);
+        if (match) {
+            definitions.set(match[1], { content: match[2].trim(), line: i + 1 });
+        }
+    });
+
+    // Parse footnote references
+    const references = new Map(); // id -> [lineNumbers]
+    lines.forEach((line, i) => {
+        // Skip definition lines
+        if (line.match(/^\[\^([^\]]+)\]:/)) return;
+        const refRegex = /\[\^([^\]]+)\]/g;
+        let match;
+        while ((match = refRegex.exec(line)) !== null) {
+            const id = match[1];
+            if (!references.has(id)) references.set(id, []);
+            references.get(id).push(i + 1);
+        }
+    });
+
+    // Merge into combined list
+    const allIds = new Set([...definitions.keys(), ...references.keys()]);
+    const footnotes = Array.from(allIds).map(id => ({
+        id,
+        definition: definitions.get(id),
+        refLines: references.get(id) || [],
+        hasDefinition: definitions.has(id),
+        hasReferences: references.has(id)
+    })).sort((a, b) => {
+        // Sort by definition line number, then by ID
+        const lineA = a.definition?.line || Infinity;
+        const lineB = b.definition?.line || Infinity;
+        return lineA - lineB || a.id.localeCompare(b.id);
+    });
+
+    if (stats) stats.textContent = `${footnotes.length} footnote${footnotes.length !== 1 ? 's' : ''}`;
+
+    if (footnotes.length === 0) {
+        list.innerHTML = '<div style="color: #999; padding: 12px; text-align: center;">No footnotes found.<br><small>Use [^id] for references and [^id]: text for definitions.</small></div>';
+        return;
+    }
+
+    list.innerHTML = footnotes.map(fn => {
+        const defLine = fn.definition ? `line ${fn.definition.line}` : '<span style="color:#d73a49;">undefined</span>';
+        const refCount = fn.refLines.length;
+        const preview = fn.definition ? fn.definition.content.substring(0, 80) + (fn.definition.content.length > 80 ? '...' : '') : '';
+        const warnings = [];
+        if (!fn.hasDefinition) warnings.push('No definition');
+        if (!fn.hasReferences) warnings.push('Unused');
+
+        return `<div class="footnote-item" style="padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;" data-fn-line="${fn.definition?.line || fn.refLines[0] || 1}">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="color: #d73a49; font-size: 12px;">[^${fn.id}]</strong>
+                <span style="font-size: 10px; color: #999;">${defLine} · ${refCount} ref${refCount !== 1 ? 's' : ''}</span>
+            </div>
+            ${preview ? `<div style="font-size: 11px; color: #555; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${preview}</div>` : ''}
+            ${warnings.length ? `<div style="font-size: 10px; color: #e67e22; margin-top: 2px;">${warnings.join(' · ')}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    // Click to navigate
+    list.querySelectorAll('.footnote-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const line = parseInt(item.dataset.fnLine);
+            if (window.editor && line) {
+                window.editor.revealLineInCenter(line);
+                window.editor.setPosition({ lineNumber: line, column: 1 });
+                window.editor.focus();
+            }
+        });
+    });
+}
+window.updateFootnotesPanel = updateFootnotesPanel;
 
 function refreshLayoutProportions() {
     const editorPane = document.getElementById('editor-pane');
@@ -12381,11 +12964,7 @@ async function saveFile() {
                 if (result.filePath && !window.currentFilePath) {
                     window.currentFilePath = result.filePath;
                     window.editorFileName = result.filePath; // Also update editorFileName
-                    const fileName = result.filePath.split('/').pop();
-                    const currentFileNameEl = document.getElementById('current-file-name');
-                    if (currentFileNameEl) {
-                        currentFileNameEl.textContent = fileName;
-                    }
+                    updateBreadcrumb(result.filePath);
                     renderFileTree();
                 }
             } else {
@@ -12469,12 +13048,8 @@ async function saveFile() {
                     console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
                 }
                 
-                // Update current file name display
-                const displayFileName = result.filePath.split('/').pop();
-                const currentFileNameEl = document.getElementById('current-file-name');
-                if (currentFileNameEl) {
-                    currentFileNameEl.textContent = displayFileName;
-                }
+                // Update breadcrumb display
+                updateBreadcrumb(result.filePath);
             } else {
                 showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
                 console.error('[renderer.js] Manual save-as failed:', result.error);
@@ -12636,12 +13211,8 @@ async function saveAsFile() {
                 console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
             }
 
-            // Update the file name display
-            const displayFileName = result.filePath.split('/').pop();
-            const currentFileNameEl = document.getElementById('current-file-name');
-            if (currentFileNameEl) {
-                currentFileNameEl.textContent = displayFileName;
-            }
+            // Update breadcrumb display
+            updateBreadcrumb(result.filePath);
         } else {
             showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
             console.error('[renderer.js] Manual save-as failed:', result.error);

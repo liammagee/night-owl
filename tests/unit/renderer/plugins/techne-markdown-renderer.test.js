@@ -40,17 +40,29 @@ describe('techne-markdown-renderer plugin', () => {
       }
     }
 
+    // Mock marked v13+ API with use() support
+    let rendererExtensions = {};
+
     window.marked = {
       Renderer,
+      use: (opts = {}) => {
+        if (opts.renderer) {
+          Object.assign(rendererExtensions, opts.renderer);
+        }
+      },
       parse: (markdown, opts = {}) => {
-        const renderer = opts.renderer || new Renderer();
         const lines = String(markdown || '').split('\n');
         const out = [];
         for (const line of lines) {
           if (!line.trim()) continue;
           const m = line.match(/^(#{1,6})\s+(.+)$/);
           if (m) {
-            out.push(renderer.heading(m[2], m[1].length, m[2]));
+            // Use v13+ renderer extension if registered via use()
+            if (rendererExtensions.heading) {
+              out.push(rendererExtensions.heading({ text: m[2], depth: m[1].length, raw: m[2] }));
+            } else {
+              out.push(`<h${m[1].length}>${m[2]}</h${m[1].length}>`);
+            }
             continue;
           }
           if (line.trim().startsWith('<')) {

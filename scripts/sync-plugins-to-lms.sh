@@ -1,11 +1,11 @@
 #!/bin/bash
-# Sync Techne plugins from NightOwl to the LMS (my-website)
+# Sync Techne plugins from NightOwl to the LMS (machinespirits-website)
 # Usage: ./scripts/sync-plugins-to-lms.sh
 
 set -e
 
 SOURCE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET_DIR="${HOME}/Dev/my-website"
+TARGET_DIR="${HOME}/Dev/machinespirits-website"
 
 echo "Syncing plugins from NightOwl to LMS..."
 echo "  Source: $SOURCE_DIR/plugins"

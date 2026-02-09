@@ -516,6 +516,28 @@ function register(deps) {
     }
   });
 
+  // Reorder workspace folders
+  ipcMain.handle('reorder-workspace-folders', async (event, newOrder) => {
+    try {
+      if (!Array.isArray(newOrder)) {
+        return { success: false, error: 'Invalid folder order' };
+      }
+      appSettings.workspaceFolders = newOrder;
+      saveSettings();
+      console.log(`[FileHandlers] Reordered workspace folders: ${newOrder.length} folders`);
+
+      const { BrowserWindow } = require('electron');
+      const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send('settings-changed', { workspaceFolders: newOrder });
+      }
+      return { success: true, workspaceFolders: newOrder };
+    } catch (error) {
+      console.error('[FileHandlers] Error reordering workspace folders:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Get workspace folders
   ipcMain.handle('get-workspace-folders', () => {
     return {

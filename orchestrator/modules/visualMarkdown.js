@@ -497,7 +497,7 @@ function resolveImagePath(imageUrl) {
         // First, try to derive it from the current file path
         if (currentDir) {
             // Look for common project indicators in the path to find the root
-            // e.g., /Users/user/Dev/my-website/markdown/courses/479 -> /Users/user/Dev/my-website
+            // e.g., /Users/user/Dev/machinespirits-website/markdown/courses/479 -> /Users/user/Dev/machinespirits-website
             const pathParts = currentDir.split('/');
             let projectRoot = null;
 

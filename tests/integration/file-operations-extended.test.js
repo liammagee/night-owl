@@ -507,28 +507,29 @@ describe('File Operations and Export Integration', () => {
     test('should limit number of backups', async () => {
       const filePath = path.join(testDir, 'backup-test.md');
       fs.writeFileSync(filePath, 'initial content');
-      
-      // Create multiple backups with artificial timestamps to avoid timing issues
+
+      const backupDir = path.join(path.dirname(filePath), '.backups');
+
+      // Create multiple backups with distinct timestamps for reliable cleanup ordering
       for (let i = 0; i < 8; i++) {
-        // Use Promise.resolve() instead of setTimeout to avoid fake timer conflicts
         await Promise.resolve();
         await fileManager.writeFile(filePath, `content ${i}`);
-        
-        // Manually adjust backup file timestamps to ensure ordering
-        const backupDir = path.join(path.dirname(filePath), '.backups');
+
+        // Assign distinct mtime to each backup so cleanOldBackups sorts correctly
         if (fs.existsSync(backupDir)) {
-          const backupFiles = fs.readdirSync(backupDir);
-          if (backupFiles.length > 0) {
-            const latestBackup = path.join(backupDir, backupFiles[backupFiles.length - 1]);
-            // Adjust timestamp to make this backup older
-            const futureTime = new Date(Date.now() + (i * 1000));
-            fs.utimesSync(latestBackup, futureTime, futureTime);
+          const backupFiles = fs.readdirSync(backupDir)
+            .filter(f => f.startsWith('backup-test.md'))
+            .sort();
+          for (let j = 0; j < backupFiles.length; j++) {
+            const bp = path.join(backupDir, backupFiles[j]);
+            const t = new Date(Date.now() - (backupFiles.length - j) * 10000);
+            fs.utimesSync(bp, t, t);
           }
         }
       }
-      
-      const backupDir = path.join(path.dirname(filePath), '.backups');
-      const backupFiles = fs.readdirSync(backupDir);
+
+      const backupFiles = fs.readdirSync(backupDir)
+        .filter(f => f.startsWith('backup-test.md'));
       expect(backupFiles.length).toBeLessThanOrEqual(mockSettings.autoSave.maxBackups);
     });
   });

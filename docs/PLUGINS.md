@@ -998,7 +998,7 @@ To share a plugin:
 
 **1) Include the loader + manifest**
 
-In `my-website/app.html` (and `my-website/index.html`), load:
+In `machinespirits-website/app.html` (and `machinespirits-website/index.html`), load:
 
 - `plugins/techne-plugin-system.js`
 - `plugins/manifest.js` (sets `window.TECHNE_PLUGIN_MANIFEST`)
@@ -1009,7 +1009,7 @@ Optional: to fully control when plugins start, set `window.TECHNE_PLUGIN_AUTOSTA
 
 Two supported patterns:
 
-- **Enable-by-default**: set `enabledByDefault: true` for a plugin entry in `my-website/plugins/manifest.js`.
+- **Enable-by-default**: set `enabledByDefault: true` for a plugin entry in `machinespirits-website/plugins/manifest.js`.
 - **Programmatic enable (recommended for route/mode based features)**:
   call `window.TechnePlugins.start({ enabled: ['techne-presentations'] })` at the moment you need the feature.
 
@@ -1017,4 +1017,4 @@ Two supported patterns:
 
 **3) Static hosting note**
 
-The plugins are plain files. Make sure your hosting setup serves the `plugins/` folder (in dev, `my-website/server.js` uses `express.static(__dirname)` so this works automatically).
+The plugins are plain files. Make sure your hosting setup serves the `plugins/` folder (in dev, `machinespirits-website/server.js` uses `express.static(__dirname)` so this works automatically).

@@ -54,7 +54,20 @@ function initializeCommandPalette() {
             });
         }
     });
-    
+    registerCommand('view.wordWrap.toggle', 'View: Toggle Word Wrap', () => {
+        if (window.editor && window.editor.updateOptions) {
+            const currentOptions = window.editor.getRawOptions();
+            const wrapOn = currentOptions.wordWrap === 'on';
+            window.editor.updateOptions({ wordWrap: wrapOn ? 'off' : 'on' });
+            if (window.showNotification) {
+                window.showNotification(`Word wrap ${wrapOn ? 'off' : 'on'}`, 'info');
+            }
+        }
+    }, 'Alt+Z');
+    registerCommand('view.zenMode', 'View: Toggle Zen Mode (Distraction-Free)', () => {
+        window.toggleZenMode();
+    }, 'Cmd+Shift+Enter');
+
     // Formatting
     registerCommand('format.bold', 'Format: Bold', () => window.handleFormatText('bold'), 'Cmd+B');
     registerCommand('format.italic', 'Format: Italic', () => window.handleFormatText('italic'), 'Cmd+I');
@@ -125,6 +138,9 @@ function initializeCommandPalette() {
         }
     });
     
+    // Inline AI completions
+    registerCommand('ai.inlineCompletions', 'AI: Toggle Inline Ghost Text Completions', () => window.toggleInlineAICompletions());
+
     // Table of Contents
     registerCommand('toc.insert', 'Table of Contents: Insert ToC', async () => await window.insertTableOfContents());
     registerCommand('toc.remove', 'Table of Contents: Remove ToC', async () => await window.removeTableOfContents());

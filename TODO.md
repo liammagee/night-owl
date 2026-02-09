@@ -280,6 +280,60 @@ Generated from codebase deep scan on 2025-12-17.
 
 ---
 
+## Editor Improvements (2026-02)
+
+### File Browser & Editor UX
+- [x] **Breadcrumb Navigation** - ✅ Show current file's full path as clickable breadcrumbs in the editor header
+  - Clickable folder segments to expand in file tree
+  - Shows last 4 path segments with ellipsis for deep paths
+  - Unsaved changes indicator (●) on current file breadcrumb
+- [x] **Markdown Outline / Table of Contents** - ✅ ALREADY EXISTS (Structure pane with heading hierarchy, expand/collapse, click-to-navigate)
+- [x] **Command Palette** - ✅ ALREADY EXISTS (Cmd+Shift+P, 60+ commands, fuzzy search, keyboard nav)
+- [x] **Word Wrap Toggle** - ✅ Alt+Z shortcut and command palette entry added
+- [x] **Minimap Toggle** - ✅ ALREADY EXISTS in command palette (View: Toggle Minimap)
+- [x] **Distraction-Free / Zen Mode** - ✅ Cmd+Shift+Enter to toggle, Esc to exit
+  - Hides sidebar, toolbar, preview, status bar, gamification
+  - Restores previous layout state on exit
+
+### Quality of Life
+- [x] **Recent Files Quick-Open** - ✅ Cmd+P fuzzy file search with recent files and workspace files
+  - Shows recent files first with badge, then workspace files
+  - Fuzzy search by filename or path
+  - Keyboard navigation (arrows, enter, escape)
+- [x] **Session Restore** - ✅ ALREADY EXISTS (restores last opened file on launch)
+- [x] **File Rename (F2)** - ✅ F2 shortcut triggers rename dialog for current file
+- [x] **Workspace Folder Reordering** - ✅ Drag-and-drop to reorder workspace folders in sidebar
+  - Drag root folders onto other roots to reorder
+  - Persisted via new `reorder-workspace-folders` IPC handler
+  - Visual drop indicator (top border) distinct from file move feedback
+
+### Presentations
+- [x] **Slide Preview Thumbnails** - ✅ Thumbnail strip above editor when document has slides
+  - Auto-detects `---` slide separators, shows/hides strip dynamically
+  - Miniature rendered HTML previews (864x486 scaled to 144x81)
+  - Click to navigate to slide in editor
+  - Active slide highlighted based on cursor position
+- [x] **Speaker Notes View** - ✅ ALREADY EXISTS (speaker notes toggle and add commands)
+- [x] **Export Slides to PDF/PowerPoint** - ✅ ALREADY EXISTS (PDF, HTML, PowerPoint export in command palette)
+
+### AI Integration
+- [x] **Inline AI Completions** - ✅ Ghost text / copilot-style suggestions in the editor
+  - Monaco `InlineCompletionsProvider` with debounced AI requests
+  - Uses existing AI service infrastructure (all providers supported)
+  - Disabled by default — toggle via command palette "AI: Toggle Inline Ghost Text Completions"
+  - Requests triggered after 800ms typing pause with 15 lines of context
+- [x] **AI Summarize-on-Select** - ✅ ALREADY EXISTS (right-click context menu: Summarize to Speaker Notes, Extract Notes, Generate AI Heading)
+
+### Citation / Academic
+- [x] **Citation Autocomplete** - ✅ ALREADY EXISTS (type `[@` for suggestions from BibTeX, searches by key/title/author/year)
+- [x] **Footnote Management Panel** - ✅ Sidebar panel to view/edit/reorder footnotes
+  - New 📝 button in sidebar header opens footnote panel
+  - Lists all footnotes with ID, definition preview, line number, reference count
+  - Warns about undefined references and unused definitions
+  - Click to navigate to footnote in editor
+
+---
+
 ## Notes
 
 ### Environment Setup

@@ -45,22 +45,17 @@ describe('techne-presentations plugin', () => {
 
     await registered.init(host);
 
-    expect(host.loadCSS).toHaveBeenCalledWith(
-      'plugins/techne-presentations/preview-presentation.css',
-      expect.any(Object)
-    );
-    expect(host.loadCSS).toHaveBeenCalledWith(
-      'plugins/techne-presentations/speaker-notes.css',
-      expect.any(Object)
-    );
+    // CSS loaded (with optional cache-busting query params)
+    const cssArgs = host.loadCSS.mock.calls.map(c => c[0]);
+    expect(cssArgs.some(url => url.includes('preview-presentation.css'))).toBe(true);
+    expect(cssArgs.some(url => url.includes('speaker-notes.css'))).toBe(true);
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
-    expect(scriptsArg).toEqual([
-      'plugins/techne-presentations/ttsService.js',
-      'plugins/techne-presentations/videoRecordingService.js',
-      'plugins/techne-presentations/speaker-notes.js',
-      'plugins/techne-presentations/touch-gestures.js'
-    ]);
+    // Scripts loaded (with optional cache-busting query params)
+    expect(scriptsArg.some(url => url.includes('ttsService.js'))).toBe(true);
+    expect(scriptsArg.some(url => url.includes('videoRecordingService.js'))).toBe(true);
+    expect(scriptsArg.some(url => url.includes('speaker-notes.js'))).toBe(true);
+    expect(scriptsArg.some(url => url.includes('touch-gestures.js'))).toBe(true);
 
     expect(document.body.querySelector('#speaker-notes-panel')).toBeTruthy();
     expect(host.emit).toHaveBeenCalledWith('presentations:ready', { id: 'techne-presentations' });
@@ -81,7 +76,7 @@ describe('techne-presentations plugin', () => {
     await registered.init(host);
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
-    expect(scriptsArg).toContain('plugins/techne-presentations/MarkdownPreziApp.js');
+    expect(scriptsArg.some(url => url.includes('MarkdownPreziApp.js'))).toBe(true);
   });
 
   test('does not include presenter bundle when React globals are missing', async () => {
@@ -96,7 +91,7 @@ describe('techne-presentations plugin', () => {
     await registered.init(host);
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
-    expect(scriptsArg).not.toContain('plugins/techne-presentations/MarkdownPreziApp.js');
+    expect(scriptsArg.some(url => url.includes('MarkdownPreziApp.js'))).toBe(false);
   });
 });
 

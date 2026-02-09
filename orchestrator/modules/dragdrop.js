@@ -21,11 +21,13 @@ function setupDragAndDropListeners() {
     const target = event.target;
     
     if ((target.classList.contains('file') || target.classList.contains('folder')) && target.dataset.path) {
+        const isWorkspaceRoot = target.classList.contains('workspace-folder-root') || target.classList.contains('primary-folder-root');
         draggedItem = {
             element: target,
             path: target.dataset.path,
             type: target.classList.contains('file') ? 'file' : 'folder',
-            name: target.textContent.substring(2) // Remove emoji
+            name: target.textContent.substring(2), // Remove emoji
+            isWorkspaceRoot: isWorkspaceRoot
         };
         
         event.dataTransfer.effectAllowed = 'move';
@@ -68,13 +70,21 @@ window.fileTreeView.addEventListener('dragover', (event) => {
         target = target.closest('.folder');
     }
     if (target && target.classList.contains('folder') && target.dataset.path && draggedItem) {
+        // For workspace root reordering: only allow dropping on other roots
+        if (draggedItem.isWorkspaceRoot) {
+            const targetIsRoot = target.classList.contains('workspace-folder-root') || target.classList.contains('primary-folder-root');
+            if (!targetIsRoot || target.dataset.path === draggedItem.path) return;
+        }
         event.preventDefault(); // Allow drop
         event.dataTransfer.dropEffect = 'move';
-        
+
         // Visual feedback for drop target
-        target.style.backgroundColor = 'var(--hover-color, #e3f2fd)';
-        target.style.border = '2px solid #007bff';
-        
+        if (draggedItem.isWorkspaceRoot) {
+            target.style.borderTop = '3px solid #007bff';
+        } else {
+            target.style.backgroundColor = 'var(--hover-color, #e3f2fd)';
+            target.style.border = '2px solid #007bff';
+        }
     }
 }, true);
 
@@ -88,6 +98,7 @@ window.fileTreeView.addEventListener('dragleave', (event) => {
         // Remove visual feedback
         target.style.backgroundColor = '';
         target.style.border = '';
+        target.style.borderTop = '';
     }
 }, true);
 
@@ -113,25 +124,62 @@ window.fileTreeView.addEventListener('drop', async (event) => {
     }
     
     const targetFolderPath = target.dataset.path;
-    
+
     // Remove visual feedback
     target.style.backgroundColor = '';
     target.style.border = '';
-    
-    
+    target.style.borderTop = '';
+
+    // Handle workspace folder reordering
+    if (draggedItem.isWorkspaceRoot) {
+        const targetIsRoot = target.classList.contains('workspace-folder-root') || target.classList.contains('primary-folder-root');
+        if (targetIsRoot && targetFolderPath !== draggedItem.path) {
+            try {
+                // Get current workspace folders order
+                const foldersResult = await window.electronAPI.invoke('get-workspace-folders');
+                const currentFolders = foldersResult.workspaceFolders || [];
+                const primaryFolder = foldersResult.primaryFolder;
+
+                // Build full ordered list including primary
+                const allFolders = [primaryFolder, ...currentFolders];
+                const dragIdx = allFolders.indexOf(draggedItem.path);
+                const dropIdx = allFolders.indexOf(targetFolderPath);
+
+                if (dragIdx !== -1 && dropIdx !== -1 && dragIdx !== dropIdx) {
+                    // Remove dragged item and insert before drop target
+                    allFolders.splice(dragIdx, 1);
+                    const newDropIdx = allFolders.indexOf(targetFolderPath);
+                    allFolders.splice(newDropIdx, 0, draggedItem.path);
+
+                    // The primary folder stays as primary, reorder only workspace folders
+                    const newWorkspaceFolders = allFolders.filter(f => f !== primaryFolder);
+                    await window.electronAPI.invoke('reorder-workspace-folders', newWorkspaceFolders);
+                    window.appSettings.workspaceFolders = newWorkspaceFolders;
+                    window.renderFileTree();
+                    window.showNotification('Workspace folders reordered', 'success');
+                }
+            } catch (error) {
+                console.error('[DragDrop] Error reordering workspace folders:', error);
+                window.showNotification('Error reordering folders', 'error');
+            }
+        }
+        draggedItem = null;
+        return;
+    }
+
     // Don't allow dropping item into itself or its children
     if (draggedItem.path === targetFolderPath || targetFolderPath.startsWith(draggedItem.path + '/')) {
         window.showNotification('Cannot move item into itself or its subdirectory', 'error');
         return;
     }
-    
+
     // Store reference to dragged item before it gets cleared
     const itemToMove = {
         path: draggedItem.path,
         type: draggedItem.type,
         name: draggedItem.name
     };
-    
+
     try {
         const result = await window.electronAPI.invoke('move-item', {
             sourcePath: itemToMove.path,
@@ -139,7 +187,7 @@ window.fileTreeView.addEventListener('drop', async (event) => {
             operation: 'cut', // Drag and drop is always move
             type: itemToMove.type
         });
-        
+
         if (result.success) {
             window.renderFileTree();
             window.showNotification(`${itemToMove.type === 'file' ? 'File' : 'Folder'} moved successfully`, 'success');
@@ -149,7 +197,7 @@ window.fileTreeView.addEventListener('drop', async (event) => {
     } catch (error) {
         window.showNotification('Error moving item', 'error');
     }
-    
+
     // Clear the dragged item
     draggedItem = null;
 }, true);
