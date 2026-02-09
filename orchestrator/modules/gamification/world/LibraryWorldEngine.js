@@ -1,16 +1,33 @@
 // === Library World Engine ===
 // Maintains the spatial Library of Babel progression state
+// Rooms, anchors, and corridors are now grounded in recognition theory:
+//   Anchors map to memory layers (conscious, preconscious, unconscious)
+//   Rooms spawn from recognition moments and memory consolidation
+//   Corridors represent transitions between layers
 
 class LibraryWorldEngine {
     constructor(gamificationInstance) {
         this.gamification = gamificationInstance;
         this.dataPersistence = gamificationInstance?.dataPersistence;
+        this.tutorBridge = null; // Lazy-initialized from window.TutorBridge
 
         this.worldState = this.loadWorldState();
         this.pendingEvents = [];
         this.architectQueue = [];
 
         this.ensureBaselineAnchors();
+    }
+
+    /**
+     * Get the tutor bridge reference (lazy init from window).
+     * @returns {object|null}
+     */
+    _getTutorBridge() {
+        if (this.tutorBridge) return this.tutorBridge;
+        if (typeof window !== 'undefined' && window.TutorBridge && window.TutorBridge.isAvailable()) {
+            this.tutorBridge = window.TutorBridge;
+        }
+        return this.tutorBridge;
     }
 
     loadWorldState() {
@@ -67,21 +84,28 @@ class LibraryWorldEngine {
     }
 
     ensureBaselineAnchors() {
+        // Anchors map to the three-layer memory model from recognition theory:
+        //   Conscious  (ephemeral, active working space)
+        //   Preconscious (patterns crystallizing, not yet permanent)
+        //   Unconscious (permanent traces, deep understanding)
         const defaultAnchors = {
             scriptorium: {
                 label: 'The Scriptorium',
                 description: 'Where drafts gather in fragile stacks before they become lore.',
+                memoryLayer: 'conscious',
                 unlocked: true,
                 createdAt: this.worldState.lastUpdated
             },
             flowAtrium: {
                 label: 'Atrium of Flow',
-                description: 'A quiet hall that resonates with the cadence of sustained writing.',
+                description: 'A quiet hall where emerging patterns crystallize into understanding.',
+                memoryLayer: 'preconscious',
                 unlocked: false
             },
             revisionVault: {
                 label: 'Vault of Revisions',
-                description: 'Shelves for rewritten passages and their echoes.',
+                description: 'Deep shelves where permanent traces of understanding are inscribed.',
+                memoryLayer: 'unconscious',
                 unlocked: false
             }
         };
@@ -89,6 +113,9 @@ class LibraryWorldEngine {
         Object.entries(defaultAnchors).forEach(([key, value]) => {
             if (!this.worldState.anchors[key]) {
                 this.worldState.anchors[key] = value;
+            } else if (!this.worldState.anchors[key].memoryLayer) {
+                // Backfill memoryLayer for existing anchors
+                this.worldState.anchors[key].memoryLayer = value.memoryLayer;
             }
         });
 
@@ -128,6 +155,101 @@ class LibraryWorldEngine {
         if (this.pendingEvents.length > 50) {
             this.pendingEvents.shift();
         }
+
+        // Handle recognition-specific events
+        if (event.type === 'recognition.consolidated') {
+            this.spawnRoomFromConsolidation(event.payload);
+        } else if (event.type === 'recognition.milestone') {
+            this.handleRecognitionMilestone(event.payload);
+        }
+    }
+
+    /**
+     * Spawn a room from a recognition moment that has been consolidated
+     * to the unconscious (permanent memory) layer.
+     *
+     * @param {object} payload
+     * @param {string} [payload.synthesis] - The synthesis resolution text.
+     * @param {string} [payload.momentId] - The recognition moment ID.
+     * @param {string} [payload.layer] - The target memory layer.
+     */
+    spawnRoomFromConsolidation(payload = {}) {
+        const now = Date.now();
+        const layer = payload.layer || 'unconscious';
+
+        // Map memory layer to anchor
+        const anchorMap = {
+            conscious: 'scriptorium',
+            preconscious: 'flowAtrium',
+            unconscious: 'revisionVault'
+        };
+        const anchorId = anchorMap[layer] || 'scriptorium';
+
+        // Auto-unlock the target anchor if it is still locked
+        if (this.worldState.anchors[anchorId] && !this.worldState.anchors[anchorId].unlocked) {
+            this.unlockAnchor(anchorId, {
+                unlockedBy: 'recognition_consolidation',
+                momentId: payload.momentId
+            });
+            console.log(`[LibraryWorldEngine] Anchor '${anchorId}' unlocked by memory consolidation`);
+        }
+
+        const roomId = `recognition-${now}-${Math.floor(Math.random() * 1000)}`;
+        const synthesis = payload.synthesis || '';
+        const words = synthesis.split(/\s+/).filter(Boolean);
+        const title = words.slice(0, 4).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') || `Trace ${new Date(now).toLocaleTimeString()}`;
+
+        const room = {
+            id: roomId,
+            title,
+            description: synthesis ? `Consolidated insight: ${synthesis.slice(0, 200)}` : 'A permanent trace of understanding.',
+            anchor: anchorId,
+            memoryLayer: layer,
+            recognitionMomentId: payload.momentId || null,
+            unlockCost: { lexiconShards: 0, catalogueSigils: 0, architectTokens: 0 },
+            thematicTags: words.filter(w => w.length > 4).slice(-4).map(w => w.toLowerCase())
+        };
+
+        const corridor = {
+            from: anchorId,
+            to: roomId,
+            description: `A corridor formed from ${layer} consolidation.`,
+            transitionType: layer === 'unconscious' ? 'consolidation' : 'promotion'
+        };
+
+        const loreFragment = {
+            id: `lore-${roomId}`,
+            roomId,
+            prose: synthesis || 'A trace of understanding, permanently inscribed.'
+        };
+
+        this.addRoom(room);
+        this.addCorridor(corridor);
+        this.addLoreFragment(loreFragment);
+    }
+
+    /**
+     * Handle a recognition milestone achievement (e.g. first_negation, productive_resistance).
+     *
+     * @param {object} payload
+     * @param {string} payload.milestoneKey - The milestone key.
+     * @param {string} [payload.title] - The milestone title.
+     * @param {string} [payload.description] - The milestone description.
+     */
+    handleRecognitionMilestone(payload = {}) {
+        if (!payload.milestoneKey) return;
+
+        // Queue an architect prompt with the milestone data
+        this.queueArchitectPrompt({
+            event: {
+                type: 'recognition.milestone',
+                milestone: payload.milestoneKey,
+                title: payload.title,
+                description: payload.description
+            }
+        });
+
+        console.log(`[LibraryWorldEngine] Recognition milestone '${payload.milestoneKey}' queued for architect review`);
     }
 
     queueArchitectPrompt(context) {

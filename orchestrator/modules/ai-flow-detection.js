@@ -1,11 +1,13 @@
 // === AI-Powered Flow State Detection & Real-time Insights ===
 // Advanced flow detection using writing patterns, rhythm analysis, and contextual awareness
+// Extended with recognition flow metrics from tutor-core via tutor-bridge
 
 class AIFlowDetection {
     constructor(aiCompanion, gamification) {
         this.aiCompanion = aiCompanion;
         this.gamification = gamification;
         this.initialized = false;
+        this.tutorBridge = null; // Lazy-init from window.TutorBridge
         
         // Flow indicator auto-hide timeout
         this.flowIndicatorTimeout = null;
@@ -91,7 +93,8 @@ class AIFlowDetection {
             confidenceThreshold: 0.8,
             features: [
                 'typingSpeed', 'pausePattern', 'sentenceRhythm',
-                'vocabularyFlow', 'conceptualCoherence', 'timeContext'
+                'vocabularyFlow', 'conceptualCoherence', 'timeContext',
+                'recognitionQuality', 'dialecticalEngagement'
             ]
         };
         
@@ -319,7 +322,7 @@ class AIFlowDetection {
     }
     
     extractFlowFeatures() {
-        return {
+        const features = {
             typingSpeed: this.calculateCurrentTypingSpeed(),
             pausePattern: this.analyzePausePattern(),
             sentenceRhythm: this.calculateSentenceRhythm(),
@@ -328,37 +331,131 @@ class AIFlowDetection {
             timeContext: this.getTimeContextFeatures(),
             cognitiveLoad: this.flowEngine.cognitiveLoad.currentLoad,
             sessionDuration: this.getSessionDuration(),
-            previousFlowState: this.getPreviousFlowState()
+            previousFlowState: this.getPreviousFlowState(),
+            recognitionQuality: 0.5,      // Default neutral
+            dialecticalEngagement: 0.5     // Default neutral
         };
+
+        // Enrich with recognition data from tutor-bridge when available
+        try {
+            const bridge = this._getTutorBridge();
+            if (bridge) {
+                const recognitionFlow = this.gamification?.flowState?.recognitionFlow;
+                if (recognitionFlow && recognitionFlow.lastUpdated > 0) {
+                    features.recognitionQuality = recognitionFlow.flowScore || 0.5;
+                    features.dialecticalEngagement =
+                        ((recognitionFlow.synthesisBalance || 0) + (recognitionFlow.resistanceProductivity || 0)) / 2;
+                }
+            }
+        } catch (err) {
+            // Non-fatal - recognition features are optional enhancements
+        }
+
+        return features;
+    }
+
+    /**
+     * Get the tutor bridge reference (lazy init from window).
+     * @returns {object|null}
+     */
+    _getTutorBridge() {
+        if (this.tutorBridge) return this.tutorBridge;
+        if (typeof window !== 'undefined' && window.TutorBridge && window.TutorBridge.isAvailable()) {
+            this.tutorBridge = window.TutorBridge;
+        }
+        return this.tutorBridge;
     }
     
     // === Real-time Insights Generation ===
     
     async generateRealtimeInsights() {
         const insights = [];
-        
+
         // Flow state insights
         const flowInsight = this.generateFlowInsight();
         if (flowInsight) insights.push(flowInsight);
-        
+
         // Cognitive load insights
         const loadInsight = this.generateCognitiveLoadInsight();
         if (loadInsight) insights.push(loadInsight);
-        
+
+        // Recognition-based insights from tutor-core
+        const recognitionInsight = this.generateRecognitionInsight();
+        if (recognitionInsight) insights.push(recognitionInsight);
+
         // Productivity pattern insights
         const productivityInsight = this.generateProductivityInsight();
         if (productivityInsight) insights.push(productivityInsight);
-        
+
         // Timing and wellness insights
         const wellnessInsight = this.generateWellnessInsight();
         if (wellnessInsight) insights.push(wellnessInsight);
-        
+
         // AI-powered contextual insights (every 60 seconds max)
         const aiInsight = await this.generateAIContextualInsight();
         if (aiInsight) insights.push(aiInsight);
-        
+
         // Update insights panel
         this.updateInsightsPanel(insights);
+    }
+
+    /**
+     * Generate insights based on recognition flow data from tutor-core.
+     * @returns {object|null} Insight object or null.
+     */
+    generateRecognitionInsight() {
+        const recognitionFlow = this.gamification?.flowState?.recognitionFlow;
+        if (!recognitionFlow || recognitionFlow.lastUpdated === 0) {
+            return null;
+        }
+
+        const { flowState, resistanceProductivity, synthesisBalance, struggleDepth } = recognitionFlow;
+
+        if (flowState === 'deepening' && synthesisBalance > 0.5) {
+            return {
+                type: 'recognition',
+                category: 'positive',
+                icon: '🔮',
+                message: 'Your dialectical engagement is deepening. Genuine synthesis is emerging from your writing process.',
+                confidence: 0.85,
+                actionable: false
+            };
+        }
+
+        if (resistanceProductivity > 0.6) {
+            return {
+                type: 'recognition',
+                category: 'positive',
+                icon: '⚡',
+                message: 'Your productive resistance suggests deepening understanding. You are finding your own path through the material.',
+                confidence: 0.8,
+                actionable: false
+            };
+        }
+
+        if (flowState === 'emerging' && struggleDepth > 0.3 && struggleDepth < 0.7) {
+            return {
+                type: 'recognition',
+                category: 'analytical',
+                icon: '🌱',
+                message: 'A recognition moment is consolidating. Your understanding is maturing from active engagement into lasting insight.',
+                confidence: 0.75,
+                actionable: false
+            };
+        }
+
+        if (flowState === 'disrupted' || flowState === 'plateauing') {
+            return {
+                type: 'recognition',
+                category: 'analytical',
+                icon: '🔄',
+                message: 'Your engagement pattern has shifted. This can be a natural part of dialectical learning - sometimes stepping back allows new connections to form.',
+                confidence: 0.7,
+                actionable: true
+            };
+        }
+
+        return null;
     }
     
     generateFlowInsight() {
@@ -733,15 +830,18 @@ class AIFlowDetection {
     
     initializeFlowModel() {
         // Simple linear model for flow prediction
+        // Recognition features added to blend typing patterns with dialectical engagement
         return {
             weights: {
-                typingSpeed: 0.2,
-                pausePattern: 0.15,
-                sentenceRhythm: 0.2,
-                vocabularyFlow: 0.15,
-                conceptualCoherence: 0.1,
+                typingSpeed: 0.15,
+                pausePattern: 0.1,
+                sentenceRhythm: 0.15,
+                vocabularyFlow: 0.1,
+                conceptualCoherence: 0.05,
                 timeContext: 0.1,
-                cognitiveLoad: -0.1 // High cognitive load can reduce flow
+                cognitiveLoad: -0.1, // High cognitive load can reduce flow
+                recognitionQuality: 0.15, // Recognition flow score from tutor-core
+                dialecticalEngagement: 0.1  // Synthesis balance and resistance productivity
             },
             
             predict: function(features) {
@@ -867,7 +967,7 @@ class AIFlowDetection {
     }
     
     getContextForAI() {
-        return {
+        const context = {
             recentText: this.textCollection.recentText,
             lastSentence: this.textCollection.lastSentence,
             currentFile: this.textCollection.currentFile,
@@ -882,6 +982,19 @@ class AIFlowDetection {
                 recentBursts: this.flowEngine.typingPattern.bursts.slice(-3)
             }
         };
+
+        // Include recognition flow data when available
+        const recognitionFlow = this.gamification?.flowState?.recognitionFlow;
+        if (recognitionFlow && recognitionFlow.lastUpdated > 0) {
+            context.recognition = {
+                flowScore: recognitionFlow.flowScore,
+                flowState: recognitionFlow.flowState,
+                struggleDepth: recognitionFlow.struggleDepth,
+                synthesisBalance: recognitionFlow.synthesisBalance
+            };
+        }
+
+        return context;
     }
     
     getFileType(filename) {

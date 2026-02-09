@@ -2,10 +2,12 @@
 // Main coordinator for all gamification modules
 // Research-backed gamification for academic writing motivation
 // Based on: Deci & Ryan (2000), Amabile & Kramer (2011), Clear (2018), Fogg (2019)
+// Extended with recognition-grounded progression via tutor-core
 
 class GamificationManager {
     constructor() {
         this.initialized = false;
+        this.tutorBridge = null; // Set during initialization if tutor-bridge is available
         
         // Initialize data persistence layer first
         this.dataPersistence = new DataPersistence();
@@ -384,6 +386,17 @@ class GamificationManager {
             type: 'resource.harvested',
             payload: { amount, reason, resource: 'lexiconShards' }
         });
+
+        // Record as recognition event through tutor-bridge
+        if (this.tutorBridge && this.tutorBridge.isAvailable()) {
+            this.tutorBridge.recordWritingEvent({
+                type: 'analysis_complete',
+                data: {
+                    summary: `Recognition trace: ${reason}`,
+                    wordCount: this.getCurrentWordCount(),
+                },
+            }).catch(() => {}); // Non-fatal
+        }
     }
 
     awardCatalogueSigils(amount, reason = 'Task progress', { notify = false } = {}) {
@@ -480,7 +493,35 @@ class GamificationManager {
         // Calculate current level from XP
         const xp = this.xpSystem.currentXP;
         this.xpSystem.currentLevel = this.calculateLevelFromXP(xp);
+
+        // Attempt to enrich with recognition data from tutor-bridge
+        this._refreshRecognitionLevel();
+
         console.log('[GamificationManager] Library ledger initialized');
+    }
+
+    /**
+     * Refresh the current level using recognition data from tutor-core if available.
+     * Non-blocking - uses the higher of XP-based and recognition-based levels.
+     */
+    async _refreshRecognitionLevel() {
+        try {
+            if (typeof window !== 'undefined' && window.TutorBridge && window.TutorBridge.isAvailable()) {
+                this.tutorBridge = window.TutorBridge;
+                const profile = await this.tutorBridge.getRecognitionState();
+                if (profile) {
+                    const recognitionLevel = this.calculateLevelFromRecognition(profile);
+                    const xpLevel = this.xpSystem.currentLevel;
+                    // Use the higher of the two to avoid regression
+                    this.xpSystem.currentLevel = Math.max(xpLevel, recognitionLevel);
+                    this.xpSystem.recognitionProfile = profile;
+                    console.log(`[GamificationManager] Recognition level: ${recognitionLevel}, XP level: ${xpLevel}, using: ${this.xpSystem.currentLevel}`);
+                }
+            }
+        } catch (error) {
+            // Non-fatal - recognition enrichment is optional
+            console.log('[GamificationManager] Recognition enrichment unavailable:', error.message);
+        }
     }
 
     initializeAudioContext() {
@@ -567,14 +608,39 @@ class GamificationManager {
         return Math.floor(xp / 1000) + 1;
     }
 
+    /**
+     * Calculate level from recognition depth when tutor-core is available.
+     * Falls back to XP-based calculation otherwise.
+     * @param {object} [recognitionProfile] - Profile from recognitionGamificationService
+     * @returns {number} Level 1-5
+     */
+    calculateLevelFromRecognition(recognitionProfile) {
+        if (!recognitionProfile || !recognitionProfile.depth) {
+            return this.calculateLevelFromXP(this.xpSystem.currentXP);
+        }
+
+        const depth = recognitionProfile.depth.compositeDepth || 0;
+        const permanentTraces = recognitionProfile.progression?.unconscious?.permanentTraces || 0;
+        const archetypeComplete = recognitionProfile.progression?.unconscious?.archetypeComplete || false;
+
+        // Recognition-based level thresholds
+        if (archetypeComplete && depth > 0.7) return 5; // Deep unconscious
+        if (permanentTraces > 0 && depth > 0.5) return 4; // Unconscious traces
+        if (depth > 0.3) return 3; // Preconscious mature
+        if (depth > 0.1) return 2; // Preconscious emerging
+        return 1; // Conscious
+    }
+
     getLevelDefinitions() {
-        // Define level requirements and rewards
+        // Level definitions grounded in recognition theory memory layers.
+        // XP thresholds retained for backward compatibility; recognition depth
+        // provides an alternative progression path when tutor-core is available.
         return {
-            1: { minXP: 0, title: 'Dusty Alcove' },
-            2: { minXP: 1000, title: 'Keeper of the Catalog' },
-            3: { minXP: 2500, title: 'Curator of Stacks' },
-            4: { minXP: 5000, title: 'Architect of Aisles' },
-            5: { minXP: 10000, title: 'Warden of the Infinite' }
+            1: { minXP: 0, title: 'Dusty Alcove', recognitionStage: 'conscious', description: 'New learner, ephemeral awareness' },
+            2: { minXP: 1000, title: 'Keeper of the Catalog', recognitionStage: 'preconscious_emerging', description: 'Patterns beginning to form' },
+            3: { minXP: 2500, title: 'Curator of Stacks', recognitionStage: 'preconscious_mature', description: 'Strong patterns crystallizing' },
+            4: { minXP: 5000, title: 'Architect of Aisles', recognitionStage: 'unconscious_traces', description: 'Permanent understanding forming' },
+            5: { minXP: 10000, title: 'Warden of the Infinite', recognitionStage: 'deep_unconscious', description: 'Archetype evolved, deep mastery' }
         };
     }
 
@@ -599,7 +665,8 @@ class GamificationManager {
             streaks: this.streakData,
             achievements: this.achievements,
             goals: this.goals,
-            libraryWorld: this.worldEngine ? this.worldEngine.getWorldState() : null
+            libraryWorld: this.worldEngine ? this.worldEngine.getWorldState() : null,
+            recognition: this.xpSystem.recognitionProfile || null
         };
     }
 
@@ -728,11 +795,19 @@ class GamificationManager {
 
         this.updateGamificationUI(true);
 
+        // Apply recognition quality multiplier when tutor-core is available.
+        // Deep recognition flow amplifies the value of each writing burst.
+        let qualityMultiplier = 1.0;
+        if (this.xpSystem.recognitionProfile && this.xpSystem.recognitionProfile.depth) {
+            const depth = this.xpSystem.recognitionProfile.depth.compositeDepth || 0;
+            qualityMultiplier = 1.0 + (depth * 0.5); // Up to 1.5x at max depth
+        }
+
         let milestonesAwarded = 0;
         while (this.liveProgress.accumulatedWords >= this.liveProgress.shardInterval) {
             this.liveProgress.accumulatedWords -= this.liveProgress.shardInterval;
             milestonesAwarded += 1;
-            const awardAmount = this.liveProgress.shardsPerInterval;
+            const awardAmount = Math.round(this.liveProgress.shardsPerInterval * qualityMultiplier);
             this.awardXP(awardAmount, 'Writing momentum pulse');
             this.recordWorldEvent({
                 type: 'typing.milestone',
@@ -740,7 +815,8 @@ class GamificationManager {
                     awardAmount,
                     snippet: this.liveProgress.recentSnippet,
                     milestoneSize: this.liveProgress.shardInterval,
-                    remaining: this.liveProgress.accumulatedWords
+                    remaining: this.liveProgress.accumulatedWords,
+                    qualityMultiplier
                 }
             });
             this.spawnLibraryRoomFromSnippet(this.liveProgress.recentSnippet, awardAmount);

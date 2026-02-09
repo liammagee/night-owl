@@ -1,12 +1,14 @@
 // === AI Companion Manager ===
 // Main coordinator for all AI writing companion modules
 // Provides intelligent, contextual, and adaptive feedback during writing
+// Optionally routes through tutor-core's Ego/Superego dialogue via tutor-bridge
 
 class AICompanionManager {
     constructor(gamificationInstance) {
         console.log('[AICompanionManager] 🚀 Initializing AICompanionManager with gamification:', !!gamificationInstance);
         this.gamification = gamificationInstance;
         this.initialized = false;
+        this.tutorBridge = null; // Set during init if tutor-bridge is available
         
         // Initialize core modules
         this.textAnalysis = new TextAnalysisEngine();
@@ -65,15 +67,32 @@ class AICompanionManager {
         try {
             // Load settings
             await this.loadCompanionSettings();
-            
+
+            // Attempt to initialize tutor-bridge for recognition-aware dialogue
+            try {
+                if (typeof window !== 'undefined' && window.TutorBridge) {
+                    this.tutorBridge = window.TutorBridge;
+                    const bridgeResult = await this.tutorBridge.initTutorBridge();
+                    if (bridgeResult.ok) {
+                        console.log('[AICompanionManager] Tutor bridge initialized - dialogue will route through Ego/Superego engine');
+                    } else {
+                        console.log('[AICompanionManager] Tutor bridge not available, using direct AI calls:', bridgeResult.error);
+                        this.tutorBridge = null;
+                    }
+                }
+            } catch (bridgeError) {
+                console.log('[AICompanionManager] Tutor bridge init failed, using direct AI calls:', bridgeError.message);
+                this.tutorBridge = null;
+            }
+
             // Initialize real-time analysis
             this.startRealTimeAnalysis();
-            
+
             // Mark as initialized
             this.initialized = true;
-            
+
             console.log('[AICompanionManager] AI Writing Companion initialized');
-            
+
         } catch (error) {
             console.error('[AICompanionManager] Initialization error:', error);
         }
@@ -194,9 +213,41 @@ class AICompanionManager {
 
             this.realTimeAnalysis.lastAnalysis = Date.now();
 
-            // Generate contextual feedback
-            const feedback = await this.feedbackSystem.generateContextualFeedback(combinedAnalysis);
-            
+            // Generate contextual feedback - try tutor-bridge first, fall back to direct
+            let feedback = null;
+            if (this.tutorBridge && this.tutorBridge.isAvailable()) {
+                try {
+                    const dialogueResult = await this.tutorBridge.routeDialogue({
+                        message: recentText || text,
+                        sessionState: {
+                            currentText: text,
+                            recentActivity: recentText,
+                            flowState: flowAnalysis.state,
+                            sessionDuration: Date.now() - this.realTimeAnalysis.sessionStartTime,
+                            wordCount: this.getWordCount(text),
+                        },
+                    });
+
+                    if (dialogueResult && dialogueResult.response) {
+                        feedback = {
+                            persona: 'Ash (via tutor-core)',
+                            type: 'dialectical',
+                            message: dialogueResult.response,
+                            timestamp: Date.now(),
+                            confidence: dialogueResult.confidence || 0.8,
+                        };
+                        console.log('[AICompanionManager] Feedback routed through tutor-core Ego/Superego dialogue');
+                    }
+                } catch (bridgeError) {
+                    console.warn('[AICompanionManager] Tutor-bridge dialogue failed, falling back to direct AI:', bridgeError.message);
+                }
+            }
+
+            // Fallback to direct feedback system
+            if (!feedback) {
+                feedback = await this.feedbackSystem.generateContextualFeedback(combinedAnalysis);
+            }
+
             if (feedback) {
                 console.log('[AICompanionManager] 🎯 About to show contextual feedback:', feedback);
                 this.showContextualFeedback(feedback, combinedAnalysis);
@@ -288,6 +339,18 @@ class AICompanionManager {
             console.log('[AICompanion] 🚀 TRIGGERING ANALYSIS in 2 seconds');
             // Trigger analysis with slight delay to avoid interrupting flow
             setTimeout(() => this.performRealTimeAnalysis(), 2000);
+
+            // Record writing event through tutor-bridge for recognition tracking
+            if (this.tutorBridge && this.tutorBridge.isAvailable()) {
+                this.tutorBridge.recordWritingEvent({
+                    type: 'analysis_complete',
+                    data: {
+                        summary: `New writing: ${contentDifference.newWords} words`,
+                        wordCount: this.getWordCount(currentText),
+                        flowState: this.analyzeFlowState(currentText)?.state,
+                    },
+                }).catch(err => console.warn('[AICompanion] Failed to record writing event:', err.message));
+            }
         } else {
             console.log('[AICompanion] ❌ NOT triggering analysis - conditions not met');
         }
@@ -581,7 +644,7 @@ class AICompanionManager {
 
     saveFeedbackToChat(feedbackId) {
         console.log('[AICompanionManager] saveFeedbackToChat called with ID:', feedbackId);
-        
+
         // Get the feedback data from the popup
         const feedbackPane = document.getElementById('ai-companion-feedback');
         if (!feedbackPane) {
@@ -592,20 +655,32 @@ class AICompanionManager {
         try {
             const feedbackData = JSON.parse(feedbackPane.getAttribute('data-feedback'));
             const analysisData = JSON.parse(feedbackPane.getAttribute('data-analysis'));
-            
+
             console.log('[AICompanionManager] Feedback data:', { feedbackData, analysisData });
             console.log('[AICompanionManager] addChatMessage available:', typeof window.addChatMessage === 'function');
-            
+
             if (typeof window.addChatMessage === 'function') {
                 const contextSummary = `Writing Context: ${analysisData.flowState || 'unknown'} flow, ${analysisData.wordCount || 0} words`;
                 const fullMessage = `**Ash's Feedback:**\n\n${feedbackData.message}\n\n_${contextSummary}_`;
-                
+
                 console.log('[AICompanionManager] Sending to AI Chat:', fullMessage);
                 window.addChatMessage(fullMessage, 'AI');
-                
+
                 // Show confirmation and hide the feedback popup
                 this.showNotification('💾 Feedback saved to AI Chat', 'success', 2000);
                 feedbackPane.style.display = 'none';
+
+                // Record feedback acceptance as a recognition event
+                if (this.tutorBridge && this.tutorBridge.isAvailable()) {
+                    this.tutorBridge.recordWritingEvent({
+                        type: 'feedback_response',
+                        data: {
+                            suggestion: feedbackData.message,
+                            action: 'saved_to_chat',
+                            isBreakthrough: false,
+                        },
+                    }).catch(err => console.warn('[AICompanionManager] Failed to record feedback event:', err.message));
+                }
             } else {
                 console.warn('[AICompanionManager] addChatMessage function not available');
                 this.showNotification('⚠️ AI Chat not available', 'warning', 3000);

@@ -1,5 +1,6 @@
 // === Flow State Detection and Management ===
 // Based on Csikszentmihalyi's flow theory and typing behavior analysis
+// Extended with recognition flow from tutor-core's dialectical engagement metrics
 
 class FlowState {
     constructor(gamificationInstance) {
@@ -20,6 +21,16 @@ class FlowState {
                 minWordsPerMinute: 15, // Minimum WPM to maintain flow
                 consistencyThreshold: 0.7 // How consistent typing should be (0-1)
             }
+        };
+
+        // Recognition flow state from tutor-core (updated via tutor-bridge)
+        this.recognitionFlow = {
+            flowScore: 0,
+            flowState: 'none',       // none, disrupted, plateauing, emerging, deepening
+            struggleDepth: 0,
+            synthesisBalance: 0,
+            resistanceProductivity: 0,
+            lastUpdated: 0
         };
     }
 
@@ -235,18 +246,54 @@ class FlowState {
 
     getFlowMetrics() {
         const flow = this.flowState;
-        
+
+        // Blend typing flow and recognition flow when recognition data is available
+        const typingQuality = flow.currentFlowQuality;
+        const recognitionQuality = this.recognitionFlow.flowScore;
+        const hasRecognitionData = this.recognitionFlow.lastUpdated > 0;
+
+        // Blended flow: 60% typing + 40% recognition (when available)
+        const blendedQuality = hasRecognitionData
+            ? (typingQuality * 0.6) + (recognitionQuality * 0.4)
+            : typingQuality;
+
         return {
             isInFlow: flow.isInFlow,
             currentDuration: flow.isInFlow ? Date.now() - flow.flowStartTime : 0,
             currentQuality: flow.currentFlowQuality,
+            blendedQuality,
             totalFlowSessions: flow.flowSessions.length,
             totalFlowTime: flow.flowSessions.reduce((total, session) => total + session.duration, 0),
-            averageFlowDuration: flow.flowSessions.length > 0 ? 
+            averageFlowDuration: flow.flowSessions.length > 0 ?
                 flow.flowSessions.reduce((total, session) => total + session.duration, 0) / flow.flowSessions.length : 0,
             bestFlowSession: flow.flowSessions.length > 0 ?
-                flow.flowSessions.reduce((best, session) => session.duration > best.duration ? session : best) : null
+                flow.flowSessions.reduce((best, session) => session.duration > best.duration ? session : best) : null,
+            recognition: hasRecognitionData ? { ...this.recognitionFlow } : null
         };
+    }
+
+    /**
+     * Update recognition flow metrics from tutor-core data.
+     * Called by tutor-bridge or gamification manager when recognition state is refreshed.
+     *
+     * @param {object} recognitionData - Recognition flow data from computeRecognitionFlow()
+     * @param {number} recognitionData.flowScore - 0-1 recognition flow score
+     * @param {string} recognitionData.flowState - none, disrupted, plateauing, emerging, deepening
+     * @param {number} [recognitionData.avgStruggleDepth] - Average struggle depth
+     * @param {number} [recognitionData.synthesisBalance] - Synthesis balance ratio
+     * @param {number} [recognitionData.resistanceProductivity] - Productive resistance ratio
+     */
+    updateRecognitionFlow(recognitionData) {
+        if (!recognitionData) return;
+
+        this.recognitionFlow.flowScore = recognitionData.flowScore || 0;
+        this.recognitionFlow.flowState = recognitionData.flowState || 'none';
+        this.recognitionFlow.struggleDepth = recognitionData.avgStruggleDepth || 0;
+        this.recognitionFlow.synthesisBalance = recognitionData.synthesisBalance || 0;
+        this.recognitionFlow.resistanceProductivity = recognitionData.resistanceProductivity || 0;
+        this.recognitionFlow.lastUpdated = Date.now();
+
+        console.log(`[FlowState] Recognition flow updated: score=${this.recognitionFlow.flowScore}, state=${this.recognitionFlow.flowState}`);
     }
 
     getCurrentWordCount() {
