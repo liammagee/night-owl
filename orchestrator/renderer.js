@@ -9331,6 +9331,11 @@ async function renderFileTree() {
         
         // Update available files for autocomplete
         updateAvailableFiles(fileTree);
+
+        // Apply git status decorations to file tree
+        if (window.gitPanel && window.gitPanel.applyFileTreeGitStatus) {
+            window.gitPanel.applyFileTreeGitStatus();
+        }
     } catch (error) {
         console.error('[renderFileTree] Error loading file tree:', error);
         if (fileTreeView) {

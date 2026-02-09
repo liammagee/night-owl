@@ -207,8 +207,9 @@ function register(deps) {
         }
       }
 
-      // Check if there are unpushed commits
+      // Check ahead/behind counts
       let ahead = 0;
+      let behind = 0;
       try {
         const aheadOutput = execSync('git rev-list --count @{u}..HEAD', {
           cwd: repoRoot,
@@ -216,6 +217,12 @@ function register(deps) {
           timeout: 5000
         }).trim();
         ahead = parseInt(aheadOutput, 10) || 0;
+        const behindOutput = execSync('git rev-list --count HEAD..@{u}', {
+          cwd: repoRoot,
+          encoding: 'utf8',
+          timeout: 5000
+        }).trim();
+        behind = parseInt(behindOutput, 10) || 0;
       } catch (e) {
         // No upstream configured or other error - ignore
       }
@@ -227,6 +234,7 @@ function register(deps) {
         untracked,
         total: lines.length,
         ahead,
+        behind,
         clean: lines.length === 0 && ahead === 0
       };
     } catch (error) {
@@ -335,10 +343,11 @@ function register(deps) {
   /**
    * Commit only (no push) — separate from git-publish
    */
-  ipcMain.handle('git-commit', async (event, { repoRoot, message }) => {
+  ipcMain.handle('git-commit', async (event, { repoRoot, message, amend }) => {
     try {
       const safeMessage = message.replace(/"/g, '\\"');
-      const output = execSync(`git commit -m "${safeMessage}"`, {
+      const amendFlag = amend ? '--amend ' : '';
+      const output = execSync(`git commit ${amendFlag}-m "${safeMessage}"`, {
         cwd: repoRoot, encoding: 'utf8', timeout: 30000
       });
       const hashMatch = output.match(/\[[\w-]+ ([a-f0-9]+)\]/);
@@ -698,6 +707,130 @@ function register(deps) {
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
+    }
+  });
+
+  // === Phase 8: Gutter change indicators ===
+
+  /**
+   * Get line-level diff for a file (for gutter indicators)
+   * Returns arrays of added, modified, and deleted line ranges
+   */
+  ipcMain.handle('git-diff-lines', async (event, { repoRoot, filePath }) => {
+    try {
+      const safePath = `"${filePath.replace(/"/g, '\\"')}"`;
+      let diff;
+      try {
+        diff = execSync(`git diff -U0 -- ${safePath}`, {
+          cwd: repoRoot, encoding: 'utf8', timeout: 15000
+        });
+      } catch (e) {
+        // File might be untracked
+        return { success: true, added: [], modified: [], deleted: [] };
+      }
+
+      if (!diff.trim()) {
+        return { success: true, added: [], modified: [], deleted: [] };
+      }
+
+      const added = [];
+      const modified = [];
+      const deleted = [];
+
+      // Parse unified diff hunk headers: @@ -oldStart[,oldCount] +newStart[,newCount] @@
+      const hunkRegex = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm;
+      let match;
+      while ((match = hunkRegex.exec(diff)) !== null) {
+        const oldCount = parseInt(match[2] || '1', 10);
+        const newStart = parseInt(match[3], 10);
+        const newCount = parseInt(match[4] || '1', 10);
+
+        if (oldCount === 0 && newCount > 0) {
+          // Pure addition
+          added.push({ start: newStart, count: newCount });
+        } else if (newCount === 0 && oldCount > 0) {
+          // Pure deletion (show marker at the line after)
+          deleted.push({ line: newStart });
+        } else {
+          // Modification
+          modified.push({ start: newStart, count: newCount });
+        }
+      }
+
+      return { success: true, added, modified, deleted };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // === Phase 9: Hunk staging ===
+
+  /**
+   * Get raw diff split into hunks for a file
+   */
+  ipcMain.handle('git-diff-hunks', async (event, { repoRoot, filePath }) => {
+    try {
+      const safePath = `"${filePath.replace(/"/g, '\\"')}"`;
+      const diff = execSync(`git diff -- ${safePath}`, {
+        cwd: repoRoot, encoding: 'utf8', timeout: 15000
+      });
+
+      if (!diff.trim()) {
+        return { success: true, hunks: [] };
+      }
+
+      // Split into hunks
+      const lines = diff.split('\n');
+      const hunks = [];
+      let headerLines = [];
+      let currentHunk = null;
+
+      for (const line of lines) {
+        if (line.startsWith('diff ') || line.startsWith('index ') ||
+            line.startsWith('--- ') || line.startsWith('+++ ')) {
+          headerLines.push(line);
+          continue;
+        }
+        if (line.startsWith('@@')) {
+          if (currentHunk) hunks.push(currentHunk);
+          const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)/);
+          currentHunk = {
+            header: line,
+            oldStart: hunkMatch ? parseInt(hunkMatch[1]) : 0,
+            newStart: hunkMatch ? parseInt(hunkMatch[3]) : 0,
+            context: hunkMatch ? hunkMatch[5]?.trim() || '' : '',
+            lines: [line]
+          };
+        } else if (currentHunk) {
+          currentHunk.lines.push(line);
+        }
+      }
+      if (currentHunk) hunks.push(currentHunk);
+
+      return { success: true, hunks, fileHeader: headerLines.join('\n') };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Stage a single hunk by applying a partial patch
+   */
+  ipcMain.handle('git-stage-hunk', async (event, { repoRoot, patch }) => {
+    try {
+      // Write patch to temp file and apply
+      const tmpPath = path.join(repoRoot, '.git', 'tmp-hunk-patch');
+      fs.writeFileSync(tmpPath, patch, 'utf8');
+      try {
+        execSync(`git apply --cached "${tmpPath}"`, {
+          cwd: repoRoot, encoding: 'utf8', timeout: 15000
+        });
+      } finally {
+        try { fs.unlinkSync(tmpPath); } catch (e) { /* ignore */ }
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
     }
   });
 

@@ -19,6 +19,14 @@
   let blameFile = null;
 
   // --- Helpers ---
+  function debounce(fn, ms) {
+    let timer;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), ms);
+    };
+  }
+
   function basename(filePath) {
     return filePath.split(/[/\\]/).pop();
   }
@@ -68,6 +76,23 @@
     const branchEl = document.getElementById('git-branch-name');
     if (branchEl) branchEl.textContent = currentBranch;
 
+    // Ahead/behind indicator
+    const syncEl = document.getElementById('git-sync-indicator');
+    if (syncEl) {
+      const summary = await window.electronAPI.invoke('git-status-summary', repoRoot);
+      if (summary.success) {
+        const parts = [];
+        if (summary.ahead > 0) parts.push(`↑${summary.ahead}`);
+        if (summary.behind > 0) parts.push(`↓${summary.behind}`);
+        syncEl.textContent = parts.length ? parts.join(' ') : '';
+        syncEl.title = parts.length
+          ? `${summary.ahead || 0} ahead, ${summary.behind || 0} behind`
+          : 'Up to date with remote';
+      } else {
+        syncEl.textContent = '';
+      }
+    }
+
     // Get detailed status
     const statusResult = await window.electronAPI.invoke('git-status-detailed', repoRoot);
     if (statusResult.success) {
@@ -77,6 +102,17 @@
       const unstagedCount = document.getElementById('git-unstaged-count');
       if (stagedCount) stagedCount.textContent = statusResult.staged.length;
       if (unstagedCount) unstagedCount.textContent = statusResult.unstaged.length;
+
+      // Build file status map for file tree decorations
+      const statusMap = {};
+      for (const f of statusResult.staged) {
+        statusMap[f.file] = f.status;
+      }
+      for (const f of statusResult.unstaged) {
+        statusMap[f.file] = f.status; // unstaged overrides staged for display
+      }
+      window.gitFileStatus = { repoRoot, files: statusMap };
+      applyFileTreeGitStatus();
     }
 
     // Load stashes
@@ -168,6 +204,12 @@
   async function showDiff(filePath, cached, status) {
     if (!repoRoot) return;
 
+    // For unstaged modified files, offer hunk-level staging
+    if (!cached && status === 'modified') {
+      showDiffWithHunks(filePath);
+      return;
+    }
+
     // For untracked or added files, show full content
     let originalContent = '';
     let modifiedContent = '';
@@ -215,6 +257,95 @@
     }
 
     openDiffModal(filePath, originalContent, modifiedContent);
+  }
+
+  // --- Phase 9: Hunk staging in diff viewer ---
+  async function showDiffWithHunks(filePath) {
+    if (!repoRoot) return;
+
+    const hunksResult = await window.electronAPI.invoke('git-diff-hunks', {
+      repoRoot, filePath
+    });
+    if (!hunksResult.success || hunksResult.hunks.length === 0) {
+      notify('No diff hunks found', 'info');
+      return;
+    }
+
+    closeDiffModal();
+    const overlay = document.createElement('div');
+    overlay.className = 'git-diff-overlay';
+    overlay.id = 'git-diff-overlay';
+
+    const hunksHtml = hunksResult.hunks.map((hunk, i) => {
+      const linesHtml = hunk.lines.map(line => {
+        let cls = 'diff-ctx';
+        if (line.startsWith('+')) cls = 'diff-add';
+        else if (line.startsWith('-')) cls = 'diff-del';
+        else if (line.startsWith('@@')) cls = 'diff-hdr';
+        return `<div class="diff-line ${cls}">${escapeHtml(line)}</div>`;
+      }).join('');
+
+      return `
+        <div class="git-hunk" data-hunk-index="${i}">
+          <div class="git-hunk-header">
+            <span class="git-hunk-context">${escapeHtml(hunk.context || `Hunk ${i + 1}`)}</span>
+            <button class="btn git-hunk-stage-btn" data-hunk-index="${i}" title="Stage this hunk">Stage Hunk</button>
+          </div>
+          <div class="git-hunk-diff">${linesHtml}</div>
+        </div>
+      `;
+    }).join('');
+
+    overlay.innerHTML = `
+      <div class="git-diff-modal">
+        <div class="git-diff-header">
+          <span>${basename(filePath)} <span style="opacity:0.5; font-weight:normal; font-size:11px;">${dirname(filePath)}</span></span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button id="git-stage-all-hunks" class="btn btn-primary" style="font-size:11px;padding:3px 10px;">Stage All</button>
+            <button id="git-diff-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:inherit;">✕</button>
+          </div>
+        </div>
+        <div class="git-diff-body" style="overflow-y:auto;padding:0;">
+          ${hunksHtml}
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDiffModal(); });
+    document.getElementById('git-diff-close').addEventListener('click', closeDiffModal);
+    const escHandler = (e) => {
+      if (e.key === 'Escape') { closeDiffModal(); document.removeEventListener('keydown', escHandler); }
+    };
+    document.addEventListener('keydown', escHandler);
+
+    // Stage individual hunks
+    overlay.querySelectorAll('.git-hunk-stage-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.hunkIndex);
+        const hunk = hunksResult.hunks[idx];
+        // Build a minimal patch: file header + single hunk
+        const patch = hunksResult.fileHeader + '\n' + hunk.lines.join('\n') + '\n';
+        const result = await window.electronAPI.invoke('git-stage-hunk', { repoRoot, patch });
+        if (result.success) {
+          btn.textContent = 'Staged';
+          btn.disabled = true;
+          btn.closest('.git-hunk').style.opacity = '0.5';
+          notify(`Hunk ${idx + 1} staged`, 'success');
+        } else {
+          notify('Stage failed: ' + result.error, 'error');
+        }
+      });
+    });
+
+    // Stage all hunks at once (just stage the whole file)
+    document.getElementById('git-stage-all-hunks').addEventListener('click', async () => {
+      await window.electronAPI.invoke('git-stage', { repoRoot, paths: [filePath] });
+      closeDiffModal();
+      notify('All changes staged', 'success');
+      refresh();
+    });
   }
 
   function openDiffModal(filePath, original, modified) {
@@ -805,6 +936,137 @@
     });
   }
 
+  // --- Phase 8: Gutter change indicators ---
+  let gutterDecorations = [];
+  let gutterFile = null;
+
+  async function updateGutterIndicators() {
+    if (!window.editor || !window.monaco || !repoRoot) return;
+
+    const filePath = window.currentFilePath;
+    if (!filePath) {
+      clearGutterIndicators();
+      return;
+    }
+
+    // Get relative path from repo root
+    let relativePath = filePath;
+    if (filePath.startsWith(repoRoot + '/')) {
+      relativePath = filePath.substring(repoRoot.length + 1);
+    }
+
+    const result = await window.electronAPI.invoke('git-diff-lines', {
+      repoRoot, filePath: relativePath
+    });
+
+    if (!result.success) return;
+
+    clearGutterIndicators();
+    gutterFile = filePath;
+
+    const decorations = [];
+
+    for (const range of result.added) {
+      for (let i = 0; i < range.count; i++) {
+        decorations.push({
+          range: new window.monaco.Range(range.start + i, 1, range.start + i, 1),
+          options: { linesDecorationsClassName: 'git-gutter-added' }
+        });
+      }
+    }
+
+    for (const range of result.modified) {
+      for (let i = 0; i < range.count; i++) {
+        decorations.push({
+          range: new window.monaco.Range(range.start + i, 1, range.start + i, 1),
+          options: { linesDecorationsClassName: 'git-gutter-modified' }
+        });
+      }
+    }
+
+    for (const del of result.deleted) {
+      decorations.push({
+        range: new window.monaco.Range(del.line, 1, del.line, 1),
+        options: { linesDecorationsClassName: 'git-gutter-deleted' }
+      });
+    }
+
+    gutterDecorations = window.editor.deltaDecorations([], decorations);
+  }
+
+  function clearGutterIndicators() {
+    if (gutterDecorations.length > 0 && window.editor) {
+      window.editor.deltaDecorations(gutterDecorations, []);
+    }
+    gutterDecorations = [];
+    gutterFile = null;
+  }
+
+  // --- File tree git status decorations ---
+  const gitStatusColors = {
+    modified: '#f59e0b',
+    added: '#22c55e',
+    deleted: '#ef4444',
+    untracked: '#6366f1',
+    renamed: '#06b6d4'
+  };
+
+  function applyFileTreeGitStatus() {
+    const info = window.gitFileStatus;
+    if (!info || !info.repoRoot) return;
+
+    // Clear previous decorations
+    document.querySelectorAll('.file-tree-item .file-name[data-git-status]').forEach(el => {
+      el.style.color = '';
+      el.removeAttribute('data-git-status');
+    });
+    document.querySelectorAll('.file-tree-item .git-status-badge').forEach(el => el.remove());
+
+    // Apply to each file item
+    document.querySelectorAll('.file-tree-item[data-path]').forEach(el => {
+      const fullPath = el.dataset.path;
+      if (!fullPath) return;
+
+      // Get relative path from repo root
+      let relPath = fullPath;
+      if (fullPath.startsWith(info.repoRoot + '/')) {
+        relPath = fullPath.substring(info.repoRoot.length + 1);
+      }
+
+      const isFolder = el.classList.contains('folder');
+
+      if (!isFolder) {
+        // Direct file match
+        const status = info.files[relPath];
+        if (status) {
+          const nameEl = el.querySelector('.file-name');
+          if (nameEl) {
+            nameEl.style.color = gitStatusColors[status] || '';
+            nameEl.setAttribute('data-git-status', status);
+          }
+        }
+      } else {
+        // Folder: check if any child files have status
+        let folderHasChanges = false;
+        let folderStatus = null;
+        for (const [file, status] of Object.entries(info.files)) {
+          if (file.startsWith(relPath + '/')) {
+            folderHasChanges = true;
+            folderStatus = folderStatus || status;
+            break;
+          }
+        }
+        if (folderHasChanges) {
+          const nameEl = el.querySelector('.file-name');
+          if (nameEl) {
+            nameEl.style.color = gitStatusColors[folderStatus] || '';
+            nameEl.setAttribute('data-git-status', folderStatus);
+          }
+        }
+      }
+    });
+  }
+
   // --- Initialize ---
   function init() {
     // Button listeners
@@ -812,17 +1074,36 @@
     if (commitBtn) {
       commitBtn.addEventListener('click', async () => {
         const msgEl = document.getElementById('git-commit-message');
+        const amendCheck = document.getElementById('git-amend-checkbox');
+        const amend = amendCheck?.checked || false;
         const message = msgEl?.value?.trim();
         if (!message) { notify('Enter a commit message', 'error'); return; }
         if (!repoRoot) { notify('No git repository', 'error'); return; }
 
-        const result = await window.electronAPI.invoke('git-commit', { repoRoot, message });
+        const result = await window.electronAPI.invoke('git-commit', { repoRoot, message, amend });
         if (result.success) {
-          notify(`Committed: ${result.commitHash}`, 'success');
+          notify(`${amend ? 'Amended' : 'Committed'}: ${result.commitHash}`, 'success');
           if (msgEl) msgEl.value = '';
+          if (amendCheck) amendCheck.checked = false;
           refresh();
         } else {
           notify('Commit failed: ' + result.error, 'error');
+        }
+      });
+    }
+
+    // Amend checkbox: pre-fill last commit message when checked
+    const amendCheck = document.getElementById('git-amend-checkbox');
+    if (amendCheck) {
+      amendCheck.addEventListener('change', async () => {
+        const msgEl = document.getElementById('git-commit-message');
+        if (!msgEl || !repoRoot) return;
+        if (amendCheck.checked && !msgEl.value.trim()) {
+          const logResult = await window.electronAPI.invoke('git-log', { repoRoot, limit: 1 });
+          if (logResult.success && logResult.commits.length > 0) {
+            msgEl.value = logResult.commits[0].message;
+            msgEl.focus();
+          }
         }
       });
     }
@@ -945,23 +1226,47 @@
       });
     }
 
-    // Register command palette command for blame
+    // Register command palette commands
     if (window.commandPaletteCommands) {
       window.commandPaletteCommands.push({
         name: 'Git: Toggle Blame',
         action: () => toggleBlame()
       });
+      window.commandPaletteCommands.push({
+        name: 'Git: Toggle Gutter Indicators',
+        action: () => {
+          if (gutterDecorations.length > 0) {
+            clearGutterIndicators();
+          } else {
+            updateGutterIndicators();
+          }
+        }
+      });
     }
 
-    // Clear blame when file changes
+    // Clear blame and update gutter when file changes
     if (window.editor) {
       const origSetModel = window.editor.setModel?.bind(window.editor);
       if (origSetModel) {
         window.editor.setModel = function (...args) {
           clearBlame();
-          return origSetModel(...args);
+          clearGutterIndicators();
+          const result = origSetModel(...args);
+          // Refresh gutter for new file after a short delay
+          setTimeout(() => updateGutterIndicators(), 200);
+          return result;
         };
       }
+
+      // Update gutter indicators on content save
+      window.editor.onDidChangeModelContent(debounce(() => {
+        if (repoRoot) updateGutterIndicators();
+      }, 1500));
+    }
+
+    // Initial gutter update
+    if (repoRoot) {
+      setTimeout(() => updateGutterIndicators(), 500);
     }
   }
 
@@ -971,7 +1276,10 @@
     toggleBlame,
     clearBlame,
     showBranchDialog,
-    checkConflicts
+    checkConflicts,
+    applyFileTreeGitStatus,
+    updateGutterIndicators,
+    clearGutterIndicators
   };
 
   // Initialize when DOM is ready
