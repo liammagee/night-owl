@@ -420,7 +420,7 @@ async function updateGitStatusIndicator() {
             if (statusResult.untracked > 0) tooltip += `\nUntracked: ${statusResult.untracked}`;
             if (statusResult.ahead > 0) tooltip += `\nUnpushed commits: ${statusResult.ahead}`;
             if (statusResult.clean) tooltip += `\n✓ Working tree clean`;
-            tooltip += `\n\nClick to publish changes`;
+            tooltip += `\n\nClick to open Source Control`;
             indicator.title = tooltip;
         } else {
             indicator.style.display = 'none';
@@ -436,32 +436,10 @@ function initGitStatusIndicator() {
     const indicator = document.getElementById('git-status-indicator');
     if (!indicator) return;
 
-    indicator.addEventListener('click', async () => {
-        if (!gitStatusCache.repoRoot) return;
-
-        // Show git publish dialog for the repo root
-        try {
-            const result = await showGitPublishDialog(gitStatusCache);
-            if (result && result.confirmed) {
-                showNotification('Publishing changes...', 'info');
-
-                const publishResult = await window.electronAPI.invoke('git-publish', {
-                    repoRoot: gitStatusCache.repoRoot,
-                    subfolder: '.',
-                    message: result.message
-                });
-
-                if (publishResult.success) {
-                    showNotification(`Published successfully! Commit: ${publishResult.commitHash}`, 'success');
-                    // Refresh status
-                    await updateGitStatusIndicator();
-                } else {
-                    showNotification(`Publish failed: ${publishResult.error}`, 'error');
-                }
-            }
-        } catch (error) {
-            console.error('[Git] Error in publish:', error);
-            showNotification('Error publishing to Git', 'error');
+    indicator.addEventListener('click', () => {
+        // Open the git panel in the sidebar
+        if (typeof switchStructureView === 'function') {
+            switchStructureView('git');
         }
     });
 
@@ -8895,6 +8873,16 @@ if (showFootnotesBtn2) {
     });
 }
 
+// Git button event listener
+const showGitBtn2 = document.getElementById('show-git-btn');
+if (showGitBtn2) {
+    showGitBtn2.addEventListener('click', () => {
+        if (window.currentStructureView !== 'git') {
+            switchStructureView('git');
+        }
+    });
+}
+
 // Refresh statistics button event listener
 const refreshStatsBtn = document.getElementById('refresh-statistics-btn');
 if (refreshStatsBtn) {
@@ -9175,6 +9163,8 @@ function switchStructureView(view) {
     if (showCitationsBtn) showCitationsBtn.classList.remove('active');
     const showFootnotesBtn = document.getElementById('show-footnotes-btn');
     if (showFootnotesBtn) showFootnotesBtn.classList.remove('active');
+    const showGitBtn = document.getElementById('show-git-btn');
+    if (showGitBtn) showGitBtn.classList.remove('active');
 
     structureList.style.display = 'none';
     if (fileTreeView) fileTreeView.style.display = 'none';
@@ -9185,6 +9175,8 @@ function switchStructureView(view) {
     if (citationsPane) citationsPane.style.display = 'none';
     const footnotesPane = document.getElementById('footnotes-pane');
     if (footnotesPane) footnotesPane.style.display = 'none';
+    const gitPane = document.getElementById('git-pane');
+    if (gitPane) gitPane.style.display = 'none';
     if (tagSearchSection) tagSearchSection.style.display = 'none';
     newFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
@@ -9241,6 +9233,15 @@ function switchStructureView(view) {
         if (footnotesPane) {
             footnotesPane.style.display = 'flex';
             updateFootnotesPanel();
+        }
+    } else if (view === 'git') {
+        structurePaneTitle.textContent = 'Source Control';
+        if (showGitBtn) showGitBtn.classList.add('active');
+        if (gitPane) {
+            gitPane.style.display = 'flex';
+            if (window.gitPanel) {
+                window.gitPanel.refresh();
+            }
         }
     }
 }
@@ -9345,7 +9346,7 @@ async function renderFileTree() {
 function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, isPrimary = false) {
     const nodeElement = document.createElement('div');
     nodeElement.className = 'file-tree-item';
-    nodeElement.style.paddingLeft = `${depth * 16}px`;
+    nodeElement.style.paddingLeft = `${depth * 8}px`;
 
     // Track if this is a workspace folder root for context menu
     const isWorkspaceFolderRoot = isWorkspaceFolder && depth === 0;
@@ -9359,9 +9360,9 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
     // Create expand/collapse arrow for folders with children
     let expandArrow = '';
     if (hasChildren) {
-        expandArrow = `<span class="expand-arrow" style="margin-right: 4px; cursor: pointer; user-select: none;">${isExpanded ? '▼' : '▶'}</span>`;
+        expandArrow = `<span class="expand-arrow" style="cursor: pointer; user-select: none;">${isExpanded ? '▼' : '▶'}</span>`;
     } else if (isFolder) {
-        expandArrow = '<span style="margin-right: 12px;"></span>'; // Spacing for empty folders
+        expandArrow = '<span style="width: 16px; display: inline-block;"></span>'; // Spacing for empty folders
     }
     
     // Use different icon for workspace folder roots
@@ -9395,8 +9396,8 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
             ${expandArrow}
             <span class="file-icon">${icon}</span>
             <span class="file-name">${fileName}</span>
+            ${tagsDisplay}
         </div>
-        ${tagsDisplay}
     `;
 
     // data-path is set below and used by CSS tooltip on hover
@@ -9411,16 +9412,13 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         if (isPrimaryRoot) {
             nodeElement.classList.add('primary-folder-root');
             nodeElement.style.fontWeight = 'bold';
-            nodeElement.style.borderBottom = '2px solid var(--primary-500, #ef4444)';
-            nodeElement.style.marginBottom = '6px';
-            nodeElement.style.paddingBottom = '6px';
-            nodeElement.style.background = 'linear-gradient(to right, var(--primary-50, #fef2f2), transparent)';
+            nodeElement.style.borderBottom = '1px solid var(--primary-500, #ef4444)';
+            nodeElement.style.marginBottom = '2px';
         } else if (isWorkspaceFolderRoot) {
             nodeElement.classList.add('workspace-folder-root');
             nodeElement.style.fontWeight = 'bold';
             nodeElement.style.borderBottom = '1px solid var(--neutral-200, #e5e5e5)';
-            nodeElement.style.marginBottom = '4px';
-            nodeElement.style.paddingBottom = '4px';
+            nodeElement.style.marginBottom = '2px';
         }
 
         // Add click handler for folders to toggle expand/collapse in place
