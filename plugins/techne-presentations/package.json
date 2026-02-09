@@ -1,0 +1,20 @@
+{
+  "name": "techne-presentations",
+  "version": "1.0.0",
+  "description": "Techne presentations plugin - Prezi-style markdown presentations",
+  "main": "MarkdownPreziApp.js",
+  "scripts": {
+    "build": "babel src --out-dir . --copy-files",
+    "watch": "babel src --out-dir . --watch --copy-files"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.22.0",
+    "@babel/core": "^7.22.0",
+    "@babel/preset-env": "^7.22.0",
+    "@babel/preset-react": "^7.22.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
