@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fauna Playground - Machine Spirits</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #fafafa;
+      --fg: #0a0a0a;
+      --widget: #0a0a0a;
+      --accent: #E63946;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      background: var(--bg);
+      color: var(--widget);
+      min-height: 300vh;
+      overflow-x: hidden;
+    }
+
+    #fauna-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      background: var(--bg);
+      border: 2px solid var(--widget);
+      box-shadow: 6px 6px 0 var(--widget);
+      padding: 20px;
+      width: 320px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }
+
+    .controls h1 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--widget);
+    }
+
+    .controls h1 span {
+      color: var(--accent);
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-group label {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+      opacity: 0.7;
+    }
+
+    .control-group input[type="range"] {
+      width: 100%;
+      height: 8px;
+      -webkit-appearance: none;
+      background: var(--widget);
+      opacity: 0.3;
+      cursor: pointer;
+    }
+
+    .control-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .control-group input[type="color"] {
+      width: 100%;
+      height: 36px;
+      border: 2px solid var(--widget);
+      background: var(--bg);
+      cursor: pointer;
+      padding: 2px;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .control-row .control-group {
+      flex: 1;
+    }
+
+    .value-display {
+      font-size: 11px;
+      opacity: 0.5;
+      float: right;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      background: var(--widget);
+      color: var(--bg);
+      border: none;
+      font-family: inherit;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: var(--accent);
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--widget);
+      border: 2px solid var(--widget);
+    }
+
+    button.secondary:hover {
+      background: var(--widget);
+      color: var(--bg);
+    }
+
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .preset-btn {
+      padding: 8px;
+      font-size: 9px;
+    }
+
+    .creature-list {
+      font-size: 10px;
+      opacity: 0.6;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+
+    .stats {
+      font-size: 10px;
+      opacity: 0.5;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .content {
+      position: relative;
+      z-index: 2;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 100px 40px;
+    }
+
+    .content h2 {
+      font-size: 32px;
+      margin-bottom: 24px;
+    }
+
+    .content p {
+      font-size: 14px;
+      line-height: 1.8;
+      margin-bottom: 24px;
+      opacity: 0.8;
+    }
+
+    .section {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+    }
+
+    @media (max-width: 768px) {
+      .controls {
+        top: auto;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        width: 100%;
+        max-height: 50vh;
+        box-shadow: 0 -4px 0 var(--widget);
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="fauna-canvas"></canvas>
+
+  <div class="controls">
+    <h1>Fauna <span>Playground</span></h1>
+
+    <div class="control-row">
+      <div class="control-group">
+        <label>Background <span class="value-display" id="bg-val">#fafafa</span></label>
+        <input type="color" id="bg-color" value="#fafafa">
+      </div>
+      <div class="control-group">
+        <label>Widget Color <span class="value-display" id="widget-val">#0a0a0a</span></label>
+        <input type="color" id="widget-color" value="#0a0a0a">
+      </div>
+    </div>
+
+    <div class="control-row">
+      <div class="control-group">
+        <label>Creature Color <span class="value-display" id="fg-val">#0a0a0a</span></label>
+        <input type="color" id="fg-color" value="#0a0a0a">
+      </div>
+      <div class="control-group">
+        <label>Accent Color <span class="value-display" id="accent-val">#E63946</span></label>
+        <input type="color" id="accent-color" value="#E63946">
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Creature Density <span class="value-display" id="density-val">25</span></label>
+      <input type="range" id="density" min="5" max="80" value="25">
+    </div>
+
+    <div class="control-row">
+      <div class="control-group">
+        <label>Opacity Min <span class="value-display" id="opacity-min-val">0.12</span></label>
+        <input type="range" id="opacity-min" min="0.02" max="0.5" step="0.02" value="0.12">
+      </div>
+      <div class="control-group">
+        <label>Opacity Max <span class="value-display" id="opacity-max-val">0.28</span></label>
+        <input type="range" id="opacity-max" min="0.1" max="0.8" step="0.02" value="0.28">
+      </div>
+    </div>
+
+    <div class="control-row">
+      <div class="control-group">
+        <label>Size Min <span class="value-display" id="size-min-val">0.4</span></label>
+        <input type="range" id="size-min" min="0.2" max="1.0" step="0.1" value="0.4">
+      </div>
+      <div class="control-group">
+        <label>Size Max <span class="value-display" id="size-max-val">1.6</span></label>
+        <input type="range" id="size-max" min="0.5" max="3.0" step="0.1" value="1.6">
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Line Width <span class="value-display" id="line-val">1.5</span></label>
+      <input type="range" id="line-width" min="0.5" max="4" step="0.5" value="1.5">
+    </div>
+
+    <div class="control-group">
+      <label>Drift Amount <span class="value-display" id="drift-val">18</span></label>
+      <input type="range" id="drift" min="0" max="50" value="18">
+    </div>
+
+    <div class="preset-grid">
+      <button class="preset-btn" data-preset="swiss">Swiss</button>
+      <button class="preset-btn" data-preset="dark">Dark Mode</button>
+      <button class="preset-btn" data-preset="sunset">Sunset</button>
+      <button class="preset-btn" data-preset="ocean">Ocean</button>
+      <button class="preset-btn" data-preset="forest">Forest</button>
+      <button class="preset-btn" data-preset="minimal">Minimal</button>
+    </div>
+
+    <button id="regenerate">Regenerate Creatures</button>
+    <button id="export-png">Export PNG</button>
+    <button id="toggle" class="secondary">Pause / Resume</button>
+
+    <div class="creature-list">
+      <strong>Menagerie (11):</strong> Kookaburra, Snake, Octopus, Wallaby, Echidna, Platypus, Koala, Emu, Cockatoo, Jellyfish, Crab
+    </div>
+
+    <div class="stats" id="stats">
+      Creatures: 0 | FPS: 0
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="section">
+      <div>
+        <h2>Fauna Overlay</h2>
+        <p>
+          A generative art system featuring Australian fauna and marine creatures,
+          rendered as abstract geometric forms. Each creature is procedurally generated
+          with unique characteristics.
+        </p>
+        <p>
+          Scroll down to see the parallax effect. Adjust the controls to customize
+          the appearance. The creatures drift and animate continuously.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div>
+        <h2>The Menagerie</h2>
+        <p>
+          <strong>Original Five:</strong> Kookaburra with its massive beak, the sinuous Snake,
+          the many-tentacled Octopus, the alert Wallaby, and the spiny Echidna.
+        </p>
+        <p>
+          <strong>New Additions:</strong> The peculiar Platypus with its duck bill,
+          the round Koala, the tall Emu, the crested Cockatoo, the flowing Jellyfish,
+          and the geometric Crab.
+        </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div>
+        <h2>Geometric Abstraction</h2>
+        <p>
+          Each creature is built from primitive shapes: circles, arcs, lines, and curves.
+          The style references both technical illustration and indigenous art traditions.
+        </p>
+        <p>
+          Variation is introduced through randomized parameters: size, opacity,
+          body proportions, and the presence or absence of features like eyes,
+          limbs, and decorative elements.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="fauna-overlay-extended.js"></script>
+  <script>
+    // Initialize fauna overlay
+    const fauna = new FaunaOverlay('fauna-canvas', {
+      opacity: [0.12, 0.28],
+      entityCount: [20, 30],
+      sizeRange: [0.4, 1.6],
+      lineWidth: [1.0, 2.0],
+      driftAmount: [8, 28]
+    });
+    fauna.start();
+
+    // Presets
+    const presets = {
+      swiss: {
+        bg: '#fafafa', widget: '#0a0a0a', fg: '#0a0a0a', accent: '#E63946',
+        density: 25, opacityMin: 0.12, opacityMax: 0.28,
+        sizeMin: 0.4, sizeMax: 1.6, lineWidth: 1.5, drift: 18
+      },
+      dark: {
+        bg: '#0a0a0a', widget: '#fafafa', fg: '#fafafa', accent: '#E63946',
+        density: 30, opacityMin: 0.15, opacityMax: 0.35,
+        sizeMin: 0.5, sizeMax: 1.8, lineWidth: 1.5, drift: 20
+      },
+      sunset: {
+        bg: '#2d1b4e', widget: '#e8c4a0', fg: '#ff9966', accent: '#ff6b6b',
+        density: 35, opacityMin: 0.1, opacityMax: 0.25,
+        sizeMin: 0.6, sizeMax: 2.0, lineWidth: 2, drift: 25
+      },
+      ocean: {
+        bg: '#0d3b4c', widget: '#a8d8d8', fg: '#7fcdcd', accent: '#ff9f43',
+        density: 40, opacityMin: 0.08, opacityMax: 0.22,
+        sizeMin: 0.5, sizeMax: 2.2, lineWidth: 1.5, drift: 30
+      },
+      forest: {
+        bg: '#1a2f1a', widget: '#c8dcc8', fg: '#8fbc8f', accent: '#daa520',
+        density: 20, opacityMin: 0.1, opacityMax: 0.3,
+        sizeMin: 0.4, sizeMax: 1.4, lineWidth: 2, drift: 15
+      },
+      minimal: {
+        bg: '#ffffff', widget: '#333333', fg: '#000000', accent: '#000000',
+        density: 12, opacityMin: 0.05, opacityMax: 0.12,
+        sizeMin: 0.6, sizeMax: 1.2, lineWidth: 1, drift: 10
+      }
+    };
+
+    // Update functions
+    function updateColors() {
+      const bg = document.getElementById('bg-color').value;
+      const widget = document.getElementById('widget-color').value;
+      const fg = document.getElementById('fg-color').value;
+      const accent = document.getElementById('accent-color').value;
+
+      document.documentElement.style.setProperty('--bg', bg);
+      document.documentElement.style.setProperty('--widget', widget);
+      document.documentElement.style.setProperty('--fg', fg);
+      document.documentElement.style.setProperty('--accent', accent);
+      document.body.style.background = bg;
+
+      document.getElementById('bg-val').textContent = bg;
+      document.getElementById('widget-val').textContent = widget;
+      document.getElementById('fg-val').textContent = fg;
+      document.getElementById('accent-val').textContent = accent;
+
+      // Update fauna colors (creature color + accent)
+      fauna.setColors(fg, accent);
+    }
+
+    function updateFauna() {
+      const density = parseInt(document.getElementById('density').value);
+      const opacityMin = parseFloat(document.getElementById('opacity-min').value);
+      const opacityMax = parseFloat(document.getElementById('opacity-max').value);
+      const sizeMin = parseFloat(document.getElementById('size-min').value);
+      const sizeMax = parseFloat(document.getElementById('size-max').value);
+      const lineWidth = parseFloat(document.getElementById('line-width').value);
+      const drift = parseInt(document.getElementById('drift').value);
+
+      document.getElementById('density-val').textContent = density;
+      document.getElementById('opacity-min-val').textContent = opacityMin.toFixed(2);
+      document.getElementById('opacity-max-val').textContent = opacityMax.toFixed(2);
+      document.getElementById('size-min-val').textContent = sizeMin.toFixed(1);
+      document.getElementById('size-max-val').textContent = sizeMax.toFixed(1);
+      document.getElementById('line-val').textContent = lineWidth.toFixed(1);
+      document.getElementById('drift-val').textContent = drift;
+
+      fauna.updateConfig({
+        entityCount: [Math.max(5, density - 5), density + 5],
+        opacityRange: [opacityMin, opacityMax],
+        sizeRange: [sizeMin, sizeMax],
+        lineWidthRange: [lineWidth * 0.7, lineWidth * 1.3],
+        driftAmount: [drift * 0.5, drift * 1.5]
+      });
+    }
+
+    function applyPreset(name) {
+      const p = presets[name];
+      if (!p) return;
+
+      document.getElementById('bg-color').value = p.bg;
+      document.getElementById('widget-color').value = p.widget;
+      document.getElementById('fg-color').value = p.fg;
+      document.getElementById('accent-color').value = p.accent;
+      document.getElementById('density').value = p.density;
+      document.getElementById('opacity-min').value = p.opacityMin;
+      document.getElementById('opacity-max').value = p.opacityMax;
+      document.getElementById('size-min').value = p.sizeMin;
+      document.getElementById('size-max').value = p.sizeMax;
+      document.getElementById('line-width').value = p.lineWidth;
+      document.getElementById('drift').value = p.drift;
+
+      updateColors();
+      updateFauna();
+    }
+
+    // Event listeners
+    document.getElementById('bg-color').addEventListener('input', updateColors);
+    document.getElementById('widget-color').addEventListener('input', updateColors);
+    document.getElementById('fg-color').addEventListener('input', updateColors);
+    document.getElementById('accent-color').addEventListener('input', updateColors);
+
+    ['density', 'opacity-min', 'opacity-max', 'size-min', 'size-max', 'line-width', 'drift'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateFauna);
+    });
+
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+    });
+
+    document.getElementById('regenerate').addEventListener('click', () => {
+      fauna.regenerate();
+    });
+
+    document.getElementById('toggle').addEventListener('click', () => {
+      fauna.toggle();
+    });
+
+    document.getElementById('export-png').addEventListener('click', () => {
+      // Create a temporary canvas with background
+      const exportCanvas = document.createElement('canvas');
+      const sourceCanvas = document.getElementById('fauna-canvas');
+      exportCanvas.width = sourceCanvas.width;
+      exportCanvas.height = sourceCanvas.height;
+      const exportCtx = exportCanvas.getContext('2d');
+
+      // Fill with background color
+      const bg = document.getElementById('bg-color').value;
+      exportCtx.fillStyle = bg;
+      exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+      // Draw the fauna canvas on top
+      exportCtx.drawImage(sourceCanvas, 0, 0);
+
+      // Create download link
+      const link = document.createElement('a');
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+      link.download = `fauna-${timestamp}.png`;
+      link.href = exportCanvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // Stats update
+    let lastTime = performance.now();
+    let frameCount = 0;
+    function updateStats() {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        const fps = Math.round(frameCount * 1000 / (now - lastTime));
+        document.getElementById('stats').textContent =
+          `Creatures: ${fauna.getEntityCount()} | FPS: ${fps}`;
+        frameCount = 0;
+        lastTime = now;
+      }
+      requestAnimationFrame(updateStats);
+    }
+    updateStats();
+  </script>
+</body>
+</html>
