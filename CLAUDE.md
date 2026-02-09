@@ -1,19 +1,31 @@
 ## Plugin Development Workflow
 
-This repository uses a related repository of plugins located in `~/Dev/techne-plugins`.
+This repository uses a related repository of plugins located in `~/Dev/techne-plugins`, installed as an npm dependency (`@machinespirits/techne-plugins`).
 
 **IMPORTANT: `techne-plugins` is the source of truth for all plugin code.**
 
-When making changes to plugins:
+### Syncing plugins
+
+Plugins are synced automatically on `npm install` (via postinstall hook), or manually:
+
+```bash
+npm run sync-plugins
+```
+
+This copies `core/techne-plugin-system.js`, all `plugins/techne-*/` directories, and `themes/presentations/` from techne-plugins into this repo. App-specific files (`manifest.js`) are never overwritten.
+
+### Editing plugins
+
 1. **Always make changes in `~/Dev/techne-plugins` first**
-2. Then sync those changes to the consuming repos:
-   - `~/Dev/machinespirits-website`
-   - `~/Dev/hegel-pedagogy-ai`
+2. Then sync to consumers: `cd ~/Dev/hegel-pedagogy-ai && npm run sync-plugins`
+3. If you accidentally edited plugins here, copy them back to techne-plugins first
 
-Plugins must be synced across all three repositories:
-- `~/Dev/techne-plugins` (source of truth)
-- `~/Dev/machinespirits-website`
-- `~/Dev/hegel-pedagogy-ai`
+### Backdrop reverse sync
 
-If you've made plugin changes in hegel-pedagogy-ai or machinespirits-website, copy them back to techne-plugins and then sync to the other repos to maintain consistency.
+Visual layer definitions are authored in `machinespirits-website/index.html` and extracted into the backdrop plugin:
+
+```bash
+cd ~/Dev/techne-plugins
+node scripts/extract-backdrop-from-website.js ~/Dev/machinespirits-website
+```
 

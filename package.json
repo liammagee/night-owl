@@ -31,7 +31,9 @@
     "test:e2e": "playwright test",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:watch": "jest --watch",
-    "thumbnail": "node scripts/generate-thumbnail.mjs"
+    "thumbnail": "node scripts/generate-thumbnail.mjs",
+    "sync-plugins": "sync-techne-plugins",
+    "postinstall": "sync-techne-plugins"
   },
   "dependencies": {
     "@electron/remote": "^2.1.3",
@@ -48,9 +50,11 @@
     "pdfjs-dist": "^5.4.54",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "@machinespirits/tutor-core": "file:../machinespirits-tutor-core"
   },
   "devDependencies": {
+    "@machinespirits/techne-plugins": "file:../techne-plugins",
     "@babel/cli": "^7.28.3",
     "@babel/core": "^7.28.3",
     "@babel/preset-react": "^7.27.1",
