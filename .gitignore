@@ -6,6 +6,7 @@ yarn-error.log
 # IDE files
 .idea/
 .vscode/
+*.code-workspace
 
 # Build and distribution artifacts
 dist/
