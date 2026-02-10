@@ -37,5 +37,10 @@ window.TECHNE_PLUGIN_MANIFEST = [
         id: 'techne-ai-tutor',
         entry: 'plugins/techne-ai-tutor/plugin.js',
         enabledByDefault: false
+    },
+    {
+        id: 'techne-theme-manager',
+        entry: 'plugins/techne-theme-manager/plugin.js',
+        enabledByDefault: false
     }
 ];

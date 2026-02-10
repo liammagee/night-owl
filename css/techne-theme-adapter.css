@@ -1,0 +1,19 @@
+/* Techne Theme Adapter — NightOwl
+   Maps canonical --techne-* tokens to this app's CSS variables.
+   Loaded when the techne-theme-manager plugin is enabled.
+*/
+
+:root {
+    --bg-color: var(--techne-bg);
+    --text-color: var(--techne-text);
+    --primary: var(--techne-accent);
+    --primary-hover: var(--techne-accent-hover);
+    --primary-light: var(--techne-accent);
+    --surface: var(--techne-surface);
+    --surface-variant: var(--techne-surface-elevated);
+    --border: var(--techne-border);
+    --border-strong: var(--techne-border);
+    --text-secondary: var(--techne-text-muted);
+    --text-muted: var(--techne-text-muted);
+    --app-bg: var(--techne-bg);
+}
