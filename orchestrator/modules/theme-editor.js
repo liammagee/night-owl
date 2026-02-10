@@ -601,12 +601,17 @@
     }
   }
 
+  // ── Delegate to plugin when available ──
+
+  const pluginEditor = window.techneThemeEditor;
+  const pluginUI     = window.techneThemeEditorUI;
+
   window.themeEditor = {
-    showEditor: showThemeEditor,
-    applyPreset,
-    resetToDefault,
-    getPresets: () => ({ ...PRESETS }),
-    getCustomThemes: loadCustomThemes
+    showEditor: pluginUI ? pluginUI.show : showThemeEditor,
+    applyPreset: pluginEditor ? pluginEditor.applyPreset : applyPreset,
+    resetToDefault: pluginEditor ? pluginEditor.resetToDefault : resetToDefault,
+    getPresets: pluginEditor ? pluginEditor.getPresets : () => ({ ...PRESETS }),
+    getCustomThemes: pluginEditor ? pluginEditor.loadCustomThemes : loadCustomThemes
   };
 
   if (document.readyState === 'loading') {

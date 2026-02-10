@@ -1,0 +1,62 @@
+/* Techne Design Tokens
+   Canonical --techne-* custom properties.
+   :root provides light defaults; body.techne-dark overrides for dark mode.
+   Apps map these to their own vars via an adapter CSS file.
+*/
+
+:root {
+    /* Surfaces */
+    --techne-bg: #ffffff;
+    --techne-surface: #fafafa;
+    --techne-surface-elevated: #ffffff;
+
+    /* Text */
+    --techne-text: #0a0a0a;
+    --techne-text-muted: rgba(10, 10, 10, 0.55);
+    --techne-text-inverted: #ffffff;
+
+    /* Accent */
+    --techne-accent: #E63946;
+    --techne-accent-hover: #c1121f;
+    --techne-accent-active: #a30f19;
+
+    /* Borders */
+    --techne-border: rgba(10, 10, 10, 0.22);
+    --techne-border-subtle: rgba(10, 10, 10, 0.10);
+
+    /* Semantic */
+    --techne-success: #2d6a4f;
+    --techne-warning: #e09f3e;
+    --techne-error: #d00000;
+
+    /* Glass */
+    --techne-glass-bg: rgba(255, 255, 255, 0.85);
+    --techne-glass-border: rgba(255, 255, 255, 0.18);
+}
+
+body.techne-dark {
+    /* Surfaces */
+    --techne-bg: #0a0a0a;
+    --techne-surface: #111111;
+    --techne-surface-elevated: #1a1a1a;
+
+    /* Text */
+    --techne-text: #e0e0e0;
+    --techne-text-muted: rgba(224, 224, 224, 0.55);
+    --techne-text-inverted: #0a0a0a;
+
+    /* Accent (unchanged — red works on dark) */
+
+    /* Borders */
+    --techne-border: rgba(255, 255, 255, 0.18);
+    --techne-border-subtle: rgba(255, 255, 255, 0.08);
+
+    /* Semantic (slightly lighter for dark bg) */
+    --techne-success: #52b788;
+    --techne-warning: #f4c430;
+    --techne-error: #ef233c;
+
+    /* Glass */
+    --techne-glass-bg: rgba(10, 10, 10, 0.85);
+    --techne-glass-border: rgba(255, 255, 255, 0.08);
+}
