@@ -4042,9 +4042,15 @@
     <script type="module" src="orchestrator/modules/graph.js" defer></script>
     <script type="module" src="orchestrator/modules/circle.js" defer></script>
     
+    <!-- Status bar and git status indicator (must load before renderer.js) -->
+    <script src="orchestrator/modules/status-bar.js" defer></script>
+
     <!-- Main renderer script -->
     <script src="orchestrator/renderer.js"></script>
-    
+
+    <!-- File tree keyboard navigation (monkey-patches renderFileTree, must load after renderer.js) -->
+    <script src="orchestrator/modules/file-tree-nav.js" defer></script>
+
     <!-- Presentation UI is provided by the Techne presentations plugin -->
 
     <!-- Internal link Cmd/Ctrl+click handler -->
