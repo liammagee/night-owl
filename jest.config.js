@@ -5,7 +5,8 @@ module.exports = {
       displayName: 'Main Process',
       testMatch: ['<rootDir>/tests/unit/main/**/*.test.js'],
       testEnvironment: 'node',
-      setupFilesAfterEnv: ['<rootDir>/tests/setup/main.setup.js']
+      setupFilesAfterEnv: ['<rootDir>/tests/setup/main.setup.js'],
+      modulePaths: ['<rootDir>/tests/__mocks__']
     },
     {
       displayName: 'Renderer Process',
@@ -18,6 +19,11 @@ module.exports = {
       testMatch: ['<rootDir>/tests/integration/**/*.test.js'],
       testEnvironment: 'node',
       setupFilesAfterEnv: ['<rootDir>/tests/setup/integration.setup.js']
+    },
+    {
+      displayName: 'Behavioral',
+      testMatch: ['<rootDir>/tests/behavioral/**/*.test.js'],
+      testEnvironment: 'jsdom'
     }
   ],
   collectCoverageFrom: [
