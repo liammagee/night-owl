@@ -20,6 +20,10 @@ const citationHandlers = require('./citationHandlers');
 const imageHandlers = require('./imageHandlers');
 const gitHandlers = require('./gitHandlers');
 const terminalHandlers = require('./terminalHandlers');
+const spellcheckHandlers = require('./spellcheckHandlers');
+const advancedExportHandlers = require('./advancedExportHandlers');
+const collaborationHandlers = require('./collaborationHandlers');
+const staticSiteHandlers = require('./staticSiteHandlers');
 
 /**
  * Register all IPC handlers
@@ -91,6 +95,34 @@ function registerAllHandlers(dependencies) {
       console.log('[IPC] Terminal handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering terminal handlers:', error);
+    }
+
+    try {
+      spellcheckHandlers.register(dependencies);
+      console.log('[IPC] Spellcheck handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering spellcheck handlers:', error);
+    }
+
+    try {
+      advancedExportHandlers.register(dependencies);
+      console.log('[IPC] Advanced export handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering advanced export handlers:', error);
+    }
+
+    try {
+      collaborationHandlers.register(dependencies);
+      console.log('[IPC] Collaboration handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering collaboration handlers:', error);
+    }
+
+    try {
+      staticSiteHandlers.register(dependencies);
+      console.log('[IPC] Static site handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering static site handlers:', error);
     }
 
     console.log('[IPC] All IPC handlers registered successfully');

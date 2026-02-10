@@ -916,6 +916,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       enableRemoteModule: false,
+      spellcheck: true,
     },
     title: 'NightOwl - Philosophical Writing & Teaching',
     // Use native window frame and titlebar

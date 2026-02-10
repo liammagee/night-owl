@@ -803,6 +803,29 @@
             margin-left: 3px;
             border-bottom: 4px solid #ef4444;
         }
+        /* Inline comments */
+        .comment-gutter-marker {
+            background: #569cd6;
+            width: 3px !important;
+            margin-left: 3px;
+        }
+        .comment-highlight {
+            background: rgba(86, 156, 214, 0.08);
+        }
+        /* Collaboration peer cursors */
+        .peer-cursor {
+            background: rgba(86, 156, 214, 0.3);
+            border-left: 2px solid #569cd6;
+        }
+        .peer-cursor-line {
+            border-left: 2px solid #569cd6;
+        }
+        /* Spell check */
+        .spell-check-error {
+            text-decoration: wavy underline #ef4444;
+            text-decoration-skip-ink: none;
+            background: rgba(239, 68, 68, 0.08);
+        }
         /* Focus mode */
         .focus-mode-dimmed {
             opacity: 0.25 !important;
@@ -4100,6 +4123,18 @@
     <script src="orchestrator/modules/focus-mode.js" defer></script>
     <script src="orchestrator/modules/table-editor.js" defer></script>
     <script src="orchestrator/modules/version-history.js" defer></script>
+    <script src="orchestrator/modules/spell-check.js" defer></script>
+    <script src="orchestrator/modules/theme-editor.js" defer></script>
+    <script src="orchestrator/modules/image-manager.js" defer></script>
+    <script src="orchestrator/modules/media-embed.js" defer></script>
+    <script src="orchestrator/modules/inline-comments.js" defer></script>
+    <script src="orchestrator/modules/advanced-export.js" defer></script>
+    <script src="orchestrator/modules/collaboration.js" defer></script>
+    <script src="orchestrator/modules/static-site.js" defer></script>
+    <script src="orchestrator/modules/ai-writing-coach.js" defer></script>
+    <script src="orchestrator/modules/ai-outline.js" defer></script>
+    <script src="orchestrator/modules/smart-autocomplete.js" defer></script>
+    <script src="orchestrator/modules/large-file.js" defer></script>
     <script src="orchestrator/modules/citationManager.js" defer></script>
     <!-- Speaker notes (presenting mode) is provided by the Techne presentations plugin -->
     <script src="js/mode-switcher.js" defer></script>  

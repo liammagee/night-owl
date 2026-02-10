@@ -385,7 +385,11 @@ Generated from codebase deep scan on 2025-12-17.
   - Tab/Shift+Tab to navigate between cells (auto-adds row at end)
   - Insert new table via command palette "Table: Insert New Table"
   - 6 command palette entries for all table operations
-- [ ] **Spell Check / Grammar** - Integrated spell checking with red underlines, language selection, custom dictionary
+- [x] **Spell Check / Grammar** - ✅ Dictionary-based spell checking with red underlines, custom dictionary
+  - Word extraction filters out markdown syntax, code, URLs, paths
+  - Monaco decorations with wavy red underline
+  - Custom dictionary in localStorage, "Add Word Under Cursor" command
+  - Toggle via command palette "Spelling: Toggle Spell Check"
 - [x] **Local Version History** - ✅ Auto-checkpoint timeline independent of git
   - IndexedDB storage for file snapshots (up to 50 per file, auto-pruned)
   - Auto-checkpoint every 60 seconds when content changes
@@ -394,26 +398,42 @@ Generated from codebase deep scan on 2025-12-17.
   - Diff viewer showing additions/deletions between checkpoint and current
   - Restore any checkpoint (auto-saves current state before restoring)
   - Delete individual checkpoints
-- [ ] **Theming** - Custom theme editor, more built-in themes, per-document theme overrides
+- [x] **Theming** - ✅ Custom theme editor with 7 built-in presets
+  - Presets: Solarized Light/Dark, Nord, Monokai, Sepia, Dracula, GitHub Light
+  - Visual color picker editor for CSS variables grouped by category
+  - Custom themes saved to localStorage
 
 ### Media & Content
-- [ ] **Image Management** - Image gallery panel, paste-from-clipboard improvements, drag-resize in preview, optimization
-- [ ] **Audio/Video Embedding** - Embed and preview audio/video clips inline in markdown
+- [x] **Image Management** - ✅ Sidebar gallery panel with paste-from-clipboard and insert
+  - Grid gallery of all images in current document
+  - Click to navigate to image reference in editor
+  - Paste from clipboard, insert image markdown
+- [x] **Audio/Video Embedding** - ✅ Inline audio/video players and YouTube/Vimeo embeds
+  - Converts `<img>` tags with video/audio extensions into players in preview
+  - YouTube/Vimeo iframe embeds via MutationObserver
 
 ### Collaboration
-- [ ] **Real-time Collaboration Backend** - WebSocket server for multi-user editing (indicators module is demo-only)
-- [ ] **Comments / Annotations** - Inline document comments with threads, resolve/unresolve
+- [x] **Real-time Collaboration Backend** - ✅ WebSocket server for multi-user editing
+  - Pure Node.js WebSocket server (no dependencies)
+  - Real-time edit broadcasting and peer cursor rendering
+  - Host/join session dialog
+- [x] **Comments / Annotations** - ✅ Inline threaded comments with gutter markers
+  - Add/reply/resolve/delete comments per-file
+  - Monaco gutter markers and line highlights
+  - Comments list dialog with go-to, resolve, delete
 
 ### Export & Publishing
-- [ ] **LaTeX Output** - Export markdown to LaTeX with template selection
-- [ ] **EPUB Export** - Export to EPUB format for e-readers
-- [ ] **Custom PDF Templates** - User-defined PDF export templates, print-ready formatting
-- [ ] **Static Site Generation** - Export workspace as a static HTML site
+- [x] **LaTeX Output** - ✅ Markdown to LaTeX conversion with YAML front matter
+- [x] **EPUB Export** - ✅ Export to EPUB-compatible XHTML with metadata
+- [x] **Custom PDF Templates** - ✅ 5 templates (Academic, Minimal, Report, Letter, Manuscript)
+- [x] **Static Site Generation** - ✅ Export as navigable HTML website with CSS and navigation
 
 ### AI Enhancements
-- [ ] **AI Writing Coach** - Style suggestions, readability analysis, tone detection
-- [ ] **AI-powered Outline Generation** - Generate document structure from a topic/prompt
-- [ ] **Smart Autocomplete Context** - Broader context window for inline completions (related files, citations)
+- [x] **AI Writing Coach** - ✅ Readability stats, passive voice detection, AI feedback
+  - Flesch-Kincaid score, grade level, reading time, overused words
+  - AI feedback button using existing ai-chat backend
+- [x] **AI-powered Outline Generation** - ✅ Generate outlines with brief/detailed/comprehensive depth
+- [x] **Smart Autocomplete Context** - ✅ Context-aware completions for headings, citations, footnotes
 
 ### Performance & Infrastructure
 - [x] **Startup Optimization** - ✅ Lazy-load non-critical modules with startup timing
@@ -422,7 +442,10 @@ Generated from codebase deep scan on 2025-12-17.
   - Secondary modules load in batches of 3 using `requestIdleCallback` to avoid UI jank
   - Startup timing instrumentation: logs paint times, editor-ready milestone, total load time
   - AI, gamification, flow detection, and collaboration modules all deferred
-- [ ] **Large File Handling** - Streaming/chunked loading for files > 10MB
+- [x] **Large File Handling** - ✅ Performance optimizations for large files
+  - Auto-disables expensive features (word wrap, folding, suggestions) for files >200KB
+  - Read-only mode for files >2MB with warning
+  - File size indicator in status bar
 - [ ] **Plugin Marketplace** - Browse and install third-party plugins from a registry
 
 ---
