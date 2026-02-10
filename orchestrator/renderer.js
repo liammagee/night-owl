@@ -7636,9 +7636,17 @@ document.addEventListener('keydown', async (e) => {
         e.preventDefault();
         if (window.editor && window.editor.updateOptions) {
             const wrapOn = window.editor.getRawOptions().wordWrap === 'on';
-            window.editor.updateOptions({ wordWrap: wrapOn ? 'off' : 'on' });
+            const newValue = wrapOn ? 'off' : 'on';
+            window.editor.updateOptions({ wordWrap: newValue });
+            // Persist to saved settings
+            if (window.appSettings?.editor) {
+                window.appSettings.editor.wordWrap = newValue;
+                if (window.electronAPI) {
+                    window.electronAPI.invoke('set-settings', window.appSettings).catch(() => {});
+                }
+            }
             if (window.showNotification) {
-                window.showNotification(`Word wrap ${wrapOn ? 'off' : 'on'}`, 'info');
+                window.showNotification(`Word wrap ${newValue}`, 'info');
             }
         }
         return;

@@ -60,11 +60,12 @@
         const prev = _activeThemeId;
         _activeThemeId = themeId;
 
-        // 1. Manage body classes
+        // 1. Manage body classes + data attribute (for adapter specificity)
         MANAGED_CLASSES.forEach(cls => document.body.classList.remove(cls));
         if (theme.bodyClass) {
             document.body.classList.add(theme.bodyClass);
         }
+        document.body.setAttribute('data-techne-theme', themeId);
 
         // 2. Apply token overrides on :root
         const root = document.documentElement;
@@ -145,8 +146,9 @@
     function _destroy() {
         stopSystemWatch();
 
-        // Remove managed body classes
+        // Remove managed body classes + data attribute
         MANAGED_CLASSES.forEach(cls => document.body.classList.remove(cls));
+        document.body.removeAttribute('data-techne-theme');
 
         // Clear inline --techne-* overrides
         const root = document.documentElement;

@@ -1,19 +1,74 @@
 /* Techne Theme Adapter — NightOwl
    Maps canonical --techne-* tokens to this app's CSS variables.
    Loaded when the techne-theme-manager plugin is enabled.
+
+   Uses body[data-techne-theme] to beat the specificity of both
+   :root defaults and body.dark-mode overrides in theme.css.
 */
 
-:root {
+body[data-techne-theme] {
+    /* Core backgrounds */
     --bg-color: var(--techne-bg);
+    --bg-secondary: var(--techne-surface);
+    --bg-tertiary: var(--techne-surface-elevated);
+    --app-bg: var(--techne-bg);
+    --panel-bg: var(--techne-surface);
+    --preview-bg: var(--techne-surface);
+
+    /* Text */
     --text-color: var(--techne-text);
+    --text-secondary: var(--techne-text-muted);
+    --text-muted: var(--techne-text-muted);
+    --preview-text: var(--techne-text);
+    --text-on-primary: var(--techne-text-inverted);
+
+    /* Accent */
     --primary: var(--techne-accent);
     --primary-hover: var(--techne-accent-hover);
     --primary-light: var(--techne-accent);
+
+    /* Surfaces */
     --surface: var(--techne-surface);
     --surface-variant: var(--techne-surface-elevated);
-    --border: var(--techne-border);
+    --surface-hover: var(--techne-surface-elevated);
+    --surface-active: var(--techne-surface-elevated);
+
+    /* Borders */
+    --border-color: var(--techne-border);
     --border-strong: var(--techne-border);
-    --text-secondary: var(--techne-text-muted);
-    --text-muted: var(--techne-text-muted);
-    --app-bg: var(--techne-bg);
+    --hover-color: var(--techne-surface-elevated);
+    --active-color: var(--techne-surface-elevated);
+
+    /* Cards */
+    --card-bg: var(--techne-surface);
+    --card-border: var(--techne-border);
+    --card-header-bg: var(--techne-surface-elevated);
+
+    /* Toolbar and menu */
+    --toolbar-bg: var(--techne-surface);
+    --toolbar-border: var(--techne-border);
+    --menu-bg: var(--techne-surface);
+    --menu-text-color: var(--techne-text);
+    --menu-content-bg: var(--techne-surface);
+    --menu-header-bg: var(--techne-surface-elevated);
+
+    /* Buttons */
+    --button-bg: var(--techne-surface-elevated);
+    --button-border: var(--techne-border);
+    --button-text: var(--techne-text);
+    --button-hover-bg: var(--techne-surface-elevated);
+
+    /* Input fields */
+    --input-bg: var(--techne-bg);
+    --input-border: var(--techne-border);
+    --input-focus-border: var(--techne-accent);
+
+    /* Code blocks */
+    --code-bg: var(--techne-surface-elevated);
+    --code-text: var(--techne-text);
+
+    /* Scrollbar */
+    --scrollbar-track: var(--techne-surface);
+    --scrollbar-thumb: var(--techne-border);
+    --scrollbar-thumb-hover: var(--techne-text-muted);
 }

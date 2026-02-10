@@ -50,9 +50,11 @@
 
             // 2. Load host-provided adapter CSS + bridge script
             try {
-                await host.loadCSS(HOST_ADAPTER.path);
-                await host.loadScript(resolve(HOST_ADAPTER.bridge));
-            } catch (_) { /* adapter not found — tokens still work, just no app-var mapping */ }
+                const adapterOk = await host.loadCSS(HOST_ADAPTER.path);
+                if (adapterOk) {
+                    await host.loadScript(resolve(HOST_ADAPTER.bridge));
+                }
+            } catch (e) { console.warn('[techne-theme-manager] adapter/bridge skipped:', e); }
 
             // 3. Load theme definitions + core manager
             await host.loadScript(resolve('themes.js'));
@@ -65,6 +67,7 @@
             // 5. Initialize the manager with the host API
             if (window.techneThemeManager) {
                 window.techneThemeManager._init(host);
+                console.log('[techne-theme-manager] ready, theme:', window.techneThemeManager.getActiveTheme());
             }
         },
         destroy() {
