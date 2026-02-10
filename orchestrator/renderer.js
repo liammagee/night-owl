@@ -4196,8 +4196,9 @@ async function initializeMonacoEditor() {
             applyTheme(isDark);
             
             // Explicitly set Monaco theme immediately after creation
-            if (monaco.editor && editor) {
-                editor.updateOptions({ theme: getMonacoTheme('markdown') });
+            const initTheme = getMonacoTheme('markdown');
+            if (monaco.editor && editor && initTheme) {
+                editor.updateOptions({ theme: initTheme });
             }
 
             // Helper to strip lingering snippet placeholders like "$0" that Monaco may introduce
@@ -6124,13 +6125,16 @@ async function handleEditableFile(filePath, content, fileTypes) {
         if (currentModel) {
             if (fileTypes.isBibTeX) {
                 monaco.editor.setModelLanguage(currentModel, 'bibtex');
-                editor.updateOptions({ theme: getMonacoTheme('bibtex') });
+                const t = getMonacoTheme('bibtex');
+                if (t) editor.updateOptions({ theme: t });
             } else if (fileTypes.isHTML) {
                 monaco.editor.setModelLanguage(currentModel, 'html');
-                editor.updateOptions({ theme: getMonacoTheme('html') });
+                const t = getMonacoTheme('html');
+                if (t) editor.updateOptions({ theme: t });
             } else {
                 monaco.editor.setModelLanguage(currentModel, 'markdown');
-                editor.updateOptions({ theme: getMonacoTheme('markdown') });
+                const t = getMonacoTheme('markdown');
+                if (t) editor.updateOptions({ theme: t });
             }
         }
     } else if (fallbackEditor) {
@@ -10772,14 +10776,9 @@ async function addFileToRecents(filePath) {
 // When the techne plugin has defined a custom Monaco theme, preserve it
 // instead of falling back to the built-in markdown-light/dark.
 function getMonacoTheme(language) {
+    // When techne plugin is active, the bridge owns Monaco theming — don't override.
+    if (window.currentTheme === 'techne') return null;
     const isDark = window.currentTheme === 'dark';
-    // If techne plugin bridge has registered a custom theme, use it
-    if (window.currentTheme === 'techne') {
-        try {
-            // Verify the theme was actually defined by trying to reference it
-            if (window._techneMonacoReady) return 'techne-custom';
-        } catch (_) { /* fall through */ }
-    }
     if (language === 'bibtex') return isDark ? 'bibtex-dark' : 'bibtex-light';
     return isDark ? 'markdown-dark' : 'markdown-light';
 }
@@ -10876,13 +10875,9 @@ function applyTheme(themeOrIsDark) {
     // Store applied theme for other modules
     window.currentTheme = shouldUseTechne ? 'techne' : (appliedDark ? 'dark' : 'light');
 
-    // Sync Monaco theme (skip when techne plugin bridge handles it)
-    if (window.monaco && monaco.editor) {
-        if (!shouldUseTechne) {
-            monaco.editor.setTheme(appliedDark ? 'markdown-dark' : 'markdown-light');
-        } else if (window._techneMonacoReady) {
-            monaco.editor.setTheme('techne-custom');
-        }
+    // Sync Monaco theme — bridge owns it when techne is active
+    if (window.monaco && monaco.editor && !shouldUseTechne) {
+        monaco.editor.setTheme(appliedDark ? 'markdown-dark' : 'markdown-light');
     }
 
     // Notify listeners (network/library/etc)
