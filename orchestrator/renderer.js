@@ -4197,7 +4197,7 @@ async function initializeMonacoEditor() {
             
             // Explicitly set Monaco theme immediately after creation
             if (monaco.editor && editor) {
-                editor.updateOptions({ theme: isDark ? 'markdown-dark' : 'markdown-light' });
+                editor.updateOptions({ theme: getMonacoTheme('markdown') });
             }
 
             // Helper to strip lingering snippet placeholders like "$0" that Monaco may introduce
@@ -6124,15 +6124,13 @@ async function handleEditableFile(filePath, content, fileTypes) {
         if (currentModel) {
             if (fileTypes.isBibTeX) {
                 monaco.editor.setModelLanguage(currentModel, 'bibtex');
-                const isDarkTheme = editor._themeService?.getColorTheme()?.type === 'dark' ||
-                                  window.currentTheme === 'dark';
-                editor.updateOptions({ theme: isDarkTheme ? 'bibtex-dark' : 'bibtex-light' });
+                editor.updateOptions({ theme: getMonacoTheme('bibtex') });
             } else if (fileTypes.isHTML) {
                 monaco.editor.setModelLanguage(currentModel, 'html');
-                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'markdown-dark' : 'markdown-light' });
+                editor.updateOptions({ theme: getMonacoTheme('html') });
             } else {
                 monaco.editor.setModelLanguage(currentModel, 'markdown');
-                editor.updateOptions({ theme: window.currentTheme === 'dark' ? 'markdown-dark' : 'markdown-light' });
+                editor.updateOptions({ theme: getMonacoTheme('markdown') });
             }
         }
     } else if (fallbackEditor) {
@@ -10770,6 +10768,22 @@ async function addFileToRecents(filePath) {
 // Drag and drop event listeners are now handled in modules/dragdrop.js
 
 // --- Theme Handling ---
+// Returns the correct Monaco theme name for the current app theme state.
+// When the techne plugin has defined a custom Monaco theme, preserve it
+// instead of falling back to the built-in markdown-light/dark.
+function getMonacoTheme(language) {
+    const isDark = window.currentTheme === 'dark';
+    // If techne plugin bridge has registered a custom theme, use it
+    if (window.currentTheme === 'techne') {
+        try {
+            // Verify the theme was actually defined by trying to reference it
+            if (window._techneMonacoReady) return 'techne-custom';
+        } catch (_) { /* fall through */ }
+    }
+    if (language === 'bibtex') return isDark ? 'bibtex-dark' : 'bibtex-light';
+    return isDark ? 'markdown-dark' : 'markdown-light';
+}
+
 // Canonical theme applicator used across the renderer.
 // Accepts either:
 // - a boolean `true|false` (apply actual dark state without changing user preference), or
@@ -10862,9 +10876,13 @@ function applyTheme(themeOrIsDark) {
     // Store applied theme for other modules
     window.currentTheme = shouldUseTechne ? 'techne' : (appliedDark ? 'dark' : 'light');
 
-    // Sync Monaco theme
+    // Sync Monaco theme (skip when techne plugin bridge handles it)
     if (window.monaco && monaco.editor) {
-        monaco.editor.setTheme(appliedDark ? 'markdown-dark' : 'markdown-light');
+        if (!shouldUseTechne) {
+            monaco.editor.setTheme(appliedDark ? 'markdown-dark' : 'markdown-light');
+        } else if (window._techneMonacoReady) {
+            monaco.editor.setTheme('techne-custom');
+        }
     }
 
     // Notify listeners (network/library/etc)

@@ -72,3 +72,114 @@ body[data-techne-theme] {
     --scrollbar-thumb: var(--techne-border);
     --scrollbar-thumb-hover: var(--techne-text-muted);
 }
+
+/* ── Direct element overrides ──────────────────────────────────────────
+   These ensure areas that may have hardcoded colors or competing
+   selectors (e.g. body.dark-mode … !important) pick up the theme. */
+
+/* Editor container (behind Monaco canvas) */
+body[data-techne-theme] #editor-container {
+    background: var(--techne-bg);
+}
+
+/* Preview / right pane */
+body[data-techne-theme] #right-pane,
+body[data-techne-theme] #preview-pane,
+body[data-techne-theme] #preview-content,
+body[data-techne-theme] .content-pane {
+    background: var(--techne-surface) !important;
+    color: var(--techne-text) !important;
+}
+
+/* Preview content inner elements */
+body[data-techne-theme] #preview-content h1,
+body[data-techne-theme] #preview-content h2,
+body[data-techne-theme] #preview-content h3,
+body[data-techne-theme] #preview-content h4,
+body[data-techne-theme] #preview-content h5,
+body[data-techne-theme] #preview-content h6 {
+    color: var(--techne-text);
+}
+
+body[data-techne-theme] #preview-content a {
+    color: var(--techne-accent);
+}
+
+body[data-techne-theme] #preview-content code {
+    background: var(--techne-surface-elevated);
+    color: var(--techne-text);
+}
+
+body[data-techne-theme] #preview-content pre {
+    background: var(--techne-surface-elevated);
+}
+
+body[data-techne-theme] #preview-content blockquote {
+    border-left-color: var(--techne-accent);
+    color: var(--techne-text-muted);
+}
+
+body[data-techne-theme] #preview-content table {
+    border-color: var(--techne-border);
+}
+
+body[data-techne-theme] #preview-content th {
+    background: var(--techne-surface-elevated);
+    border-color: var(--techne-border);
+}
+
+body[data-techne-theme] #preview-content td {
+    border-color: var(--techne-border);
+}
+
+body[data-techne-theme] #preview-content hr {
+    border-color: var(--techne-border);
+}
+
+/* Slide filmstrip */
+body[data-techne-theme] #slide-thumbnails-strip {
+    background: var(--techne-surface) !important;
+    border-bottom-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme] .slide-thumb {
+    background: var(--techne-bg);
+    border-color: var(--techne-border);
+}
+
+body[data-techne-theme] .slide-thumb-label {
+    background: var(--techne-glass-bg, rgba(255,255,255,0.85));
+    color: var(--techne-text-muted);
+}
+
+/* Mode switcher / editor toolbar */
+body[data-techne-theme] #mode-switcher {
+    background: var(--techne-surface);
+    border-bottom-color: var(--techne-border);
+}
+
+body[data-techne-theme] #editor-toolbar {
+    background: var(--techne-surface);
+    border-bottom-color: var(--techne-border);
+}
+
+body[data-techne-theme] .toolbar-btn,
+body[data-techne-theme] .toolbar-button {
+    color: var(--techne-text);
+}
+
+/* Status bar */
+body[data-techne-theme] #status-bar {
+    background: var(--techne-surface);
+    border-top-color: var(--techne-border);
+    color: var(--techne-text-muted);
+}
+
+/* Left sidebar / file tree */
+body[data-techne-theme] .left-pane {
+    background: var(--techne-surface);
+}
+
+body[data-techne-theme] nav#left-sidebar {
+    background: var(--techne-surface);
+}
