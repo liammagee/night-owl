@@ -141,12 +141,16 @@
         _markedConfigured = true;
         markedApi.use({
             renderer: {
-                heading({ text, depth, raw }) {
-                    const id = `heading-${slugify(raw || text)}`;
+                heading(token) {
+                    const text = token.text;
+                    const depth = token.depth;
+                    const raw = token.raw;
+                    const headingText = text != null ? text : (raw || '').replace(/^#+\s*/, '').trim();
+                    const id = `heading-${slugify(raw || headingText)}`;
                     if (id === 'heading-') {
-                        return `<h${depth}>${text}</h${depth}>\n`;
+                        return `<h${depth}>${headingText}</h${depth}>\n`;
                     }
-                    return `<h${depth} id="${id}">${text}</h${depth}>\n`;
+                    return `<h${depth} id="${id}">${headingText}</h${depth}>\n`;
                 },
                 image({ href, title, text }) {
                     const resolved = resolveImageHref(href, { baseDir: _currentBaseDir });
