@@ -24,7 +24,7 @@
     "build": "electron-builder",
     "dist": "electron-builder --publish=never",
     "harness": "node scripts/serve-harness.js",
-    "test": "jest",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:basic": "jest --testPathPattern=tests/unit --testNamePattern=basic",
     "test:unit": "jest --testPathPattern=tests/unit",
     "test:integration": "jest --testPathPattern=tests/integration",
@@ -33,7 +33,7 @@
     "test:watch": "jest --watch",
     "thumbnail": "node scripts/generate-thumbnail.mjs",
     "sync-plugins": "sync-techne-plugins",
-    "postinstall": "sync-techne-plugins"
+    "postinstall": "sync-techne-plugins || true"
   },
   "dependencies": {
     "@electron/remote": "^2.1.3",
