@@ -1107,7 +1107,7 @@ async function updatePreviewAndStructure(markdownContent) {
         settingsPromise.then(async settings => {
             // Cache for future use
             if (!window.appSettings) window.appSettings = settings;
-                if (shouldRenderAsKanban(currentFilePath, settings)) {
+                if (typeof shouldRenderAsKanban === 'function' && shouldRenderAsKanban(currentFilePath, settings)) {
                     const loadToken = activeFileLoadToken;
                     if (loadToken) {
                         updateLargeFileIndicator(loadToken, 'Rendering board…');
@@ -1285,57 +1285,59 @@ function debouncedUpdatePreviewAndStructure(markdownContent, delay = 150) {
     }, delay);
 }
 
-function createCustomMarkdownRenderer() {
-    const renderer = new marked.Renderer();
-    const originalHeading = renderer.heading.bind(renderer);
-    const originalImage = renderer.image.bind(renderer);
-    const originalList = renderer.list.bind(renderer);
-    const originalListitem = renderer.listitem.bind(renderer);
+function setupFallbackMarkdownRenderer() {
+    // Use marked.use() with v16 token API (old Renderer API is broken in marked v16+)
+    if (window._fallbackRendererConfigured) return;
+    window._fallbackRendererConfigured = true;
 
-    // Override the heading method to add IDs
-    renderer.heading = (text, level, raw) => {
-        let html = originalHeading(text, level, raw);
-        const id = `heading-${slugify(raw || text)}`;
-        if (id !== 'heading-') {
-            html = html.replace(/^(<h[1-6])/, `$1 id="${id}"`);
+    marked.use({
+        renderer: {
+            heading({ text, depth, raw }) {
+                const id = `heading-${slugify(raw || text)}`;
+                if (id === 'heading-') {
+                    return `<h${depth}>${text}</h${depth}>\n`;
+                }
+                return `<h${depth} id="${id}">${text}</h${depth}>\n`;
+            },
+            image({ href, title, text }) {
+                const hrefStr = String(href || '');
+                if (hrefStr && !hrefStr.startsWith('http') && !hrefStr.startsWith('/') && !hrefStr.startsWith('file://') && !hrefStr.startsWith('data:')) {
+                    const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+                    const normalizedHref = hrefStr.replace(/^\.\//, '');
+                    const fullPath = `file://${baseDir}/${normalizedHref}`;
+                    const titleAttr = title ? ` title="${title}"` : '';
+                    return `<img src="${fullPath}" alt="${text || ''}"${titleAttr} />`;
+                }
+                const titleAttr = title ? ` title="${title}"` : '';
+                return `<img src="${hrefStr}" alt="${text || ''}"${titleAttr} />`;
+            }
+        },
+        gfm: true,
+        breaks: true
+    });
+}
+
+function renderFrontmatterHeaderFallback(yamlBlock) {
+    if (!yamlBlock) return '';
+    const meta = {};
+    for (const line of yamlBlock.split(/\r?\n/)) {
+        const kv = line.match(/^(\w[\w-]*)\s*:\s*(.+)$/);
+        if (kv) {
+            const val = kv[2].replace(/^["']|["']$/g, '').trim();
+            meta[kv[1].toLowerCase()] = val;
         }
-        return html;
-    };
-
-    // Override the image method to fix relative paths
-    renderer.image = (href, title, text) => {
-        if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('file://') && !href.startsWith('data:')) {
-            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-            // Handle ./ prefix
-            const normalizedHref = href.replace(/^\.\//, '');
-            const fullPath = `file://${baseDir}/${normalizedHref}`;
-            console.log(`[Renderer] Image path resolution: ${href} -> ${fullPath} (baseDir: ${baseDir})`);
-            return originalImage(fullPath, title, text);
-        }
-        return originalImage(href, title, text);
-    };
-
-    // Override list method to ensure proper nested list rendering
-    renderer.list = (body, ordered, start) => {
-        const type = ordered ? 'ol' : 'ul';
-        const startAttr = (ordered && start !== 1) ? ` start="${start}"` : '';
-        const html = `<${type}${startAttr} class="markdown-list">\n${body}</${type}>\n`;
-        console.log('[Renderer] Generated list HTML:', html.substring(0, 200) + '...');
-        return html;
-    };
-
-    // Override listitem method to ensure proper nesting
-    renderer.listitem = (text, task, checked) => {
-        if (task) {
-            const checkedAttr = checked ? ' checked=""' : '';
-            return `<li class="task-list-item markdown-list-item"><input type="checkbox"${checkedAttr} disabled=""> ${text}</li>\n`;
-        }
-        const html = `<li class="markdown-list-item">${text}</li>\n`;
-        console.log('[Renderer] Generated list item:', html.substring(0, 100) + '...');
-        return html;
-    };
-
-    return renderer;
+    }
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const parts = [];
+    if (meta.title) {
+        parts.push(`<h1 class="frontmatter-title" style="margin-bottom: 0.2em;">${esc(meta.title)}</h1>`);
+    }
+    const sub = [meta.author, meta.date].filter(Boolean).map(esc).join(' &mdash; ');
+    if (sub) {
+        parts.push(`<p class="frontmatter-meta" style="color: #666; font-style: italic; margin-top: 0;">${sub}</p>`);
+    }
+    if (parts.length) parts.push('<hr>');
+    return parts.join('\n');
 }
 
 function processMarkdownContent(markdownContent) {
@@ -1392,39 +1394,35 @@ async function renderMarkdownContent(markdownContent) {
         return;
     }
 
-    const renderer = createCustomMarkdownRenderer();
+    setupFallbackMarkdownRenderer();
 
-    // Strip frontmatter before markdown parsing
+    // Strip frontmatter before markdown parsing and render header
     let bodyContent = markdownContent;
+    let headerHtml = '';
     const fmMatch = markdownContent.match(/^(\uFEFF?\s*---\r?\n)([\s\S]*?\r?\n)(---\r?\n)/);
     if (fmMatch) {
         bodyContent = markdownContent.slice(fmMatch[0].length);
+        headerHtml = renderFrontmatterHeaderFallback(fmMatch[2]);
     }
 
     const processedContent = processMarkdownContent(bodyContent);
 
-    // Use the custom renderer with marked.parse
-    let htmlContent = window.marked.parse(processedContent, {
-        renderer: renderer,
-        gfm: true,
-        breaks: true,
-        pedantic: false,
-        smartLists: true
-    });
-    
+    // marked.use() was already called by setupFallbackMarkdownRenderer — just parse
+    let htmlContent = window.marked.parse(processedContent);
+
     // Process Obsidian-style [[]] internal links on the rendered HTML
     if (typeof processInternalLinksHTML === 'function') {
         htmlContent = await processInternalLinksHTML(htmlContent);
     }
-    
+
     // Apply preview zoom if available (but not for PDFs)
     const isPDF = window.currentFilePath && window.currentFilePath.endsWith('.pdf');
     if (window.previewZoom && !isPDF) {
         htmlContent = await window.previewZoom.onPreviewUpdate(window.currentFilePath, htmlContent);
     }
-    
-    previewContent.innerHTML = htmlContent;
-    
+
+    previewContent.innerHTML = headerHtml + htmlContent;
+
     // Render math equations with MathJax
     await renderMathInContent(previewContent);
 
@@ -12451,7 +12449,7 @@ async function showQuickOpen() {
     try {
         [recentFiles, workspaceFiles] = await Promise.all([
             window.electronAPI.invoke('get-recent-files').catch(() => []),
-            window.electronAPI.invoke('get-markdown-files').catch(() => [])
+            window.electronAPI.invoke('get-markdown-files').then(r => r?.files || r || []).catch(() => [])
         ]);
     } catch (err) {
         console.warn('[QuickOpen] Error fetching files:', err);

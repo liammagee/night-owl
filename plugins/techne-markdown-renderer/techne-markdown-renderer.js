@@ -78,30 +78,6 @@
         return processed;
     };
 
-    // Create renderer extensions for marked v13+ (using marked.use() API)
-    const createRendererExtensions = ({ baseDir } = {}) => {
-        return {
-            renderer: {
-                // Heading with auto-generated IDs
-                heading({ text, depth, raw }) {
-                    const id = `heading-${slugify(raw || text)}`;
-                    if (id === 'heading-') {
-                        return `<h${depth}>${text}</h${depth}>\n`;
-                    }
-                    return `<h${depth} id="${id}">${text}</h${depth}>\n`;
-                },
-
-                // Image with baseDir resolution
-                image({ href, title, text }) {
-                    const resolved = resolveImageHref(href, { baseDir });
-                    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-                    return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || '')}"${titleAttr} />`;
-                }
-                // Note: list/listitem use default marked rendering; classes added via addListClasses post-processing
-            }
-        };
-    };
-
     // Post-process HTML to add custom classes to lists
     const addListClasses = (html) => {
         return html
@@ -109,6 +85,40 @@
             .replace(/<ol>/g, '<ol class="markdown-list">')
             .replace(/<ol start=/g, '<ol class="markdown-list" start=')
             .replace(/<li>/g, '<li class="markdown-list-item">');
+    };
+
+    // Strip YAML frontmatter and return { body, meta } where meta has title/author/date
+    const stripFrontmatter = (content) => {
+        const str = typeof content === 'string' ? content : String(content || '');
+        const match = str.match(/^(\uFEFF?\s*---\r?\n)([\s\S]*?\r?\n)(---\r?\n)/);
+        if (!match) return { body: str, meta: null };
+
+        const yaml = match[2];
+        const body = str.slice(match[0].length);
+        const meta = {};
+        for (const line of yaml.split(/\r?\n/)) {
+            const kv = line.match(/^(\w[\w-]*)\s*:\s*(.+)$/);
+            if (kv) {
+                meta[kv[1].toLowerCase()] = kv[2].replace(/^["']|["']$/g, '').trim();
+            }
+        }
+        return { body, meta };
+    };
+
+    const renderFrontmatterHeader = (meta) => {
+        if (!meta) return '';
+        const parts = [];
+        if (meta.title) {
+            parts.push(`<h1 class="frontmatter-title" style="margin-bottom: 0.2em;">${escapeHtml(meta.title)}</h1>`);
+        }
+        const sub = [meta.author, meta.date].filter(Boolean).map(escapeHtml).join(' &mdash; ');
+        if (sub) {
+            parts.push(`<p class="frontmatter-meta" style="color: #666; font-style: italic; margin-top: 0;">${sub}</p>`);
+        }
+        if (parts.length) {
+            parts.push('<hr>');
+        }
+        return parts.join('\n');
     };
 
     const processMarkdownContent = (markdownContent, { processAnnotations } = {}) => {
@@ -122,22 +132,49 @@
         return processed;
     };
 
+    // Track current baseDir for image resolution (updated per render)
+    let _currentBaseDir = '';
+    let _markedConfigured = false;
+
+    const setupMarkedOnce = (markedApi) => {
+        if (_markedConfigured) return;
+        _markedConfigured = true;
+        markedApi.use({
+            renderer: {
+                heading({ text, depth, raw }) {
+                    const id = `heading-${slugify(raw || text)}`;
+                    if (id === 'heading-') {
+                        return `<h${depth}>${text}</h${depth}>\n`;
+                    }
+                    return `<h${depth} id="${id}">${text}</h${depth}>\n`;
+                },
+                image({ href, title, text }) {
+                    const resolved = resolveImageHref(href, { baseDir: _currentBaseDir });
+                    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+                    return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || '')}"${titleAttr} />`;
+                }
+            },
+            gfm: true,
+            breaks: true,
+        });
+    };
+
     const renderToHtml = async (markdownContent, options = {}) => {
         const markedApi = getMarked();
         if (!markedApi?.parse) {
             return `<pre>${escapeHtml(markdownContent)}</pre>`;
         }
 
-        const processed = processMarkdownContent(markdownContent, options);
+        // Strip YAML frontmatter before markdown parsing
+        const { body, meta } = stripFrontmatter(markdownContent);
+        const headerHtml = renderFrontmatterHeader(meta);
 
-        // For marked v13+, use marked.use() with renderer extensions
+        const processed = processMarkdownContent(body, options);
+
+        // Configure marked once, update baseDir per render
+        _currentBaseDir = options.baseDir || '';
         if (markedApi.use) {
-            const extensions = createRendererExtensions(options);
-            markedApi.use({
-                ...extensions,
-                gfm: true,
-                breaks: true,
-            });
+            setupMarkedOnce(markedApi);
         }
 
         let html = markedApi.parse(processed);
@@ -159,7 +196,7 @@
             }
         }
 
-        return html;
+        return headerHtml + html;
     };
 
     const renderPreview = async ({
