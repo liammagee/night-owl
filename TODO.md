@@ -284,6 +284,10 @@ Generated from codebase deep scan on 2025-12-17.
 - [x] **File Tree Git Decorations** - ✅ Color-coded filenames by git status (M/A/D/U)
 - [x] **Editor Gutter Change Indicators** - ✅ Green/blue/red bars for added/modified/deleted lines
 - [x] **Hunk Staging** - ✅ Stage individual diff hunks from the diff viewer
+- [x] **Cherry-pick** - ✅ Cherry-pick commits from history onto current branch
+- [x] **Tag Management** - ✅ List/create/delete tags, push tags (annotated + lightweight)
+- [x] **Remote Management** - ✅ List/add/remove remotes, push to specific remote with upstream tracking
+- [x] **Graph Log** - ✅ Visual branch/merge graph with colored lines, ref badges, all-branch view
 
 ---
 
@@ -338,6 +342,88 @@ Generated from codebase deep scan on 2025-12-17.
   - Lists all footnotes with ID, definition preview, line number, reference count
   - Warns about undefined references and unused definitions
   - Click to navigate to footnote in editor
+
+---
+
+## Editor Power Features (2026-02)
+
+### Implemented
+- [x] **Split Editor** - ✅ Open a second file side-by-side with the primary editor
+  - "Open in Split Editor" in file tree context menu
+  - Resizable split pane with drag handle
+  - Auto-save on changes with language detection
+  - Toggle via command palette "View: Toggle Split Editor"
+- [x] **Integrated Terminal** - ✅ Terminal panel at bottom of editor area
+  - One-shot command execution or interactive shell mode
+  - Dark themed with command history (arrow keys)
+  - Ctrl+C interrupt, Kill button, Clear button
+  - Resizable by dragging header, Ctrl+` shortcut to toggle
+- [x] **Snippet / Template System** - ✅ User-defined text snippets with tab-stop placeholders
+  - Monaco completion provider triggered by `/` prefix (e.g. `/heading`, `/table`, `/code`)
+  - Tab-stop placeholders: `${1:placeholder}`, cursor position: `$0`
+  - Variables: `$DATE`, `$TIME`, `$FILENAME`, `$SELECTION`
+  - Management dialog to create/edit/delete snippets (saved in localStorage)
+  - 9 built-in snippets: heading, link, image, table, footnote, code block, YAML front matter, citation, blockquote
+- [x] **Multi-file Search & Replace** - ✅ ALREADY EXISTS (global search pane with replace-all)
+
+---
+
+## Future Enhancements Backlog
+
+### Editor Experience
+- [x] **Focus Mode** - ✅ Dim everything except the current paragraph, typewriter scrolling (keep cursor centered)
+  - Monaco line decorations dim non-active paragraphs (opacity 0.25 with smooth transition)
+  - Typewriter scrolling keeps cursor line centred in viewport
+  - Toggle via Cmd+. or command palette "View: Toggle Focus Mode"
+  - Separate toggle for typewriter scrolling via "View: Toggle Typewriter Scrolling"
+  - Esc to exit (doesn't conflict with zen mode)
+- [x] **Table Editor** - ✅ Visual table editing with floating toolbar
+  - Floating toolbar auto-appears when cursor is inside a markdown table
+  - Add/remove rows (above/below) and columns (left/right)
+  - Cycle column alignment (left → center → right)
+  - Sort column ascending/descending (auto-detects numeric vs string)
+  - Tab/Shift+Tab to navigate between cells (auto-adds row at end)
+  - Insert new table via command palette "Table: Insert New Table"
+  - 6 command palette entries for all table operations
+- [ ] **Spell Check / Grammar** - Integrated spell checking with red underlines, language selection, custom dictionary
+- [x] **Local Version History** - ✅ Auto-checkpoint timeline independent of git
+  - IndexedDB storage for file snapshots (up to 50 per file, auto-pruned)
+  - Auto-checkpoint every 60 seconds when content changes
+  - Sidebar panel (clock button) with timeline of checkpoints per file
+  - Manual "Save Checkpoint" button for named snapshots
+  - Diff viewer showing additions/deletions between checkpoint and current
+  - Restore any checkpoint (auto-saves current state before restoring)
+  - Delete individual checkpoints
+- [ ] **Theming** - Custom theme editor, more built-in themes, per-document theme overrides
+
+### Media & Content
+- [ ] **Image Management** - Image gallery panel, paste-from-clipboard improvements, drag-resize in preview, optimization
+- [ ] **Audio/Video Embedding** - Embed and preview audio/video clips inline in markdown
+
+### Collaboration
+- [ ] **Real-time Collaboration Backend** - WebSocket server for multi-user editing (indicators module is demo-only)
+- [ ] **Comments / Annotations** - Inline document comments with threads, resolve/unresolve
+
+### Export & Publishing
+- [ ] **LaTeX Output** - Export markdown to LaTeX with template selection
+- [ ] **EPUB Export** - Export to EPUB format for e-readers
+- [ ] **Custom PDF Templates** - User-defined PDF export templates, print-ready formatting
+- [ ] **Static Site Generation** - Export workspace as a static HTML site
+
+### AI Enhancements
+- [ ] **AI Writing Coach** - Style suggestions, readability analysis, tone detection
+- [ ] **AI-powered Outline Generation** - Generate document structure from a topic/prompt
+- [ ] **Smart Autocomplete Context** - Broader context window for inline completions (related files, citations)
+
+### Performance & Infrastructure
+- [x] **Startup Optimization** - ✅ Lazy-load non-critical modules with startup timing
+  - Lazy loader (`lazy-loader.js`) defers ~28 secondary modules until after editor is interactive
+  - Critical modules (12) load immediately: formatting, find-replace, autosave, settings, etc.
+  - Secondary modules load in batches of 3 using `requestIdleCallback` to avoid UI jank
+  - Startup timing instrumentation: logs paint times, editor-ready milestone, total load time
+  - AI, gamification, flow detection, and collaboration modules all deferred
+- [ ] **Large File Handling** - Streaming/chunked loading for files > 10MB
+- [ ] **Plugin Marketplace** - Browse and install third-party plugins from a registry
 
 ---
 

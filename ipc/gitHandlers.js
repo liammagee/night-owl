@@ -834,6 +834,200 @@ function register(deps) {
     }
   });
 
+  // === Phase 10: Cherry-pick, tags, remotes ===
+
+  ipcMain.handle('git-cherry-pick', async (event, { repoRoot, hash }) => {
+    try {
+      const output = execSync(`git cherry-pick "${hash}"`, {
+        cwd: repoRoot, encoding: 'utf8', timeout: 30000
+      });
+      return { success: true, output: output.trim() };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
+    }
+  });
+
+  // --- Tags ---
+
+  ipcMain.handle('git-list-tags', async (event, repoRoot) => {
+    try {
+      const output = execSync('git tag -l --sort=-version:refname --format="%(refname:short)%09%(objecttype)%09%(creatordate:relative)%09%(subject)"', {
+        cwd: repoRoot, encoding: 'utf8', timeout: 10000
+      });
+      const tags = output.split('\n').filter(l => l.trim()).map(line => {
+        const parts = line.split('\t');
+        return {
+          name: parts[0] || '',
+          type: parts[1] === 'tag' ? 'annotated' : 'lightweight',
+          date: parts[2] || '',
+          message: parts[3] || ''
+        };
+      });
+      return { success: true, tags };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('git-create-tag', async (event, { repoRoot, name, message, annotated }) => {
+    try {
+      const safeName = name.replace(/"/g, '\\"');
+      let cmd;
+      if (annotated && message) {
+        const safeMsg = message.replace(/"/g, '\\"');
+        cmd = `git tag -a "${safeName}" -m "${safeMsg}"`;
+      } else {
+        cmd = `git tag "${safeName}"`;
+      }
+      execSync(cmd, { cwd: repoRoot, encoding: 'utf8', timeout: 10000 });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
+    }
+  });
+
+  ipcMain.handle('git-delete-tag', async (event, { repoRoot, name }) => {
+    try {
+      execSync(`git tag -d "${name.replace(/"/g, '\\"')}"`, {
+        cwd: repoRoot, encoding: 'utf8', timeout: 10000
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
+    }
+  });
+
+  ipcMain.handle('git-push-tags', async (event, repoRoot) => {
+    try {
+      execSync('git push --tags', {
+        cwd: repoRoot, encoding: 'utf8', timeout: 30000
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
+    }
+  });
+
+  // --- Remotes ---
+
+  ipcMain.handle('git-list-remotes', async (event, repoRoot) => {
+    try {
+      const output = execSync('git remote -v', {
+        cwd: repoRoot, encoding: 'utf8', timeout: 10000
+      });
+      const remotes = {};
+      for (const line of output.split('\n').filter(l => l.trim())) {
+        const match = line.match(/^(\S+)\s+(\S+)\s+\((\w+)\)/);
+        if (match) {
+          if (!remotes[match[1]]) remotes[match[1]] = {};
+          remotes[match[1]][match[3]] = match[2];
+          remotes[match[1]].name = match[1];
+        }
+      }
+      return { success: true, remotes: Object.values(remotes) };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('git-add-remote', async (event, { repoRoot, name, url }) => {
+    try {
+      const safeName = name.replace(/"/g, '\\"');
+      const safeUrl = url.replace(/"/g, '\\"');
+      execSync(`git remote add "${safeName}" "${safeUrl}"`, {
+        cwd: repoRoot, encoding: 'utf8', timeout: 10000
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
+    }
+  });
+
+  ipcMain.handle('git-remove-remote', async (event, { repoRoot, name }) => {
+    try {
+      execSync(`git remote remove "${name.replace(/"/g, '\\"')}"`, {
+        cwd: repoRoot, encoding: 'utf8', timeout: 10000
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
+    }
+  });
+
+  ipcMain.handle('git-push-to-remote', async (event, { repoRoot, remote, branch, setUpstream }) => {
+    try {
+      const upstreamFlag = setUpstream ? '-u ' : '';
+      const safeBranch = branch.replace(/"/g, '\\"');
+      const safeRemote = remote.replace(/"/g, '\\"');
+      execSync(`git push ${upstreamFlag}"${safeRemote}" "${safeBranch}"`, {
+        cwd: repoRoot, encoding: 'utf8', timeout: 60000
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.stderr || error.message };
+    }
+  });
+
+  // --- Graph log ---
+
+  ipcMain.handle('git-log-graph', async (event, { repoRoot, limit }) => {
+    try {
+      const n = limit || 50;
+      const output = execSync(
+        `git log --all --graph --format="%H%n%h%n%an%n%ar%n%s%n%D%n---ENTRY_END---" -${n}`,
+        { cwd: repoRoot, encoding: 'utf8', timeout: 15000 }
+      );
+
+      const lines = output.split('\n');
+      const entries = [];
+      let graphLines = [];
+      let dataLines = [];
+      let collectingData = false;
+
+      for (const line of lines) {
+        if (line.includes('---ENTRY_END---')) {
+          // Parse the accumulated data
+          if (dataLines.length >= 5) {
+            entries.push({
+              graph: graphLines.join('\n'),
+              hash: dataLines[0],
+              shortHash: dataLines[1],
+              author: dataLines[2],
+              relativeTime: dataLines[3],
+              message: dataLines[4],
+              refs: dataLines[5] || ''
+            });
+          }
+          graphLines = [];
+          dataLines = [];
+          collectingData = false;
+          continue;
+        }
+
+        // Split graph decoration from data
+        // Graph chars: | / \ * _ space
+        const graphMatch = line.match(/^([|/\\_* ]+?)([0-9a-f]{40}|[0-9a-f]{7,}|.*)$/);
+        if (!collectingData && graphMatch && /^[0-9a-f]{40}$/.test(graphMatch[2])) {
+          graphLines.push(graphMatch[1]);
+          dataLines.push(graphMatch[2]);
+          collectingData = true;
+        } else if (collectingData) {
+          // Remaining lines of format block: strip graph prefix
+          const prefix = line.match(/^([|/\\_* ]+)/);
+          const content = prefix ? line.substring(prefix[1].length) : line;
+          dataLines.push(content);
+          if (prefix) graphLines.push(prefix[1]);
+        } else {
+          graphLines.push(line);
+        }
+      }
+
+      return { success: true, entries };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   console.log('[GitHandlers] Registered git handlers');
 }
 

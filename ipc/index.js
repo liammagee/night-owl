@@ -19,6 +19,7 @@ const videoHandlers = require('./videoHandlers');
 const citationHandlers = require('./citationHandlers');
 const imageHandlers = require('./imageHandlers');
 const gitHandlers = require('./gitHandlers');
+const terminalHandlers = require('./terminalHandlers');
 
 /**
  * Register all IPC handlers
@@ -83,6 +84,13 @@ function registerAllHandlers(dependencies) {
       console.log('[IPC] Git handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering git handlers:', error);
+    }
+
+    try {
+      terminalHandlers.register(dependencies);
+      console.log('[IPC] Terminal handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering terminal handlers:', error);
     }
 
     console.log('[IPC] All IPC handlers registered successfully');

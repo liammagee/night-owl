@@ -803,12 +803,97 @@
             margin-left: 3px;
             border-bottom: 4px solid #ef4444;
         }
+        /* Focus mode */
+        .focus-mode-dimmed {
+            opacity: 0.25 !important;
+            transition: opacity 0.2s ease;
+        }
+        .focus-mode-active .monaco-editor .view-lines > .view-line {
+            transition: opacity 0.2s ease;
+        }
         /* Blame decorations */
         .git-blame-decoration {
             opacity: 0.5;
             font-style: italic;
             padding-left: 16px;
             font-size: 11px;
+        }
+        /* Tag items */
+        .git-tag-item {
+            display: flex;
+            align-items: center;
+            padding: 3px 12px 3px 16px;
+            font-size: 12px;
+            gap: 6px;
+            cursor: default;
+        }
+        .git-tag-item:hover {
+            background: var(--neutral-100, #f0f0f0);
+        }
+        body.dark-mode .git-tag-item:hover {
+            background: #404040;
+        }
+        .git-tag-item .git-tag-icon {
+            font-size: 10px;
+            opacity: 0.5;
+            flex-shrink: 0;
+        }
+        .git-tag-item .git-tag-name {
+            font-weight: 500;
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .git-tag-item .git-tag-meta {
+            font-size: 10px;
+            opacity: 0.5;
+            flex-shrink: 0;
+        }
+        .git-tag-item .git-tag-actions {
+            display: none;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+        .git-tag-item:hover .git-tag-actions {
+            display: flex;
+        }
+        /* Remote items */
+        .git-remote-item {
+            display: flex;
+            align-items: center;
+            padding: 3px 12px 3px 16px;
+            font-size: 12px;
+            gap: 6px;
+            cursor: default;
+        }
+        .git-remote-item:hover {
+            background: var(--neutral-100, #f0f0f0);
+        }
+        body.dark-mode .git-remote-item:hover {
+            background: #404040;
+        }
+        .git-remote-item .git-remote-name {
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+        .git-remote-item .git-remote-url {
+            font-size: 10px;
+            opacity: 0.5;
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .git-remote-item .git-remote-actions {
+            display: none;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+        .git-remote-item:hover .git-remote-actions {
+            display: flex;
         }
         /* Hunk staging diff view */
         .git-hunk {
@@ -3345,6 +3430,22 @@
                             </div>
                             <div id="git-history-list" class="git-file-list" style="display: none;"></div>
                         </div>
+                        <!-- Tags (lazy-loaded) -->
+                        <div id="git-tags-section" class="git-changes-section">
+                            <div class="git-section-header" id="git-tags-toggle" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: var(--neutral-50, #f8f8f8); border-bottom: 1px solid var(--neutral-200, #eee); cursor: pointer; user-select: none;">
+                                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">▶ Tags</span>
+                                <button id="git-create-tag-btn" class="btn" title="Create Tag" style="padding: 1px 6px; font-size: 11px;">+</button>
+                            </div>
+                            <div id="git-tags-list" class="git-file-list" style="display: none;"></div>
+                        </div>
+                        <!-- Remotes (lazy-loaded) -->
+                        <div id="git-remotes-section" class="git-changes-section">
+                            <div class="git-section-header" id="git-remotes-toggle" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: var(--neutral-50, #f8f8f8); border-bottom: 1px solid var(--neutral-200, #eee); cursor: pointer; user-select: none;">
+                                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">▶ Remotes</span>
+                                <button id="git-add-remote-btn" class="btn" title="Add Remote" style="padding: 1px 6px; font-size: 11px;">+</button>
+                            </div>
+                            <div id="git-remotes-list" class="git-file-list" style="display: none;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3843,63 +3944,80 @@
 	    <script src="plugins/techne-plugin-system.js"></script>
 	    <script src="plugins/manifest.js"></script>
 	    
-	    <!-- Load modules first -->
+	    <!-- Startup timing + lazy loader (load first) -->
+	    <script src="orchestrator/modules/lazy-loader.js"></script>
+
+	    <!-- Critical modules (needed for basic editor interaction) -->
 	    <script src="orchestrator/modules/internalLinks.js" defer></script>
-    <script src="orchestrator/modules/annotations.js" defer></script>
     <script src="orchestrator/modules/formatting.js" defer></script>
-    <script src="orchestrator/modules/aiChat.js" defer></script>
-    <script src="orchestrator/modules/export.js" defer></script>
-    <script src="orchestrator/modules/search.js" defer></script>
     <script src="orchestrator/modules/findReplace.js" defer></script>
-    <script src="orchestrator/modules/visualMarkdown.js" defer></script>
-    <script src="orchestrator/modules/collaborationIndicators.js" defer></script>
     <script src="orchestrator/modules/navigation.js" defer></script>
     <script src="orchestrator/modules/commandPalette.js" defer></script>
-    <script src="orchestrator/modules/kanban.js" defer></script>
-    <script src="orchestrator/modules/settings.js" defer></script>
-    <script src="orchestrator/modules/listManagement.js" defer></script>
-    <script src="orchestrator/modules/speakerNotes.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
-    <script src="orchestrator/modules/statistics.js" defer></script>
-    <script src="orchestrator/modules/previewFullscreen.js" defer></script>
-    <!-- D3.js v7.8.5 already loaded above with React/Babel -->
-    <script src="orchestrator/modules/wholepart.js" defer></script>
-    <!-- AI Assistant Configuration -->
-    <script src="orchestrator/modules/ai-assistant-config.js" defer></script>
-    <!-- AI Writing Companion - Modular Architecture -->
-    <script src="orchestrator/modules/ai-companion/analysis/TextAnalysisEngine.js" defer></script>
-    <script src="orchestrator/modules/ai-companion/context/ContextManager.js" defer></script>
-    <script src="orchestrator/modules/ai-companion/feedback/FeedbackSystem.js" defer></script>
-    <script src="orchestrator/modules/ai-companion/AICompanionManager.js" defer></script>
-    <!-- Gamification System - Modular Architecture -->
-    <script src="orchestrator/modules/gamification-refactored.js" defer></script>
-    <script src="orchestrator/modules/collaborative-challenges.js" defer></script>
-    <script src="orchestrator/modules/challenges-ui.js" defer></script>
-    <!-- AI Flow Detection - Modular System -->
-    <script src="orchestrator/modules/ai-flow-detection/TextCollectionManager.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection/TypingPatternAnalyzer.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection/CognitiveLoadAssessment.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection/FlowStateEngine.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection/InsightsEngine.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection/FlowIndicatorUI.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection/AIFlowDetectionManager.js" defer></script>
-    <script src="orchestrator/modules/ai-flow-detection/index.js" defer></script>
-    <script src="orchestrator/modules/todo-gamification.js" defer></script>
+    <script src="orchestrator/modules/settings.js" defer></script>
+    <script src="orchestrator/modules/visualMarkdown.js" defer></script>
+    <script src="orchestrator/modules/search.js" defer></script>
     <script src="orchestrator/modules/dragdrop.js" defer></script>
-    <!-- Preview abstraction/zoom is provided by the Techne markdown renderer plugin -->
     <script src="orchestrator/modules/fileFilters.js" defer></script>
-    <script src="orchestrator/modules/tagManager.js" defer></script>
-    <script src="orchestrator/modules/scholar-support.js" defer></script>
-    <script type="module" src="orchestrator/modules/graph.js" defer></script>
-    <script type="module" src="orchestrator/modules/circle.js" defer></script>
-    
+    <script src="orchestrator/modules/listManagement.js" defer></script>
+
     <!-- Style management modules -->
     <script src="styles/style-manager.js" defer></script>
-    
     <script src="styles/style-settings-ui.js" defer></script>
-    
-    <!-- Export visualization module -->
-    <script src="orchestrator/modules/exportVisualization.js" defer></script>
+
+    <!-- Secondary modules (lazy-loaded after editor is interactive) -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Wait for editor to be ready before loading secondary modules
+      var checkEditor = setInterval(function() {
+        if (window.editor || document.getElementById('editor-container')) {
+          clearInterval(checkEditor);
+          if (window.lazyLoader) {
+            window.lazyLoader.loadInBatches([
+              // Editor enhancements
+              'orchestrator/modules/annotations.js',
+              'orchestrator/modules/export.js',
+              'orchestrator/modules/kanban.js',
+              'orchestrator/modules/speakerNotes.js',
+              'orchestrator/modules/statistics.js',
+              'orchestrator/modules/previewFullscreen.js',
+              'orchestrator/modules/wholepart.js',
+              'orchestrator/modules/tagManager.js',
+              'orchestrator/modules/scholar-support.js',
+              'orchestrator/modules/exportVisualization.js',
+              'orchestrator/modules/collaborationIndicators.js',
+              // AI modules
+              'orchestrator/modules/aiChat.js',
+              'orchestrator/modules/ai-assistant-config.js',
+              'orchestrator/modules/ai-companion/analysis/TextAnalysisEngine.js',
+              'orchestrator/modules/ai-companion/context/ContextManager.js',
+              'orchestrator/modules/ai-companion/feedback/FeedbackSystem.js',
+              'orchestrator/modules/ai-companion/AICompanionManager.js',
+              // Gamification
+              'orchestrator/modules/gamification-refactored.js',
+              'orchestrator/modules/collaborative-challenges.js',
+              'orchestrator/modules/challenges-ui.js',
+              'orchestrator/modules/todo-gamification.js',
+              // AI Flow Detection
+              'orchestrator/modules/ai-flow-detection/TextCollectionManager.js',
+              'orchestrator/modules/ai-flow-detection/TypingPatternAnalyzer.js',
+              'orchestrator/modules/ai-flow-detection/CognitiveLoadAssessment.js',
+              'orchestrator/modules/ai-flow-detection/FlowStateEngine.js',
+              'orchestrator/modules/ai-flow-detection/InsightsEngine.js',
+              'orchestrator/modules/ai-flow-detection/FlowIndicatorUI.js',
+              'orchestrator/modules/ai-flow-detection/AIFlowDetectionManager.js',
+              'orchestrator/modules/ai-flow-detection/index.js',
+            ]);
+          }
+        }
+      }, 100);
+      setTimeout(function() { clearInterval(checkEditor); }, 15000);
+    });
+    </script>
+
+    <!-- D3.js v7.8.5 already loaded above with React/Babel -->
+    <script type="module" src="orchestrator/modules/graph.js" defer></script>
+    <script type="module" src="orchestrator/modules/circle.js" defer></script>
     
     <!-- Main renderer script -->
     <script src="orchestrator/renderer.js"></script>
@@ -3976,6 +4094,12 @@
     <!-- Load JavaScript modules -->
     <!-- Presentation services are provided by the Techne presentations plugin -->
     <script src="orchestrator/modules/git-panel.js" defer></script>
+    <script src="orchestrator/modules/split-editor.js" defer></script>
+    <script src="orchestrator/modules/terminal-panel.js" defer></script>
+    <script src="orchestrator/modules/snippets.js" defer></script>
+    <script src="orchestrator/modules/focus-mode.js" defer></script>
+    <script src="orchestrator/modules/table-editor.js" defer></script>
+    <script src="orchestrator/modules/version-history.js" defer></script>
     <script src="orchestrator/modules/citationManager.js" defer></script>
     <!-- Speaker notes (presenting mode) is provided by the Techne presentations plugin -->
     <script src="js/mode-switcher.js" defer></script>  

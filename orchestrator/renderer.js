@@ -1393,8 +1393,16 @@ async function renderMarkdownContent(markdownContent) {
     }
 
     const renderer = createCustomMarkdownRenderer();
-    const processedContent = processMarkdownContent(markdownContent);
-    
+
+    // Strip frontmatter before markdown parsing
+    let bodyContent = markdownContent;
+    const fmMatch = markdownContent.match(/^(\uFEFF?\s*---\r?\n)([\s\S]*?\r?\n)(---\r?\n)/);
+    if (fmMatch) {
+        bodyContent = markdownContent.slice(fmMatch[0].length);
+    }
+
+    const processedContent = processMarkdownContent(bodyContent);
+
     // Use the custom renderer with marked.parse
     let htmlContent = window.marked.parse(processedContent, {
         renderer: renderer,
@@ -10639,6 +10647,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             // Single file menu
             menuItems.push(
                 { label: 'Open', action: 'open' },
+                { label: 'Open in Split Editor', action: 'open-in-split' },
                 { label: 'Rename File', action: 'rename' },
                 { separator: true },
                 { label: 'Cut', action: 'cut-file' },
@@ -10734,6 +10743,12 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             }
             break;
             
+        case 'open-in-split':
+            if (!isFolder && window.splitEditor) {
+                window.splitEditor.openInSplit(filePath);
+            }
+            break;
+
         case 'rename':
             const newName = await showCustomPrompt(
                 `Rename ${isFolder ? 'Folder' : 'File'}`, 

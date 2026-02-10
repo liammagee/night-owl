@@ -622,9 +622,12 @@
           </div>
           <button id="git-diff-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:inherit;">✕</button>
         </div>
-        <div style="padding:8px 16px;font-size:11px;opacity:0.6;border-bottom:1px solid var(--neutral-200,#eee);">
-          ${escapeHtml(commit.author)} · ${escapeHtml(commit.relativeTime)}
-          ${commit.body ? '<br>' + escapeHtml(commit.body) : ''}
+        <div style="padding:8px 16px;font-size:11px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--neutral-200,#eee);">
+          <span style="opacity:0.6;">
+            ${escapeHtml(commit.author)} · ${escapeHtml(commit.relativeTime)}
+            ${commit.body ? '<br>' + escapeHtml(commit.body) : ''}
+          </span>
+          <button id="git-cherry-pick-btn" class="btn" style="font-size:11px;padding:3px 10px;flex-shrink:0;" title="Cherry-pick this commit onto current branch">Cherry-pick</button>
         </div>
         <div style="flex:1;overflow-y:auto;">
           ${filesHtml}
@@ -640,6 +643,19 @@
       if (e.key === 'Escape') { closeDiffModal(); document.removeEventListener('keydown', escHandler); }
     };
     document.addEventListener('keydown', escHandler);
+
+    // Cherry-pick button
+    document.getElementById('git-cherry-pick-btn').addEventListener('click', async () => {
+      if (!confirm(`Cherry-pick commit ${hash.substring(0, 8)} onto ${currentBranch}?`)) return;
+      const cpResult = await window.electronAPI.invoke('git-cherry-pick', { repoRoot, hash });
+      if (cpResult.success) {
+        closeDiffModal();
+        notify(`Cherry-picked ${hash.substring(0, 8)}`, 'success');
+        refresh();
+      } else {
+        notify('Cherry-pick failed: ' + cpResult.error, 'error');
+      }
+    });
 
     // Wire up file clicks to show commit diff
     overlay.querySelectorAll('.git-file-item[data-file]').forEach(el => {
@@ -1067,6 +1083,295 @@
     });
   }
 
+  // --- Phase 10: Tags ---
+  let tagsLoaded = false;
+  let tagsExpanded = false;
+
+  async function loadTags() {
+    const listEl = document.getElementById('git-tags-list');
+    if (!listEl || !repoRoot) return;
+
+    listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Loading...</div>';
+
+    const result = await window.electronAPI.invoke('git-list-tags', repoRoot);
+    if (!result.success) {
+      listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Failed to load tags</div>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    if (result.tags.length === 0) {
+      listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">No tags</div>';
+      tagsLoaded = true;
+      return;
+    }
+
+    for (const tag of result.tags) {
+      const item = document.createElement('div');
+      item.className = 'git-tag-item';
+      item.title = tag.message || tag.name;
+      item.innerHTML = `
+        <span class="git-tag-icon">${tag.type === 'annotated' ? '🏷' : '○'}</span>
+        <span class="git-tag-name">${escapeHtml(tag.name)}</span>
+        <span class="git-tag-meta">${escapeHtml(tag.date)}</span>
+        <span class="git-tag-actions">
+          <button class="git-tag-delete" title="Delete tag" style="background:transparent;border:none;cursor:pointer;font-size:12px;padding:0 3px;color:var(--neutral-500,#888);">✕</button>
+        </span>
+      `;
+
+      item.querySelector('.git-tag-delete').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete tag "${tag.name}"?`)) return;
+        const r = await window.electronAPI.invoke('git-delete-tag', { repoRoot, name: tag.name });
+        r.success ? notify(`Tag "${tag.name}" deleted`, 'success') : notify('Delete failed: ' + r.error, 'error');
+        loadTags();
+      });
+
+      listEl.appendChild(item);
+    }
+
+    tagsLoaded = true;
+  }
+
+  function showCreateTagDialog() {
+    closeDiffModal();
+    const overlay = document.createElement('div');
+    overlay.className = 'git-branch-dialog';
+    overlay.id = 'git-tag-dialog';
+
+    overlay.innerHTML = `
+      <div class="git-branch-picker" style="width:320px;">
+        <div style="padding:12px 14px;font-size:13px;font-weight:600;border-bottom:1px solid var(--neutral-200,#eee);">Create Tag</div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px;">
+          <input type="text" id="git-tag-name-input" placeholder="Tag name (e.g. v1.0.0)" style="padding:6px 10px;border:1px solid var(--neutral-300,#ccc);border-radius:4px;font-size:13px;outline:none;background:transparent;color:inherit;">
+          <textarea id="git-tag-message-input" placeholder="Message (optional, makes it annotated)" rows="2" style="padding:6px 10px;border:1px solid var(--neutral-300,#ccc);border-radius:4px;font-size:12px;font-family:inherit;resize:vertical;outline:none;background:transparent;color:inherit;"></textarea>
+          <div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button id="git-tag-cancel" class="btn" style="font-size:12px;padding:4px 12px;">Cancel</button>
+            <button id="git-tag-create" class="btn btn-primary" style="font-size:12px;padding:4px 12px;">Create</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('git-tag-cancel').addEventListener('click', () => overlay.remove());
+
+    const nameInput = document.getElementById('git-tag-name-input');
+    nameInput.focus();
+
+    document.getElementById('git-tag-create').addEventListener('click', async () => {
+      const name = nameInput.value.trim();
+      const message = document.getElementById('git-tag-message-input').value.trim();
+      if (!name) { notify('Enter a tag name', 'error'); return; }
+
+      const result = await window.electronAPI.invoke('git-create-tag', {
+        repoRoot, name, message, annotated: !!message
+      });
+      if (result.success) {
+        overlay.remove();
+        notify(`Tag "${name}" created`, 'success');
+        loadTags();
+      } else {
+        notify('Tag creation failed: ' + result.error, 'error');
+      }
+    });
+
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('git-tag-create').click();
+      if (e.key === 'Escape') overlay.remove();
+    });
+  }
+
+  // --- Phase 10: Remotes ---
+  let remotesLoaded = false;
+  let remotesExpanded = false;
+
+  async function loadRemotes() {
+    const listEl = document.getElementById('git-remotes-list');
+    if (!listEl || !repoRoot) return;
+
+    listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Loading...</div>';
+
+    const result = await window.electronAPI.invoke('git-list-remotes', repoRoot);
+    if (!result.success) {
+      listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Failed to load remotes</div>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    if (result.remotes.length === 0) {
+      listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">No remotes</div>';
+      remotesLoaded = true;
+      return;
+    }
+
+    for (const remote of result.remotes) {
+      const item = document.createElement('div');
+      item.className = 'git-remote-item';
+      item.title = remote.fetch || remote.push || '';
+      item.innerHTML = `
+        <span class="git-remote-name">${escapeHtml(remote.name)}</span>
+        <span class="git-remote-url">${escapeHtml(remote.fetch || remote.push || '')}</span>
+        <span class="git-remote-actions">
+          <button class="git-remote-push-to" title="Push to this remote" style="background:transparent;border:none;cursor:pointer;font-size:12px;padding:0 3px;color:var(--neutral-500,#888);">↑</button>
+          <button class="git-remote-remove" title="Remove remote" style="background:transparent;border:none;cursor:pointer;font-size:12px;padding:0 3px;color:var(--neutral-500,#888);">✕</button>
+        </span>
+      `;
+
+      item.querySelector('.git-remote-push-to').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        notify(`Pushing to ${remote.name}...`, 'info');
+        const r = await window.electronAPI.invoke('git-push-to-remote', {
+          repoRoot, remote: remote.name, branch: currentBranch, setUpstream: true
+        });
+        r.success ? notify(`Pushed to ${remote.name}`, 'success') : notify('Push failed: ' + r.error, 'error');
+        refresh();
+      });
+
+      item.querySelector('.git-remote-remove').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Remove remote "${remote.name}"?`)) return;
+        const r = await window.electronAPI.invoke('git-remove-remote', { repoRoot, name: remote.name });
+        r.success ? notify(`Remote "${remote.name}" removed`, 'success') : notify('Remove failed: ' + r.error, 'error');
+        loadRemotes();
+      });
+
+      listEl.appendChild(item);
+    }
+
+    remotesLoaded = true;
+  }
+
+  function showAddRemoteDialog() {
+    closeDiffModal();
+    const overlay = document.createElement('div');
+    overlay.className = 'git-branch-dialog';
+    overlay.id = 'git-remote-dialog';
+
+    overlay.innerHTML = `
+      <div class="git-branch-picker" style="width:360px;">
+        <div style="padding:12px 14px;font-size:13px;font-weight:600;border-bottom:1px solid var(--neutral-200,#eee);">Add Remote</div>
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px;">
+          <input type="text" id="git-remote-name-input" placeholder="Remote name (e.g. upstream)" style="padding:6px 10px;border:1px solid var(--neutral-300,#ccc);border-radius:4px;font-size:13px;outline:none;background:transparent;color:inherit;">
+          <input type="text" id="git-remote-url-input" placeholder="URL (e.g. https://github.com/...)" style="padding:6px 10px;border:1px solid var(--neutral-300,#ccc);border-radius:4px;font-size:13px;outline:none;background:transparent;color:inherit;">
+          <div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button id="git-remote-cancel" class="btn" style="font-size:12px;padding:4px 12px;">Cancel</button>
+            <button id="git-remote-add" class="btn btn-primary" style="font-size:12px;padding:4px 12px;">Add</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('git-remote-cancel').addEventListener('click', () => overlay.remove());
+
+    const nameInput = document.getElementById('git-remote-name-input');
+    nameInput.focus();
+
+    document.getElementById('git-remote-add').addEventListener('click', async () => {
+      const name = nameInput.value.trim();
+      const url = document.getElementById('git-remote-url-input').value.trim();
+      if (!name || !url) { notify('Enter name and URL', 'error'); return; }
+
+      const result = await window.electronAPI.invoke('git-add-remote', { repoRoot, name, url });
+      if (result.success) {
+        overlay.remove();
+        notify(`Remote "${name}" added`, 'success');
+        loadRemotes();
+      } else {
+        notify('Add failed: ' + result.error, 'error');
+      }
+    });
+
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') overlay.remove();
+    });
+  }
+
+  // --- Phase 11: Graph log ---
+  let graphLoaded = false;
+
+  async function loadGraphLog() {
+    const listEl = document.getElementById('git-history-list');
+    if (!listEl || !repoRoot) return;
+
+    listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Loading graph...</div>';
+
+    const result = await window.electronAPI.invoke('git-log-graph', { repoRoot, limit: 60 });
+    if (!result.success || result.entries.length === 0) {
+      // Fall back to simple log
+      loadHistory();
+      return;
+    }
+
+    listEl.innerHTML = '';
+
+    // Assign colors to graph columns
+    const columnColors = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+
+    for (const entry of result.entries) {
+      const item = document.createElement('div');
+      item.className = 'git-commit-item';
+      item.style.display = 'flex';
+      item.style.alignItems = 'flex-start';
+      item.style.gap = '8px';
+
+      // Parse graph chars for this entry to draw mini graph
+      const graphStr = entry.graph || '';
+      let graphHtml = '';
+      if (graphStr) {
+        // Simple colored text representation
+        let colored = '';
+        for (let i = 0; i < graphStr.length; i++) {
+          const ch = graphStr[i];
+          const colIdx = Math.floor(i / 2) % columnColors.length;
+          if (ch === '*') {
+            colored += `<span style="color:${columnColors[colIdx]};font-weight:bold;">●</span>`;
+          } else if (ch === '|') {
+            colored += `<span style="color:${columnColors[colIdx]};">│</span>`;
+          } else if (ch === '/' || ch === '\\') {
+            colored += `<span style="color:${columnColors[colIdx]};">${ch === '/' ? '╱' : '╲'}</span>`;
+          } else if (ch === '_') {
+            colored += `<span style="color:${columnColors[colIdx]};">─</span>`;
+          } else {
+            colored += ' ';
+          }
+        }
+        graphHtml = `<span class="git-graph-col" style="font-family:monospace;font-size:11px;white-space:pre;flex-shrink:0;line-height:1.4;">${colored}</span>`;
+      }
+
+      // Refs badges
+      let refsHtml = '';
+      if (entry.refs) {
+        const refs = entry.refs.split(',').map(r => r.trim()).filter(r => r);
+        refsHtml = refs.map(ref => {
+          let color = '#6366f1';
+          if (ref.startsWith('HEAD')) color = '#ef4444';
+          else if (ref.startsWith('tag:')) color = '#f59e0b';
+          else if (ref.includes('/')) color = '#22c55e';
+          return `<span style="background:${color};color:#fff;padding:0 4px;border-radius:2px;font-size:9px;font-weight:600;margin-right:3px;">${escapeHtml(ref)}</span>`;
+        }).join('');
+      }
+
+      item.innerHTML = `
+        ${graphHtml}
+        <div style="flex:1;min-width:0;">
+          <div class="git-commit-msg">
+            <span class="git-commit-hash">${entry.shortHash}</span>${refsHtml}${escapeHtml(entry.message)}
+          </div>
+          <div class="git-commit-meta">${escapeHtml(entry.author)} · ${escapeHtml(entry.relativeTime)}</div>
+        </div>
+      `;
+
+      item.addEventListener('click', () => showCommitDetail(entry.hash));
+      listEl.appendChild(item);
+    }
+
+    graphLoaded = true;
+  }
+
   // --- Initialize ---
   function init() {
     // Button listeners
@@ -1209,7 +1514,7 @@
       });
     }
 
-    // History toggle (lazy load)
+    // History toggle (lazy load) — now uses graph log
     const historyToggle = document.getElementById('git-history-toggle');
     if (historyToggle) {
       historyToggle.addEventListener('click', () => {
@@ -1221,8 +1526,72 @@
           if (headerSpan) headerSpan.textContent = (historyExpanded ? '▼' : '▶') + ' Recent Commits';
         }
         if (historyExpanded && !historyLoaded) {
-          loadHistory();
+          loadGraphLog();
         }
+      });
+    }
+
+    // Tags toggle (lazy load)
+    const tagsToggle = document.getElementById('git-tags-toggle');
+    if (tagsToggle) {
+      tagsToggle.addEventListener('click', (e) => {
+        if (e.target.closest('#git-create-tag-btn')) return;
+        tagsExpanded = !tagsExpanded;
+        const listEl = document.getElementById('git-tags-list');
+        const headerSpan = tagsToggle.querySelector('span');
+        if (listEl) {
+          listEl.style.display = tagsExpanded ? 'block' : 'none';
+          if (headerSpan) headerSpan.textContent = (tagsExpanded ? '▼' : '▶') + ' Tags';
+        }
+        if (tagsExpanded && !tagsLoaded) {
+          loadTags();
+        }
+      });
+    }
+
+    const createTagBtn = document.getElementById('git-create-tag-btn');
+    if (createTagBtn) {
+      createTagBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showCreateTagDialog();
+      });
+    }
+
+    // Push tags command
+    if (window.commandPaletteCommands) {
+      window.commandPaletteCommands.push({
+        name: 'Git: Push Tags',
+        action: async () => {
+          if (!repoRoot) return;
+          const r = await window.electronAPI.invoke('git-push-tags', repoRoot);
+          r.success ? notify('Tags pushed', 'success') : notify('Push tags failed: ' + r.error, 'error');
+        }
+      });
+    }
+
+    // Remotes toggle (lazy load)
+    const remotesToggle = document.getElementById('git-remotes-toggle');
+    if (remotesToggle) {
+      remotesToggle.addEventListener('click', (e) => {
+        if (e.target.closest('#git-add-remote-btn')) return;
+        remotesExpanded = !remotesExpanded;
+        const listEl = document.getElementById('git-remotes-list');
+        const headerSpan = remotesToggle.querySelector('span');
+        if (listEl) {
+          listEl.style.display = remotesExpanded ? 'block' : 'none';
+          if (headerSpan) headerSpan.textContent = (remotesExpanded ? '▼' : '▶') + ' Remotes';
+        }
+        if (remotesExpanded && !remotesLoaded) {
+          loadRemotes();
+        }
+      });
+    }
+
+    const addRemoteBtn = document.getElementById('git-add-remote-btn');
+    if (addRemoteBtn) {
+      addRemoteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showAddRemoteDialog();
       });
     }
 
