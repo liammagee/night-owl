@@ -569,21 +569,22 @@ function initializeApp() {
     setupGamificationToggleIntegration();
     
     // Initialize gamification system from gamification.js with retry logic
+    let gamificationRetries = 0;
+    const MAX_GAMIFICATION_RETRIES = 50; // 5 seconds max
     const initGamification = () => {
       if (window.initializeGamification) {
-        console.log('[App Init] Initializing gamification system from gamification.js');
         try {
           window.initializeGamification();
-          console.log('[App Init] Gamification system initialized successfully');
+          console.log('[App Init] Gamification system initialized');
         } catch (error) {
           console.error('[App Init] Error initializing gamification system:', error);
         }
-      } else {
-        console.warn('[App Init] window.initializeGamification not available - retrying in 100ms');
+      } else if (gamificationRetries < MAX_GAMIFICATION_RETRIES) {
+        gamificationRetries++;
         setTimeout(initGamification, 100);
       }
     };
-    
+
     // Start gamification initialization (with retry logic for deferred scripts)
     initGamification();
     

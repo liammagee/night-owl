@@ -8537,34 +8537,25 @@ async function performAppInitialization() {
         console.log('[renderer.js] Marked instance configured.');
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
         
-        // Initialize gamification system
-        console.log('[renderer.js] Checking for gamification system...');
-        console.log('[renderer.js] window.gamification exists:', !!window.gamification);
-        console.log('[renderer.js] GamificationManager class exists:', typeof GamificationManager !== 'undefined');
-        
+        // Initialize gamification system (may be lazy-loaded later)
         if (!window.gamification && typeof GamificationManager !== 'undefined') {
             try {
-                console.log('[renderer.js] Creating GamificationManager...');
                 window.gamification = new GamificationManager();
-                window.gamificationManager = window.gamification; // For compatibility
-                window.gamificationInstance = window.gamification; // For legacy code compatibility
-                
-                // Call initialize method
+                window.gamificationManager = window.gamification;
+                window.gamificationInstance = window.gamification;
+
                 if (typeof window.gamification.initialize === 'function') {
                     setTimeout(() => {
-                        console.log('[renderer.js] Calling gamification.initialize()...');
                         window.gamification.initialize();
                     }, 200);
                 }
-                
+
                 console.log('[renderer.js] Gamification system initialized successfully');
             } catch (error) {
                 console.error('[renderer.js] Error initializing gamification:', error);
             }
-        } else if (window.gamification) {
-            console.log('[renderer.js] Gamification system already initialized');
-        } else {
-            console.warn('[renderer.js] GamificationManager class not available');
+        } else if (!window.gamification) {
+            console.log('[renderer.js] GamificationManager deferred to lazy-loader');
         }
         
         // Initialize AI TODO suggestions toolbar button
@@ -8644,12 +8635,11 @@ async function performAppInitialization() {
         switchStructureView('file'); // Switch to file view (this will also render the tree)
     }
     
-    // Initialize AI Chat functionality
+    // Initialize AI Chat functionality (may be lazy-loaded later)
     if (window.initializeChatFunctionality) {
-        console.log('[renderer.js] Initializing AI Chat functionality...');
         window.initializeChatFunctionality();
     } else {
-        console.warn('[renderer.js] AI Chat initialization function not found');
+        console.log('[renderer.js] AI Chat deferred to lazy-loader');
     }
     
     // Initialize Export handlers
