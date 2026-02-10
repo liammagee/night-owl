@@ -2,26 +2,15 @@
 // Handles application startup, UI setup, and component initialization
 
 function initializeStyleSystem() {
-  // Initialize the style system
-  console.log('[App Init] Initializing style system');
-  
-  // Style system initialization would go here
-  // This is likely handled by the style-manager.js file already loaded
   if (window.initializeStyles) {
     window.initializeStyles();
   }
-  
-  // Setup style settings UI
   if (window.setupStyleSettingsUI) {
     window.setupStyleSettingsUI();
   }
-  
-  console.log('[App Init] Style system initialized');
 }
 
 function setupUIInteractions() {
-  console.log('[App Init] Setting up UI interactions');
-  
   // Handle responsive layout adjustments
   const handleResize = () => {
     // Dispatch a custom event for components that need to know about resizes
@@ -36,10 +25,8 @@ function setupUIInteractions() {
     
     if (isInPresentationMode) {
       // Hide unnecessary UI elements in presentation mode
-      console.log('[App Init] Entering presentation mode - adjusting UI');
     } else {
       // Restore UI elements when leaving presentation mode
-      console.log('[App Init] Exiting presentation mode - restoring UI');
     }
   };
   
@@ -60,8 +47,6 @@ function setupUIInteractions() {
   // Toggle buttons functionality
   const toggleButtons = document.querySelector('#right-pane .toggle-buttons');
   if (toggleButtons) {
-    console.log('[App Init] Setting up toggle buttons');
-    
     // Handle toggle button active states
     const buttons = toggleButtons.querySelectorAll('.pane-toggle-button');
     buttons.forEach(button => {
@@ -102,13 +87,9 @@ function setupUIInteractions() {
     
     window.addEventListener('scroll', handleScroll);
   }
-  
-  console.log('[App Init] UI interactions setup completed');
 }
 
 function setupLoadingIndicators() {
-  console.log('[App Init] Setting up loading indicators');
-  
   // AI flow indicator
   const flowIndicator = document.getElementById('ai-flow-indicator');
   if (flowIndicator) {
@@ -154,12 +135,9 @@ function setupLoadingIndicators() {
     });
   };
   
-  console.log('[App Init] Loading indicators setup completed');
 }
 
 function setupKeyboardShortcuts() {
-  console.log('[App Init] Setting up keyboard shortcuts');
-  
   document.addEventListener('keydown', (e) => {
     // Only handle shortcuts when not in an input field
     const isInputFocused = e.target.tagName === 'INPUT' || 
@@ -253,8 +231,6 @@ function setupKeyboardShortcuts() {
       }
     }
   });
-  
-  console.log('[App Init] Keyboard shortcuts setup completed');
 }
 
 function updateGamificationToggleButton(toggleBtn, isVisible) {
@@ -278,70 +254,40 @@ function updateGamificationToggleButton(toggleBtn, isVisible) {
 }
 
 function setupGamificationToggleIntegration() {
-  console.log('[App Init] Setting up gamification toggle integration');
-  
   const setupToggleHandler = () => {
     const gamificationToggleBtn = document.getElementById('toggle-gamification-btn');
     if (gamificationToggleBtn) {
-      console.log('[App Init] Found gamification toggle button, setting up handler');
-      
       gamificationToggleBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        
-        console.log('[App Init] Gamification toggle button clicked');
-        
-        // Check if gamification system is loaded and has visibility toggle function
+
         if (window.writingGamification && window.writingGamification.toggleMenuVisibility) {
-          console.log('[App Init] Calling gamification.toggleMenuVisibility()');
           const newVisibility = window.writingGamification.toggleMenuVisibility();
-          
-          // Update button appearance based on new visibility state
           updateGamificationToggleButton(document.getElementById('toggle-gamification-btn'), newVisibility);
         } else if (window.gamificationInstance && window.gamificationInstance.toggleMenuVisibility) {
-          console.log('[App Init] Calling gamificationInstance.toggleMenuVisibility()');
           const newVisibility = window.gamificationInstance.toggleMenuVisibility();
-          
-          // Update button appearance based on new visibility state
           updateGamificationToggleButton(document.getElementById('toggle-gamification-btn'), newVisibility);
         } else {
-          console.warn('[App Init] Gamification system not ready, trying to toggle entire gamification menu');
-          
-          // Toggle the entire gamification menu (not just the content)
           const gamificationMenu = document.getElementById('gamification-menu') || document.querySelector('.gamification-menu');
           if (gamificationMenu) {
             const isVisible = gamificationMenu.style.display !== 'none';
             gamificationMenu.style.display = isVisible ? 'none' : 'block';
-            console.log('[App Init] Manually toggled entire gamification menu:', !isVisible);
-            
-            // Update the toggle button appearance
             updateGamificationToggleButton(document.getElementById('toggle-gamification-btn'), !isVisible);
-            
-            // Save the visibility state
             localStorage.setItem('gamification-menu-visible', !isVisible);
           } else {
             console.error('[App Init] No gamification menu found to toggle');
-            console.log('[App Init] Available gamification elements:', document.querySelectorAll('[id*="gamification"], [class*="gamification"]'));
           }
         }
       });
-      
-      console.log('[App Init] Gamification toggle button handler added');
     } else {
-      console.warn('[App Init] Gamification toggle button not found - retrying in 200ms');
       setTimeout(setupToggleHandler, 200);
     }
   };
-  
-  // Start setup with retry logic for button availability
+
   setupToggleHandler();
-  
-  console.log('[App Init] Gamification toggle integration setup completed');
 }
 
 function setupGamificationToggle() {
-  console.log('[App Init] Setting up gamification toggle');
-  
   // Create or find the gamification panel
   let gamificationPanel = document.getElementById('gamification-panel');
   if (!gamificationPanel) {
@@ -357,11 +303,7 @@ function setupGamificationToggle() {
       
       const isVisible = toggleGamificationPanel();
       updateGamificationToggleButton(gamificationToggleBtn, isVisible);
-      
-      console.log('[App Init] Gamification panel toggled via dedicated button');
     });
-  } else {
-    console.warn('[App Init] Gamification toggle button not found');
   }
   
   // Global toggle function
@@ -378,7 +320,6 @@ function setupGamificationToggle() {
       localStorage.setItem('gamification-panel-visible', 'true');
     }
     
-    console.log('[App Init] Gamification panel toggled:', !isVisible);
     return !isVisible;
   }
   
@@ -390,13 +331,9 @@ function setupGamificationToggle() {
   
   // Set initial button state
   updateGamificationToggleButton(gamificationToggleBtn, isVisible);
-  
-  console.log('[App Init] Gamification toggle setup completed');
 }
 
 function createGamificationPanel() {
-  console.log('[App Init] Creating gamification panel');
-  
   const panel = document.createElement('div');
   panel.id = 'gamification-panel';
   panel.className = 'gamification-panel';
@@ -441,31 +378,23 @@ function createGamificationPanel() {
   
   if (startSessionBtn) {
     startSessionBtn.addEventListener('click', () => {
-      console.log('[App Init] Start Writing Session clicked');
       if (window.gamification && window.gamification.startWritingSession) {
         window.gamification.startWritingSession();
       } else {
-        console.log('[App Init] Starting a focused writing session...');
-        // Simple implementation if gamification system isn't fully loaded
         alert('🕯 Focus ritual initiated. Guard this candle of attention.');
       }
     });
   }
-  
+
   if (viewAchievementsBtn) {
     viewAchievementsBtn.addEventListener('click', () => {
-      console.log('[App Init] View Lore Fragments clicked');
       if (window.gamification && window.gamification.showStatsModal) {
         window.gamification.showStatsModal();
       } else {
-        // Simple implementation if gamification system isn't fully loaded
-        console.log('[App Init] Showing lore fragments...');
         showSimpleAchievements();
       }
     });
   }
-  
-  console.log('[App Init] Gamification panel created and added to DOM');
   
   return panel;
 }
@@ -491,59 +420,40 @@ function showSimpleAchievements() {
 }
 
 function setupElectronIntegration() {
-  console.log('[App Init] Setting up Electron integration');
-  
   if (window.electronAPI && window.electronAPI.isElectron) {
-    console.log('[App Init] Running in Electron environment');
-    
-    // Set up app-specific Electron handlers
     const invokeAshBtn = document.getElementById('invoke-ash-btn');
     if (invokeAshBtn) {
       invokeAshBtn.addEventListener('click', () => {
-        // Trigger Ash AI assistant
-        console.log('[App Init] Ash AI assistant invoked');
-        // This would be handled by the main Electron process
+        // Handled by the main Electron process
       });
     }
     
     // Handle app ready state
-    window.electronAPI.onAppReady?.(() => {
-      console.log('[App Init] Electron app is ready');
-    });
+    window.electronAPI.onAppReady?.(() => {});
     
     // Handle file operations
     window.electronAPI.onFileOpened?.((content, filePath) => {
-      console.log('[App Init] File opened:', filePath);
       setEditorContent(content);
     });
     
     // Handle app updates
     window.electronAPI.onUpdateAvailable?.((info) => {
-      console.log('[App Init] Update available:', info);
       // Show update notification
     });
     
     // Handle gamification panel toggle from menu
     if (window.electronAPI.onToggleGamificationPanel) {
       window.electronAPI.onToggleGamificationPanel(() => {
-        console.log('[App Init] Toggle gamification panel from menu');
         if (window.toggleGamificationPanel) {
           window.toggleGamificationPanel();
-        } else {
-          console.warn('[App Init] toggleGamificationPanel function not available');
         }
       });
     }
     
-    console.log('[App Init] Electron integration setup completed');
-  } else {
-    console.log('[App Init] Running in web browser environment');
   }
 }
 
 function initializeApp() {
-  console.log('[App Init] Starting application initialization');
-  
   try {
     // Initialize all subsystems
     initializeStyleSystem();
@@ -575,7 +485,6 @@ function initializeApp() {
       if (window.initializeGamification) {
         try {
           window.initializeGamification();
-          console.log('[App Init] Gamification system initialized');
         } catch (error) {
           console.error('[App Init] Error initializing gamification system:', error);
         }
@@ -590,9 +499,7 @@ function initializeApp() {
     
     // Initialize default mode
     switchToMode('editor');
-    
-    console.log('[App Init] Application initialization completed successfully');
-    
+
     // Dispatch app ready event
     window.dispatchEvent(new CustomEvent('appReady'));
     

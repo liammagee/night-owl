@@ -24,15 +24,11 @@ function debugLog(level, message, data) {
 // Load PDF annotations using Electron's file system API
 async function loadPDFAnnotationsModule() {
     try {
-        console.log('[renderer.js] Loading PDF annotations module via Electron API...');
-        
         // Use Electron's file system to read the pdfAnnotations.js file
         const filePath = './orchestrator/pdfAnnotations.js';
         const response = await window.electronAPI.invoke('read-file', filePath);
         
         if (response.success) {
-            console.log('[renderer.js] Successfully read pdfAnnotations.js via Electron API');
-            
             // Create a script element instead of using eval() to avoid CSP issues
             const script = document.createElement('script');
             script.type = 'text/javascript';
@@ -40,8 +36,6 @@ async function loadPDFAnnotationsModule() {
             
             // Add event handlers
             script.onload = script.onreadystatechange = function() {
-                console.log('[renderer.js] PDF annotations module loaded successfully');
-                
                 // Initialize CanvasTextSelector after module loads
                 if (typeof initializeCanvasTextSelector === 'function') {
                     initializeCanvasTextSelector();
@@ -67,16 +61,14 @@ async function loadPDFAnnotationsModule() {
         // Fallback to minimal implementation
         class CanvasTextSelector {
             constructor() {
-                console.log('[renderer.js] Fallback CanvasTextSelector created');
             }
         }
         
         window.CanvasTextSelector = CanvasTextSelector;
-        window.clearAllHighlights = function() { console.log('[PDF] Clear highlights (fallback)'); };
-        window.savePDFAnnotations = function() { console.log('[PDF] Save annotations (fallback)'); };
-        window.loadPDFAnnotations = function() { console.log('[PDF] Load annotations (fallback)'); };
+        window.clearAllHighlights = function() {};
+        window.savePDFAnnotations = function() {};
+        window.loadPDFAnnotations = function() {};
         
-        console.log('[renderer.js] Fallback PDF annotations initialized');
     }
 }
 
@@ -116,8 +108,8 @@ let selectedFiles = new Set();        // Currently selected file paths
 let lastSelectedFile = null;          // Last clicked file (for Shift+click range selection)
 let allVisibleFiles = [];             // Ordered list of all visible file paths (for range selection)
 
-// Speaker notes variables
-let currentSpeakerNotes = [];
+// Speaker notes variables (currentSpeakerNotes managed by modules/status-bar.js via window.currentSpeakerNotes)
+window.currentSpeakerNotes = window.currentSpeakerNotes || [];
 let speakerNotesVisible = false;
 
 // --- DOM Elements ---
@@ -201,254 +193,7 @@ if (typeof require !== 'undefined') {
 }
 
 // --- Status Bar Update Function ---
-function countWordsAndLines(text) {
-    let words = 0;
-    let lines = text.length > 0 ? 1 : 0;
-    let inWord = false;
-
-    for (let i = 0; i < text.length; i += 1) {
-        const ch = text[i];
-        if (ch === '\n') {
-            lines += 1;
-        }
-        if (
-            ch === ' ' ||
-            ch === '\n' ||
-            ch === '\r' ||
-            ch === '\t' ||
-            ch === '\f' ||
-            ch === '\v'
-        ) {
-            inWord = false;
-        } else if (!inWord) {
-            inWord = true;
-            words += 1;
-        }
-    }
-
-    return { words, lines: lines || 1 };
-}
-
-function updateStatusBar(content) {
-    const wordCountEl = document.getElementById('word-count');
-    const charCountEl = document.getElementById('char-count');
-    const lineCountEl = document.getElementById('line-count');
-    const cursorPosEl = document.getElementById('cursor-position');
-    
-    if (!content) content = '';
-    
-    // Check if there's selected text in the Monaco editor
-    let selectedText = '';
-    let isSelection = false;
-    
-    if (editor && editor.getSelection && editor.getModel) {
-        const selection = editor.getSelection();
-        if (selection && !selection.isEmpty()) {
-            selectedText = editor.getModel().getValueInRange(selection);
-            isSelection = true;
-        }
-    }
-    
-    // Determine which content to analyze (selection vs full document)
-    const contentToAnalyze = isSelection ? selectedText : content;
-    const prefix = isSelection ? 'Sel: ' : '';
-    
-    const { words: wordCount, lines: lineCount } = countWordsAndLines(contentToAnalyze);
-    const charCount = contentToAnalyze.length;
-    
-    // Update status bar elements with consistent styling
-    if (wordCountEl) {
-        wordCountEl.textContent = `${prefix}Words: ${wordCount}`;
-    }
-    
-    if (charCountEl) {
-        charCountEl.textContent = `${prefix}Chars: ${charCount}`;
-    }
-    
-    if (lineCountEl) {
-        lineCountEl.textContent = `${prefix}Lines: ${lineCount}`;
-    }
-    
-    // Update cursor position if editor is available
-    if (editor && editor.getPosition) {
-        const position = editor.getPosition();
-        if (cursorPosEl && position) {
-            if (isSelection) {
-                const selection = editor.getSelection();
-                const startLine = selection.startLineNumber;
-                const endLine = selection.endLineNumber;
-                
-                if (startLine === endLine) {
-                    cursorPosEl.textContent = `Ln ${startLine} (sel)`;
-                } else {
-                    cursorPosEl.textContent = `Ln ${startLine}-${endLine} (sel)`;
-                }
-            } else {
-                cursorPosEl.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
-            }
-        }
-    } else if (cursorPosEl) {
-        cursorPosEl.textContent = 'Ln 1, Col 1';
-    }
-}
-
-function updateStatusBarWithKanban(totalTasks, doneTasks) {
-    const wordCountEl = document.getElementById('word-count');
-    const charCountEl = document.getElementById('char-count');
-    const lineCountEl = document.getElementById('line-count');
-    const cursorPosEl = document.getElementById('cursor-position');
-    
-    // Calculate progress
-    const inProgressTasks = totalTasks - doneTasks;
-    const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
-    
-    // Update status bar elements with Kanban stats
-    if (wordCountEl) wordCountEl.textContent = `📋 Total Tasks: ${totalTasks}`;
-    if (charCountEl) charCountEl.textContent = `✅ Completed: ${doneTasks}`;
-    if (lineCountEl) lineCountEl.textContent = `⏳ Remaining: ${inProgressTasks}`;
-    if (cursorPosEl) cursorPosEl.textContent = `📊 Progress: ${progressPercent}%`;
-}
-
-// --- Process Speaker Notes Extension ---
-function processSpeakerNotes(content) {
-    // Extract speaker notes from ```notes blocks
-    const speakerNotesRegex = /```notes\n([\s\S]*?)\n```/g;
-    const extractedNotes = [];
-    let noteIndex = 0;
-    
-    // Replace speaker notes blocks with placeholders and extract content
-    const processedContent = content.replace(speakerNotesRegex, (match, notesContent) => {
-        const noteId = `speaker-note-${noteIndex}`;
-        extractedNotes.push({
-            id: noteId,
-            content: notesContent.trim(),
-            index: noteIndex
-        });
-        noteIndex++;
-        
-        // Return a placeholder that will be processed later
-        return `<div class="speaker-notes-placeholder" data-note-id="${noteId}" style="display: none;"></div>`;
-    });
-    
-    // Store extracted notes globally
-    currentSpeakerNotes = extractedNotes;
-    
-    return processedContent;
-}
-
-// --- Git Status Indicator ---
-let gitStatusCache = {
-    repoRoot: null,
-    branch: null,
-    status: null,
-    lastCheck: 0
-};
-
-async function updateGitStatusIndicator() {
-    const indicator = document.getElementById('git-status-indicator');
-    if (!indicator || !window.electronAPI) return;
-
-    const workingDir = window.appSettings?.workingDirectory;
-    if (!workingDir) {
-        indicator.style.display = 'none';
-        return;
-    }
-
-    try {
-        // Check if working directory is in a git repo
-        const repoResult = await window.electronAPI.invoke('git-find-repo', workingDir);
-        if (!repoResult.success) {
-            indicator.style.display = 'none';
-            gitStatusCache.repoRoot = null;
-            return;
-        }
-
-        const repoRoot = repoResult.repoRoot;
-        gitStatusCache.repoRoot = repoRoot;
-
-        // Get branch name
-        const branchResult = await window.electronAPI.invoke('git-get-branch', repoRoot);
-        const branch = branchResult.success ? branchResult.branch : 'unknown';
-        gitStatusCache.branch = branch;
-
-        // Get status summary
-        const statusResult = await window.electronAPI.invoke('git-status-summary', repoRoot);
-
-        if (statusResult.success) {
-            gitStatusCache.status = statusResult;
-            gitStatusCache.lastCheck = Date.now();
-
-            // Build indicator text
-            let statusText = `⎇ ${branch}`;
-            const parts = [];
-
-            if (statusResult.staged > 0) {
-                parts.push(`+${statusResult.staged}`);
-            }
-            if (statusResult.modified > 0) {
-                parts.push(`~${statusResult.modified}`);
-            }
-            if (statusResult.untracked > 0) {
-                parts.push(`?${statusResult.untracked}`);
-            }
-            if (statusResult.ahead > 0) {
-                parts.push(`↑${statusResult.ahead}`);
-            }
-
-            if (parts.length > 0) {
-                statusText += ` [${parts.join(' ')}]`;
-            } else if (statusResult.clean) {
-                statusText += ' ✓';
-            }
-
-            indicator.textContent = statusText;
-            indicator.style.display = 'inline';
-
-            // Color based on state
-            if (statusResult.clean) {
-                indicator.style.color = '#22c55e'; // green
-            } else if (statusResult.staged > 0) {
-                indicator.style.color = '#f59e0b'; // amber - staged changes
-            } else {
-                indicator.style.color = '#6366f1'; // indigo - has changes
-            }
-
-            // Update tooltip
-            let tooltip = `Branch: ${branch}`;
-            if (statusResult.staged > 0) tooltip += `\nStaged: ${statusResult.staged}`;
-            if (statusResult.modified > 0) tooltip += `\nModified: ${statusResult.modified}`;
-            if (statusResult.untracked > 0) tooltip += `\nUntracked: ${statusResult.untracked}`;
-            if (statusResult.ahead > 0) tooltip += `\nUnpushed commits: ${statusResult.ahead}`;
-            if (statusResult.clean) tooltip += `\n✓ Working tree clean`;
-            tooltip += `\n\nClick to open Source Control`;
-            indicator.title = tooltip;
-        } else {
-            indicator.style.display = 'none';
-        }
-    } catch (error) {
-        console.error('[Git] Error updating status indicator:', error);
-        indicator.style.display = 'none';
-    }
-}
-
-// Initialize git status indicator click handler
-function initGitStatusIndicator() {
-    const indicator = document.getElementById('git-status-indicator');
-    if (!indicator) return;
-
-    indicator.addEventListener('click', () => {
-        // Open the git panel in the sidebar
-        if (typeof switchStructureView === 'function') {
-            switchStructureView('git');
-        }
-    });
-
-    // Initial check
-    updateGitStatusIndicator();
-
-    // Refresh every 30 seconds
-    setInterval(updateGitStatusIndicator, 30000);
-}
+// Status bar, speaker notes, and git status indicator extracted to modules/status-bar.js
 
 async function showGitPublishDialog(gitInfo) {
     return new Promise((resolve) => {
@@ -618,7 +363,6 @@ async function renderMathInPresentation() {
 // Helper function to render Mermaid diagrams
 async function renderMermaidDiagrams(container) {
     if (!window.mermaid) {
-        console.warn('[Mermaid] Mermaid library not loaded yet');
         return;
     }
 
@@ -630,7 +374,6 @@ async function renderMermaidDiagrams(container) {
             return;
         }
 
-        console.log(`[Mermaid] Found ${mermaidBlocks.length} mermaid diagram(s) to render`);
 
         for (let i = 0; i < mermaidBlocks.length; i++) {
             const codeBlock = mermaidBlocks[i];
@@ -676,7 +419,6 @@ async function renderMermaidDiagrams(container) {
                     // Only keep the natural dimensions
                     const width = svgElement.getAttribute('width');
                     const height = svgElement.getAttribute('height');
-                    console.log(`[Mermaid] Diagram natural size: ${width} x ${height}`);
                 }
 
                 // Assemble the wrapper
@@ -721,12 +463,9 @@ async function renderMermaidDiagrams(container) {
                     let originalNextSibling = null;
 
                     expandBtn.addEventListener('click', () => {
-                        console.log('[Mermaid] Expand button clicked');
-
                         // Check if we're currently in an overlay
                         if (overlayElement && document.body.contains(overlayElement)) {
                             // Close overlay
-                            console.log('[Mermaid] Closing overlay');
 
                             // Move wrapper back to original location
                             if (originalNextSibling) {
@@ -755,7 +494,6 @@ async function renderMermaidDiagrams(container) {
 
                             // Recreate panzoom instance for normal view
                             if (window.Panzoom) {
-                                console.log('[Mermaid] Recreating panzoom instance for normal view');
                                 panzoomInstance = window.Panzoom(svgElement, {
                                     maxScale: 10,
                                     minScale: 0.1,
@@ -773,11 +511,9 @@ async function renderMermaidDiagrams(container) {
                             }
                         } else {
                             // Open overlay
-                            console.log('[Mermaid] Opening overlay');
 
                             // DESTROY panzoom before moving - this is the key!
                             if (panzoomInstance) {
-                                console.log('[Mermaid] Destroying panzoom instance');
                                 panzoomInstance.destroy();
                                 panzoomInstance = null;
                             }
@@ -810,7 +546,6 @@ async function renderMermaidDiagrams(container) {
 
                             // Recreate panzoom for the overlay
                             if (window.Panzoom) {
-                                console.log('[Mermaid] Creating panzoom for overlay');
                                 panzoomInstance = window.Panzoom(svgElement, {
                                     maxScale: 10,
                                     minScale: 0.1,
@@ -847,46 +582,12 @@ async function renderMermaidDiagrams(container) {
                                 }
                             });
 
-                            console.log('[Mermaid] Overlay created and diagram moved');
-                            console.log('[Mermaid] Overlay element:', overlayElement);
-                            console.log('[Mermaid] Wrapper parent:', wrapper.parentNode);
-
-                            // Debug computed styles
-                            setTimeout(() => {
-                                const overlayStyle = window.getComputedStyle(overlayElement);
-                                const wrapperStyle = window.getComputedStyle(wrapper);
-                                const diagramStyle = window.getComputedStyle(diagramDiv);
-                                const svgStyle = window.getComputedStyle(svgElement);
-
-                                console.log('[Mermaid] Overlay styles:', {
-                                    display: overlayStyle.display,
-                                    position: overlayStyle.position,
-                                    zIndex: overlayStyle.zIndex,
-                                    background: overlayStyle.background
-                                });
-                                console.log('[Mermaid] Wrapper styles:', {
-                                    display: wrapperStyle.display,
-                                    width: wrapperStyle.width,
-                                    height: wrapperStyle.height
-                                });
-                                console.log('[Mermaid] Diagram styles:', {
-                                    display: diagramStyle.display,
-                                    width: diagramStyle.width,
-                                    height: diagramStyle.height
-                                });
-                                console.log('[Mermaid] SVG styles:', {
-                                    display: svgStyle.display,
-                                    width: svgStyle.width,
-                                    height: svgStyle.height
-                                });
-                            }, 100);
                         }
                     });
 
                     // Add download functionality
                     const downloadBtn = controls.querySelector('[data-action="download"]');
                     downloadBtn.addEventListener('click', async () => {
-                        console.log('[Mermaid] Download button clicked');
                         try {
                             // Just download the SVG directly - simpler and more reliable
                             const svgData = svgElement.outerHTML;
@@ -899,7 +600,6 @@ async function renderMermaidDiagrams(container) {
                             a.click();
                             document.body.removeChild(a);
                             URL.revokeObjectURL(url);
-                            console.log('[Mermaid] SVG download complete');
                         } catch (error) {
                             console.error('[Mermaid] Error downloading diagram:', error);
                             alert('Failed to download diagram: ' + error.message);
@@ -909,14 +609,12 @@ async function renderMermaidDiagrams(container) {
                     // Add copy to clipboard functionality
                     const copyBtn = controls.querySelector('[data-action="copy"]');
                     copyBtn.addEventListener('click', async () => {
-                        console.log('[Mermaid] Copy button clicked');
                         try {
                             // Get the bounding box for actual rendered size
                             const bbox = svgElement.getBoundingClientRect();
                             const width = Math.ceil(bbox.width);
                             const height = Math.ceil(bbox.height);
 
-                            console.log('[Mermaid] Creating PNG from SVG, dimensions:', width, height);
 
                             // Create a new SVG with embedded styles
                             const svgClone = svgElement.cloneNode(true);
@@ -966,7 +664,6 @@ async function renderMermaidDiagrams(container) {
 
                             const img = new Image();
                             img.onload = async () => {
-                                console.log('[Mermaid] Image loaded, converting to PNG');
                                 ctx.drawImage(img, 0, 0, width, height);
                                 URL.revokeObjectURL(url);
 
@@ -977,7 +674,6 @@ async function renderMermaidDiagrams(container) {
                                             new ClipboardItem({ 'image/png': blob })
                                         ]);
 
-                                        console.log('[Mermaid] PNG copied to clipboard');
                                         // Visual feedback
                                         const originalText = copyBtn.textContent;
                                         copyBtn.textContent = '✓';
@@ -1031,10 +727,7 @@ async function renderMermaidDiagrams(container) {
                         panzoomInstance.zoomWithWheel(event);
                     });
 
-                    console.log(`[Mermaid] Initialized zoom for diagram ${i + 1}`);
                 }
-
-                console.log(`[Mermaid] Rendered diagram ${i + 1}/${mermaidBlocks.length}`);
             } catch (error) {
                 console.error(`[Mermaid] Error rendering diagram ${i + 1}:`, error);
                 // Keep the code block if rendering fails
@@ -1235,12 +928,10 @@ function checkAndFixCorruptedLayout(editorPane, previewPane) {
             if (rightWidthNum > 80 || editorWidthNum > 80 || structureWidthNum > 80 ||
                 (rightWidthNum + editorWidthNum + structureWidthNum) > 120) {
                 shouldResetLayout = true;
-                console.log('[renderer.js] Detected corrupted layout values, resetting');
             }
         }
     } catch (error) {
         shouldResetLayout = true;
-        console.log('[renderer.js] Error checking layout, resetting to defaults');
     }
     
     if (shouldResetLayout) {
@@ -1393,7 +1084,6 @@ async function renderMarkdownContent(markdownContent) {
     }
 
     if (!window.marked) {
-        console.warn('[renderer.js] Marked instance not available yet');
         previewContent.innerHTML = '<p>Markdown preview loading...</p>';
         return;
     }
@@ -1477,7 +1167,6 @@ async function renderRegularMarkdown(markdownContent) {
 // Helper functions for structure pane
 function validateStructurePaneInputs(markdownContent) {
     if (!markedInstance) {
-        console.warn('[renderer.js] Marked instance not ready for structure pane.');
         return { isValid: false };
     }
     
@@ -1866,7 +1555,6 @@ function handleDrop(event, targetHeading) {
         model.pushEditOperations([], edits, (inverseEdits) => inverseEdits);
 
         // The onDidChangeModelContent listener will handle refreshing the UI
-        console.log("Drop operation applied to editor model.");
 
     } catch (e) {
         console.error("Error processing drop data:", e);
@@ -1903,21 +1591,15 @@ function cleanupDragClasses() {
 // --- Context Menu Handler ---
 function handleContextMenu(event, heading) {
     event.preventDefault(); // Prevent default browser context menu
-    console.log('[renderer.js] Context menu triggered on structure pane.');
-
     const target = event.target;
     const li = target.closest('li'); // Find the closest list item
 
     if (li && (li.dataset.startLine || li.dataset.lineNumber)) {
         const lineNumberStr = li.dataset.startLine || li.dataset.lineNumber;
-        console.log(`[renderer.js] Requesting context menu from main for line: ${lineNumberStr}`);
-
         // Ask the main process to show the context menu
         window.electronAPI.invoke('show-context-menu', { lineNumber: lineNumberStr })
-          .then(() => console.log('[renderer.js] Context menu request sent to main.'))
           .catch(err => console.error('[renderer.js] Error invoking context menu:', err));
     } else {
-        console.log('[renderer.js] Context menu triggered outside a valid list item.');
     }
 }
 
@@ -1929,10 +1611,8 @@ function setupContextMenuListener() {
     }
     window.electronAPI.on('context-menu-command', (args) => {
         const { command, lineNumber } = args;
-        console.log(`[renderer.js] Received context menu command: ${command} for line ${lineNumber}`);
         handleContextMenuAction(command, parseInt(lineNumber, 10)); // Reuse existing handler
     });
-    console.log('[renderer.js] Context menu command listener set up.');
 }
 
 async function handleContextMenuAction(action, lineNumber) {
@@ -1960,7 +1640,6 @@ async function handleContextMenuAction(action, lineNumber) {
         case 'cut':
             navigator.clipboard.writeText(text)
                 .then(() => {
-                    console.log(`Cut section: ${lineNumber}`);
                     // Perform delete after successful copy
                     const deleteEdit = { range: range, text: null };
                     model.pushEditOperations([], [deleteEdit], () => null);
@@ -1969,7 +1648,6 @@ async function handleContextMenuAction(action, lineNumber) {
             break;
         case 'copy':
             navigator.clipboard.writeText(text)
-                .then(() => console.log(`Copied section: ${lineNumber}`))
                 .catch(err => console.error('Failed to copy text: ', err));
             break;
         case 'paste':
@@ -1992,7 +1670,6 @@ async function handleContextMenuAction(action, lineNumber) {
                     forceMoveMarkers: true
                 };
                 model.pushEditOperations([], [pasteEdit], () => null);
-                console.log(`Pasted content before section: ${lineNumber}`);
             } catch (err) {
                 console.error('Failed to paste text: ', err);
             }
@@ -2000,7 +1677,6 @@ async function handleContextMenuAction(action, lineNumber) {
         case 'delete':
             const deleteEdit = { range: range, text: null };
             model.pushEditOperations([], [deleteEdit], () => null);
-            console.log(`Deleted section: ${lineNumber}`);
             break;
         default:
             console.error(`Unknown context menu action: ${action}`);
@@ -2087,7 +1763,6 @@ function registerMarkdownFoldingProvider() {
             }
         });
         
-        console.log('[renderer.js] Markdown folding provider registered successfully');
     } catch (error) {
         console.error('[renderer.js] Error registering folding provider:', error);
     }
@@ -2179,7 +1854,6 @@ function addFoldingKeyboardShortcuts() {
             monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS
         ],
         run: async function() {
-            console.log('[Monaco] Save action triggered');
             await saveFile();
         }
     });
@@ -2192,7 +1866,6 @@ function addFoldingKeyboardShortcuts() {
             monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS
         ],
         run: async function() {
-            console.log('[Monaco] Save As action triggered');
             await saveAsFile();
         }
     });
@@ -2207,7 +1880,6 @@ function addFoldingKeyboardShortcuts() {
         contextMenuGroupId: 'insert',
         contextMenuOrder: 1,
         run: async function() {
-            console.log('[Monaco] Insert Citation action triggered');
             await showCitationDialog();
         }
     });
@@ -2415,9 +2087,6 @@ function validateEditorSelection(ed, actionName) {
     const selection = ed.getSelection();
     const selectedText = ed.getModel().getValueInRange(selection);
     
-    // DEBUG: Log selection details  
-    console.log(`[renderer.js] ${actionName} - Selected text (${selectedText?.length || 0} chars):`, selectedText?.substring(0, 200) + '...');
-    
     if (!selectedText || selectedText.trim() === '') {
         console.warn(`[renderer.js] No text selected for ${actionName}`);
         showNotification(`Please select some text to ${actionName.toLowerCase()}`, 'warning');
@@ -2457,12 +2126,6 @@ async function handleAISummarization(ed) {
             
             showNotification(`Speaker notes generated using ${result.provider} (${result.model})`, 'success');
             
-            console.log('[renderer.js] Speaker notes generated - replaced text with bullets and moved original to notes:', {
-                bulletPoints: result.summary?.substring(0, 100) + '...',
-                originalInNotes: selectedText.substring(0, 100) + '...',
-                provider: result.provider,
-                model: result.model
-            });
         }
     } catch (error) {
         console.error('[renderer.js] Error in AI summarization:', error);
@@ -2476,8 +2139,6 @@ async function handleNotesExtraction(ed) {
     
     const { selection, selectedText } = validation;
     
-    console.log(`[renderer.js] Starting notes extraction for selected text: "${selectedText.substring(0, 100)}..."`);
-    
     try {
         showNotification('Extracting notes content...', 'info');
         
@@ -2490,7 +2151,6 @@ async function handleNotesExtraction(ed) {
         }
         
         if (result.success) {
-            console.log(`[renderer.js] Notes extraction successful: found ${result.blocksFound} block(s)`);
             
             ed.executeEdits('extract-notes', [{
                 range: selection,
@@ -2515,8 +2175,6 @@ async function handleScholarSupport(ed) {
     if (!validation.isValid) return;
     
     const { selection, selectedText } = validation;
-    
-    console.log(`[renderer.js] 🎓 Starting AI heading generation for selected text: "${selectedText.substring(0, 50)}..."`);
     
     try {
         showNotification('🤔 Dr. Chen is analyzing your selection...', 'info');
@@ -2570,7 +2228,7 @@ Respond with ONLY the heading text (including the ## markdown symbols). No expla
             heading = heading.replace(/\s+/g, ' '); // Remove multiple spaces
             heading = heading.replace(/^(#+)([^#\s])/, '$1 $2'); // Ensure space after #
             
-            console.log(`[renderer.js] 🎓 Generated heading: "${heading}"`);
+;
             
             // Find insertion point - look for preceding paragraph break
             const selectionStart = selection.getStartPosition();
@@ -2595,7 +2253,6 @@ Respond with ONLY the heading text (including the ## markdown symbols). No expla
             }]);
             
             showNotification(`🎓 AI heading inserted: "${heading}"`, 'success');
-            console.log(`[renderer.js] 🎓 Successfully inserted heading at line ${insertLineNumber}`);
         }
         
     } catch (error) {
@@ -2729,7 +2386,6 @@ function addCustomSelectionKeybindings() {
         }
     });
 
-    console.log('[renderer.js] Custom selection keybindings added (Tab/Shift+Tab handled by listManagement.js)');
 }
 
 // --- Navigation Controls Setup ---
@@ -2763,12 +2419,10 @@ function setupNavigationControls() {
     updateNavigationButtons();
     loadNavigationHistoryFromSettings();
     
-    console.log('[renderer.js] Navigation controls setup complete');
 }
 
 // --- BibTeX Language Registration ---
 function registerBibTeXLanguage() {
-    console.log('[renderer.js] Registering BibTeX language support...');
     
     // Register the BibTeX language
     monaco.languages.register({ id: 'bibtex' });
@@ -2867,7 +2521,6 @@ function registerBibTeXLanguage() {
         colors: {}
     });
     
-    console.log('[renderer.js] BibTeX language support registered successfully.');
 }
 
 // --- Citation Autocomplete Functionality ---
@@ -3457,7 +3110,6 @@ async function loadBibliographyForMarkdownFile(filePath, content) {
             const parsed = parseBibTeX(response.content, bibPath);
             if (parsed.length > 0) {
                 entries.push(...parsed);
-                console.log(`[renderer.js] Loaded ${parsed.length} entries from ${bibPath}`);
             }
         } catch (error) {
             console.warn(`[renderer.js] Error loading bibliography file: ${resolvedPath}`, error);
@@ -3479,7 +3131,6 @@ async function loadBibliographyForMarkdownFile(filePath, content) {
         window.TechneCitationRenderer.invalidateCache();
     }
 
-    console.log(`[renderer.js] Bibliography set from frontmatter (${entries.length} bib entries + ${dbEntries.length} database)`);
     showBibliographyStatus(formatBibliographyStatus(bibliographyFiles));
     return true;
 }
@@ -3522,16 +3173,13 @@ function scheduleBibliographyRefresh(filePath, content) {
 // Load database citations and convert to BibTeX-like format
 async function loadDatabaseCitations() {
     try {
-        console.log('[loadDB] Loading citations from database...');
         const response = await window.electronAPI.invoke('citations-get', {});
-        console.log('[loadDB] Raw response:', response);
         
         if (!response.success) {
             throw new Error(response.error || 'Failed to load database citations');
         }
         
         const citations = response.citations || [];
-        console.log(`[loadDB] Found ${citations.length} database citations`);
         
         // Convert database citations to BibTeX-like format
         const dbEntries = citations.map(citation => {
@@ -3550,11 +3198,6 @@ async function loadDatabaseCitations() {
             };
         });
         
-        console.log(`[loadDB] Converted ${dbEntries.length} database citations to BibTeX format`);
-        if (dbEntries.length > 0) {
-            console.log('[loadDB] Sample database entry:', dbEntries[0]);
-        }
-        
         return dbEntries;
     } catch (error) {
         console.error('[loadDB] Error loading database citations:', error);
@@ -3564,42 +3207,29 @@ async function loadDatabaseCitations() {
 
 // Load BibTeX files from the lectures directory
 async function loadBibTeXFiles() {
-    console.log('[loadBibTeX] Starting BibTeX file loading process');
-    
     // Clear existing entries to prevent duplicates
     bibEntries.length = 0;
-    console.log('[loadBibTeX] Cleared existing entries to prevent duplicates');
-    
+
     try {
-        console.log('[loadBibTeX] Inside try block...');
         // Look for .bib files specifically in the lectures subdirectory
         const bibFiles = [];
         
         try {
             // First, get the current working directory to understand the context
             const workingDir = await window.electronAPI.invoke('get-working-directory');
-            console.log('[loadBibTeX] Current working directory:', workingDir);
-            
             // Try multiple possible locations for BibTeX files
             const possiblePaths = [
                 '.',                  // current working directory
                 // Since working directory is already /lectures, we don't need other paths
             ];
             
-            console.log('[loadBibTeX] Will try paths:', possiblePaths);
-            
             for (const relativePath of possiblePaths) {
                 try {
-                    console.log(`[renderer.js] Trying to list files in: ${relativePath}`);
                     const lecturesFiles = await window.electronAPI.invoke('list-directory-files', relativePath);
-                    console.log(`[loadBibTeX] Files found in ${relativePath}:`, lecturesFiles?.length || 0);
                     
                     if (lecturesFiles && Array.isArray(lecturesFiles)) {
-                        // Debug: show all files first
-                        console.log(`[loadBibTeX] All files in ${relativePath}:`, lecturesFiles.map(f => `${f.name} (isFile: ${f.isFile})`));
                         // Filter for .bib files
                         const bibFiles = lecturesFiles.filter(file => file.isFile && file.name.endsWith('.bib'));
-                        console.log(`[loadBibTeX] .bib files found in ${relativePath}:`, bibFiles.map(f => f.name));
                         
                         for (const file of lecturesFiles) {
                             if (file.isFile && file.name.endsWith('.bib')) {
@@ -3608,9 +3238,7 @@ async function loadBibTeXFiles() {
                                 
                                 // Try to read the file directly
                                 try {
-                                    console.log(`[loadBibTeX] Attempting to read: ${fullBibPath}`);
                                     const response = await window.electronAPI.invoke('read-file', fullBibPath);
-                                    console.log(`[loadBibTeX] Response from read-file:`, response);
                                     
                                     if (!response.success) {
                                         console.error(`[loadBibTeX] Failed to read ${fullBibPath}:`, response.error);
@@ -3618,30 +3246,19 @@ async function loadBibTeXFiles() {
                                     }
                                     
                                     const content = response.content;
-                                    console.log(`[loadBibTeX] Successfully read ${fullBibPath}, content length:`, content?.length || 0);
                                     const sourceLabel = relativePath && relativePath !== '.'
                                         ? `${relativePath}/${file.name}`
                                         : file.name;
                                     const entries = parseBibTeX(content, sourceLabel);
-                                    console.log(`[loadBibTeX] Parsed ${entries.length} entries from ${file.name}`);
                                     if (entries.length > 0) {
                                         bibEntries.push(...entries);
                                         
-                                        // Log specific files for user feedback
-                                        if (file.name === 'citations.bib') {
-                                            console.log(`[loadBibTeXFiles] ✓ Loaded citations.bib with ${entries.length} entries`);
-                                        } else if (file.name === 'references.bib') {
-                                            console.log(`[loadBibTeXFiles] ✓ Loaded references.bib with ${entries.length} entries`);
-                                        }
                                     }
                                 } catch (readError) {
-                                    console.log(`[renderer.js] Could not read ${fullBibPath}:`, readError.message);
-                                    
                                     // Try alternative path resolution
                                     try {
                                         // If relative path failed, try with just the filename in lectures
                                         const altPath = `lectures/${file.name}`;
-                                        console.log(`[renderer.js] Trying alternative path: ${altPath}`);
                                         const response = await window.electronAPI.invoke('read-file', altPath);
                                         
                                         if (!response.success) {
@@ -3654,46 +3271,32 @@ async function loadBibTeXFiles() {
                                             ? `${relativePath}/${file.name}`
                                             : file.name;
                                         const entries = parseBibTeX(content, sourceLabel);
-                                        console.log(`[renderer.js] Successfully parsed ${entries.length} entries from ${altPath}`);
                                         if (entries.length > 0) {
-                                            console.log('[renderer.js] Sample parsed entry:', entries[0]);
                                             bibEntries.push(...entries);
                                         }
                                     } catch (altError) {
-                                        console.log(`[renderer.js] Alternative path also failed:`, altError.message);
                                     }
                                 }
                             }
                         }
                         
                         if (bibEntries.length > 0) {
-                            console.log(`[renderer.js] Total entries loaded so far: ${bibEntries.length}`);
                             break; // Stop after successfully loading entries
                         }
                     }
                 } catch (error) {
-                    console.log(`[renderer.js] Could not access ${relativePath}:`, error.message);
                 }
             }
             
-            // Log final status
-            if (bibEntries.length === 0) {
-                console.log('[renderer.js] No .bib entries loaded from any source');
-                const directoryFiles = await window.electronAPI.invoke('list-directory-files');
-                console.log('[renderer.js] Current working directory contains:', 
-                    directoryFiles?.filter(f => f.isDirectory).map(d => d.name));
-            }
         } catch (error) {
-            console.log('[renderer.js] Error during BibTeX file loading:', error.message);
+            console.error('[renderer.js] Error during BibTeX file loading:', error.message);
         }
         
         // Also load database citations
-        console.log('[renderer.js] Now loading database citations...');
         const dbEntries = await loadDatabaseCitations();
         
         // Combine BibTeX and database entries into the global bibEntries array
         bibEntries.push(...dbEntries);
-        console.log(`[renderer.js] Total entries: ${bibEntries.length} (${bibEntries.length - dbEntries.length} from BibTeX + ${dbEntries.length} from database)`);
 
         // Update window reference for citation renderer plugin
         window.bibEntries = bibEntries;
@@ -3712,9 +3315,7 @@ async function loadBibTeXFiles() {
 
 async function refreshCitationAutocompleteData(context = {}) {
     try {
-        console.log('[renderer.js] Refreshing citation autocomplete data...', context);
         const updatedEntries = await loadBibTeXFiles();
-        console.log(`[renderer.js] Citation autocomplete data refreshed. Entries available: ${updatedEntries.length}`);
     } catch (error) {
         console.error('[renderer.js] Error refreshing citation autocomplete data:', error);
     }
@@ -3725,13 +3326,6 @@ window.refreshCitationAutocompleteData = refreshCitationAutocompleteData;
 
 // Register citation autocomplete provider for Markdown
 function registerCitationAutocomplete() {
-    console.log('[renderer.js] Registering citation autocomplete provider...');
-    console.log('[renderer.js] Current bibEntries count:', bibEntries.length);
-    
-    if (bibEntries.length > 0) {
-        console.log('[renderer.js] Sample entry:', bibEntries[0]);
-    }
-    
     const MAX_SUGGESTIONS = 50;
     const truncate = (text, length = 80) => {
         if (!text) return '';
@@ -3742,30 +3336,18 @@ function registerCitationAutocomplete() {
         triggerCharacters: ['@', '['],
         // Also support manual triggering (Ctrl+Space)
         provideCompletionItems: function(model, position, context, token) {
-            console.log('[Citation Autocomplete] Provider triggered!');
-            console.log('[Citation Autocomplete] Context:', context);
-            console.log('[Citation Autocomplete] Position:', position);
-            
             // Get current line text
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
-            
-            console.log('[Citation Autocomplete] Current line:', currentLine);
-            console.log('[Citation Autocomplete] Text before pointer:', textBeforePointer);
-            
+
             // Look for citation pattern: [@...] where we're after the [@
             const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
-            
-            console.log('[Citation Autocomplete] Citation match:', citationMatch);
-            console.log('[Citation Autocomplete] Available bibEntries count:', bibEntries.length);
-            
+
             if (!citationMatch) {
-                console.log('[Citation Autocomplete] No citation pattern [@... found');
                 return { suggestions: [] };
             }
-            
+
             const searchTerm = citationMatch[1] || '';
-            console.log('[Citation Autocomplete] Search term:', searchTerm);
             
             // Filter entries based on search term
             const searchLower = (searchTerm || '').toLowerCase();
@@ -3871,7 +3453,6 @@ function registerCitationAutocomplete() {
         }
     });
     
-    console.log('[renderer.js] Citation autocomplete provider registered successfully.');
 }
 
 // Global variable to store available files for autocomplete
@@ -3918,7 +3499,6 @@ async function updateAvailableFiles(fileTreeOverride = null) {
             }
         }
         
-        console.log('[renderer.js] Updated available files for autocomplete:', availableFiles.length, 'files');
     } catch (error) {
         console.error('[renderer.js] Error updating available files:', error);
     }
@@ -3926,7 +3506,6 @@ async function updateAvailableFiles(fileTreeOverride = null) {
 
 // Register file link autocomplete provider for Markdown
 function registerFileLinkAutocomplete() {
-    console.log('[renderer.js] Registering file link autocomplete provider...');
     
     monaco.languages.registerCompletionItemProvider('markdown', {
         triggerCharacters: ['['],
@@ -3972,7 +3551,6 @@ function registerFileLinkAutocomplete() {
         }
     });
     
-    console.log('[renderer.js] File link autocomplete provider registered successfully.');
 }
 
 // --- Inline AI Completion Provider (Ghost Text) ---
@@ -3981,7 +3559,6 @@ let inlineCompletionDebounceTimer = null;
 const INLINE_COMPLETION_DELAY = 800; // ms pause before requesting
 
 function registerInlineAICompletions() {
-    console.log('[InlineAI] Registering inline AI completion provider...');
 
     monaco.languages.registerInlineCompletionsProvider('markdown', {
         provideInlineCompletions: async (model, position, context, token) => {
@@ -4053,7 +3630,6 @@ function registerInlineAICompletions() {
         freeInlineCompletions: () => {}
     });
 
-    console.log('[InlineAI] Inline AI completion provider registered.');
 }
 
 // Toggle inline AI completions
@@ -4067,20 +3643,10 @@ window.toggleInlineAICompletions = toggleInlineAICompletions;
 
 // --- Initialize Monaco Editor ---
 async function initializeMonacoEditor() {
-    console.log('[renderer.js] *** initializeMonacoEditor() CALLED ***');
-    console.log('[renderer.js] Initializing Monaco editor...');
-    
-    // Check if editor already exists
-    console.log('[renderer.js] Current editor state:', !!window.editor);
-    console.log('[renderer.js] Current fallbackEditor state:', !!fallbackEditor);
-    console.log('[renderer.js] editorContainer exists:', !!document.getElementById('editor-container'));
-    console.log('[renderer.js] About to require Monaco editor module...');
-    
     // Add error handling for require itself
     try {
         await new Promise((resolve, reject) => {
             require(['vs/editor/editor.main'], async function() {
-                console.log('[renderer.js] Monaco module loaded successfully!');
         
         // Configure Monaco Environment for Electron
         self.MonacoEnvironment = {
@@ -4134,35 +3700,21 @@ async function initializeMonacoEditor() {
             // Otherwise, start with empty content to avoid overwriting user files
             let initialContent = '';
             
-            console.log('[renderer.js] Monaco content decision - restoredFileContent exists:', !!window.restoredFileContent);
-            console.log('[renderer.js] Monaco content decision - hasFileToRestore:', window.hasFileToRestore);
-            console.log('[renderer.js] Monaco content decision - useDefaultContentFallback:', window.useDefaultContentFallback);
-            console.log('[renderer.js] Monaco content decision - currentFilePath:', window.currentFilePath);
-            
             if (window.restoredFileContent) {
                 initialContent = window.restoredFileContent.content;
-                console.log('[renderer.js] ✅ Using restored file content for Monaco initialization');
             } else if (window.currentFilePath || window.hasFileToRestore) {
                 // If there's a current file path or file to restore, start with empty content
                 // The file will be loaded properly by openFileInEditor or restoration process
                 initialContent = '';
-                console.log('[renderer.js] ✅ Using empty content for Monaco initialization (file will be loaded separately)');
             } else if (window.useDefaultContentFallback && !window.currentFilePath) {
                 // Only use default content if explicitly requested AND there's no current file
                 initialContent = '# New Document\n\nStart writing your content here...';
-                console.log('[renderer.js] ✅ Using minimal default content for Monaco initialization (fresh start only)');
             } else {
                 // Fallback: if we reach here, use empty content to avoid overwriting anything
                 if (!initialContent) {
-                    console.log('[renderer.js] ✅ No specific content determined, using empty content to prevent overwrites');
                     initialContent = '';
-                } else {
-                    console.log('[renderer.js] ❌ Using empty content for Monaco initialization (file restoration pending)');
                 }
             }
-            
-            
-            console.log('[renderer.js] *** CREATING MONACO EDITOR ***');
             editor = monaco.editor.create(editorContainer, {
                 value: initialContent,
                 language: 'markdown',
@@ -4207,7 +3759,6 @@ async function initializeMonacoEditor() {
                 // Set currentFileDirectory for image path resolution
                 const lastSlash = window.currentFilePath.lastIndexOf('/');
                 window.currentFileDirectory = lastSlash >= 0 ? window.currentFilePath.substring(0, lastSlash) : '';
-                console.log('[Renderer] Set currentFileDirectory from restored file:', window.currentFileDirectory);
                 // Clear the restored content since we've used it
                 window.restoredFileContent = null;
             }
@@ -4243,7 +3794,6 @@ async function initializeMonacoEditor() {
                     // Generate a local user ID for this session
                     const localUserId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     window.CollaborationIndicators.setLocalUserId(localUserId);
-                    console.log('[renderer] Collaboration indicators initialized');
                 }
             }, 100);
 
@@ -4326,35 +3876,20 @@ async function initializeMonacoEditor() {
                     autoSaveSettings: window.appSettings?.autoSave
                 };
 
-                console.log('[renderer.js] 🔍 Checking autosave initialization:', initStatus);
-                debugLog('info', '🔍 Autosave initialization check', initStatus);
-
                 if (window.initializeAutoSave) {
-                    console.log('[renderer.js] ✅ Calling window.initializeAutoSave()');
-                    debugLog('info', '✅ Calling window.initializeAutoSave()');
                     window.initializeAutoSave();
-                } else {
-                    console.log('[renderer.js] ❌ window.initializeAutoSave not found - autosave.js may not be loaded yet');
                 }
                 
                 // Apply all editor settings using the centralized function
                 applyEditorSettings(settings);
                 
                 // Citation autocomplete setting (separate from general editor settings)
-                console.log('[renderer.js] *** MONACO EDITOR CITATION SETUP ***');
-                console.log('[renderer.js] Settings available:', !!settings);
-                console.log('[renderer.js] Editor settings:', settings?.editor);
-                console.log('[renderer.js] enableCitationAutocomplete:', settings?.editor?.enableCitationAutocomplete);
-                
                 const citationOptions = {};
                 if (settings?.editor?.enableCitationAutocomplete !== false) {
                     citationOptions.autoClosingBrackets = 'never'; // Disable auto-closing brackets for citation autocomplete
                     
                     // Load BibTeX files and register citation autocomplete
-                    console.log('[renderer.js] *** ABOUT TO CALL loadBibTeXFiles() ***');
                     loadBibTeXFiles().then(() => {
-                        console.log('[renderer.js] BibTeX loading completed, registering autocomplete...');
-                        console.log(`[renderer.js] Final bibEntries count: ${bibEntries.length}`);
                         registerCitationAutocomplete();
                     }).catch(error => {
                         console.error('[renderer.js] Error loading BibTeX files:', error);
@@ -4376,13 +3911,10 @@ async function initializeMonacoEditor() {
             }).catch(error => {
                 console.error('[renderer.js] Error loading settings:', error);
                 // Fallback: enable citation autocomplete by default
-                console.log('[renderer.js] Fallback citation loading (settings failed)...');
-                console.log('[renderer.js] *** FALLBACK ABOUT TO CALL loadBibTeXFiles() ***');
                 editor.updateOptions({
                     autoClosingBrackets: 'never'
                 });
                 loadBibTeXFiles().then(() => {
-                    console.log('[renderer.js] Fallback BibTeX loading completed...');
                     registerCitationAutocomplete();
                 }).catch(error => {
                     console.error('[renderer.js] Fallback BibTeX loading error:', error);
@@ -4478,7 +4010,6 @@ async function initializeMonacoEditor() {
 
             // Smart keyboard command - handles images and URLs, lets normal text through
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, async () => {
-                console.log('[Editor] 🎯 Monaco Ctrl+V command triggered - checking for images and URLs');
 
                 try {
                     // First, try to detect if there are images using Electron's clipboard API
@@ -4489,7 +4020,6 @@ async function initializeMonacoEditor() {
 
                     if (imageResult.success) {
                         // We have an image, handle it
-                        console.log('[Editor] ✅ Image detected and saved:', imageResult.relativePath);
 
                         const position = editor.getPosition();
                         editor.executeEdits('paste-image', [{
@@ -4523,7 +4053,6 @@ async function initializeMonacoEditor() {
                     const clipboardText = await navigator.clipboard.readText();
 
                     if (clipboardText && isValidURL(clipboardText)) {
-                        console.log('[Editor] 🔗 URL detected in clipboard:', clipboardText);
 
                         // Normalize the URL (add https:// if missing)
                         let normalizedUrl = clipboardText.trim();
@@ -4563,7 +4092,6 @@ async function initializeMonacoEditor() {
                             endPosition.column
                         ));
 
-                        console.log('[Editor] ✅ URL converted to Markdown link with title:', pageTitle);
 
                         // Update preview
                         if (window.updatePreview) {
@@ -4603,7 +4131,6 @@ async function initializeMonacoEditor() {
                         event.preventDefault();
                         
                         try {
-                            console.log('[Editor] Calling paste-image-from-clipboard IPC...');
                             const result = await window.electronAPI.invoke('paste-image-from-clipboard', {
                                 sourceFilePath: window.currentFilePath || null,
                                 sourceFileDirectory: window.currentFileDirectory || null
@@ -4744,12 +4271,10 @@ async function initializeMonacoEditor() {
                     const files = event.dataTransfer.files;
                     if (!files || files.length === 0) return;
 
-                    console.log(`[Editor] Dropped ${files.length} file(s)`);
 
                     // Process each dropped file
                     for (let i = 0; i < files.length; i++) {
                         const file = files[i];
-                        console.log(`[Editor] Processing dropped file: ${file.name} (${file.type})`);
 
                         // Check if it's an image file
                         if (file.type.startsWith('image/')) {
@@ -4761,11 +4286,9 @@ async function initializeMonacoEditor() {
                                     continue;
                                 }
 
-                                console.log(`[Editor] Copying dropped image: ${filePath}`);
                                 const result = await window.electronAPI.invoke('copy-local-image-file', filePath);
 
                                 if (result.success) {
-                                    console.log('[Editor] ✅ Image copied successfully:', result.relativePath);
 
                                     // Insert the markdown link at cursor position
                                     const position = editor.getPosition();
@@ -4816,7 +4339,6 @@ async function initializeMonacoEditor() {
                                 }
                             }
                         } else {
-                            console.log(`[Editor] Skipping non-image file: ${file.name} (${file.type})`);
                         }
                     }
                 }, false);
@@ -4907,7 +4429,6 @@ async function initializeMonacoEditor() {
                         return;
                     }
 
-                    console.log(`[Citation Drop] Dropped citation: ${sanitizedCitation}`);
 
                     if (editor) {
                         const insertStart = editor.getPosition();
@@ -4950,7 +4471,6 @@ async function initializeMonacoEditor() {
 
                         removeCitationPlaceholderArtifacts();
 
-                        console.log(`[Citation Drop] Inserted citation: ${sanitizedCitation}`);
 
                         if (window.showNotification) {
                             window.showNotification(`Citation inserted: ${citationKey || sanitizedCitation}`, 'success');
@@ -4969,11 +4489,9 @@ async function initializeMonacoEditor() {
 
             // Trigger file restoration if we have restored content but didn't use it during initialization
             if (window.restoredFileContent && !initialContent) {
-                console.log('[renderer.js] Triggering delayed file restoration after Monaco initialization');
                 
                 if (window.restoredFileContent.isPDF) {
                     // For PDFs, directly handle as PDF file instead of trying to load content
-                    console.log('[renderer.js] Restoring PDF file:', window.restoredFileContent.path);
                     handlePDFFile(window.restoredFileContent.path);
                 } else {
                     // For regular text files, load content into editor
@@ -4985,7 +4503,6 @@ async function initializeMonacoEditor() {
             }
 
             // --- Resizing Logic (MOVED HERE) --- 
-            console.log('[renderer.js] Setting up resizer logic...');
             const resizer = document.getElementById('resizer');
             const editorPane = document.getElementById('editor-pane'); 
             const rightPane = document.getElementById('right-pane'); 
@@ -4998,11 +4515,9 @@ async function initializeMonacoEditor() {
             } else {
                 // Attach the initial mousedown listener to the resizer only if elements exist
                 resizer.addEventListener('mousedown', handleMouseDown);
-                console.log('[renderer.js] Vertical resizer event listener attached to:', resizer);
             }
 
             // --- Resizing Logic for Left Resizer ---
-            console.log('[renderer.js] Setting up left resizer logic...');
             const resizerLeft = document.getElementById('sidebar-resizer');
             const leftSidebar = document.getElementById('left-sidebar');
             // editorPane is already defined above for the right resizer
@@ -5014,12 +4529,10 @@ async function initializeMonacoEditor() {
                 console.error('Left resizer or left sidebar not found after Monaco init!');
             } else {
                 resizerLeft.addEventListener('mousedown', handleMouseDownLeft);
-                console.log('[renderer.js] Horizontal (sidebar) resizer event listener attached to:', resizerLeft);
             }
 
             function handleMouseDownLeft(e) {
                 if (!resizerLeft || !leftSidebar) return;
-                console.log('[Resize Left] Mouse Down');
                 isResizingLeft = true;
                 startXLeft = e.clientX;
                 initialSidebarWidth = leftSidebar.offsetWidth;
@@ -5051,7 +4564,6 @@ async function initializeMonacoEditor() {
                 }
 
                 // Apply the new width directly
-                console.log(`[Resize Left] Setting sidebar width: ${newSidebarPx}px`);
                 leftSidebar.style.width = `${newSidebarPx}px`;
                 leftSidebar.style.flexBasis = `${newSidebarPx}px`;
                 leftSidebar.style.flex = `0 0 ${newSidebarPx}px`;
@@ -5066,7 +4578,6 @@ async function initializeMonacoEditor() {
 
             function handleMouseUpLeft() {
                 if (!isResizingLeft) return;
-                console.log('[Resize Left] Mouse Up');
                 isResizingLeft = false;
                 document.removeEventListener('mousemove', handleMouseMoveLeft);
                 document.removeEventListener('mouseup', handleMouseUpLeft);
@@ -5077,7 +4588,6 @@ async function initializeMonacoEditor() {
             // Define handlers within the scope where variables are accessible
             function handleMouseDown(e) {
                 if (!resizer || !editorPane || !rightPane) return; 
-                console.log('[Resize] Mouse Down on resizer');
                 isResizing = true;
                 startX = e.clientX;
                 initialEditorWidth = editorPane.offsetWidth;
@@ -5114,7 +4624,6 @@ async function initializeMonacoEditor() {
                 if (newEditorPx < minWidth) newEditorPx = minWidth;
 
                 // Apply the new widths directly
-                console.log(`[Resize] Setting editor width: ${newEditorPx}px, right width: ${newRightPx}px`);
                 editorPane.style.flex = `0 0 ${newEditorPx}px`;
                 rightPane.style.flex = `0 0 ${newRightPx}px`;
                 
@@ -5131,7 +4640,6 @@ async function initializeMonacoEditor() {
         
             function handleMouseUp() {
                 if (!isResizing) return;
-                console.log('[Resize] Mouse Up, stopping resize');
                 isResizing = false;
                 document.removeEventListener('mousemove', handleMouseMove);
                 document.removeEventListener('mouseup', handleMouseUp);
@@ -5156,7 +4664,6 @@ async function initializeMonacoEditor() {
         }); 
     } catch (requireError) {
         console.error('[renderer.js] Error loading Monaco editor module:', requireError);
-        console.log('[renderer.js] Falling back to textarea editor due to require failure');
         await createFallbackEditor();
     }
 
@@ -5171,19 +4678,15 @@ async function loadAppSettings() {
     try {
         appSettings = await window.electronAPI.invoke('get-settings');
         window.appSettings = appSettings; // Make settings globally available
-        console.log('[renderer.js] Loaded settings - appSettings.currentFile:', appSettings.currentFile);
         // Handle both empty string and null for currentFile
         const currentFileFromSettings = appSettings.currentFile;
-        console.log('[renderer.js] Raw currentFile from settings:', JSON.stringify(currentFileFromSettings), 'type:', typeof currentFileFromSettings);
         
         window.currentFilePath = (currentFileFromSettings && currentFileFromSettings.trim()) ? currentFileFromSettings : null;
-        console.log('[renderer.js] Set window.currentFilePath to:', window.currentFilePath);
         
         // Immediately sync currentFilePath with main process to ensure consistency
         if (window.currentFilePath) {
             try {
                 await window.electronAPI.invoke('set-current-file', window.currentFilePath);
-                console.log('[renderer.js] Synced currentFilePath with main process:', window.currentFilePath);
             } catch (error) {
                 console.error('[renderer.js] Failed to sync currentFilePath with main process:', error);
             }
@@ -5196,13 +4699,11 @@ async function loadAppSettings() {
         
         // Load the last opened file if it exists
         if (window.currentFilePath) {
-            console.log('[renderer.js] Restoring last opened file:', window.currentFilePath);
             
             // Check if it's a PDF file - handle differently
             const isPDF = window.currentFilePath.endsWith('.pdf');
             
             if (isPDF) {
-                console.log('[renderer.js] Last file was a PDF - handling PDF restoration');
                 // For PDFs, we don't need to restore content, just open the PDF viewer
                 window.restoredFileContent = {
                     path: window.currentFilePath,
@@ -5212,7 +4713,6 @@ async function loadAppSettings() {
                 try {
                     const result = await window.electronAPI.invoke('open-file-path', window.currentFilePath);
                     if (result.success) {
-                        console.log('[renderer.js] Successfully restored last opened file');
                         // Store the content to be loaded into editor after Monaco is initialized
                         window.restoredFileContent = {
                             path: window.currentFilePath,
@@ -5240,11 +4740,9 @@ async function loadAppSettings() {
         // 1. Apply theme based on explicit settings ('light' or 'dark')
         if (typeof appSettings.theme === 'string') {
             if (appSettings.theme === 'dark') {
-                console.log('[renderer.js] Applying theme from setting: dark');
                 applyTheme(true);
                 themeAppliedFromSettings = true;
             } else if (appSettings.theme === 'light') {
-                console.log('[renderer.js] Applying theme from setting: light');
                 applyTheme(false);
                 themeAppliedFromSettings = true;
             }
@@ -5255,7 +4753,6 @@ async function loadAppSettings() {
             try {
                 // Assuming 'get-initial-theme' returns boolean 'isDarkMode'
                 const osIsDarkMode = await window.electronAPI.invoke('get-initial-theme');
-                console.log('[renderer.js] Initial OS theme is:', osIsDarkMode ? 'dark' : 'light');
                 applyTheme(osIsDarkMode);
             } catch (osThemeErr) {
                 console.error('[renderer.js] Failed to get initial OS theme:', osThemeErr);
@@ -5272,19 +4769,15 @@ async function loadAppSettings() {
         // 3. NOW set up the listener for future OS changes, only once
         if (!window.electronAPI._themeListenerAttached) { // Use a flag to prevent duplicates
             window.electronAPI.on('theme-updated', (osIsDarkMode) => {
-                console.log('[renderer.js] OS theme updated event received.');
                 // Skip OS updates if user has an explicit 'light' or 'dark' theme selected
                 if (typeof appSettings.theme === 'string' && (appSettings.theme === 'light' || appSettings.theme === 'dark')) {
                     return;
                 }
                 // Apply theme based on OS update if setting is 'auto' or not set
-                console.log('[renderer.js] Applying OS theme update:', osIsDarkMode ? 'dark' : 'light');
                 applyTheme(osIsDarkMode);
             });
             window.electronAPI._themeListenerAttached = true; // Set flag
-            console.log('[renderer.js] OS theme update listener initialized.');
         } else {
-            console.log('[renderer.js] OS theme update listener already attached.');
         }
 
     } catch (err) {
@@ -5292,7 +4785,6 @@ async function loadAppSettings() {
     }
     
     // Initialize modules after Monaco editor is ready
-    console.log('[renderer.js] Initializing modules...');
     
     // Initialize formatting module
     if (window.initializeMarkdownFormatting) {
@@ -5322,13 +4814,11 @@ async function loadAppSettings() {
         }, 100);
     }
     
-    console.log('[renderer.js] Module initialization queued.');
 }
 
 // Handle file opened event (e.g., from File > Open or File Tree click)
 if (window.electronAPI) {
     window.electronAPI.on('file-opened', async (data) => {
-        console.log('[Renderer] Received file-opened event:', data);
         if (data && typeof data.content === 'string' && typeof data.filePath === 'string') {
             await openFileInEditor(data.filePath, data.content);
             // Save current file to settings
@@ -5340,19 +4830,14 @@ if (window.electronAPI) {
 // Helper to open file in editor
 async function refreshCurrentFile() {
     if (!currentFilePath) {
-        console.log('[Renderer] No current file to refresh');
         return;
     }
     
     try {
-        console.log('[Renderer] Refreshing current file:', currentFilePath);
-        console.log('[Renderer] Before refresh - editor content preview:', editor ? editor.getValue().substring(0, 200) : 'No editor');
         
         const result = await window.electronAPI.invoke('open-file-path', currentFilePath);
-        console.log('[Renderer] Open-file result:', result.success ? 'Success' : 'Failed', result.error);
         
         if (result.success) {
-            console.log('[Renderer] New file content preview:', result.content.substring(0, 200));
             
             // Preserve the current cursor position if possible
             const editor = document.querySelector('.editor textarea');
@@ -5370,8 +4855,6 @@ async function refreshCurrentFile() {
                 }, 100);
             }
             
-            console.log('[Renderer] File refreshed successfully');
-            console.log('[Renderer] After refresh - editor content preview:', editor ? editor.getValue().substring(0, 200) : 'No editor');
         } else {
             console.error('[Renderer] Failed to refresh file:', result.error);
         }
@@ -5433,12 +4916,10 @@ function updateAIChatContext(filePath) {
         }
     }
 
-    console.log('[Renderer] AI chat context updated for file:', filePath);
 }
 
 // --- PDF to Markdown Import (Docling) ---
 async function importPdfAsMarkdown() {
-    console.log('[Renderer] Starting PDF import via Docling...');
 
     // Show a loading indicator
     const statusElement = document.getElementById('status-bar-text') || document.getElementById('status-text');
@@ -5452,7 +4933,6 @@ async function importPdfAsMarkdown() {
         const result = await window.electronAPI.invoke('import-pdf-as-markdown');
 
         if (result.cancelled) {
-            console.log('[Renderer] PDF import cancelled by user');
             if (statusElement) statusElement.textContent = originalStatus;
             return;
         }
@@ -5472,7 +4952,6 @@ async function importPdfAsMarkdown() {
         }
 
         // Success - we have markdown content
-        console.log('[Renderer] PDF converted successfully:', result.metadata || {});
 
         // Set the content in the editor
         if (editor && typeof editor.setValue === 'function') {
@@ -5498,7 +4977,6 @@ async function importPdfAsMarkdown() {
         }
 
         // Show success notification
-        console.log(`[Renderer] PDF imported successfully. Suggested filename: ${suggestedName}`);
 
     } catch (error) {
         console.error('[Renderer] Error during PDF import:', error);
@@ -5512,7 +4990,6 @@ window.importPdfAsMarkdown = importPdfAsMarkdown;
 
 // --- Word to Markdown Import (Pandoc) ---
 async function importWordAsMarkdown() {
-    console.log('[Renderer] Starting Word document import via Pandoc...');
 
     // Show a loading indicator
     const statusElement = document.getElementById('status-bar-text') || document.getElementById('status-text');
@@ -5526,7 +5003,6 @@ async function importWordAsMarkdown() {
         const result = await window.electronAPI.invoke('import-word-as-markdown');
 
         if (result.cancelled) {
-            console.log('[Renderer] Word import cancelled by user');
             if (statusElement) statusElement.textContent = originalStatus;
             return;
         }
@@ -5548,7 +5024,6 @@ async function importWordAsMarkdown() {
         }
 
         // Success - we have markdown content
-        console.log('[Renderer] Word document converted successfully:', result.metadata || {});
 
         // Set the content in the editor
         if (editor && typeof editor.setValue === 'function') {
@@ -5574,7 +5049,6 @@ async function importWordAsMarkdown() {
         }
 
         // Show success notification
-        console.log(`[Renderer] Word document imported successfully. Suggested filename: ${suggestedName}`);
 
     } catch (error) {
         console.error('[Renderer] Error during Word import:', error);
@@ -5588,7 +5062,6 @@ window.importWordAsMarkdown = importWordAsMarkdown;
 
 // --- Thumbnail Generation (Nano Banana) ---
 async function generateThumbnail(options = {}) {
-    console.log('[Renderer] Starting thumbnail generation...');
 
     // Show a loading indicator
     const statusElement = document.getElementById('status-bar-text') || document.getElementById('status-text');
@@ -5600,7 +5073,6 @@ async function generateThumbnail(options = {}) {
             const dialogResult = await window.electronAPI.invoke('generate-thumbnail-dialog', window.currentFilePath);
 
             if (dialogResult.cancelled) {
-                console.log('[Renderer] Thumbnail generation cancelled by user');
                 return;
             }
 
@@ -5633,7 +5105,6 @@ async function generateThumbnail(options = {}) {
         }
 
         // Success
-        console.log('[Renderer] Thumbnail generated successfully:', result);
 
         const successCount = result.successful || 1;
         const outputPaths = result.results?.filter(r => r.success).map(r => r.output) || [];
@@ -5646,7 +5117,6 @@ async function generateThumbnail(options = {}) {
         if (outputPaths.length > 0) {
             const pathList = outputPaths.slice(0, 3).join('\n');
             const moreCount = outputPaths.length > 3 ? `\n...and ${outputPaths.length - 3} more` : '';
-            console.log(`[Renderer] Generated thumbnails:\n${pathList}${moreCount}`);
         }
 
         // Reset status after a delay
@@ -5668,7 +5138,6 @@ window.generateThumbnail = generateThumbnail;
 
 // Generate thumbnail for a specific file (called from context menu)
 async function generateThumbnailForFile(filePath) {
-    console.log('[Renderer] Generating thumbnail for file:', filePath);
 
     // Show style selection dialog
     const styles = ['photo', 'illustration', 'abstract', 'minimal'];
@@ -5878,7 +5347,6 @@ async function generateThumbnailForFile(filePath) {
                 }
 
                 // Success
-                console.log('[Renderer] Thumbnail generated:', result);
                 const outputPath = result.results?.[0]?.output || 'thumbnail';
                 showNotification(`Thumbnail generated: ${outputPath.split('/').pop()}`, 'success');
 
@@ -5898,7 +5366,6 @@ async function generateThumbnailForFile(filePath) {
 
 // Generate thumbnails for all markdown files in a folder
 async function generateThumbnailsForFolder(folderPath) {
-    console.log('[Renderer] Generating thumbnails for folder:', folderPath);
 
     // Show style selection dialog (similar to single file but with batch options)
     const styles = ['photo', 'illustration', 'abstract', 'minimal'];
@@ -6118,7 +5585,6 @@ async function generateThumbnailsForFolder(folderPath) {
                 }
 
                 // Success - synthesize mode creates a single thumbnail
-                console.log('[Renderer] Folder thumbnail generated:', result);
                 const outputPath = result.results?.[0]?.output || 'thumbnail';
                 const fileName = outputPath.split('/').pop();
                 showNotification(`Folder thumbnail generated: ${fileName}`, 'success');
@@ -6139,7 +5605,6 @@ async function generateThumbnailsForFolder(folderPath) {
 
 // Generate synthesized thumbnail from multiple selected files
 async function generateThumbnailForMultipleFiles(filePaths) {
-    console.log('[Renderer] Generating synthesized thumbnail for', filePaths.length, 'files');
 
     const styles = ['photo', 'illustration', 'abstract', 'minimal'];
     const styleLabels = {
@@ -6261,7 +5726,6 @@ async function generateThumbnailForMultipleFiles(filePaths) {
                     return;
                 }
 
-                console.log('[Renderer] Synthesized thumbnail generated:', result);
                 const outputPath = result.results?.[0]?.output || 'thumbnail';
                 const fileName = outputPath.split('/').pop();
                 showNotification(`Synthesized thumbnail: ${fileName}`, 'success');
@@ -6389,7 +5853,6 @@ async function openFileInEditor(filePath, content, options = {}) {
 
 // Layout management for PDF-only mode
 function enterPDFOnlyMode() {
-    console.log('[Renderer] Entering PDF-only mode');
     
     // Hide the editor pane
     const editorPane = document.getElementById('editor-pane');
@@ -6447,20 +5910,17 @@ function enterPDFOnlyMode() {
 }
 
 function exitPDFOnlyMode() {
-    console.log('[Renderer] Exiting PDF-only mode');
     
     // Remove PDF keyboard navigation
     if (window.pdfKeyboardListener) {
         document.removeEventListener('keydown', window.pdfKeyboardListener);
         window.pdfKeyboardListener = null;
-        console.log('[PDF] Removed keyboard navigation listeners');
     }
     
     // Remove PDF wheel navigation
     if (window.pdfWheelListener) {
         document.removeEventListener('wheel', window.pdfWheelListener, { passive: false });
         window.pdfWheelListener = null;
-        console.log('[PDF] Removed wheel navigation listeners');
     }
     
     // Restore the editor pane
@@ -6500,7 +5960,6 @@ function exitPDFOnlyMode() {
 
 // Handle PDF file opening
 function handlePDFFile(filePath) {
-    console.log('[Renderer] Handling PDF file:', filePath);
     
     // Clear any existing highlights from previous PDF
     clearAllHighlights();
@@ -6516,20 +5975,17 @@ function handlePDFFile(filePath) {
     window.electronAPI.invoke('check-file-exists', associatedMdFile)
         .then(result => {
             if (result.exists) {
-                console.log('[Renderer] Found associated markdown file:', associatedMdFile);
                 // Exit PDF-only mode and restore normal layout
                 exitPDFOnlyMode();
                 // Load the markdown file in the editor
                 return window.electronAPI.invoke('open-file-path', associatedMdFile);
             } else {
-                console.log('[Renderer] No associated markdown file found - staying in PDF-only mode');
                 // PDF-only mode already entered above
                 return null;
             }
         })
         .then(async markdownResult => {
             if (markdownResult && markdownResult.success) {
-                console.log('[Renderer] Loading associated markdown file in editor');
                 // Set a counter for multiple suppression calls
                 window.suppressPreviewUpdateCount = 2; // For both Monaco event and handleEditableFile call
                 await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
@@ -6552,7 +6008,6 @@ function handlePDFFile(filePath) {
 
 // Handle HTML file opening
 async function handleHTMLFile(filePath, content) {
-    console.log('[Renderer] Handling HTML file:', filePath);
     
     // Check for associated Markdown file
     const baseName = filePath.replace(/\.html?$/i, '');
@@ -6562,7 +6017,6 @@ async function handleHTMLFile(filePath, content) {
     window.electronAPI.invoke('check-file-exists', associatedMdFile)
         .then(exists => {
             if (exists) {
-                console.log('[Renderer] Found associated markdown file:', associatedMdFile);
                 // Load the markdown file in the editor
                 return window.electronAPI.invoke('open-file-path', associatedMdFile);
             }
@@ -6570,13 +6024,11 @@ async function handleHTMLFile(filePath, content) {
         })
         .then(async markdownResult => {
             if (markdownResult && markdownResult.success) {
-                console.log('[Renderer] Loading associated markdown file in editor');
                 // Set suppression counter for both Monaco event and handleEditableFile call
                 window.suppressPreviewUpdateCount = 2;
                 await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
             } else {
                 // No associated markdown, just show HTML in preview only
-                console.log('[Renderer] No associated markdown found, showing HTML in preview only');
                 // Clear the editor since HTML files are not editable
                 if (editor) {
                     editor.setValue('');
@@ -6589,7 +6041,6 @@ async function handleHTMLFile(filePath, content) {
         .catch(async error => {
             console.error('[Renderer] Error checking for associated markdown:', error);
             // Fallback to showing HTML in preview only
-            console.log('[Renderer] Fallback: showing HTML in preview only');
             if (editor) {
                 editor.setValue('');
             }
@@ -6716,7 +6167,6 @@ async function handleEditableFile(filePath, content, fileTypes) {
 
 // Clear the editor
 function clearEditor(suppressPreviewUpdate = false) {
-    console.log('[Renderer] Clearing editor for non-editable file, suppressPreviewUpdate:', suppressPreviewUpdate);
     
     if (editor && typeof editor.setValue === 'function') {
         if (suppressPreviewUpdate) {
@@ -6735,7 +6185,6 @@ function clearEditor(suppressPreviewUpdate = false) {
 
 // Display PDF in preview panel with search functionality
 function displayPDFInPreview(filePath) {
-    console.log('[Renderer] Displaying PDF in preview with search:', filePath);
     const previewContent = document.getElementById('preview-content');
     
     if (previewContent) {
@@ -6807,12 +6256,10 @@ window.pdfViewerState = pdfViewerState;
 
 // Initialize PDF.js viewer
 async function initializePDFViewer(filePath) {
-    console.log('[PDF] Initializing PDF viewer for:', filePath);
     
     try {
         // Wait for PDF.js to be available from CDN
         if (typeof window.pdfjsLib === 'undefined') {
-            console.log('[PDF] Waiting for PDF.js to load...');
             await new Promise((resolve) => {
                 const checkPdfJs = () => {
                     if (typeof window.pdfjsLib !== 'undefined') {
@@ -6848,7 +6295,6 @@ async function initializePDFViewer(filePath) {
         pdfViewerState.doc = pdf;
         pdfViewerState.totalPages = pdf.numPages;
         
-        console.log('[PDF] Loaded PDF with', pdf.numPages, 'pages');
         
         // Hide loading, show canvas
         loadingElement.style.display = 'none';
@@ -6930,9 +6376,7 @@ async function renderPage(pageNum, smooth = true) {
         const textContent = await page.getTextContent();
         
         // Use canvas-based text selection instead of problematic text layer
-        console.log('[PDF] Highlight mode:', pdfViewerState.highlightMode);
         if (!pdfViewerState.highlightMode) {
-            console.log('[PDF] Using canvas-based text selection');
             // Clear any existing text layer
             const textLayerDiv = document.getElementById('pdf-text-layer');
             if (textLayerDiv) {
@@ -6941,10 +6385,8 @@ async function renderPage(pageNum, smooth = true) {
             }
             
             // Initialize canvas text selector
-            console.log('[PDF] Initializing canvas text selector with canvas:', pdfViewerState.canvas);
             if (!canvasTextSelector && typeof window.createCanvasTextSelector === 'function') {
                 canvasTextSelector = window.createCanvasTextSelector();
-                console.log('[PDF] Created canvasTextSelector instance');
             }
             if (canvasTextSelector) {
                 canvasTextSelector.initialize(pdfViewerState.canvas, page, viewport, textContent);
@@ -6982,12 +6424,10 @@ async function renderPage(pageNum, smooth = true) {
         
         updatePageInfo();
         
-        console.log('[PDF] Rendered page', pageNum);
         
     } catch (error) {
         // RenderingCancelledException is expected when navigating quickly between pages
         if (error.name === 'RenderingCancelledException') {
-            console.log('[PDF] Render cancelled for page', pageNum);
         } else {
             console.error('[PDF] Error rendering page:', error);
         }
@@ -7011,7 +6451,6 @@ async function renderPage(pageNum, smooth = true) {
 
 // Display HTML in preview panel
 function displayHTMLInPreview(htmlContent, filePath) {
-    console.log('[Renderer] Displaying HTML in preview:', filePath);
     const previewContent = document.getElementById('preview-content');
     
     if (previewContent) {
@@ -7089,9 +6528,7 @@ let globalPermanentAnnotations = [];
 function initializeCanvasTextSelector() {
     if (typeof window.createCanvasTextSelector === 'function') {
         canvasTextSelector = window.createCanvasTextSelector();
-        console.log('[renderer.js] CanvasTextSelector initialized');
     } else {
-        console.warn('[renderer.js] createCanvasTextSelector function not yet available');
     }
 }
 
@@ -7099,7 +6536,6 @@ function initializeCanvasTextSelector() {
 
 // --- PDF Display and Management Functions ---
 async function displayPDF(filePath) {
-    console.log('[PDF] Displaying PDF:', filePath);
     
     if (typeof window.pdfjsLib === 'undefined') {
         console.error('[PDF] PDF.js not loaded');
@@ -7112,18 +6548,15 @@ async function displayPDF(filePath) {
         const x = (event.clientX - rect.left) * (this.canvas.width / rect.width);
         const y = (event.clientY - rect.top) * (this.canvas.height / rect.height);
         
-        console.log('[CanvasTextSelector] Right click at position:', { x, y });
         
         // Check if clicking on existing highlight/annotation even without current selection
         const clickedHighlight = this.findHighlightAtPoint(x, y);
         const clickedAnnotation = this.findAnnotationAtPoint(x, y);
         
         if (clickedHighlight || clickedAnnotation || (this.currentSelection && this.currentSelection.text)) {
-            console.log('[CanvasTextSelector] Showing context menu');
             // Show context menu at mouse position
             this.showContextMenu(event.clientX, event.clientY, { x, y });
         } else {
-            console.log('[CanvasTextSelector] No selection or existing item at click position');
         }
         
     // Clear and load PDF
@@ -7140,7 +6573,6 @@ async function displayPDF(filePath) {
         const loadingTask = pdfjsLib.getDocument(filePath);
         const pdf = await loadingTask.promise;
         
-        console.log(`[PDF] PDF loaded: ${pdf.numPages} pages`);
         
         // Initialize PDF viewer state
         window.pdfViewerState = {
@@ -7200,11 +6632,9 @@ async function renderPDFPage(pdf, pageNumber, smooth = false) {
         previewContent.innerHTML = '';
         previewContent.appendChild(canvas);
         
-        console.log(`[PDF] Page ${pageNumber} rendered`);
         
     } catch (error) {
         if (error.name === 'RenderingCancelledException') {
-            console.log('[PDF] Rendering cancelled');
         } else {
             console.error('[PDF] Error rendering page:', error);
         }
@@ -7291,19 +6721,6 @@ async function calculateDynamicTextLayerPositioning(page, viewport, canvasRect, 
         // Scale factors based on font size and line spacing relative to expected values
         const horizontalScale = Math.max(0.5, Math.min(0.8, 0.65 * baseScale));
         const verticalScale = Math.max(0.4, Math.min(0.8, (avgFontSize / lineSpacing) * 0.6 * baseScale));
-        
-        console.log('Dynamic text positioning calculated:', {
-            leftMargin,
-            topMargin,
-            avgFontSize,
-            lineSpacing,
-            baseScale,
-            canvasScale,
-            leftOffset,
-            topOffset,
-            horizontalScale,
-            verticalScale
-        });
         
         return {
             leftOffset: Math.round(leftOffset),
@@ -7518,7 +6935,6 @@ function drawHighlights(ctx, pageNum) {
 async function extractAllTextContent() {
     if (!pdfViewerState.doc) return;
     
-    console.log('[PDF] Extracting text content for search...');
     pdfViewerState.textContent = [];
     
     for (let i = 1; i <= pdfViewerState.totalPages; i++) {
@@ -7557,7 +6973,6 @@ async function extractAllTextContent() {
         }
     }
     
-    console.log('[PDF] Text extraction complete');
 }
 
 // Find text coordinates for highlighting
@@ -7607,7 +7022,6 @@ function searchPDF(query) {
         return;
     }
     
-    console.log('[PDF] Searching for:', query);
     
     const matches = [];
     const searchTerm = query.toLowerCase();
@@ -7652,7 +7066,6 @@ function searchPDF(query) {
         }
     });
     
-    console.log('[PDF] Found', matches.length, 'matches with', pdfViewerState.searchHighlights.length, 'highlights');
     updateSearchResults();
     
     // Go to first match
@@ -7773,7 +7186,6 @@ function setupPDFEventHandlers() {
         };
         
         document.addEventListener('keydown', window.pdfKeyboardListener);
-        console.log('[PDF] Added keyboard navigation listeners');
     };
     
     // Add keyboard navigation
@@ -7852,7 +7264,6 @@ function setupPDFEventHandlers() {
         };
         
         document.addEventListener('wheel', window.pdfWheelListener, { passive: false });
-        console.log('[PDF] Added mouse wheel navigation listeners');
     };
     
     // Add wheel navigation
@@ -8033,7 +7444,6 @@ function setupPDFEventHandlers() {
 
 // Display HTML in preview panel
 function displayHTMLInPreview(htmlContent, filePath) {
-    console.log('[Renderer] Displaying HTML in preview:', filePath);
     const previewContent = document.getElementById('preview-content');
     
     if (previewContent) {
@@ -8104,7 +7514,6 @@ function updateFallbackCursorPosition() {
 
 // Fallback editor in case Monaco fails to load
 async function createFallbackEditor() {
-    console.log('[renderer.js] Creating fallback textarea editor...');
     const textarea = document.createElement('textarea');
     fallbackEditor = textarea;
     window.fallbackEditor = textarea; // Make available globally for debugging
@@ -8135,14 +7544,11 @@ async function createFallbackEditor() {
     } else if (!window.hasFileToRestore || window.useDefaultContentFallback) {
         textarea.value = '# Welcome!\n\nStart typing your Markdown here.';
         if (window.useDefaultContentFallback) {
-            console.log('[renderer.js] Using default content for fallback editor (file restoration failed)');
         } else {
-            console.log('[renderer.js] Using default content for fallback editor (fresh start)');
         }
     } else {
         // Fallback: if we reach here with empty content, use default
         textarea.value = '# Welcome!\n\nStart typing your Markdown here.';
-        console.log('[renderer.js] Using default content for fallback editor (no file restoration)');
     }
     textarea.style.width = '100%';
     textarea.style.height = '100%';
@@ -8181,7 +7587,6 @@ async function createFallbackEditor() {
     textarea.addEventListener('keyup', updateFallbackCursorPosition);
     textarea.addEventListener('mouseup', updateFallbackCursorPosition);
     
-    console.log('[renderer.js] Fallback editor created and initialized.');
 }
 
 // --- Global Keyboard Shortcuts ---
@@ -8215,7 +7620,6 @@ document.addEventListener('keydown', async (e) => {
     // Ctrl+S or Cmd+S: Save file
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        console.log('[renderer.js] Save shortcut triggered (Ctrl/Cmd+S)');
         await saveFile();
         return;
     }
@@ -8223,7 +7627,6 @@ document.addEventListener('keydown', async (e) => {
     // Ctrl+Shift+S or Cmd+Shift+S: Save As file
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
         e.preventDefault();
-        console.log('[renderer.js] Save As shortcut triggered (Ctrl/Cmd+Shift+S)');
         await saveAsFile();
         return;
     }
@@ -8319,7 +7722,7 @@ document.addEventListener('keydown', async (e) => {
     // Cmd+Shift+' or Ctrl+Shift+': Invoke Ash (AI Writing Companion) explicitly
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "'") {
         e.preventDefault();
-        console.log('[renderer.js] Explicit Ash invocation triggered (Cmd/Ctrl+Shift+\')');
+
         await invokeAshExplicitly();
         return;
     }
@@ -8328,7 +7731,6 @@ document.addEventListener('keydown', async (e) => {
 // === Explicit Ash Invocation ===
 async function invokeAshExplicitly() {
     try {
-        console.log('[renderer.js] 🎯 Explicit Ash invocation - bypassing all cooldowns and thresholds');
         
         // Store the prompt for "Copy to Chat" functionality
         window.lastExplicitAshPrompt = `Please provide brief writing feedback or encouragement for the current document. The user has explicitly requested your assistance.`;
@@ -8341,32 +7743,18 @@ async function invokeAshExplicitly() {
         
         if (window.aiCompanionManager && window.aiCompanionManager.feedbackSystem) {
             aiCompanion = window.aiCompanionManager;
-            console.log('[renderer.js] Found aiCompanionManager on window');
         } else if (window.aiCompanion && window.aiCompanion.feedbackSystem) {
             aiCompanion = window.aiCompanion;
-            console.log('[renderer.js] Found aiCompanion on window');
         } else if (window.gamificationManager && window.gamificationManager.aiCompanion) {
             aiCompanion = window.gamificationManager.aiCompanion;
-            console.log('[renderer.js] Found aiCompanion via gamificationManager');
         } else {
-            console.warn('[renderer.js] ⚠️ AI companion system not available. Checking window properties:', {
-                aiCompanionManager: !!window.aiCompanionManager,
-                aiCompanion: !!window.aiCompanion,
-                gamificationManager: !!window.gamificationManager,
-                gamificationManagerAiCompanion: !!(window.gamificationManager && window.gamificationManager.aiCompanion),
-                windowKeys: Object.keys(window).filter(k => k.toLowerCase().includes('ai') || k.toLowerCase().includes('companion')),
-                allRelevantKeys: Object.keys(window).filter(k => k.toLowerCase().includes('ai') || k.toLowerCase().includes('companion') || k.toLowerCase().includes('gamif'))
-            });
-            
             // Try to trigger AI companion initialization if gamification manager exists
             if (window.gamificationManager && !window.gamificationManager.aiCompanion) {
-                console.log('[renderer.js] Gamification manager exists but no AI companion - attempting initialization');
                 try {
                     if (typeof window.gamificationManager.initializeAICompanion === 'function') {
                         await window.gamificationManager.initializeAICompanion();
                         if (window.gamificationManager.aiCompanion) {
                             aiCompanion = window.gamificationManager.aiCompanion;
-                            console.log('[renderer.js] ✅ Successfully initialized AI companion via gamification manager');
                         }
                     }
                 } catch (error) {
@@ -8376,7 +7764,6 @@ async function invokeAshExplicitly() {
         }
         
         if (aiCompanion && aiCompanion.feedbackSystem) {
-            console.log('[renderer.js] Using AI companion system for explicit invocation');
             
             // Create analysis object with current content
             const analysis = {
@@ -8390,13 +7777,11 @@ async function invokeAshExplicitly() {
             const feedback = await aiCompanion.feedbackSystem.generateExplicitFeedback(analysis);
             
             if (feedback && feedback.message) {
-                console.log('[renderer.js] ✅ Explicit feedback generated:', feedback.message);
                 // Display feedback in chat pane
                 if (typeof displayAIMessage === 'function') {
                     displayAIMessage(feedback.message, feedback.persona || 'Ash');
                 } else {
                     // Fallback: show in console and try to show in UI
-                    console.log('[renderer.js] 💬 Ash says:', feedback.message);
                     // Convert Markdown to HTML and show in styled notification
                     let convertedMessage = feedback.message;
                     
@@ -8429,10 +7814,8 @@ async function invokeAshExplicitly() {
                     showAsyncStyleFeedback(feedback.message, 'Ash', 'explicit_feedback');
                 }
             } else {
-                console.warn('[renderer.js] ⚠️ No feedback generated from explicit invocation');
             }
         } else {
-            console.warn('[renderer.js] ⚠️ AI companion system not available - trying direct fallback');
             // Fallback: Try to call AI service directly
             try {
                 const response = await window.electronAPI.invoke('ai-chat', {
@@ -8444,11 +7827,9 @@ async function invokeAshExplicitly() {
                 });
                 
                 if (response && response.response) {
-                    console.log('[renderer.js] ✅ Direct AI response:', response.response);
                     if (typeof displayAIMessage === 'function') {
                         displayAIMessage(response.response, 'Ash');
                     } else {
-                        console.log('[renderer.js] 💬 Ash says:', response.response);
                         // Convert Markdown to HTML and show in styled notification
                         let convertedMessage = response.response;
                         
@@ -8481,7 +7862,6 @@ async function invokeAshExplicitly() {
                         showAsyncStyleFeedback(response.response, 'Ash', 'explicit_feedback');
                     }
                 } else {
-                    console.warn('[renderer.js] ⚠️ No response from direct AI call');
                 }
             } catch (error) {
                 console.error('[renderer.js] ❌ Direct AI call failed:', error);
@@ -8494,10 +7874,6 @@ async function invokeAshExplicitly() {
 
 // Initialize the application 
 async function performAppInitialization() {
-    console.log('[renderer.js] *** performAppInitialization() CALLED ***');
-    console.log('[renderer.js] Current timestamp:', new Date().toISOString());
-    console.log('[renderer.js] DOM fully loaded and parsed.');
-    console.log('[renderer.js] window.marked available:', !!window.marked);
     // Load settings before initializing the rest of the app
     await loadAppSettings();
 
@@ -8515,10 +7891,8 @@ async function performAppInitialization() {
     }
     
     // Load citation data early for autocomplete
-    console.log('[renderer.js] *** EARLY CITATION LOADING ***');
     try {
         const allEntries = await loadBibTeXFiles();
-        console.log(`[renderer.js] Loaded ${allEntries.length} citation entries early`);
     } catch (error) {
         console.error('[renderer.js] Error in early citation loading:', error);
     }
@@ -8526,7 +7900,6 @@ async function performAppInitialization() {
     // Since Marked script has 'defer', it should be loaded and executed before DOMContentLoaded.
     // Let's check if window.marked exists now.
     if (window.marked) {
-        console.log('[renderer.js] window.marked found after DOMContentLoaded.');
         markedInstance = window.marked; // Assign the globally loaded instance
         markedInstance.setOptions({
             breaks: true,
@@ -8534,7 +7907,6 @@ async function performAppInitialization() {
             headerIds: false,
             mangle: false
         });
-        console.log('[renderer.js] Marked instance configured.');
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
         
         // Initialize gamification system (may be lazy-loaded later)
@@ -8550,38 +7922,30 @@ async function performAppInitialization() {
                     }, 200);
                 }
 
-                console.log('[renderer.js] Gamification system initialized successfully');
             } catch (error) {
                 console.error('[renderer.js] Error initializing gamification:', error);
             }
         } else if (!window.gamification) {
-            console.log('[renderer.js] GamificationManager deferred to lazy-loader');
         }
         
         // Initialize AI TODO suggestions toolbar button
         const aiTodoBtn = document.getElementById('ai-todo-suggestions-btn');
         if (aiTodoBtn) {
             aiTodoBtn.addEventListener('click', () => {
-                console.log('[renderer.js] AI TODO suggestions button clicked');
                 const gamification = window.gamification || window.gamificationInstance;
                 if (gamification && gamification.todoGamification) {
                     gamification.todoGamification.generateAISuggestionsNow();
                 } else {
-                    console.warn('[renderer.js] TODO gamification not available');
                     if (window.showNotification) {
                         window.showNotification('TODO gamification not initialized. Please open a TODO file first.', 'warning');
                     }
                 }
             });
-            console.log('[renderer.js] AI TODO suggestions button handler added');
         } else {
-            console.warn('[renderer.js] AI TODO suggestions button not found');
         }
         
-        console.log('[renderer.js] *** ABOUT TO CALL initializeMonacoEditor() ***');
         try {
             await initializeMonacoEditor(); // Initialize now that Marked is ready and DOM is loaded
-            console.log('[renderer.js] *** initializeMonacoEditor() COMPLETED SUCCESSFULLY ***');
         } catch (initError) {
             console.error('[renderer.js] *** ERROR in initializeMonacoEditor() ***:', initError);
             console.error('[renderer.js] *** initializeMonacoEditor() ERROR STACK ***:', initError.stack);
@@ -8593,7 +7957,6 @@ async function performAppInitialization() {
         if (window.styleManager && typeof window.styleManager.initialize === 'function') {
             try {
                 await window.styleManager.initialize();
-                console.log('[renderer.js] Style manager initialized successfully');
             } catch (styleError) {
                 console.warn('[renderer.js] Failed to initialize style manager:', styleError);
             }
@@ -8603,7 +7966,6 @@ async function performAppInitialization() {
         if (window.applyTheme && appSettings.theme) {
             try {
                 window.applyTheme(appSettings.theme);
-                console.log('[renderer.js] Theme applied:', appSettings.theme);
             } catch (themeError) {
                 console.warn('[renderer.js] Failed to apply theme:', themeError);
             }
@@ -8614,16 +7976,13 @@ async function performAppInitialization() {
     } else {
         // If Marked is still not loaded here, there's a problem with the script tag or network.
         console.error('[renderer.js] CRITICAL: window.marked not found after DOMContentLoaded. Check Marked script tag in index.html and network connection.');
-        console.log('[renderer.js] Initializing Monaco editor anyway to fix editor issue...');
         
         // Initialize the app even without marked - the Monaco editor should still work
         // Preview functionality will be limited but editor will be functional
         applyLayoutSettings(appSettings.layout); // Apply saved layout settings
         
-        console.log('[renderer.js] *** ABOUT TO CALL initializeMonacoEditor() (no marked fallback) ***');
         try {
             await initializeMonacoEditor(); // Initialize the Monaco editor
-            console.log('[renderer.js] *** initializeMonacoEditor() COMPLETED SUCCESSFULLY (no marked fallback) ***');
         } catch (initError) {
             console.error('[renderer.js] *** ERROR in initializeMonacoEditor() (no marked fallback) ***:', initError);
             console.error('[renderer.js] *** initializeMonacoEditor() ERROR STACK (no marked fallback) ***:', initError.stack);
@@ -8639,25 +7998,20 @@ async function performAppInitialization() {
     if (window.initializeChatFunctionality) {
         window.initializeChatFunctionality();
     } else {
-        console.log('[renderer.js] AI Chat deferred to lazy-loader');
     }
     
     // Initialize Export handlers
     if (window.initializeExportHandlers) {
-        console.log('[renderer.js] Initializing export handlers...');
         window.initializeExportHandlers();
     } else {
-        console.warn('[renderer.js] Export handlers initialization function not found');
     }
 
     // Initialize Git status indicator
-    console.log('[renderer.js] Initializing Git status indicator...');
     initGitStatusIndicator();
 }
 
 // Emergency fallback - create a basic editor immediately if nothing else works
 function createEmergencyEditor() {
-    console.log('[renderer.js] Creating emergency fallback editor...');
     const editorContainer = document.getElementById('editor-container');
     if (editorContainer && !window.editor && !fallbackEditor) {
         const textarea = document.createElement('textarea');
@@ -8714,7 +8068,6 @@ function createEmergencyEditor() {
             dispose: () => {}
         };
         
-        console.log('[renderer.js] Emergency editor created successfully');
         return true;
     }
     return false;
@@ -8723,20 +8076,16 @@ function createEmergencyEditor() {
 // Try emergency editor after a delay if nothing else worked
 setTimeout(() => {
     if (!window.editor && !fallbackEditor) {
-        console.log('[renderer.js] No editor detected after 3 seconds, creating emergency editor...');
         createEmergencyEditor();
     }
 }, 3000);
 
 // Wait for the DOM to be fully loaded before trying to initialize
-console.log('[renderer.js] *** Checking document.readyState:', document.readyState, ' ***');
 if (document.readyState === 'loading') {
     // DOM hasn't finished loading yet
-    console.log('[renderer.js] DOM still loading, waiting for DOMContentLoaded...');
     document.addEventListener('DOMContentLoaded', performAppInitialization);
 } else {
     // DOM has already finished loading
-    console.log('[renderer.js] DOM already loaded, initializing immediately...');
     try {
         performAppInitialization();
     } catch (error) {
@@ -8752,7 +8101,6 @@ function applyLayoutSettings(layout) {
     // Check if we're in editor mode before applying layout
     const editorContent = document.getElementById('editor-content');
     if (!editorContent || !editorContent.classList.contains('active')) {
-        console.log('[renderer.js] Not in editor mode, skipping layout application.');
         return;
     }
     
@@ -8809,7 +8157,6 @@ function applyLayoutSettings(layout) {
     const showPreview = appSettings?.editor?.showPreview !== false;
     if (!showPreview && previewVisible) {
         // Hide preview if setting says it should be hidden
-        console.log('[renderer.js] Hiding preview pane based on saved settings');
         togglePreview();
     }
 }
@@ -8887,7 +8234,6 @@ if (showGitBtn2) {
 const refreshStatsBtn = document.getElementById('refresh-statistics-btn');
 if (refreshStatsBtn) {
     refreshStatsBtn.addEventListener('click', () => {
-        console.log('[Statistics] Refreshing statistics');
         updateStatisticsPane();
     });
 }
@@ -8909,13 +8255,11 @@ if (statsScopeDocument && statsScopeProject) {
 
 // --- New Folder Button Listener ---
 newFolderBtn.addEventListener('click', async () => {
-    console.log('[Renderer] New Folder button clicked');
     await createNewFolder();
 });
 
 // --- Change Directory Button Listener ---
 changeDirectoryBtn.addEventListener('click', async () => {
-    console.log('[Renderer] Change Directory button clicked');
     try {
         const result = await window.electronAPI.invoke('change-working-directory');
         if (result.success) {
@@ -8939,7 +8283,6 @@ changeDirectoryBtn.addEventListener('click', async () => {
 // --- Add Workspace Folder Button Listener ---
 if (addWorkspaceFolderBtn) {
     addWorkspaceFolderBtn.addEventListener('click', async () => {
-        console.log('[Renderer] Add Workspace Folder button clicked');
         try {
             const result = await window.electronAPI.invoke('add-workspace-folder');
             if (result.success) {
@@ -9256,11 +8599,9 @@ window.switchStructureView = switchStructureView;
 window.expandedFolders = window.expandedFolders || new Set();
 
 async function renderFileTree() {
-    console.log('[renderFileTree] Starting file tree render');
     
     // Prevent concurrent renders
     if (isRenderingFileTree) {
-        console.log('[renderFileTree] Already rendering, skipping duplicate render');
         return;
     }
     
@@ -9299,7 +8640,6 @@ async function renderFileTree() {
         if (fileTree && fileTree.children) {
             // Check if this is a multi-folder workspace
             if (fileTree.isMultiFolder) {
-                console.log('[renderFileTree] Rendering multi-folder workspace');
                 // Render each folder as a separate root
                 for (const folderTree of fileTree.children) {
                     // Auto-expand the folder on first load
@@ -9344,7 +8684,6 @@ async function renderFileTree() {
     } finally {
         // Always clear the rendering flag
         isRenderingFileTree = false;
-        console.log('[renderFileTree] Render complete');
     }
 }
 
@@ -9473,7 +8812,6 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         // Add context menu for folders
         nodeElement.addEventListener('contextmenu', (event) => {
             event.preventDefault();
-            console.log(`[renderFileTree] Context menu requested for folder: ${node.path}`);
             showFileContextMenu(event, node.path, true, isWorkspaceFolderRoot);
         });
     } else {
@@ -9494,7 +8832,6 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         nodeElement.addEventListener('click', async (event) => {
             try {
                 const filePath = node.path;
-                console.log(`[renderFileTree] File clicked: ${filePath}, Shift: ${event.shiftKey}, Alt: ${event.altKey}`);
 
                 // Handle multi-select with modifier keys
                 if (event.shiftKey && lastSelectedFile) {
@@ -9512,7 +8849,6 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                             selectedFiles.add(allVisibleFiles[i]);
                         }
                         updateFileSelectionUI();
-                        console.log(`[renderFileTree] Range selected: ${selectedFiles.size} files`);
                     }
                     return; // Don't open the file on Shift+click
                 } else if (event.altKey || event.metaKey) {
@@ -9525,7 +8861,6 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                     }
                     lastSelectedFile = filePath;
                     updateFileSelectionUI();
-                    console.log(`[renderFileTree] Toggle selection: ${selectedFiles.size} files selected`);
                     return; // Don't open the file on Alt/Cmd+click
                 }
 
@@ -9535,45 +8870,30 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                 lastSelectedFile = filePath;
                 updateFileSelectionUI();
 
-                console.log(`[renderFileTree] Opening file: ${filePath}`);
 
                 // Check if it's an image file
                 const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico'];
                 const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
 
                 if (imageExtensions.includes(fileExtension)) {
-                    console.log(`[renderFileTree] Opening image file: ${filePath}`);
                     showImageViewer(filePath);
                 } else {
                     // Trigger autosave before switching files
-                    console.log('[renderFileTree] Autosave check before file switch:', {
-                        hasPerformAutoSave: !!window.performAutoSave,
-                        hasCurrentFilePath: !!window.currentFilePath,
-                        hasUnsavedChanges: window.hasUnsavedChanges,
-                        currentFilePath: window.currentFilePath,
-                        newFilePath: filePath
-                    });
 
                     if (window.performAutoSave && window.currentFilePath && window.hasUnsavedChanges) {
-                        console.log('[renderFileTree] ✅ Triggering autosave before opening new file');
                         try {
                             await window.performAutoSave();
-                            console.log('[renderFileTree] ✅ Autosave completed successfully');
                         } catch (error) {
                             console.warn('[renderFileTree] ❌ Autosave failed during file switch:', error);
                             // Continue with file opening even if autosave fails
                         }
                     } else {
-                        console.log('[renderFileTree] ℹ️ Skipping autosave - conditions not met');
                     }
 
                     // Regular file opening logic
                     const result = await window.electronAPI.invoke('open-file-path', filePath);
-                    console.log(`[renderFileTree] IPC result:`, result);
                     if (result.success && window.openFileInEditor) {
-                        console.log(`[renderFileTree] Calling openFileInEditor with:`, result.filePath, result.content ? result.content.substring(0, 100) + '...' : 'NO CONTENT');
                         await window.openFileInEditor(result.filePath, result.content);
-                        console.log(`[renderFileTree] openFileInEditor completed`);
                     } else {
                         console.error(`[renderFileTree] Failed to open file:`, result.success ? 'openFileInEditor not available' : result.error);
                     }
@@ -9587,7 +8907,6 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         nodeElement.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             const filePath = node.path;
-            console.log(`[renderFileTree] Context menu requested for file: ${filePath}`);
 
             // If right-clicking on a file that's not in the selection, select it
             if (!selectedFiles.has(filePath)) {
@@ -9624,10 +8943,8 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
 function toggleFolderExpansion(folderPath) {
     if (window.expandedFolders.has(folderPath)) {
         window.expandedFolders.delete(folderPath);
-        console.log(`[toggleFolderExpansion] Collapsed folder: ${folderPath}`);
     } else {
         window.expandedFolders.add(folderPath);
-        console.log(`[toggleFolderExpansion] Expanded folder: ${folderPath}`);
     }
 }
 
@@ -9710,7 +9027,6 @@ function initializeTagFiltering() {
     tagSearchInput.addEventListener('input', handleTagSearchInput);
     tagSearchInput.addEventListener('keydown', handleTagSearchKeydown);
     
-    console.log('[TagFiltering] Tag filtering system initialized');
 }
 
 // Handle tag search input (supports both name and tag filtering)
@@ -10437,7 +9753,6 @@ async function showCitationDialog() {
             };
             editor.setPosition(newPosition);
 
-            console.log(`[Citation] Inserted citation: ${citationText}`);
             showNotification(`Inserted citation: ${selectedCitation.key}`, 'success');
 
             // Close dialog
@@ -10485,7 +9800,6 @@ async function preProcessMarkdownTags(node) {
 
     if (markdownPaths.length === 0) return;
 
-    console.log(`[preProcessMarkdownTags] Processing ${markdownPaths.length} markdown files...`);
     const startTime = performance.now();
 
     try {
@@ -10500,7 +9814,6 @@ async function preProcessMarkdownTags(node) {
         }
 
         const elapsed = performance.now() - startTime;
-        console.log(`[preProcessMarkdownTags] Processed ${markdownPaths.length} files in ${elapsed.toFixed(0)}ms`);
     } catch (error) {
         console.warn('[preProcessMarkdownTags] Error batch processing files:', error);
         // Fall back to no tags rather than slow individual processing
@@ -10529,7 +9842,6 @@ function expandCommonFolders(rootNode) {
                         childCount <= 5 ||
                         rootNode.children.length === 1) {
                         window.expandedFolders.add(child.path);
-                        console.log(`[expandCommonFolders] Auto-expanded: ${child.path}`);
                     }
                 }
             }
@@ -10549,9 +9861,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
     if (isFolder && window.electronAPI) {
         try {
             gitInfo = await window.electronAPI.invoke('git-find-repo', filePath);
-            console.log('[showFileContextMenu] Git info:', gitInfo);
         } catch (error) {
-            console.log('[showFileContextMenu] Git check failed:', error);
         }
     }
 
@@ -10718,7 +10028,6 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
 }
 
 async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo = null) {
-    console.log(`[handleFileContextMenuAction] Action: ${action}, Path: ${filePath}, IsFolder: ${isFolder}, GitInfo: ${gitInfo ? 'present' : 'null'}`);
     
     switch (action) {
         case 'open':
@@ -10748,7 +10057,6 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                 filePath.split('/').pop()
             );
             if (newName && newName !== filePath.split('/').pop()) {
-                console.log(`[handleFileContextMenuAction] Renaming ${filePath} to ${newName}`);
                 try {
                     const result = await window.electronAPI.invoke('rename-item', { 
                         filePath: filePath, 
@@ -10778,7 +10086,6 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'delete':
             const confirmDelete = confirm(`Are you sure you want to delete this ${isFolder ? 'folder' : 'file'}?\n\n${filePath}\n\nThis action cannot be undone.`);
             if (confirmDelete) {
-                console.log(`[handleFileContextMenuAction] Deleting ${filePath}`);
                 try {
                     const result = await window.electronAPI.invoke('delete-item', {
                         path: filePath,
@@ -10920,7 +10227,6 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'insert-image':
             if (!isFolder) {
                 try {
-                    console.log(`[handleFileContextMenuAction] Inserting image: ${filePath}`);
 
                     // Check if it's an image file
                     const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif'];
@@ -10935,7 +10241,6 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     const result = await window.electronAPI.invoke('copy-local-image-file', filePath);
 
                     if (result.success) {
-                        console.log('[handleFileContextMenuAction] ✅ Image copied successfully:', result.relativePath);
 
                         // Insert the markdown link at cursor position
                         if (window.editor) {
@@ -10992,7 +10297,6 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'open-in-finder':
             if (isFolder) {
                 try {
-                    console.log(`[handleFileContextMenuAction] Opening folder in system file manager: ${filePath}`);
                     const result = await window.electronAPI.invoke('open-folder-in-finder', filePath);
                     if (!result.success) {
                         showNotification(`Failed to open folder: ${result.error}`, 'error');
@@ -11192,7 +10496,6 @@ function highlightCurrentFileInTree(filePath) {
     }
     
     try {
-        console.log('[highlightCurrentFileInTree] Highlighting file:', filePath);
         
         // Remove existing highlights
         const existingHighlights = fileTreeView.querySelectorAll('.file-tree-item.current-file');
@@ -11206,7 +10509,6 @@ function highlightCurrentFileInTree(filePath) {
             const fileNameSpan = item.querySelector('.file-name');
             if (fileNameSpan && fileNameSpan.textContent === fileName) {
                 item.classList.add('current-file');
-                console.log('[highlightCurrentFileInTree] Highlighted file:', fileName);
                 break;
             }
         }
@@ -11284,13 +10586,11 @@ async function handleCreateFolder() {
     const trimmedName = folderName.trim();
     
     try {
-        console.log(`[Renderer] Creating new folder: ${trimmedName}`);
         
         // Send request to main process to create folder
         const result = await window.electronAPI.invoke('create-folder', trimmedName, folderCreationParentPath);
         
         if (result.success) {
-            console.log(`[Renderer] Folder created successfully: ${result.folderPath}`);
             hideFolderNameModal();
             folderCreationParentPath = ''; // Reset parent path after successful creation
             // Refresh the file tree to show the new folder
@@ -11387,7 +10687,6 @@ async function handleCreateFile() {
         const result = await window.electronAPI.invoke('create-file', trimmedName, relativePath, '');
 
         if (result.success) {
-            console.log(`[Renderer] File created successfully: ${result.filePath}`);
             hideFileNameModal();
             fileCreationParentPath = ''; // Reset parent path after successful creation
             // Refresh the file tree to show the new file
@@ -11435,7 +10734,6 @@ async function loadNavigationHistoryFromSettings() {
                 updateCurrentFileName(navigationHistory[currentHistoryIndex].fileName);
             }
 
-            console.log('[Navigation] Loaded navigation history:', navigationHistory.length, 'entries');
         } else {
             // Ensure navigationHistory is always an array
             if (!Array.isArray(navigationHistory)) {
@@ -11584,7 +10882,6 @@ setupContextMenuListener();
 // Handle new file creation signal from main process
 if (window.electronAPI) {
     window.electronAPI.on('new-file-created', () => {
-        console.log('[Renderer] Received new-file-created signal.');
         
         // Clear current file path so save will trigger save-as dialog
         window.currentFilePath = null;
@@ -11618,27 +10915,21 @@ if (window.electronAPI) {
             switchStructureView('structure');
         }
         
-        console.log('[Renderer] Editor, preview, structure cleared and currentFilePath reset for new file.');
     });
 }
 
 // Listen for signal to refresh the file tree (e.g., after Open Folder)
 if (window.electronAPI) {
-    console.log('[Renderer] Setting up refresh-file-tree signal handler');
     window.electronAPI.on('refresh-file-tree', () => {
-        console.log('[Renderer] Received refresh-file-tree signal.');
-        console.log('[Renderer] Current structure view:', window.currentStructureView);
 
         // Reset the rendered flag to force a refresh
         fileTreeRendered = false;
 
         // Switch to file view (which will trigger renderFileTree if needed)
         if (window.currentStructureView !== 'files') {
-            console.log('[Renderer] Switching to file view');
             switchStructureView('file');
         } else {
             // If already in file view, manually refresh
-            console.log('[Renderer] Already in file view, refreshing tree');
             fileTreeRendered = false;  // Reset flag to force refresh
             debouncedRenderFileTree();
         }
@@ -11646,12 +10937,10 @@ if (window.electronAPI) {
 
     // Listen for settings changes from main process (e.g., working directory change)
     window.electronAPI.on('settings-changed', (changedSettings) => {
-        console.log('[Renderer] Received settings-changed:', changedSettings);
 
         // Update global appSettings with changed values
         if (changedSettings && changedSettings.workingDirectory && window.appSettings) {
             window.appSettings.workingDirectory = changedSettings.workingDirectory;
-            console.log('[Renderer] Updated workingDirectory to:', changedSettings.workingDirectory);
         }
     });
 }
@@ -11661,19 +10950,16 @@ if (window.electronAPI) {
 // Listen for 'set-theme' event via electronAPI, calling applyTheme(theme === 'dark')
 if (window.electronAPI && window.electronAPI.on) {
     window.electronAPI.on('set-theme', (theme) => {
-        console.log('[renderer.js] Received set-theme event:', theme);
         applyTheme(theme === 'dark');
     });
     
     window.electronAPI.on('show-command-palette', () => {
-        console.log('[renderer.js] Received show-command-palette event');
         if (window.showCommandPalette) {
             window.showCommandPalette();
         }
     });
 
     window.electronAPI.on('toggle-visual-markdown', (enabled) => {
-        console.log('[renderer.js] Received toggle-visual-markdown event:', enabled);
         if (typeof window.setVisualMarkdownEnabled === 'function') {
             window.setVisualMarkdownEnabled(enabled);
         } else {
@@ -11682,7 +10968,6 @@ if (window.electronAPI && window.electronAPI.on) {
     });
 
     window.electronAPI.on('toggle-preview-pane', (visible) => {
-        console.log('[renderer.js] Received toggle-preview-pane event:', visible);
         // Sync the previewVisible state with the incoming value
         if (visible !== previewVisible) {
             togglePreview();
@@ -11690,17 +10975,14 @@ if (window.electronAPI && window.electronAPI.on) {
     });
 
     window.electronAPI.on('trigger-import-pdf', async () => {
-        console.log('[renderer.js] Received trigger-import-pdf event');
         await importPdfAsMarkdown();
     });
 
     window.electronAPI.on('trigger-import-word', async () => {
-        console.log('[renderer.js] Received trigger-import-word event');
         await importWordAsMarkdown();
     });
 
     window.electronAPI.on('trigger-generate-thumbnail', async () => {
-        console.log('[renderer.js] Received trigger-generate-thumbnail event');
         await generateThumbnail();
     });
 }
@@ -11722,7 +11004,6 @@ function getCurrentEditorContent() {
 // Listen for 'Save' trigger from main process
 if (window.electronAPI) {
     window.electronAPI.on('trigger-save', async () => {
-        console.log('[Renderer] Received trigger-save.');
         // Use the existing saveFile function which handles all the logic
         await saveFile();
     });
@@ -11731,7 +11012,6 @@ if (window.electronAPI) {
 // Listen for 'Save As' trigger from main process
 if (window.electronAPI) {
     window.electronAPI.on('trigger-save-as', async () => {
-        console.log('[Renderer] Received trigger-save-as.');
         // Use the existing saveAsFile function which handles all the logic
         await saveAsFile();
     });
@@ -11746,7 +11026,6 @@ if (window.electronAPI) {
 
 
     window.electronAPI.on('trigger-export-pdf', async () => {
-        console.log('[Renderer] Received trigger-export-pdf.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -11768,7 +11047,6 @@ if (window.electronAPI) {
             
             const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent, exportOptions);
             if (result.success) {
-                console.log(`[Renderer] PDF exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = 'PDF exported successfully';
@@ -11792,7 +11070,6 @@ if (window.electronAPI) {
     });
 
     window.electronAPI.on('trigger-export-pptx', async () => {
-        console.log('[Renderer] Received trigger-export-pptx.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -11809,7 +11086,6 @@ if (window.electronAPI) {
             
             const result = await window.electronAPI.invoke('perform-export-pptx', content, exportOptions);
             if (result.success) {
-                console.log(`[Renderer] PowerPoint exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = `PowerPoint exported successfully (${result.slidesCreated} slide${result.slidesCreated === 1 ? '' : 's'})`;
@@ -11828,7 +11104,6 @@ if (window.electronAPI) {
     });
 
     window.electronAPI.on('trigger-export-pdf-pandoc', async () => {
-        console.log('[Renderer] Received trigger-export-pdf-pandoc.');
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -11846,7 +11121,6 @@ if (window.electronAPI) {
             
             const result = await window.electronAPI.invoke('perform-export-pdf-pandoc', content, exportOptions);
             if (result.success) {
-                console.log(`[Renderer] PDF with references exported successfully to: ${result.filePath}`);
                 
                 // Enhanced success message
                 let message = 'PDF with references exported successfully';
@@ -11885,8 +11159,6 @@ if (window.electronAPI) {
     
     // Listen for HTML export completion to refresh preview if needed
     window.electronAPI.on('html-export-completed', async (exportedFilePath) => {
-        console.log('[Renderer] ***** HTML EXPORT IPC MESSAGE RECEIVED *****');
-        console.log('[renderer.js] HTML export completed:', exportedFilePath);
         
         // Check if the exported HTML file should refresh the current preview
         let shouldRefresh = false;
@@ -11916,14 +11188,12 @@ if (window.electronAPI) {
         }
         
         if (shouldRefresh) {
-            console.log(`[renderer.js] Refreshing HTML preview for: ${exportedFilePath} (reason: ${refreshReason})`);
             
             try {
                 // Re-read the HTML file content and refresh the preview
                 const response = await window.electronAPI.invoke('read-file', exportedFilePath);
                 if (response.success) {
                     displayHTMLInPreview(response.content, exportedFilePath);
-                    console.log('[renderer.js] HTML preview refreshed successfully');
                 } else {
                     console.error('[renderer.js] Error re-reading HTML file for refresh:', response.error);
                 }
@@ -11931,7 +11201,6 @@ if (window.electronAPI) {
                 console.error('[renderer.js] Error refreshing HTML preview:', error);
             }
         } else {
-            console.log('[renderer.js] HTML export was for different file, not refreshing preview');
         }
     });
 }
@@ -12090,9 +11359,6 @@ async function performAutoSave() {
     
     try {
         const content = editor.getValue();
-        console.log('[renderer.js] Performing auto-save...');
-        console.log('[renderer.js] Auto-save: currentFilePath =', window.currentFilePath);
-        console.log('[renderer.js] Auto-save: content length =', content.length);
         
         // Only save if we have a current file path
         if (window.currentFilePath && window.electronAPI) {
@@ -12103,7 +11369,6 @@ async function performAutoSave() {
                 lastSavedContent = content;
                 window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
-                console.log('[renderer.js] Auto-save completed successfully');
                 showNotification('Auto-saved', 'success', 1000); // Brief notification
                 
                 // Update current file path if this was a save-as operation
@@ -12118,7 +11383,6 @@ async function performAutoSave() {
                 console.warn('[renderer.js] Auto-save failed:', result.error);
             }
         } else {
-            console.log('[renderer.js] Auto-save skipped - no file path or API unavailable');
         }
     } catch (error) {
         console.error('[renderer.js] Auto-save error:', error);
@@ -12260,20 +11524,12 @@ function setPaneVisibilityButtonState(toggleBtn, isVisible, onVariantClass = 'bt
 }
 
 function toggleSidebar() {
-    console.log('[Sidebar Toggle] Function called, current sidebarVisible:', sidebarVisible);
     
     const sidebar = document.getElementById('left-sidebar');
     const resizer = document.getElementById('sidebar-resizer');
     const toggleBtn = document.getElementById('toggle-sidebar-btn');
     
-    console.log('[Sidebar Toggle] Elements found:', {
-        sidebar: !!sidebar,
-        resizer: !!resizer,
-        toggleBtn: !!toggleBtn
-    });
-    
     if (sidebarVisible) {
-        console.log('[Sidebar Toggle] Hiding sidebar');
         sidebar.style.display = 'none';
         resizer.style.display = 'none';
         setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
@@ -12284,9 +11540,7 @@ function toggleSidebar() {
         sidebar.style.maxWidth = '0px';
         sidebar.style.overflow = 'hidden';
         
-        console.log('[Sidebar Toggle] Sidebar hidden, adjusting layout');
     } else {
-        console.log('[Sidebar Toggle] Showing sidebar');
         sidebar.style.display = 'flex';
         resizer.style.display = 'block';
         setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
@@ -12297,13 +11551,11 @@ function toggleSidebar() {
         sidebar.style.maxWidth = '';
         sidebar.style.overflow = '';
         
-        console.log('[Sidebar Toggle] Sidebar shown, restoring layout');
         // Restore normal layout proportions
         refreshLayoutProportions();
     }
     
     sidebarVisible = !sidebarVisible;
-    console.log('[Sidebar Toggle] Toggle complete, new sidebarVisible:', sidebarVisible);
 }
 
 function toggleEditor() {
@@ -12348,7 +11600,6 @@ function togglePreview() {
         refreshLayoutProportions();
     }
     previewVisible = !previewVisible;
-    console.log('[togglePreview] Preview visible:', previewVisible);
 }
 
 // Expose togglePreview globally for command palette
@@ -12769,7 +12020,6 @@ function forceKanbanHorizontalScroll() {
     const kanbanBoard = document.querySelector('.kanban-board');
     
     if (!previewContent || !kanbanBoard) {
-        console.log('[Kanban] Preview content or Kanban board not found for scroll setup');
         return;
     }
     
@@ -12831,7 +12081,6 @@ function forceKanbanHorizontalScroll() {
             setTimeout(() => previewContent.scrollLeft = 0, 1000);
         }, 500);
     } else {
-        console.log('[Kanban] Still no overflow - may need further adjustment');
     }
 }
 
@@ -12841,29 +12090,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const toggleEditorBtn = document.getElementById('toggle-editor-btn');
     const togglePreviewBtn = document.getElementById('toggle-preview-btn');
 
-    console.log('[Pane Toggles] Initializing. Found buttons:', {
-        sidebar: !!toggleSidebarBtn,
-        editor: !!toggleEditorBtn,
-        preview: !!togglePreviewBtn
-    });
-
     if (toggleSidebarBtn) {
         toggleSidebarBtn.addEventListener('click', () => {
-            console.log('[Pane Toggles] Sidebar button clicked');
             toggleSidebar();
         });
     }
 
     if (toggleEditorBtn) {
         toggleEditorBtn.addEventListener('click', () => {
-            console.log('[Pane Toggles] Editor button clicked');
             toggleEditor();
         });
     }
 
     if (togglePreviewBtn) {
         togglePreviewBtn.addEventListener('click', () => {
-            console.log('[Pane Toggles] Preview button clicked');
             togglePreview();
         });
     }
@@ -12871,7 +12111,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Wait for MathJax to be ready
     if (window.MathJax && window.MathJax.startup) {
         window.MathJax.startup.promise = window.MathJax.startup.promise.then(() => {
-            console.log('MathJax is ready');
             // Re-render any existing content that might have math
             const preview = document.getElementById('preview');
             if (preview) {
@@ -12932,7 +12171,6 @@ function applyEditorSettings(settings) {
 
 // --- Manual Save Function ---
 async function saveFile() {
-    console.log('[saveFile] Saving file:', window.currentFilePath);
     
     if (!editor) {
         console.error('[saveFile] No editor available');
@@ -12956,7 +12194,6 @@ async function saveFile() {
             if (result.success) {
                 // Check if content was modified during save (e.g., H1 heading added)
                 if (result.contentChanged && result.updatedContent && editor) {
-                    console.log('[saveFile] Content was modified during save, updating editor');
                     editor.setValue(result.updatedContent);
                     lastSavedContent = result.updatedContent;
                 } else {
@@ -13006,14 +12243,12 @@ async function saveFile() {
                 
                 // Only add H1 heading for truly empty or very short content to avoid modifying existing files
                 const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
-                console.log('[saveFile] About to call addH1HeadingIfNeeded with fileName:', fileName);
                 const trimmedContent = content.trim();
                 const shouldAddHeading = trimmedContent.length === 0 || 
                                        (trimmedContent.length < 50 && !trimmedContent.includes('---') && !trimmedContent.startsWith('#'));
                 
                 if (shouldAddHeading) {
                     const updatedContent = addH1HeadingIfNeeded(content, fileName);
-                    console.log('[saveFile] Content changed?', updatedContent !== content);
                     
                     // Update editor with new content if heading was added
                     if (updatedContent !== content && editor) {
@@ -13034,14 +12269,12 @@ async function saveFile() {
                     }
                 } else {
                     // Skip adding heading for files with existing content or slide markers
-                    console.log('[saveFile] Skipping H1 heading addition for existing content');
                     lastSavedContent = content;
                 }
                 
                 window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
-                console.log('[renderer.js] Manual save-as completed successfully');
                 
                 // Update current file in electron
                 window.electronAPI.invoke('set-current-file', result.filePath);
@@ -13053,7 +12286,6 @@ async function saveFile() {
                 // Also refresh via IPC to ensure file tree is completely up to date
                 try {
                     await window.electronAPI.invoke('refresh-file-tree');
-                    console.log('[renderer.js] File tree refreshed via IPC after save-as');
                 } catch (error) {
                     console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
                 }
@@ -13073,34 +12305,28 @@ async function saveFile() {
 
 // Add H1 heading with filename if needed
 function addH1HeadingIfNeeded(content, fileName) {
-    console.log('[addH1HeadingIfNeeded] Called with:', { content: content.substring(0, 50), fileName });
     
     // Clean the filename for use as a heading
     const cleanFileName = fileName
         .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
         .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize each word
     
-    console.log('[addH1HeadingIfNeeded] Clean filename:', cleanFileName);
     
     // Check if content is empty or very short (just whitespace)
     const trimmedContent = content.trim();
-    console.log('[addH1HeadingIfNeeded] Trimmed content length:', trimmedContent.length);
     
     if (trimmedContent.length === 0) {
         // Empty file - add H1 heading
         const result = `# ${cleanFileName}\n\n`;
-        console.log('[addH1HeadingIfNeeded] Empty file - adding H1:', result);
         return result;
     }
     
     // Check if content already starts with an H1 heading
     const lines = content.split('\n');
     const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
-    console.log('[addH1HeadingIfNeeded] First non-empty line:', firstNonEmptyLine);
     
     if (firstNonEmptyLine && firstNonEmptyLine.trim().startsWith('# ')) {
         // Already has H1 heading - don't add another
-        console.log('[addH1HeadingIfNeeded] Already has H1 - no change');
         return content;
     }
     
@@ -13108,7 +12334,6 @@ function addH1HeadingIfNeeded(content, fileName) {
     if (firstNonEmptyLine && firstNonEmptyLine.trim() === '---') {
         // This is presentation content with slide markers
         // Add H1 as the first slide content, not before the markers
-        console.log('[addH1HeadingIfNeeded] Detected slide markers - adding H1 as first slide');
         
         // Find the end of the first slide marker section
         let insertIndex = 0;
@@ -13123,13 +12348,11 @@ function addH1HeadingIfNeeded(content, fileName) {
         const beforeMarker = lines.slice(0, insertIndex);
         const afterMarker = lines.slice(insertIndex);
         const result = beforeMarker.concat([`# ${cleanFileName}`, ''], afterMarker).join('\n');
-        console.log('[addH1HeadingIfNeeded] Adding H1 after first slide marker:', result.substring(0, 100));
         return result;
     }
     
     // Add H1 heading at the beginning (normal content)
     const result = `# ${cleanFileName}\n\n${content}`;
-    console.log('[addH1HeadingIfNeeded] Adding H1 to beginning:', result.substring(0, 100));
     return result;
 }
 
@@ -13168,14 +12391,12 @@ async function saveAsFile() {
             
             // Only add H1 heading for truly empty or very short content to avoid modifying existing files
             const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
-            console.log('[saveAsFile] About to call addH1HeadingIfNeeded with fileName:', fileName);
             const trimmedContent = content.trim();
             const shouldAddHeading = trimmedContent.length === 0 || 
                                    (trimmedContent.length < 50 && !trimmedContent.includes('---') && !trimmedContent.startsWith('#'));
             
             if (shouldAddHeading) {
                 const updatedContent = addH1HeadingIfNeeded(content, fileName);
-                console.log('[saveAsFile] Content changed?', updatedContent !== content);
                 
                 // Update editor with new content if heading was added
                 if (updatedContent !== content && editor) {
@@ -13196,14 +12417,12 @@ async function saveAsFile() {
                 }
             } else {
                 // Skip adding heading for files with existing content or slide markers
-                console.log('[saveAsFile] Skipping H1 heading addition for existing content');
                 lastSavedContent = content;
             }
             
             window.hasUnsavedChanges = false;
             updateUnsavedIndicator(false);
             showNotification('File saved successfully', 'success');
-            console.log('[renderer.js] Manual save-as completed successfully');
 
             // Refresh file tree to show new file
             if (window.renderFileTree) {
@@ -13216,7 +12435,6 @@ async function saveAsFile() {
             // Also refresh via IPC to ensure file tree is completely up to date
             try {
                 await window.electronAPI.invoke('refresh-file-tree');
-                console.log('[renderer.js] File tree refreshed via IPC after saveAsFile');
             } catch (error) {
                 console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
             }
@@ -13519,7 +12737,6 @@ function generateDefaultFileName(text) {
 }
 
 async function extractTextToNewFile() {
-    console.log('\n=== EXTRACT TEXT TO NEW FILE - SIMPLIFIED APPROACH ===');
     
     if (!editor) {
         console.error('[extractTextToNewFile] No editor available');
@@ -13540,7 +12757,6 @@ async function extractTextToNewFile() {
         return;
     }
     
-    console.log('[extractTextToNewFile] Selected text to extract:', JSON.stringify(selectedText));
     
     // Generate smart default filename from selected text
     const defaultFileName = generateDefaultFileName(selectedText);
@@ -13579,9 +12795,6 @@ async function extractTextToNewFile() {
         const newFilePath = `${workingDirectory}/${cleanFileName}.md`;
         const newFileContent = addH1HeadingIfNeeded(selectedText, cleanFileName);
         
-        console.log('[extractTextToNewFile] Sending to backend - currentFile:', window.currentFilePath);
-        console.log('[extractTextToNewFile] Text to replace:', JSON.stringify(selectedText));
-        console.log('[extractTextToNewFile] Replacement link:', internalLink);
         
         const result = await window.electronAPI.invoke('extract-text-with-replacement', {
             // Original file info
@@ -13596,11 +12809,9 @@ async function extractTextToNewFile() {
         });
         
         if (result.success) {
-            console.log(`[extractTextToNewFile] ✅ Backend successfully handled extraction and replacement!`);
             
             // Reload the modified original file content into the editor
             if (result.updatedOriginalContent) {
-                console.log('[extractTextToNewFile] Reloading updated content into editor...');
                 editor.setValue(result.updatedOriginalContent);
                 lastSavedContent = result.updatedOriginalContent;
                 window.hasUnsavedChanges = false;
@@ -13637,7 +12848,6 @@ async function extractTextToNewFile() {
         showNotification(`Error extracting text: ${error.message}`, 'error');
     }
     
-    console.log('=== EXTRACT TEXT TO NEW FILE - END ===\n');
 }
 
 function setupEditorContextMenu() {
@@ -13658,7 +12868,6 @@ function setupEditorContextMenu() {
         }
     });
     
-    console.log('[setupEditorContextMenu] Added extract-to-file context menu action');
 }
 
 function setupSmartMinimap(editor) {
@@ -13735,7 +12944,6 @@ function setupSmartMinimap(editor) {
         }, 1500);
     });
     
-    console.log('[setupSmartMinimap] Smart minimap configured - shows on scroll with 50% opacity, no layout shifts');
 }
 
 
@@ -13751,138 +12959,7 @@ window.showFilesView = function() {
     }
 };
 
-// === File Tree Keyboard Navigation ===
-let currentSelectedFileIndex = -1;
-let fileTreeItems = [];
-
-function updateFileTreeItems() {
-    const fileTreeView = document.getElementById('file-tree-view');
-    if (!fileTreeView) return;
-    
-    // Get all file items (not folders)
-    fileTreeItems = Array.from(fileTreeView.querySelectorAll('.file-tree-item'))
-        .filter(item => item.classList.contains('file') && !item.classList.contains('folder'));
-    
-    console.log(`[FileTree Navigation] Found ${fileTreeItems.length} navigable files`);
-}
-
-function selectFileTreeItem(index) {
-    if (!fileTreeItems.length) return;
-    
-    // Remove previous selection highlight
-    fileTreeItems.forEach(item => item.classList.remove('keyboard-selected'));
-    
-    // Ensure index is within bounds
-    if (index < 0) index = fileTreeItems.length - 1;
-    if (index >= fileTreeItems.length) index = 0;
-    
-    currentSelectedFileIndex = index;
-    const selectedItem = fileTreeItems[index];
-    
-    // Add selection highlight
-    selectedItem.classList.add('keyboard-selected');
-    
-    // Scroll item into view
-    selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    
-    console.log(`[FileTree Navigation] Selected file: ${selectedItem.dataset.path}`);
-}
-
-function moveFileSelection(direction) {
-    updateFileTreeItems(); // Refresh the list in case files changed
-    
-    if (!fileTreeItems.length) {
-        console.log('[FileTree Navigation] No files to navigate');
-        return;
-    }
-    
-    let newIndex = currentSelectedFileIndex + direction;
-    selectFileTreeItem(newIndex);
-}
-
-function openSelectedFile() {
-    if (currentSelectedFileIndex >= 0 && currentSelectedFileIndex < fileTreeItems.length) {
-        const selectedItem = fileTreeItems[currentSelectedFileIndex];
-        // Trigger click on the selected item
-        selectedItem.click();
-        console.log(`[FileTree Navigation] Opened selected file: ${selectedItem.dataset.path}`);
-    }
-}
-
-function initializeFileTreeNavigation() {
-    console.log('[FileTree Navigation] Initializing keyboard navigation...');
-    
-    // Add keyboard event listener
-    document.addEventListener('keydown', (e) => {
-        // Only handle navigation when file tree is focused or visible
-        const fileTreeView = document.getElementById('file-tree-view');
-        const leftPane = document.querySelector('.left-pane');
-        
-        if (!fileTreeView || !leftPane) return;
-        
-        // Check if left pane is visible (not collapsed)
-        const leftPaneVisible = !leftPane.style.display || leftPane.style.display !== 'none';
-        
-        // Check if user is not typing in an input field
-        const activeElement = document.activeElement;
-        const isInputFocused = activeElement && (
-            activeElement.tagName === 'INPUT' || 
-            activeElement.tagName === 'TEXTAREA' || 
-            activeElement.contentEditable === 'true' ||
-            activeElement.classList.contains('monaco-editor')
-        );
-        
-        if (!leftPaneVisible || isInputFocused) return;
-        
-        // Handle keyboard navigation
-        switch(e.key) {
-            case 'ArrowUp':
-                e.preventDefault();
-                moveFileSelection(-1);
-                break;
-                
-            case 'ArrowDown':
-                e.preventDefault();
-                moveFileSelection(1);
-                break;
-                
-            case 'Enter':
-                e.preventDefault();
-                openSelectedFile();
-                break;
-                
-            case 'Home':
-                e.preventDefault();
-                selectFileTreeItem(0);
-                break;
-                
-            case 'End':
-                e.preventDefault();
-                selectFileTreeItem(fileTreeItems.length - 1);
-                break;
-        }
-    });
-    
-    // Update file list when tree is rendered
-    const originalRenderFileTree = window.renderFileTree;
-    window.renderFileTree = function(...args) {
-        const result = originalRenderFileTree.apply(this, args);
-        // Small delay to ensure DOM is updated
-        setTimeout(() => {
-            updateFileTreeItems();
-            // Reset selection
-            currentSelectedFileIndex = -1;
-        }, 100);
-        return result;
-    };
-}
-
-// Initialize navigation when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeFileTreeNavigation);
-} else {
-    initializeFileTreeNavigation();
-}
+// File tree keyboard navigation extracted to modules/file-tree-nav.js
 window.showNotification = showNotification;
 window.notificationsEnabled = notificationsEnabled;
 window.updateAvailableFiles = updateAvailableFiles;
@@ -13902,7 +12979,6 @@ window.newFile = newFile;
 
 // Handler functions for Ash notification buttons
 function handleAshThanks() {
-    console.log('[renderer.js] User clicked Thanks on Ash feedback');
     // Close the notification
     const notification = document.getElementById('notification');
     if (notification) {
@@ -13911,7 +12987,6 @@ function handleAshThanks() {
 }
 
 function copyAshToChat(response, sender) {
-    console.log('[renderer.js] Copying Ash interaction to chat');
     try {
         // Try to add both the prompt and response to the chat if the chat system is available
         if (window.addMessage && typeof window.addMessage === 'function') {
@@ -13921,12 +12996,10 @@ function copyAshToChat(response, sender) {
                 window.addMessage(window.lastExplicitAshPrompt, 'You');
                 // Add Ash's response
                 window.addMessage(response, sender);
-                console.log('[renderer.js] Successfully added Ash interaction to chat');
                 showNotification('Conversation copied to chat', 'success');
             } else {
                 // Just add the response if we don't have the prompt
                 window.addMessage(response, sender);
-                console.log('[renderer.js] Added Ash response to chat (no prompt available)');
                 showNotification('Response copied to chat', 'success');
             }
         } else {
@@ -13937,7 +13010,6 @@ function copyAshToChat(response, sender) {
                 : `**${sender}:** ${response}`;
             
             navigator.clipboard.writeText(fullConversation).then(() => {
-                console.log('[renderer.js] Ash conversation copied to clipboard');
                 showNotification('Conversation copied to clipboard', 'success');
             }).catch(err => {
                 console.error('[renderer.js] Failed to copy to clipboard:', err);
@@ -14426,7 +13498,6 @@ function initializeCommandPalette() {
                 
                 const index = parseInt(item.getAttribute('data-index'));
                 if (!isNaN(index) && commandPaletteFilteredFiles[index]) {
-                    console.log('[Command Palette] Clicked item at index:', index, 'File:', commandPaletteFilteredFiles[index].name);
                     commandPaletteSelectedIndex = index;
                     openCommandPaletteFile(commandPaletteFilteredFiles[index]);
                 }
@@ -14623,7 +13694,6 @@ function moveSectionDown(heading, index) {
 
 // Image Viewer Function
 function showImageViewer(imagePath) {
-    console.log('[ImageViewer] Opening image:', imagePath);
 
     // Get the main content area
     const mainContent = document.getElementById('main-content');
@@ -14746,7 +13816,6 @@ function showImageViewer(imagePath) {
         `;
         infoPanel.style.opacity = '1';
         
-        console.log('[ImageViewer] Image loaded successfully');
     };
     
     img.onerror = () => {
@@ -14794,7 +13863,6 @@ function showImageViewer(imagePath) {
             setTimeout(() => editor.layout(), 50);
         }
 
-        console.log('[ImageViewer] Image viewer closed - restored editor');
     };
 
     closeBtn.addEventListener('click', closeViewer);

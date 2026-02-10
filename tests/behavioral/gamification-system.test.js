@@ -3,8 +3,11 @@
 
 describe('Gamification System Behavior', () => {
   let mockLocalStorage, mockAudioContext, mockGamification;
-  
+
   beforeEach(() => {
+    // Use fake timers with a fixed date for deterministic toDateString() keys
+    jest.useFakeTimers({ now: new Date('2024-06-15T12:00:00Z') });
+
     // Reset DOM
     document.body.innerHTML = `
       <div id="gamification-panel">
@@ -30,7 +33,7 @@ describe('Gamification System Behavior', () => {
       <div id="notification-container"></div>
     `;
 
-    // Mock localStorage
+    // Mock localStorage — fresh data each test
     mockLocalStorage = {
       data: {},
       getItem: jest.fn((key) => mockLocalStorage.data[key] || null),
@@ -54,12 +57,14 @@ describe('Gamification System Behavior', () => {
       destination: {}
     };
 
+    // Override both global and window localStorage for jsdom compatibility
+    Object.defineProperty(window, 'localStorage', { value: mockLocalStorage, writable: true, configurable: true });
     global.localStorage = mockLocalStorage;
     global.AudioContext = jest.fn(() => mockAudioContext);
-    global.Date = Date;
+  });
 
-    // Reset all mocks
-    jest.clearAllMocks();
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   // Mock simplified gamification system for behavioral testing
@@ -156,6 +161,13 @@ describe('Gamification System Behavior', () => {
       
       this.showNotification(`✅ Writing session completed! ${sessionMinutes} minutes`, 'success');
       this.updateUI();
+    }
+
+    processSessionRewards(duration, wordCount) {
+      // Award sigils based on session duration and words written
+      const minutes = Math.floor(duration / 60000);
+      const sigils = minutes * 10 + wordCount;
+      this.awardSigils(sigils, 'Session rewards');
     }
 
     trackWordCount(wordCount) {
@@ -359,6 +371,7 @@ Catalogue Sigils: ${this.resourceLedger.catalogueSigils}`);
     let gamification;
 
     beforeEach(() => {
+      mockLocalStorage.data = {};
       gamification = new MockGamificationSystem();
     });
 
@@ -440,6 +453,7 @@ Catalogue Sigils: ${this.resourceLedger.catalogueSigils}`);
     let gamification;
 
     beforeEach(() => {
+      mockLocalStorage.data = {};
       gamification = new MockGamificationSystem();
     });
 
@@ -515,6 +529,7 @@ Catalogue Sigils: ${this.resourceLedger.catalogueSigils}`);
     let gamification;
 
     beforeEach(() => {
+      mockLocalStorage.data = {};
       gamification = new MockGamificationSystem();
     });
 
@@ -565,6 +580,7 @@ Catalogue Sigils: ${this.resourceLedger.catalogueSigils}`);
     let gamification;
 
     beforeEach(() => {
+      mockLocalStorage.data = {};
       gamification = new MockGamificationSystem();
     });
 
@@ -616,20 +632,19 @@ Catalogue Sigils: ${this.resourceLedger.catalogueSigils}`);
       expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Catalogue Sigils: 400'));
     });
 
-    test('should show notifications with auto-removal', (done) => {
+    test('should show notifications with auto-removal', () => {
       gamification.showNotification('Test message', 'info');
-      
+
       const notifications = document.querySelectorAll('.notification');
       expect(notifications).toHaveLength(1);
       expect(notifications[0].textContent).toBe('Test message');
       expect(notifications[0].classList.contains('info')).toBe(true);
-      
-      // Check that notification is removed after timeout
-      setTimeout(() => {
-        const notificationsAfter = document.querySelectorAll('.notification');
-        expect(notificationsAfter).toHaveLength(0);
-        done();
-      }, 3100);
+
+      // Advance past the 3-second auto-removal timeout
+      jest.advanceTimersByTime(3100);
+
+      const notificationsAfter = document.querySelectorAll('.notification');
+      expect(notificationsAfter).toHaveLength(0);
     });
   });
 
@@ -637,6 +652,7 @@ Catalogue Sigils: ${this.resourceLedger.catalogueSigils}`);
     let gamification;
 
     beforeEach(() => {
+      mockLocalStorage.data = {};
       gamification = new MockGamificationSystem();
     });
 

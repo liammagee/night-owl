@@ -137,8 +137,6 @@ class WritingGamification {
         this.updateGamificationUI();
         this.startActivityTracking();
         this.initialized = true;
-        
-        console.log('[Gamification] Event listeners and UI initialized');
     }
 
     // === Core Session Management ===
@@ -212,8 +210,6 @@ class WritingGamification {
         this.currentSession = null;
         this.sessionStartTime = null;
         this.updateGamificationUI();
-        
-        console.log('[Gamification] Writing session ended');
     }
 
     // === Focus Session Timer (Pomodoro-inspired) ===
@@ -254,7 +250,6 @@ class WritingGamification {
             this.startWritingSession();
         }
         
-        console.log('[Gamification] Focus session started:', this.focusSession.id);
     }
     
     startFocusTimer() {
@@ -354,7 +349,6 @@ class WritingGamification {
         this.focusSession = null;
         this.updateFocusUI();
         
-        console.log('[Gamification] Focus session completed');
     }
     
     determineFocusSessionType(duration) {
@@ -616,7 +610,6 @@ class WritingGamification {
         dayStats.avgWordsPerMinute = totalMinutes > 0 ? Math.round(dayStats.totalWords / totalMinutes) : 0;
         
         this.saveDailyStats();
-        console.log('[Gamification] Session recorded for', today);
     }
 
     // === Activity Tracking (Flow State Detection) ===
@@ -641,7 +634,6 @@ class WritingGamification {
             }
         });
         
-        console.log('[Gamification] Activity tracking started');
     }
 
     onWritingActivity() {
@@ -665,7 +657,6 @@ class WritingGamification {
             if (this.lastActivityTime && (now - this.lastActivityTime) > this.activityThreshold) {
                 this.currentSession.flowInterruptions++;
                 this.onFlowInterruption(now - this.lastActivityTime);
-                console.log('[Gamification] Flow interruption detected');
             }
         }
         
@@ -778,7 +769,6 @@ class WritingGamification {
     }
     
     startFlowState(timestamp) {
-        console.log('[Gamification] Flow state STARTED');
         this.flowState.isInFlow = true;
         this.flowState.flowStartTime = timestamp;
         this.flowState.flowDuration = 0;
@@ -805,7 +795,6 @@ class WritingGamification {
         
         if (flow.isInFlow && flow.flowStartTime) {
             const duration = timestamp - flow.flowStartTime;
-            console.log('[Gamification] Flow state ENDED, duration:', duration / 1000, 'seconds');
             
             // Only record if it was a significant flow session
             if (duration >= flow.thresholds.minFlowDuration) {
@@ -1200,7 +1189,6 @@ class WritingGamification {
     initializeAudioContext() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            console.log('[Gamification] Audio system initialized');
         } catch (error) {
             console.warn('[Gamification] Audio not supported:', error);
             this.audioSettings.enabled = false;
@@ -1559,7 +1547,6 @@ class WritingGamification {
     
     initializeAnalytics() {
         this.loadAnalyticsData();
-        console.log('[Gamification] Analytics system initialized');
     }
     
     loadAnalyticsData() {
@@ -1752,8 +1739,6 @@ class WritingGamification {
         
         this.analytics.insights = insights;
         this.saveInsights();
-        
-        console.log('[Gamification] Analytics insights updated:', insights);
     }
     
     findBestWritingHour() {
@@ -2056,7 +2041,6 @@ class WritingGamification {
             `🏆 Achievement Unlocked: ${achievement.title}`, 
             'success'
         );
-        console.log('[Gamification] Achievement unlocked:', achievement.title);
     }
 
     // === UI Management ===
@@ -2092,15 +2076,11 @@ class WritingGamification {
     addGamificationControls() {
         // Check if gamification is enabled in settings
         const enabled = this.isGamificationEnabled();
-        console.log('[Gamification] Enabled check result:', enabled);
-        
+
         if (!enabled) {
-            console.log('[Gamification] Gamification disabled in settings - forcing enable for debugging');
             // Temporarily force enable for debugging
             // return;
         }
-        
-        console.log('[Gamification] Proceeding with UI creation');
 
         // Look for existing editor toolbar first
         let editorToolbar = document.getElementById('editor-toolbar');
@@ -2112,8 +2092,6 @@ class WritingGamification {
             console.error('[Gamification] Editor toolbar element not found');
             return;
         }
-
-        console.log('[Gamification] Adding collapsible gamification menu');
 
         // Create collapsible gamification menu
         const gamificationMenu = document.createElement('div');
@@ -2314,9 +2292,7 @@ class WritingGamification {
         gamificationMenu.appendChild(menuContent);
 
         // Insert after editor toolbar
-        console.log('[Gamification] Inserting gamification menu after editor toolbar');
         editorToolbar.insertAdjacentElement('afterend', gamificationMenu);
-        console.log('[Gamification] Gamification menu inserted successfully');
 
         this.controls = controls;
         this.menuContent = menuContent;
@@ -2331,11 +2307,9 @@ class WritingGamification {
         // Add event listeners with error checking
         const toggleButton = document.getElementById('gamification-toggle');
         if (toggleButton) {
-            console.log('[Gamification] Adding click listener to toggle button');
             toggleButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('[Gamification] Toggle button clicked');
                 this.toggleMenu();
             });
         } else {
@@ -2363,7 +2337,6 @@ class WritingGamification {
         const statsButton = document.getElementById('show-stats');
         if (statsButton) {
             statsButton.addEventListener('click', () => {
-                console.log('[Gamification] Stats button clicked');
                 try {
                     this.showStatsModal();
                 } catch (error) {
@@ -2377,7 +2350,6 @@ class WritingGamification {
         const goalsButton = document.getElementById('customize-goals');
         if (goalsButton) {
             goalsButton.addEventListener('click', () => {
-                console.log('[Gamification] Goals button clicked');
                 try {
                     this.showGoalsModal();
                 } catch (error) {
@@ -2390,7 +2362,6 @@ class WritingGamification {
         
         // Focus session controls
         document.getElementById('start-focus-session').addEventListener('click', () => {
-            console.log('[Gamification] Focus button clicked');
             try {
                 this.showFocusSessionSelector();
             } catch (error) {
@@ -2419,23 +2390,15 @@ class WritingGamification {
 
     isGamificationEnabled() {
         // Check global settings for gamification enabled state
-        console.log('[Gamification] Checking enabled state...');
-        console.log('[Gamification] window.appSettings:', window.appSettings);
-        console.log('[Gamification] gamification settings:', window.appSettings?.gamification);
-        
         if (window.appSettings?.gamification?.enabled !== undefined) {
-            console.log('[Gamification] Settings found, enabled:', window.appSettings.gamification.enabled);
             return window.appSettings.gamification.enabled;
         }
         // Default to enabled if no setting exists
-        console.log('[Gamification] No settings found, defaulting to enabled');
         return true;
     }
 
     toggleMenu() {
-        console.log('[Gamification] toggleMenu called, current state:', this.isMenuExpanded);
         this.isMenuExpanded = !this.isMenuExpanded;
-        console.log('[Gamification] New state:', this.isMenuExpanded);
         this.updateMenuState();
         this.saveMenuState();
     }
@@ -2453,20 +2416,17 @@ class WritingGamification {
         
         // Save visibility state
         localStorage.setItem('gamification-menu-visible', JSON.stringify(!isVisible));
-        
-        console.log('[Gamification] Menu visibility toggled:', !isVisible);
+
         return !isVisible;
     }
 
     updateMenuState() {
-        console.log('[Gamification] updateMenuState called, menuContent exists:', !!this.menuContent);
         if (!this.menuContent) {
             console.error('[Gamification] menuContent is null or undefined!');
             return;
         }
         
         const toggle = document.getElementById('gamification-toggle');
-        console.log('[Gamification] Toggle button found:', !!toggle, 'isExpanded:', this.isMenuExpanded);
         
         if (this.isMenuExpanded) {
             this.menuContent.style.display = 'block';
@@ -2493,7 +2453,6 @@ class WritingGamification {
         
         if (gamificationMenu) {
             gamificationMenu.style.display = isVisible ? 'block' : 'none';
-            console.log('[Gamification] Initialized menu visibility:', isVisible);
         }
     }
 
@@ -3208,8 +3167,6 @@ class WritingGamification {
     }
 
     showModal(title, content) {
-        console.log('[Gamification] showModal called with title:', title);
-        
         // Remove any existing modals first
         const existingModals = document.querySelectorAll('.gamification-modal-overlay');
         existingModals.forEach(modal => modal.remove());
@@ -3273,22 +3230,18 @@ class WritingGamification {
             </div>
         `;
         
-        console.log('[Gamification] Modal element created, appending to body');
         document.body.appendChild(modal);
-        console.log('[Gamification] Modal appended, should be visible now');
         
         // Close modal handlers
         const closeBtn = modal.querySelector('.modal-close');
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
-                console.log('[Gamification] Close button clicked');
                 this.closeModal();
             });
         }
         
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
-                console.log('[Gamification] Modal overlay clicked');
                 this.closeModal();
             }
         });
@@ -3298,7 +3251,6 @@ class WritingGamification {
     }
 
     closeModal() {
-        console.log('[Gamification] closeModal called');
         if (this.currentModal) {
             this.currentModal.remove();
             this.currentModal = null;
@@ -3313,8 +3265,6 @@ class WritingGamification {
         // Use existing notification system if available
         if (window.showNotification) {
             window.showNotification(message, type);
-        } else {
-            console.log(`[Gamification] ${type.toUpperCase()}: ${message}`);
         }
     }
 
@@ -3365,10 +3315,9 @@ class WritingGamification {
                 window.challengesUI = this.challengesUI;
             }
             
-            console.log('[Gamification] Collaborative challenges initialized');
         }
     }
-    
+
     updateChallengeProgress() {
         // Update collaborative challenges with current session data
         if (this.collaborativeChallenges) {
@@ -3386,26 +3335,16 @@ class WritingGamification {
         const aiEnabled = settings.ai?.enableWritingCompanion !== false; // Default to enabled
         
         if (!aiEnabled) {
-            console.log('[Gamification] AI Writing Companion disabled in settings');
             return;
         }
-        
-        // Initialize AI Writing Companion if available
-        console.log('[Gamification] Checking AICompanionManager availability:', {
-            AICompanionManagerExists: typeof AICompanionManager !== 'undefined',
-            currentCompanion: !!this.aiCompanion
-        });
         
         // Check for existing global AI companion first to prevent duplicates
         const existingCompanion = window.aiCompanionManager || window.globalAICompanion;
         
         if (existingCompanion) {
-            console.log('[Gamification] Using existing global AICompanionManager to prevent duplicates');
             this.aiCompanion = existingCompanion;
         } else if (typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
-            console.log('[Gamification] Creating new AICompanionManager instance...');
             this.aiCompanion = new AICompanionManager(this);
-            console.log('[Gamification] AICompanionManager created successfully');
             
             // Make it globally available to prevent other systems from creating duplicates
             window.aiCompanionManager = this.aiCompanion;
@@ -3418,11 +3357,6 @@ class WritingGamification {
             
             // Make available globally for debugging
             window.aiCompanion = this.aiCompanion;
-            console.log('[Gamification] Set window.aiCompanion:', {
-                exists: !!window.aiCompanion,
-                hasHandleKeyboardInvocation: !!(window.aiCompanion && typeof window.aiCompanion.handleKeyboardInvocation === 'function'),
-                methods: window.aiCompanion ? Object.getOwnPropertyNames(Object.getPrototypeOf(window.aiCompanion)).filter(name => typeof window.aiCompanion[name] === 'function') : []
-            });
             // if (this.aiFlowDetection) {
             //     window.aiFlowDetection = this.aiFlowDetection;
             // }
@@ -3444,12 +3378,6 @@ class WritingGamification {
                 }
             };
             
-            console.log('[Gamification] AI Writing Companion initialized');
-        } else {
-            console.warn('[Gamification] AICompanionManager not available or already initialized:', {
-                AICompanionManagerExists: typeof AICompanionManager !== 'undefined',
-                alreadyHasCompanion: !!this.aiCompanion
-            });
         }
     }
     
@@ -3460,8 +3388,6 @@ class WritingGamification {
             
             // Make available globally for debugging
             window.todoGamification = this.todoGamification;
-            
-            console.log('[Gamification] TODO Gamification initialized');
         }
     }
 
@@ -3579,14 +3505,11 @@ class WritingGamification {
         
         this.dailyStats[today].focusSessions.push(session);
         this.saveDailyStats();
-        
-        console.log('[Gamification] Focus session saved:', session.id);
     }
     
     // === Library Ledger Progression ===
     
     initializeXPSystem() {
-        console.log('[Gamification] Initializing library ledger...');
         this.xpSystem.currentLevel = this.calculateLevel();
         this.updateXPDisplay();
     }
@@ -3657,9 +3580,6 @@ class WritingGamification {
     }
     
     awardXP(amount, reason = 'General activity') {
-        const resourceLabel = this.lexiconTheme.resourceLabel;
-        console.log(`[Gamification] Harvesting ${amount} ${resourceLabel} for: ${reason}`);
-        
         const oldLevel = this.xpSystem.currentLevel;
         this.xpSystem.currentXP += amount;
         this.xpSystem.currentLevel = this.calculateLevel();
@@ -3689,10 +3609,6 @@ class WritingGamification {
     }
     
     handleLevelUp(oldLevel, newLevel) {
-        const progressionLabel = this.lexiconTheme.progressionLabel;
-        const resourceLabel = this.lexiconTheme.resourceLabel;
-        console.log(`[Gamification] ${progressionLabel} ascends: ${oldLevel} → ${newLevel}`);
-        
         // Award bonus shards for leveling up
         this.xpSystem.currentXP += this.xpSystem.xpGains.levelUp;
         
@@ -3720,6 +3636,7 @@ class WritingGamification {
             return;
         }
 
+        const resourceLabel = this.lexiconTheme.resourceLabel;
         const levelInfo = this.xpSystem.levelDefinitions[newLevel];
         
         const modal = document.createElement('div');
@@ -4632,8 +4549,5 @@ window.initializeGamification = function() {
 // Export for use in other modules
 window.writingGamification = writingGamification;
 window.gamificationInstance = writingGamification;
-
-console.log('[Gamification] Module loaded at', new Date());
-console.log('[Gamification] initializeGamification function available:', typeof window.initializeGamification);
 
 // Module loaded successfully

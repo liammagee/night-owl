@@ -141,7 +141,6 @@ class GamificationManager {
             this.initializeTodoGamification();
         }, 500);
         
-        console.log('[GamificationManager] Gamification system initialized');
     }
 
     initialize() {
@@ -151,22 +150,17 @@ class GamificationManager {
         this.updateGamificationUI(true);
         this.startActivityTracking();
         this.initialized = true;
-
-        console.log('[GamificationManager] Event listeners and UI initialized');
     }
 
     // Setup listener for the maze plugin to connect when it loads
     _setupMazePluginListener() {
         if (!window.TechnePlugins?.on) {
-            console.log('[GamificationManager] TechnePlugins not available, maze plugin listener not set up');
             return;
         }
 
         // Listen for the maze mode becoming available
         window.TechnePlugins.on('mode:available', (mode) => {
             if (mode?.id === 'maze' || mode?.id === 'library') {
-                console.log('[GamificationManager] Maze plugin mode available:', mode.id);
-                // Store reference to the mode for later mounting
                 this._mazeMode = mode;
             }
         });
@@ -174,12 +168,9 @@ class GamificationManager {
         // Check if maze is already loaded
         const mazePlugin = window.TechnePlugins.getPlugin?.('techne-maze');
         if (mazePlugin) {
-            console.log('[GamificationManager] Maze plugin already loaded');
-            // The plugin's BabelMazeView is available globally after plugin init
             if (typeof BabelMazeView !== 'undefined') {
                 this.explorerView = new BabelMazeView(this);
                 this.explorerView.ensureContainer();
-                console.log('[GamificationManager] BabelMazeView connected from plugin');
             }
         }
     }
@@ -259,7 +250,6 @@ class GamificationManager {
         });
 
         this.activityTrackingInitialized = true;
-        console.log('[GamificationManager] Activity tracking started');
     }
 
     updateActivity() {
@@ -361,23 +351,18 @@ class GamificationManager {
 
     checkAchievements() {
         // Check for newly earned achievements
-        console.log('[GamificationManager] Checking achievements');
     }
 
     updateStreaks() {
         // Update writing streaks
-        console.log('[GamificationManager] Updating streaks');
     }
 
     checkGoalCompletion() {
         // Check if goals have been reached
-        console.log('[GamificationManager] Checking goal completion');
     }
 
     awardXP(amount, reason) {
         this.xpSystem.currentXP += amount;
-        const label = this.lexiconTheme.resourceLabel;
-        console.log(`[GamificationManager] Harvested ${amount} ${label} for: ${reason}`);
         this.saveXP();
         this.resourceLedger.lexiconShards = (this.resourceLedger.lexiconShards || 0) + amount;
         this.checkArchitectMilestones();
@@ -420,7 +405,6 @@ class GamificationManager {
 
         this.saveResourceLedger();
 
-        console.log(`[GamificationManager] Minted ${amount} catalogue sigils for: ${reason}`);
 
         if (notify && typeof window !== 'undefined' && window.showNotification) {
             window.showNotification(`📑 +${amount} catalogue sigils: ${reason}`, 'success');
@@ -445,7 +429,6 @@ class GamificationManager {
 
         this.saveResourceLedger();
 
-        console.log(`[GamificationManager] Forged ${amount} architect tokens for: ${reason}`);
 
         if (typeof window !== 'undefined' && window.showNotification) {
             window.showNotification(`🏛 +${amount} architect token${amount !== 1 ? 's' : ''}: ${reason}`, 'success');
@@ -479,14 +462,12 @@ class GamificationManager {
 
     playSound(soundType) {
         if (this.audioSettings.enabled && this.audioContext) {
-            console.log(`[GamificationManager] Playing sound: ${soundType}`);
             // Audio implementation would go here
         }
     }
 
     setupEventListeners() {
         // Setup global event listeners
-        console.log('[GamificationManager] Event listeners setup');
     }
 
     initializeXPSystem() {
@@ -497,7 +478,6 @@ class GamificationManager {
         // Attempt to enrich with recognition data from tutor-bridge
         this._refreshRecognitionLevel();
 
-        console.log('[GamificationManager] Library ledger initialized');
     }
 
     /**
@@ -515,12 +495,10 @@ class GamificationManager {
                     // Use the higher of the two to avoid regression
                     this.xpSystem.currentLevel = Math.max(xpLevel, recognitionLevel);
                     this.xpSystem.recognitionProfile = profile;
-                    console.log(`[GamificationManager] Recognition level: ${recognitionLevel}, XP level: ${xpLevel}, using: ${this.xpSystem.currentLevel}`);
                 }
             }
         } catch (error) {
             // Non-fatal - recognition enrichment is optional
-            console.log('[GamificationManager] Recognition enrichment unavailable:', error.message);
         }
     }
 
@@ -529,7 +507,6 @@ class GamificationManager {
         if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
             try {
                 this.audioContext = new (AudioContext || webkitAudioContext)();
-                console.log('[GamificationManager] Audio context initialized');
             } catch (error) {
                 console.warn('[GamificationManager] Failed to initialize audio context:', error);
             }
@@ -541,7 +518,6 @@ class GamificationManager {
     initializeChallenges() {
         if (typeof CollaborativeChallenges !== 'undefined' && !this.collaborativeChallenges) {
             this.collaborativeChallenges = new CollaborativeChallenges(this);
-            console.log('[GamificationManager] Collaborative challenges initialized');
         }
     }
 
@@ -549,41 +525,25 @@ class GamificationManager {
         const settings = window.appSettings || {};
         const aiEnabled = settings.ai?.enableWritingCompanion !== false;
         
-        console.log('[GamificationManager] Initializing AI Companion:', {
-            aiEnabled,
-            AICompanionManagerAvailable: typeof AICompanionManager !== 'undefined',
-            currentAICompanion: !!this.aiCompanion
-        });
-        
         // Check for existing global AI companion first to prevent duplicates
         const existingCompanion = window.aiCompanionManager || window.aiCompanion || window.globalAICompanion;
-        
+
         if (existingCompanion) {
-            console.log('[GamificationManager] Using existing global AICompanionManager to prevent duplicates');
             this.aiCompanion = existingCompanion;
         } else if (aiEnabled && typeof AICompanionManager !== 'undefined' && !this.aiCompanion) {
             try {
                 this.aiCompanion = new AICompanionManager(this);
                 window.aiCompanion = this.aiCompanion;
-                window.aiCompanionManager = this.aiCompanion; // For compatibility
-                console.log('[GamificationManager] AI Writing Companion initialized successfully');
-                console.log('[GamificationManager] window.aiCompanion available:', typeof window.aiCompanion?.handleKeyboardInvocation === 'function');
+                window.aiCompanionManager = this.aiCompanion;
             } catch (error) {
                 console.error('[GamificationManager] Failed to initialize AI Companion:', error);
             }
-        } else {
-            console.log('[GamificationManager] AI Companion not initialized:', {
-                aiEnabled,
-                AICompanionManagerAvailable: typeof AICompanionManager !== 'undefined',
-                alreadyHasAICompanion: !!this.aiCompanion
-            });
         }
     }
 
     initializeTodoGamification() {
         if (typeof TodoGamification !== 'undefined' && !this.todoGamification) {
             this.todoGamification = new TodoGamification(this);
-            console.log('[GamificationManager] Todo Gamification initialized');
         }
     }
 

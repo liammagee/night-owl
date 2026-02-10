@@ -20,13 +20,6 @@ function cleanAIResponse(response) {
     // Clean up extra whitespace
     response = response.trim();
     
-    // Log if anything was cleaned
-    if (originalResponse !== response) {
-        console.log('[AI Chat] 🧹 Cleaned AI response:');
-        console.log('[AI Chat] 📥 Original:', JSON.stringify(originalResponse));
-        console.log('[AI Chat] 🧽 Cleaned:', JSON.stringify(response));
-    }
-    
     return response;
 }
 // Terminal-style AI Chat like Claude Code
@@ -103,11 +96,7 @@ function addChatMessage(message, sender, isCommand = false, responseInfo = null,
     messageDiv.appendChild(contentSpan);
 
     // Add images if provided
-    console.log('[addChatMessage] 🔍 DEBUG: Images parameter received:', images);
-    console.log('[addChatMessage] 🔍 DEBUG: Images type:', typeof images);
-    console.log('[addChatMessage] 🔍 DEBUG: Images length:', images?.length);
     if (images && images.length > 0) {
-        console.log('[addChatMessage] 🔍 DEBUG: Processing images for display - first image:', images[0]);
         const imagesContainer = document.createElement('div');
         imagesContainer.classList.add('terminal-images');
         imagesContainer.style.cssText = 'margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;';
@@ -253,17 +242,10 @@ async function sendChatMessage() {
         let result;
         
         // Get Dr. Chen's configuration 
-        console.log('[AI Chat] 🔍 aiAssistantConfig available:', !!window.aiAssistantConfig);
-        if (window.aiAssistantConfig) {
-            console.log('[AI Chat] 🔍 Available assistants:', window.aiAssistantConfig.getAllAssistants().map(a => a.key));
-        }
-        
-        const chenConfig = window.aiAssistantConfig ? 
+        const chenConfig = window.aiAssistantConfig ?
             window.aiAssistantConfig.createServiceOptions('chen') : 
             { context: 'chat_dialogue' };
         
-        console.log('[AI Chat] 🎓 Using Dr. Chen configuration:', chenConfig);
-
         // Try to use enhanced handler with file context
         try {
             const fileContext = includeOtherFiles ? await getFileSystemContext() : null;
@@ -315,10 +297,6 @@ async function sendChatMessage() {
             
             addChatMessage(userMessage, 'AI');
         } else if (result.response) {
-            console.log('[AI Chat] 🔍 DEBUG: Full result object:', result);
-            console.log('[AI Chat] 🔍 DEBUG: result.images:', result.images);
-            console.log('[AI Chat] 🔍 DEBUG: images type:', typeof result.images);
-            console.log('[AI Chat] 🔍 DEBUG: images length:', result.images?.length);
             addChatMessage(cleanAIResponse(result.response), 'AI', false, { provider: result.provider, model: result.model }, result.images);
         } else {
             addChatMessage('Received an empty response from the AI.', 'AI');
@@ -401,9 +379,7 @@ function loadEditorToChat() {
         chatInput.focus(); // Focus the chat input
         // Optionally adjust scroll height if textarea content becomes large
         chatInput.scrollTop = chatInput.scrollHeight; 
-        console.log('[AI Chat] Loaded editor content into chat input.');
     } else {
-        console.log('[AI Chat] Editor is empty, nothing to load.');
         // Optionally provide feedback to the user
         if (window.showNotification) {
             window.showNotification('Editor is empty, nothing to load.', 'warning');
@@ -489,7 +465,6 @@ function copyAIResponseToEditor() {
         return;
     }
     
-    console.log('[AI Chat] Copied AI response to cursor position in editor.');
     if (window.showNotification) {
         window.showNotification('AI response inserted at cursor position.', 'success');
     }
@@ -508,14 +483,12 @@ async function clearChat() {
             if (result.error) {
                 console.warn('[AI Chat] Warning: Could not clear AI conversation history:', result.error);
             } else {
-                console.log('[AI Chat] AI conversation history cleared successfully');
-            }
+                }
         } catch (error) {
-            console.warn('[AI Chat] Warning: Could not clear AI conversation history:', error);
+            console.warn('[AI Chat] Could not clear AI conversation history:', error);
         }
-        
+
         chatMessages.innerHTML = '';
-        console.log('[AI Chat] Chat messages cleared.');
         if (window.showNotification) {
             window.showNotification('Chat cleared.', 'success');
         }
@@ -533,25 +506,18 @@ async function restartChat() {
         if (result.error) {
             console.warn('[AI Chat] Warning: Could not clear AI conversation history:', result.error);
         } else {
-            console.log('[AI Chat] AI conversation history cleared successfully');
         }
     } catch (error) {
-        console.warn('[AI Chat] Warning: Could not clear AI conversation history:', error);
+        console.warn('[AI Chat] Could not clear AI conversation history:', error);
     }
-    
-    // Clear messages without confirmation
+
     chatMessages.innerHTML = '';
-    
-    // Show new context message
     await showChatContext();
-    
-    // Focus input
+
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
         chatInput.focus();
     }
-    
-    console.log('[AI Chat] Chat session restarted.');
     if (window.showNotification) {
         window.showNotification('New chat session started.', 'success');
     }
@@ -561,22 +527,11 @@ async function restartChat() {
 function getChatHistory() {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) {
-        console.log('[AI Chat] No chat-messages element found');
         return [];
     }
-    
-    // Debug: log the entire chat container content
-    console.log('[AI Chat] Chat container HTML:', chatMessages.innerHTML);
-    
+
     const messages = Array.from(chatMessages.querySelectorAll('.terminal-message'));
-    console.log(`[AI Chat] Found ${messages.length} terminal messages`);
-    
-    // Debug: log each message element
-    messages.forEach((msg, i) => {
-        console.log(`[AI Chat] Message ${i} classes:`, msg.className);
-        console.log(`[AI Chat] Message ${i} HTML:`, msg.outerHTML);
-    });
-    
+
     // Filter out typing indicators and other non-message elements
     const realMessages = messages.filter(message => {
         // Skip typing indicators or loading messages
@@ -585,8 +540,6 @@ function getChatHistory() {
                !message.textContent.includes('•••') &&
                !message.textContent.includes('typing...');
     });
-    
-    console.log(`[AI Chat] After filtering: ${realMessages.length} real messages`);
     
     return realMessages.map((message, index) => {
         // Get sender from the terminal-prompt
@@ -616,14 +569,10 @@ function getChatHistory() {
             content = messageText.replace(promptText, '').trim();
         }
         
-        // Skip empty messages
         if (!content.trim()) {
-            console.log(`[AI Chat] Skipping empty message ${index}`);
             return null;
         }
-        
-        console.log(`[AI Chat] Message ${index}: sender="${sender}", content="${content.substring(0, 50)}..."`);
-        
+
         return {
             sender: sender,
             content: content.trim(),
@@ -714,12 +663,9 @@ async function formatChatAsMarkdown(history) {
 
 // --- Save Chat History ---
 async function saveChatHistory() {
-    console.log('[AI Chat] Starting saveChatHistory...');
     const history = getChatHistory();
-    console.log('[AI Chat] Retrieved history:', history);
-    
+
     if (history.length === 0) {
-        console.log('[AI Chat] No history found, showing warning');
         if (window.showNotification) {
             window.showNotification('No chat history to save.', 'warning');
         }
@@ -754,7 +700,6 @@ async function saveChatHistory() {
             });
             
             if (result.success) {
-                console.log('[AI Chat] Chat history saved as markdown:', result.filePath);
                 if (window.showNotification) {
                     window.showNotification('Chat saved as markdown file.', 'success');
                 }
@@ -770,25 +715,13 @@ async function saveChatHistory() {
 
 // --- Initialize Chat Functionality ---
 function initializeChatFunctionality() {
-    console.log('[AI Chat] Initializing chat functionality...');
-    
     const chatInput = document.getElementById('chat-input');
     const restartChatBtn = document.getElementById('restart-chat-btn');
     const loadEditorToChatBtn = document.getElementById('load-editor-to-chat-btn');
     const copyAIResponseBtn = document.getElementById('copy-ai-response-btn');
     const saveChatBtn = document.getElementById('save-chat-btn');
     
-    console.log('[AI Chat] Found elements:', {
-        chatInput: !!chatInput,
-        restartBtn: !!restartChatBtn,
-        loadEditorBtn: !!loadEditorToChatBtn,
-        copyBtn: !!copyAIResponseBtn,
-        saveBtn: !!saveChatBtn
-    });
-    
-    // Enter key event listener for chat input
     if (chatInput) {
-        console.log('[AI Chat] Setting up Enter key listener for chat input');
         
         // Initialize autocomplete
         initializeCommandAutocomplete(chatInput);
@@ -802,7 +735,6 @@ function initializeChatFunctionality() {
             
             // Send on Enter key
             if (e.key === 'Enter' || e.keyCode === 13) {
-                console.log('[AI Chat] Enter key detected, sending message...');
                 e.preventDefault(); // Prevent default behavior
                 e.stopPropagation(); // Stop event bubbling
                 sendChatMessageWithCommands();
@@ -859,7 +791,6 @@ function initializeChatFunctionality() {
         console.warn('[AI Chat] Could not find Save Chat button.');
     }
     
-    console.log('[AI Chat] Chat functionality initialized.');
 }
 
 // --- Chat Commands ---
@@ -1346,7 +1277,6 @@ async function handleGenerateImage() {
 // --- Slash Command Functions ---
 async function executeSlashCommand(commandName, commandConfig, fullCommand) {
     try {
-        console.log(`[AI Chat] Executing slash command: ${commandName}`);
         
         // Get current content for analysis
         let content = '';
@@ -1576,7 +1506,6 @@ async function showAvailableCommands() {
 
 // --- Settings Refresh Functions ---
 function clearAICache() {
-    console.log('[AI Chat] Clearing AI cache');
     // Clear any cached provider/model information
     if (window.currentProvider) delete window.currentProvider;
     if (window.currentModel) delete window.currentModel;
@@ -1585,20 +1514,11 @@ function clearAICache() {
 }
 
 async function refreshAISystem() {
-    console.log('[AI Chat] Refreshing AI system');
-    
-    // Clear cache first
     clearAICache();
-    
-    // Reload assistant configurations
     if (window.aiAssistantConfig) {
         await window.aiAssistantConfig.reloadConfiguration();
     }
-    
-    // Refresh chat context to pick up any changes
     await showChatContext();
-    
-    console.log('[AI Chat] AI system refresh complete');
 }
 
 // --- Command Autocomplete System ---
