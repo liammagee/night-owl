@@ -41,6 +41,6 @@ window.TECHNE_PLUGIN_MANIFEST = [
     {
         id: 'techne-theme-manager',
         entry: 'plugins/techne-theme-manager/plugin.js',
-        enabledByDefault: false
+        enabledByDefault: true
     }
 ];

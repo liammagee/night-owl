@@ -14,16 +14,16 @@
 
     const resolve = (rel) => new URL(rel, baseUrl).toString();
 
-    // Detect host app by probing for adapter CSS
-    const HOST_ADAPTERS = [
-        { path: 'styles/techne-theme-adapter.css', bridge: 'bridges/website-bridge.js' },
-        { path: 'css/techne-theme-adapter.css',    bridge: 'bridges/nightowl-bridge.js' }
-    ];
+    // Detect host app: Electron (NightOwl) vs browser (website)
+    const isElectron = typeof window.electronAPI !== 'undefined';
+    const HOST_ADAPTER = isElectron
+        ? { path: 'css/techne-theme-adapter.css',    bridge: 'bridges/nightowl-bridge.js' }
+        : { path: 'styles/techne-theme-adapter.css', bridge: 'bridges/website-bridge.js' };
 
     window.TechnePlugins?.register?.({
         id: 'techne-theme-manager',
         name: 'Techne Theme Manager',
-        version: '0.2.0',
+        version: '0.2.1',
         settings: {
             activeTheme: {
                 type: 'select',
@@ -32,7 +32,9 @@
                     { value: 'light', label: 'Light' },
                     { value: 'dark', label: 'Dark' },
                     { value: 'techne-red', label: 'Techne Red' },
-                    { value: 'techne-orange', label: 'Techne Orange' }
+                    { value: 'techne-orange', label: 'Techne Orange' },
+                    { value: 'solarized-light', label: 'Solarized Light' },
+                    { value: 'solarized-dark', label: 'Solarized Dark' }
                 ],
                 default: 'light'
             },
@@ -47,16 +49,10 @@
             await host.loadCSS(resolve('techne-tokens.css'));
 
             // 2. Load host-provided adapter CSS + bridge script
-            for (const adapter of HOST_ADAPTERS) {
-                try {
-                    const resp = await fetch(adapter.path, { method: 'HEAD' });
-                    if (resp.ok) {
-                        await host.loadCSS(adapter.path);
-                        await host.loadScript(resolve(adapter.bridge));
-                        break;
-                    }
-                } catch (_) { /* not found, try next */ }
-            }
+            try {
+                await host.loadCSS(HOST_ADAPTER.path);
+                await host.loadScript(resolve(HOST_ADAPTER.bridge));
+            } catch (_) { /* adapter not found — tokens still work, just no app-var mapping */ }
 
             // 3. Load theme definitions + core manager
             await host.loadScript(resolve('themes.js'));
