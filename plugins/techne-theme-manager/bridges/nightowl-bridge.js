@@ -19,7 +19,9 @@
     }
 
     function buildMonacoTheme(isDark) {
-        const s = getComputedStyle(document.documentElement);
+        // Read from <body> — it inherits <html> inline styles AND has
+        // body.techne-dark class overrides for vars not in the token map.
+        const s = getComputedStyle(document.body);
         const bg      = s.getPropertyValue('--techne-bg').trim()      || (isDark ? '#1e1e1e' : '#ffffff');
         const surface = s.getPropertyValue('--techne-surface').trim() || (isDark ? '#252526' : '#f8fafc');
         const text    = s.getPropertyValue('--techne-text').trim()    || (isDark ? '#d4d4d4' : '#1e293b');
@@ -93,8 +95,11 @@
             }
         }
 
-        // Apply dynamic Monaco theme from current tokens (runs after CSS vars settle)
-        requestAnimationFrame(() => applyMonacoTheme(isDark));
+        // Apply dynamic Monaco theme — double-rAF ensures CSS class changes
+        // (body.techne-dark) have been recalculated before reading computed styles.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => applyMonacoTheme(isDark));
+        });
 
         // Dispatch NightOwl's native event for other listeners
         window.dispatchEvent(new CustomEvent('app-theme-changed', {

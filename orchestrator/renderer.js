@@ -10828,7 +10828,25 @@ async function addFileToRecents(filePath) {
 let monacoThemeSyncTimer = null;
 let monacoThemeObserver = null;
 
+function getMonacoThemeUtils() {
+    return window.MonacoThemeUtils || null;
+}
+
+function readThemeVar(styles, names, fallback) {
+    if (!styles || !Array.isArray(names)) return fallback;
+    for (const name of names) {
+        const value = String(styles.getPropertyValue(name) || '').trim();
+        if (value) return value;
+    }
+    return fallback;
+}
+
 function normalizeHexColor(rawColor, fallback) {
+    const utils = getMonacoThemeUtils();
+    if (utils && typeof utils.normalizeHexColor === 'function') {
+        return utils.normalizeHexColor(rawColor, fallback);
+    }
+
     const value = String(rawColor || '').trim();
     if (!value) return fallback;
 
@@ -10854,39 +10872,80 @@ function normalizeHexColor(rawColor, fallback) {
 }
 
 function applyHexAlpha(rawColor, alphaHex, fallback) {
+    const utils = getMonacoThemeUtils();
+    if (utils && typeof utils.applyHexAlpha === 'function') {
+        return utils.applyHexAlpha(rawColor, alphaHex, fallback);
+    }
+
     const base = normalizeHexColor(rawColor, fallback).replace('#', '').slice(0, 6);
     const alpha = String(alphaHex || '40').replace('#', '').slice(0, 2).padEnd(2, '0');
     return `#${base}${alpha}`;
 }
 
 function toMonacoTokenColor(rawColor, fallback) {
+    const utils = getMonacoThemeUtils();
+    if (utils && typeof utils.toMonacoTokenColor === 'function') {
+        return utils.toMonacoTokenColor(rawColor, fallback);
+    }
+
     return normalizeHexColor(rawColor, fallback).replace('#', '').slice(0, 6);
 }
 
 function buildMonacoThemeDefinition(language, isDark) {
-    const rootStyles = getComputedStyle(document.documentElement);
+    // Read from <body> so we pick up body.techne-dark overrides
+    // (CSS vars set via class selectors on body don't cascade up to <html>).
+    const rootStyles = getComputedStyle(document.body || document.documentElement);
+    const utils = getMonacoThemeUtils();
+    if (utils && typeof utils.buildMonacoThemeDefinition === 'function') {
+        return utils.buildMonacoThemeDefinition(language, isDark, rootStyles);
+    }
+
     const background = normalizeHexColor(
-        rootStyles.getPropertyValue('--bg-color'),
+        readThemeVar(
+            rootStyles,
+            ['--editor-bg', '--surface', '--panel-bg', '--surface-variant', '--bg-secondary', '--bg-color'],
+            isDark ? '#1e1e1e' : '#ffffff'
+        ),
         isDark ? '#1e1e1e' : '#ffffff'
     );
     const surface = normalizeHexColor(
-        rootStyles.getPropertyValue('--bg-secondary') || rootStyles.getPropertyValue('--surface'),
+        readThemeVar(
+            rootStyles,
+            ['--surface-variant', '--surface-hover', '--bg-secondary', '--toolbar-bg', '--panel-bg', '--bg-color'],
+            isDark ? '#252526' : '#f8fafc'
+        ),
         isDark ? '#252526' : '#f8fafc'
     );
     const foreground = normalizeHexColor(
-        rootStyles.getPropertyValue('--text-color'),
+        readThemeVar(
+            rootStyles,
+            ['--text', '--menu-text-color', '--text-secondary', '--text-color'],
+            isDark ? '#d4d4d4' : '#1e293b'
+        ),
         isDark ? '#d4d4d4' : '#1e293b'
     );
     const muted = normalizeHexColor(
-        rootStyles.getPropertyValue('--text-muted'),
+        readThemeVar(
+            rootStyles,
+            ['--text-muted', '--text-secondary', '--text-color'],
+            isDark ? '#6b6b6b' : '#94a3b8'
+        ),
         isDark ? '#6b6b6b' : '#94a3b8'
     );
     const accent = normalizeHexColor(
-        rootStyles.getPropertyValue('--primary'),
+        readThemeVar(
+            rootStyles,
+            ['--primary', '--primary-500', '--accent-color'],
+            isDark ? '#818cf8' : '#6366f1'
+        ),
         isDark ? '#818cf8' : '#6366f1'
     );
     const border = normalizeHexColor(
-        rootStyles.getPropertyValue('--border-color'),
+        readThemeVar(
+            rootStyles,
+            ['--border', '--toolbar-border', '--button-border', '--border-color'],
+            isDark ? '#3c3c3c' : '#e2e8f0'
+        ),
         isDark ? '#3c3c3c' : '#e2e8f0'
     );
 
