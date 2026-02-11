@@ -183,3 +183,19 @@ body[data-techne-theme] .left-pane {
 body[data-techne-theme] nav#left-sidebar {
     background: var(--techne-surface);
 }
+
+/* Monaco editor canvas — CSS variables don't penetrate the canvas,
+   but these catch the surrounding containers and gutter. */
+body[data-techne-theme] .monaco-editor,
+body[data-techne-theme] .monaco-editor .overflow-guard,
+body[data-techne-theme] .monaco-editor .margin {
+    background-color: var(--techne-bg) !important;
+}
+
+body[data-techne-theme] .monaco-editor .lines-content {
+    background-color: var(--techne-bg) !important;
+}
+
+body[data-techne-theme] .monaco-editor .minimap {
+    background-color: var(--techne-bg) !important;
+}

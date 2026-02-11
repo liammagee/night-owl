@@ -57,8 +57,14 @@
         };
     }
 
-    function applyMonacoTheme(isDark) {
-        if (!window.monaco?.editor) return;
+    function applyMonacoTheme(isDark, attempt) {
+        attempt = attempt || 0;
+        if (!window.monaco?.editor) {
+            if (attempt < 5) {
+                setTimeout(function() { applyMonacoTheme(isDark, attempt + 1); }, 200 * (attempt + 1));
+            }
+            return;
+        }
         try {
             const themeDef = buildMonacoTheme(isDark);
             window.monaco.editor.defineTheme('techne-custom', themeDef);
