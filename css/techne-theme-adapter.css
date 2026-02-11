@@ -199,3 +199,105 @@ body[data-techne-theme] .monaco-editor .lines-content {
 body[data-techne-theme] .monaco-editor .minimap {
     background-color: var(--techne-bg) !important;
 }
+
+/* ── Swiss-theme (techne-theme.css) overrides ────────────────────────────
+   techne-theme.css hardcodes rgba(255,255,255,...) !important for the
+   "Swiss grid" aesthetic. When the theme-manager plugin is active,
+   remap its palette vars + override the glassmorphism backgrounds so
+   dark variants work correctly.
+   Selector: body[data-techne-theme].techne-theme beats body.techne-theme */
+
+body[data-techne-theme].techne-theme {
+    /* Remap the old palette vars to the plugin's token system.
+       This makes ALL downstream var(--techne-white/black/off-white)
+       references in techne-theme.css automatically theme-aware. */
+    --techne-white: var(--techne-bg);
+    --techne-black: var(--techne-text);
+    --techne-off-white: var(--techne-surface);
+
+    background: var(--techne-bg) !important;
+    color: var(--techne-text) !important;
+}
+
+/* Glassmorphism panels — replace hardcoded white rgba */
+body[data-techne-theme].techne-theme #left-sidebar {
+    background: var(--techne-glass-bg) !important;
+    border-right-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme].techne-theme #mode-switcher {
+    background: var(--techne-glass-bg) !important;
+    border-bottom-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme].techne-theme #right-pane {
+    background: var(--techne-glass-bg) !important;
+    border-left-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme].techne-theme #editor-toolbar {
+    background: var(--techne-glass-bg) !important;
+    border-bottom-color: var(--techne-border) !important;
+}
+
+/* Mode buttons */
+body[data-techne-theme].techne-theme .mode-btn {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme].techne-theme .mode-btn:hover {
+    border-color: var(--techne-text) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme].techne-theme .mode-btn.active {
+    background: var(--techne-accent) !important;
+    color: var(--techne-text-inverted) !important;
+    border-color: var(--techne-text) !important;
+}
+
+/* Nav buttons */
+body[data-techne-theme].techne-theme .nav-btn {
+    background: var(--techne-surface) !important;
+    color: var(--techne-text) !important;
+    border-color: var(--techne-border) !important;
+}
+
+/* Toolbar buttons */
+body[data-techne-theme].techne-theme .toolbar-btn {
+    background: var(--techne-surface) !important;
+    color: var(--techne-text) !important;
+    border-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme].techne-theme .toolbar-btn:hover:not(:disabled) {
+    background: var(--techne-surface-elevated) !important;
+}
+
+/* Inputs */
+body[data-techne-theme].techne-theme input[type="text"],
+body[data-techne-theme].techne-theme input[type="search"],
+body[data-techne-theme].techne-theme input[type="number"],
+body[data-techne-theme].techne-theme select,
+body[data-techne-theme].techne-theme textarea {
+    background: var(--techne-surface) !important;
+    color: var(--techne-text) !important;
+    border-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme].techne-theme input:focus,
+body[data-techne-theme].techne-theme select:focus,
+body[data-techne-theme].techne-theme textarea:focus {
+    border-color: var(--techne-accent) !important;
+}
+
+/* Scrollbar */
+body[data-techne-theme].techne-theme ::-webkit-scrollbar-thumb {
+    background: var(--techne-border);
+}
+
+/* Resizers */
+body[data-techne-theme].techne-theme .resizer,
+body[data-techne-theme].techne-theme #sidebar-resizer {
+    background: var(--techne-border) !important;
+}
