@@ -31,8 +31,10 @@
                 options: [
                     { value: 'light', label: 'Light' },
                     { value: 'dark', label: 'Dark' },
-                    { value: 'techne-red', label: 'Techne Red' },
-                    { value: 'techne-orange', label: 'Techne Orange' },
+                    { value: 'techne-red-light', label: 'Red Light' },
+                    { value: 'techne-red-dark', label: 'Red Dark' },
+                    { value: 'techne-orange-light', label: 'Orange Light' },
+                    { value: 'techne-orange-dark', label: 'Orange Dark' },
                     { value: 'solarized-light', label: 'Solarized Light' },
                     { value: 'solarized-dark', label: 'Solarized Dark' }
                 ],
