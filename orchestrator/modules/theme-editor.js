@@ -233,6 +233,9 @@
     for (const [key, value] of Object.entries(vars)) {
       root.style.setProperty(key, value);
     }
+    if (typeof window.syncEditorThemeWithAppTheme === 'function') {
+      window.syncEditorThemeWithAppTheme();
+    }
   }
 
   function clearThemeVars() {
@@ -264,8 +267,9 @@
     // Apply custom vars on top
     applyThemeVars(preset.vars);
 
-    // Sync Monaco
-    if (window.monaco && monaco.editor) {
+    if (typeof window.syncEditorThemeWithAppTheme === 'function') {
+      window.syncEditorThemeWithAppTheme();
+    } else if (window.monaco && monaco.editor) {
       monaco.editor.setTheme(preset.base === 'dark' ? 'markdown-dark' : 'markdown-light');
     }
 
@@ -286,7 +290,9 @@
 
     applyThemeVars(theme.vars);
 
-    if (window.monaco && monaco.editor) {
+    if (typeof window.syncEditorThemeWithAppTheme === 'function') {
+      window.syncEditorThemeWithAppTheme();
+    } else if (window.monaco && monaco.editor) {
       monaco.editor.setTheme(theme.base === 'dark' ? 'markdown-dark' : 'markdown-light');
     }
 
@@ -489,6 +495,9 @@
       dialog.querySelectorAll('.te-color-input').forEach(input => {
         input.addEventListener('input', () => {
           document.documentElement.style.setProperty(input.dataset.var, input.value);
+          if (typeof window.syncEditorThemeWithAppTheme === 'function') {
+            window.syncEditorThemeWithAppTheme();
+          }
         });
       });
 
@@ -501,7 +510,9 @@
           const baseMode = dialog.querySelector('#te-base-mode')?.value || 'dark';
           document.body.classList.remove('dark-mode', 'light-mode');
           document.body.classList.add(baseMode === 'dark' ? 'dark-mode' : 'light-mode');
-          if (window.monaco && monaco.editor) {
+          if (typeof window.syncEditorThemeWithAppTheme === 'function') {
+            window.syncEditorThemeWithAppTheme();
+          } else if (window.monaco && monaco.editor) {
             monaco.editor.setTheme(baseMode === 'dark' ? 'markdown-dark' : 'markdown-light');
           }
         });

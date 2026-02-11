@@ -73,7 +73,9 @@
     }
 
     // Create second Monaco editor
-    const theme = document.body.classList.contains('dark-mode') ? 'vs-dark' : 'markdown-light';
+    const theme = typeof window.getMonacoTheme === 'function'
+      ? window.getMonacoTheme('markdown')
+      : (document.body.classList.contains('dark-mode') ? 'vs-dark' : 'markdown-light');
     secondEditor = window.monaco.editor.create(container, {
       value: '// Open a file here by right-clicking in the file tree → "Open in Split"',
       language: 'plaintext',

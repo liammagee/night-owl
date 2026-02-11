@@ -406,6 +406,12 @@ Content to analyze:
         menuCollapsedDefault: false
     },
     
+    // === Editor Tabs (persisted open tabs) ===
+    editorTabs: {
+        openTabs: [],      // [{ filePath, fileName }] in visual order
+        activeTabIndex: 0
+    },
+
     // === Advanced Developer Options ===
     advanced: {
         enableDebugMode: false,

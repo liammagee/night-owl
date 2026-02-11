@@ -405,7 +405,9 @@
         automaticLayout: true,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
-        theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs'
+        theme: typeof window.getMonacoTheme === 'function'
+          ? window.getMonacoTheme('markdown')
+          : (document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs')
       });
 
       diffEditor.setModel({ original: originalModel, modified: modifiedModel });
@@ -912,7 +914,9 @@
         renderSideBySide: true,
         automaticLayout: true,
         minimap: { enabled: false },
-        theme: document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs'
+        theme: typeof window.getMonacoTheme === 'function'
+          ? window.getMonacoTheme('markdown')
+          : (document.body.classList.contains('dark-mode') ? 'vs-dark' : 'vs')
       });
       diffEditor.setModel({ original: originalModel, modified: modifiedModel });
       overlay._diffEditor = diffEditor;

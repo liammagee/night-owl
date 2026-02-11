@@ -2824,6 +2824,98 @@
             white-space: nowrap;
             border: 0;
         }
+
+        /* --- Editor Tabs --- */
+        #editor-tabs-bar {
+            display: none;
+            height: 32px;
+            min-height: 32px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            background: var(--surface-variant, #f0f0f0);
+            border-bottom: 1px solid var(--border, #ddd);
+            align-items: stretch;
+            padding: 0;
+            gap: 0;
+            user-select: none;
+        }
+        #editor-tabs-bar::-webkit-scrollbar {
+            height: 3px;
+        }
+        #editor-tabs-bar::-webkit-scrollbar-thumb {
+            background: var(--text-muted, #999);
+            border-radius: 2px;
+        }
+        .editor-tab {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0 8px;
+            max-width: 180px;
+            min-width: 0;
+            height: 100%;
+            border-right: 1px solid var(--border, #ddd);
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-muted, #666);
+            white-space: nowrap;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .editor-tab:hover {
+            background: rgba(128, 128, 128, 0.1);
+        }
+        .editor-tab.active {
+            background: var(--surface, #fff);
+            color: var(--text, #333);
+            box-shadow: inset 0 -2px 0 var(--primary, #4a9eff);
+        }
+        .editor-tab-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .editor-tab-dirty {
+            color: var(--primary, #4a9eff);
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+        .editor-tab-close {
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0;
+            padding: 2px 3px;
+            border-radius: 3px;
+            flex-shrink: 0;
+            transition: opacity 0.1s;
+        }
+        .editor-tab:hover .editor-tab-close,
+        .editor-tab.active .editor-tab-close {
+            opacity: 0.6;
+        }
+        .editor-tab-close:hover {
+            opacity: 1 !important;
+            background: rgba(128, 128, 128, 0.2);
+        }
+        .editor-tab-context-menu {
+            position: fixed;
+            z-index: 10000;
+            background: var(--surface, #fff);
+            border: 1px solid var(--border, #ddd);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 4px 0;
+            min-width: 140px;
+            font-size: 12px;
+        }
+        .editor-tab-context-item {
+            padding: 6px 12px;
+            cursor: pointer;
+            color: var(--text, #333);
+        }
+        .editor-tab-context-item:hover {
+            background: var(--surface-variant, #f0f0f0);
+        }
     </style>
 </head>
 <body>
@@ -3640,6 +3732,8 @@
                             💬
                         </button>
                 </div>
+                <!-- Editor Tabs Bar -->
+                <div id="editor-tabs-bar"></div>
                 <!-- Container for editor and preview panes -->
                 <!-- Slide Preview Thumbnails (visible when document has slides) -->
                 <div id="slide-thumbnails-strip" style="display: none; border-bottom: 1px solid #ddd; background: #f5f5f5; overflow-x: auto; overflow-y: hidden; white-space: nowrap; padding: 6px 8px; max-height: 110px; min-height: 0;">
@@ -3977,6 +4071,7 @@
     <script src="orchestrator/modules/navigation.js" defer></script>
     <script src="orchestrator/modules/commandPalette.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
+    <script src="orchestrator/modules/editor-tabs.js" defer></script>
     <script src="orchestrator/modules/settings.js" defer></script>
     <script src="orchestrator/modules/visualMarkdown.js" defer></script>
     <script src="orchestrator/modules/search.js" defer></script>

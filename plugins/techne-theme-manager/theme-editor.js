@@ -220,6 +220,9 @@
         for (const [key, value] of Object.entries(vars)) {
             root.style.setProperty(key, value);
         }
+        if (typeof window.syncEditorThemeWithAppTheme === 'function') {
+            window.syncEditorThemeWithAppTheme();
+        }
     }
 
     function clearThemeVars() {

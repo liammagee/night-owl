@@ -95,6 +95,15 @@ window.hasUnsavedChanges = false; // Make this globally accessible
 let lastSavedContent = '';
 let suppressAutoSave = false; // Flag to temporarily disable auto-save during file operations
 
+// Bridge suppressAutoSave to window so editor-tabs.js can control it during model swaps
+Object.defineProperty(window, 'suppressAutoSave', {
+    get() { return suppressAutoSave; },
+    set(v) { suppressAutoSave = v; }
+});
+
+// Expose setter for lastSavedContent so editor-tabs.js can sync it during tab activation
+window._setLastSavedContent = function(val) { lastSavedContent = val; };
+
 // Tag filtering variables
 let activeTagFilters = new Set();
 let tagFilteringInitialized = false;
@@ -4184,22 +4193,13 @@ async function initializeMonacoEditor() {
             }
             
 
-            // --- THEME SYNC: Ensure Monaco theme matches settings ---
-            // Use the current body class to determine theme if appSettings is not yet set
-            let isDark;
-            if (window.appSettings && typeof appSettings.theme === 'string') {
-                isDark = appSettings.theme === 'dark';
-            } else {
-                // Fallback: check body class
-                isDark = document.body.classList.contains('dark-mode');
-            }
-            applyTheme(isDark);
-            
-            // Explicitly set Monaco theme immediately after creation
-            const initTheme = getMonacoTheme('markdown');
-            if (monaco.editor && editor && initTheme) {
-                editor.updateOptions({ theme: initTheme });
-            }
+            // --- THEME SYNC: Ensure Monaco inherits current app theme tokens ---
+            const initialThemePreference = (window.appSettings && typeof appSettings.theme === 'string')
+                ? appSettings.theme
+                : (document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+            applyTheme(initialThemePreference);
+            initializeMonacoThemeInheritanceObserver();
+            syncEditorThemeWithAppTheme();
 
             // Helper to strip lingering snippet placeholders like "$0" that Monaco may introduce
             let isCleaningCitationPlaceholder = false;
@@ -4488,9 +4488,15 @@ async function initializeMonacoEditor() {
             // Initialize citation drag and drop
             setupCitationDragAndDrop();
 
+            // Initialize TabManager if available (editor-tabs.js loaded via defer)
+            if (window.tabManager && typeof window.tabManager.init === 'function') {
+                await window.tabManager.init();
+            }
+
             // Trigger file restoration if we have restored content but didn't use it during initialization
-            if (window.restoredFileContent && !initialContent) {
-                
+            // Skip if TabManager will handle restoration from persisted tabs
+            if (window.restoredFileContent && !initialContent && !window._tabManagerWillRestore) {
+
                 if (window.restoredFileContent.isPDF) {
                     // For PDFs, directly handle as PDF file instead of trying to load content
                     handlePDFFile(window.restoredFileContent.path);
@@ -4498,7 +4504,7 @@ async function initializeMonacoEditor() {
                     // For regular text files, load content into editor
                     await openFileInEditor(window.restoredFileContent.path, window.restoredFileContent.content);
                 }
-                
+
                 // Clear the restored content flag
                 window.restoredFileContent = null;
             }
@@ -5773,7 +5779,45 @@ async function openFileInEditor(filePath, content, options = {}) {
     if (wasImageViewerOpen && typeof editor !== 'undefined' && editor && typeof editor.layout === 'function') {
         setTimeout(() => editor.layout(), 0);
     }
-    
+
+    // --- Tab Manager routing ---
+    if (window.tabManager && !options.isInternalLinkPreview) {
+        const isPDFFile = filePath.endsWith('.pdf');
+        const isImageFile = /\.(png|jpg|jpeg|gif|bmp|svg|webp|ico)$/i.test(filePath);
+
+        // Only manage non-binary files as tabs
+        if (!isPDFFile && !isImageFile) {
+            // If tab already exists, just activate it (preserves cursor, scroll, undo)
+            if (window.tabManager.hasTab(filePath)) {
+                window.tabManager.activateTab(filePath);
+                // Still run tag processing for markdown files
+                const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+                if (isMarkdown && window.tagManager) {
+                    try {
+                        const c = editor.getValue();
+                        const fileData = window.tagManager.processFile(filePath, c);
+                        window.currentFileData = fileData;
+                        if (window.updateFileTreeWithTags) window.updateFileTreeWithTags();
+                    } catch (e) { /* silent */ }
+                }
+                updateAIChatContext(filePath);
+                return;
+            }
+
+            // Check tab limit
+            if (window.tabManager.tabs.size >= window.tabManager.maxTabs) {
+                if (typeof showNotification === 'function') {
+                    showNotification(`Maximum ${window.tabManager.maxTabs} tabs open. Please close a tab first.`, 'warning');
+                }
+                return;
+            }
+
+            // Create a new tab (model created here, handleEditableFile will skip model setup)
+            window.tabManager.createTab(filePath, content);
+            window.tabManager.activateTab(filePath);
+        }
+    }
+
     // Detect file type
     const isPDF = filePath.endsWith('.pdf');
     const isHTML = filePath.endsWith('.html') || filePath.endsWith('.htm');
@@ -6084,11 +6128,20 @@ async function handleEditableFile(filePath, content, fileTypes) {
     }
 
     // Set editor content and language (Monaco or fallback)
-    if (editor && typeof editor.setValue === 'function') {
-        
+    // When TabManager is active, it already set the model via activateTab() — skip model setup
+    const tabManagerHandledModel = !!(window.tabManager && window.tabManager.hasTab(filePath));
+
+    if (tabManagerHandledModel && editor) {
+        // TabManager already called setModel() — just ensure layout is fresh
+        editor.layout();
+        setTimeout(() => {
+            if (editor && typeof editor.layout === 'function') editor.layout();
+        }, 50);
+    } else if (editor && typeof editor.setValue === 'function') {
+
         // Temporarily suppress auto-save during programmatic content setting
         suppressAutoSave = true;
-        
+
         try {
             // Set editor content safely
             const currentModel = editor.getModel();
@@ -6117,24 +6170,24 @@ async function handleEditableFile(filePath, content, fileTypes) {
                 console.error('[openFileInEditor] Fallback setValue also failed:', fallbackError);
             }
         }
-        
+
         suppressAutoSave = false;
-        
+
         // Configure language and theme based on file type
         const currentModel = editor.getModel();
         if (currentModel) {
             if (fileTypes.isBibTeX) {
                 monaco.editor.setModelLanguage(currentModel, 'bibtex');
                 const t = getMonacoTheme('bibtex');
-                if (t) editor.updateOptions({ theme: t });
+                if (t) monaco.editor.setTheme(t);
             } else if (fileTypes.isHTML) {
                 monaco.editor.setModelLanguage(currentModel, 'html');
                 const t = getMonacoTheme('html');
-                if (t) editor.updateOptions({ theme: t });
+                if (t) monaco.editor.setTheme(t);
             } else {
                 monaco.editor.setModelLanguage(currentModel, 'markdown');
                 const t = getMonacoTheme('markdown');
-                if (t) editor.updateOptions({ theme: t });
+                if (t) monaco.editor.setTheme(t);
             }
         }
     } else if (fallbackEditor) {
@@ -10772,16 +10825,189 @@ async function addFileToRecents(filePath) {
 // Drag and drop event listeners are now handled in modules/dragdrop.js
 
 // --- Theme Handling ---
-// Returns the correct Monaco theme name for the current app theme state.
-// When the techne plugin has defined a custom Monaco theme, preserve it
-// instead of falling back to the built-in markdown-light/dark.
-function getMonacoTheme(language) {
-    // When techne plugin is active, the bridge owns Monaco theming — don't override.
-    if (window.currentTheme === 'techne') return null;
-    const isDark = window.currentTheme === 'dark';
-    if (language === 'bibtex') return isDark ? 'bibtex-dark' : 'bibtex-light';
-    return isDark ? 'markdown-dark' : 'markdown-light';
+let monacoThemeSyncTimer = null;
+let monacoThemeObserver = null;
+
+function normalizeHexColor(rawColor, fallback) {
+    const value = String(rawColor || '').trim();
+    if (!value) return fallback;
+
+    const hexMatch = value.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/);
+    if (hexMatch) {
+        const hex = hexMatch[1];
+        if (hex.length === 3) {
+            return '#' + hex.split('').map(ch => ch + ch).join('');
+        }
+        return '#' + hex.slice(0, 6);
+    }
+
+    const rgbMatch = value.match(
+        /^rgba?\((\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(0|0?\.\d+|1))?\)$/i
+    );
+    if (rgbMatch) {
+        const clamp = (n) => Math.max(0, Math.min(255, Number(n)));
+        const toHex = (n) => clamp(n).toString(16).padStart(2, '0');
+        return `#${toHex(rgbMatch[1])}${toHex(rgbMatch[2])}${toHex(rgbMatch[3])}`;
+    }
+
+    return fallback;
 }
+
+function applyHexAlpha(rawColor, alphaHex, fallback) {
+    const base = normalizeHexColor(rawColor, fallback).replace('#', '').slice(0, 6);
+    const alpha = String(alphaHex || '40').replace('#', '').slice(0, 2).padEnd(2, '0');
+    return `#${base}${alpha}`;
+}
+
+function toMonacoTokenColor(rawColor, fallback) {
+    return normalizeHexColor(rawColor, fallback).replace('#', '').slice(0, 6);
+}
+
+function buildMonacoThemeDefinition(language, isDark) {
+    const rootStyles = getComputedStyle(document.documentElement);
+    const background = normalizeHexColor(
+        rootStyles.getPropertyValue('--bg-color'),
+        isDark ? '#1e1e1e' : '#ffffff'
+    );
+    const surface = normalizeHexColor(
+        rootStyles.getPropertyValue('--bg-secondary') || rootStyles.getPropertyValue('--surface'),
+        isDark ? '#252526' : '#f8fafc'
+    );
+    const foreground = normalizeHexColor(
+        rootStyles.getPropertyValue('--text-color'),
+        isDark ? '#d4d4d4' : '#1e293b'
+    );
+    const muted = normalizeHexColor(
+        rootStyles.getPropertyValue('--text-muted'),
+        isDark ? '#6b6b6b' : '#94a3b8'
+    );
+    const accent = normalizeHexColor(
+        rootStyles.getPropertyValue('--primary'),
+        isDark ? '#818cf8' : '#6366f1'
+    );
+    const border = normalizeHexColor(
+        rootStyles.getPropertyValue('--border-color'),
+        isDark ? '#3c3c3c' : '#e2e8f0'
+    );
+
+    const accentToken = toMonacoTokenColor(accent, isDark ? '#93c5fd' : '#2563eb');
+    const textToken = toMonacoTokenColor(foreground, isDark ? '#d4d4d4' : '#1e293b');
+    const mutedToken = toMonacoTokenColor(muted, isDark ? '#6b6b6b' : '#94a3b8');
+
+    const markdownRules = [
+        { token: 'string.link', foreground: accentToken },
+        { token: 'string.target', foreground: accentToken },
+        { token: 'markup.underline.link', foreground: accentToken },
+        { token: 'markup.underline', foreground: accentToken }
+    ];
+
+    const bibtexRules = [
+        { token: 'keyword', foreground: accentToken, fontStyle: 'bold' },
+        { token: 'entity.name.function', foreground: textToken },
+        { token: 'attribute.name', foreground: accentToken },
+        { token: 'string', foreground: textToken },
+        { token: 'number', foreground: accentToken },
+        { token: 'comment', foreground: mutedToken, fontStyle: 'italic' },
+        { token: 'bracket', foreground: textToken },
+        { token: 'delimiter', foreground: textToken }
+    ];
+
+    return {
+        base: isDark ? 'vs-dark' : 'vs',
+        inherit: true,
+        rules: language === 'bibtex' ? bibtexRules : markdownRules,
+        colors: {
+            'editor.background': background,
+            'editor.foreground': foreground,
+            'editor.lineHighlightBackground': surface,
+            'editorLineNumber.foreground': muted,
+            'editorLineNumber.activeForeground': foreground,
+            'editorCursor.foreground': accent,
+            'editor.selectionBackground': applyHexAlpha(accent, '40', '#6366f1'),
+            'editor.inactiveSelectionBackground': applyHexAlpha(accent, '24', '#6366f1'),
+            'editorLink.activeForeground': `#${accentToken}`,
+            'editorIndentGuide.background': applyHexAlpha(border, '66', '#3c3c3c'),
+            'editorIndentGuide.activeBackground': applyHexAlpha(muted, '88', '#6b6b6b'),
+            'editorWidget.background': surface,
+            'editorWidget.border': border,
+            'editorGutter.background': background,
+            'minimap.background': background,
+            'scrollbarSlider.background': applyHexAlpha(border, '88', '#3c3c3c'),
+            'scrollbarSlider.hoverBackground': applyHexAlpha(muted, '99', '#6b6b6b')
+        }
+    };
+}
+
+function syncEditorThemeWithAppTheme() {
+    if (!window.monaco || !monaco.editor) return;
+
+    const isDark = document.body?.classList.contains('dark-mode');
+    monaco.editor.defineTheme('markdown-dynamic', buildMonacoThemeDefinition('markdown', isDark));
+    monaco.editor.defineTheme('bibtex-dynamic', buildMonacoThemeDefinition('bibtex', isDark));
+
+    const language = window.editor?.getModel?.()?.getLanguageId?.() || 'markdown';
+    const themeId = getMonacoTheme(language);
+    if (themeId) {
+        monaco.editor.setTheme(themeId);
+    }
+}
+
+function scheduleMonacoThemeSync() {
+    if (monacoThemeSyncTimer) {
+        clearTimeout(monacoThemeSyncTimer);
+    }
+    monacoThemeSyncTimer = setTimeout(() => {
+        monacoThemeSyncTimer = null;
+        syncEditorThemeWithAppTheme();
+    }, 0);
+}
+
+function initializeMonacoThemeInheritanceObserver() {
+    if (monacoThemeObserver || typeof MutationObserver !== 'function') return;
+    const body = document.body;
+    const root = document.documentElement;
+    if (!body || !root) return;
+
+    monacoThemeObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.type !== 'attributes') continue;
+            const bodyThemeMutation = mutation.target === body && (
+                mutation.attributeName === 'class' ||
+                mutation.attributeName === 'style' ||
+                mutation.attributeName === 'data-techne-theme'
+            );
+            const rootStyleMutation = mutation.target === root && mutation.attributeName === 'style';
+            if (bodyThemeMutation || rootStyleMutation) {
+                scheduleMonacoThemeSync();
+                break;
+            }
+        }
+    });
+
+    monacoThemeObserver.observe(body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-techne-theme']
+    });
+    monacoThemeObserver.observe(root, {
+        attributes: true,
+        attributeFilter: ['style']
+    });
+}
+
+// Returns the Monaco theme name for the active model language.
+function getMonacoTheme(language) {
+    if (language === 'bibtex') return 'bibtex-dynamic';
+    return 'markdown-dynamic';
+}
+
+window.getMonacoTheme = getMonacoTheme;
+window.syncEditorThemeWithAppTheme = syncEditorThemeWithAppTheme;
+
+// Expose helpers for editor-tabs.js
+window.highlightCurrentFileInTree = highlightCurrentFileInTree;
+window.updateBreadcrumb = updateBreadcrumb;
+window.updateUnsavedIndicator = updateUnsavedIndicator;
+window.updatePreviewAndStructure = updatePreviewAndStructure;
 
 // Canonical theme applicator used across the renderer.
 // Accepts either:
@@ -10875,9 +11101,10 @@ function applyTheme(themeOrIsDark) {
     // Store applied theme for other modules
     window.currentTheme = shouldUseTechne ? 'techne' : (appliedDark ? 'dark' : 'light');
 
-    // Sync Monaco theme — bridge owns it when techne is active
-    if (window.monaco && monaco.editor && !shouldUseTechne) {
-        monaco.editor.setTheme(appliedDark ? 'markdown-dark' : 'markdown-light');
+    // Sync Monaco theme from current CSS variables/classes.
+    if (window.monaco && monaco.editor) {
+        initializeMonacoThemeInheritanceObserver();
+        requestAnimationFrame(() => scheduleMonacoThemeSync());
     }
 
     // Notify listeners (network/library/etc)
@@ -11356,18 +11583,23 @@ function scheduleAutoSave() {
     }
     
     window.hasUnsavedChanges = true;
-    
+
+    // Sync dirty state to active tab
+    if (window.tabManager) {
+        window.tabManager.syncActiveTabDirty(true);
+    }
+
     // Clear existing timer
     if (autoSaveTimer) {
         clearTimeout(autoSaveTimer);
     }
-    
+
     // Schedule auto-save
     const interval = window.appSettings.ui.autoSaveInterval || 2000;
     autoSaveTimer = setTimeout(() => {
         performAutoSave();
     }, interval);
-    
+
     // Update status indicator
     updateUnsavedIndicator(true);
 }
@@ -11391,7 +11623,12 @@ async function performAutoSave() {
                 window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('Auto-saved', 'success', 1000); // Brief notification
-                
+
+                // Sync saved state to active tab
+                if (window.tabManager) {
+                    window.tabManager.syncActiveTabDirty(false, content);
+                }
+
                 // Update current file path if this was a save-as operation
                 if (result.filePath && result.filePath !== window.currentFilePath) {
                     window.currentFilePath = result.filePath;
@@ -11486,7 +11723,12 @@ function markContentAsSaved() {
         lastSavedContent = editor.getValue();
         window.hasUnsavedChanges = false;
         updateUnsavedIndicator(false);
-        
+
+        // Sync saved state to active tab
+        if (window.tabManager) {
+            window.tabManager.syncActiveTabDirty(false, lastSavedContent);
+        }
+
         // Clear auto-save timer
         if (autoSaveTimer) {
             clearTimeout(autoSaveTimer);
@@ -12220,10 +12462,15 @@ async function saveFile() {
                 } else {
                     lastSavedContent = content;
                 }
-                
+
                 window.hasUnsavedChanges = false;
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
+
+                // Sync saved state to active tab
+                if (window.tabManager) {
+                    window.tabManager.syncActiveTabDirty(false, lastSavedContent);
+                }
 
                 // Refresh git status after save
                 updateGitStatusIndicator();
