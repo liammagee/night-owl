@@ -15,10 +15,14 @@ body[data-techne-theme] {
     --panel-bg: var(--techne-surface);
     --preview-bg: var(--techne-surface);
 
-    /* Text */
+    /* Text — must override both --text and --text-color since
+       body uses color: var(--text), and the renderer may force
+       light-mode class even when techne tokens are dark */
+    --text: var(--techne-text);
     --text-color: var(--techne-text);
     --text-secondary: var(--techne-text-muted);
     --text-muted: var(--techne-text-muted);
+    --text-disabled: var(--techne-text-muted);
     --preview-text: var(--techne-text);
     --text-on-primary: var(--techne-text-inverted);
 
@@ -34,6 +38,7 @@ body[data-techne-theme] {
     --surface-active: var(--techne-surface-elevated);
 
     /* Borders */
+    --border: var(--techne-border);
     --border-color: var(--techne-border);
     --border-strong: var(--techne-border);
     --hover-color: var(--techne-surface-elevated);

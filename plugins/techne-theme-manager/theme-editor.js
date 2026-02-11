@@ -220,9 +220,6 @@
         for (const [key, value] of Object.entries(vars)) {
             root.style.setProperty(key, value);
         }
-        if (typeof window.syncEditorThemeWithAppTheme === 'function') {
-            window.syncEditorThemeWithAppTheme();
-        }
     }
 
     function clearThemeVars() {
@@ -303,18 +300,41 @@
 
     // ── Restore on load ──
 
+    function _prefersDark() {
+        try { return localStorage.getItem('techne-dark') === 'on'; } catch (_) { return false; }
+    }
+
+    function _swapPresetDarkLight(presetId, wantDark) {
+        const preset = PRESETS[presetId];
+        if (!preset) return presetId;
+        const isDark = preset.base === 'dark';
+        if (isDark === wantDark) return presetId; // already matches
+        // Try to find the counterpart: solarized_light ↔ solarized_dark
+        const base = presetId.replace(/_light$|_dark$/, '');
+        const target = base + (wantDark ? '_dark' : '_light');
+        if (PRESETS[target]) return target;
+        return presetId; // no counterpart, keep as-is
+    }
+
     function restoreTheme() {
         const active = getActiveCustomTheme();
         if (!active) return;
+        const wantDark = _prefersDark();
 
         if (active.startsWith('preset:')) {
-            const id = active.replace('preset:', '');
+            const id = _swapPresetDarkLight(active.replace('preset:', ''), wantDark);
             if (PRESETS[id]) {
                 setTimeout(() => applyPreset(id), 300);
             }
         } else if (active.startsWith('custom:')) {
             const id = active.replace('custom:', '');
-            setTimeout(() => applyCustomTheme(id), 300);
+            setTimeout(() => {
+                applyCustomTheme(id);
+                // For custom themes, ensure base mode matches dark preference
+                if (wantDark && window.techneThemeManager) {
+                    window.techneThemeManager.applyTheme('dark');
+                }
+            }, 300);
         }
     }
 
