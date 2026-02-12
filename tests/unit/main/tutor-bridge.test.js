@@ -24,11 +24,34 @@ const mockRecognitionGamificationService = {
   getLearnerRecognitionProfile: jest.fn(),
 };
 
+const mockRecognitionOrchestrator = {
+  processDialogueResult: jest.fn(),
+  processWritingEvent: jest.fn(),
+  getFullRecognitionState: jest.fn(),
+  getDialecticalHistory: jest.fn(),
+  getMemoryState: jest.fn(),
+  getLearnerPatterns: jest.fn(),
+  runMaintenance: jest.fn(() => ({ learnerId: 'local-writer', tasks: {} })),
+};
+
+const mockTutorConfigLoader = {
+  loadConfig: jest.fn(),
+  listProfiles: jest.fn(),
+};
+
+const mockMonitoringService = {
+  getMetrics: jest.fn(),
+};
+
 const mockTutorCore = {
   writingPadService: mockWritingPadService,
   learnerIntegrationService: mockLearnerIntegrationService,
   tutorDialogueEngine: mockTutorDialogueEngine,
   recognitionGamificationService: mockRecognitionGamificationService,
+  recognitionOrchestrator: mockRecognitionOrchestrator,
+  tutorConfigLoader: mockTutorConfigLoader,
+  monitoringService: mockMonitoringService,
+  initDb: jest.fn(),
 };
 
 /**
@@ -53,6 +76,9 @@ function createBridgeWithMock(tutorCoreModule) {
     require: require,
     console: { log: jest.fn(), warn: jest.fn(), error: jest.fn() },
     window: undefined,
+    setTimeout: setTimeout,
+    setInterval: jest.fn(() => 123), // Return fake interval ID
+    clearInterval: jest.fn(),
     // Override the dynamic import to return our mock
     __importDynamic: tutorCoreModule
       ? () => Promise.resolve(tutorCoreModule)
@@ -60,7 +86,6 @@ function createBridgeWithMock(tutorCoreModule) {
   };
 
   // Replace `await import(...)` with our mock function
-  // The bridge source has: `tutorCore = await import('@machinespirits/tutor-core');`
   const patchedSource = source.replace(
     /await import\(['"]@machinespirits\/tutor-core['"]\)/g,
     'await __importDynamic()'
@@ -105,12 +130,22 @@ describe('tutor-bridge', () => {
         expect(mockWritingPadService.initializeWritingPad).toHaveBeenCalledWith('custom-user');
       });
 
+      test('accepts dbPath option and calls initDb', async () => {
+        await bridge.initTutorBridge({ dbPath: '/tmp/test.db' });
+        expect(mockTutorCore.initDb).toHaveBeenCalledWith({ dbPath: '/tmp/test.db' });
+      });
+
       test('skips re-initialization on second call', async () => {
         const first = await bridge.initTutorBridge();
         const second = await bridge.initTutorBridge();
         expect(first).toEqual({ ok: true, learnerId: 'local-writer' });
         expect(second).toEqual({ ok: true, learnerId: 'local-writer' });
         expect(mockWritingPadService.initializeWritingPad).toHaveBeenCalledTimes(1);
+      });
+
+      test('runs initial maintenance on init', async () => {
+        await bridge.initTutorBridge();
+        expect(mockRecognitionOrchestrator.runMaintenance).toHaveBeenCalledWith('local-writer');
       });
 
       test('returns ok:false when initializeWritingPad throws', async () => {
@@ -160,23 +195,6 @@ describe('tutor-bridge', () => {
         );
       });
 
-      test('builds learner context from session state with defaults', async () => {
-        mockTutorDialogueEngine.runDialogue.mockResolvedValueOnce({});
-        await bridge.routeDialogue({ message: 'test', sessionState: {} });
-
-        expect(mockTutorDialogueEngine.runDialogue).toHaveBeenCalledWith(
-          expect.objectContaining({
-            learnerContext: expect.objectContaining({
-              currentContent: '',
-              recentActivity: '',
-              flowState: 'unknown',
-              sessionDuration: 0,
-              wordCount: 0,
-            }),
-          })
-        );
-      });
-
       test('returns null on dialogue error', async () => {
         mockTutorDialogueEngine.runDialogue.mockRejectedValueOnce(
           new Error('API timeout')
@@ -186,120 +204,84 @@ describe('tutor-bridge', () => {
       });
     });
 
-    describe('recordWritingEvent()', () => {
-      test('analysis_complete calls addWorkingThought with correct content', async () => {
-        await bridge.recordWritingEvent({
-          type: 'analysis_complete',
-          data: {
-            summary: 'Text analysis done',
-            wordCount: 200,
-            flowState: 'focused',
-          },
-        });
+    // ========================================================================
+    // Recognition pipeline functions (new)
+    // ========================================================================
 
-        expect(mockWritingPadService.addWorkingThought).toHaveBeenCalledWith(
-          'local-writer',
-          {
-            content: 'Text analysis done',
-            source: 'nightowl_analysis',
-            metadata: {
-              wordCount: 200,
-              flowState: 'focused',
-            },
-          }
+    describe('processDialogueResult()', () => {
+      test('delegates to orchestrator with learnerId', async () => {
+        const mockPipelineResult = { learnerId: 'local-writer', phases: {} };
+        mockRecognitionOrchestrator.processDialogueResult.mockReturnValueOnce(mockPipelineResult);
+
+        const dialogueResult = { type: 'dialogue', suggestion: 'Try this' };
+        const learnerResponse = { type: 'navigate', target: 'chapter-2' };
+
+        const result = await bridge.processDialogueResult(dialogueResult, learnerResponse, { sessionId: 's1' });
+
+        expect(result).toEqual(mockPipelineResult);
+        expect(mockRecognitionOrchestrator.processDialogueResult).toHaveBeenCalledWith(
+          'local-writer', dialogueResult, learnerResponse, { sessionId: 's1' }
         );
       });
 
-      test('analysis_complete uses default summary when data.summary missing', async () => {
-        await bridge.recordWritingEvent({
-          type: 'analysis_complete',
-          data: {},
+      test('returns null on error', async () => {
+        mockRecognitionOrchestrator.processDialogueResult.mockImplementationOnce(() => {
+          throw new Error('Pipeline error');
         });
-
-        expect(mockWritingPadService.addWorkingThought).toHaveBeenCalledWith(
-          'local-writer',
-          expect.objectContaining({
-            content: 'Writing analysis completed',
-          })
-        );
-      });
-
-      test('feedback_response calls detectResistance', async () => {
-        await bridge.recordWritingEvent({
-          type: 'feedback_response',
-          data: {
-            suggestion: 'Try restructuring your argument',
-            action: 'dismissed',
-            timeSinceSuggestion: 3000,
-          },
-        });
-
-        expect(mockLearnerIntegrationService.detectResistance).toHaveBeenCalledWith({
-          learnerId: 'local-writer',
-          tutorSuggestion: 'Try restructuring your argument',
-          learnerAction: 'dismissed',
-          timeSinceSuggestion: 3000,
-          context: { source: 'nightowl' },
-        });
-      });
-
-      test('feedback_response with isBreakthrough calls detectBreakthrough', async () => {
-        await bridge.recordWritingEvent({
-          type: 'feedback_response',
-          data: {
-            suggestion: 'Consider the dialectical tension',
-            action: 'accepted',
-            isBreakthrough: true,
-            signal: 'explicit_understanding',
-          },
-        });
-
-        expect(mockLearnerIntegrationService.detectBreakthrough).toHaveBeenCalledWith({
-          learnerId: 'local-writer',
-          signal: 'explicit_understanding',
-          context: { source: 'nightowl' },
-        });
-      });
-
-      test('feedback_response without isBreakthrough does not call detectBreakthrough', async () => {
-        await bridge.recordWritingEvent({
-          type: 'feedback_response',
-          data: {
-            suggestion: 'test',
-            action: 'ignored',
-          },
-        });
-
-        expect(mockLearnerIntegrationService.detectBreakthrough).not.toHaveBeenCalled();
-      });
-
-      test('flow_change calls addWorkingThought with flow state content', async () => {
-        await bridge.recordWritingEvent({
-          type: 'flow_change',
-          data: { state: 'deep_focus', score: 0.9 },
-        });
-
-        expect(mockWritingPadService.addWorkingThought).toHaveBeenCalledWith(
-          'local-writer',
-          {
-            content: 'Flow state: deep_focus',
-            source: 'nightowl_flow',
-            metadata: {
-              flowScore: 0.9,
-              state: 'deep_focus',
-            },
-          }
-        );
-      });
-
-      test('unknown event type does not throw', async () => {
-        await expect(
-          bridge.recordWritingEvent({ type: 'unknown_event' })
-        ).resolves.toBeUndefined();
+        const result = await bridge.processDialogueResult({});
+        expect(result).toBeNull();
       });
     });
 
-    describe('getRecognitionState()', () => {
+    describe('processWritingEvent()', () => {
+      test('delegates to orchestrator', async () => {
+        const mockResult = { learnerId: 'local-writer', phases: { conscious: { recorded: true } } };
+        mockRecognitionOrchestrator.processWritingEvent.mockReturnValueOnce(mockResult);
+
+        const event = { type: 'analysis_complete', data: { wordCount: 500 } };
+        const result = await bridge.processWritingEvent(event);
+
+        expect(result).toEqual(mockResult);
+        expect(mockRecognitionOrchestrator.processWritingEvent).toHaveBeenCalledWith(
+          'local-writer', event, {}
+        );
+      });
+    });
+
+    describe('recordWritingEvent() (backward compatible)', () => {
+      test('delegates to processWritingEvent via orchestrator', async () => {
+        mockRecognitionOrchestrator.processWritingEvent.mockReturnValueOnce({ ok: true });
+
+        await bridge.recordWritingEvent({ type: 'flow_change', data: { state: 'focused' } });
+
+        expect(mockRecognitionOrchestrator.processWritingEvent).toHaveBeenCalledWith(
+          'local-writer',
+          { type: 'flow_change', data: { state: 'focused' } },
+          {}
+        );
+      });
+    });
+
+    describe('getFullRecognitionState()', () => {
+      test('returns full state from orchestrator', async () => {
+        const mockState = {
+          learnerId: 'local-writer',
+          initialized: true,
+          writingPad: {},
+          memoryState: {},
+          learnerPatterns: {},
+          recognitionProfile: {},
+          dialecticalHistory: [],
+        };
+        mockRecognitionOrchestrator.getFullRecognitionState.mockReturnValueOnce(mockState);
+
+        const result = await bridge.getFullRecognitionState();
+        expect(result).toEqual(mockState);
+        expect(mockRecognitionOrchestrator.getFullRecognitionState).toHaveBeenCalledWith('local-writer');
+      });
+    });
+
+    describe('getRecognitionState() (backward compatible)', () => {
       test('returns recognition profile from gamification service', async () => {
         const mockProfile = {
           depth: { compositeDepth: 0.7 },
@@ -319,6 +301,88 @@ describe('tutor-bridge', () => {
         });
         const result = await bridge.getRecognitionState();
         expect(result).toBeNull();
+      });
+    });
+
+    describe('getDialecticalHistory()', () => {
+      test('returns history from orchestrator', async () => {
+        const mockHistory = [{ id: 'm1', strategy: 'synthesis' }];
+        mockRecognitionOrchestrator.getDialecticalHistory.mockReturnValueOnce(mockHistory);
+
+        const result = await bridge.getDialecticalHistory({ limit: 10 });
+        expect(result).toEqual(mockHistory);
+        expect(mockRecognitionOrchestrator.getDialecticalHistory).toHaveBeenCalledWith('local-writer', { limit: 10 });
+      });
+
+      test('returns empty array on error', async () => {
+        mockRecognitionOrchestrator.getDialecticalHistory.mockImplementationOnce(() => {
+          throw new Error('error');
+        });
+        expect(await bridge.getDialecticalHistory()).toEqual([]);
+      });
+    });
+
+    describe('getMemoryState()', () => {
+      test('returns memory state from orchestrator', async () => {
+        const mockState = { conscious: {}, preconscious: {}, unconscious: {} };
+        mockRecognitionOrchestrator.getMemoryState.mockReturnValueOnce(mockState);
+
+        const result = await bridge.getMemoryState();
+        expect(result).toEqual(mockState);
+      });
+    });
+
+    describe('getLearnerPatterns()', () => {
+      test('returns patterns from orchestrator', async () => {
+        const mockPatterns = { totalEvents: 5, resistanceRate: 0.4 };
+        mockRecognitionOrchestrator.getLearnerPatterns.mockReturnValueOnce(mockPatterns);
+
+        const result = await bridge.getLearnerPatterns();
+        expect(result).toEqual(mockPatterns);
+      });
+    });
+
+    describe('runMaintenance()', () => {
+      test('delegates to orchestrator', async () => {
+        const mockResult = { learnerId: 'local-writer', tasks: { memoryMaintenance: {} } };
+        mockRecognitionOrchestrator.runMaintenance.mockReturnValueOnce(mockResult);
+
+        const result = await bridge.runMaintenance();
+        expect(result).toEqual(mockResult);
+        expect(mockRecognitionOrchestrator.runMaintenance).toHaveBeenCalledWith('local-writer');
+      });
+    });
+
+    describe('listProfiles()', () => {
+      test('returns profiles from config loader', async () => {
+        mockTutorConfigLoader.listProfiles.mockReturnValueOnce(['budget', 'experimental']);
+        const result = await bridge.listProfiles();
+        expect(result).toEqual(['budget', 'experimental']);
+      });
+    });
+
+    describe('switchProfile()', () => {
+      test('returns profile config when found', async () => {
+        mockTutorConfigLoader.loadConfig.mockReturnValueOnce({
+          profiles: { budget: { maxRounds: 0 }, experimental: { maxRounds: 3 } },
+        });
+        const result = await bridge.switchProfile('experimental');
+        expect(result).toEqual({ name: 'experimental', config: { maxRounds: 3 } });
+      });
+
+      test('returns error when profile not found', async () => {
+        mockTutorConfigLoader.loadConfig.mockReturnValueOnce({ profiles: {} });
+        const result = await bridge.switchProfile('nonexistent');
+        expect(result).toEqual({ error: "Profile 'nonexistent' not found" });
+      });
+    });
+
+    describe('getMonitoringMetrics()', () => {
+      test('returns metrics from monitoring service', async () => {
+        const mockMetrics = { totalDialogues: 42 };
+        mockMonitoringService.getMetrics.mockReturnValueOnce(mockMetrics);
+        const result = await bridge.getMonitoringMetrics();
+        expect(result).toEqual(mockMetrics);
       });
     });
 
@@ -352,11 +416,44 @@ describe('tutor-bridge', () => {
       expect(result).toBeNull();
     });
 
-    test('recordWritingEvent does nothing', async () => {
-      await expect(
-        bridge.recordWritingEvent({ type: 'analysis_complete', data: {} })
-      ).resolves.toBeUndefined();
-      expect(mockWritingPadService.addWorkingThought).not.toHaveBeenCalled();
+    test('processDialogueResult returns null', async () => {
+      const result = await bridge.processDialogueResult({});
+      expect(result).toBeNull();
+    });
+
+    test('processWritingEvent returns null', async () => {
+      const result = await bridge.processWritingEvent({ type: 'test' });
+      expect(result).toBeNull();
+    });
+
+    test('getFullRecognitionState returns null', async () => {
+      const result = await bridge.getFullRecognitionState();
+      expect(result).toBeNull();
+    });
+
+    test('getDialecticalHistory returns empty array', async () => {
+      const result = await bridge.getDialecticalHistory();
+      expect(result).toEqual([]);
+    });
+
+    test('getMemoryState returns null', async () => {
+      const result = await bridge.getMemoryState();
+      expect(result).toBeNull();
+    });
+
+    test('getLearnerPatterns returns null', async () => {
+      const result = await bridge.getLearnerPatterns();
+      expect(result).toBeNull();
+    });
+
+    test('runMaintenance returns null', async () => {
+      const result = await bridge.runMaintenance();
+      expect(result).toBeNull();
+    });
+
+    test('listProfiles returns empty array', async () => {
+      const result = await bridge.listProfiles();
+      expect(result).toEqual([]);
     });
 
     test('getRecognitionState returns null', async () => {
