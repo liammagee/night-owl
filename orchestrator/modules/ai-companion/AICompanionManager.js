@@ -75,6 +75,14 @@ class AICompanionManager {
                     const bridgeResult = await this.tutorBridge.initTutorBridge();
                     if (bridgeResult.ok) {
                         console.log('[AICompanionManager] Tutor bridge initialized - dialogue will route through Ego/Superego engine');
+
+                        // Schedule periodic maintenance (every 30 minutes)
+                        if (this.tutorBridge.runMaintenance) {
+                            this._maintenanceInterval = setInterval(() => {
+                                this.tutorBridge.runMaintenance()
+                                    .catch(err => console.warn('[AICompanionManager] Maintenance failed:', err.message));
+                            }, 30 * 60 * 1000);
+                        }
                     } else {
                         console.log('[AICompanionManager] Tutor bridge not available, using direct AI calls:', bridgeResult.error);
                         this.tutorBridge = null;
@@ -237,6 +245,12 @@ class AICompanionManager {
                             confidence: dialogueResult.confidence || 0.8,
                         };
                         console.log('[AICompanionManager] Feedback routed through tutor-core Ego/Superego dialogue');
+
+                        // Process through recognition pipeline (non-blocking)
+                        if (this.tutorBridge.processDialogueResult) {
+                            this.tutorBridge.processDialogueResult(dialogueResult)
+                                .catch(err => console.warn('[AICompanionManager] Recognition pipeline error:', err.message));
+                        }
                     }
                 } catch (bridgeError) {
                     console.warn('[AICompanionManager] Tutor-bridge dialogue failed, falling back to direct AI:', bridgeError.message);

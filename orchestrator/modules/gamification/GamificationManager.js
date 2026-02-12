@@ -488,13 +488,31 @@ class GamificationManager {
         try {
             if (typeof window !== 'undefined' && window.TutorBridge && window.TutorBridge.isAvailable()) {
                 this.tutorBridge = window.TutorBridge;
-                const profile = await this.tutorBridge.getRecognitionState();
-                if (profile) {
-                    const recognitionLevel = this.calculateLevelFromRecognition(profile);
-                    const xpLevel = this.xpSystem.currentLevel;
-                    // Use the higher of the two to avoid regression
-                    this.xpSystem.currentLevel = Math.max(xpLevel, recognitionLevel);
-                    this.xpSystem.recognitionProfile = profile;
+
+                // Prefer full state (all 5 phases) when orchestrator is available
+                const fullState = this.tutorBridge.getFullRecognitionState
+                    ? await this.tutorBridge.getFullRecognitionState()
+                    : null;
+
+                if (fullState && fullState.initialized) {
+                    const profile = fullState.recognitionProfile;
+                    if (profile) {
+                        const recognitionLevel = this.calculateLevelFromRecognition(profile);
+                        const xpLevel = this.xpSystem.currentLevel;
+                        this.xpSystem.currentLevel = Math.max(xpLevel, recognitionLevel);
+                        this.xpSystem.recognitionProfile = profile;
+                    }
+                    // Store enriched state for UI access
+                    this.xpSystem.fullRecognitionState = fullState;
+                } else {
+                    // Fallback to Phase 5 only
+                    const profile = await this.tutorBridge.getRecognitionState();
+                    if (profile) {
+                        const recognitionLevel = this.calculateLevelFromRecognition(profile);
+                        const xpLevel = this.xpSystem.currentLevel;
+                        this.xpSystem.currentLevel = Math.max(xpLevel, recognitionLevel);
+                        this.xpSystem.recognitionProfile = profile;
+                    }
                 }
             }
         } catch (error) {
