@@ -1,6 +1,10 @@
 // === Tutor Bridge ===
 // Bridges @machinespirits/tutor-core into NightOwl's Electron environment.
 // Uses dynamic import() since tutor-core is an ES module and NightOwl is CommonJS.
+//
+// Since v0.5.0 this bridge also serves as the PRIMARY AI service for NightOwl,
+// replacing the old services/aiService.js. It wraps tutor-core's
+// unifiedAIProvider.call() / callStream() with conversation history management.
 
 let tutorCore = null;
 let bridgeState = {
@@ -8,6 +12,15 @@ let bridgeState = {
     learnerId: 'local-writer',
     initError: null
 };
+
+// ============================================================================
+// Conversation History (replaces aiService.conversationHistory)
+// ============================================================================
+
+const MAX_HISTORY = 40;
+let conversationHistory = [];
+let currentSystemMessage = null;
+let defaultProvider = null; // Override from NightOwl settings
 
 /**
  * Dynamically load tutor-core ES module from CommonJS context.
@@ -46,7 +59,7 @@ async function initTutorBridge(options = {}) {
     const core = await loadTutorCore();
     if (!core) {
         bridgeState.initError = 'tutor-core not available';
-        console.warn('[TutorBridge] Initialization skipped - tutor-core not available. Falling back to native NightOwl behaviour.');
+        console.warn('[TutorBridge] Initialization skipped - tutor-core not available.');
         return { ok: false, error: bridgeState.initError };
     }
 
@@ -85,6 +98,318 @@ async function initTutorBridge(options = {}) {
     }
 }
 
+// ============================================================================
+// AI Chat Interface (replaces aiService.sendMessage / getAvailableProviders etc.)
+// ============================================================================
+
+/**
+ * Resolve a NightOwl provider name to a tutor-core provider ID.
+ * NightOwl uses 'auto', 'default', 'lmstudio', etc. that need normalization.
+ * @private
+ */
+function resolveProvider(providerName) {
+    if (!providerName || providerName === 'auto' || providerName === 'default') {
+        return defaultProvider || undefined; // let tutor-core auto-detect
+    }
+    // Map NightOwl aliases
+    const aliases = {
+        lmstudio: 'local',
+        claude: 'anthropic',
+        google: 'gemini',
+    };
+    return aliases[providerName] || providerName;
+}
+
+/**
+ * Add a message to conversation history (auto-trimmed).
+ * @private
+ */
+function addToHistory(role, content) {
+    conversationHistory.push({ role, content });
+    if (conversationHistory.length > MAX_HISTORY) {
+        conversationHistory = conversationHistory.slice(-MAX_HISTORY);
+    }
+}
+
+/**
+ * Send a non-streaming chat message via tutor-core's unifiedAIProvider.
+ *
+ * Drop-in replacement for NightOwl's aiService.sendMessage().
+ * Manages conversation history internally.
+ *
+ * @param {string} message - User message text
+ * @param {object} [options]
+ * @param {string} [options.provider] - Provider ID
+ * @param {string} [options.model] - Model ID
+ * @param {string} [options.systemMessage] - System prompt
+ * @param {number} [options.temperature] - Temperature override
+ * @param {number} [options.maxTokens] - Max tokens override
+ * @param {boolean} [options.newConversation] - Start fresh conversation
+ * @param {string} [options.preset] - tutor-core preset name
+ * @returns {Promise<{response: string, provider: string, model: string, usage: object}>}
+ */
+async function sendMessage(message, options = {}) {
+    const core = await loadTutorCore();
+    if (!core || !core.unifiedAIProvider) {
+        throw new Error('tutor-core not available — cannot send message.');
+    }
+
+    const systemMessage = options.systemMessage ||
+        'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
+
+    // Handle conversation state
+    if (options.newConversation || currentSystemMessage !== systemMessage) {
+        conversationHistory = [];
+        currentSystemMessage = systemMessage;
+    }
+
+    // Add user message to history
+    addToHistory('user', message);
+
+    const provider = resolveProvider(options.provider);
+    const model = (options.model && options.model !== 'auto' && options.model !== 'default')
+        ? options.model : undefined;
+
+    try {
+        const result = await core.unifiedAIProvider.call({
+            provider,
+            model,
+            systemPrompt: systemMessage,
+            messages: [...conversationHistory],
+            preset: options.preset || 'direct',
+            config: {
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+            },
+        });
+
+        // Add assistant response to history
+        addToHistory('assistant', result.content);
+
+        return {
+            response: result.content,
+            content: result.content, // alias used by some handlers
+            provider: result.provider,
+            model: result.model,
+            usage: result.usage,
+            latencyMs: result.latencyMs,
+        };
+    } catch (error) {
+        // Remove the user message we just added since the call failed
+        conversationHistory.pop();
+        throw error;
+    }
+}
+
+/**
+ * Stream a chat message via tutor-core's callStream().
+ * Returns an async generator yielding normalized chunks.
+ *
+ * @param {string} message - User message text
+ * @param {object} [options] - Same as sendMessage options
+ * @yields {{type: string, content: string, ...}}
+ */
+async function* streamMessage(message, options = {}) {
+    const core = await loadTutorCore();
+    if (!core || !core.unifiedAIProvider || !core.unifiedAIProvider.callStream) {
+        throw new Error('tutor-core streaming not available.');
+    }
+
+    const systemMessage = options.systemMessage ||
+        'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
+
+    if (options.newConversation || currentSystemMessage !== systemMessage) {
+        conversationHistory = [];
+        currentSystemMessage = systemMessage;
+    }
+
+    addToHistory('user', message);
+
+    const provider = resolveProvider(options.provider);
+    const model = (options.model && options.model !== 'auto' && options.model !== 'default')
+        ? options.model : undefined;
+
+    try {
+        const stream = core.unifiedAIProvider.callStream({
+            provider,
+            model,
+            systemPrompt: systemMessage,
+            messages: [...conversationHistory],
+            preset: options.preset || 'direct',
+            config: {
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+            },
+        });
+
+        for await (const chunk of stream) {
+            yield chunk;
+            // Capture full text from 'done' chunk for conversation history
+            if (chunk.type === 'done') {
+                addToHistory('assistant', chunk.content);
+            }
+        }
+    } catch (error) {
+        conversationHistory.pop();
+        throw error;
+    }
+}
+
+/**
+ * Simple text generation (single prompt, no conversation history).
+ * Drop-in for aiService.sendMessage() used for summarization etc.
+ *
+ * @param {string} prompt - The prompt text
+ * @param {object} [options] - provider, model, temperature, maxTokens, systemMessage
+ * @returns {Promise<{response: string, content: string, provider: string, model: string, usage: object}>}
+ */
+async function generateText(prompt, options = {}) {
+    const core = await loadTutorCore();
+    if (!core || !core.unifiedAIProvider) {
+        throw new Error('tutor-core not available — cannot generate text.');
+    }
+
+    const provider = resolveProvider(options.provider);
+    const model = (options.model && options.model !== 'auto' && options.model !== 'default')
+        ? options.model : undefined;
+
+    const result = await core.unifiedAIProvider.call({
+        provider,
+        model,
+        systemPrompt: options.systemMessage || '',
+        messages: [{ role: 'user', content: prompt }],
+        preset: options.preset || 'direct',
+        config: {
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+        },
+    });
+
+    return {
+        response: result.content,
+        content: result.content,
+        provider: result.provider,
+        model: result.model,
+        usage: result.usage,
+        latencyMs: result.latencyMs,
+    };
+}
+
+// ============================================================================
+// Provider Management (replaces aiService provider methods)
+// ============================================================================
+
+/**
+ * Get list of available (configured) provider IDs.
+ * @returns {string[]}
+ */
+function getAvailableProviders() {
+    if (!tutorCore || !tutorCore.unifiedAIProvider) return [];
+
+    const status = tutorCore.unifiedAIProvider.getProviderStatus();
+    const available = [];
+    for (const [id, info] of Object.entries(status)) {
+        if (info.configured) available.push(id);
+    }
+    return available;
+}
+
+/**
+ * Get the current default provider.
+ * @returns {string|null}
+ */
+function getDefaultProvider() {
+    if (defaultProvider) return defaultProvider;
+    if (!tutorCore || !tutorCore.unifiedAIProvider) return null;
+    return tutorCore.unifiedAIProvider.getAvailableProvider();
+}
+
+/**
+ * Set the default provider.
+ * @param {string} providerId
+ */
+function setDefaultProvider(providerId) {
+    if (providerId === 'auto' || providerId === 'default') {
+        defaultProvider = null;
+    } else {
+        defaultProvider = providerId;
+    }
+    console.log(`[TutorBridge] Default provider set to: ${defaultProvider || 'auto'}`);
+}
+
+/**
+ * Get available models for a provider.
+ * @param {string} providerId
+ * @returns {string[]}
+ */
+function getProviderModels(providerId) {
+    // Return hardcoded lists matching what providers.yaml defines
+    const modelLists = {
+        openrouter: [
+            'nvidia/nemotron-3-nano-30b-a3b:free',
+            'z-ai/glm-4.7',
+            'moonshotai/kimi-k2-thinking',
+            'deepseek/deepseek-v3.2',
+            'anthropic/claude-haiku-4.5',
+            'anthropic/claude-sonnet-4.5',
+            'openai/gpt-5-mini',
+            'openai/gpt-5.2',
+        ],
+        openai: ['gpt-5', 'gpt-5-mini', 'gpt-5.2', 'gpt-4o', 'gpt-4o-mini'],
+        anthropic: ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'],
+        claude: ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'],
+        gemini: ['gemini-3-flash-preview', 'gemini-3-pro-preview'],
+        local: ['local-model'],
+    };
+    return modelLists[providerId] || [];
+}
+
+/**
+ * Get current AI configuration state (for the get-current-ai-config handler).
+ * @returns {object}
+ */
+function getCurrentConfiguration() {
+    const providers = getAvailableProviders();
+    const provider = getDefaultProvider();
+    return {
+        provider,
+        model: null, // Will be resolved by tutor-core at call time
+        availableProviders: providers,
+    };
+}
+
+/**
+ * Clear conversation history.
+ */
+function clearConversation() {
+    conversationHistory = [];
+    currentSystemMessage = null;
+    console.log('[TutorBridge] Conversation cleared');
+}
+
+/**
+ * Get conversation history.
+ * @returns {Array<{role: string, content: string}>}
+ */
+function getConversationHistory() {
+    return [...conversationHistory];
+}
+
+/**
+ * Update the local AI base URL (called when user changes settings).
+ * @param {string} url
+ */
+function updateLocalAIUrl(url) {
+    if (url) {
+        process.env.LOCAL_AI_URL = url;
+        console.log(`[TutorBridge] LOCAL_AI_URL updated to: ${url}`);
+    }
+}
+
+// ============================================================================
+// Ego/Superego Dialogue (existing)
+// ============================================================================
+
 /**
  * Route an AI dialogue request through tutor-core's Ego/Superego engine.
  *
@@ -122,15 +447,6 @@ async function routeDialogue(context = {}) {
 
 /**
  * Process a dialogue result through the full recognition pipeline.
- *
- * Call this after routeDialogue() returns. Chains all 5 recognition phases:
- * Phase 1 (WritingPad) → Phase 2 (DialecticalEngine) → Phase 3 (LearnerIntegration)
- *    → Phase 4 (MemoryDynamics) → Phase 5 (RecognitionGamification)
- *
- * @param {object} dialogueResult - Result from routeDialogue() or tutorDialogueEngine.runDialogue()
- * @param {object} [learnerResponse] - How the learner responded to the suggestion
- * @param {object} [options] - Additional options (e.g. { sessionId })
- * @returns {object|null} Pipeline result with enriched recognition state, or null if unavailable.
  */
 async function processDialogueResult(dialogueResult, learnerResponse = null, options = {}) {
     const core = await loadTutorCore();
@@ -151,14 +467,6 @@ async function processDialogueResult(dialogueResult, learnerResponse = null, opt
 
 /**
  * Process a writing event through the full recognition pipeline.
- *
- * Replaces the old per-event-type logic with the orchestrated pipeline.
- *
- * @param {object} event
- * @param {string} event.type - Event type: 'analysis_complete', 'feedback_response', 'flow_change'.
- * @param {object} [event.data] - Event-specific payload.
- * @param {object} [options] - Additional options (e.g. { sessionId })
- * @returns {object|null} Pipeline result with recognition state, or null if unavailable.
  */
 async function processWritingEvent(event = {}, options = {}) {
     const core = await loadTutorCore();
@@ -176,27 +484,12 @@ async function processWritingEvent(event = {}, options = {}) {
     }
 }
 
-/**
- * Record a writing event and translate it into recognition primitives.
- *
- * BACKWARD COMPATIBLE: Delegates to processWritingEvent() for full pipeline execution.
- *
- * @param {object} event
- * @param {string} event.type - Event type: 'analysis_complete', 'feedback_response', 'flow_change'.
- * @param {object} [event.data] - Event-specific payload.
- */
+/** Backward-compatible alias for processWritingEvent. */
 async function recordWritingEvent(event = {}) {
     return processWritingEvent(event);
 }
 
-/**
- * Get the full recognition state across all 5 phases.
- *
- * Returns writing pad state, dialectical history, learner patterns,
- * memory state, and gamification profile.
- *
- * @returns {object|null} Full recognition state, or null if unavailable.
- */
+/** Get the full recognition state across all 5 phases. */
 async function getFullRecognitionState() {
     const core = await loadTutorCore();
     if (!core || !core.recognitionOrchestrator) return null;
@@ -209,35 +502,20 @@ async function getFullRecognitionState() {
     }
 }
 
-/**
- * Get the current recognition state (Phase 5 gamification only).
- *
- * BACKWARD COMPATIBLE: Returns just the gamification profile.
- * For full pipeline state, use getFullRecognitionState() instead.
- *
- * @returns {object|null} Recognition profile, or null if tutor-core unavailable.
- */
+/** Get the current recognition state (Phase 5 gamification only). */
 async function getRecognitionState() {
     const core = await loadTutorCore();
-    if (!core || !core.recognitionGamificationService) {
-        return null;
-    }
+    if (!core || !core.recognitionGamificationService) return null;
 
     try {
-        const profile = core.recognitionGamificationService.getLearnerRecognitionProfile(bridgeState.learnerId);
-        return profile;
+        return core.recognitionGamificationService.getLearnerRecognitionProfile(bridgeState.learnerId);
     } catch (error) {
         console.error('[TutorBridge] Failed to get recognition state:', error.message);
         return null;
     }
 }
 
-/**
- * Get dialectical history (recent recognition moments with ego/superego traces).
- *
- * @param {object} [options] - { limit: number }
- * @returns {Array} Recognition moments, or empty array if unavailable.
- */
+/** Get dialectical history. */
 async function getDialecticalHistory(options = {}) {
     const core = await loadTutorCore();
     if (!core || !core.recognitionOrchestrator) return [];
@@ -250,11 +528,7 @@ async function getDialecticalHistory(options = {}) {
     }
 }
 
-/**
- * Get memory state across Freud's 3 layers (conscious/preconscious/unconscious).
- *
- * @returns {object|null} Memory state, or null if unavailable.
- */
+/** Get memory state across Freud's 3 layers. */
 async function getMemoryState() {
     const core = await loadTutorCore();
     if (!core || !core.recognitionOrchestrator) return null;
@@ -267,11 +541,7 @@ async function getMemoryState() {
     }
 }
 
-/**
- * Get learner pattern analysis (resistance, breakthrough, demand distributions).
- *
- * @returns {object|null} Learner patterns, or null if unavailable.
- */
+/** Get learner pattern analysis. */
 async function getLearnerPatterns() {
     const core = await loadTutorCore();
     if (!core || !core.recognitionOrchestrator) return null;
@@ -284,13 +554,7 @@ async function getLearnerPatterns() {
     }
 }
 
-/**
- * Run periodic maintenance tasks (memory consolidation, archetype evolution).
- *
- * Should be called on session start and periodically (~30 minutes).
- *
- * @returns {object|null} Maintenance results, or null if unavailable.
- */
+/** Run periodic maintenance tasks. */
 async function runMaintenance() {
     const core = await loadTutorCore();
     if (!core || !core.recognitionOrchestrator) return null;
@@ -303,12 +567,7 @@ async function runMaintenance() {
     }
 }
 
-/**
- * Switch the active tutor profile.
- *
- * @param {string} profileName - Profile to switch to (e.g. 'budget', 'experimental').
- * @returns {object|null} Active profile configuration, or null if unavailable.
- */
+/** Switch the active tutor profile. */
 async function switchProfile(profileName) {
     const core = await loadTutorCore();
     if (!core || !core.tutorConfigLoader) return null;
@@ -326,11 +585,7 @@ async function switchProfile(profileName) {
     }
 }
 
-/**
- * List available tutor profiles.
- *
- * @returns {Array} Profile names, or empty array if unavailable.
- */
+/** List available tutor profiles. */
 async function listProfiles() {
     const core = await loadTutorCore();
     if (!core || !core.tutorConfigLoader) return [];
@@ -343,11 +598,7 @@ async function listProfiles() {
     }
 }
 
-/**
- * Get monitoring metrics from tutor-core's monitoring service.
- *
- * @returns {object|null} Monitoring metrics, or null if unavailable.
- */
+/** Get monitoring metrics. */
 async function getMonitoringMetrics() {
     const core = await loadTutorCore();
     if (!core || !core.monitoringService) return null;
@@ -364,12 +615,6 @@ async function getMonitoringMetrics() {
 // Internal helpers
 // ============================================================================
 
-/**
- * Build learner context from NightOwl's session state for tutor-core dialogue.
- *
- * @param {object} [sessionState] - NightOwl session state.
- * @returns {object} Learner context compatible with tutor-core.
- */
 function buildLearnerContext(sessionState = {}) {
     return {
         learnerId: bridgeState.learnerId,
@@ -382,10 +627,6 @@ function buildLearnerContext(sessionState = {}) {
     };
 }
 
-/**
- * Check whether the bridge is available and initialized.
- * @returns {boolean}
- */
 function isAvailable() {
     return bridgeState.initialized && tutorCore !== null;
 }
@@ -393,13 +634,28 @@ function isAvailable() {
 // Export for CommonJS consumption
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-        // Original functions (backward compatible)
+        // Initialization
         initTutorBridge,
+        isAvailable,
+        // AI Chat interface (replaces aiService)
+        sendMessage,
+        streamMessage,
+        generateText,
+        // Provider management
+        getAvailableProviders,
+        getDefaultProvider,
+        setDefaultProvider,
+        getProviderModels,
+        getCurrentConfiguration,
+        updateLocalAIUrl,
+        // Conversation management
+        clearConversation,
+        getConversationHistory,
+        // Ego/Superego dialogue
         routeDialogue,
+        // Recognition pipeline
         recordWritingEvent,
         getRecognitionState,
-        isAvailable,
-        // Recognition pipeline (new)
         processDialogueResult,
         processWritingEvent,
         getFullRecognitionState,
@@ -407,10 +663,10 @@ if (typeof module !== 'undefined' && module.exports) {
         getMemoryState,
         getLearnerPatterns,
         runMaintenance,
-        // Profile management (new)
+        // Profile management
         switchProfile,
         listProfiles,
-        // Monitoring (new)
+        // Monitoring
         getMonitoringMetrics,
     };
 }
@@ -418,13 +674,22 @@ if (typeof module !== 'undefined' && module.exports) {
 // Also expose on window for renderer process access
 if (typeof window !== 'undefined') {
     window.TutorBridge = {
-        // Original functions (backward compatible)
         initTutorBridge,
+        isAvailable,
+        sendMessage,
+        streamMessage,
+        generateText,
+        getAvailableProviders,
+        getDefaultProvider,
+        setDefaultProvider,
+        getProviderModels,
+        getCurrentConfiguration,
+        updateLocalAIUrl,
+        clearConversation,
+        getConversationHistory,
         routeDialogue,
         recordWritingEvent,
         getRecognitionState,
-        isAvailable,
-        // Recognition pipeline (new)
         processDialogueResult,
         processWritingEvent,
         getFullRecognitionState,
@@ -432,10 +697,8 @@ if (typeof window !== 'undefined') {
         getMemoryState,
         getLearnerPatterns,
         runMaintenance,
-        // Profile management (new)
         switchProfile,
         listProfiles,
-        // Monitoring (new)
         getMonitoringMetrics,
     };
 }

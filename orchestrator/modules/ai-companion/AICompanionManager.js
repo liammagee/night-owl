@@ -68,28 +68,24 @@ class AICompanionManager {
             // Load settings
             await this.loadCompanionSettings();
 
-            // Attempt to initialize tutor-bridge for recognition-aware dialogue
+            // Connect to tutor-bridge (primary AI backend via tutor-core)
             try {
                 if (typeof window !== 'undefined' && window.TutorBridge) {
                     this.tutorBridge = window.TutorBridge;
-                    const bridgeResult = await this.tutorBridge.initTutorBridge();
-                    if (bridgeResult.ok) {
-                        console.log('[AICompanionManager] Tutor bridge initialized - dialogue will route through Ego/Superego engine');
+                    console.log('[AICompanionManager] Connected to TutorBridge - dialogue routes through tutor-core');
 
-                        // Schedule periodic maintenance (every 30 minutes)
-                        if (this.tutorBridge.runMaintenance) {
-                            this._maintenanceInterval = setInterval(() => {
-                                this.tutorBridge.runMaintenance()
-                                    .catch(err => console.warn('[AICompanionManager] Maintenance failed:', err.message));
-                            }, 30 * 60 * 1000);
-                        }
-                    } else {
-                        console.log('[AICompanionManager] Tutor bridge not available, using direct AI calls:', bridgeResult.error);
-                        this.tutorBridge = null;
+                    // Schedule periodic maintenance (every 30 minutes)
+                    if (this.tutorBridge.runMaintenance) {
+                        this._maintenanceInterval = setInterval(() => {
+                            this.tutorBridge.runMaintenance()
+                                .catch(err => console.warn('[AICompanionManager] Maintenance failed:', err.message));
+                        }, 30 * 60 * 1000);
                     }
+                } else {
+                    console.warn('[AICompanionManager] TutorBridge not available on window — AI features will use IPC fallback');
                 }
             } catch (bridgeError) {
-                console.log('[AICompanionManager] Tutor bridge init failed, using direct AI calls:', bridgeError.message);
+                console.warn('[AICompanionManager] TutorBridge connection failed:', bridgeError.message);
                 this.tutorBridge = null;
             }
 
@@ -221,7 +217,9 @@ class AICompanionManager {
 
             this.realTimeAnalysis.lastAnalysis = Date.now();
 
-            // Generate contextual feedback - try tutor-bridge first, fall back to direct
+            // Generate contextual feedback:
+            // 1. Try Ego/Superego dialogue via tutor-bridge (pedagogical, recognition-aware)
+            // 2. Fall back to general AI chat via feedbackSystem → IPC → tutorBridge.sendMessage()
             let feedback = null;
             if (this.tutorBridge && this.tutorBridge.isAvailable()) {
                 try {
@@ -253,11 +251,11 @@ class AICompanionManager {
                         }
                     }
                 } catch (bridgeError) {
-                    console.warn('[AICompanionManager] Tutor-bridge dialogue failed, falling back to direct AI:', bridgeError.message);
+                    console.warn('[AICompanionManager] Ego/Superego dialogue failed, falling back to general AI:', bridgeError.message);
                 }
             }
 
-            // Fallback to direct feedback system
+            // Fallback: general AI chat via feedbackSystem (routes through IPC → tutor-core)
             if (!feedback) {
                 feedback = await this.feedbackSystem.generateContextualFeedback(combinedAnalysis);
             }

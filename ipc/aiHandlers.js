@@ -1,5 +1,6 @@
 // === AI Service IPC Handlers ===
-// Handles all AI-related IPC communication
+// Handles all AI-related IPC communication.
+// Routes through tutor-bridge (backed by @machinespirits/tutor-core).
 
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs').promises;
@@ -13,22 +14,16 @@ function register(deps) {
   const {
     appSettings,
     mainWindow,
-    aiService,
+    tutorBridge,
+    imageService,
     currentFilePath,
     buildSystemMessage,
     cleanAIResponse
   } = deps;
 
-  // Helper function to check if context has changed significantly
-  function hasContextChanged(currentText, lastText, currentFiles, lastFiles, currentTimestamps, lastTimestamps) {
-    // Simple change detection - can be enhanced
-    if (!lastText || !lastFiles || !lastTimestamps) return true;
-    
-    const textChanged = currentText !== lastText;
-    const filesChanged = JSON.stringify(currentFiles) !== JSON.stringify(lastFiles);
-    const timestampsChanged = JSON.stringify(currentTimestamps) !== JSON.stringify(lastTimestamps);
-    
-    return textChanged || filesChanged || timestampsChanged;
+  // Helper: check if AI is available
+  function aiAvailable() {
+    return tutorBridge && tutorBridge.getAvailableProviders().length > 0;
   }
 
   function getLocalModelMissingResponse(error, contextLabel) {
@@ -45,29 +40,27 @@ function register(deps) {
     return { error: friendlyMessage, code: 'LOCAL_AI_NO_MODEL' };
   }
 
-  // AI Chat handlers
+  // ============================================================================
+  // Chat Handlers
+  // ============================================================================
+
   ipcMain.handle('send-chat-message', async (event, userMessage, assistantConfig) => {
-    if (!aiService || aiService.getAvailableProviders().length === 0) {
-      console.error('[AIHandlers] AI Service not available. Cannot send chat message.');
+    if (!aiAvailable()) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
     if (!userMessage || typeof userMessage !== 'string' || userMessage.trim() === '') {
-      console.error('[AIHandlers] Invalid user message received.');
       return { error: 'Invalid message format.' };
     }
-    
-    // Check for bypass flags
+
     const isExplicitRequest = assistantConfig?.explicitRequest || assistantConfig?.bypassFlowDetection;
     const requestSource = assistantConfig?.source || 'unknown';
-    
     if (isExplicitRequest) {
-      console.log(`[AIHandlers] 🚀 Explicit AI request from ${requestSource} - bypassing flow detection`);
+      console.log(`[AIHandlers] Explicit AI request from ${requestSource} - bypassing flow detection`);
     } else {
-      console.log(`[AIHandlers] 🤖 Received chat message of ${userMessage.length} characters`);
+      console.log(`[AIHandlers] Received chat message of ${userMessage.length} characters`);
     }
-    
+
     try {
-      // Apply AI assistant configuration or fallback to saved AI settings
       const aiSettings = appSettings.ai || {};
       const finalConfig = assistantConfig ? {
         ...aiSettings,
@@ -82,20 +75,15 @@ function register(deps) {
         model: (finalConfig.preferredModel && finalConfig.preferredModel !== 'auto' && finalConfig.preferredModel !== 'default') ? finalConfig.preferredModel : undefined,
         systemMessage: finalConfig.systemMessage || await buildSystemMessage(aiSettings),
         newConversation: finalConfig.conversationMode === 'isolated',
-        settings: aiSettings
       };
-      
-      const response = await aiService.sendMessage(userMessage, options);
+
+      const response = await tutorBridge.sendMessage(userMessage, options);
       console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
-      if (response.images && response.images.length > 0) {
-        console.log(`[AIHandlers] 🖼️ Response includes ${response.images.length} image(s)`);
-      }
-      
+
       return {
         response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
-        images: response.images, // Include images in IPC response
         usage: response.usage
       };
     } catch (error) {
@@ -107,29 +95,21 @@ function register(deps) {
   });
 
   ipcMain.handle('send-chat-message-with-options', async (event, userMessage, options = {}) => {
-    if (!aiService || aiService.getAvailableProviders().length === 0) {
-      console.error('[AIHandlers] AI Service not available. Cannot send chat message.');
+    if (!aiAvailable()) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
-    console.log('[AIHandlers] ----------- MESSAGE PREVIEW START -----------');
     console.log('[AIHandlers] Message length:', userMessage.length, 'characters');
-    console.log('[AIHandlers] Message preview:', userMessage.substring(0, 200) + (userMessage.length > 200 ? '...' : ''));
     console.log('[AIHandlers] Options:', JSON.stringify(options, null, 2));
-    console.log('[AIHandlers] ----------- MESSAGE PREVIEW END -----------');
-    
+
     try {
-      const response = await aiService.sendMessage(userMessage, options);
+      const response = await tutorBridge.sendMessage(userMessage, options);
       console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
-      if (response.images && response.images.length > 0) {
-        console.log(`[AIHandlers] 🖼️ Response includes ${response.images.length} image(s)`);
-      }
-      
+
       return {
         response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
-        images: response.images, // Include images in IPC response
         usage: response.usage
       };
     } catch (error) {
@@ -142,29 +122,23 @@ function register(deps) {
 
   ipcMain.handle('ai-chat', async (event, data) => {
     const { message, options = {} } = data;
-    
-    if (!aiService || aiService.getAvailableProviders().length === 0) {
-      console.error('[AIHandlers] AI Service not available. Cannot send ai-chat message.');
+
+    if (!aiAvailable()) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
     console.log('[AIHandlers] AI Chat request received');
     console.log('[AIHandlers] Message length:', message?.length || 0);
-    console.log('[AIHandlers] AI Chat options:', options);
-    
+
     try {
-      // Ensure settings are passed to the AI service
       const aiSettings = appSettings.ai || {};
-      
-      // Determine which assistant to use (default to 'ash' for writing companion)
       const assistantKey = options.assistant || 'ash';
       let finalOptions = { ...options };
-      
+
       // Apply assistant-specific settings if available
       if (aiSettings.assistants && aiSettings.assistants[assistantKey] && aiSettings.assistants[assistantKey].aiSettings) {
         const assistantSettings = aiSettings.assistants[assistantKey].aiSettings;
-        
-        // Apply provider and model from assistant settings if not already specified
+
         if (!finalOptions.provider && assistantSettings.provider) {
           finalOptions.provider = assistantSettings.provider;
         }
@@ -177,22 +151,19 @@ function register(deps) {
         if (!finalOptions.maxTokens && assistantSettings.maxTokens) {
           finalOptions.maxTokens = assistantSettings.maxTokens;
         }
-        
+
         console.log(`[AIHandlers] Using assistant '${assistantKey}' with provider: ${finalOptions.provider}, model: ${finalOptions.model}`);
       }
-      
-      // Always pass settings to the AI service
-      finalOptions.settings = aiSettings;
-      
-      const response = await aiService.sendMessage(message, finalOptions);
+
+      const response = await tutorBridge.sendMessage(message, finalOptions);
       console.log(`[AIHandlers] AI Chat response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
-      
+
       return {
         response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
         usage: response.usage,
-        confidence: response.confidence || 0.8
+        confidence: 0.8
       };
     } catch (error) {
       const localModelResponse = getLocalModelMissingResponse(error, 'ai-chat');
@@ -204,19 +175,14 @@ function register(deps) {
 
   ipcMain.handle('send-chat-message-with-context', async (event, data) => {
     const { message, fileContext, currentFile, assistantConfig } = data;
-    
-    if (!aiService || aiService.getAvailableProviders().length === 0) {
-      console.error('[AIHandlers] AI Service not available. Cannot send chat message.');
+
+    if (!aiAvailable()) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
     console.log('[AIHandlers] Context-aware chat request received');
-    console.log('[AIHandlers] Message:', message.substring(0, 100) + '...');
-    console.log('[AIHandlers] Current file:', currentFile);
-    console.log('[AIHandlers] File context provided:', !!fileContext);
 
     try {
-      // Apply AI assistant configuration
       const aiSettings = appSettings.ai || {};
       const finalConfig = assistantConfig ? {
         ...aiSettings,
@@ -226,17 +192,15 @@ function register(deps) {
       } : aiSettings;
 
       let enhancedPrompt = message;
-      
-      // Add file context if provided and significant
+
       if (fileContext && Object.keys(fileContext).length > 0) {
         const contextEntries = Object.entries(fileContext)
           .filter(([_, content]) => content && content.length > 100)
           .map(([file, content]) => `### ${path.basename(file)}\n${content.substring(0, 2000)}${content.length > 2000 ? '\n[... truncated ...]' : ''}`)
-          .slice(0, 5); // Limit to 5 files
+          .slice(0, 5);
 
         if (contextEntries.length > 0) {
           enhancedPrompt = `${message}\n\n## Relevant File Context\n\n${contextEntries.join('\n\n')}`;
-          console.log('[AIHandlers] Enhanced prompt with context from', contextEntries.length, 'files');
         }
       }
 
@@ -248,18 +212,14 @@ function register(deps) {
         temperature: finalConfig.temperature,
         maxTokens: finalConfig.maxTokens
       };
-      
-      const response = await aiService.sendMessage(enhancedPrompt, options);
+
+      const response = await tutorBridge.sendMessage(enhancedPrompt, options);
       console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
-      if (response.images && response.images.length > 0) {
-        console.log(`[AIHandlers] 🖼️ Response includes ${response.images.length} image(s)`);
-      }
-      
+
       return {
         response: cleanAIResponse(response.response),
         provider: response.provider,
         model: response.model,
-        images: response.images, // Include images in IPC response
         usage: response.usage
       };
     } catch (error) {
@@ -270,17 +230,49 @@ function register(deps) {
     }
   });
 
-  // AI Provider Management
+  // ============================================================================
+  // Streaming Handler (new)
+  // ============================================================================
+
+  ipcMain.handle('ai-chat-stream', async (event, data) => {
+    const { message, options = {} } = data;
+
+    if (!aiAvailable()) {
+      return { error: 'AI Service not configured.' };
+    }
+
+    try {
+      const stream = tutorBridge.streamMessage(message, options);
+
+      for await (const chunk of stream) {
+        if (chunk.type === 'text_delta') {
+          event.sender.send('ai-chat-stream-chunk', chunk);
+        } else if (chunk.type === 'done') {
+          event.sender.send('ai-chat-stream-chunk', chunk);
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('[AIHandlers] Streaming error:', error);
+      return { error: error.message };
+    }
+  });
+
+  // ============================================================================
+  // Provider Management
+  // ============================================================================
+
   ipcMain.handle('get-available-ai-providers', async (event) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, providers: [], defaultProvider: null, error: 'AI Service not available' };
     }
 
     try {
       return {
         success: true,
-        providers: aiService.getAvailableProviders(),
-        defaultProvider: aiService.getDefaultProvider()
+        providers: tutorBridge.getAvailableProviders(),
+        defaultProvider: tutorBridge.getDefaultProvider()
       };
     } catch (error) {
       console.error('[AIHandlers] Error getting available providers:', error);
@@ -289,41 +281,32 @@ function register(deps) {
   });
 
   ipcMain.handle('get-current-ai-config', async (event) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, error: 'AI Service not available' };
     }
-    
+
     try {
-      // Get the base configuration from AI service
-      const baseConfig = aiService.getCurrentConfiguration();
-      
-      // Override with user's saved settings
+      const baseConfig = tutorBridge.getCurrentConfiguration();
       const aiSettings = appSettings.ai || {};
-      
+
       let actualProvider = baseConfig.provider;
       let actualModel = baseConfig.model;
-      
+
       if (aiSettings.preferredProvider && aiSettings.preferredProvider !== 'auto') {
-        // User has selected a specific provider
-        if (aiService.getAvailableProviders().includes(aiSettings.preferredProvider)) {
+        if (tutorBridge.getAvailableProviders().includes(aiSettings.preferredProvider)) {
           actualProvider = aiSettings.preferredProvider;
-          
-          // Use the user's selected model for this provider
           if (aiSettings.preferredModel && aiSettings.preferredModel !== 'auto') {
             actualModel = aiSettings.preferredModel;
-          } else {
-            // Use default model for the selected provider
-            actualModel = aiService.getDefaultModelForProvider(actualProvider);
           }
         }
       }
-      
+
       return {
         success: true,
         provider: actualProvider,
         model: actualModel,
         availableProviders: baseConfig.availableProviders,
-        availableModels: actualProvider ? await aiService.getProviderModels(actualProvider) : [],
+        availableModels: actualProvider ? tutorBridge.getProviderModels(actualProvider) : [],
         settings: {
           preferredProvider: aiSettings.preferredProvider || 'auto',
           preferredModel: aiSettings.preferredModel || 'auto',
@@ -345,12 +328,12 @@ function register(deps) {
   });
 
   ipcMain.handle('get-default-ai-provider', async (event) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, provider: null, error: 'AI Service not available' };
     }
 
     try {
-      return { success: true, provider: aiService.getDefaultProvider() };
+      return { success: true, provider: tutorBridge.getDefaultProvider() };
     } catch (error) {
       console.error('[AIHandlers] Error getting default provider:', error);
       return { success: false, provider: null, error: error.message };
@@ -358,12 +341,12 @@ function register(deps) {
   });
 
   ipcMain.handle('get-provider-models', async (event, provider) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, models: [], error: 'AI Service not available' };
     }
 
     try {
-      const models = await aiService.getProviderModels(provider);
+      const models = tutorBridge.getProviderModels(provider);
       return { success: true, models };
     } catch (error) {
       console.error('[AIHandlers] Error getting provider models:', error);
@@ -372,12 +355,12 @@ function register(deps) {
   });
 
   ipcMain.handle('set-default-ai-provider', async (event, provider) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, error: 'AI Service not available' };
     }
-    
+
     try {
-      aiService.setDefaultProvider(provider);
+      tutorBridge.setDefaultProvider(provider);
       return { success: true };
     } catch (error) {
       console.error('[AIHandlers] Error setting default provider:', error);
@@ -385,14 +368,17 @@ function register(deps) {
     }
   });
 
+  // ============================================================================
   // Conversation Management
+  // ============================================================================
+
   ipcMain.handle('ai-clear-conversation', async (event) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, error: 'AI Service not available' };
     }
 
     try {
-      aiService.clearConversation();
+      tutorBridge.clearConversation();
       return { success: true, message: 'Conversation cleared' };
     } catch (error) {
       console.error('[AIHandlers] Error clearing conversation:', error);
@@ -401,12 +387,12 @@ function register(deps) {
   });
 
   ipcMain.handle('ai-restart-conversation', async (event, systemMessage) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, error: 'AI Service not available' };
     }
 
     try {
-      aiService.restartConversation(systemMessage);
+      tutorBridge.clearConversation();
       return { success: true, message: 'Conversation restarted' };
     } catch (error) {
       console.error('[AIHandlers] Error restarting conversation:', error);
@@ -415,12 +401,12 @@ function register(deps) {
   });
 
   ipcMain.handle('ai-get-conversation-history', async (event) => {
-    if (!aiService) {
+    if (!tutorBridge) {
       return { success: false, error: 'AI Service not available' };
     }
 
     try {
-      const history = aiService.getConversationHistory();
+      const history = tutorBridge.getConversationHistory();
       return { success: true, history };
     } catch (error) {
       console.error('[AIHandlers] Error getting conversation history:', error);
@@ -428,26 +414,26 @@ function register(deps) {
     }
   });
 
+  // ============================================================================
   // AI Service Testing
+  // ============================================================================
+
   ipcMain.handle('test-ai-service', async (event) => {
     console.log('[AIHandlers] Testing AI service...');
-    
-    if (!aiService) {
+
+    if (!tutorBridge) {
       return { success: false, error: 'AI Service not initialized' };
     }
-    
-    console.log('[AIHandlers] Available providers:', aiService.getAvailableProviders());
-    console.log('[AIHandlers] Default provider:', aiService.getDefaultProvider());
-    
+
+    console.log('[AIHandlers] Available providers:', tutorBridge.getAvailableProviders());
+    console.log('[AIHandlers] Default provider:', tutorBridge.getDefaultProvider());
+
     try {
       const testMessage = 'Hello, this is a test message. Please respond with "Test successful".';
-      console.log('[AIHandlers] Sending test message...');
-      
-      const response = await aiService.sendMessage(testMessage);
-      console.log('[AIHandlers] Test response received:', response);
-      
-      return { 
-        success: true, 
+      const response = await tutorBridge.sendMessage(testMessage, { newConversation: true });
+
+      return {
+        success: true,
         response: response.response,
         provider: response.provider,
         model: response.model,
@@ -455,18 +441,20 @@ function register(deps) {
       };
     } catch (error) {
       console.error('[AIHandlers] Test failed:', error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: error.message,
-        providers: aiService.getAvailableProviders()
+        providers: tutorBridge.getAvailableProviders()
       };
     }
   });
 
+  // ============================================================================
   // Text Summarization
+  // ============================================================================
+
   ipcMain.handle('summarize-text-to-notes', async (event, selectedText) => {
-    if (!aiService || aiService.getAvailableProviders().length === 0) {
-      console.error('[AIHandlers] AI Service not available. Cannot summarize text.');
+    if (!aiAvailable()) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
@@ -491,43 +479,35 @@ Example format:
 ### Machine Learning Fundamentals
 
 - Main concept or theme
-- Key finding or argument  
+- Key finding or argument
 - Important implication
 - Practical application
 - Conclusion
 
 Generate the heading and bullet points only, nothing else.`;
 
-    console.log(`[AIHandlers] Summarizing ${selectedText.length} chars: "${selectedText.substring(0, 100)}..."`);
-    console.log(`[AIHandlers] Prompt being sent to AI:`, prompt.substring(0, 300) + '...');
+    console.log(`[AIHandlers] Summarizing ${selectedText.length} chars`);
 
     try {
-      // Use Ash's specific settings for summarization
       const ashSettings = appSettings.ai?.assistants?.ash?.aiSettings || {};
-      console.log(`[AIHandlers] Using Ash settings for summarization:`, ashSettings);
-      
       let provider = ashSettings.provider;
       let model = ashSettings.model;
-      
-      // Fallback to general AI settings if Ash settings not available
+
       if (!provider || provider === 'auto' || provider === 'default') {
         const generalSettings = appSettings.ai || {};
         provider = generalSettings.preferredProvider !== 'auto' ? generalSettings.preferredProvider : undefined;
         model = generalSettings.preferredModel !== 'auto' ? generalSettings.preferredModel : undefined;
-        console.log(`[AIHandlers] Falling back to general settings: provider=${provider}, model=${model}`);
       }
 
       const systemMessage = await buildSystemMessage(ashSettings);
-      
-      const response = await aiService.sendMessage(prompt, {
+
+      const response = await tutorBridge.generateText(prompt, {
         provider,
         model,
         systemMessage,
-        temperature: 0.3, // Lower temperature for more focused summaries
+        temperature: 0.3,
         maxTokens: 1000
       });
-
-      console.log(`[AIHandlers] Summary generated using ${response.provider} (${response.model})`);
 
       return {
         success: true,
@@ -547,9 +527,8 @@ Generate the heading and bullet points only, nothing else.`;
   ipcMain.handle('browse-system-prompt-file', async (event) => {
     const { BrowserWindow } = require('electron');
     const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    
+
     if (!currentMainWindow) {
-      console.error('[AIHandlers] No main window available for prompt file dialog');
       return { success: false, error: 'No main window available' };
     }
 
@@ -568,7 +547,7 @@ Generate the heading and bullet points only, nothing else.`;
       }
 
       const filePath = result.filePaths[0];
-      
+
       try {
         const content = await fs.readFile(filePath, 'utf8');
         return {
@@ -578,78 +557,49 @@ Generate the heading and bullet points only, nothing else.`;
           fileName: path.basename(filePath)
         };
       } catch (readError) {
-        console.error('[AIHandlers] Error reading system prompt file:', readError);
         return { success: false, error: `Could not read file: ${readError.message}` };
       }
     } catch (error) {
-      console.error('[AIHandlers] Error browsing system prompt file:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // Extract notes content from text
+  // Extract notes content from text (no AI dependency)
   ipcMain.handle('extract-notes-content', async (_event, selectedText) => {
     if (!selectedText || typeof selectedText !== 'string' || selectedText.trim() === '') {
       return { error: 'No text provided for notes extraction.' };
     }
 
-    console.log(`[AIHandlers] Extracting notes content from ${selectedText.length} characters of text`);
-    console.log(`[AIHandlers] Selected text (full):`, JSON.stringify(selectedText));
-
     try {
-      // Look for ```notes blocks that contain speaker notes
-      // Try multiple pattern variations to handle different formatting
       const notesBlockPatterns = [
-        /```notes\s*\n([\s\S]*?)\n\s*```/g,  // Standard format with newlines
-        /```notes\n([\s\S]*?)\n```/g,        // Strict format  
-        /```notes\s+([\s\S]*?)\s+```/g,      // With spaces around content
-        /```notes([\s\S]*?)```/g,            // No newlines/spaces required
-        /```notes\s*([^\n]*?)\s*```/g,       // Single line format
+        /```notes\s*\n([\s\S]*?)\n\s*```/g,
+        /```notes\n([\s\S]*?)\n```/g,
+        /```notes\s+([\s\S]*?)\s+```/g,
+        /```notes([\s\S]*?)```/g,
+        /```notes\s*([^\n]*?)\s*```/g,
       ];
-      
+
       let extractedNotes = [];
       let blocksFound = 0;
 
-      // Try each pattern
-      console.log(`[AIHandlers] Trying ${notesBlockPatterns.length} different patterns...`);
-      
       for (let i = 0; i < notesBlockPatterns.length; i++) {
         const pattern = notesBlockPatterns[i];
-        console.log(`[AIHandlers] Testing pattern ${i + 1}:`, pattern.source);
-        
-        // Reset regex lastIndex to ensure fresh matching
         pattern.lastIndex = 0;
-        
         const matches = [...selectedText.matchAll(pattern)];
-        console.log(`[AIHandlers] Pattern ${i + 1} found ${matches.length} matches`);
-        
-        matches.forEach((match, j) => {
-          console.log(`[AIHandlers] Match ${j + 1}:`, match);
+
+        matches.forEach((match) => {
           const noteContent = match[1]?.trim();
-          console.log(`[AIHandlers] Extracted note content:`, JSON.stringify(noteContent));
-          
           if (noteContent && noteContent.length > 0) {
-            extractedNotes.push({
-              content: noteContent,
-              type: 'speaker-notes',
-              position: match.index
-            });
+            extractedNotes.push({ content: noteContent, type: 'speaker-notes', position: match.index });
             blocksFound++;
           }
         });
-        
-        // If we found matches with this pattern, stop trying others
-        if (blocksFound > 0) {
-          console.log(`[AIHandlers] Pattern ${i + 1} worked! Found ${blocksFound} blocks.`);
-          break;
-        }
-      }
-      
-      console.log(`[AIHandlers] Total blocks found: ${blocksFound}`);
 
-      // If no ```notes blocks found, also look for legacy note patterns as fallback
+        if (blocksFound > 0) break;
+      }
+
+      // Legacy fallback
       if (blocksFound === 0) {
-        console.log(`[AIHandlers] No [backtick]notes blocks found, trying legacy patterns...`);
         const legacyPatterns = [
           /\[Note:\s*([^\]]+)\]/gi,
           /\[NOTE:\s*([^\]]+)\]/gi,
@@ -657,256 +607,154 @@ Generate the heading and bullet points only, nothing else.`;
           /Note:\s*([^\n]+)/gi,
         ];
 
-        legacyPatterns.forEach((pattern, i) => {
-          console.log(`[AIHandlers] Trying legacy pattern ${i + 1}:`, pattern.source);
+        legacyPatterns.forEach((pattern) => {
           pattern.lastIndex = 0;
           const matches = [...selectedText.matchAll(pattern)];
-          
           matches.forEach((match) => {
             const noteContent = match[1]?.trim();
             if (noteContent && noteContent.length > 0) {
-              extractedNotes.push({
-                content: noteContent,
-                type: 'legacy-note',
-                position: match.index
-              });
+              extractedNotes.push({ content: noteContent, type: 'legacy-note', position: match.index });
               blocksFound++;
             }
           });
         });
       }
 
-      // Sort by position in text
       extractedNotes.sort((a, b) => a.position - b.position);
 
-      // Format the extracted notes - just return the content directly
-      let extractedContent = '';
-      if (extractedNotes.length > 0) {
-        // For speaker notes, return the content directly without extra formatting
-        extractedContent = extractedNotes.map(note => note.content).join('\n\n');
-        console.log(`[AIHandlers] Final extracted content:`, JSON.stringify(extractedContent));
-      } else {
-        extractedContent = 'No speaker notes found in the selected text.\n\nLooking for ```notes blocks containing speaker notes.';
-        console.log(`[AIHandlers] No notes found, returning fallback message`);
-      }
+      const extractedContent = extractedNotes.length > 0
+        ? extractedNotes.map(note => note.content).join('\n\n')
+        : 'No speaker notes found in the selected text.\n\nLooking for ```notes blocks containing speaker notes.';
 
-      return {
-        success: true,
-        extractedContent: extractedContent,
-        blocksFound,
-        notes: extractedNotes
-      };
-
+      return { success: true, extractedContent, blocksFound, notes: extractedNotes };
     } catch (error) {
-      console.error('[AIHandlers] Error extracting notes content:', error);
       return { error: `Failed to extract notes: ${error.message}` };
     }
   });
 
-  // Document Summaries for Preview Zoom and Circle modules
+  // ============================================================================
+  // Document Summaries
+  // ============================================================================
+
   ipcMain.handle('generate-document-summaries', async (event, { content, filePath }) => {
-    if (!aiService || aiService.getAvailableProviders().length === 0) {
-      console.error('[AIHandlers] AI Service not available. Cannot generate document summaries.');
+    if (!aiAvailable()) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
     if (!content || typeof content !== 'string' || content.trim() === '') {
-      console.error('[AIHandlers] No content provided for document summaries.');
       return { error: 'No content provided for summarization.' };
     }
 
-    console.log(`[AIHandlers] 🔍 Generating document summaries for content (${content.length} chars)`);
+    console.log(`[AIHandlers] Generating document summaries for content (${content.length} chars)`);
 
-    // Set up timeout wrapper for the entire operation (increased for local models)
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Summary generation timed out after 90 seconds')), 90000);
     });
 
     const generateSummaries = async () => {
       try {
-        // Debug: Check what settings are available
-        console.log('[AIHandlers] Available AI settings:', JSON.stringify(appSettings.ai, null, 2));
-        
-        // Try to use Dr Chen's configured settings first
         const chenSettings = appSettings.ai?.assistants?.chen?.aiSettings;
         let provider, model, temperature, maxTokens, systemMessage;
-        
+
         if (chenSettings) {
-          console.log('[AIHandlers] Found Dr Chen settings:', JSON.stringify(chenSettings, null, 2));
           provider = chenSettings.provider !== 'auto' ? chenSettings.provider : undefined;
           model = chenSettings.model !== 'auto' ? chenSettings.model : undefined;
           temperature = chenSettings.temperature || 0.8;
-          maxTokens = Math.min(chenSettings.maxTokens || 1000, 800); // Cap for summaries
+          maxTokens = Math.min(chenSettings.maxTokens || 1000, 800);
           systemMessage = appSettings.ai?.assistants?.chen?.systemPrompt;
         } else {
-          console.log('[AIHandlers] No Dr Chen settings found, using general AI settings');
           const aiSettings = appSettings.ai || {};
           provider = aiSettings.preferredProvider !== 'auto' ? aiSettings.preferredProvider : undefined;
           model = aiSettings.preferredModel !== 'auto' ? aiSettings.preferredModel : undefined;
           temperature = 0.3;
           maxTokens = 800;
         }
-        
-        console.log(`[AIHandlers] Using provider: ${provider || 'auto'}, model: ${model || 'auto'}, temperature: ${temperature}`);
-      
-      // Truncate content for local models to prevent context issues
-      const actualProvider = provider || aiService.getDefaultProvider();
-      const isLocalProvider = actualProvider === 'local' || actualProvider === 'lmstudio';
-      const maxContentLength = isLocalProvider ? 2000 : 8000; // Much shorter for local models
-      
-      const truncatedContent = content.length > maxContentLength 
-        ? content.substring(0, maxContentLength) + "\n\n[Content truncated for summarization...]"
-        : content;
-        
-      console.log(`[AIHandlers] Content length: ${content.length}, using: ${truncatedContent.length} chars for ${actualProvider}`);
 
-      // Create prompts for different abstraction levels
-      const prompts = {
-        paragraph: `Please provide a paragraph-level summary of the following document. Focus on the main ideas and key points, condensing the content while preserving the essential information:\n\n${truncatedContent}`,
-        sentence: `Please provide a single-sentence summary that captures the core essence and main message of the following document:\n\n${truncatedContent}`
-      };
+        const actualProvider = provider || tutorBridge.getDefaultProvider();
+        const isLocalProvider = actualProvider === 'local' || actualProvider === 'lmstudio';
+        const maxContentLength = isLocalProvider ? 2000 : 8000;
 
-      const summaries = {};
-      
-      const requestOptions = {
-        provider,
-        model,
-        temperature,
-        maxTokens: isLocalProvider ? Math.min(maxTokens, 400) : maxTokens, // Reduce tokens for local
-        timeout: isLocalProvider ? 60000 : 20000, // Longer timeout for local models
-        newConversation: true // Force new conversation for each request
-      };
-      
-      // Add system message if available (for Dr Chen)
-      if (systemMessage) {
-        requestOptions.systemMessage = systemMessage;
-      }
-      
-      console.log('[AIHandlers] Request options:', requestOptions);
-      
-      // Generate paragraph summary
-      const paragraphResponse = await aiService.sendMessage(prompts.paragraph, requestOptions);
-      console.log('[AIHandlers] Paragraph response:', JSON.stringify(paragraphResponse, null, 2));
-      summaries.paragraph = paragraphResponse.content || paragraphResponse.response;
+        const truncatedContent = content.length > maxContentLength
+          ? content.substring(0, maxContentLength) + "\n\n[Content truncated for summarization...]"
+          : content;
 
-      // Generate sentence summary  
-      const sentenceResponse = await aiService.sendMessage(prompts.sentence, {
-        ...requestOptions,
-        maxTokens: isLocalProvider ? 100 : 200 // Even smaller for sentence
-      });
-      console.log('[AIHandlers] Sentence response:', JSON.stringify(sentenceResponse, null, 2));
-      summaries.sentence = sentenceResponse.content || sentenceResponse.response;
+        const summaries = {};
+        const requestOptions = {
+          provider,
+          model,
+          temperature,
+          maxTokens: isLocalProvider ? Math.min(maxTokens, 400) : maxTokens,
+          systemMessage,
+        };
 
-      console.log(`[AIHandlers] Final summaries - paragraph: "${summaries.paragraph?.substring(0, 100)}...", sentence: "${summaries.sentence?.substring(0, 100)}..."`);
-      
-      if (!summaries.paragraph || !summaries.sentence) {
-        console.error('[AIHandlers] Missing summaries! paragraph:', !!summaries.paragraph, 'sentence:', !!summaries.sentence);
-        return { error: 'Failed to generate summaries - responses were empty' };
-      }
-      
-      return {
-        success: true,
-        paragraph: summaries.paragraph,
-        sentence: summaries.sentence,
-        provider: paragraphResponse.provider,
-        model: paragraphResponse.model
-      };
+        const paragraphResponse = await tutorBridge.generateText(
+          `Please provide a paragraph-level summary of the following document. Focus on the main ideas and key points, condensing the content while preserving the essential information:\n\n${truncatedContent}`,
+          requestOptions
+        );
+        summaries.paragraph = paragraphResponse.content || paragraphResponse.response;
 
-    } catch (error) {
-      console.error('[AIHandlers] Error generating document summaries:', error);
-      
-      // Check if it's a context length error and try with even shorter content
-      const errorStr = JSON.stringify(error);
-      const isContextError = errorStr.includes('context length') || 
-                            errorStr.includes('context overflow') || 
-                            errorStr.includes('Reached context length') ||
-                            error.message?.includes('context length') ||
-                            error.message?.includes('context overflow');
-      
-      if (isContextError) {
-        console.log('[AIHandlers] Context length error detected, trying with shorter content...');
-        
-        try {
-          const veryShortContent = content.substring(0, 1200) + "\n\n[Content heavily truncated for summarization...]";
-          console.log(`[AIHandlers] Retrying with ${veryShortContent.length} chars`);
-          
-          const fallbackConfig = {
-            provider: 'auto',
-            model: 'auto',
-            temperature: 0.3,
-            maxTokens: 200, // Very conservative
-            timeout: 8000
-          };
-          
-          const shortPrompts = {
-            paragraph: `Briefly summarize this text:\n\n${veryShortContent}`,
-            sentence: `One sentence summary:\n\n${veryShortContent}`
-          };
-          
-          const paragraphResponse = await aiService.sendMessage(shortPrompts.paragraph, fallbackConfig);
-          const sentenceResponse = await aiService.sendMessage(shortPrompts.sentence, {
-            ...fallbackConfig,
-            maxTokens: 50 // Very short for sentence summary
-          });
-          
-          console.log('[AIHandlers] Fallback summaries generated successfully');
-          
-          return {
-            success: true,
-            paragraph: paragraphResponse.content,
-            sentence: sentenceResponse.content,
-            provider: paragraphResponse.provider,
-            model: paragraphResponse.model,
-            note: 'Content was truncated due to length constraints'
-          };
-        } catch (fallbackError) {
-          console.error('[AIHandlers] Fallback summary generation also failed:', fallbackError);
-          return { error: `Failed to generate summaries even with shorter content: ${fallbackError.message}` };
+        const sentenceResponse = await tutorBridge.generateText(
+          `Please provide a single-sentence summary that captures the core essence and main message of the following document:\n\n${truncatedContent}`,
+          { ...requestOptions, maxTokens: isLocalProvider ? 100 : 200 }
+        );
+        summaries.sentence = sentenceResponse.content || sentenceResponse.response;
+
+        if (!summaries.paragraph || !summaries.sentence) {
+          return { error: 'Failed to generate summaries - responses were empty' };
         }
-      }
-      
-      return { error: `Failed to generate summaries: ${error.message}` };
+
+        return {
+          success: true,
+          paragraph: summaries.paragraph,
+          sentence: summaries.sentence,
+          provider: paragraphResponse.provider,
+          model: paragraphResponse.model
+        };
+      } catch (error) {
+        console.error('[AIHandlers] Error generating document summaries:', error);
+        return { error: `Failed to generate summaries: ${error.message}` };
       }
     };
-    
+
     try {
       return await Promise.race([generateSummaries(), timeoutPromise]);
     } catch (error) {
       if (error.message.includes('timed out')) {
-        console.error('[AIHandlers] Summary generation timed out');
         return { error: 'Summary generation timed out. Please try again with shorter content.' };
       }
       throw error;
     }
   });
 
-  // Image generation handler
+  // ============================================================================
+  // Image Generation (via standalone ImageService)
+  // ============================================================================
+
   ipcMain.handle('generate-image', async (event, options) => {
-    if (!aiService) {
-      return { success: false, error: 'AI Service not available' };
+    if (!imageService || !imageService.isAvailable()) {
+      return { success: false, error: 'Image generation not available (OPENAI_API_KEY required)' };
     }
 
-    console.log('[AIHandlers] 🎨 Image generation request:', {
+    console.log('[AIHandlers] Image generation request:', {
       prompt: options.prompt?.substring(0, 100) + '...',
       size: options.size,
-      provider: options.provider
     });
 
     try {
-      const result = await aiService.generateImage(options.prompt, options);
-      console.log('[AIHandlers] ✅ Image generated successfully');
+      const result = await imageService.generateImage(options.prompt, options);
+      console.log('[AIHandlers] Image generated successfully');
       return { success: true, ...result };
     } catch (error) {
-      console.error('[AIHandlers] ❌ Image generation failed:', error);
+      console.error('[AIHandlers] Image generation failed:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // Thumbnail generation handler using Nano Banana (Gemini Image)
+  // Thumbnail generation (spawns script - unchanged)
   ipcMain.handle('generate-thumbnail', async (event, options) => {
     const { spawn } = require('child_process');
 
-    console.log('[AIHandlers] 🖼️ Thumbnail generation request:', {
+    console.log('[AIHandlers] Thumbnail generation request:', {
       input: options.input,
       style: options.style || 'illustration',
       size: options.size || 'medium'
@@ -914,85 +762,48 @@ Generate the heading and bullet points only, nothing else.`;
 
     return new Promise((resolve) => {
       const scriptPath = path.join(__dirname, '..', 'scripts', 'generate-thumbnail.mjs');
-
-      // Build arguments
       const args = [scriptPath, options.input, '--json'];
 
-      if (options.output) {
-        args.push('--output', options.output);
-      }
-      if (options.style) {
-        args.push('--style', options.style);
-      }
-      if (options.colorMode) {
-        args.push('--color-mode', options.colorMode);
-      }
-      if (options.referenceImage) {
-        args.push('--reference', options.referenceImage);
-      }
-      if (options.size) {
-        args.push('--size', options.size);
-      }
-      if (options.format) {
-        args.push('--format', options.format);
-      }
-      if (options.recursive) {
-        args.push('--recursive');
-      }
-      if (options.synthesize) {
-        args.push('--synthesize');
-      }
-
-      console.log('[AIHandlers] Running:', 'node', args.join(' '));
+      if (options.output) args.push('--output', options.output);
+      if (options.style) args.push('--style', options.style);
+      if (options.colorMode) args.push('--color-mode', options.colorMode);
+      if (options.referenceImage) args.push('--reference', options.referenceImage);
+      if (options.size) args.push('--size', options.size);
+      if (options.format) args.push('--format', options.format);
+      if (options.recursive) args.push('--recursive');
+      if (options.synthesize) args.push('--synthesize');
 
       const proc = spawn('node', args, {
-        timeout: 120000, // 2 minute timeout
+        timeout: 120000,
         env: { ...process.env }
       });
 
       let stdout = '';
       let stderr = '';
 
-      proc.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      proc.stderr.on('data', (data) => {
-        stderr += data.toString();
-        console.log('[AIHandlers] Thumbnail script:', data.toString().trim());
-      });
+      proc.stdout.on('data', (data) => { stdout += data.toString(); });
+      proc.stderr.on('data', (data) => { stderr += data.toString(); });
 
       proc.on('error', (err) => {
-        console.error('[AIHandlers] ❌ Thumbnail generation failed:', err);
-        resolve({
-          success: false,
-          error: `Failed to run thumbnail generator: ${err.message}`
-        });
+        resolve({ success: false, error: `Failed to run thumbnail generator: ${err.message}` });
       });
 
       proc.on('close', (code) => {
         if (code === 0) {
           try {
             const result = JSON.parse(stdout);
-            console.log('[AIHandlers] ✅ Thumbnail generation completed:', result.successful, 'successful');
             resolve({ success: true, ...result });
           } catch (parseErr) {
-            console.log('[AIHandlers] ✅ Thumbnail generation completed (non-JSON output)');
             resolve({ success: true, output: stdout });
           }
         } else {
-          console.error('[AIHandlers] ❌ Thumbnail generation failed with exit code:', code);
-          resolve({
-            success: false,
-            error: stderr || `Process exited with code ${code}`,
-            stdout
-          });
+          resolve({ success: false, error: stderr || `Process exited with code ${code}`, stdout });
         }
       });
     });
   });
 
-  // Open dialog to generate thumbnail for current file or selected folder
+  // Thumbnail dialog (unchanged)
   ipcMain.handle('generate-thumbnail-dialog', async (event, currentFilePath) => {
     const { BrowserWindow } = require('electron');
     const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
@@ -1002,7 +813,6 @@ Generate the heading and bullet points only, nothing else.`;
     }
 
     try {
-      // Ask user what to generate thumbnail for
       const choice = await dialog.showMessageBox(currentMainWindow, {
         type: 'question',
         buttons: ['Current File', 'Select File...', 'Select Folder...', 'Cancel'],
@@ -1013,18 +823,14 @@ Generate the heading and bullet points only, nothing else.`;
         detail: currentFilePath ? `Current file: ${path.basename(currentFilePath)}` : 'Select a file or folder'
       });
 
-      if (choice.response === 3) {
-        return { success: false, cancelled: true };
-      }
+      if (choice.response === 3) return { success: false, cancelled: true };
 
       let inputPath = null;
       let recursive = false;
 
       if (choice.response === 0 && currentFilePath) {
-        // Use current file
         inputPath = currentFilePath;
       } else if (choice.response === 1) {
-        // Select file
         const result = await dialog.showOpenDialog(currentMainWindow, {
           properties: ['openFile'],
           title: 'Select Markdown File for Thumbnail',
@@ -1033,26 +839,20 @@ Generate the heading and bullet points only, nothing else.`;
             { name: 'All Files', extensions: ['*'] }
           ]
         });
-        if (result.canceled || result.filePaths.length === 0) {
-          return { success: false, cancelled: true };
-        }
+        if (result.canceled || result.filePaths.length === 0) return { success: false, cancelled: true };
         inputPath = result.filePaths[0];
       } else if (choice.response === 2) {
-        // Select folder
         const result = await dialog.showOpenDialog(currentMainWindow, {
           properties: ['openDirectory'],
           title: 'Select Folder for Thumbnail Generation'
         });
-        if (result.canceled || result.filePaths.length === 0) {
-          return { success: false, cancelled: true };
-        }
+        if (result.canceled || result.filePaths.length === 0) return { success: false, cancelled: true };
         inputPath = result.filePaths[0];
         recursive = true;
       } else {
         return { success: false, error: 'No file selected' };
       }
 
-      // Ask for style
       const styleChoice = await dialog.showMessageBox(currentMainWindow, {
         type: 'question',
         buttons: ['Illustration', 'Photo', 'Abstract', 'Minimal', 'Cancel'],
@@ -1062,32 +862,18 @@ Generate the heading and bullet points only, nothing else.`;
         message: 'Choose thumbnail style:'
       });
 
-      if (styleChoice.response === 4) {
-        return { success: false, cancelled: true };
-      }
+      if (styleChoice.response === 4) return { success: false, cancelled: true };
 
       const styles = ['illustration', 'photo', 'abstract', 'minimal'];
       const style = styles[styleChoice.response];
 
-      console.log('[AIHandlers] 🖼️ Generating thumbnail for:', inputPath, 'style:', style);
-
-      // Trigger the actual generation
-      // We'll emit an event back to the renderer to handle progress
-      return {
-        success: true,
-        pending: true,
-        input: inputPath,
-        style,
-        recursive
-      };
-
+      return { success: true, pending: true, input: inputPath, style, recursive };
     } catch (error) {
-      console.error('[AIHandlers] Error in thumbnail dialog:', error);
       return { success: false, error: error.message };
     }
   });
 
-  console.log('[AIHandlers] Registered 21 AI service handlers');
+  console.log('[AIHandlers] Registered AI service handlers (via tutor-bridge)');
 }
 
 module.exports = {

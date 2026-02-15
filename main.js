@@ -14,7 +14,8 @@ const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('elec
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
-const AIService = require('./services/aiService');
+const tutorBridge = require('./orchestrator/modules/tutor-bridge');
+const ImageService = require('./services/imageService');
 const ipcHandlers = require('./ipc');
 
 // Initialize @electron/remote after checking if electron module loaded correctly
@@ -72,7 +73,7 @@ if (process.argv.includes('--dev')) {
 }
 
 // --- AI Service Initialization ---
-let aiService;
+let imageService;
 // Context tracking for intelligent context inclusion
 let lastContextHash = null;
 let lastFileTimestamps = new Map();
@@ -721,13 +722,11 @@ function updateSettingsCategory(category, updates) {
     saveSettings();
     
     // Apply AI provider settings if changed
-    if (category === 'ai' && aiService && updates) {
+    if (category === 'ai' && updates) {
         if (updates.preferredProvider && updates.preferredProvider !== 'auto') {
             try {
-                if (aiService.getAvailableProviders().includes(updates.preferredProvider)) {
-                    aiService.setDefaultProvider(updates.preferredProvider);
-                    console.log(`[main.js] Applied AI provider preference: ${updates.preferredProvider}`);
-                }
+                tutorBridge.setDefaultProvider(updates.preferredProvider);
+                console.log(`[main.js] Applied AI provider preference: ${updates.preferredProvider}`);
             } catch (error) {
                 console.warn('[main.js] Could not apply AI provider preference:', error);
             }
@@ -815,23 +814,21 @@ function updateSettings(category, newSettings) {
     saveSettings();
     
     // Apply AI provider settings if changed
-    if (category === 'ai' && aiService && newSettings) {
+    if (category === 'ai' && newSettings) {
         // Update Local AI URL if changed
-        if (newSettings.localAIUrl && typeof aiService.updateLocalAIUrl === 'function') {
+        if (newSettings.localAIUrl) {
             try {
-                aiService.updateLocalAIUrl(newSettings.localAIUrl);
+                tutorBridge.updateLocalAIUrl(newSettings.localAIUrl);
                 console.log(`[main.js] Updated Local AI URL: ${newSettings.localAIUrl}`);
             } catch (error) {
                 console.warn('[main.js] Could not update Local AI URL:', error);
             }
         }
-        
+
         if (newSettings.preferredProvider && newSettings.preferredProvider !== 'auto') {
             try {
-                if (aiService.getAvailableProviders().includes(newSettings.preferredProvider)) {
-                    aiService.setDefaultProvider(newSettings.preferredProvider);
-                    console.log(`[main.js] Applied AI provider preference: ${newSettings.preferredProvider}`);
-                }
+                tutorBridge.setDefaultProvider(newSettings.preferredProvider);
+                console.log(`[main.js] Applied AI provider preference: ${newSettings.preferredProvider}`);
             } catch (error) {
                 console.warn('[main.js] Could not apply AI provider preference:', error);
             }
@@ -842,38 +839,22 @@ function updateSettings(category, newSettings) {
 // Load settings before app ready
 loadSettings();
 
-// Initialize AI Service with settings
+// Initialize Image Service (standalone, synchronous)
 try {
-  // Pass the local AI URL from settings to the environment before initializing
-  if (appSettings.ai && appSettings.ai.localAIUrl) {
-    process.env.LOCAL_AI_URL = appSettings.ai.localAIUrl;
-    console.log('[main.js] Setting LOCAL_AI_URL from settings:', appSettings.ai.localAIUrl);
-  }
-  
-  aiService = new AIService();
-  console.log('[main.js] AI Service initialized with providers:', aiService.getAvailableProviders());
-  
-  if (aiService.getAvailableProviders().length === 0) {
-    console.warn('[main.js] WARNING: No AI providers configured. AI Chat feature will be disabled.');
-    console.warn('[main.js] Please add API keys to your .env file. See .env.example for details.');
-  }
+  imageService = new ImageService();
+  console.log('[main.js] ImageService initialized, available:', imageService.isAvailable());
 } catch (error) {
-  console.error('[main.js] Error initializing AI Service:', error);
+  console.error('[main.js] Error initializing ImageService:', error);
 }
 
-// Apply saved AI settings if they exist
-if (aiService && appSettings.ai) {
-  // Apply preferred provider if configured
-  if (appSettings.ai.preferredProvider) {
-    try {
-      // Handle both 'auto' and specific providers
-      aiService.setDefaultProvider(appSettings.ai.preferredProvider);
-      console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
-    } catch (error) {
-      console.warn('[main.js] Could not apply saved AI provider preference:', error);
-    }
-  }
+// Set LOCAL_AI_URL from settings before tutor-bridge init
+if (appSettings.ai && appSettings.ai.localAIUrl) {
+  process.env.LOCAL_AI_URL = appSettings.ai.localAIUrl;
+  console.log('[main.js] Setting LOCAL_AI_URL from settings:', appSettings.ai.localAIUrl);
 }
+
+// Note: tutorBridge.initTutorBridge() is called in app.whenReady() (async)
+// because it uses dynamic import() to load ES module tutor-core.
 
 // Initialize currentFilePath from saved settings
 if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && appSettings.currentFile.trim() !== '') {
@@ -2460,7 +2441,7 @@ async function openFile() {
 }
 
 // --- App Initialization ---
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   console.log('[main.js] App is ready via whenReady()');
   
   // Use saved working directory from settings, fallback to project root
@@ -2803,19 +2784,48 @@ app.whenReady().then(() => {
   
   createWindow();
   
+  // Initialize tutor-bridge (async — loads ESM tutor-core via dynamic import)
+  try {
+    await tutorBridge.initTutorBridge({
+      learnerId: 'local-writer',
+      dbPath: path.join(app.getPath('userData'), 'tutor-core.db')
+    });
+    console.log('[main.js] TutorBridge initialized successfully');
+
+    // Apply saved AI settings
+    if (appSettings.ai && appSettings.ai.preferredProvider) {
+      try {
+        tutorBridge.setDefaultProvider(appSettings.ai.preferredProvider);
+        console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
+      } catch (error) {
+        console.warn('[main.js] Could not apply saved AI provider preference:', error);
+      }
+    }
+
+    const providers = tutorBridge.getAvailableProviders();
+    console.log('[main.js] AI providers available via tutor-core:', providers);
+    if (providers.length === 0) {
+      console.warn('[main.js] WARNING: No AI providers configured. AI Chat feature will be disabled.');
+      console.warn('[main.js] Please add API keys to your .env file. See .env.example for details.');
+    }
+  } catch (error) {
+    console.error('[main.js] Error initializing TutorBridge:', error);
+  }
+
   // Register modular IPC handlers after window is created
   ipcHandlers.registerAllHandlers({
     appSettings,
     defaultSettings,
     saveSettings,
     mainWindow,
-    aiService,
+    tutorBridge,
+    imageService,
     getCurrentFilePath: () => currentFilePath,
     currentWorkingDirectory,
     userDataPath: app.getPath('userData'),
-    setCurrentFilePath: (path) => { 
-      currentFilePath = path; 
-      appSettings.currentFile = path; 
+    setCurrentFilePath: (path) => {
+      currentFilePath = path;
+      appSettings.currentFile = path;
       saveSettings();
       console.log(`[main.js] Current file updated and saved to settings: ${path}`);
     },
