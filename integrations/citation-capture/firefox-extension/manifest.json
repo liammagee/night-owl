@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+  "name": "NightOwl Citation Capture",
+  "version": "1.0.0",
+  "description": "One-click citation capture from browser pages into NightOwl.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "http://127.0.0.1:27124/*",
+    "http://localhost:27124/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "browser_action": {
+    "default_title": "Send citation to NightOwl"
+  },
+  "applications": {
+    "gecko": {
+      "id": "nightowl-citation-capture@machinespirits.org"
+    }
+  }
+}

@@ -200,6 +200,14 @@ class CitationManager {
             }
         );
 
+        window.registerCommand(
+            'citations.exportBrowserBundles',
+            'Citations: Export Browser Capture Bundles',
+            async () => {
+                await this.exportBrowserCaptureBundles();
+            }
+        );
+
         this.commandPaletteCommandsRegistered = true;
     }
 
@@ -771,6 +779,7 @@ class CitationManager {
         const importTextBtn = document.getElementById('import-text-btn');
         const importClipboardBtn = document.getElementById('import-clipboard-btn');
         const importBookmarkletBtn = document.getElementById('import-bookmarklet-btn');
+        const importExportBundlesBtn = document.getElementById('import-export-bundles-btn');
         const importRawText = document.getElementById('import-raw-text');
         const importZoteroBtn = document.getElementById('import-zotero-btn');
         const cancelImportBtn = document.getElementById('cancel-import-btn');
@@ -780,6 +789,7 @@ class CitationManager {
         if (importTextBtn) importTextBtn.addEventListener('click', () => this.importFromText());
         if (importClipboardBtn) importClipboardBtn.addEventListener('click', () => this.importFromClipboard());
         if (importBookmarkletBtn) importBookmarkletBtn.addEventListener('click', () => this.copyBrowserCaptureBookmarklet());
+        if (importExportBundlesBtn) importExportBundlesBtn.addEventListener('click', () => this.exportBrowserCaptureBundles());
         if (importRawText) {
             importRawText.addEventListener('keydown', (event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -1696,6 +1706,38 @@ class CitationManager {
         } catch (error) {
             console.error('[Citation Manager] Failed to copy bookmarklet:', error);
             this.showError('Failed to copy bookmarklet: ' + error.message);
+        }
+    }
+
+    async exportBrowserCaptureBundles() {
+        try {
+            const response = await window.electronAPI.invoke('citations-export-browser-capture-bundles');
+            if (!response?.success || !response.bundleDirectory) {
+                throw new Error(response?.error || 'Could not export browser capture bundles');
+            }
+
+            const zipCount = Array.isArray(response.artifacts)
+                ? response.artifacts.filter(item => item.type === 'zip').length
+                : 0;
+
+            const summary = zipCount > 0
+                ? `Exported browser bundles to ${response.bundleDirectory}`
+                : `Exported browser bundle folders to ${response.bundleDirectory}`;
+
+            this.showSuccess(summary);
+
+            if (Array.isArray(response.warnings) && response.warnings.length > 0) {
+                if (window.showNotification) {
+                    window.showNotification(response.warnings[0], 'warning');
+                } else {
+                    console.warn('[Citation Manager] Browser bundle export warning:', response.warnings[0]);
+                }
+            }
+
+            await window.electronAPI.invoke('open-folder-in-finder', response.bundleDirectory);
+        } catch (error) {
+            console.error('[Citation Manager] Failed to export browser bundles:', error);
+            this.showError('Failed to export browser bundles: ' + error.message);
         }
     }
 

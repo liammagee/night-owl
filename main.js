@@ -14,6 +14,7 @@ const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('elec
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const { execFile } = require('child_process');
 const tutorBridge = require('./orchestrator/modules/tutor-bridge');
 const ImageService = require('./services/imageService');
 const {
@@ -181,6 +182,46 @@ function buildCitationCaptureBookmarklet(captureEndpoint) {
   const endpoint = captureEndpoint || `http://${citationCaptureBridgeConfig.host}:${citationCaptureBridgeConfig.port}/capture`;
 
   return `javascript:(()=>{try{const selected=(window.getSelection?window.getSelection().toString():'').trim();const bodyText=((document.body&&document.body.innerText)||'');const bibMatch=bodyText.match(/@[A-Za-z]+\\s*[{(][\\s\\S]{0,15000}[})]/);const citationText=(bibMatch?bibMatch[0]:(selected||document.title||location.href)).trim();const query=new URLSearchParams({text:citationText,title:document.title||'',url:location.href,source:'bookmarklet'});(new Image()).src='${endpoint}?'+query.toString();}catch(error){console.error('NightOwl capture failed',error);}})();`;
+}
+
+function execFileAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, options, (error, stdout, stderr) => {
+      if (error) {
+        const wrapped = new Error(stderr || stdout || error.message);
+        wrapped.originalError = error;
+        reject(wrapped);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+function formatCaptureTimestamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+async function packageCaptureExtension(sourceDir, outputZipPath) {
+  if (process.platform === 'darwin') {
+    await execFileAsync('/usr/bin/ditto', [
+      '-c',
+      '-k',
+      '--sequesterRsrc',
+      '--keepParent',
+      sourceDir,
+      outputZipPath
+    ]);
+    return;
+  }
+
+  await execFileAsync('zip', [
+    '-r',
+    outputZipPath,
+    path.basename(sourceDir)
+  ], {
+    cwd: path.dirname(sourceDir)
+  });
 }
 
 // --- Persistent Settings Storage ---
@@ -2837,6 +2878,82 @@ app.whenReady().then(async () => {
       port: citationCaptureBridgeConfig.port,
       bookmarklet: buildCitationCaptureBookmarklet(endpoint)
     };
+  });
+
+  ipcMain.handle('citations-export-browser-capture-bundles', async () => {
+    try {
+      const integrationRoot = path.join(__dirname, 'integrations', 'citation-capture');
+      const chromeExtensionDir = path.join(integrationRoot, 'chrome-extension');
+      const firefoxExtensionDir = path.join(integrationRoot, 'firefox-extension');
+
+      const timestamp = formatCaptureTimestamp();
+      const exportRoot = path.join(
+        currentWorkingDirectory || app.getPath('downloads'),
+        'nightowl-citation-capture'
+      );
+      const bundleDirectory = path.join(exportRoot, `bundle-${timestamp}`);
+
+      await fs.mkdir(bundleDirectory, { recursive: true });
+
+      const copiedAssets = [];
+      for (const filename of ['README.md', 'bookmarklet-source.js']) {
+        const sourcePath = path.join(integrationRoot, filename);
+        const destinationPath = path.join(bundleDirectory, filename);
+        await fs.copyFile(sourcePath, destinationPath);
+        copiedAssets.push(destinationPath);
+      }
+
+      const bundledArtifacts = [];
+      const warnings = [];
+      const extensionTargets = [
+        {
+          name: 'chrome',
+          sourceDir: chromeExtensionDir,
+          zipName: 'nightowl-citation-capture-chrome.zip'
+        },
+        {
+          name: 'firefox',
+          sourceDir: firefoxExtensionDir,
+          zipName: 'nightowl-citation-capture-firefox.zip'
+        }
+      ];
+
+      for (const target of extensionTargets) {
+        const zipPath = path.join(bundleDirectory, target.zipName);
+
+        try {
+          await packageCaptureExtension(target.sourceDir, zipPath);
+          bundledArtifacts.push({
+            browser: target.name,
+            type: 'zip',
+            path: zipPath
+          });
+        } catch (error) {
+          const fallbackDir = path.join(bundleDirectory, `${target.name}-extension`);
+          await fs.cp(target.sourceDir, fallbackDir, { recursive: true });
+          bundledArtifacts.push({
+            browser: target.name,
+            type: 'directory',
+            path: fallbackDir
+          });
+          warnings.push(`Could not zip ${target.name} extension automatically: ${error.message}`);
+        }
+      }
+
+      return {
+        success: true,
+        bundleDirectory,
+        files: [...copiedAssets, ...bundledArtifacts.map(item => item.path)],
+        artifacts: bundledArtifacts,
+        warnings
+      };
+    } catch (error) {
+      console.error('[main.js] Failed to export browser capture bundles:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   });
 
   // Handle saving images to current directory

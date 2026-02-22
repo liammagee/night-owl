@@ -21,6 +21,7 @@
     "dev": "tsx markdown-prezi-app.tsx",
     "electron": "electron .",
     "electron-dev": "electron . --dev",
+    "native:rebuild": "electron-rebuild -f -w sqlite3,better-sqlite3",
     "build": "electron-builder",
     "dist": "electron-builder --publish=never",
     "harness": "node scripts/serve-harness.js",

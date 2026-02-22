@@ -38,7 +38,37 @@ Behavior:
 - Sends it to `http://127.0.0.1:27124/capture` via POST.
 - Shows success/failure feedback in the extension toolbar badge.
 
-## 3) Direct API format
+## 3) Firefox Extension (toolbar button)
+
+Extension files are in:
+
+- `firefox-extension/manifest.json`
+- `firefox-extension/background.js`
+
+Install locally:
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click `Load Temporary Add-on...`.
+3. Select `integrations/citation-capture/firefox-extension/manifest.json`.
+4. Click the extension toolbar icon on any citation page.
+
+Behavior:
+
+- Extracts citation text (BibTeX if found, else selected text/title/url).
+- Sends it to `http://127.0.0.1:27124/capture` via POST.
+- Shows success/failure feedback in the extension toolbar badge.
+
+## 4) In-app one-click export
+
+From NightOwl:
+
+1. Open Citations panel.
+2. Click `Import`.
+3. In Smart Import, click `Export Browser Bundles`.
+
+NightOwl will package Chrome + Firefox extension bundles and open the output folder.
+
+## 5) Direct API format
 
 GET:
 
@@ -53,4 +83,12 @@ POST JSON:
   "url": "https://example.org/paper",
   "source": "extension"
 }
+```
+
+## Troubleshooting
+
+If Electron exits with `SIGKILL` and macOS crash reports mention code-signing invalid native modules, rebuild native dependencies:
+
+```bash
+npm run native:rebuild
 ```
