@@ -18,7 +18,7 @@
   "license": "Apache-2.0",
   "main": "main.js",
   "scripts": {
-    "dev": "tsx markdown-prezi-app.tsx",
+    "dev": "npm run electron-dev",
     "preelectron": "npm run native:sign",
     "electron": "electron .",
     "preelectron-dev": "npm run native:sign",
