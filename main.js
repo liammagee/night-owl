@@ -16,6 +16,11 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const tutorBridge = require('./orchestrator/modules/tutor-bridge');
 const ImageService = require('./services/imageService');
+const {
+  createCitationCaptureServer,
+  DEFAULT_CAPTURE_HOST,
+  DEFAULT_CAPTURE_PORT
+} = require('./services/citationCaptureBridge');
 const ipcHandlers = require('./ipc');
 
 // Initialize @electron/remote after checking if electron module loaded correctly
@@ -118,6 +123,65 @@ let mainWindow = null;
 let currentFilePath = null;
 // Set working directory to project root instead of app path
 let currentWorkingDirectory = path.resolve(app.getAppPath(), '..');
+let citationCaptureServer = null;
+let citationCaptureBridgeConfig = {
+  host: DEFAULT_CAPTURE_HOST,
+  port: DEFAULT_CAPTURE_PORT
+};
+let rendererCitationCaptureReady = false;
+let pendingCitationCaptures = [];
+
+function enqueueCitationCapture(payload) {
+  if (!payload || typeof payload !== 'object' || !payload.rawText) {
+    return;
+  }
+
+  const capturePayload = {
+    ...payload,
+    rawText: String(payload.rawText).trim()
+  };
+
+  if (!capturePayload.rawText) {
+    return;
+  }
+
+  const canDeliverLive = mainWindow &&
+    !mainWindow.isDestroyed() &&
+    rendererCitationCaptureReady;
+
+  if (canDeliverLive) {
+    mainWindow.webContents.send('citation-capture-request', capturePayload);
+    return;
+  }
+
+  pendingCitationCaptures.push(capturePayload);
+  if (pendingCitationCaptures.length > 50) {
+    pendingCitationCaptures = pendingCitationCaptures.slice(-50);
+  }
+}
+
+function flushCitationCaptureQueue() {
+  if (!mainWindow || mainWindow.isDestroyed() || !rendererCitationCaptureReady) {
+    return;
+  }
+
+  if (pendingCitationCaptures.length === 0) {
+    return;
+  }
+
+  const queuedCaptures = [...pendingCitationCaptures];
+  pendingCitationCaptures = [];
+
+  queuedCaptures.forEach(payload => {
+    mainWindow.webContents.send('citation-capture-request', payload);
+  });
+}
+
+function buildCitationCaptureBookmarklet(captureEndpoint) {
+  const endpoint = captureEndpoint || `http://${citationCaptureBridgeConfig.host}:${citationCaptureBridgeConfig.port}/capture`;
+
+  return `javascript:(()=>{try{const selected=(window.getSelection?window.getSelection().toString():'').trim();const bodyText=((document.body&&document.body.innerText)||'');const bibMatch=bodyText.match(/@[A-Za-z]+\\s*[{(][\\s\\S]{0,15000}[})]/);const citationText=(bibMatch?bibMatch[0]:(selected||document.title||location.href)).trim();const query=new URLSearchParams({text:citationText,title:document.title||'',url:location.href,source:'bookmarklet'});(new Image()).src='${endpoint}?'+query.toString();}catch(error){console.error('NightOwl capture failed',error);}})();`;
+}
 
 // --- Persistent Settings Storage ---
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
@@ -879,8 +943,15 @@ if (process.platform !== 'darwin') {
     });
 }
 
-// Save settings on shutdown
-app.on('before-quit', saveSettings);
+// Save settings and stop capture bridge on shutdown
+app.on('before-quit', () => {
+  saveSettings();
+  if (citationCaptureServer && citationCaptureServer.isRunning()) {
+    citationCaptureServer.stop().catch((error) => {
+      console.error('[main.js] Failed to stop citation capture bridge:', error);
+    });
+  }
+});
 
 // --- Theme Handling ---
 nativeTheme.on('updated', () => {
@@ -893,6 +964,7 @@ let speakerNotesWindow = null;
 
 function createWindow() {
   console.log('[main.js] Creating main window...');
+  rendererCitationCaptureReady = false;
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -947,6 +1019,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     console.log('[main.js] Main window closed.');
+    rendererCitationCaptureReady = false;
     mainWindow = null;
   });
 
@@ -955,6 +1028,7 @@ function createWindow() {
       const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
       console.log(`[main.js] Window finished loading. Sending initial theme: ${theme}`);
       mainWindow.webContents.send('theme-changed', theme);
+      rendererCitationCaptureReady = false;
       
       // Send refresh signal with a slight delay to ensure renderer is ready
       setTimeout(() => {
@@ -2743,6 +2817,28 @@ app.whenReady().then(async () => {
     return { success: false, error: 'Main window not available' };
   });
 
+  ipcMain.on('citations-capture-ready', () => {
+    rendererCitationCaptureReady = true;
+    flushCitationCaptureQueue();
+  });
+
+  ipcMain.handle('citations-get-pending-captures', async () => {
+    const captures = [...pendingCitationCaptures];
+    pendingCitationCaptures = [];
+    return { success: true, captures };
+  });
+
+  ipcMain.handle('citations-get-capture-tools', async () => {
+    const endpoint = `http://${citationCaptureBridgeConfig.host}:${citationCaptureBridgeConfig.port}/capture`;
+    return {
+      success: true,
+      endpoint,
+      host: citationCaptureBridgeConfig.host,
+      port: citationCaptureBridgeConfig.port,
+      bookmarklet: buildCitationCaptureBookmarklet(endpoint)
+    };
+  });
+
   // Handle saving images to current directory
   ipcMain.handle('save-image-to-current-dir', async (event, filename, base64data) => {
     try {
@@ -2781,6 +2877,33 @@ app.whenReady().then(async () => {
       };
     }
   });
+
+  const parsedCapturePort = Number.parseInt(process.env.NIGHTOWL_CAPTURE_PORT, 10);
+  const capturePort = Number.isInteger(parsedCapturePort) && parsedCapturePort > 0 && parsedCapturePort < 65536
+    ? parsedCapturePort
+    : DEFAULT_CAPTURE_PORT;
+
+  citationCaptureBridgeConfig = {
+    host: DEFAULT_CAPTURE_HOST,
+    port: capturePort
+  };
+
+  citationCaptureServer = createCitationCaptureServer({
+    host: citationCaptureBridgeConfig.host,
+    port: citationCaptureBridgeConfig.port,
+    onCapture: (payload) => {
+      enqueueCitationCapture(payload);
+    },
+    logger: console
+  });
+
+  try {
+    const address = await citationCaptureServer.start();
+    citationCaptureBridgeConfig = address;
+    console.log(`[main.js] Citation capture bridge listening on http://${address.host}:${address.port}/capture`);
+  } catch (error) {
+    console.error('[main.js] Failed to start citation capture bridge:', error);
+  }
   
   createWindow();
   

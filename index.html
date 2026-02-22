@@ -3249,6 +3249,7 @@
                         <textarea id="import-raw-text" rows="4" placeholder="@article{...}&#10;or 10.1000/example&#10;or https://example.com/paper"></textarea>
                         <div class="import-option-actions">
                             <button id="import-clipboard-btn" class="btn">Paste from Clipboard</button>
+                            <button id="import-bookmarklet-btn" class="btn">Copy Bookmarklet</button>
                             <button id="import-text-btn" class="btn btn-primary">Import Smart</button>
                         </div>
                     </div>
@@ -3531,18 +3532,19 @@
                             </div>
                         </div>
                         <!-- Quick capture -->
-                        <div id="citation-quick-capture-wrapper" class="citation-quick-capture" title="Paste BibTeX, DOI, URL, or citation text. Press Enter or click Add to capture. Drag text snippets here for quick import.">
+                        <div id="citation-quick-capture-wrapper" class="citation-quick-capture" title="Paste BibTeX, DOI, URL, or citation text. Press Enter or click Add to capture. Drag .bib files or text snippets here for quick import.">
                             <label for="citation-quick-capture" class="citation-quick-label">
                                 ⚡ Quick Capture
                                 <span style="font-weight: 400; font-size: 11px; color: #5a6f8c;">
                                     Paste BibTeX, DOI, URL, or citation text
                                 </span>
-                                <span class="citation-quick-info" title="Press Enter or click Add to capture. Drag text snippets here. Supports BibTeX, DOI, URL, and plain citation snippets.">ⓘ</span>
+                                <span class="citation-quick-info" title="Press Enter or click Add to capture. Drag .bib files or text snippets here. Supports BibTeX, DOI, URL, and plain citation snippets.">ⓘ</span>
                             </label>
                             <div class="citation-quick-hints">
                                 <span>Google Scholar BibTeX</span>
                                 <span>DOI</span>
                                 <span>URL metadata</span>
+                                <span>Drop .bib file</span>
                                 <span>Cmd/Ctrl+Shift+Y</span>
                             </div>
                             <textarea

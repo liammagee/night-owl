@@ -49,6 +49,12 @@ class CitationManager {
         this.quickCaptureShortcutBound = false;
         /** @type {boolean} Whether command palette citation commands are registered */
         this.commandPaletteCommandsRegistered = false;
+        /** @type {boolean} Whether external citation capture listeners are registered */
+        this.externalCaptureBridgeBound = false;
+        /** @type {Array<Object>} Queue of external capture payloads */
+        this.externalCaptureQueue = [];
+        /** @type {boolean} Whether the external queue processor is running */
+        this.externalCaptureQueueActive = false;
     }
 
     /**
@@ -152,6 +158,9 @@ class CitationManager {
         // Quick capture controls
         this.setupQuickCapture();
 
+        // External browser capture bridge
+        this.setupExternalCaptureBridge();
+
         // Command palette integrations
         this.registerCommandPaletteCommands();
     }
@@ -181,6 +190,14 @@ class CitationManager {
                 await this.quickCaptureFromClipboard({ revealCitationsPane: false });
             },
             'Cmd+Shift+Y'
+        );
+
+        window.registerCommand(
+            'citations.copyBookmarklet',
+            'Citations: Copy Browser Capture Bookmarklet',
+            async () => {
+                await this.copyBrowserCaptureBookmarklet();
+            }
         );
 
         this.commandPaletteCommandsRegistered = true;
@@ -324,13 +341,29 @@ class CitationManager {
             this.handleQuickCaptureInput(quickInput.value, trigger);
         };
 
-        quickInput.addEventListener('drop', (event) => {
+        const processDrop = async (event) => {
             event.preventDefault();
-            const droppedText = event.dataTransfer?.getData('text/plain') || event.dataTransfer?.getData('text');
-            if (droppedText) {
-                quickInput.value = droppedText;
-                this.setQuickStatus('Ready — press Enter or click Add to capture.');
+            event.stopPropagation();
+
+            const payload = await this.extractDroppedCitationPayload(event.dataTransfer);
+            if (!payload || !payload.text) {
+                this.setQuickStatus('No citation text found in dropped content.', 'warning');
+                return;
             }
+
+            quickInput.value = payload.text;
+
+            if (payload.fromFiles) {
+                this.setQuickStatus(`Importing ${payload.label || 'dropped citation file'}…`);
+                await this.handleQuickCaptureInput(payload.text, 'drop-file');
+                return;
+            }
+
+            this.setQuickStatus('Dropped citation detected. Press Enter or click Add to capture.');
+        };
+
+        quickInput.addEventListener('drop', async (event) => {
+            await processDrop(event);
         });
 
         quickInput.addEventListener('keydown', (event) => {
@@ -354,12 +387,15 @@ class CitationManager {
                 });
             });
 
-            ['dragleave', 'drop'].forEach(evt => {
-                wrapper.addEventListener(evt, (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    removeDrag();
-                });
+            wrapper.addEventListener('dragleave', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                removeDrag();
+            });
+
+            wrapper.addEventListener('drop', async (event) => {
+                removeDrag();
+                await processDrop(event);
             });
         }
 
@@ -432,6 +468,203 @@ class CitationManager {
             console.error('[Citation Manager] Clipboard capture failed:', error);
             this.setQuickStatus(`Clipboard import failed: ${error.message || error}`, 'error');
         }
+    }
+
+    setupExternalCaptureBridge() {
+        if (this.externalCaptureBridgeBound || !window.electronAPI) {
+            return;
+        }
+
+        this.externalCaptureBridgeBound = true;
+
+        if (typeof window.electronAPI.on === 'function') {
+            window.electronAPI.on('citation-capture-request', (payload) => {
+                this.enqueueExternalCapture(payload);
+            });
+        }
+
+        if (typeof window.electronAPI.send === 'function') {
+            window.electronAPI.send('citations-capture-ready');
+        }
+
+        if (typeof window.electronAPI.invoke === 'function') {
+            window.electronAPI.invoke('citations-get-pending-captures')
+                .then((response) => {
+                    if (!response?.success || !Array.isArray(response.captures)) {
+                        return;
+                    }
+                    response.captures.forEach((payload) => this.enqueueExternalCapture(payload));
+                })
+                .catch((error) => {
+                    console.error('[Citation Manager] Failed to load pending browser captures:', error);
+                });
+        }
+    }
+
+    enqueueExternalCapture(payload) {
+        const normalized = this.normalizeExternalCapturePayload(payload);
+        if (!normalized) return;
+
+        this.externalCaptureQueue.push(normalized);
+        if (this.externalCaptureQueue.length > 25) {
+            this.externalCaptureQueue = this.externalCaptureQueue.slice(-25);
+        }
+
+        this.processExternalCaptureQueue();
+    }
+
+    normalizeExternalCapturePayload(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return null;
+        }
+
+        const raw = (payload.rawText || '').trim();
+        const pageTitle = (payload.pageTitle || '').trim();
+        const pageUrl = (payload.pageUrl || '').trim();
+        const source = (payload.source || 'browser').trim();
+
+        const parts = [];
+        const addPart = (value) => {
+            const cleaned = (value || '').trim();
+            if (!cleaned || parts.includes(cleaned)) return;
+            parts.push(cleaned);
+        };
+
+        addPart(raw);
+        if (!raw) addPart(pageTitle);
+        addPart(pageUrl);
+
+        const rawText = parts.join('\n\n').trim();
+        if (!rawText) {
+            return null;
+        }
+
+        return {
+            rawText,
+            source,
+            pageTitle: pageTitle || null,
+            pageUrl: pageUrl || null
+        };
+    }
+
+    async processExternalCaptureQueue() {
+        if (this.externalCaptureQueueActive) {
+            return;
+        }
+
+        this.externalCaptureQueueActive = true;
+
+        try {
+            while (this.externalCaptureQueue.length > 0) {
+                const capture = this.externalCaptureQueue.shift();
+                if (!capture || !capture.rawText) continue;
+
+                if (typeof window.switchStructureView === 'function') {
+                    window.switchStructureView('citations');
+                }
+
+                await this.waitForQuickCaptureIdle();
+
+                const quickInput = document.getElementById('citation-quick-capture');
+                if (quickInput) {
+                    quickInput.value = capture.rawText;
+                }
+
+                this.setQuickStatus(`Importing capture from ${capture.source}…`);
+                await this.handleQuickCaptureInput(capture.rawText, 'external');
+            }
+        } finally {
+            this.externalCaptureQueueActive = false;
+        }
+    }
+
+    waitForQuickCaptureIdle(timeoutMs = 10000) {
+        if (!this.quickCaptureProcessing) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            const started = Date.now();
+            const poll = () => {
+                if (!this.quickCaptureProcessing || Date.now() - started >= timeoutMs) {
+                    resolve();
+                    return;
+                }
+                setTimeout(poll, 120);
+            };
+            poll();
+        });
+    }
+
+    async extractDroppedCitationPayload(dataTransfer) {
+        if (!dataTransfer) {
+            return null;
+        }
+
+        const files = Array.from(dataTransfer.files || []);
+        if (files.length > 0) {
+            const citationFiles = files.filter((file) => {
+                const name = (file?.name || file?.path || '').toLowerCase();
+                return /\.(bib|ris|nbib|txt)$/i.test(name);
+            });
+
+            if (citationFiles.length > 0) {
+                const chunks = [];
+
+                for (const file of citationFiles.slice(0, 5)) {
+                    const content = await this.readDroppedCitationFile(file);
+                    if (!content) continue;
+                    chunks.push(content.trim());
+                }
+
+                const combined = chunks.filter(Boolean).join('\n\n');
+                if (combined) {
+                    const label = citationFiles.length === 1
+                        ? (citationFiles[0].name || 'citation file')
+                        : `${citationFiles.length} citation files`;
+
+                    return {
+                        text: combined,
+                        fromFiles: true,
+                        label
+                    };
+                }
+            }
+        }
+
+        const droppedText = (
+            dataTransfer.getData('text/plain') ||
+            dataTransfer.getData('text/uri-list') ||
+            dataTransfer.getData('text')
+        ).trim();
+
+        if (!droppedText) {
+            return null;
+        }
+
+        return {
+            text: droppedText,
+            fromFiles: false,
+            label: 'dropped text'
+        };
+    }
+
+    async readDroppedCitationFile(file) {
+        try {
+            if (file?.path && window.electronAPI?.invoke) {
+                const result = await window.electronAPI.invoke('read-file', file.path);
+                if (result?.success && typeof result.content === 'string') {
+                    return result.content;
+                }
+            }
+
+            if (typeof file?.text === 'function') {
+                return await file.text();
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Failed reading dropped citation file:', error);
+        }
+        return '';
     }
 
     async handleQuickCaptureInput(rawText, trigger = 'manual') {
@@ -537,6 +770,7 @@ class CitationManager {
         const importDoiBtn = document.getElementById('import-doi-btn');
         const importTextBtn = document.getElementById('import-text-btn');
         const importClipboardBtn = document.getElementById('import-clipboard-btn');
+        const importBookmarkletBtn = document.getElementById('import-bookmarklet-btn');
         const importRawText = document.getElementById('import-raw-text');
         const importZoteroBtn = document.getElementById('import-zotero-btn');
         const cancelImportBtn = document.getElementById('cancel-import-btn');
@@ -545,6 +779,7 @@ class CitationManager {
         if (importDoiBtn) importDoiBtn.addEventListener('click', () => this.importFromDOI());
         if (importTextBtn) importTextBtn.addEventListener('click', () => this.importFromText());
         if (importClipboardBtn) importClipboardBtn.addEventListener('click', () => this.importFromClipboard());
+        if (importBookmarkletBtn) importBookmarkletBtn.addEventListener('click', () => this.copyBrowserCaptureBookmarklet());
         if (importRawText) {
             importRawText.addEventListener('keydown', (event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -1441,6 +1676,26 @@ class CitationManager {
         } catch (error) {
             console.error('[Citation Manager] Error importing from clipboard:', error);
             this.showError('Failed to read clipboard: ' + error.message);
+        }
+    }
+
+    async copyBrowserCaptureBookmarklet() {
+        if (!navigator.clipboard?.writeText) {
+            this.showError('Clipboard write access is unavailable.');
+            return;
+        }
+
+        try {
+            const response = await window.electronAPI.invoke('citations-get-capture-tools');
+            if (!response?.success || !response.bookmarklet) {
+                throw new Error(response?.error || 'Capture tools are unavailable');
+            }
+
+            await navigator.clipboard.writeText(response.bookmarklet);
+            this.showSuccess(`Browser capture bookmarklet copied. Endpoint: ${response.endpoint}`);
+        } catch (error) {
+            console.error('[Citation Manager] Failed to copy bookmarklet:', error);
+            this.showError('Failed to copy bookmarklet: ' + error.message);
         }
     }
 
