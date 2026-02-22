@@ -48,6 +48,248 @@ function normalizeDateString(value) {
     return null;
 }
 
+function sanitizeUrl(value) {
+    if (!value || typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+    return null;
+}
+
+function splitBibTeXEntries(input) {
+    if (!input || typeof input !== 'string') return [];
+
+    const entries = [];
+    let cursor = 0;
+
+    while (cursor < input.length) {
+        const atIndex = input.indexOf('@', cursor);
+        if (atIndex === -1) break;
+
+        const headerMatch = input.slice(atIndex).match(/^@([A-Za-z][A-Za-z0-9_-]*)\s*([({])/);
+        if (!headerMatch) {
+            cursor = atIndex + 1;
+            continue;
+        }
+
+        const openChar = headerMatch[2];
+        const closeChar = openChar === '{' ? '}' : ')';
+
+        let index = atIndex + headerMatch[0].length;
+        let depth = 1;
+        let inQuotes = false;
+
+        while (index < input.length && depth > 0) {
+            const char = input[index];
+            const previous = index > 0 ? input[index - 1] : '';
+
+            if (inQuotes) {
+                if (char === '"' && previous !== '\\') {
+                    inQuotes = false;
+                }
+            } else if (char === '"') {
+                inQuotes = true;
+            } else if (char === openChar) {
+                depth += 1;
+            } else if (char === closeChar) {
+                depth -= 1;
+            }
+
+            index += 1;
+        }
+
+        if (depth === 0) {
+            const entry = input.slice(atIndex, index).trim();
+            if (entry) entries.push(entry);
+            cursor = index;
+        } else {
+            cursor = atIndex + 1;
+        }
+    }
+
+    return entries;
+}
+
+function cleanBibTeXValue(value) {
+    if (value === undefined || value === null) return '';
+
+    return String(value)
+        .replace(/\s+/g, ' ')
+        .replace(/\\&/g, '&')
+        .replace(/\\_/g, '_')
+        .replace(/\{\\?(["'`~^=.uvHcdbkr])\s*([A-Za-z])\}/g, '$2')
+        .replace(/\\[a-zA-Z]+\{([^}]*)\}/g, '$1')
+        .replace(/\\[a-zA-Z]+/g, '')
+        .replace(/[{}]/g, '')
+        .trim();
+}
+
+function parseBibTeXFields(body) {
+    const fields = {};
+    let index = 0;
+
+    while (index < body.length) {
+        while (index < body.length && /[\s,]/.test(body[index])) index += 1;
+        if (index >= body.length) break;
+
+        const keyMatch = body.slice(index).match(/^([A-Za-z][A-Za-z0-9_-]*)\s*=/);
+        if (!keyMatch) {
+            index += 1;
+            continue;
+        }
+
+        const fieldName = keyMatch[1].toLowerCase();
+        index += keyMatch[0].length;
+
+        while (index < body.length && /\s/.test(body[index])) index += 1;
+        if (index >= body.length) break;
+
+        let rawValue = '';
+        const delimiter = body[index];
+
+        if (delimiter === '{') {
+            index += 1;
+            const start = index;
+            let depth = 1;
+
+            while (index < body.length && depth > 0) {
+                if (body[index] === '{') depth += 1;
+                else if (body[index] === '}') depth -= 1;
+                index += 1;
+            }
+
+            rawValue = body.slice(start, Math.max(start, index - 1));
+        } else if (delimiter === '"') {
+            index += 1;
+            const start = index;
+
+            while (index < body.length) {
+                const char = body[index];
+                const previous = index > 0 ? body[index - 1] : '';
+                if (char === '"' && previous !== '\\') {
+                    break;
+                }
+                index += 1;
+            }
+
+            rawValue = body.slice(start, index);
+            if (body[index] === '"') index += 1;
+        } else {
+            const start = index;
+            while (index < body.length && body[index] !== ',') index += 1;
+            rawValue = body.slice(start, index);
+        }
+
+        fields[fieldName] = cleanBibTeXValue(rawValue);
+
+        while (index < body.length && body[index] !== ',') index += 1;
+        if (body[index] === ',') index += 1;
+    }
+
+    return fields;
+}
+
+function normalizeBibTeXAuthors(authorValue) {
+    if (!authorValue) return '';
+
+    return authorValue
+        .split(/\s+and\s+/i)
+        .map(author => author.trim())
+        .filter(Boolean)
+        .join(', ');
+}
+
+function mapBibTeXType(type) {
+    const normalized = (type || '').toLowerCase();
+    const typeMap = {
+        article: 'article',
+        book: 'book',
+        inbook: 'book',
+        incollection: 'book',
+        inproceedings: 'conference',
+        conference: 'conference',
+        proceedings: 'conference',
+        phdthesis: 'thesis',
+        mastersthesis: 'thesis',
+        thesis: 'thesis',
+        techreport: 'report',
+        report: 'report',
+        misc: 'webpage',
+        online: 'webpage',
+        webpage: 'webpage'
+    };
+    return typeMap[normalized] || 'article';
+}
+
+function parseBibTeXEntry(entryText) {
+    if (!entryText || typeof entryText !== 'string') return null;
+
+    const headerMatch = entryText.match(/^@([A-Za-z][A-Za-z0-9_-]*)\s*[({]\s*([^,\s]+)\s*,/);
+    if (!headerMatch) return null;
+
+    const rawType = headerMatch[1];
+    const normalizedType = rawType.toLowerCase();
+    if (['comment', 'string', 'preamble'].includes(normalizedType)) {
+        return null;
+    }
+    const rawKey = headerMatch[2];
+    const bodyStart = headerMatch[0].length;
+    const bodyEnd = Math.max(bodyStart, entryText.trim().length - 1);
+    const body = entryText.slice(bodyStart, bodyEnd);
+    const fields = parseBibTeXFields(body);
+
+    const yearCandidate = fields.year || fields.date || fields.urldate || fields.note || '';
+    const publicationYear = extractYearFromString(yearCandidate);
+    const publicationDate = normalizeDateString(fields.date || fields.urldate || yearCandidate);
+    const doi = fields.doi
+        ? fields.doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '').trim()
+        : null;
+    const inferredUrl = sanitizeUrl(fields.url) ||
+        sanitizeUrl(fields.howpublished) ||
+        sanitizeUrl(fields.note);
+
+    const citationData = {
+        title: fields.title || cleanBibTeXValue(rawKey) || 'Untitled citation',
+        authors: normalizeBibTeXAuthors(fields.author || fields.editor || ''),
+        publication_year: publicationYear || null,
+        publication_date: publicationDate || null,
+        journal: fields.journal || fields.journaltitle || fields.booktitle || null,
+        volume: fields.volume || null,
+        issue: fields.number || fields.issue || null,
+        pages: fields.pages || null,
+        publisher: fields.publisher || null,
+        doi: doi || null,
+        url: inferredUrl || null,
+        citation_type: mapBibTeXType(rawType),
+        abstract: fields.abstract || null,
+        notes: fields.note || null,
+        tags: fields.keywords ? fields.keywords.replace(/[;|]/g, ', ') : null,
+        source: 'bibtex'
+    };
+
+    return citationData;
+}
+
+function parseBibTeXEntries(input) {
+    return splitBibTeXEntries(input)
+        .map(parseBibTeXEntry)
+        .filter(Boolean);
+}
+
+function inferCitationTitleFromText(rawText) {
+    if (!rawText || typeof rawText !== 'string') return 'Untitled citation';
+
+    const lines = rawText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+
+    if (lines.length === 0) return 'Untitled citation';
+    const firstLine = lines[0].replace(/^[-*•\s]+/, '');
+    return firstLine.length > 180 ? `${firstLine.slice(0, 177)}...` : firstLine;
+}
+
 async function fetchTweetMetadata(url, parsedUrl = null) {
     try {
         const urlObj = parsedUrl || new URL(url);
@@ -829,6 +1071,110 @@ function registerCitationHandlers(userDataPath) {
 
     // ===== IMPORT/EXPORT =====
 
+    // Import from freeform text (BibTeX, DOI, URL, or plain citation text)
+    ipcMain.handle('citations-import-text', async (event, rawText) => {
+        try {
+            const cleaned = typeof rawText === 'string' ? rawText.trim() : '';
+            if (!cleaned) {
+                return { success: false, error: 'No text provided for import' };
+            }
+
+            if (!citationService) await initializeCitationService(userDataPath);
+
+            const bibtexCitations = parseBibTeXEntries(cleaned);
+            if (bibtexCitations.length > 0) {
+                const imported = [];
+                for (const citationData of bibtexCitations) {
+                    const result = await citationService.addCitation(citationData);
+                    imported.push(result);
+                }
+                return {
+                    success: true,
+                    detected: 'bibtex',
+                    importedCount: imported.length,
+                    citations: imported
+                };
+            }
+
+            const doiMatch = cleaned.match(/\b10\.\d{4,9}\/[^\s"<>]+/i);
+            if (doiMatch) {
+                const cleanDoi = doiMatch[0].replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '');
+                const metadata = await fetchDOIMetadata(cleanDoi);
+
+                const citationData = {
+                    title: metadata.title || inferCitationTitleFromText(cleaned),
+                    authors: metadata.authors || '',
+                    publication_year: metadata.year || null,
+                    publication_date: metadata.date || null,
+                    journal: metadata.journal || null,
+                    volume: metadata.volume || null,
+                    issue: metadata.issue || null,
+                    pages: metadata.pages || null,
+                    publisher: metadata.publisher || null,
+                    doi: cleanDoi,
+                    citation_type: metadata.type || 'article',
+                    abstract: metadata.abstract || '',
+                    source: 'doi'
+                };
+
+                const result = await citationService.addCitation(citationData);
+                return {
+                    success: true,
+                    detected: 'doi',
+                    importedCount: 1,
+                    citations: [result]
+                };
+            }
+
+            const urlMatch = cleaned.match(/(https?:\/\/[^\s<>"')]+|www\.[^\s<>"')]+)/i);
+            const sanitizedUrl = sanitizeUrl(urlMatch ? urlMatch[0] : '');
+            if (sanitizedUrl) {
+                const metadata = await extractUrlMetadata(sanitizedUrl);
+                const publicationDate = normalizeDateString(metadata.published_time) || null;
+                const publicationYear = metadata.year || extractYearFromString(publicationDate);
+
+                const citationData = {
+                    title: metadata.title || inferCitationTitleFromText(cleaned),
+                    authors: metadata.author || metadata.site_name || '',
+                    url: sanitizedUrl,
+                    citation_type: 'webpage',
+                    publication_date: publicationDate,
+                    publication_year: publicationYear || null,
+                    abstract: metadata.description || '',
+                    journal: metadata.site_name || '',
+                    source: 'url'
+                };
+
+                const result = await citationService.addCitation(citationData);
+                return {
+                    success: true,
+                    detected: 'url',
+                    importedCount: 1,
+                    citations: [result]
+                };
+            }
+
+            // Fallback: save freeform citation text as notes with inferred title
+            const fallbackCitation = {
+                title: inferCitationTitleFromText(cleaned),
+                citation_type: 'article',
+                notes: cleaned,
+                source: 'quick-capture'
+            };
+
+            const result = await citationService.addCitation(fallbackCitation);
+            return {
+                success: true,
+                detected: 'text',
+                importedCount: 1,
+                citations: [result]
+            };
+        } catch (error) {
+            console.error('[Citation Handlers] Error importing from text:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     // Import from URL (web scraping)
     ipcMain.handle('citations-import-url', async (event, url) => {
         try {
@@ -1222,5 +1568,15 @@ function cleanupCitationService() {
 
 module.exports = {
     registerCitationHandlers,
-    cleanupCitationService
+    cleanupCitationService,
+    __testables: {
+        splitBibTeXEntries,
+        parseBibTeXFields,
+        parseBibTeXEntry,
+        parseBibTeXEntries,
+        mapBibTeXType,
+        normalizeBibTeXAuthors,
+        inferCitationTitleFromText,
+        sanitizeUrl
+    }
 };

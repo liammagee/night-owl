@@ -13543,7 +13543,7 @@ function showKeyboardShortcuts() {
         ],
         'View': [
             { description: 'Toggle Presentation Mode', keys: [cmdKey, 'Shift', 'M'] },
-            { description: 'Toggle Citations Panel', keys: [cmdKey, 'Shift', 'C'] }
+            { description: 'Capture Citation from Clipboard', keys: [cmdKey, 'Shift', 'Y'] }
         ],
         'AI Features': [
             { description: 'Invoke Ash (AI Writing)', keys: [cmdKey, 'Shift', '\''] }

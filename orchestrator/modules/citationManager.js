@@ -45,6 +45,10 @@ class CitationManager {
         this.quickCaptureProcessing = false;
         /** @type {number|null} Timeout ID for quick capture status */
         this.quickCaptureStatusTimeout = null;
+        /** @type {boolean} Whether global quick-capture shortcut has been bound */
+        this.quickCaptureShortcutBound = false;
+        /** @type {boolean} Whether command palette citation commands are registered */
+        this.commandPaletteCommandsRegistered = false;
     }
 
     /**
@@ -147,6 +151,39 @@ class CitationManager {
 
         // Quick capture controls
         this.setupQuickCapture();
+
+        // Command palette integrations
+        this.registerCommandPaletteCommands();
+    }
+
+    registerCommandPaletteCommands() {
+        if (this.commandPaletteCommandsRegistered || typeof window.registerCommand !== 'function') {
+            return;
+        }
+
+        window.registerCommand(
+            'view.citations',
+            'View: Open Citations Panel',
+            () => {
+                if (typeof window.switchStructureView === 'function') {
+                    window.switchStructureView('citations');
+                }
+            }
+        );
+
+        window.registerCommand(
+            'citations.captureClipboard',
+            'Citations: Capture from Clipboard',
+            async () => {
+                if (typeof window.switchStructureView === 'function') {
+                    window.switchStructureView('citations');
+                }
+                await this.quickCaptureFromClipboard({ revealCitationsPane: false });
+            },
+            'Cmd+Shift+Y'
+        );
+
+        this.commandPaletteCommandsRegistered = true;
     }
 
     // Set up action button event listeners (called when panel becomes visible)
@@ -271,6 +308,7 @@ class CitationManager {
         const wrapper = document.getElementById('citation-quick-capture-wrapper');
         const quickInput = document.getElementById('citation-quick-capture');
         const quickButton = document.getElementById('citation-quick-capture-btn');
+        const quickPasteButton = document.getElementById('citation-quick-paste-btn');
 
         if (!quickInput || quickInput.dataset.listenersAttached === 'true') {
             return;
@@ -332,9 +370,68 @@ class CitationManager {
             });
         }
 
+        if (quickPasteButton) {
+            quickPasteButton.addEventListener('click', async (event) => {
+                event.preventDefault();
+                await this.quickCaptureFromClipboard({ revealCitationsPane: false });
+            });
+        }
+
         quickInput.addEventListener('paste', () => {
             this.setQuickStatus('Press Enter or click Add to capture.');
         });
+
+        if (!this.quickCaptureShortcutBound) {
+            document.addEventListener('keydown', (event) => {
+                const isShortcut = (event.metaKey || event.ctrlKey) &&
+                    event.shiftKey &&
+                    !event.altKey &&
+                    event.key.toLowerCase() === 'y';
+
+                if (!isShortcut) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                this.quickCaptureFromClipboard({ revealCitationsPane: true });
+            }, true);
+
+            this.quickCaptureShortcutBound = true;
+        }
+    }
+
+    async quickCaptureFromClipboard(options = {}) {
+        const {
+            revealCitationsPane = true
+        } = options;
+
+        if (!navigator.clipboard?.readText) {
+            this.setQuickStatus('Clipboard access is unavailable in this environment.', 'error');
+            return;
+        }
+
+        try {
+            if (revealCitationsPane && typeof window.switchStructureView === 'function') {
+                window.switchStructureView('citations');
+            }
+
+            const clipboardText = (await navigator.clipboard.readText()).trim();
+            if (!clipboardText) {
+                this.setQuickStatus('Clipboard is empty. Copy a BibTeX entry, DOI, or URL first.', 'warning');
+                return;
+            }
+
+            const quickInput = document.getElementById('citation-quick-capture');
+            if (quickInput) {
+                quickInput.value = clipboardText;
+            }
+
+            await this.handleQuickCaptureInput(clipboardText, 'clipboard');
+        } catch (error) {
+            console.error('[Citation Manager] Clipboard capture failed:', error);
+            this.setQuickStatus(`Clipboard import failed: ${error.message || error}`, 'error');
+        }
     }
 
     async handleQuickCaptureInput(rawText, trigger = 'manual') {
@@ -350,95 +447,49 @@ class CitationManager {
             return;
         }
 
-        const markdownMatch = cleaned.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
-        const doiRegex = /\b10\.\d{4,9}\/[^\s"<>]+/i;
-        const doiMatch = cleaned.match(doiRegex);
-        const urlRegex = /(https?:\/\/[^\s<>"')]+|www\.[^\s<>"')]+)/i;
-        let urlMatch = markdownMatch ? markdownMatch[2] : null;
-
-        if (!urlMatch) {
-            const plainUrlMatch = cleaned.match(urlRegex);
-            if (plainUrlMatch) {
-                urlMatch = plainUrlMatch[0];
-            }
-        }
-
-        if (!doiMatch && urlMatch && /doi\.org/i.test(urlMatch)) {
-            const doiFromUrl = urlMatch.replace(/^https?:\/\/(dx\.)?doi\.org\//i, '');
-            if (doiFromUrl) {
-                const potentialDoi = doiFromUrl.match(doiRegex);
-                if (potentialDoi) {
-                    const extracted = potentialDoi[0];
-                    // Recursively handle as DOI to leverage CrossRef metadata
-                    return this.handleQuickCaptureInput(extracted, trigger);
-                }
-            }
-        }
-
-        const hasDoi = !!doiMatch;
-        const doiValue = hasDoi ? doiMatch[0] : null;
-        const sanitizedUrl = urlMatch ? this.sanitizeUrl(urlMatch) : null;
-        const residualText = markdownMatch
-            ? cleaned.replace(markdownMatch[0], '').trim()
-            : sanitizedUrl
-                ? cleaned.replace(urlRegex, '').trim()
-                : cleaned;
-
         this.quickCaptureProcessing = true;
-        this.setQuickStatus(hasDoi ? 'Looking up DOI metadata…' : sanitizedUrl ? 'Fetching page details…' : 'Processing input…');
+        this.setQuickStatus('Analyzing citation text…');
 
         try {
-            let response;
-            if (hasDoi) {
-                response = await window.electronAPI.invoke('citations-import-doi', doiValue);
-            } else if (sanitizedUrl) {
-                response = await window.electronAPI.invoke('citations-import-url', sanitizedUrl);
-            } else {
-                throw new Error('No URL or DOI detected. Paste a full link or DOI value.');
-            }
+            const response = await window.electronAPI.invoke('citations-import-text', cleaned);
 
             if (!response || !response.success) {
                 throw new Error(response?.error || 'Unable to create citation from text.');
             }
 
-            const created = response.citation || {};
-            this.setQuickStatus(`Added “${created.title || created.url || 'Untitled citation'}”.`, 'success');
+            const citations = Array.isArray(response.citations)
+                ? response.citations
+                : (response.citation ? [response.citation] : []);
+            const importedCount = response.importedCount || citations.length || 0;
+
+            if (importedCount === 0) {
+                throw new Error('No citation entries were created from this input.');
+            }
+
+            const sourceLabelMap = {
+                bibtex: 'BibTeX',
+                doi: 'DOI',
+                url: 'URL metadata',
+                text: 'text'
+            };
+            const sourceLabel = sourceLabelMap[response.detected] || 'input';
+            const leadCitation = citations[0] || {};
+
+            if (importedCount === 1) {
+                this.setQuickStatus(`Added “${leadCitation.title || leadCitation.url || 'Untitled citation'}” from ${sourceLabel}.`, 'success');
+            } else {
+                this.setQuickStatus(`Added ${importedCount} citations from ${sourceLabel}.`, 'success');
+            }
+
             if (quickInput) quickInput.value = '';
 
-            await this.refreshCitationsWithSync(true); // Skip nightowl sync to avoid triggering reload
+            await this.refreshCitationsWithSync(true); // Refresh UI first; BibTeX sync runs immediately below
+            await this.syncToNightowlBib();
         } catch (error) {
             console.error('[Citation Manager] Quick capture failed:', error);
-            if (sanitizedUrl) {
-                try {
-                    const fallbackTitle = (markdownMatch && markdownMatch[1]) ||
-                        this.extractPotentialTitle(cleaned, sanitizedUrl) ||
-                        sanitizedUrl;
-                    const fallbackNotes = residualText && residualText !== sanitizedUrl ? residualText : '';
-                    const fallbackData = {
-                        title: fallbackTitle,
-                        url: sanitizedUrl,
-                        citation_type: 'webpage',
-                        notes: fallbackNotes,
-                        source: 'quick-capture'
-                    };
-
-                    const fallbackResponse = await window.electronAPI.invoke('citations-add', fallbackData);
-                    if (fallbackResponse && fallbackResponse.success) {
-                        this.setQuickStatus(`Saved basic citation for ${fallbackTitle}.`, 'warning');
-                        if (quickInput) quickInput.value = '';
-                        await this.refreshCitationsWithSync(true); // Skip nightowl sync to avoid triggering reload
-                    } else {
-                        throw new Error(fallbackResponse?.error || error.message);
-                    }
-                } catch (fallbackError) {
-                    console.error('[Citation Manager] Fallback quick capture failed:', fallbackError);
-                    this.setQuickStatus(`Could not add citation: ${fallbackError.message || fallbackError}`, 'error');
-                    if (window.showNotification) {
-                        window.showNotification(`Citation quick capture failed: ${fallbackError.message || fallbackError}`, 'error');
-                    }
-                }
-            } else {
-                this.setQuickStatus(`Could not add citation: ${error.message || error}`, 'error');
+            this.setQuickStatus(`Could not add citation: ${error.message || error}`, 'error');
+            if (window.showNotification) {
+                window.showNotification(`Citation quick capture failed: ${error.message || error}`, 'error');
             }
         } finally {
             this.quickCaptureProcessing = false;
@@ -469,33 +520,6 @@ class CitationManager {
         }
     }
 
-    extractPotentialTitle(text, url) {
-        if (!text) return '';
-        let working = text;
-        if (url) {
-            const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(escapedUrl, 'gi');
-            working = working.replace(regex, '');
-        }
-        working = working.replace(/\[[^\]]+\]\([^)]+\)/g, '');
-        working = working.replace(/https?:\/\/\S+/g, '');
-        const firstLine = working.split('\n').map(line => line.trim()).find(line => line.length > 0);
-        if (!firstLine) return '';
-        return firstLine.replace(/^[•\-\*]+/, '').trim();
-    }
-
-    sanitizeUrl(url) {
-        if (!url) return '';
-        let normalized = url.trim();
-        if (/^https?:\/\//i.test(normalized)) {
-            return normalized;
-        }
-        if (normalized.startsWith('www.')) {
-            return `https://${normalized}`;
-        }
-        return `https://${normalized}`;
-    }
-
     // Set up modal event listeners
     setupModalEventListeners() {
         // Citation modal events
@@ -511,11 +535,24 @@ class CitationManager {
         const importModal = document.getElementById('import-modal-overlay');
         const importUrlBtn = document.getElementById('import-url-btn');
         const importDoiBtn = document.getElementById('import-doi-btn');
+        const importTextBtn = document.getElementById('import-text-btn');
+        const importClipboardBtn = document.getElementById('import-clipboard-btn');
+        const importRawText = document.getElementById('import-raw-text');
         const importZoteroBtn = document.getElementById('import-zotero-btn');
         const cancelImportBtn = document.getElementById('cancel-import-btn');
 
         if (importUrlBtn) importUrlBtn.addEventListener('click', () => this.importFromURL());
         if (importDoiBtn) importDoiBtn.addEventListener('click', () => this.importFromDOI());
+        if (importTextBtn) importTextBtn.addEventListener('click', () => this.importFromText());
+        if (importClipboardBtn) importClipboardBtn.addEventListener('click', () => this.importFromClipboard());
+        if (importRawText) {
+            importRawText.addEventListener('keydown', (event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault();
+                    this.importFromText();
+                }
+            });
+        }
         if (importZoteroBtn) importZoteroBtn.addEventListener('click', () => this.syncWithZotero());
         if (cancelImportBtn) cancelImportBtn.addEventListener('click', () => this.hideModal('import-modal-overlay'));
 
@@ -607,7 +644,7 @@ class CitationManager {
             this.updateStatistics();
             this.hideLoading();
             
-            // Only update year filter and sync to nightowl.bib for certain operations (not during panel switching)
+            // Only update year filter and sync citations.bib for certain operations (not during panel switching)
             // Removed automatic sync to prevent refresh loops
             
         } catch (error) {
@@ -748,25 +785,25 @@ class CitationManager {
         }
     }
 
-    // Sync all citations to nightowl.bib in working directory (throttled)
+    // Sync all citations to citations.bib in working directory (throttled)
     async syncToNightowlBib() {
         try {
             // Throttle to prevent excessive syncing (max once every 5 seconds)
             const now = Date.now();
             if (now - this.lastNightowlSync < 5000) {
-                console.log('[Citation Manager] Skipping nightowl.bib sync - too recent');
+                console.log('[Citation Manager] Skipping citations.bib sync - too recent');
                 return;
             }
             this.lastNightowlSync = now;
             
-            console.log('[Citation Manager] Syncing to nightowl.bib...');
+            console.log('[Citation Manager] Syncing to citations.bib...');
             
             // Get all citations (no filters for complete sync) - but only if we don't have current citations
             let citationsToSync;
             if (!this.citations || this.citations.length === 0) {
                 const result = await window.electronAPI.invoke('citations-get', {});
                 if (!result.success || !result.citations.length) {
-                    console.log('[Citation Manager] No citations to sync to nightowl.bib');
+                    console.log('[Citation Manager] No citations to sync to citations.bib');
                     return;
                 }
                 citationsToSync = result.citations;
@@ -775,21 +812,20 @@ class CitationManager {
                 citationsToSync = this.citations;
             }
 
-            // Export to nightowl.bib in working directory
+            // Export to citations.bib in working directory
             const exportResult = await window.electronAPI.invoke('citations-export-to-file', 
                 citationsToSync.map(c => c.id), 
-                'bibtex', 
-                'nightowl.bib'
+                'bibtex'
             );
 
             if (exportResult.success) {
-                console.log(`[Citation Manager] Synced ${citationsToSync.length} citations to nightowl.bib`);
+                console.log(`[Citation Manager] Synced ${citationsToSync.length} citations to citations.bib`);
             } else {
-                console.error('[Citation Manager] Failed to sync to nightowl.bib:', exportResult.error);
+                console.error('[Citation Manager] Failed to sync to citations.bib:', exportResult.error);
             }
 
         } catch (error) {
-            console.error('[Citation Manager] Error syncing to nightowl.bib:', error);
+            console.error('[Citation Manager] Error syncing to citations.bib:', error);
         }
     }
 
@@ -1341,6 +1377,73 @@ class CitationManager {
 
     // ===== IMPORT FUNCTIONALITY =====
 
+    // Smart import from freeform text (BibTeX, DOI, URL, plain citation text)
+    async importFromText(rawText = null) {
+        const textInput = document.getElementById('import-raw-text');
+        const textValue = (rawText ?? textInput?.value ?? '').trim();
+
+        if (!textValue) {
+            this.showError('Paste a BibTeX block, DOI, URL, or citation text to import.');
+            return;
+        }
+
+        try {
+            const result = await window.electronAPI.invoke('citations-import-text', textValue);
+            if (!result?.success) {
+                throw new Error(result?.error || 'Smart import failed');
+            }
+
+            const importedCount = result.importedCount || (Array.isArray(result.citations) ? result.citations.length : 0);
+            const sourceLabelMap = {
+                bibtex: 'BibTeX',
+                doi: 'DOI',
+                url: 'URL metadata',
+                text: 'text'
+            };
+            const sourceLabel = sourceLabelMap[result.detected] || 'input';
+
+            this.hideModal('import-modal-overlay');
+            this.showSuccess(
+                importedCount === 1
+                    ? `Imported 1 citation from ${sourceLabel}`
+                    : `Imported ${importedCount} citations from ${sourceLabel}`
+            );
+            await this.refreshCitationsWithSync(true); // Refresh UI first; BibTeX sync runs immediately below
+            await this.syncToNightowlBib();
+
+            if (textInput) textInput.value = '';
+        } catch (error) {
+            console.error('[Citation Manager] Error importing from text:', error);
+            this.showError('Failed to import citation text: ' + error.message);
+        }
+    }
+
+    // Import directly from clipboard into smart parser
+    async importFromClipboard() {
+        if (!navigator.clipboard?.readText) {
+            this.showError('Clipboard access is unavailable.');
+            return;
+        }
+
+        try {
+            const clipboardText = (await navigator.clipboard.readText()).trim();
+            if (!clipboardText) {
+                this.showError('Clipboard is empty. Copy a BibTeX entry, DOI, or URL first.');
+                return;
+            }
+
+            const textInput = document.getElementById('import-raw-text');
+            if (textInput) {
+                textInput.value = clipboardText;
+            }
+
+            await this.importFromText(clipboardText);
+        } catch (error) {
+            console.error('[Citation Manager] Error importing from clipboard:', error);
+            this.showError('Failed to read clipboard: ' + error.message);
+        }
+    }
+
     // Import from URL
     async importFromURL() {
         const urlInput = document.getElementById('import-url');
@@ -1350,15 +1453,8 @@ class CitationManager {
         }
 
         try {
-            const result = await window.electronAPI.invoke('citations-import-url', urlInput.value.trim());
-            if (result.success) {
-                this.hideModal('import-modal-overlay');
-                this.showSuccess('Citation imported from URL successfully');
-                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
-                urlInput.value = '';
-            } else {
-                throw new Error(result.error);
-            }
+            await this.importFromText(urlInput.value.trim());
+            urlInput.value = '';
         } catch (error) {
             console.error('[Citation Manager] Error importing from URL:', error);
             this.showError('Failed to import from URL: ' + error.message);
@@ -1374,15 +1470,8 @@ class CitationManager {
         }
 
         try {
-            const result = await window.electronAPI.invoke('citations-import-doi', doiInput.value.trim());
-            if (result.success) {
-                this.hideModal('import-modal-overlay');
-                this.showSuccess('Citation imported from DOI successfully');
-                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
-                doiInput.value = '';
-            } else {
-                throw new Error(result.error);
-            }
+            await this.importFromText(doiInput.value.trim());
+            doiInput.value = '';
         } catch (error) {
             console.error('[Citation Manager] Error importing from DOI:', error);
             this.showError('Failed to import from DOI: ' + error.message);

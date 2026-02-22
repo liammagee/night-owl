@@ -264,15 +264,85 @@
             color: #ffffff !important;
         }
         
-        /* Add margins to sidebar headers */
-        #structure-pane-header {
-            padding: 4px 8px !important;
-            margin-top: 2px !important;
+        /* VS Code-style left activity bar + workspace panel */
+        #left-sidebar {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: stretch;
+            overflow: hidden;
         }
-        
+
+        #left-sidebar-activity {
+            width: 56px;
+            min-width: 56px;
+            border-right: 1px solid #d5d0c3;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(247, 243, 231, 0.95) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 6px;
+            box-sizing: border-box;
+            gap: 10px;
+        }
+
+        #left-sidebar-workspace {
+            flex: 1;
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #left-sidebar-content {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto !important;
+        }
+
+        .activity-toggle-buttons {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100%;
+            gap: 8px !important;
+            align-items: stretch !important;
+            min-height: 0 !important;
+            margin-bottom: 0 !important;
+        }
+
+        #left-sidebar-activity .pane-toggle-button {
+            width: 100%;
+            min-width: 0 !important;
+            padding: 8px 0 !important;
+            border-radius: 10px;
+            font-size: 18px !important;
+            line-height: 1;
+        }
+
+        #left-sidebar-activity .pane-toggle-button:hover:not(.active) {
+            background: rgba(22, 101, 52, 0.15) !important;
+        }
+
+        #structure-pane-header {
+            padding: 8px 10px !important;
+            margin-top: 0 !important;
+            border-bottom: 1px solid #d5d0c3 !important;
+        }
+
         #structure-pane-title {
             margin-left: 0 !important;
-            margin-top: 4px !important;
+            margin-top: 0 !important;
+            font-size: 15px;
+            letter-spacing: 0.01em;
+        }
+
+        #structure-pane-header .pane-header-top {
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        #structure-pane-header .pane-header-actions {
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
         
         /* File tree styling improvements */
@@ -2362,6 +2432,30 @@
             color: #22c55e;
         }
 
+        body.dark-mode #left-sidebar-activity {
+            border-right-color: #374151;
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+        }
+
+        body.dark-mode #structure-pane-header {
+            border-bottom-color: #374151 !important;
+        }
+
+        body.dark-mode #left-sidebar-activity .pane-toggle-button:hover:not(.active) {
+            background: rgba(56, 189, 248, 0.18) !important;
+        }
+
+        body.dark-mode .import-option textarea {
+            background: rgba(15, 23, 42, 0.95);
+            border-color: #475569;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .import-option textarea:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+        }
+
         body.dark-mode .citation-quick-capture {
             background: rgba(30, 41, 59, 0.8);
             border-color: #374151;
@@ -2389,6 +2483,12 @@
         body.dark-mode .citation-quick-button {
             border-color: var(--primary, #38bdf8);
             background: linear-gradient(135deg, var(--primary, #1d4ed8) 0%, var(--primary-hover, #1e3a8a) 100%);
+        }
+
+        body.dark-mode .citation-quick-button-secondary {
+            border-color: #475569;
+            background: rgba(15, 23, 42, 0.9);
+            color: #e2e8f0;
         }
 
         body.dark-mode .citation-quick-hints span {
@@ -2478,6 +2578,23 @@
             outline: none;
         }
 
+        .citation-quick-hints {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        .citation-quick-hints span {
+            font-size: 10px;
+            line-height: 1;
+            padding: 4px 6px;
+            border-radius: 999px;
+            background: rgba(37, 99, 235, 0.1);
+            color: #1d4ed8;
+            letter-spacing: 0.2px;
+        }
+
         .citation-quick-controls {
             display: flex;
             gap: 6px;
@@ -2525,6 +2642,12 @@
             box-shadow: none;
         }
 
+        .citation-quick-button-secondary {
+            border-color: #93c5fd;
+            background: #ffffff;
+            color: #1d4ed8;
+        }
+
         .citation-quick-label {
             display: flex;
             align-items: center;
@@ -2536,6 +2659,31 @@
             color: var(--primary, #2563eb);
             cursor: help;
             user-select: none;
+        }
+
+        .import-option textarea {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 12px;
+            line-height: 1.4;
+            resize: vertical;
+            margin-top: 2px;
+        }
+
+        .import-option textarea:focus {
+            outline: none;
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+        }
+
+        .import-option-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 8px;
         }
 
         /* Enhanced Citation Modal Styling */
@@ -3088,7 +3236,7 @@
 
     <!-- Import Citation Modal -->
     <div id="import-modal-overlay" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog" style="width: 500px;">
+        <div class="modal-dialog" style="width: 560px;">
             <div class="modal-header">
                 <h3>Import Citation</h3>
                 <button class="modal-close" onclick="citationManager.hideModal('import-modal-overlay')">×</button>
@@ -3096,6 +3244,16 @@
             <div class="modal-body">
                 <div class="import-options">
                     <div class="import-option">
+                        <h4>Smart Import (Recommended)</h4>
+                        <p>Paste BibTeX from Google Scholar, a DOI, URL, or plain citation text.</p>
+                        <textarea id="import-raw-text" rows="4" placeholder="@article{...}&#10;or 10.1000/example&#10;or https://example.com/paper"></textarea>
+                        <div class="import-option-actions">
+                            <button id="import-clipboard-btn" class="btn">Paste from Clipboard</button>
+                            <button id="import-text-btn" class="btn btn-primary">Import Smart</button>
+                        </div>
+                    </div>
+
+                    <div class="import-option" style="margin-top: 16px;">
                         <h4>From URL</h4>
                         <p>Automatically extract citation data from a web page</p>
                         <div style="display: flex; gap: 8px;">
@@ -3104,7 +3262,7 @@
                         </div>
                     </div>
 
-                    <div class="import-option" style="margin-top: 20px;">
+                    <div class="import-option" style="margin-top: 16px;">
                         <h4>From DOI</h4>
                         <p>Import citation using Digital Object Identifier</p>
                         <div style="display: flex; gap: 8px;">
@@ -3113,7 +3271,7 @@
                         </div>
                     </div>
 
-                    <div class="import-option" style="margin-top: 20px;">
+                    <div class="import-option" style="margin-top: 16px;">
                         <h4>From Zotero</h4>
                         <p>Sync citations from your Zotero library</p>
                         <button onclick="citationManager.showZoteroConfig()" class="btn btn-primary">Configure Zotero</button>
@@ -3233,31 +3391,34 @@
     <div id="app-container">
         <!-- Left Sidebar (Always visible) -->
         <nav id="left-sidebar" aria-label="File navigation and tools">
-            <div id="structure-pane-header">
-                <div class="toggle-buttons structure-toggle-buttons" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;">
-                    <button id="show-files-btn" class="btn pane-toggle-button" title="Files" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📁</button>
-                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Structure" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">🏗️</button>
-                    <button id="show-search-btn" class="btn pane-toggle-button" title="Search" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">🔍</button>
-                    <button id="show-stats-btn" class="btn pane-toggle-button" title="Statistics" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📊</button>
-                    <button id="show-citations-btn" class="btn pane-toggle-button" title="Citations" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📚</button>
-                    <button id="show-footnotes-btn" class="btn pane-toggle-button" title="Footnotes" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">📝</button>
-                    <button id="show-git-btn" class="btn pane-toggle-button" title="Git" style="padding: 2px 5px; font-size: 12px; min-width: 26px;">🔀</button>
+            <aside id="left-sidebar-activity" aria-label="Navigation views">
+                <div class="toggle-buttons structure-toggle-buttons activity-toggle-buttons">
+                    <button id="show-files-btn" class="btn pane-toggle-button" title="Files" aria-label="Files">📁</button>
+                    <button id="show-structure-btn" class="btn pane-toggle-button active" title="Structure" aria-label="Structure">🏗️</button>
+                    <button id="show-search-btn" class="btn pane-toggle-button" title="Search" aria-label="Search">🔍</button>
+                    <button id="show-stats-btn" class="btn pane-toggle-button" title="Statistics" aria-label="Statistics">📊</button>
+                    <button id="show-citations-btn" class="btn pane-toggle-button" title="Citations" aria-label="Citations">📚</button>
+                    <button id="show-footnotes-btn" class="btn pane-toggle-button" title="Footnotes" aria-label="Footnotes">📝</button>
+                    <button id="show-git-btn" class="btn pane-toggle-button" title="Git" aria-label="Git">🔀</button>
                 </div>
+            </aside>
+            <div id="left-sidebar-workspace">
+            <div id="structure-pane-header">
                 <!-- Tag search interface (only visible in Files view) -->
                 <div id="tag-search-section" style="display: none; margin-top: 4px;">
                     <input type="text" id="tag-search-input" placeholder="Search files by name or tag..." style="width: 100%; padding: 4px 8px; border: 1px solid var(--neutral-300); border-radius: 4px; font-size: 11px; background: var(--neutral-0);">
                     <div id="tag-filter-chips" style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; min-height: 20px;"></div>
                 </div>
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+                <div class="pane-header-top" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                     <h2 id="structure-pane-title">Structure</h2>
-                    <div style="display: flex; gap: 4px;">
+                    <div class="pane-header-actions" style="display: flex; gap: 4px;">
                         <button id="add-workspace-folder-btn" class="btn" title="Add existing folder to workspace (shows as separate root)" style="display: none; padding: 4px 8px; font-size: 11px;">📂 Add Root</button>
                         <button id="change-directory-btn" class="btn" title="Change the primary working directory" style="display: none; padding: 4px 8px; font-size: 11px;">🏠 Primary</button>
                         <button id="new-folder-btn" class="btn" title="Create a new subfolder inside selected folder" style="padding: 4px 8px; font-size: 11px;">📁 New Folder</button>
                     </div>
                 </div>
             </div>
-            <div style="flex: 1; overflow-y: auto;">
+            <div id="left-sidebar-content" style="flex: 1; overflow-y: auto;">
                 <ul id="structure-list"></ul>
                 <div id="file-tree-view" style="display: none;"></div>
                 <div id="search-pane" class="content-pane" style="display: none; height: 100%; padding: 12px; flex-direction: column;">
@@ -3370,19 +3531,26 @@
                             </div>
                         </div>
                         <!-- Quick capture -->
-                        <div id="citation-quick-capture-wrapper" class="citation-quick-capture" title="Paste a URL, DOI, tweet, or markdown link. Press Enter or click Add to capture. Drag text snippets here; DOI lookups run automatically.">
+                        <div id="citation-quick-capture-wrapper" class="citation-quick-capture" title="Paste BibTeX, DOI, URL, or citation text. Press Enter or click Add to capture. Drag text snippets here for quick import.">
                             <label for="citation-quick-capture" class="citation-quick-label">
                                 ⚡ Quick Capture
                                 <span style="font-weight: 400; font-size: 11px; color: #5a6f8c;">
-                                    Paste a URL, DOI, tweet, or markdown link
+                                    Paste BibTeX, DOI, URL, or citation text
                                 </span>
-                                <span class="citation-quick-info" title="Press Enter or click Add to capture. Drag text snippets here. Supports automatic DOI lookup.">ⓘ</span>
+                                <span class="citation-quick-info" title="Press Enter or click Add to capture. Drag text snippets here. Supports BibTeX, DOI, URL, and plain citation snippets.">ⓘ</span>
                             </label>
+                            <div class="citation-quick-hints">
+                                <span>Google Scholar BibTeX</span>
+                                <span>DOI</span>
+                                <span>URL metadata</span>
+                                <span>Cmd/Ctrl+Shift+Y</span>
+                            </div>
                             <textarea
                                 id="citation-quick-capture"
-                                placeholder="Example: https://twitter.com/... or 10.1145/12345.67890 or [Great Thread](https://example.com)"
-                                title="Paste a URL, DOI, tweet, or markdown link. Press Enter or click Add to capture. Drag text snippets here; DOI lookups run automatically."></textarea>
+                                placeholder="Example: @article{...} or 10.1145/12345.67890 or https://example.com/paper"
+                                title="Paste BibTeX, DOI, URL, or plain citation text. Press Enter or click Add to capture."></textarea>
                             <div class="citation-quick-controls">
+                                <button id="citation-quick-paste-btn" class="citation-quick-button citation-quick-button-secondary" title="Read clipboard and import immediately">Paste &amp; Add</button>
                                 <button id="citation-quick-capture-btn" class="citation-quick-button" title="Create citation from the pasted reference">Add Citation</button>
                                 <div id="citation-quick-status" class="citation-quick-status"></div>
                             </div>
@@ -3563,6 +3731,7 @@
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         </nav>
 
