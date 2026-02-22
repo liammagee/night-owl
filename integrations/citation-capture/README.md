@@ -87,8 +87,10 @@ POST JSON:
 
 ## Troubleshooting
 
-If Electron exits with `SIGKILL` and macOS crash reports mention code-signing invalid native modules, rebuild native dependencies:
+If Electron exits with `SIGKILL` and macOS crash reports mention code-signing invalid native modules, run:
 
 ```bash
-npm run native:rebuild
+npm run native:repair
 ```
+
+Note: `npm run electron` and `npm run electron-dev` now auto-run native signature repair on macOS before launch.

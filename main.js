@@ -3005,21 +3005,42 @@ app.whenReady().then(async () => {
     port: capturePort
   };
 
-  citationCaptureServer = createCitationCaptureServer({
-    host: citationCaptureBridgeConfig.host,
-    port: citationCaptureBridgeConfig.port,
-    onCapture: (payload) => {
-      enqueueCitationCapture(payload);
-    },
-    logger: console
-  });
+  const capturePortCandidates = [capturePort];
+  for (let offset = 1; offset <= 5; offset += 1) {
+    capturePortCandidates.push(capturePort + offset);
+  }
+  capturePortCandidates.push(0); // Let OS assign an available ephemeral port as final fallback
 
-  try {
-    const address = await citationCaptureServer.start();
-    citationCaptureBridgeConfig = address;
-    console.log(`[main.js] Citation capture bridge listening on http://${address.host}:${address.port}/capture`);
-  } catch (error) {
-    console.error('[main.js] Failed to start citation capture bridge:', error);
+  let captureBridgeStarted = false;
+  for (const candidatePort of capturePortCandidates) {
+    citationCaptureServer = createCitationCaptureServer({
+      host: citationCaptureBridgeConfig.host,
+      port: candidatePort,
+      onCapture: (payload) => {
+        enqueueCitationCapture(payload);
+      },
+      logger: console
+    });
+
+    try {
+      const address = await citationCaptureServer.start();
+      citationCaptureBridgeConfig = address;
+      captureBridgeStarted = true;
+      console.log(`[main.js] Citation capture bridge listening on http://${address.host}:${address.port}/capture`);
+      break;
+    } catch (error) {
+      const isAddressInUse = error && error.code === 'EADDRINUSE';
+      if (!isAddressInUse) {
+        console.error('[main.js] Failed to start citation capture bridge:', error);
+        break;
+      }
+
+      console.warn(`[main.js] Capture bridge port ${candidatePort} is in use, trying next port...`);
+    }
+  }
+
+  if (!captureBridgeStarted) {
+    console.error('[main.js] Citation capture bridge unavailable. Browser capture features are disabled for this session.');
   }
   
   createWindow();

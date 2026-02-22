@@ -19,9 +19,13 @@
   "main": "main.js",
   "scripts": {
     "dev": "tsx markdown-prezi-app.tsx",
+    "preelectron": "npm run native:sign",
     "electron": "electron .",
+    "preelectron-dev": "npm run native:sign",
     "electron-dev": "electron . --dev",
     "native:rebuild": "electron-rebuild -f -w sqlite3,better-sqlite3",
+    "native:sign": "node scripts/repair-native-signatures.js",
+    "native:repair": "npm run native:rebuild && npm run native:sign",
     "build": "electron-builder",
     "dist": "electron-builder --publish=never",
     "harness": "node scripts/serve-harness.js",
