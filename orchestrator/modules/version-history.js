@@ -515,17 +515,61 @@
 
   // ── Init ──
 
-  function init() {
-    registerSidebarPane();
-    startAutoCheckpoints();
+  async function diffWithLatestCheckpoint() {
+    if (!window.currentFilePath) return;
+    const snapshots = await getSnapshots(window.currentFilePath);
+    if (!snapshots || snapshots.length === 0) {
+      if (window.showNotification) window.showNotification('No checkpoints to compare', 'warning');
+      return;
+    }
+    await showDiff(snapshots[0].id);
+  }
 
-    // Create initial checkpoint when file is opened
-    if (window.currentFilePath && window.editor) {
-      lastCheckpointContent = window.editor.getValue();
-      createCheckpoint('File opened');
+  async function restoreLatestCheckpoint() {
+    if (!window.currentFilePath) return;
+    const snapshots = await getSnapshots(window.currentFilePath);
+    if (!snapshots || snapshots.length === 0) {
+      if (window.showNotification) window.showNotification('No checkpoints to restore', 'warning');
+      return;
+    }
+    await restoreSnapshot(snapshots[0].id);
+  }
+
+  function registerCommandPaletteCommands() {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand(
+        'versionHistory.showTimeline',
+        'Version History: Show Timeline',
+        () => {
+          if (window.switchStructureView) window.switchStructureView('history');
+        }
+      );
+      window.registerCommand(
+        'versionHistory.saveCheckpoint',
+        'Version History: Save Checkpoint',
+        async () => {
+          await createCheckpoint('Manual checkpoint');
+          if (window.showNotification) window.showNotification('Checkpoint saved', 'success');
+        }
+      );
+      window.registerCommand(
+        'versionHistory.diffLatest',
+        'Version History: Diff Current vs Latest Checkpoint',
+        async () => {
+          await diffWithLatestCheckpoint();
+        }
+      );
+      window.registerCommand(
+        'versionHistory.restoreLatest',
+        'Version History: Restore Latest Checkpoint',
+        async () => {
+          await restoreLatestCheckpoint();
+        }
+      );
+      return true;
     }
 
-    // Command palette
+    // Backward compatibility with legacy palette wiring.
     if (window.commandPaletteCommands) {
       window.commandPaletteCommands.push({
         name: 'Version History: Show Timeline',
@@ -542,6 +586,37 @@
           if (window.showNotification) window.showNotification('Checkpoint saved', 'success');
         }
       });
+      window.commandPaletteCommands.push({
+        name: 'Version History: Diff Current vs Latest Checkpoint',
+        action: async () => {
+          await diffWithLatestCheckpoint();
+        }
+      });
+      window.commandPaletteCommands.push({
+        name: 'Version History: Restore Latest Checkpoint',
+        action: async () => {
+          await restoreLatestCheckpoint();
+        }
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  function init() {
+    registerSidebarPane();
+    startAutoCheckpoints();
+
+    // Create initial checkpoint when file is opened
+    if (window.currentFilePath && window.editor) {
+      lastCheckpointContent = window.editor.getValue();
+      createCheckpoint('File opened');
+    }
+
+    if (!registerCommandPaletteCommands()) {
+      // Some modules initialize later; retry once after initial boot.
+      setTimeout(registerCommandPaletteCommands, 800);
     }
   }
 

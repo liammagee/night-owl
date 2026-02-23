@@ -6,6 +6,77 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 
+const SAVE_BACKUP_DIR_NAME = '.nightowl-backups';
+const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
+
+async function statOrNull(filePath, fsApi = fs) {
+  try {
+    return await fsApi.stat(filePath);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+function hasExternalModification(currentStat, baselineMtimeMs) {
+  if (!currentStat || !Number.isFinite(baselineMtimeMs)) return false;
+  // Small epsilon handles fs precision differences.
+  return Math.abs(currentStat.mtimeMs - baselineMtimeMs) > 1;
+}
+
+function buildBackupFilePath(filePath, timestamp = Date.now()) {
+  const directory = path.dirname(filePath);
+  const backupDir = path.join(directory, SAVE_BACKUP_DIR_NAME);
+  const parsed = path.parse(filePath);
+  const backupName = `${parsed.name}.${timestamp}${parsed.ext || '.md'}.bak`;
+  return path.join(backupDir, backupName);
+}
+
+async function createFileBackup(filePath, fsApi = fs) {
+  const existingStat = await statOrNull(filePath, fsApi);
+  if (!existingStat) return null;
+
+  const backupPath = buildBackupFilePath(filePath);
+  await fsApi.mkdir(path.dirname(backupPath), { recursive: true });
+  await fsApi.copyFile(filePath, backupPath);
+  return backupPath;
+}
+
+async function guardedWriteFile(filePath, content, options = {}, context = {}) {
+  const fsApi = context.fsApi || fs;
+  const fileStateMap = context.fileStateMap || new Map();
+  const expectedMtimeMs = Number.isFinite(options.expectedMtimeMs) ? options.expectedMtimeMs : null;
+  const force = Boolean(options.force);
+  const knownState = fileStateMap.get(filePath);
+  const baselineMtimeMs = expectedMtimeMs ?? (knownState ? knownState.mtimeMs : null);
+  const currentStat = await statOrNull(filePath, fsApi);
+
+  if (!force && hasExternalModification(currentStat, baselineMtimeMs)) {
+    return {
+      success: false,
+      code: SAVE_CONFLICT_CODE,
+      error: 'File has changed on disk since it was opened. Review changes before overwriting.',
+      filePath,
+      currentMtimeMs: currentStat ? currentStat.mtimeMs : null,
+      expectedMtimeMs: baselineMtimeMs
+    };
+  }
+
+  const backupPath = await createFileBackup(filePath, fsApi);
+  await fsApi.writeFile(filePath, content, 'utf8');
+  const updatedStat = await statOrNull(filePath, fsApi);
+  if (updatedStat) {
+    fileStateMap.set(filePath, { mtimeMs: updatedStat.mtimeMs, size: updatedStat.size });
+  }
+
+  return {
+    success: true,
+    filePath,
+    backupPath,
+    mtimeMs: updatedStat ? updatedStat.mtimeMs : null
+  };
+}
+
 /**
  * Register all file system IPC handlers
  * @param {Object} deps - Dependencies from main.js
@@ -19,6 +90,12 @@ function register(deps) {
     setCurrentFilePath,
     currentWorkingDirectory
   } = deps;
+  const fileStateMap = new Map();
+
+  function rememberFileState(filePath, stat) {
+    if (!filePath || !stat) return;
+    fileStateMap.set(filePath, { mtimeMs: stat.mtimeMs, size: stat.size });
+  }
 
   // Helper function to get working directory
   function getWorkingDirectory() {
@@ -629,12 +706,15 @@ function register(deps) {
     try {
       console.log(`[FileHandlers] Reading file: ${filePath}`);
       const content = await fs.readFile(filePath, 'utf8');
+      const stat = await statOrNull(filePath);
+      rememberFileState(filePath, stat);
       
       return {
         success: true,
         content: content,
         filePath: filePath,
-        fileName: path.basename(filePath)
+        fileName: path.basename(filePath),
+        mtimeMs: stat ? stat.mtimeMs : null
       };
     } catch (error) {
       console.error(`[FileHandlers] Error reading file ${filePath}:`, error);
@@ -681,6 +761,8 @@ function register(deps) {
       
       // Read the file content
       const content = await fs.readFile(filePath, 'utf8');
+      const stat = await statOrNull(filePath);
+      rememberFileState(filePath, stat);
       
       // Update current file path
       setCurrentFilePath(filePath);
@@ -689,7 +771,8 @@ function register(deps) {
         success: true,
         content: content,
         filePath: filePath,
-        fileName: path.basename(filePath)
+        fileName: path.basename(filePath),
+        mtimeMs: stat ? stat.mtimeMs : null
       };
     } catch (error) {
       console.error(`[FileHandlers] Error opening file ${filePath}:`, error);
@@ -710,6 +793,8 @@ function register(deps) {
       
       // Read the file content
       const content = await fs.readFile(filePath, 'utf8');
+      const stat = await statOrNull(filePath);
+      rememberFileState(filePath, stat);
       
       // Update current file path  
       setCurrentFilePath(filePath);
@@ -718,7 +803,8 @@ function register(deps) {
         success: true,
         content: content,
         filePath: filePath,
-        fileName: path.basename(filePath)
+        fileName: path.basename(filePath),
+        mtimeMs: stat ? stat.mtimeMs : null
       };
     } catch (error) {
       console.error(`[FileHandlers] Error opening file path ${filePath}:`, error);
@@ -892,6 +978,8 @@ function register(deps) {
       
       // Read the file content
       const content = await fs.readFile(filePath, 'utf8');
+      const stat = await statOrNull(filePath);
+      rememberFileState(filePath, stat);
       
       // Update current file path
       setCurrentFilePath(filePath);
@@ -900,7 +988,8 @@ function register(deps) {
         success: true,
         content: content,
         filePath: filePath,
-        fileName: filename
+        fileName: filename,
+        mtimeMs: stat ? stat.mtimeMs : null
       };
     } catch (error) {
       console.error(`[FileHandlers] Error performing open file ${filename}:`, error);
@@ -913,7 +1002,7 @@ function register(deps) {
   });
 
   // File Save Operations
-  ipcMain.handle('perform-save', async (event, content) => {
+  ipcMain.handle('perform-save', async (event, content, options = {}) => {
     try {
       const currentFilePath = getCurrentFilePath();
       if (!currentFilePath) {
@@ -922,13 +1011,18 @@ function register(deps) {
 
       console.log(`[FileHandlers] 💾 PERFORM-SAVE called for: ${currentFilePath} (${content.length} characters)`);
       
-      await fs.writeFile(currentFilePath, content, 'utf8');
+      const saveResult = await guardedWriteFile(currentFilePath, content, options, { fileStateMap });
+      if (!saveResult.success) {
+        return saveResult;
+      }
       
       console.log(`[FileHandlers] File saved successfully: ${currentFilePath}`);
       return {
         success: true,
         filePath: currentFilePath,
-        fileName: path.basename(currentFilePath)
+        fileName: path.basename(currentFilePath),
+        backupPath: saveResult.backupPath || null,
+        mtimeMs: saveResult.mtimeMs || null
       };
     } catch (error) {
       console.error(`[FileHandlers] Error saving file:`, error);
@@ -939,7 +1033,7 @@ function register(deps) {
     }
   });
 
-  ipcMain.handle('perform-save-with-path', async (event, content, filePath) => {
+  ipcMain.handle('perform-save-with-path', async (event, content, filePath, options = {}) => {
     try {
       console.log(`[FileHandlers] Saving file with path: ${filePath} (${content.length} characters)`);
       
@@ -947,8 +1041,10 @@ function register(deps) {
       const dirPath = path.dirname(filePath);
       await fs.mkdir(dirPath, { recursive: true });
       
-      // Write the file
-      await fs.writeFile(filePath, content, 'utf8');
+      const saveResult = await guardedWriteFile(filePath, content, options, { fileStateMap });
+      if (!saveResult.success) {
+        return saveResult;
+      }
       
       // Update current file path
       setCurrentFilePath(filePath);
@@ -957,7 +1053,9 @@ function register(deps) {
       return {
         success: true,
         filePath: filePath,
-        fileName: path.basename(filePath)
+        fileName: path.basename(filePath),
+        backupPath: saveResult.backupPath || null,
+        mtimeMs: saveResult.mtimeMs || null
       };
     } catch (error) {
       console.error(`[FileHandlers] Error saving file with path:`, error);
@@ -996,8 +1094,10 @@ function register(deps) {
         return { success: false, cancelled: true };
       }
 
-      // Write the file
-      await fs.writeFile(result.filePath, content, 'utf8');
+      const saveResult = await guardedWriteFile(result.filePath, content, {}, { fileStateMap });
+      if (!saveResult.success) {
+        return saveResult;
+      }
       
       // Update current file path
       setCurrentFilePath(result.filePath);
@@ -1006,7 +1106,9 @@ function register(deps) {
       return {
         success: true,
         filePath: result.filePath,
-        fileName: path.basename(result.filePath)
+        fileName: path.basename(result.filePath),
+        backupPath: saveResult.backupPath || null,
+        mtimeMs: saveResult.mtimeMs || null
       };
     } catch (error) {
       console.error('[FileHandlers] Error in save as:', error);
@@ -1044,6 +1146,10 @@ function register(deps) {
     try {
       console.log(`[FileHandlers] Current file set to: ${filePath}`);
       setCurrentFilePath(filePath);
+      if (filePath && fsSync.existsSync(filePath)) {
+        const stat = fsSync.statSync(filePath);
+        rememberFileState(filePath, stat);
+      }
       return { success: true, filePath };
     } catch (error) {
       console.error('[FileHandlers] Error setting current file:', error);
@@ -2413,5 +2519,13 @@ function register(deps) {
 }
 
 module.exports = {
-  register
+  register,
+  __testHooks: {
+    SAVE_CONFLICT_CODE,
+    statOrNull,
+    hasExternalModification,
+    buildBackupFilePath,
+    createFileBackup,
+    guardedWriteFile
+  }
 };

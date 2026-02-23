@@ -10757,9 +10757,14 @@ async function handleCreateFile() {
             debouncedRenderFileTree();
             showNotification('File created successfully', 'success');
 
-            // Optionally open the newly created file
+            // Open the newly created file in the editor and bind current file context.
             try {
-                await window.electronAPI.invoke('load-file', result.filePath);
+                const openResult = await window.electronAPI.invoke('open-file-path', result.filePath);
+                if (openResult.success && window.openFileInEditor) {
+                    await window.openFileInEditor(openResult.filePath, openResult.content);
+                } else if (!openResult.success) {
+                    console.error('[Renderer] Failed to open newly created file:', openResult.error);
+                }
             } catch (error) {
                 console.error('[Renderer] Error opening newly created file:', error);
             }
@@ -12541,6 +12546,32 @@ async function saveFile() {
                     updateBreadcrumb(result.filePath);
                     renderFileTree();
                 }
+            } else if (result.code === 'FILE_MODIFIED_EXTERNALLY') {
+                const overwriteConfirmed = window.confirm(
+                    'This file changed on disk since you opened it. Overwrite anyway? A backup will be created first.'
+                );
+                if (!overwriteConfirmed) {
+                    showNotification('Save canceled to avoid overwriting external changes', 'warning');
+                    return;
+                }
+
+                const forcedResult = await window.electronAPI.invoke('perform-save', content, {
+                    force: true,
+                    expectedMtimeMs: result.currentMtimeMs
+                });
+
+                if (forcedResult.success) {
+                    lastSavedContent = content;
+                    window.hasUnsavedChanges = false;
+                    updateUnsavedIndicator(false);
+                    showNotification('File saved (forced overwrite)', 'success');
+                    if (window.tabManager) {
+                        window.tabManager.syncActiveTabDirty(false, lastSavedContent);
+                    }
+                    updateGitStatusIndicator();
+                } else {
+                    showNotification(`Save failed: ${forcedResult.error}`, 'error');
+                }
             } else {
                 console.error('[saveFile] Save failed:', result.error);
                 showNotification(`Save failed: ${result.error}`, 'error');
@@ -12605,6 +12636,11 @@ async function saveFile() {
                 
                 // Update current file in electron
                 window.electronAPI.invoke('set-current-file', result.filePath);
+
+                // Ensure the saved path is the active opened file/tab (not just a scratch buffer).
+                if (window.openFileInEditor) {
+                    await window.openFileInEditor(result.filePath, lastSavedContent || content);
+                }
                 
                 // Update file tree and highlight the new file
                 renderFileTree();
@@ -12764,6 +12800,11 @@ async function saveAsFile() {
                 await window.electronAPI.invoke('refresh-file-tree');
             } catch (error) {
                 console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
+            }
+
+            // Ensure the saved path is the active opened file/tab (not just a scratch buffer).
+            if (window.openFileInEditor) {
+                await window.openFileInEditor(result.filePath, lastSavedContent || content);
             }
 
             // Update breadcrumb display
