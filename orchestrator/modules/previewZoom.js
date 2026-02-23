@@ -221,10 +221,11 @@ class PreviewZoom {
         this.controls.style.cssText = `
             position: relative;
             width: 100%;
-            background: ${document.body.classList.contains('dark-mode') ? '#2d2d2d' : '#f8f9fa'};
-            border-top: 1px solid ${document.body.classList.contains('dark-mode') ? '#444' : '#e1e4e8'};
+            background: var(--surface-variant, #f8f9fa);
+            border-top: 1px solid var(--toolbar-border, var(--border-color, #e1e4e8));
             padding: 8px 12px;
             font-size: 12px;
+            color: var(--text-color, #333);
             display: none;
             flex-shrink: 0;
             z-index: 100;
@@ -417,11 +418,10 @@ class PreviewZoom {
         
         this.updatingControls = true;
 
-        const darkMode = document.body.classList.contains('dark-mode');
         this.controls.innerHTML = `
             <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: ${darkMode ? '#d4d4d4' : '#333'};">
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-color, #333);">
                         <input type="checkbox" 
                                id="preview-zoom-enable" 
                                ${this.isEnabled ? 'checked' : ''} 
@@ -433,9 +433,9 @@ class PreviewZoom {
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <div style="display: flex; flex-direction: column; align-items: center;">
                                 <div style="display: flex; justify-content: space-between; width: 120px; margin-bottom: 2px;">
-                                    <span style="font-size: 9px; color: ${darkMode ? '#999' : '#666'};">Detail</span>
-                                    <span style="font-size: 9px; color: ${darkMode ? '#999' : '#666'};">Summary</span>
-                                    <span style="font-size: 9px; color: ${darkMode ? '#999' : '#666'};">Essence</span>
+                                    <span style="font-size: 9px; color: var(--text-muted, #666);">Detail</span>
+                                    <span style="font-size: 9px; color: var(--text-muted, #666);">Summary</span>
+                                    <span style="font-size: 9px; color: var(--text-muted, #666);">Essence</span>
                                 </div>
                                 <input type="range" 
                                        id="preview-zoom-slider" 
@@ -444,7 +444,7 @@ class PreviewZoom {
                                        value="${this.currentZoomLevel}" 
                                        step="1"
                                        onchange="window.previewZoom.setZoomLevel(parseInt(this.value))"
-                                       style="width: 120px; height: 4px; background: #ddd; border-radius: 2px; outline: none; -webkit-appearance: none;">
+                                       style="width: 120px; height: 4px; background: var(--border-color, #ddd); border-radius: 2px; outline: none; -webkit-appearance: none;">
                             </div>
                         </div>
                     ` : ''}
@@ -455,14 +455,14 @@ class PreviewZoom {
                         <button 
                             id="preview-regenerate-summaries" 
                             onclick="window.previewZoom.regenerateSummaries()" 
-                            style="padding: 4px 8px; font-size: 10px; background: ${this.isRegenerating ? '#999' : '#6c757d'}; color: white; border: none; border-radius: 3px; cursor: ${this.isRegenerating ? 'not-allowed' : 'pointer'};"
+                            style="padding: 4px 8px; font-size: 10px; background: ${this.isRegenerating ? 'var(--text-muted, #999)' : 'var(--button-bg, #6c757d)'}; color: var(--button-text, #fff); border: 1px solid var(--button-border, transparent); border-radius: 3px; cursor: ${this.isRegenerating ? 'not-allowed' : 'pointer'};"
                             ${this.isRegenerating ? 'disabled' : ''}>${this.isRegenerating ? '<span class="loading-ellipsis">...</span>' : '↻'}</button>
                         
-                        <div style="font-size: 9px; color: ${this.summariesGenerated ? '#28a745' : '#999'};">
+                        <div style="font-size: 9px; color: ${this.summariesGenerated ? 'var(--primary, #28a745)' : 'var(--text-muted, #999)'};">
                             ${this.summariesGenerated ? '✓' : '<span class="loading-ellipsis">pending</span>'}
                         </div>
                         
-                        <div style="font-size: 9px; color: ${darkMode ? '#666' : '#999'};">
+                        <div style="font-size: 9px; color: var(--text-muted, #999);">
                             Scroll ↑↓ to navigate
                         </div>
                     </div>
@@ -1098,14 +1098,14 @@ style.textContent = `
     padding: 20px;
     margin: 20px;
     border-radius: 8px;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-left: 4px solid #007acc;
+    background: linear-gradient(135deg, var(--surface, #f8f9fa) 0%, var(--surface-variant, #e9ecef) 100%);
+    border-left: 4px solid var(--primary, #007acc);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .zoom-summary h3 {
     margin: 0 0 15px 0;
-    color: #343a40;
+    color: var(--text-color, #343a40);
     font-size: 18px;
     font-weight: 600;
 }
@@ -1113,16 +1113,16 @@ style.textContent = `
 .zoom-summary p {
     margin: 0;
     line-height: 1.6;
-    color: #495057;
+    color: var(--text-secondary, #495057);
     font-size: 16px;
 }
 
 .zoom-paragraph {
-    border-left-color: #28a745;
+    border-left-color: var(--primary, #28a745);
 }
 
 .zoom-sentence {
-    border-left-color: #ffc107;
+    border-left-color: var(--primary-hover, #ffc107);
     text-align: center;
 }
 
@@ -1162,7 +1162,7 @@ style.textContent = `
 #preview-zoom-slider {
     -webkit-appearance: none;
     appearance: none;
-    background: #ddd;
+    background: var(--border-color, #ddd);
     border-radius: 2px;
     outline: none;
     cursor: pointer;
@@ -1174,15 +1174,15 @@ style.textContent = `
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: #007acc;
+    background: var(--primary, #007acc);
     cursor: pointer;
-    border: 2px solid #fff;
+    border: 2px solid var(--surface, #fff);
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     transition: all 0.2s ease;
 }
 
 #preview-zoom-slider::-webkit-slider-thumb:hover {
-    background: #0056b3;
+    background: var(--primary-hover, #0056b3);
     transform: scale(1.1);
     box-shadow: 0 3px 8px rgba(0,0,0,0.3);
 }
@@ -1191,15 +1191,15 @@ style.textContent = `
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: #007acc;
+    background: var(--primary, #007acc);
     cursor: pointer;
-    border: 2px solid #fff;
+    border: 2px solid var(--surface, #fff);
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     transition: all 0.2s ease;
 }
 
 #preview-zoom-slider::-moz-range-thumb:hover {
-    background: #0056b3;
+    background: var(--primary-hover, #0056b3);
     transform: scale(1.1);
     box-shadow: 0 3px 8px rgba(0,0,0,0.3);
 }

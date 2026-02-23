@@ -263,6 +263,51 @@
             background: var(--primary-wcag, #166534) !important;
             color: #ffffff !important;
         }
+
+        /* Theme consistency for editor/preview split and bottom pane buttons */
+        #panes-container,
+        #editor-pane,
+        #right-pane {
+            background: var(--panel-bg, #ffffff);
+        }
+
+        #preview-pane,
+        #preview-content {
+            background: var(--preview-bg, var(--panel-bg, #ffffff));
+            color: var(--preview-text, var(--text-color, #333333));
+        }
+
+        #right-pane > .toggle-buttons {
+            background: var(--toolbar-bg, #f8f9fa) !important;
+            border-top: 1px solid var(--toolbar-border, var(--border-color, #ddd)) !important;
+        }
+
+        #right-pane > .toggle-buttons .pane-toggle-button {
+            background: var(--button-bg, #ffffff);
+            border: 1px solid var(--button-border, #cbd5e0);
+            color: var(--button-text, var(--text-color, #2d3748));
+        }
+
+        #right-pane > .toggle-buttons .pane-toggle-button:hover:not(.active) {
+            background: var(--button-hover-bg, #f7fafc);
+        }
+
+        /* Avoid bright scrollbar tracks in light custom themes */
+        #preview-content,
+        #left-sidebar-content {
+            scrollbar-color: var(--text-muted, #9aa0a6) var(--surface-variant, #ece7da);
+        }
+
+        #preview-content::-webkit-scrollbar-track,
+        #left-sidebar-content::-webkit-scrollbar-track {
+            background: var(--surface-variant, #ece7da);
+        }
+
+        #preview-content::-webkit-scrollbar-thumb,
+        #left-sidebar-content::-webkit-scrollbar-thumb {
+            background: var(--text-muted, #9aa0a6);
+            border-radius: 8px;
+        }
         
         /* VS Code-style left activity bar + workspace panel */
         #left-sidebar {
@@ -270,19 +315,22 @@
             flex-direction: row !important;
             align-items: stretch;
             overflow: hidden;
+            background: var(--panel-bg, #ffffff);
+            border-right: 1px solid var(--border-color, #d5d0c3);
         }
 
         #left-sidebar-activity {
-            width: 56px;
-            min-width: 56px;
-            border-right: 1px solid #d5d0c3;
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(247, 243, 231, 0.95) 100%);
+            width: 60px;
+            min-width: 60px;
+            border-right: 1px solid var(--border-color, #d5d0c3);
+            background: var(--toolbar-bg, #f8fafc);
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 10px 6px;
+            padding: 10px 8px;
             box-sizing: border-box;
             gap: 10px;
+            overflow-x: hidden;
         }
 
         #left-sidebar-workspace {
@@ -290,6 +338,7 @@
             min-width: 220px;
             display: flex;
             flex-direction: column;
+            background: var(--panel-bg, #ffffff);
         }
 
         #left-sidebar-content {
@@ -303,28 +352,46 @@
             flex-direction: column !important;
             width: 100%;
             gap: 8px !important;
-            align-items: stretch !important;
+            align-items: center !important;
             min-height: 0 !important;
             margin-bottom: 0 !important;
         }
 
         #left-sidebar-activity .pane-toggle-button {
-            width: 100%;
+            width: 40px;
+            height: 40px;
             min-width: 0 !important;
-            padding: 8px 0 !important;
+            min-height: 40px;
+            padding: 0 !important;
+            margin: 0 auto;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             border-radius: 10px;
-            font-size: 18px !important;
+            font-size: 17px !important;
             line-height: 1;
+            border: 1px solid var(--button-border, #cbd5e0);
+            background: var(--button-bg, #ffffff);
+            color: var(--button-text, #2d3748);
+            overflow: hidden;
+        }
+
+        #left-sidebar-activity .pane-toggle-button.active {
+            background: var(--primary, #4299e1);
+            border-color: var(--primary, #4299e1);
+            color: var(--text-on-primary, #ffffff);
         }
 
         #left-sidebar-activity .pane-toggle-button:hover:not(.active) {
-            background: rgba(22, 101, 52, 0.15) !important;
+            background: var(--button-hover-bg, #f1f5f9) !important;
         }
 
         #structure-pane-header {
             padding: 8px 10px !important;
             margin-top: 0 !important;
-            border-bottom: 1px solid #d5d0c3 !important;
+            border-bottom: 1px solid var(--border-color, #d5d0c3) !important;
+            background: var(--menu-bg, #ffffff);
         }
 
         #structure-pane-title {
@@ -389,7 +456,7 @@
         }
 
         .file-tree-item:hover {
-            background-color: #f0f0f0;
+            background-color: var(--surface-hover, #f0f0f0);
         }
 
         body.dark-mode .file-tree-item:hover {
@@ -462,7 +529,7 @@
             white-space: nowrap;
         }
         .breadcrumb-separator {
-            color: #aaa;
+            color: var(--text-muted, #888);
             margin: 0 1px;
             font-size: 10px;
             user-select: none;
@@ -480,7 +547,7 @@
         }
         .breadcrumb-segment.current-file {
             font-weight: 600;
-            color: #333;
+            color: var(--text-color, #333);
         }
 
         /* Slide thumbnails */
@@ -2432,15 +2499,6 @@
             color: #22c55e;
         }
 
-        body.dark-mode #left-sidebar-activity {
-            border-right-color: #374151;
-            background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
-        }
-
-        body.dark-mode #structure-pane-header {
-            border-bottom-color: #374151 !important;
-        }
-
         body.dark-mode #left-sidebar-activity .pane-toggle-button:hover:not(.active) {
             background: rgba(56, 189, 248, 0.18) !important;
         }
@@ -3739,14 +3797,14 @@
         </nav>
 
         <!-- Resizer for left sidebar -->
-        <div id="sidebar-resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
+        <div id="sidebar-resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: var(--border-color, #ddd);"></div>
 
         <!-- Main Content Area (Switches between editor and presentation) -->
         <main id="main-content" role="main">
             <!-- Accessibility: Hidden H1 for screen readers -->
             <h1 class="sr-only">NightOwl - Philosophical Writing & Teaching Application</h1>
             <!-- Content Mode Switcher -->
-            <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; background: #f8f9fa; padding: 0 16px;">
+            <div id="mode-switcher" style="height: 40px; border-bottom: 1px solid var(--toolbar-border, #ddd); display: flex; align-items: center; justify-content: space-between; background: var(--toolbar-bg, #f8f9fa); padding: 0 16px;">
                 <!-- Navigation Controls -->
                 <div id="navigation-controls" style="display: flex; align-items: center; gap: 4px;">
                     <button id="nav-back-btn" class="btn btn-sm nav-btn" title="Go Back (Alt+Left)" disabled>
@@ -3755,14 +3813,14 @@
                     <button id="nav-forward-btn" class="btn btn-sm nav-btn" title="Go Forward (Alt+Right)" disabled>
                         Forward →
                     </button>
-                    <div style="width: 1px; height: 20px; background: #ccc; margin: 0 8px;"></div>
-                    <nav id="breadcrumb-nav" style="font-size: 11px; color: #666; display: flex; align-items: center; gap: 2px; overflow: hidden; max-width: 400px;">
-                        <span id="current-file-name" class="breadcrumb-segment" style="color: #999;">No file selected</span>
+                    <div style="width: 1px; height: 20px; background: var(--border-color, #ccc); margin: 0 8px;"></div>
+                    <nav id="breadcrumb-nav" style="font-size: 11px; color: var(--text-muted, #666); display: flex; align-items: center; gap: 2px; overflow: hidden; max-width: 400px;">
+                        <span id="current-file-name" class="breadcrumb-segment" style="color: var(--text-muted, #999);">No file selected</span>
                     </nav>
                 </div>
                 
                 <!-- Mode Switcher -->
-                <div style="display: flex; gap: 4px; padding: 4px; background: #fefdfb; border: 1px solid #ddd; border-radius: 6px;">
+                <div style="display: flex; gap: 4px; padding: 4px; background: var(--surface, #fefdfb); border: 1px solid var(--border-color, #ddd); border-radius: 6px;">
                     <button id="editor-mode-btn" class="mode-btn active" title="Editor View">Editor</button>
                     <button id="presentation-mode-btn" class="mode-btn" title="Presentation View">Presentation</button>
 	                    <button id="network-mode-btn" class="mode-btn" title="Network Visualization">Network</button>
@@ -3772,7 +3830,7 @@
                 
                 <!-- Pane Toggle Controls -->
                 <div style="display: flex; gap: 4px; align-items: center;">
-                    <span style="font-size: 11px; color: #666; margin-right: 4px;">Panes:</span>
+                    <span style="font-size: 11px; color: var(--text-secondary, #666); margin-right: 4px;">Panes:</span>
                     <button id="toggle-sidebar-btn" class="btn btn-sm btn-primary pane-visibility-btn" title="Toggle Files/Structure Pane" style="padding: 4px 8px; font-size: 11px;">📁</button>
                     <button id="toggle-editor-btn" class="btn btn-sm btn-primary pane-visibility-btn" title="Toggle Editor Pane" style="padding: 4px 8px; font-size: 11px;">📝</button>
                     <button id="toggle-preview-btn" class="btn btn-sm btn-primary pane-visibility-btn" title="Toggle Preview Pane" style="padding: 4px 8px; font-size: 11px;">👁</button>
@@ -3879,7 +3937,7 @@
                         </button>
                         
                         <div class="toolbar-separator"></div>
-                        <span style="font-size: 11px; color: #666;">Format</span>
+                        <span style="font-size: 11px; color: var(--text-secondary, #666);">Format</span>
                         <div class="toolbar-separator"></div>
                         <button id="fold-all-btn" class="toolbar-btn" title="Fold All Sections (Ctrl+K, Ctrl+0)">
                             📁
@@ -3908,14 +3966,14 @@
                 <div id="editor-tabs-bar"></div>
                 <!-- Container for editor and preview panes -->
                 <!-- Slide Preview Thumbnails (visible when document has slides) -->
-                <div id="slide-thumbnails-strip" style="display: none; border-bottom: 1px solid #ddd; background: #f5f5f5; overflow-x: auto; overflow-y: hidden; white-space: nowrap; padding: 6px 8px; max-height: 110px; min-height: 0;">
+                <div id="slide-thumbnails-strip" style="display: none; border-bottom: 1px solid var(--border-color, #ddd); background: var(--surface-variant, #f5f5f5); overflow-x: auto; overflow-y: hidden; white-space: nowrap; padding: 6px 8px; max-height: 110px; min-height: 0;">
                 </div>
                 <div id="panes-container" style="display: flex; flex: 1; overflow: hidden;">
                     <div id="editor-pane">
                         <div id="editor-container" style="width: 100%; flex: 1;"></div>
                         <textarea id="fallback-editor" style="display: none; width: 100%; flex: 1; box-sizing: border-box; border: 1px solid #ccc; font-family: monospace; padding: 5px;"></textarea>
                     </div>
-                    <div id="resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: #ddd;"></div>
+                    <div id="resizer" class="resizer" style="width: 4px; cursor: ew-resize; background: var(--border-color, #ddd);"></div>
                     <div id="right-pane">
                     <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                         <div id="preview-pane" class="content-pane">
@@ -3958,13 +4016,13 @@
                             </div>
                             
                             <div id="speaker-notes-content" style="flex: 1; overflow-y: auto; font-size: 14px; line-height: 1.6;">
-                                <p style="color: #666; text-align: center; padding: 20px;">
+                                <p style="color: var(--text-secondary, #666); text-align: center; padding: 20px;">
                                     No speaker notes found.<br>
                                     <small>Add notes using <code>```notes</code> blocks in your Markdown.</small>
                                 </p>
                             </div>
                             
-                            <div class="speaker-notes-help" style="margin-top: 12px; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 12px; color: #666;">
+                            <div class="speaker-notes-help" style="margin-top: 12px; padding: 8px; background: var(--surface-variant, #f8f9fa); border-radius: 4px; font-size: 12px; color: var(--text-secondary, #666);">
                                 <strong>Tip:</strong> Use <code>```notes</code> in your Markdown to add speaker notes that won't appear on slides.
                             </div>
                         </div>
@@ -4052,7 +4110,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="toggle-buttons" style="padding: 4px 8px; border-top: 1px solid #ddd; display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; min-height: 32px; max-height: 40px;">
+                    <div class="toggle-buttons" style="padding: 4px 8px; border-top: 1px solid var(--border-color, #ddd); background: var(--toolbar-bg, #f8f9fa); display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; min-height: 32px; max-height: 40px;">
                         <button id="show-preview-btn" class="btn pane-toggle-button active" title="Show Preview" style="padding: 6px 8px; font-size: 12px;">Preview</button>
                         <button id="show-chat-btn" class="btn pane-toggle-button" title="AI Chat Assistant" style="padding: 6px 8px; font-size: 12px;">AI Chat</button>
                         <button id="show-speaker-notes-btn" class="btn pane-toggle-button" title="Speaker Notes" style="padding: 6px 8px; font-size: 12px;">📝 Notes</button>
@@ -4062,7 +4120,7 @@
                 </div> <!-- End panes-container -->
 
                 <!-- Status Bar - spans full width of editor and preview -->
-                <div id="editor-status-bar" style="height: 24px; background: #f8f9fa; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; color: #666; flex-shrink: 0;">
+                <div id="editor-status-bar" style="height: 24px; background: var(--toolbar-bg, #f8f9fa); border-top: 1px solid var(--toolbar-border, #ddd); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; color: var(--text-secondary, #666); flex-shrink: 0;">
                     <div id="status-left" style="display: flex; align-items: center; gap: 12px;">
                         <span id="word-count">Words: 0</span>
                         <span id="char-count">Characters: 0</span>

@@ -1593,15 +1593,15 @@ body.dark-theme .annotation-highlight:hover {
     justify-content: flex-end;
     gap: 10px;
     padding: 16px 20px;
-    border-top: 1px solid #e0e0e0;
-    background: #f8f9fa;
+    border-top: 1px solid var(--border-color, #e0e0e0);
+    background: var(--surface-variant, #f8f9fa);
 }
 
 .btn {
     padding: 8px 16px;
-    border: 1px solid #cbd5e0;
-    background: white;
-    color: #2d3748;
+    border: 1px solid var(--button-border, #cbd5e0);
+    background: var(--button-bg, #ffffff);
+    color: var(--button-text, #2d3748);
     border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
@@ -1609,19 +1609,19 @@ body.dark-theme .annotation-highlight:hover {
 }
 
 .btn:hover {
-    background: #f7fafc;
-    border-color: #a0aec0;
+    background: var(--button-hover-bg, #f7fafc);
+    border-color: var(--border-strong, #a0aec0);
 }
 
 .btn-primary {
-    background: #4299e1;
-    color: white;
-    border-color: #4299e1;
+    background: var(--primary, #4299e1);
+    color: var(--text-on-primary, #ffffff);
+    border-color: var(--primary, #4299e1);
 }
 
 .btn-primary:hover {
-    background: #3182ce;
-    border-color: #3182ce;
+    background: var(--primary-hover, #3182ce);
+    border-color: var(--primary-hover, #3182ce);
 }
 
 /* === Keyboard Shortcuts Styles === */

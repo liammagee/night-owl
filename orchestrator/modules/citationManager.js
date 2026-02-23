@@ -184,9 +184,6 @@ class CitationManager {
             'citations.captureClipboard',
             'Citations: Capture from Clipboard',
             async () => {
-                if (typeof window.switchStructureView === 'function') {
-                    window.switchStructureView('citations');
-                }
                 await this.quickCaptureFromClipboard({ revealCitationsPane: false });
             },
             'Cmd+Shift+Y'
@@ -438,7 +435,7 @@ class CitationManager {
 
                 event.preventDefault();
                 event.stopPropagation();
-                this.quickCaptureFromClipboard({ revealCitationsPane: true });
+                this.quickCaptureFromClipboard({ revealCitationsPane: false });
             }, true);
 
             this.quickCaptureShortcutBound = true;
@@ -447,7 +444,7 @@ class CitationManager {
 
     async quickCaptureFromClipboard(options = {}) {
         const {
-            revealCitationsPane = true
+            revealCitationsPane = false
         } = options;
 
         if (!navigator.clipboard?.readText) {
@@ -720,6 +717,17 @@ class CitationManager {
                 this.setQuickStatus(`Added “${leadCitation.title || leadCitation.url || 'Untitled citation'}” from ${sourceLabel}.`, 'success');
             } else {
                 this.setQuickStatus(`Added ${importedCount} citations from ${sourceLabel}.`, 'success');
+            }
+
+            if (window.showNotification) {
+                if (importedCount === 1) {
+                    const key = leadCitation.key || leadCitation.citation_key || '';
+                    const title = leadCitation.title || leadCitation.url || 'Untitled citation';
+                    const suffix = key ? ` [@${key}]` : '';
+                    window.showNotification(`Citation added: ${title}${suffix}`, 'success');
+                } else {
+                    window.showNotification(`Added ${importedCount} citations from ${sourceLabel}`, 'success');
+                }
             }
 
             if (quickInput) quickInput.value = '';

@@ -228,9 +228,43 @@
 
   // ── Apply theme ──
 
+  function withDerivedThemeVars(vars) {
+    const v = { ...(vars || {}) };
+    const text = v['--text-color'] || '#333333';
+    const textSecondary = v['--text-secondary'] || text;
+    const textMuted = v['--text-muted'] || textSecondary;
+    const border = v['--border-color'] || '#d0d0d0';
+    const surface = v['--surface'] || v['--bg-color'] || '#ffffff';
+    const surfaceVariant = v['--surface-variant'] || v['--bg-secondary'] || surface;
+    const primary = v['--primary'] || '#268bd2';
+    const primaryHover = v['--primary-hover'] || primary;
+
+    return {
+      ...v,
+      '--text': v['--text'] || text,
+      '--text-primary': v['--text-primary'] || text,
+      '--text-secondary': textSecondary,
+      '--text-muted': textMuted,
+      '--border': v['--border'] || border,
+      '--toolbar-border': v['--toolbar-border'] || border,
+      '--toolbar-bg': v['--toolbar-bg'] || surfaceVariant,
+      '--menu-bg': v['--menu-bg'] || surface,
+      '--button-bg': v['--button-bg'] || surface,
+      '--button-hover-bg': v['--button-hover-bg'] || surfaceVariant,
+      '--button-border': v['--button-border'] || border,
+      '--button-text': v['--button-text'] || text,
+      '--surface-hover': v['--surface-hover'] || surfaceVariant,
+      '--surface-active': v['--surface-active'] || surfaceVariant,
+      '--primary': primary,
+      '--primary-hover': primaryHover,
+      '--text-on-primary': v['--text-on-primary'] || '#ffffff'
+    };
+  }
+
   function applyThemeVars(vars) {
+    const resolvedVars = withDerivedThemeVars(vars);
     const root = document.documentElement;
-    for (const [key, value] of Object.entries(vars)) {
+    for (const [key, value] of Object.entries(resolvedVars)) {
       root.style.setProperty(key, value);
     }
     if (typeof window.syncEditorThemeWithAppTheme === 'function') {
