@@ -403,7 +403,7 @@ const patterns = {
     codeBlock: /^```(\w*)\s*\n([\s\S]*?)^```\s*$/gm,
 
     // Headings for reference
-    heading: /^(#{1,6})\s+(.+)$/gm,
+    heading: /^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+[ \t]*)?$/gm,
 
     // Table row: | cell | cell | cell |
     tableRow: /^\|(.+)\|$/,
@@ -411,6 +411,30 @@ const patterns = {
     // Table separator: |---|---|---|
     tableSeparator: /^\|[-:\s|]+\|$/
 };
+
+/**
+ * Parse a Markdown ATX heading line.
+ * Handles optional closing hashes ("## Title ##") and returns null when invalid.
+ *
+ * @param {string} line
+ * @returns {{level:number, rawText:string, contentStart:number, contentEnd:number}|null}
+ */
+function parseAtxHeading(line) {
+    if (typeof line !== 'string') return null;
+
+    // Markdown ATX heading: #{1,6} + space + heading text + optional closing hashes
+    const match = line.match(/^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+[ \t]*)?$/);
+    if (!match) return null;
+
+    const level = match[1].length;
+    const rawText = match[2];
+
+    // Content starts right after "# " prefix (1-based Monaco columns)
+    const contentStart = level + 2;
+    const contentEnd = line.length + 1;
+
+    return { level, rawText, contentStart, contentEnd };
+}
 
 // --- Image Preview Functions ---
 function createImageWidget(editor, match, lineNumber, startColumn) {
@@ -613,8 +637,11 @@ function updateImagePreviews(editor, doc) {
  * @param {number} lineNumber - Line number (1-based)
  * @returns {Array} Array of decoration objects
  */
-function parseLineFormattingDecorations(line, lineNumber) {
+function parseLineFormattingDecorations(line, lineNumber, options = {}) {
     const decorations = [];
+    // skipHeadingDecorations no longer needed — heading styles no longer use
+    // font-size, so they don't break Monaco's cursor positioning.
+    const skipHeadingDecorations = false;
 
     // Bold decorations
     let boldRegex = new RegExp(patterns.bold.source, 'g');
@@ -688,10 +715,10 @@ function parseLineFormattingDecorations(line, lineNumber) {
     }
 
     // Heading decorations
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (headingMatch) {
-        const level = headingMatch[1].length;
-        const hashEnd = headingMatch[1].length + 1;
+    const heading = parseAtxHeading(line);
+    if (heading && !skipHeadingDecorations) {
+        const level = heading.level;
+        const hashEnd = heading.level + 1;
         decorations.push({
             range: new monaco.Range(lineNumber, hashEnd + 1, lineNumber, line.length + 1),
             options: { inlineClassName: `visual-md-heading visual-md-h${level}`, stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
@@ -722,7 +749,7 @@ function parseLineFormattingDecorations(line, lineNumber) {
     return decorations;
 }
 
-function updateFormattingDecorations(editor, doc) {
+function updateFormattingDecorations(editor, doc, codeBlockInfo = null) {
     if (!config.enabled || !config.showFormattingDecorations) return;
 
     const model = doc?.model || editor.getModel();
@@ -742,7 +769,13 @@ function updateFormattingDecorations(editor, doc) {
         const line = lines[lineIndex];
         const lineNumber = lineIndex + 1;
 
-        // Try to get from cache first
+        // Avoid applying inline heading styling inside fenced code blocks.
+        if (codeBlockInfo?.lineStates && codeBlockInfo.lineStates[lineIndex]) {
+            continue;
+        }
+
+        // Try to get from cache first (cache key includes line content, so
+        // edits on the active line naturally invalidate the entry).
         const cached = getCachedLineDecorations(lineNumber, line);
         if (cached) {
             decorations.push(...cached);
@@ -2198,11 +2231,11 @@ function findEditableElementAt(lineNumber, column, lines) {
     if (!line) return null;
 
     // Check for heading
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (headingMatch) {
-        const hashLen = headingMatch[1].length;
-        const textStart = hashLen + 2; // After "# "
-        const textEnd = line.length + 1;
+    const heading = parseAtxHeading(line);
+    if (heading) {
+        const hashLen = heading.level;
+        const textStart = heading.contentStart;
+        const textEnd = heading.contentEnd;
         if (column >= textStart && column <= textEnd) {
             return {
                 type: 'heading',
@@ -2210,7 +2243,7 @@ function findEditableElementAt(lineNumber, column, lines) {
                 lineNumber: lineNumber,
                 contentStart: textStart,
                 contentEnd: textEnd,
-                content: headingMatch[2],
+                content: heading.rawText,
                 fullMatch: line
             };
         }
@@ -2640,7 +2673,7 @@ function updateVisualMarkdown(editor, scrollUpdate = false) {
         const codeBlockInfo = config.showMathPreviews ? buildCodeBlockIndex(doc.lines) : null;
 
         updateImagePreviews(editor, doc);
-        updateFormattingDecorations(editor, doc);
+        updateFormattingDecorations(editor, doc, codeBlockInfo);
         updateLinkDecorations(editor, doc);
         updateCodeBlockDecorations(editor, doc);
         updateTableDecorations(editor, doc);
