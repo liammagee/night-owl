@@ -845,6 +845,36 @@ function register(deps) {
     }
   });
 
+  // Open a file dialog and return the selected file path
+  ipcMain.handle('dialog-open-file', async (event, options = {}) => {
+    const { BrowserWindow } = require('electron');
+    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+    if (!currentMainWindow) {
+      return { success: false, error: 'No main window available' };
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(currentMainWindow, {
+        title: options.title || 'Open File',
+        defaultPath: options.defaultPath || getWorkingDirectory(),
+        filters: options.filters || [
+          { name: 'All Files', extensions: ['*'] }
+        ],
+        properties: ['openFile']
+      });
+
+      if (result.canceled || !result.filePaths.length) {
+        return { success: false, canceled: true };
+      }
+
+      return { success: true, filePath: result.filePaths[0] };
+    } catch (error) {
+      console.error('[FileHandlers] Error opening file dialog:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Read only frontmatter from a markdown file (much faster for tag processing)
   ipcMain.handle('read-frontmatter-only', async (event, filePath) => {
     try {

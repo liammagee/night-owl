@@ -147,7 +147,17 @@ const chatMessages = document.getElementById('chat-messages');
 // Source view elements
 const previewSourceBtn = document.getElementById('preview-source-btn');
 const previewSourceEl = document.getElementById('preview-source');
+const previewSourceToolbar = document.getElementById('preview-source-toolbar');
+const previewSourceFilepath = document.getElementById('preview-source-filepath');
+const previewSourceOpenBtn = document.getElementById('preview-source-open-btn');
+const previewSourceSyncToggle = document.getElementById('preview-source-sync-toggle');
+const previewScrollSyncBtn = document.getElementById('preview-scroll-sync-btn');
 let previewSourceMode = false;
+let sourceViewFilePath = null; // null = mirror editor, string = independent file
+let sourceViewSyncToEditor = true; // scroll sync enabled when mirroring
+let previewScrollSyncEnabled = true; // global scroll sync on/off
+let _syncingFromEditor = false;
+let _syncingFromSource = false;
 
 // Find & Replace elements
 const findReplaceDialog = document.getElementById('find-replace-dialog');
@@ -761,8 +771,8 @@ async function updatePreviewAndStructure(markdownContent) {
         markdownContent = markdownContent ? String(markdownContent) : '';
     }
     
-    // Keep source view in sync when active
-    if (previewSourceMode && previewSourceEl) {
+    // Keep source view in sync when active (only if mirroring editor, not showing independent file)
+    if (previewSourceMode && previewSourceEl && !sourceViewFilePath) {
         previewSourceEl.textContent = markdownContent;
     }
 
@@ -1167,6 +1177,8 @@ async function renderRegularMarkdown(markdownContent) {
 
     try {
         await renderMarkdownContent(markdownContent);
+        // Inject source line markers for scroll sync
+        _injectSourceLineAttributes(previewContent, markdownContent);
     } catch (error) {
         console.error('[renderer.js] Error parsing Markdown for preview:', error);
         previewContent.innerHTML = '<p>Error rendering Markdown preview.</p>';
@@ -3890,7 +3902,10 @@ async function initializeMonacoEditor() {
 
             // Make editor globally accessible for debugging
             window.editor = editor;
-            
+
+            // Activate preview scroll sync now that editor is ready
+            requestAnimationFrame(() => _activateScrollSyncForCurrentPane());
+
             // Load settings first, then initialize auto-save
             window.electronAPI.invoke('get-settings').then(settings => {
                 window.appSettings = settings;
@@ -8465,15 +8480,303 @@ if (previewSourceBtn) {
         previewSourceMode = !previewSourceMode;
         previewSourceBtn.classList.toggle('active', previewSourceMode);
         if (previewSourceMode) {
+            // Reset to mirror mode
+            sourceViewFilePath = null;
+            sourceViewSyncToEditor = true;
+            if (previewSourceFilepath) previewSourceFilepath.textContent = 'Current Editor';
+            if (previewSourceSyncToggle) {
+                previewSourceSyncToggle.classList.add('active');
+                previewSourceSyncToggle.style.display = '';
+            }
             // Populate source from the editor
             const source = window.editor ? window.editor.getValue() : '';
             previewSourceEl.textContent = source;
             previewContent.style.display = 'none';
             previewSourceEl.style.display = '';
+            if (previewSourceToolbar) previewSourceToolbar.style.display = '';
+            // Delay setup so the <pre> has time to lay out its content and compute scrollHeight
+            requestAnimationFrame(() => _setupSourceScrollSync());
         } else {
             previewContent.style.display = '';
             previewSourceEl.style.display = 'none';
+            if (previewSourceToolbar) previewSourceToolbar.style.display = 'none';
+            // Switch scroll sync back to preview content
+            requestAnimationFrame(() => _activateScrollSyncForCurrentPane());
         }
+    });
+}
+
+// --- Source View: Open File Button ---
+if (previewSourceOpenBtn) {
+    previewSourceOpenBtn.addEventListener('click', async () => {
+        try {
+            const result = await window.electronAPI.invoke('dialog-open-file', {
+                title: 'Open File in Source View',
+                filters: [
+                    { name: 'Text Files', extensions: ['md', 'txt', 'js', 'html', 'css', 'json', 'yaml', 'yml', 'toml', 'py', 'rb', 'sh', 'ts', 'tsx', 'jsx'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+            if (!result.success || result.canceled) return;
+
+            const fileResult = await window.electronAPI.invoke('read-file-content-only', result.filePath);
+            if (!fileResult.success) {
+                console.error('[SourceView] Failed to read file:', fileResult.error);
+                return;
+            }
+
+            sourceViewFilePath = result.filePath;
+            sourceViewSyncToEditor = false;
+            previewSourceEl.textContent = fileResult.content;
+            if (previewSourceFilepath) {
+                previewSourceFilepath.textContent = fileResult.fileName;
+                previewSourceFilepath.title = result.filePath;
+            }
+            if (previewSourceSyncToggle) {
+                previewSourceSyncToggle.classList.remove('active');
+                previewSourceSyncToggle.style.display = 'none';
+            }
+            _teardownSourceScrollSync();
+        } catch (err) {
+            console.error('[SourceView] Error opening file:', err);
+        }
+    });
+}
+
+// --- Source View: Sync Toggle ---
+if (previewSourceSyncToggle) {
+    previewSourceSyncToggle.addEventListener('click', () => {
+        if (sourceViewFilePath) return; // sync toggle only works in mirror mode
+        sourceViewSyncToEditor = !sourceViewSyncToEditor;
+        previewSourceSyncToggle.classList.toggle('active', sourceViewSyncToEditor);
+        if (sourceViewSyncToEditor) {
+            _setupSourceScrollSync();
+        } else {
+            _teardownSourceScrollSync();
+        }
+    });
+}
+
+// --- Bidirectional Scroll Sync ---
+// For source view <pre>: proportional ratio (same content, different fonts)
+// For rendered preview: line-based mapping via data-source-line markers
+
+let _scrollSyncEditorDispose = null;
+let _scrollSyncTargetHandler = null;
+let _scrollSyncTargetEl = null;
+let _scrollSyncMode = null; // 'proportional' | 'linemap'
+
+// ---- Line map utilities for preview scroll sync ----
+
+// Build a source-line → token map from marked lexer output
+function _buildSourceLineMap(markdown) {
+    const markedApi = window.marked || globalThis.marked;
+    if (!markedApi?.lexer) return [];
+
+    // Strip frontmatter before lexing (matches the render pipeline)
+    let body = markdown;
+    const fmMatch = markdown.match(/^(\uFEFF?\s*---\r?\n)([\s\S]*?\r?\n)(---\r?\n)/);
+    const fmLineCount = fmMatch ? fmMatch[0].split('\n').length - 1 : 0;
+    if (fmMatch) body = markdown.slice(fmMatch[0].length);
+
+    const tokens = markedApi.lexer(body);
+    const entries = []; // { line, type }
+    let lineOffset = fmLineCount;
+
+    for (const token of tokens) {
+        if (token.type === 'space') {
+            lineOffset += (token.raw.match(/\n/g) || []).length;
+            continue;
+        }
+        entries.push({ line: lineOffset + 1, type: token.type }); // 1-based
+        lineOffset += (token.raw.match(/\n/g) || []).length;
+    }
+    return entries;
+}
+
+// After preview render, stamp data-source-line on top-level block elements
+function _injectSourceLineAttributes(containerEl, markdown) {
+    if (!containerEl || !markdown) return;
+    const lineMap = _buildSourceLineMap(markdown);
+    if (!lineMap.length) return;
+
+    // Collect renderable block elements (skip frontmatter header, hidden elements)
+    const blockEls = [];
+    for (const child of containerEl.children) {
+        const tag = child.tagName;
+        if (!tag) continue;
+        // Skip frontmatter header elements
+        if (child.classList.contains('frontmatter-title') || child.classList.contains('frontmatter-meta')) continue;
+        if (tag === 'HR' && blockEls.length === 0) continue; // frontmatter <hr>
+        // Skip hidden elements
+        if (child.style.display === 'none') continue;
+        blockEls.push(child);
+    }
+
+    // Zip line map entries with block elements (they're in the same order)
+    const len = Math.min(lineMap.length, blockEls.length);
+    for (let i = 0; i < len; i++) {
+        blockEls[i].setAttribute('data-source-line', lineMap[i].line);
+    }
+}
+
+// Find the preview element closest to (at or before) a given source line
+function _findPreviewElementForLine(containerEl, line) {
+    const marked = containerEl.querySelectorAll('[data-source-line]');
+    if (!marked.length) return null;
+
+    let best = null;
+    for (const el of marked) {
+        const elLine = parseInt(el.getAttribute('data-source-line'), 10);
+        if (elLine <= line) best = el;
+        else break; // sorted, so we can stop
+    }
+    return best || marked[0];
+}
+
+// Find which source line is at the top of the preview viewport
+function _findSourceLineForPreviewScroll(containerEl) {
+    const marked = containerEl.querySelectorAll('[data-source-line]');
+    if (!marked.length) return 1;
+
+    const containerTop = containerEl.scrollTop;
+    let best = null;
+    let bestLine = 1;
+    for (const el of marked) {
+        const elTop = el.offsetTop - containerEl.offsetTop;
+        if (elTop <= containerTop + 5) { // 5px tolerance
+            best = el;
+            bestLine = parseInt(el.getAttribute('data-source-line'), 10);
+        } else {
+            // Interpolate between previous and this element
+            if (best) {
+                const prevTop = best.offsetTop - containerEl.offsetTop;
+                const prevLine = parseInt(best.getAttribute('data-source-line'), 10);
+                const nextLine = parseInt(el.getAttribute('data-source-line'), 10);
+                const fraction = (elTop - prevTop) > 0
+                    ? (containerTop - prevTop) / (elTop - prevTop)
+                    : 0;
+                bestLine = prevLine + fraction * (nextLine - prevLine);
+            }
+            break;
+        }
+    }
+    return bestLine;
+}
+
+// ---- Setup/teardown ----
+
+function _setupScrollSync(targetEl, mode) {
+    _teardownScrollSync();
+    if (!window.editor || !targetEl) return;
+
+    _scrollSyncTargetEl = targetEl;
+    _scrollSyncMode = mode;
+
+    if (mode === 'proportional') {
+        // Editor → Target (proportional ratio)
+        _scrollSyncEditorDispose = window.editor.onDidScrollChange(() => {
+            if (_syncingFromSource) return;
+            const info = window.editor.getLayoutInfo();
+            const scrollHeight = window.editor.getScrollHeight() - info.height;
+            if (scrollHeight <= 0) return;
+            const ratio = window.editor.getScrollTop() / scrollHeight;
+            _syncingFromEditor = true;
+            targetEl.scrollTop = ratio * (targetEl.scrollHeight - targetEl.clientHeight);
+            requestAnimationFrame(() => { _syncingFromEditor = false; });
+        });
+
+        // Target → Editor (proportional, debounced)
+        let scrollTimer = null;
+        _scrollSyncTargetHandler = () => {
+            if (_syncingFromEditor) return;
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(() => {
+                const targetMax = targetEl.scrollHeight - targetEl.clientHeight;
+                if (targetMax <= 0) return;
+                const ratio = targetEl.scrollTop / targetMax;
+                const info = window.editor.getLayoutInfo();
+                _syncingFromSource = true;
+                window.editor.setScrollTop(ratio * (window.editor.getScrollHeight() - info.height));
+                requestAnimationFrame(() => { _syncingFromSource = false; });
+            }, 16);
+        };
+        targetEl.addEventListener('scroll', _scrollSyncTargetHandler);
+
+    } else if (mode === 'linemap') {
+        // Editor → Preview (line-based)
+        _scrollSyncEditorDispose = window.editor.onDidScrollChange(() => {
+            if (_syncingFromSource) return;
+            const topLine = window.editor.getVisibleRanges()?.[0]?.startLineNumber;
+            if (!topLine) return;
+            const el = _findPreviewElementForLine(targetEl, topLine);
+            if (!el) return;
+            _syncingFromEditor = true;
+            // Scroll so the element is at the top of the preview viewport
+            const elTop = el.offsetTop - targetEl.offsetTop;
+            targetEl.scrollTop = elTop;
+            requestAnimationFrame(() => { _syncingFromEditor = false; });
+        });
+
+        // Preview → Editor (line-based, debounced)
+        let scrollTimer = null;
+        _scrollSyncTargetHandler = () => {
+            if (_syncingFromEditor) return;
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(() => {
+                const line = _findSourceLineForPreviewScroll(targetEl);
+                if (!line) return;
+                _syncingFromSource = true;
+                window.editor.revealLineNearTop(Math.round(line));
+                requestAnimationFrame(() => { _syncingFromSource = false; });
+            }, 50);
+        };
+        targetEl.addEventListener('scroll', _scrollSyncTargetHandler);
+    }
+}
+
+function _teardownScrollSync() {
+    if (_scrollSyncEditorDispose) {
+        _scrollSyncEditorDispose.dispose();
+        _scrollSyncEditorDispose = null;
+    }
+    if (_scrollSyncTargetHandler && _scrollSyncTargetEl) {
+        _scrollSyncTargetEl.removeEventListener('scroll', _scrollSyncTargetHandler);
+        _scrollSyncTargetHandler = null;
+    }
+    _scrollSyncTargetEl = null;
+    _scrollSyncMode = null;
+}
+
+// Activate scroll sync for whichever pane is currently visible
+function _activateScrollSyncForCurrentPane() {
+    if (!previewScrollSyncEnabled) { _teardownScrollSync(); return; }
+    if (previewSourceMode && !sourceViewFilePath && sourceViewSyncToEditor) {
+        // Source view mirror mode — proportional (same text content)
+        _setupScrollSync(previewSourceEl, 'proportional');
+    } else if (!previewSourceMode && previewContent && previewContent.style.display !== 'none') {
+        // Normal preview mode — line-based mapping
+        _setupScrollSync(previewContent, 'linemap');
+    } else {
+        _teardownScrollSync();
+    }
+}
+
+// Legacy wrappers used by source view toggle
+function _setupSourceScrollSync() { _activateScrollSyncForCurrentPane(); }
+function _teardownSourceScrollSync() { _teardownScrollSync(); }
+
+// --- Preview Scroll Sync Toggle Button ---
+if (previewScrollSyncBtn) {
+    // Start active
+    previewScrollSyncBtn.classList.add('active');
+    previewScrollSyncBtn.addEventListener('click', () => {
+        previewScrollSyncEnabled = !previewScrollSyncEnabled;
+        previewScrollSyncBtn.classList.toggle('active', previewScrollSyncEnabled);
+        previewScrollSyncBtn.title = previewScrollSyncEnabled
+            ? 'Scroll sync enabled — click to disable'
+            : 'Scroll sync disabled — click to enable';
+        _activateScrollSyncForCurrentPane();
     });
 }
 
@@ -8568,7 +8871,12 @@ function showSpecificPane(paneType) {
 function showRightPane(paneType) {
     hideAllRightPanes();
     deactivateAllToggleButtons();
+    _teardownScrollSync(); // tear down before switching
     showSpecificPane(paneType);
+    // Activate scroll sync when preview pane is shown (and not in source-with-independent-file mode)
+    if (paneType === 'preview') {
+        requestAnimationFrame(() => _activateScrollSyncForCurrentPane());
+    }
 }
 
 // Expose showPane globally for plugins (AI Tutor, etc.)

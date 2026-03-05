@@ -3975,9 +3975,15 @@
                     <div id="right-pane">
                     <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                         <div id="preview-pane" class="content-pane">
+                            <button id="preview-scroll-sync-btn" class="preview-toolbar-btn" title="Toggle scroll sync with editor" style="right: 92px; font-size: 14px;">⇅</button>
                             <button id="preview-source-btn" class="preview-toolbar-btn" title="Toggle Source View">{ }</button>
                             <button id="preview-fullscreen-btn" class="preview-fullscreen-toggle" title="Toggle Fullscreen (F11)">⛶</button>
                             <div id="preview-content"></div>
+                            <div id="preview-source-toolbar" class="preview-source-toolbar" style="display: none;">
+                                <span id="preview-source-filepath" class="preview-source-filepath" title="Current file shown in source view">Current Editor</span>
+                                <button id="preview-source-open-btn" class="preview-source-toolbar-btn" title="Open a file as read-only reference">Open…</button>
+                                <button id="preview-source-sync-toggle" class="preview-source-toolbar-btn active" title="Toggle sync to editor">⇅ Sync</button>
+                            </div>
                             <pre id="preview-source" class="preview-source-view" style="display: none;"></pre>
                         </div>
                         <div id="chat-pane" class="content-pane terminal-chat" style="display: none;">

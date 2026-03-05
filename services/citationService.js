@@ -144,7 +144,8 @@ class CitationService {
                 'ALTER TABLE citations ADD COLUMN last_modified_at DATETIME',
                 'ALTER TABLE citations ADD COLUMN last_sync_at DATETIME',
                 'ALTER TABLE citations ADD COLUMN source TEXT DEFAULT "manual"',
-                'ALTER TABLE citations ADD COLUMN sync_version INTEGER DEFAULT 1'
+                'ALTER TABLE citations ADD COLUMN sync_version INTEGER DEFAULT 1',
+                'ALTER TABLE citations ADD COLUMN citation_key TEXT'
             ];
 
             for (const migration of migrations) {
@@ -184,12 +185,66 @@ class CitationService {
                 });
             });
 
+            // Backfill citation_key for existing citations that don't have one
+            await this._backfillCitationKeys();
+
             console.log('[Citation Service] All migrations completed successfully');
             
         } catch (error) {
             console.error('[Citation Service] Migration failed:', error);
             throw error;
         }
+    }
+
+    // Generate a citation key from author/year/title (used once at insert time)
+    _generateCitationKey(citation) {
+        let key = '';
+        if (citation.authors) {
+            const firstAuthor = citation.authors.split(',')[0].trim();
+            const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+            key += lastName.replace(/[^A-Za-z]/g, '');
+        } else {
+            key += 'Citation';
+        }
+        key += (citation.publication_year || new Date().getFullYear());
+        if (citation.title) {
+            const cleanedWords = citation.title
+                .split(/\s+/)
+                .map(word => word.replace(/[^A-Za-z]/g, ''))
+                .filter(Boolean);
+            const significant = cleanedWords.filter(word => word.length > 3);
+            const chosen = (significant.length > 0 ? significant : cleanedWords).slice(0, 2);
+            if (chosen.length > 0) {
+                key += chosen.join('');
+            }
+        }
+        return key || `Citation${citation.id || Date.now()}`;
+    }
+
+    // Backfill citation_key for existing citations that don't have one
+    async _backfillCitationKeys() {
+        return new Promise((resolve, reject) => {
+            this.db.all('SELECT id, authors, publication_year, title FROM citations WHERE citation_key IS NULL', (err, rows) => {
+                if (err) {
+                    // Column may not exist yet on very first run — that's fine
+                    if (err.message.includes('no such column')) { resolve(); return; }
+                    reject(err);
+                    return;
+                }
+                if (!rows || rows.length === 0) { resolve(); return; }
+
+                console.log(`[Citation Service] Backfilling citation_key for ${rows.length} citations`);
+                let completed = 0;
+                for (const row of rows) {
+                    const key = this._generateCitationKey(row);
+                    this.db.run('UPDATE citations SET citation_key = ? WHERE id = ?', [key, row.id], (err2) => {
+                        if (err2) console.error(`[Citation Service] Error backfilling key for id ${row.id}:`, err2);
+                        completed++;
+                        if (completed === rows.length) resolve();
+                    });
+                }
+            });
+        });
     }
 
     // Insert default citation styles
@@ -295,6 +350,9 @@ class CitationService {
                 source = 'manual'
             } = citationData;
 
+            // Generate a stable citation key at creation time (never changes on edit)
+            const citation_key = citationData.citation_key || this._generateCitationKey(citationData);
+
             // Wrap the database operation in a Promise
             return new Promise((resolve, reject) => {
                 const sql = `
@@ -302,14 +360,15 @@ class CitationService {
                         title, authors, publication_year, publication_date, journal,
                         volume, issue, pages, publisher, doi, url, file_path,
                         citation_type, abstract, notes, tags, zotero_key,
-                        source, last_modified_at, sync_version
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+                        source, citation_key, last_modified_at, sync_version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
                 `;
 
                 const params = [
                     title, authors, publication_year, publication_date, journal,
                     volume, issue, pages, publisher, doi, url, file_path,
-                    citation_type, abstract, notes, tags, zotero_key, source
+                    citation_type, abstract, notes, tags, zotero_key, source,
+                    citation_key
                 ];
 
                 console.log('[Citation Service] Executing SQL with params:', params);
@@ -427,6 +486,9 @@ class CitationService {
 
     // Update citation
     async updateCitation(id, updates) {
+        // Never allow edits to change the citation key — it would break document references
+        delete updates.citation_key;
+
         return new Promise((resolve, reject) => {
             const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
             const params = [...Object.values(updates), id];

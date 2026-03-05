@@ -69,7 +69,8 @@ if (process.argv.includes('--dev')) {
         /\.md$/, // Ignore markdown files anywhere
         /settings\.json$/, // Ignore settings file changes
         /generated_image_.*\.(png|jpg|jpeg|gif|webp)$/, // Ignore generated images anywhere
-        /ENTER_FILE_NAME_.*\.(png|jpg|jpeg|gif|webp)$/ // Ignore any generated image files anywhere
+        /ENTER_FILE_NAME_.*\.(png|jpg|jpeg|gif|webp)$/, // Ignore any generated image files anywhere
+        /\.bib$/ // Ignore BibTeX files (citations.bib is written by citation manager)
       ]
     });
     console.log('[main.js] Electron auto-reload enabled for development - app files only');
@@ -3082,6 +3083,7 @@ app.whenReady().then(async () => {
     tutorBridge,
     imageService,
     getCurrentFilePath: () => currentFilePath,
+    getCurrentWorkingDirectory: () => currentWorkingDirectory,
     currentWorkingDirectory,
     userDataPath: app.getPath('userData'),
     setCurrentFilePath: (path) => {

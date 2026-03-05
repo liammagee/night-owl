@@ -4042,6 +4042,50 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     tab-size: 4;
 }
 
+/* Source view toolbar */
+.preview-source-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--surface-variant, #f0f1f3);
+    border-bottom: 1px solid var(--border-color, #ddd);
+    min-height: 28px;
+    flex-shrink: 0;
+}
+
+.preview-source-filepath {
+    flex: 1;
+    font-family: 'SF Mono', 'Fira Code', Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--text-muted, #666);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.preview-source-toolbar-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    background: var(--surface, #fff);
+    color: var(--text-color, #333);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.preview-source-toolbar-btn:hover {
+    background: var(--surface-hover, #e8e9eb);
+}
+
+.preview-source-toolbar-btn.active {
+    background: var(--primary-500, #4f7df9);
+    color: white;
+    border-color: var(--primary-600, #3a6ae0);
+}
+
 /* Fullscreen mode for preview pane */
 #preview-pane.preview-fullscreen {
     position: fixed !important;
