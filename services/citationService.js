@@ -4,6 +4,7 @@
 const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
+const { fuzzyMatch, fuzzyMatchBest, hasWildcards } = require('./fuzzyMatch');
 
 class CitationService {
     constructor() {
@@ -281,10 +282,10 @@ class CitationService {
 
                 if (Object.keys(updates).length > 0) {
                     await this.updateCitation(existing.id, updates);
-                    return { ...existing, ...updates };
+                    return { ...existing, ...updates, _existing: true, _updated: true };
                 }
 
-                return existing; // Return existing instead of creating duplicate
+                return { ...existing, _existing: true, _updated: false }; // Return existing instead of creating duplicate
             }
 
             const {
@@ -330,16 +331,31 @@ class CitationService {
     }
 
     // Get all citations with optional filtering
+    // Supports wildcard patterns (* ?) and fuzzy matching for typo tolerance
     async getCitations(filters = {}) {
         return new Promise((resolve, reject) => {
             let sql = 'SELECT * FROM citations WHERE 1=1';
             const params = [];
+            const useFuzzy = filters.fuzzy !== false && filters.search && !hasWildcards(filters.search);
 
             // Apply filters
             if (filters.search) {
-                sql += ' AND (title LIKE ? OR authors LIKE ? OR journal LIKE ?)';
-                const searchTerm = `%${filters.search}%`;
-                params.push(searchTerm, searchTerm, searchTerm);
+                if (hasWildcards(filters.search)) {
+                    // Wildcard mode: use SQLite GLOB (case-insensitive via LOWER)
+                    const globPattern = `*${filters.search.toLowerCase()}*`;
+                    sql += ' AND (LOWER(title) GLOB ? OR LOWER(authors) GLOB ? OR LOWER(journal) GLOB ? OR LOWER(abstract) GLOB ? OR LOWER(notes) GLOB ?)';
+                    params.push(globPattern, globPattern, globPattern, globPattern, globPattern);
+                } else if (useFuzzy) {
+                    // Fuzzy mode: broad SQL pass, then score in JS
+                    const prefix = filters.search.substring(0, Math.max(3, Math.floor(filters.search.length * 0.6)));
+                    const likeTerm = `%${prefix}%`;
+                    sql += ' AND (title LIKE ? OR authors LIKE ? OR journal LIKE ? OR abstract LIKE ? OR notes LIKE ?)';
+                    params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+                } else {
+                    sql += ' AND (title LIKE ? OR authors LIKE ? OR journal LIKE ? OR abstract LIKE ? OR notes LIKE ?)';
+                    const searchTerm = `%${filters.search}%`;
+                    params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+                }
             }
 
             if (filters.type) {
@@ -364,7 +380,7 @@ class CitationService {
             // Add ordering
             sql += ' ORDER BY updated_at DESC';
 
-            if (filters.limit) {
+            if (filters.limit && !useFuzzy) {
                 sql += ' LIMIT ?';
                 params.push(filters.limit);
             }
@@ -373,6 +389,22 @@ class CitationService {
                 if (err) {
                     console.error('[Citation Service] Error fetching citations:', err);
                     reject(err);
+                    return;
+                }
+
+                if (useFuzzy && filters.search) {
+                    // Score and filter results with fuzzy matching
+                    const scored = rows
+                        .map(row => {
+                            const fields = [row.title, row.authors, row.journal, row.abstract, row.notes];
+                            const { match, score } = fuzzyMatchBest(filters.search, fields, { threshold: 0.3 });
+                            return { row, match, score };
+                        })
+                        .filter(r => r.match)
+                        .sort((a, b) => b.score - a.score);
+
+                    const limit = filters.limit || scored.length;
+                    resolve(scored.slice(0, limit).map(r => r.row));
                 } else {
                     resolve(rows);
                 }
@@ -718,14 +750,11 @@ class CitationService {
     }
 
     /**
-     * Calculate string similarity (simple Jaccard similarity)
+     * Calculate string similarity using bigram-based fuzzy matching.
      */
     calculateSimilarity(str1, str2) {
-        const words1 = new Set(str1.split(/\s+/));
-        const words2 = new Set(str2.split(/\s+/));
-        const intersection = new Set([...words1].filter(x => words2.has(x)));
-        const union = new Set([...words1, ...words2]);
-        return intersection.size / union.size;
+        const { score } = fuzzyMatch(str1, str2, { threshold: 0 });
+        return score;
     }
 
     // ===== ZOTERO INTEGRATION =====

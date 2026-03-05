@@ -112,6 +112,9 @@ class CitationManager {
         this.eventListenersSet = true;
         console.log('[Citation Manager] Event listeners set up successfully');
 
+        // Restore persistent footer status for last quick-captured citation.
+        this.restoreCitationFooterStatus();
+
         // Action buttons will be set up when panel is shown
 
         // Search and filters
@@ -564,10 +567,6 @@ class CitationManager {
                 const capture = this.externalCaptureQueue.shift();
                 if (!capture || !capture.rawText) continue;
 
-                if (typeof window.switchStructureView === 'function') {
-                    window.switchStructureView('citations');
-                }
-
                 await this.waitForQuickCaptureIdle();
 
                 const quickInput = document.getElementById('citation-quick-capture');
@@ -698,6 +697,9 @@ class CitationManager {
             const citations = Array.isArray(response.citations)
                 ? response.citations
                 : (response.citation ? [response.citation] : []);
+            const importedIds = citations
+                .map((citation) => citation?.id)
+                .filter((id) => id !== undefined && id !== null);
             const importedCount = response.importedCount || citations.length || 0;
 
             if (importedCount === 0) {
@@ -712,36 +714,137 @@ class CitationManager {
             };
             const sourceLabel = sourceLabelMap[response.detected] || 'input';
             const leadCitation = citations[0] || {};
+            const reusedExisting = citations.length === 1 && leadCitation._existing === true;
 
-            if (importedCount === 1) {
+            if (reusedExisting) {
+                this.setQuickStatus(
+                    `Citation already existed${leadCitation._updated ? ' (metadata updated)' : ''}.`,
+                    'warning'
+                );
+            } else if (importedCount === 1) {
                 this.setQuickStatus(`Added “${leadCitation.title || leadCitation.url || 'Untitled citation'}” from ${sourceLabel}.`, 'success');
             } else {
                 this.setQuickStatus(`Added ${importedCount} citations from ${sourceLabel}.`, 'success');
             }
 
             if (window.showNotification) {
-                if (importedCount === 1) {
+                if (reusedExisting) {
+                    const key = leadCitation.key || leadCitation.citation_key || '';
+                    const title = leadCitation.title || leadCitation.url || 'Untitled citation';
+                    const suffix = key ? ` [@${key}]` : '';
+                    const existingMessage = `Citation already exists${leadCitation._updated ? ' (updated)' : ''}: ${title}${suffix}`;
+                    window.showNotification(existingMessage, 'warning');
+                    this.setCitationFooterStatus(existingMessage, 'warning');
+                } else if (importedCount === 1) {
                     const key = leadCitation.key || leadCitation.citation_key || '';
                     const title = leadCitation.title || leadCitation.url || 'Untitled citation';
                     const suffix = key ? ` [@${key}]` : '';
                     window.showNotification(`Citation added: ${title}${suffix}`, 'success');
+                    this.setCitationFooterStatus(`Citation: ${key ? `[@${key}] ` : ''}${title}`, 'success');
                 } else {
                     window.showNotification(`Added ${importedCount} citations from ${sourceLabel}`, 'success');
+                    this.setCitationFooterStatus(`Citations: Added ${importedCount} from ${sourceLabel}`, 'success');
                 }
             }
 
             if (quickInput) quickInput.value = '';
-
-            await this.refreshCitationsWithSync(true); // Refresh UI first; BibTeX sync runs immediately below
-            await this.syncToNightowlBib();
+            const citationsPaneActive = window.currentStructureView === 'citations';
+            if (citationsPaneActive) {
+                await this.refreshCitationsWithSync(true); // Refresh UI first; BibTeX sync runs immediately below
+                this.reportImportedVisibility(importedIds, importedCount);
+            } else if (window.refreshCitationAutocompleteData) {
+                window.refreshCitationAutocompleteData({ reason: 'citation-quick-capture' }).catch((error) => {
+                    console.error('[Citation Manager] Failed to refresh citation autocomplete data:', error);
+                });
+            }
+            this.syncToNightowlBib().catch((error) => {
+                console.error('[Citation Manager] Background citations.bib sync failed:', error);
+            });
         } catch (error) {
             console.error('[Citation Manager] Quick capture failed:', error);
             this.setQuickStatus(`Could not add citation: ${error.message || error}`, 'error');
+            this.setCitationFooterStatus(`Citation capture failed: ${error.message || error}`, 'error');
             if (window.showNotification) {
                 window.showNotification(`Citation quick capture failed: ${error.message || error}`, 'error');
             }
         } finally {
             this.quickCaptureProcessing = false;
+        }
+    }
+
+    reportImportedVisibility(importedIds = [], importedCount = 0) {
+        if (!Array.isArray(importedIds) || importedIds.length === 0) {
+            return;
+        }
+
+        // If filters are active, a successful import can be hidden from the current list.
+        const hasActiveFilters = this.currentFilters && Object.keys(this.currentFilters).length > 0;
+        if (!hasActiveFilters) {
+            return;
+        }
+
+        const visibleIds = new Set((this.citations || []).map((citation) => citation?.id));
+        const hiddenImportedCount = importedIds.filter((id) => !visibleIds.has(id)).length;
+        if (hiddenImportedCount <= 0) {
+            return;
+        }
+
+        const hiddenMessage = hiddenImportedCount === importedCount
+            ? 'Citation added, but hidden by active filters. Use "Clear Filters" to view it.'
+            : `${hiddenImportedCount} imported citation(s) are hidden by active filters.`;
+
+        this.setQuickStatus(hiddenMessage, 'warning');
+        this.setCitationFooterStatus(hiddenMessage, 'warning');
+        if (window.showNotification) {
+            window.showNotification(hiddenMessage, 'warning');
+        }
+    }
+
+    setCitationFooterStatus(message, variant = 'info') {
+        const statusEl = document.getElementById('citation-last-capture');
+        if (!statusEl) return;
+
+        const normalized = (message || '').trim();
+        if (!normalized) {
+            statusEl.style.display = 'none';
+            statusEl.textContent = '';
+            statusEl.title = '';
+            localStorage.removeItem('nightowl:lastCitationFooterStatus');
+            return;
+        }
+
+        const now = new Date();
+        const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const composed = `${normalized} (${timestamp})`;
+
+        const variantColor = {
+            success: '#0f766e',
+            error: '#b91c1c',
+            warning: '#92400e',
+            info: 'var(--text-secondary, #6b7280)'
+        };
+
+        statusEl.style.display = 'inline';
+        statusEl.style.color = variantColor[variant] || variantColor.info;
+        statusEl.textContent = composed;
+        statusEl.title = composed;
+
+        localStorage.setItem('nightowl:lastCitationFooterStatus', JSON.stringify({
+            message: normalized,
+            variant,
+            updatedAt: now.toISOString()
+        }));
+    }
+
+    restoreCitationFooterStatus() {
+        try {
+            const raw = localStorage.getItem('nightowl:lastCitationFooterStatus');
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (!parsed?.message) return;
+            this.setCitationFooterStatus(parsed.message, parsed.variant || 'info');
+        } catch (error) {
+            console.warn('[Citation Manager] Failed to restore citation footer status:', error);
         }
     }
 
@@ -948,6 +1051,7 @@ class CitationManager {
         
         if (searchInput && searchInput.value.trim()) {
             this.currentFilters.search = searchInput.value.trim();
+            this.currentFilters.fuzzy = true;
         }
         if (typeFilter && typeFilter.value) {
             this.currentFilters.type = typeFilter.value;
@@ -1647,6 +1751,9 @@ class CitationManager {
             }
 
             const importedCount = result.importedCount || (Array.isArray(result.citations) ? result.citations.length : 0);
+            const importedIds = Array.isArray(result.citations)
+                ? result.citations.map((citation) => citation?.id).filter((id) => id !== undefined && id !== null)
+                : [];
             const sourceLabelMap = {
                 bibtex: 'BibTeX',
                 doi: 'DOI',
@@ -1654,15 +1761,35 @@ class CitationManager {
                 text: 'text'
             };
             const sourceLabel = sourceLabelMap[result.detected] || 'input';
+            const leadImported = Array.isArray(result.citations) ? result.citations[0] : null;
+            const reusedExisting = importedCount === 1 && leadImported?._existing === true;
 
             this.hideModal('import-modal-overlay');
-            this.showSuccess(
-                importedCount === 1
-                    ? `Imported 1 citation from ${sourceLabel}`
-                    : `Imported ${importedCount} citations from ${sourceLabel}`
-            );
-            await this.refreshCitationsWithSync(true); // Refresh UI first; BibTeX sync runs immediately below
-            await this.syncToNightowlBib();
+            if (reusedExisting) {
+                const existingMessage = `Citation already exists${leadImported._updated ? ' (metadata updated)' : ''}.`;
+                if (window.showNotification) {
+                    window.showNotification(existingMessage, 'warning');
+                }
+                this.setCitationFooterStatus(existingMessage, 'warning');
+            } else {
+                this.showSuccess(
+                    importedCount === 1
+                        ? `Imported 1 citation from ${sourceLabel}`
+                        : `Imported ${importedCount} citations from ${sourceLabel}`
+                );
+            }
+            const citationsPaneActive = window.currentStructureView === 'citations';
+            if (citationsPaneActive) {
+                await this.refreshCitationsWithSync(true); // Refresh UI first; BibTeX sync runs immediately below
+                this.reportImportedVisibility(importedIds, importedCount);
+            } else if (window.refreshCitationAutocompleteData) {
+                window.refreshCitationAutocompleteData({ reason: 'citation-import-text' }).catch((error) => {
+                    console.error('[Citation Manager] Failed to refresh citation autocomplete data:', error);
+                });
+            }
+            this.syncToNightowlBib().catch((error) => {
+                console.error('[Citation Manager] Background citations.bib sync failed:', error);
+            });
 
             if (textInput) textInput.value = '';
         } catch (error) {

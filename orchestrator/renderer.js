@@ -144,6 +144,11 @@ const changeDirectoryBtn = document.getElementById('change-directory-btn');
 const addWorkspaceFolderBtn = document.getElementById('add-workspace-folder-btn');
 const chatMessages = document.getElementById('chat-messages');
 
+// Source view elements
+const previewSourceBtn = document.getElementById('preview-source-btn');
+const previewSourceEl = document.getElementById('preview-source');
+let previewSourceMode = false;
+
 // Find & Replace elements
 const findReplaceDialog = document.getElementById('find-replace-dialog');
 const findReplaceClose = document.getElementById('find-replace-close');
@@ -756,8 +761,11 @@ async function updatePreviewAndStructure(markdownContent) {
         markdownContent = markdownContent ? String(markdownContent) : '';
     }
     
-    // Updating preview and structure
-    
+    // Keep source view in sync when active
+    if (previewSourceMode && previewSourceEl) {
+        previewSourceEl.textContent = markdownContent;
+    }
+
     // Check if we should suppress this preview update (for PDF/non-markdown files)
     if (window.suppressNextPreviewUpdate || window.suppressPreviewUpdateCount > 0) {
         // Suppressing preview update as requested
@@ -997,11 +1005,17 @@ function setupFallbackMarkdownRenderer() {
                 const depth = token.depth;
                 const raw = token.raw;
                 const headingText = text != null ? text : (raw || '').replace(/^#+\s*/, '').trim();
-                const id = `heading-${slugify(raw || headingText)}`;
+                const headingSlugText = (headingText || '')
+                    .replace(/<[^>]*>/g, '')
+                    .trim();
+                const id = `heading-${slugify(headingSlugText)}`;
+                const headingHtml = this?.parser?.parseInline && Array.isArray(token.tokens)
+                    ? this.parser.parseInline(token.tokens)
+                    : headingText;
                 if (id === 'heading-') {
-                    return `<h${depth}>${headingText}</h${depth}>\n`;
+                    return `<h${depth}>${headingHtml}</h${depth}>\n`;
                 }
-                return `<h${depth} id="${id}">${headingText}</h${depth}>\n`;
+                return `<h${depth} id="${id}">${headingHtml}</h${depth}>\n`;
             },
             image({ href, title, text }) {
                 const hrefStr = String(href || '');
@@ -1194,7 +1208,7 @@ function validateStructurePaneInputs(markdownContent) {
 function extractHeadingsFromMarkdown(markdownContent) {
     const lines = markdownContent.split('\n');
     const headings = [];
-    const headingRegex = /^(#{1,6})\s+(.*)/; // Regex to find headings
+    const headingRegex = /^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+[ \t]*)?$/; // ATX headings with optional closing hashes
 
     // Iterate through lines to find headings and their correct line numbers
     lines.forEach((line, index) => {
@@ -3358,36 +3372,39 @@ function registerCitationAutocomplete() {
 
             const searchTerm = citationMatch[1] || '';
             
-            // Filter entries based on search term
+            // Filter entries based on search term (supports fuzzy matching)
             const searchLower = (searchTerm || '').toLowerCase();
+            const _fuzzyMatch = typeof fuzzyMatchBest === 'function' ? fuzzyMatchBest : null;
             const scoredEntries = bibEntries
-                .filter(entry => {
-                    if (!searchLower) return true;
-                    const haystack = [
-                        entry.key,
-                        entry.title,
-                        entry.author,
-                        entry.year,
-                        entry.journal
-                    ].filter(Boolean).join(' ').toLowerCase();
-                    return haystack.includes(searchLower);
-                })
                 .map(entry => {
+                    if (!searchLower) return { entry, score: 0, match: true };
+
+                    const fields = [entry.key, entry.title, entry.author, entry.year, entry.journal].filter(Boolean);
+
+                    // Use fuzzy matching if available
+                    if (_fuzzyMatch) {
+                        const result = _fuzzyMatch(searchLower, fields, { threshold: 0.3 });
+                        return { entry, score: result.match ? (1 - result.score) : 999, match: result.match };
+                    }
+
+                    // Fallback: simple substring matching
+                    const haystack = fields.join(' ').toLowerCase();
+                    if (!haystack.includes(searchLower)) return { entry, score: 999, match: false };
+
                     const keyLower = entry.key?.toLowerCase() || '';
                     const titleLower = entry.title?.toLowerCase() || '';
                     const authorLower = entry.author?.toLowerCase() || '';
                     let score = 3;
-                    if (!searchLower) {
-                        score = 0;
-                    } else if (keyLower.startsWith(searchLower)) {
+                    if (keyLower.startsWith(searchLower)) {
                         score = 0;
                     } else if (authorLower.startsWith(searchLower) || titleLower.startsWith(searchLower)) {
                         score = 1;
                     } else if (keyLower.includes(searchLower)) {
                         score = 2;
                     }
-                    return { entry, score };
+                    return { entry, score, match: true };
                 })
+                .filter(r => r.match)
                 .sort((a, b) => {
                     if (a.score !== b.score) return a.score - b.score;
                     return (a.entry.key || '').localeCompare(b.entry.key || '');
@@ -8442,6 +8459,24 @@ showWholepartBtn.addEventListener('click', () => {
     showRightPane('wholepart');
 });
 
+// --- Source View Toggle ---
+if (previewSourceBtn) {
+    previewSourceBtn.addEventListener('click', () => {
+        previewSourceMode = !previewSourceMode;
+        previewSourceBtn.classList.toggle('active', previewSourceMode);
+        if (previewSourceMode) {
+            // Populate source from the editor
+            const source = window.editor ? window.editor.getValue() : '';
+            previewSourceEl.textContent = source;
+            previewContent.style.display = 'none';
+            previewSourceEl.style.display = '';
+        } else {
+            previewContent.style.display = '';
+            previewSourceEl.style.display = 'none';
+        }
+    });
+}
+
 // --- Right Pane Switching Function ---
 // Helper functions for right pane management
 function hideAllRightPanes() {
@@ -11581,8 +11616,38 @@ function notificationsEnabled() {
     return window.appSettings?.notifications?.enabled !== false;
 }
 
-function showNotification(message, type = 'info', isHTML = false) {
+function aiNotificationsEnabled() {
+    return window.appSettings?.notifications?.aiEnabled !== false;
+}
+
+function looksLikeAINotification(message) {
+    if (typeof message !== 'string') return false;
+    return /\b(ai|ash|dr\.?\s*chen|summari(z|s)e|speaker notes|ghost text|openai|anthropic|gemini|openrouter)\b/i.test(message);
+}
+
+function showNotification(message, type = 'info', optionsOrDuration = undefined) {
     if (!notificationsEnabled()) {
+        return;
+    }
+
+    let isHTML = false;
+    let duration = 4000;
+    let source = 'general';
+
+    if (typeof optionsOrDuration === 'number') {
+        duration = optionsOrDuration;
+    } else if (typeof optionsOrDuration === 'boolean') {
+        isHTML = optionsOrDuration;
+    } else if (typeof optionsOrDuration === 'string') {
+        source = optionsOrDuration;
+    } else if (optionsOrDuration && typeof optionsOrDuration === 'object') {
+        isHTML = optionsOrDuration.isHTML === true;
+        duration = typeof optionsOrDuration.duration === 'number' ? optionsOrDuration.duration : duration;
+        source = typeof optionsOrDuration.source === 'string' ? optionsOrDuration.source : source;
+    }
+
+    const isAIMessage = source === 'ai' || looksLikeAINotification(message);
+    if (isAIMessage && !aiNotificationsEnabled()) {
         return;
     }
 
@@ -11615,7 +11680,7 @@ function showNotification(message, type = 'info', isHTML = false) {
         notification.classList.add('show');
     });
     
-    // Auto-remove after 4 seconds with hide animation
+    // Auto-remove after configured duration with hide animation
     setTimeout(() => {
         if (notification.parentNode) {
             notification.classList.remove('show');
@@ -11628,7 +11693,7 @@ function showNotification(message, type = 'info', isHTML = false) {
                 }
             }, 250);
         }
-    }, 4000);
+    }, Math.max(500, duration));
 }
 
 
@@ -13330,6 +13395,7 @@ window.showFilesView = function() {
 // File tree keyboard navigation extracted to modules/file-tree-nav.js
 window.showNotification = showNotification;
 window.notificationsEnabled = notificationsEnabled;
+window.aiNotificationsEnabled = aiNotificationsEnabled;
 window.updateAvailableFiles = updateAvailableFiles;
 window.saveFile = saveFile;
 window.saveAsFile = saveAsFile;

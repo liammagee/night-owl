@@ -3984,6 +3984,64 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     opacity: 1;
 }
 
+/* Source view toggle button — positioned left of fullscreen button */
+.preview-toolbar-btn {
+    position: absolute;
+    top: 10px;
+    right: 52px;
+    z-index: 1000;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--neutral-300);
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--neutral-700);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: monospace;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    opacity: 0.6;
+}
+
+.preview-toolbar-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-md);
+}
+
+.preview-toolbar-btn:active {
+    transform: scale(0.95);
+}
+
+.preview-toolbar-btn.active {
+    background: var(--primary-500);
+    color: white;
+    border-color: var(--primary-600);
+    opacity: 1;
+}
+
+/* Source view <pre> element */
+.preview-source-view {
+    flex: 1;
+    overflow: auto;
+    margin: 0;
+    padding: 16px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: var(--surface-variant, #f8f9fa);
+    color: var(--text-color, #333);
+    tab-size: 4;
+}
+
 /* Fullscreen mode for preview pane */
 #preview-pane.preview-fullscreen {
     position: fixed !important;

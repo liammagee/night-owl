@@ -3629,7 +3629,7 @@
                     
                     <!-- Search and Filter -->
                     <div class="citations-search" style="margin-bottom: 12px;">
-                        <input type="text" id="citations-search-input" placeholder="Search citations by title, author, tags, DOI..." 
+                        <input type="text" id="citations-search-input" placeholder="Search citations (supports * ? wildcards and fuzzy matching)..." 
                                style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
                         
                         <!-- Filter and Sort Row -->
@@ -3977,8 +3977,10 @@
                     <div id="right-pane">
                     <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                         <div id="preview-pane" class="content-pane">
+                            <button id="preview-source-btn" class="preview-toolbar-btn" title="Toggle Source View">{ }</button>
                             <button id="preview-fullscreen-btn" class="preview-fullscreen-toggle" title="Toggle Fullscreen (F11)">⛶</button>
                             <div id="preview-content"></div>
+                            <pre id="preview-source" class="preview-source-view" style="display: none;"></pre>
                         </div>
                         <div id="chat-pane" class="content-pane terminal-chat" style="display: none;">
                             <div class="terminal-header">
@@ -4132,6 +4134,7 @@
                         <span id="file-status">Markdown (.md)</span>
                         <span id="load-status" style="display: none; color: #0f766e;"></span>
                         <span id="bib-status" style="display: none; color: #6b7280;"></span>
+                        <span id="citation-last-capture" style="display: none; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary, #6b7280);" title=""></span>
                         <span id="progress-status">Next shard: 30 words</span>
                     </div>
                 </div>
@@ -4373,6 +4376,9 @@
     <!-- Status bar and git status indicator (must load before renderer.js) -->
     <script src="orchestrator/modules/status-bar.js" defer></script>
     <script src="orchestrator/utils/monaco-theme-utils.js"></script>
+
+    <!-- Fuzzy match utility (used by renderer autocomplete) -->
+    <script src="services/fuzzyMatch.js"></script>
 
     <!-- Main renderer script -->
     <script src="orchestrator/renderer.js"></script>
