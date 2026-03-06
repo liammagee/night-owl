@@ -1179,6 +1179,10 @@ async function renderRegularMarkdown(markdownContent) {
         await renderMarkdownContent(markdownContent);
         // Inject source line markers for scroll sync
         _injectSourceLineAttributes(previewContent, markdownContent);
+        // Bind click handlers for inline citation keys
+        if (window.TechneCitationRenderer?.bindCitationClickHandlers) {
+            window.TechneCitationRenderer.bindCitationClickHandlers(previewContent);
+        }
     } catch (error) {
         console.error('[renderer.js] Error parsing Markdown for preview:', error);
         previewContent.innerHTML = '<p>Error rendering Markdown preview.</p>';
@@ -2581,8 +2585,11 @@ function computeCitationKey(citation) {
     let key = '';
 
     if (citation.authors) {
-        const firstAuthor = citation.authors.split(',')[0].trim();
-        const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+        const authors = citation.authors.split(/\s+and\s+/i);
+        const firstAuthor = (authors[0] || '').trim();
+        const lastName = firstAuthor.includes(',')
+            ? firstAuthor.split(',')[0].trim()
+            : firstAuthor.split(/\s+/).pop() || firstAuthor;
         key += lastName.replace(/[^A-Za-z]/g, '');
     } else {
         key += 'Citation';
@@ -3155,6 +3162,13 @@ async function loadBibliographyForMarkdownFile(filePath, content) {
         return true;
     }
 
+    // Sync .bib file entries into the citation database so they're searchable
+    if (entries.length > 0) {
+        syncBibEntriesToDatabase(entries).catch(err =>
+            console.warn('[renderer.js] Background bib→DB sync failed:', err)
+        );
+    }
+
     bibEntries.length = 0;
     bibEntries.push(...entries);
 
@@ -3237,6 +3251,44 @@ async function loadDatabaseCitations() {
     } catch (error) {
         console.error('[loadDB] Error loading database citations:', error);
         return [];
+    }
+}
+
+// Sync parsed BibTeX entries from .bib files into the citation database
+// so they become searchable and linked to DB records.
+async function syncBibEntriesToDatabase(entries) {
+    if (!entries || entries.length === 0) return;
+
+    // Rebuild minimal BibTeX text from parsed entries for the import handler
+    const bibLines = entries.map(entry => {
+        const type = entry.type || 'article';
+        const key = entry.key || 'unknown';
+        const fields = [];
+        if (entry.title) fields.push(`  title={${entry.title}}`);
+        if (entry.author) fields.push(`  author={${entry.author}}`);
+        if (entry.year) fields.push(`  year={${entry.year}}`);
+        if (entry.journal) fields.push(`  journal={${entry.journal}}`);
+        if (entry.doi) fields.push(`  doi={${entry.doi}}`);
+        if (entry.url) fields.push(`  url={${entry.url}}`);
+        if (entry.volume) fields.push(`  volume={${entry.volume}}`);
+        if (entry.number || entry.issue) fields.push(`  number={${entry.number || entry.issue}}`);
+        if (entry.pages) fields.push(`  pages={${entry.pages}}`);
+        if (entry.publisher) fields.push(`  publisher={${entry.publisher}}`);
+        if (entry.abstract) fields.push(`  abstract={${entry.abstract}}`);
+        return `@${type}{${key},\n${fields.join(',\n')}\n}`;
+    });
+
+    const bibContent = bibLines.join('\n\n');
+    try {
+        const result = await window.electronAPI.invoke('citations-import-bib-to-db', bibContent);
+        if (result.success) {
+            const { imported, updated, skipped } = result;
+            if (imported > 0 || updated > 0) {
+                console.log(`[syncBibToDB] Synced .bib → DB: ${imported} new, ${updated} updated, ${skipped} unchanged`);
+            }
+        }
+    } catch (error) {
+        console.warn('[syncBibToDB] Failed to sync bib entries to database:', error);
     }
 }
 
@@ -3327,9 +3379,16 @@ async function loadBibTeXFiles() {
             console.error('[renderer.js] Error during BibTeX file loading:', error.message);
         }
         
+        // Sync .bib file entries into the citation database
+        if (bibEntries.length > 0) {
+            syncBibEntriesToDatabase(bibEntries).catch(err =>
+                console.warn('[loadBibTeX] Background bib→DB sync failed:', err)
+            );
+        }
+
         // Also load database citations
         const dbEntries = await loadDatabaseCitations();
-        
+
         // Combine BibTeX and database entries into the global bibEntries array
         bibEntries.push(...dbEntries);
 

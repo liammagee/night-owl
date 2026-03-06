@@ -317,16 +317,16 @@
                     if (authorOnly) {
                         // Render just author name (for "Smith (2023) argues...")
                         const authors = formatAuthorsInline(entry.author, currentStyle);
-                        citations.push(`${prefix}${authors}`);
+                        citations.push(`${prefix}<span class="citation-key-link" data-citation-key="${key}" title="Click to view in Citation Manager">${authors}</span>`);
                     } else {
                         const inlineCite = style.inline(entry, suffix);
                         // Remove outer parentheses for combining
                         const inner = inlineCite.replace(/^\(/, '').replace(/\)$/, '');
-                        citations.push(`${prefix}${inner}`);
+                        citations.push(`${prefix}<span class="citation-key-link" data-citation-key="${key}" title="Click to view in Citation Manager">${inner}</span>`);
                     }
                 } else {
                     // Unknown citation - render as-is with warning style
-                    citations.push(`<span class="citation-unknown">@${key}</span>`);
+                    citations.push(`<span class="citation-unknown citation-key-link" data-citation-key="${key}" title="Citation not found: ${key}">@${key}</span>`);
                 }
             }
 
@@ -483,6 +483,16 @@
     font-style: italic;
 }
 
+.citation-key-link {
+    cursor: pointer;
+    border-bottom: 1px dotted currentColor;
+    transition: opacity 0.15s;
+}
+
+.citation-key-link:hover {
+    opacity: 0.75;
+}
+
 /* Dark mode adjustments */
 body.dark-mode .citation {
     color: var(--primary, #818cf8);
@@ -502,6 +512,33 @@ body.dark-mode .bibliography-item {
 `;
     }
 
+    /**
+     * Set up click handlers for citation-key-link elements.
+     * Call this after rendering preview HTML to make inline citations clickable.
+     * Clicking opens the citation in the Citation Manager panel.
+     */
+    function bindCitationClickHandlers(container) {
+        if (!container) return;
+
+        container.addEventListener('click', (e) => {
+            const link = e.target.closest('.citation-key-link');
+            if (!link) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const key = link.dataset.citationKey;
+            if (!key) return;
+
+            // Fire a custom event that citationManager can listen for
+            const event = new CustomEvent('citation-key-click', {
+                detail: { key },
+                bubbles: true
+            });
+            document.dispatchEvent(event);
+        });
+    }
+
     // Prune cache periodically (every 2 minutes)
     setInterval(pruneCache, 2 * 60 * 1000);
 
@@ -514,6 +551,7 @@ body.dark-mode .bibliography-item {
         getStyles,
         getCSS,
         STYLES,
+        bindCitationClickHandlers,
         // Cache management
         invalidateCache,
         getCacheStats,

@@ -40,8 +40,11 @@ function generateCitationKey(citation) {
   const title = normalizeBibTeXValue(citation.title);
 
   if (authors) {
-    const firstAuthor = authors.split(',')[0].trim();
-    const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+    const authorList = authors.split(/\s+and\s+/i);
+    const firstAuthor = (authorList[0] || '').trim();
+    const lastName = firstAuthor.includes(',')
+      ? firstAuthor.split(',')[0].trim()
+      : firstAuthor.split(/\s+/).pop() || firstAuthor;
     key += lastName.replace(/[^A-Za-z]/g, '');
   } else {
     key += 'Citation';

@@ -46,7 +46,7 @@ describe('Citation Handlers BibTeX Parsing Helpers', () => {
     const parsed = __testables.parseBibTeXEntry(entry);
     expect(parsed).toBeTruthy();
     expect(parsed.title).toBe('Hermeneutic LLM Pipelines');
-    expect(parsed.authors).toBe('Magee, Liam, Reader, Ada');
+    expect(parsed.authors).toBe('Magee, Liam and Reader, Ada');
     expect(parsed.publication_year).toBe(2025);
     expect(parsed.citation_type).toBe('conference');
     expect(parsed.journal).toBe('Proceedings of AI Humanities');

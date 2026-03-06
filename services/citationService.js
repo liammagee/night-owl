@@ -200,8 +200,13 @@ class CitationService {
     _generateCitationKey(citation) {
         let key = '';
         if (citation.authors) {
-            const firstAuthor = citation.authors.split(',')[0].trim();
-            const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+            // Split on "and" first (BibTeX convention), fall back to comma
+            const authors = citation.authors.split(/\s+and\s+/i);
+            const firstAuthor = (authors[0] || '').trim();
+            // Handle "Last, First" format: take the part before the comma
+            const lastName = firstAuthor.includes(',')
+                ? firstAuthor.split(',')[0].trim()
+                : firstAuthor.split(/\s+/).pop() || firstAuthor;
             key += lastName.replace(/[^A-Za-z]/g, '');
         } else {
             key += 'Citation';
@@ -402,18 +407,18 @@ class CitationService {
                 if (hasWildcards(filters.search)) {
                     // Wildcard mode: use SQLite GLOB (case-insensitive via LOWER)
                     const globPattern = `*${filters.search.toLowerCase()}*`;
-                    sql += ' AND (LOWER(title) GLOB ? OR LOWER(authors) GLOB ? OR LOWER(journal) GLOB ? OR LOWER(abstract) GLOB ? OR LOWER(notes) GLOB ?)';
-                    params.push(globPattern, globPattern, globPattern, globPattern, globPattern);
+                    sql += ' AND (LOWER(title) GLOB ? OR LOWER(authors) GLOB ? OR LOWER(journal) GLOB ? OR LOWER(abstract) GLOB ? OR LOWER(notes) GLOB ? OR LOWER(citation_key) GLOB ?)';
+                    params.push(globPattern, globPattern, globPattern, globPattern, globPattern, globPattern);
                 } else if (useFuzzy) {
                     // Fuzzy mode: broad SQL pass, then score in JS
                     const prefix = filters.search.substring(0, Math.max(3, Math.floor(filters.search.length * 0.6)));
                     const likeTerm = `%${prefix}%`;
-                    sql += ' AND (title LIKE ? OR authors LIKE ? OR journal LIKE ? OR abstract LIKE ? OR notes LIKE ?)';
-                    params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
+                    sql += ' AND (title LIKE ? OR authors LIKE ? OR journal LIKE ? OR abstract LIKE ? OR notes LIKE ? OR citation_key LIKE ?)';
+                    params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
                 } else {
-                    sql += ' AND (title LIKE ? OR authors LIKE ? OR journal LIKE ? OR abstract LIKE ? OR notes LIKE ?)';
+                    sql += ' AND (title LIKE ? OR authors LIKE ? OR journal LIKE ? OR abstract LIKE ? OR notes LIKE ? OR citation_key LIKE ?)';
                     const searchTerm = `%${filters.search}%`;
-                    params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+                    params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
                 }
             }
 
@@ -455,7 +460,7 @@ class CitationService {
                     // Score and filter results with fuzzy matching
                     const scored = rows
                         .map(row => {
-                            const fields = [row.title, row.authors, row.journal, row.abstract, row.notes];
+                            const fields = [row.title, row.authors, row.journal, row.abstract, row.notes, row.citation_key];
                             const { match, score } = fuzzyMatchBest(filters.search, fields, { threshold: 0.3 });
                             return { row, match, score };
                         })
@@ -479,6 +484,19 @@ class CitationService {
                     reject(err);
                 } else {
                     resolve(row);
+                }
+            });
+        });
+    }
+
+    // Get citation by citation_key (the stable BibTeX key)
+    async getCitationByKey(key) {
+        return new Promise((resolve, reject) => {
+            this.db.get('SELECT * FROM citations WHERE citation_key = ? LIMIT 1', [key], (err, row) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(row || null);
                 }
             });
         });

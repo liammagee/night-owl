@@ -193,11 +193,14 @@ function parseBibTeXFields(body) {
 function normalizeBibTeXAuthors(authorValue) {
     if (!authorValue) return '';
 
+    // Preserve "and" as the author separator so downstream parsers
+    // (citationRenderer.parseAuthors, key generation) can reliably
+    // distinguish individual authors from "Last, First" pairs.
     return authorValue
         .split(/\s+and\s+/i)
         .map(author => author.trim())
         .filter(Boolean)
-        .join(', ');
+        .join(' and ');
 }
 
 function mapBibTeXType(type) {
@@ -898,8 +901,11 @@ function generateCitationKey(citation) {
     let key = '';
 
     if (citation.authors) {
-        const firstAuthor = citation.authors.split(',')[0].trim();
-        const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+        const authors = citation.authors.split(/\s+and\s+/i);
+        const firstAuthor = (authors[0] || '').trim();
+        const lastName = firstAuthor.includes(',')
+            ? firstAuthor.split(',')[0].trim()
+            : firstAuthor.split(/\s+/).pop() || firstAuthor;
         key += lastName.replace(/[^A-Za-z]/g, '');
     } else {
         key += 'Citation';
@@ -989,6 +995,21 @@ function registerCitationHandlers(userDataPath) {
             return { success: true, citations };
         } catch (error) {
             console.error('[Citation Handlers] Error getting citations:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Get citation by citation_key (the stable BibTeX key)
+    ipcMain.handle('citations-get-by-key', async (event, key) => {
+        try {
+            if (!citationService) await initializeCitationService(userDataPath);
+            const citation = await citationService.getCitationByKey(key);
+            if (citation) {
+                return { success: true, citation };
+            }
+            return { success: false, error: `No citation found with key: ${key}` };
+        } catch (error) {
+            console.error('[Citation Handlers] Error getting citation by key:', error);
             return { success: false, error: error.message };
         }
     });
@@ -1468,6 +1489,56 @@ function registerCitationHandlers(userDataPath) {
         }
     });
 
+    // ===== BIB FILE → DB SYNC =====
+
+    // Import entries from .bib file content into the citation database.
+    // Existing entries (matched by title/DOI/key) are updated with richer
+    // metadata; genuinely new entries are inserted.
+    ipcMain.handle('citations-import-bib-to-db', async (event, bibContent) => {
+        try {
+            if (!citationService) await initializeCitationService(userDataPath);
+
+            const parsed = parseBibTeXEntries(bibContent);
+            if (!parsed || parsed.length === 0) {
+                return { success: true, imported: 0, updated: 0, skipped: 0 };
+            }
+
+            let imported = 0;
+            let updated = 0;
+            let skipped = 0;
+
+            for (const citationData of parsed) {
+                try {
+                    // Preserve the BibTeX key from the file if available
+                    const headerMatch = bibContent.match(
+                        new RegExp(`@\\w+\\s*[({]\\s*(${citationData.title
+                            ? citationData.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').slice(0, 30)
+                            : '[^,\\s}]+'
+                        })`, 'i')
+                    );
+
+                    const result = await citationService.addCitation(citationData);
+                    if (result._existing && result._updated) {
+                        updated++;
+                    } else if (result._existing) {
+                        skipped++;
+                    } else {
+                        imported++;
+                    }
+                } catch (entryError) {
+                    console.warn('[Citation Handlers] Skipping bib entry:', entryError.message);
+                    skipped++;
+                }
+            }
+
+            console.log(`[Citation Handlers] Bib→DB sync: ${imported} imported, ${updated} updated, ${skipped} skipped`);
+            return { success: true, imported, updated, skipped };
+        } catch (error) {
+            console.error('[Citation Handlers] Error importing bib to DB:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     // ===== ADVANCED/DEBUG FEATURES =====
 
     // Execute raw SQL query (for advanced users/debugging)
@@ -1576,6 +1647,7 @@ module.exports = {
         parseBibTeXEntries,
         mapBibTeXType,
         normalizeBibTeXAuthors,
+        generateCitationKey,
         inferCitationTitleFromText,
         sanitizeUrl
     }

@@ -155,6 +155,14 @@ class CitationManager {
             });
         }
 
+        // Listen for citation key clicks from the preview pane
+        document.addEventListener('citation-key-click', (e) => {
+            const key = e.detail?.key;
+            if (key) {
+                this.viewCitationByKey(key);
+            }
+        });
+
         // Modal event listeners
         this.setupModalEventListeners();
 
@@ -1228,8 +1236,9 @@ class CitationManager {
 
         const typeIcon = this.getCitationTypeIcon(citation.citation_type);
         const year = citation.publication_year ? `(${citation.publication_year})` : '';
-        const authors = citation.authors ? citation.authors : 'Unknown Author';
-        
+        const authors = citation.authors ? this.formatAuthorsDisplay(citation.authors) : 'Unknown Author';
+        const citationKey = citation.citation_key || this.generateCitationKey(citation);
+
         div.innerHTML = `
             <div style="display: flex; justify-content: between; align-items: flex-start; gap: 8px;">
                 <div style="display: flex; align-items: flex-start; gap: 8px;">
@@ -1241,17 +1250,20 @@ class CitationManager {
                         <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">
                             ${citation.citation_type}
                         </span>
+                        <span style="font-size: 10px; color: #888; font-family: monospace; background: #f0f0f0; padding: 1px 4px; border-radius: 3px;" title="Citation key: [@${citationKey}]">
+                            @${citationKey}
+                        </span>
                         ${citation.is_favorite ? '<span style="color: gold;">⭐</span>' : ''}
                     </div>
-                    
+
                     <div style="font-weight: 600; margin-bottom: 4px; line-height: 1.3; font-size: 13px;">
                         ${citation.title}
                     </div>
-                    
+
                     <div style="font-size: 12px; color: #666; margin-bottom: 6px;">
                         ${authors} ${year}
                     </div>
-                    
+
                     ${citation.journal ? `<div style="font-size: 11px; color: #888; margin-bottom: 4px;">${citation.journal}</div>` : ''}
                     ${citation.tags ? `<div style="font-size: 10px;"><span style="color: #666;">Tags:</span> ${citation.tags}</div>` : ''}
                 </div>
@@ -1293,6 +1305,29 @@ class CitationManager {
         return div;
     }
 
+    // Format authors for display in the citation list.
+    // Handles both "and"-separated (BibTeX) and comma-separated (legacy) formats.
+    formatAuthorsDisplay(authorStr) {
+        if (!authorStr) return 'Unknown Author';
+
+        // Split on "and" (BibTeX convention)
+        const authors = authorStr.split(/\s+and\s+/i).map(a => a.trim()).filter(Boolean);
+        if (authors.length === 0) return 'Unknown Author';
+
+        // Format each author: "Last, First" → "First Last" for display
+        const formatted = authors.map(author => {
+            if (author.includes(',')) {
+                const parts = author.split(',').map(s => s.trim());
+                return parts.length >= 2 ? `${parts[1]} ${parts[0]}` : parts[0];
+            }
+            return author;
+        });
+
+        if (formatted.length === 1) return formatted[0];
+        if (formatted.length === 2) return `${formatted[0]} & ${formatted[1]}`;
+        return `${formatted[0]} et al.`;
+    }
+
     // Generate a proper citation key from citation metadata
     generateCitationKey(citation) {
         if (citation.key && typeof citation.key === 'string') {
@@ -1305,8 +1340,11 @@ class CitationManager {
         let key = '';
 
         if (citation.authors) {
-            const firstAuthor = citation.authors.split(',')[0].trim();
-            const lastName = firstAuthor.split(/\s+/).pop() || firstAuthor;
+            const authors = citation.authors.split(/\s+and\s+/i);
+            const firstAuthor = (authors[0] || '').trim();
+            const lastName = firstAuthor.includes(',')
+                ? firstAuthor.split(',')[0].trim()
+                : firstAuthor.split(/\s+/).pop() || firstAuthor;
             key += lastName.replace(/[^A-Za-z]/g, '');
         } else {
             key += 'Citation';
@@ -1496,6 +1534,30 @@ class CitationManager {
     // Show import modal
     showImportModal() {
         this.showModal('import-modal-overlay');
+    }
+
+    // View citation by its BibTeX key — looks up the DB record and opens the edit form
+    async viewCitationByKey(key) {
+        try {
+            const result = await window.electronAPI.invoke('citations-get-by-key', key);
+            if (result.success && result.citation) {
+                this.viewCitation(result.citation.id);
+            } else {
+                // Not in DB — try searching for it
+                const searchInput = document.getElementById('citations-search-input');
+                if (searchInput) {
+                    searchInput.value = key;
+                }
+                // Switch to citations pane if not already there
+                if (typeof window.switchStructureView === 'function') {
+                    window.switchStructureView('citations');
+                }
+                this.currentFilters = { search: key, fuzzy: true };
+                await this.refreshCitations();
+            }
+        } catch (error) {
+            console.error('[Citation Manager] Error viewing citation by key:', error);
+        }
     }
 
     // View citation details
