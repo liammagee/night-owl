@@ -191,6 +191,11 @@ class FlowIndicatorUI {
 
     // Update flow indicator display
     updateIndicator(flowScore, flowState, options = {}) {
+        if (this.notificationsSuppressed()) {
+            this.hideIndicator();
+            return;
+        }
+
         if (!this.shouldShowIndicator(flowState)) return;
 
         this.clearAutoHideTimeout();
@@ -255,6 +260,10 @@ class FlowIndicatorUI {
 
     // Check if indicator should be shown
     shouldShowIndicator(flowState) {
+        if (this.notificationsSuppressed()) {
+            return false;
+        }
+
         const now = Date.now();
         
         // Don't show indicators during presentation mode
@@ -275,6 +284,31 @@ class FlowIndicatorUI {
         }
         
         return true;
+    }
+
+    notificationsSuppressed() {
+        try {
+            if (typeof window !== 'undefined') {
+                if (typeof window.notificationsEnabled === 'function' && !window.notificationsEnabled()) {
+                    return true;
+                }
+                if (typeof window.aiNotificationsEnabled === 'function' && !window.aiNotificationsEnabled()) {
+                    return true;
+                }
+                if (window.appSettings?.notifications?.enabled === false) {
+                    return true;
+                }
+                if (window.appSettings?.notifications?.aiEnabled === false) {
+                    return true;
+                }
+                if (window.appSettings?.ai?.enableWritingCompanion === false) {
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.warn('[FlowIndicatorUI] Failed to evaluate notification suppression:', error);
+        }
+        return false;
     }
 
     // Update state tracking

@@ -336,6 +336,10 @@ function generateGeneralSettings() {
                     <input type="checkbox" id="disable-notifications" ${currentSettings.notifications?.enabled === false ? 'checked' : ''}>
                     <span>Distraction-free mode (disable all notifications)</span>
                 </label>
+                <label>
+                    <input type="checkbox" id="disable-ai-notifications" ${currentSettings.notifications?.aiEnabled === false ? 'checked' : ''}>
+                    <span>Mute AI notifications (keep non-AI notifications)</span>
+                </label>
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
                     Turn this on to hide toast notifications and other in-app alerts while you work.
                 </p>
@@ -1647,6 +1651,66 @@ function addSettingsEventListeners(category) {
     console.log(`[Settings] settings-content element:`, settingsContent);
     console.log(`[Settings] settings-content innerHTML length:`, settingsContent?.innerHTML?.length);
 
+    // Notification preference preview (applies immediately in runtime; persists on Save).
+    const disableNotificationsCheckbox = document.getElementById('disable-notifications');
+    const disableAINotificationsCheckbox = document.getElementById('disable-ai-notifications');
+
+    const applyRuntimeNotificationPreferences = () => {
+        if (!window.appSettings) window.appSettings = {};
+        if (!window.appSettings.notifications) window.appSettings.notifications = {};
+
+        if (disableNotificationsCheckbox) {
+            window.appSettings.notifications.enabled = !disableNotificationsCheckbox.checked;
+        }
+        if (disableAINotificationsCheckbox) {
+            window.appSettings.notifications.aiEnabled = !disableAINotificationsCheckbox.checked;
+        }
+
+        // Hide active toasts immediately when notifications are muted.
+        if (window.appSettings.notifications.enabled === false ||
+            window.appSettings.notifications.aiEnabled === false) {
+            document.querySelectorAll('.notification').forEach((el) => el.remove());
+        }
+
+        // Hide any active flow indicators immediately (these can feel like notifications).
+        const flowIndicator = document.getElementById('flow-indicator');
+        if (flowIndicator) {
+            flowIndicator.classList.remove('visible');
+        }
+        const legacyFlowIndicator = document.getElementById('ai-flow-indicator');
+        if (legacyFlowIndicator) {
+            legacyFlowIndicator.classList.remove('visible');
+            legacyFlowIndicator.style.display = 'none';
+        }
+        if (window.aiFlowDetection?.flowIndicatorUI?.hideIndicator) {
+            window.aiFlowDetection.flowIndicatorUI.hideIndicator();
+        }
+
+        // Hide AI companion overlays that are rendered outside toast system.
+        const aiFeedbackPane = document.getElementById('ai-companion-feedback');
+        if (aiFeedbackPane) {
+            aiFeedbackPane.style.display = 'none';
+        }
+        const aiAnalysisIndicator = document.getElementById('ai-analysis-indicator');
+        if (aiAnalysisIndicator) {
+            aiAnalysisIndicator.style.display = 'none';
+        }
+        const legacyNotificationPane = document.getElementById('notification');
+        if (legacyNotificationPane) {
+            legacyNotificationPane.style.display = 'none';
+        }
+    };
+
+    if (disableNotificationsCheckbox) {
+        disableNotificationsCheckbox.addEventListener('change', applyRuntimeNotificationPreferences);
+    }
+    if (disableAINotificationsCheckbox) {
+        disableAINotificationsCheckbox.addEventListener('change', applyRuntimeNotificationPreferences);
+    }
+    if (disableNotificationsCheckbox || disableAINotificationsCheckbox) {
+        applyRuntimeNotificationPreferences();
+    }
+
     // Link preview mode dropdown
     const linkPreviewMode = document.getElementById('link-preview-mode');
     if (linkPreviewMode) {
@@ -2266,6 +2330,12 @@ function collectSettingsFromForm() {
     if (disableNotifications !== undefined) {
         if (!updatedSettings.notifications) updatedSettings.notifications = {};
         updatedSettings.notifications.enabled = !disableNotifications;
+    }
+
+    const disableAINotifications = document.getElementById('disable-ai-notifications')?.checked;
+    if (disableAINotifications !== undefined) {
+        if (!updatedSettings.notifications) updatedSettings.notifications = {};
+        updatedSettings.notifications.aiEnabled = !disableAINotifications;
     }
     
     // Theme settings

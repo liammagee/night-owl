@@ -12525,10 +12525,19 @@ window.showQuickOpen = showQuickOpen;
 
 // --- Slide Preview Thumbnails ---
 let slideThumbnailTimer = null;
+let slideThumbnailsHidden = false; // user preference to hide the strip
+
 function updateSlideThumbnails(content) {
     clearTimeout(slideThumbnailTimer);
     slideThumbnailTimer = setTimeout(() => renderSlideThumbnails(content), 500);
 }
+
+function toggleSlideThumbnails() {
+    slideThumbnailsHidden = !slideThumbnailsHidden;
+    const strip = document.getElementById('slide-thumbnails-strip');
+    if (strip) strip.style.display = slideThumbnailsHidden ? 'none' : 'block';
+}
+window.toggleSlideThumbnails = toggleSlideThumbnails;
 
 function renderSlideThumbnails(content) {
     const strip = document.getElementById('slide-thumbnails-strip');
@@ -12537,11 +12546,22 @@ function renderSlideThumbnails(content) {
     // Split on slide separators (--- on its own line)
     const slides = content.split(/\n---[ \t]*\n/).map(s => s.trim()).filter(Boolean);
 
-    // Only show if there are 2+ slides
+    // Only show if there are 2+ slides and user hasn't hidden them
     if (slides.length < 2) {
         strip.style.display = 'none';
         return;
     }
+
+    if (slideThumbnailsHidden) {
+        // Show a minimal re-show button instead of the full strip
+        strip.style.display = 'block';
+        strip.innerHTML = `<button class="slide-strip-close" onclick="toggleSlideThumbnails()" title="Show slide thumbnails" style="margin-top: 0;">▸ ${slides.length} slides</button>`;
+        strip.style.padding = '2px 8px';
+        strip.style.maxHeight = '24px';
+        return;
+    }
+    strip.style.padding = '6px 8px';
+    strip.style.maxHeight = '110px';
 
     strip.style.display = 'block';
 
@@ -12567,7 +12587,8 @@ function renderSlideThumbnails(content) {
         return clean.replace(/\n/g, '<br>');
     };
 
-    strip.innerHTML = slides.map((slide, i) => {
+    const closeBtn = `<button class="slide-strip-close" onclick="toggleSlideThumbnails()" title="Hide slide thumbnails">✕</button>`;
+    strip.innerHTML = closeBtn + slides.map((slide, i) => {
         const html = renderHTML(slide);
         return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}">
             <div class="slide-thumb-content">${html}</div>

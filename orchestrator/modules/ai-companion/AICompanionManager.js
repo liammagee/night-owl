@@ -493,7 +493,38 @@ class AICompanionManager {
 
     // === Feedback Display ===
 
+    notificationsSuppressed(isAI = false) {
+        try {
+            if (typeof window.notificationsEnabled === 'function' && !window.notificationsEnabled()) {
+                return true;
+            }
+            if (window.appSettings?.notifications?.enabled === false) {
+                return true;
+            }
+
+            if (isAI) {
+                if (typeof window.aiNotificationsEnabled === 'function' && !window.aiNotificationsEnabled()) {
+                    return true;
+                }
+                if (window.appSettings?.notifications?.aiEnabled === false) {
+                    return true;
+                }
+                if (window.appSettings?.ai?.enableWritingCompanion === false) {
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.warn('[AICompanionManager] Failed to evaluate notification suppression:', error);
+        }
+
+        return false;
+    }
+
     showContextualFeedback(feedback, analysis) {
+        if (this.notificationsSuppressed(true)) {
+            return;
+        }
+
         console.log('[AICompanionManager] 🖼️ showContextualFeedback called with:', { feedback, analysis });
         // Create or update feedback display
         let feedbackPane = document.getElementById('ai-companion-feedback');
@@ -704,6 +735,10 @@ class AICompanionManager {
     }
 
     showProgressIndicator() {
+        if (this.notificationsSuppressed(true)) {
+            return;
+        }
+
         let indicator = document.getElementById('ai-analysis-indicator');
         
         if (!indicator) {
@@ -764,6 +799,10 @@ class AICompanionManager {
     }
 
     showNotification(message, type = 'info', duration = 3000) {
+        if (this.notificationsSuppressed(true)) {
+            return;
+        }
+
         if (typeof showNotification === 'function') {
             showNotification(message, type, duration);
         } else {

@@ -591,6 +591,17 @@ class AIFlowDetection {
             console.log('[Flow Detection] No indicator element found');
             return;
         }
+
+        // Respect global notification preferences (distraction-free and AI mute).
+        if ((typeof window.notificationsEnabled === 'function' && !window.notificationsEnabled()) ||
+            (typeof window.aiNotificationsEnabled === 'function' && !window.aiNotificationsEnabled()) ||
+            window.appSettings?.notifications?.enabled === false ||
+            window.appSettings?.notifications?.aiEnabled === false ||
+            window.appSettings?.ai?.enableWritingCompanion === false) {
+            indicator.classList.remove('visible');
+            indicator.style.display = 'none';
+            return;
+        }
         
         const flowScore = this.flowEngine.currentFlowScore;
         const flowState = this.determineFlowState(flowScore);
