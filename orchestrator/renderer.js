@@ -1134,8 +1134,22 @@ async function renderMarkdownContent(markdownContent) {
 
     const processedContent = processMarkdownContent(bodyContent);
 
+    // Extract footnote definitions before marked parsing
+    let contentForParsing = processedContent;
+    let footnotes = null;
+    if (window.TechneMarkdownRenderer?._extractFootnoteDefinitions) {
+        const extracted = window.TechneMarkdownRenderer._extractFootnoteDefinitions(processedContent);
+        contentForParsing = extracted.body;
+        footnotes = extracted.footnotes;
+    }
+
     // marked.use() was already called by setupFallbackMarkdownRenderer — just parse
-    let htmlContent = window.marked.parse(processedContent);
+    let htmlContent = window.marked.parse(contentForParsing);
+
+    // Render footnote references and section
+    if (footnotes && footnotes.size > 0 && window.TechneMarkdownRenderer?._renderFootnotes) {
+        htmlContent = window.TechneMarkdownRenderer._renderFootnotes(htmlContent, footnotes, window.marked);
+    }
 
     // Process Obsidian-style [[]] internal links on the rendered HTML
     if (typeof processInternalLinksHTML === 'function') {

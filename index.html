@@ -3144,6 +3144,52 @@
         .editor-tab-context-item:hover {
             background: var(--surface-variant, #f0f0f0);
         }
+
+        /* Footnote Preview Styles */
+        .footnote-ref a {
+            color: var(--primary, #6366f1);
+            text-decoration: none;
+            font-size: 0.75em;
+            vertical-align: super;
+            line-height: 0;
+            padding: 0 1px;
+        }
+        .footnote-ref a:hover {
+            text-decoration: underline;
+        }
+        .footnotes-section {
+            margin-top: 2em;
+            font-size: 0.9em;
+            color: var(--text-secondary, #475569);
+        }
+        .footnotes-separator {
+            border: none;
+            border-top: 1px solid var(--border-color, #e2e8f0);
+            margin-bottom: 1em;
+        }
+        .footnotes-list {
+            padding-left: 1.5em;
+            margin: 0;
+        }
+        .footnote-item {
+            margin-bottom: 0.5em;
+            line-height: 1.5;
+        }
+        .footnote-backref {
+            color: var(--primary, #6366f1);
+            text-decoration: none;
+            font-size: 0.85em;
+            margin-left: 0.25em;
+        }
+        .footnote-backref:hover {
+            text-decoration: underline;
+        }
+        body.dark-mode .footnotes-section {
+            color: var(--text-secondary, #a1a1aa);
+        }
+        body.dark-mode .footnotes-separator {
+            border-top-color: var(--border-color, #3f3f46);
+        }
     </style>
 </head>
 <body>
