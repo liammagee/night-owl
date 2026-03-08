@@ -2456,6 +2456,10 @@ function setupNavigationControls() {
     
     // Add keyboard shortcuts for navigation
     document.addEventListener('keydown', (event) => {
+        // Skip when focus is in a text field — Alt+Arrow is word-jump on macOS
+        const tag = event.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target.isContentEditable) return;
+
         // Alt+Left Arrow = Back
         if (event.altKey && event.code === 'ArrowLeft') {
             event.preventDefault();

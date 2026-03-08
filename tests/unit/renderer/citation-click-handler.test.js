@@ -49,7 +49,7 @@ function createTestCitationRenderer() {
           citedKeys.add(key);
           const authors = formatAuthorsInline(entry.author);
           citations.push(
-            `<span class="citation-key-link" data-citation-key="${key}" title="Click to view in Citation Manager">${authors}, ${entry.year || 'n.d.'}</span>`
+            `<span class="citation-key-link" data-citation-key="${key}">${authors}, ${entry.year || 'n.d.'}</span>`
           );
         } else {
           citations.push(
@@ -65,7 +65,8 @@ function createTestCitationRenderer() {
   }
 
   function bindCitationClickHandlers(container) {
-    if (!container) return;
+    if (!container || container._citationClickBound) return;
+    container._citationClickBound = true;
     container.addEventListener('click', (e) => {
       const link = e.target.closest('.citation-key-link');
       if (!link) return;

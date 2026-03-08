@@ -236,6 +236,103 @@ describe('renderFootnotes', () => {
     });
 });
 
+// Inline footnote extraction (matches plugin implementation)
+function extractInlineFootnotes(markdown, footnotes) {
+    let counter = footnotes.size;
+
+    // 1. Pandoc-style inline footnotes: ^[content]
+    let processed = markdown.replace(/\^\[([^\]]+)\]/g, (_match, content) => {
+        counter++;
+        const autoId = `_fn_${counter}`;
+        footnotes.set(autoId, content.trim());
+        return `[^${autoId}]`;
+    });
+
+    // 2. Prose-in-brackets: [^content with spaces] where no definition exists
+    processed = processed.replace(/\[\^([^\]]+)\]/g, (match, id) => {
+        if (footnotes.has(id)) return match;
+        if (!id.includes(' ')) return match;
+        counter++;
+        const autoId = `_fn_${counter}`;
+        footnotes.set(autoId, id.trim());
+        return `[^${autoId}]`;
+    });
+
+    return processed;
+}
+
+describe('extractInlineFootnotes', () => {
+    test('converts pandoc-style ^[content] to reference footnote', () => {
+        const footnotes = new Map();
+        const result = extractInlineFootnotes('Text ^[This is a note] here.', footnotes);
+
+        expect(result).toMatch(/\[\^_fn_\d+\]/);
+        expect(result).not.toContain('^[');
+        expect(footnotes.size).toBe(1);
+        const content = Array.from(footnotes.values())[0];
+        expect(content).toBe('This is a note');
+    });
+
+    test('converts multiple pandoc inline footnotes', () => {
+        const footnotes = new Map();
+        const result = extractInlineFootnotes('First^[note one] and second^[note two].', footnotes);
+
+        expect(footnotes.size).toBe(2);
+        const values = Array.from(footnotes.values());
+        expect(values).toContain('note one');
+        expect(values).toContain('note two');
+    });
+
+    test('converts [^prose with spaces] to reference footnote', () => {
+        const footnotes = new Map();
+        const result = extractInlineFootnotes('Text [^For some commentators this is important] here.', footnotes);
+
+        expect(result).toMatch(/\[\^_fn_\d+\]/);
+        expect(result).not.toContain('[^For some');
+        expect(footnotes.size).toBe(1);
+        const content = Array.from(footnotes.values())[0];
+        expect(content).toBe('For some commentators this is important');
+    });
+
+    test('does not convert [^shortId] without spaces', () => {
+        const footnotes = new Map();
+        const result = extractInlineFootnotes('Text [^hegel1807] here.', footnotes);
+
+        expect(result).toContain('[^hegel1807]');
+        expect(footnotes.size).toBe(0);
+    });
+
+    test('does not convert [^id] that already has a definition', () => {
+        const footnotes = new Map([['my note', 'Existing definition']]);
+        const result = extractInlineFootnotes('Text [^my note] here.', footnotes);
+
+        // Should keep the reference as-is since a definition exists
+        expect(result).toContain('[^my note]');
+        expect(footnotes.size).toBe(1);
+    });
+
+    test('handles mix of pandoc inline and prose-in-brackets', () => {
+        const footnotes = new Map();
+        const result = extractInlineFootnotes(
+            'First ^[pandoc style] then [^prose with spaces here].',
+            footnotes
+        );
+
+        expect(footnotes.size).toBe(2);
+        const values = Array.from(footnotes.values());
+        expect(values).toContain('pandoc style');
+        expect(values).toContain('prose with spaces here');
+    });
+
+    test('continues counter from existing footnotes', () => {
+        const footnotes = new Map([['existing', 'Already defined.']]);
+        extractInlineFootnotes('Text ^[new note] here.', footnotes);
+
+        expect(footnotes.size).toBe(2);
+        expect(footnotes.has('_fn_2')).toBe(true);
+    });
+});
+
 describe('end-to-end footnote pipeline', () => {
     test('extract then render produces complete footnoted output', () => {
         const markdown = `Here is some text with a footnote[^1] and another[^2].
@@ -264,6 +361,60 @@ Regular paragraph in between.
         expect(result).toContain('class="footnotes-section"');
         expect(result).toContain('This is the first footnote');
         expect(result).toContain('This is the second footnote');
+    });
+
+    test('pandoc inline footnotes render as superscript with footnotes section', () => {
+        const markdown = 'Hegel argues for absolute knowing^[See the final chapter of the Phenomenology].';
+
+        const { body, footnotes } = extractFootnoteDefinitions(markdown);
+        const processed = extractInlineFootnotes(body, footnotes);
+
+        expect(footnotes.size).toBe(1);
+        const html = `<p>${processed.trim()}</p>`;
+        const result = renderFootnotes(html, footnotes);
+
+        expect(result).toContain('<sup class="footnote-ref">');
+        expect(result).toContain('See the final chapter of the Phenomenology');
+        expect(result).toContain('class="footnotes-section"');
+        expect(result).not.toContain('^[');
+    });
+
+    test('prose-in-brackets footnotes render correctly', () => {
+        const markdown = 'For some commentators [^our recollection owes more to Kojeve] this is key.';
+
+        const { body, footnotes } = extractFootnoteDefinitions(markdown);
+        const processed = extractInlineFootnotes(body, footnotes);
+
+        expect(footnotes.size).toBe(1);
+        const html = `<p>${processed.trim()}</p>`;
+        const result = renderFootnotes(html, footnotes);
+
+        expect(result).toContain('<sup class="footnote-ref">');
+        expect(result).toContain('our recollection owes more to Kojeve');
+        expect(result).toContain('class="footnotes-section"');
+    });
+
+    test('mixed reference and inline footnotes render with correct numbering', () => {
+        const markdown = `First reference[^1] then inline^[This is inline] then another reference[^2].
+
+[^1]: First defined footnote.
+[^2]: Second defined footnote.`;
+
+        const { body, footnotes } = extractFootnoteDefinitions(markdown);
+        const processed = extractInlineFootnotes(body, footnotes);
+
+        expect(footnotes.size).toBe(3); // 2 defined + 1 inline
+
+        const html = `<p>${processed.trim()}</p>`;
+        const result = renderFootnotes(html, footnotes);
+
+        expect(result).toContain('First defined footnote.');
+        expect(result).toContain('This is inline');
+        expect(result).toContain('Second defined footnote.');
+        // All three should be numbered
+        expect(result).toContain('title="Footnote 1">1</a>');
+        expect(result).toContain('title="Footnote 2">2</a>');
+        expect(result).toContain('title="Footnote 3">3</a>');
     });
 
     test('unreferenced definitions do not appear in output', () => {

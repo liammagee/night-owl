@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    const DARK_THEMES = ['dark', 'techne-red-dark', 'techne-orange-dark', 'solarized-dark'];
+    const DARK_THEMES = ['dark', 'techne-red', 'techne-orange', 'solarized-dark'];
 
     // ── Monaco dynamic theme ────────────────────────────────────────
 
@@ -19,9 +19,7 @@
     }
 
     function buildMonacoTheme(isDark) {
-        // Read from <body> — it inherits <html> inline styles AND has
-        // body.techne-dark class overrides for vars not in the token map.
-        const s = getComputedStyle(document.body);
+        const s = getComputedStyle(document.documentElement);
         const bg      = s.getPropertyValue('--techne-bg').trim()      || (isDark ? '#1e1e1e' : '#ffffff');
         const surface = s.getPropertyValue('--techne-surface').trim() || (isDark ? '#252526' : '#f8fafc');
         const text    = s.getPropertyValue('--techne-text').trim()    || (isDark ? '#d4d4d4' : '#1e293b');
@@ -59,14 +57,8 @@
         };
     }
 
-    function applyMonacoTheme(isDark, attempt) {
-        attempt = attempt || 0;
-        if (!window.monaco?.editor) {
-            if (attempt < 5) {
-                setTimeout(function() { applyMonacoTheme(isDark, attempt + 1); }, 200 * (attempt + 1));
-            }
-            return;
-        }
+    function applyMonacoTheme(isDark) {
+        if (!window.monaco?.editor) return;
         try {
             const themeDef = buildMonacoTheme(isDark);
             window.monaco.editor.defineTheme('techne-custom', themeDef);
@@ -88,18 +80,15 @@
 
         // Sync Techne overlay classes
         document.body.classList.remove('techne-theme', 'techne-accent-orange');
-        if (themeId.startsWith('techne-red') || themeId.startsWith('techne-orange')) {
+        if (themeId === 'techne-red' || themeId === 'techne-orange') {
             document.body.classList.add('techne-theme');
-            if (themeId.startsWith('techne-orange')) {
+            if (themeId === 'techne-orange') {
                 document.body.classList.add('techne-accent-orange');
             }
         }
 
-        // Apply dynamic Monaco theme — double-rAF ensures CSS class changes
-        // (body.techne-dark) have been recalculated before reading computed styles.
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => applyMonacoTheme(isDark));
-        });
+        // Apply dynamic Monaco theme from current tokens (runs after CSS vars settle)
+        requestAnimationFrame(() => applyMonacoTheme(isDark));
 
         // Dispatch NightOwl's native event for other listeners
         window.dispatchEvent(new CustomEvent('app-theme-changed', {

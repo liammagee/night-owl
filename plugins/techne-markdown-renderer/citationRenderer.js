@@ -227,28 +227,58 @@
     }
 
     /**
-     * Parse author string into structured format
+     * Parse author string into structured format.
+     * Handles multiple formats:
+     *   - BibTeX "and"-separated: "Last1, First1 and Last2, First2"
+     *   - APA with ampersand: "Last1, F., Last2, F., & Last3, F."
+     *   - Comma-separated pairs: "Last1, F., Last2, F., Last3, F."
+     *   - Comma-separated full names: "First1 Last1, First2 Last2"
+     *   - Simple: "First Last"
      */
     function parseAuthors(authorStr) {
         if (!authorStr) return [];
 
-        // Handle "and" separated authors
-        const parts = authorStr.split(/\s+and\s+/i);
+        // Split on "and" or "&" to get major segments
+        const segments = authorStr.split(/\s+and\s+|\s*&\s*/i)
+            .map(s => s.trim())
+            .filter(Boolean);
 
-        return parts.map(part => {
-            part = part.trim();
-            // Handle "Last, First" format
-            if (part.includes(',')) {
-                const [last, first] = part.split(',').map(s => s.trim());
-                return { last, first };
+        const authors = [];
+        for (const segment of segments) {
+            const parts = segment.split(',').map(s => s.trim()).filter(Boolean);
+
+            if (parts.length >= 2) {
+                // Disambiguation: if every part contains a space, each is a
+                // full "First Last" name (e.g. "Liam Magee, Vanicka Arora").
+                // Otherwise treat as "Last, First" pairs or a single complex name.
+                if (parts.every(p => p.includes(' '))) {
+                    for (const part of parts) {
+                        const words = part.split(/\s+/);
+                        authors.push({ first: words.slice(0, -1).join(' '), last: words[words.length - 1] });
+                    }
+                } else if (parts.length % 2 === 0) {
+                    // Even count: "Last, First" pairs
+                    // e.g. "Radford, A., Narasimhan, K." → 4 parts → 2 authors
+                    for (let i = 0; i < parts.length; i += 2) {
+                        authors.push({ last: parts[i], first: parts[i + 1] });
+                    }
+                } else {
+                    // Odd count: single author with complex name
+                    // e.g. "Smith, Jr., John"
+                    authors.push({ last: parts[0], first: parts.slice(1).join(', ') });
+                }
+            } else {
+                // No commas: "First Last" format
+                const words = segment.split(/\s+/);
+                if (words.length >= 2) {
+                    authors.push({ first: words.slice(0, -1).join(' '), last: words[words.length - 1] });
+                } else if (words.length === 1 && words[0]) {
+                    authors.push({ last: words[0], first: '' });
+                }
             }
-            // Handle "First Last" format
-            const words = part.split(/\s+/);
-            if (words.length >= 2) {
-                return { first: words.slice(0, -1).join(' '), last: words[words.length - 1] };
-            }
-            return { last: part, first: '' };
-        });
+        }
+
+        return authors;
     }
 
     /**
@@ -293,9 +323,8 @@
         const processedHtml = html.replace(citationPattern, (match, content) => {
             const style = STYLES[currentStyle];
 
-            // Handle multiple citations separated by semicolons or commas before @
-            // e.g. [@key1; @key2] or [@key1, @key2] — but NOT [@key1, p. 42]
-            const refs = content.split(/\s*;\s*|\s*,\s*(?=@)/);
+            // Handle multiple citations separated by semicolons
+            const refs = content.split(/\s*;\s*/);
             const citations = [];
 
             for (const ref of refs) {
@@ -304,7 +333,9 @@
                 const prefix = atIndex > 0 ? ref.substring(0, atIndex).trim() : '';
                 const afterAt = ref.substring(atIndex + 1);
 
-                // Check for author-only citation (starts with -)
+                // [-@key] = suppress author, year only (standard pandoc syntax)
+                const suppressAuthor = prefix === '-';
+                // [@-key] = author-only (narrative: "Smith (2023) argues...")
                 const authorOnly = afterAt.startsWith('-');
                 const citationRef = authorOnly ? afterAt.substring(1) : afterAt;
 
@@ -314,19 +345,24 @@
                 if (entry) {
                     citedKeys.add(key);
 
-                    if (authorOnly) {
-                        // Render just author name (for "Smith (2023) argues...")
+                    if (suppressAuthor) {
+                        // Year only: "(2023)" — author already mentioned in prose
+                        const year = entry.year || 'n.d.';
+                        const suffixStr = suffix ? `, ${suffix}` : '';
+                        citations.push(`${year}${suffixStr}`);
+                    } else if (authorOnly) {
+                        // Author only: "Smith" — for narrative citations
                         const authors = formatAuthorsInline(entry.author, currentStyle);
-                        citations.push(`${prefix}<span class="citation-key-link" data-citation-key="${key}" title="Click to view in Citation Manager">${authors}</span>`);
+                        citations.push(`${prefix}${authors}`);
                     } else {
                         const inlineCite = style.inline(entry, suffix);
                         // Remove outer parentheses for combining
                         const inner = inlineCite.replace(/^\(/, '').replace(/\)$/, '');
-                        citations.push(`${prefix}<span class="citation-key-link" data-citation-key="${key}" title="Click to view in Citation Manager">${inner}</span>`);
+                        citations.push(`${prefix}${inner}`);
                     }
                 } else {
                     // Unknown citation - render as-is with warning style
-                    citations.push(`<span class="citation-unknown citation-key-link" data-citation-key="${key}" title="Citation not found: ${key}">@${key}</span>`);
+                    citations.push(`<span class="citation-unknown">@${key}</span>`);
                 }
             }
 
@@ -483,16 +519,6 @@
     font-style: italic;
 }
 
-.citation-key-link {
-    cursor: pointer;
-    border-bottom: 1px dotted currentColor;
-    transition: opacity 0.15s;
-}
-
-.citation-key-link:hover {
-    opacity: 0.75;
-}
-
 /* Dark mode adjustments */
 body.dark-mode .citation {
     color: var(--primary, #818cf8);
@@ -512,33 +538,6 @@ body.dark-mode .bibliography-item {
 `;
     }
 
-    /**
-     * Set up click handlers for citation-key-link elements.
-     * Call this after rendering preview HTML to make inline citations clickable.
-     * Clicking opens the citation in the Citation Manager panel.
-     */
-    function bindCitationClickHandlers(container) {
-        if (!container) return;
-
-        container.addEventListener('click', (e) => {
-            const link = e.target.closest('.citation-key-link');
-            if (!link) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            const key = link.dataset.citationKey;
-            if (!key) return;
-
-            // Fire a custom event that citationManager can listen for
-            const event = new CustomEvent('citation-key-click', {
-                detail: { key },
-                bubbles: true
-            });
-            document.dispatchEvent(event);
-        });
-    }
-
     // Prune cache periodically (every 2 minutes)
     setInterval(pruneCache, 2 * 60 * 1000);
 
@@ -551,7 +550,6 @@ body.dark-mode .bibliography-item {
         getStyles,
         getCSS,
         STYLES,
-        bindCitationClickHandlers,
         // Cache management
         invalidateCache,
         getCacheStats,

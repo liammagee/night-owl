@@ -110,6 +110,21 @@ function formatPandocErrorMessage(code, stderr, stdout) {
   return detail ? `Pandoc failed with exit code ${code}: ${detail}` : `Pandoc failed with exit code ${code}`;
 }
 
+/**
+ * Normalize citation syntax for pandoc compatibility.
+ * The preview renderer accepts both comma-separated ([@key1, @key2]) and
+ * semicolon-separated ([@key1; @key2]) multiple citations, but pandoc's
+ * citeproc only recognizes semicolons as citation separators.
+ * This converts ", @" to "; @" within citation brackets.
+ */
+function normalizeCitationsForPandoc(markdown) {
+  // Match citation brackets: [...@key...] and replace ", @" with "; @" inside them
+  return markdown.replace(/\[([^\]]*@[^\]]*)\]/g, (match, inner) => {
+    const normalized = inner.replace(/,\s*@/g, '; @');
+    return `[${normalized}]`;
+  });
+}
+
 function resolveExportBaseDirectory(currentFilePath, workingDirectory, fallbackDirectory) {
   if (currentFilePath) {
     return path.dirname(currentFilePath);
@@ -388,8 +403,8 @@ function register(deps) {
         // Create temporary markdown file
         const tempDir = os.tmpdir();
         const tempMdFile = path.join(tempDir, 'temp_export.md');
-        await fs.writeFile(tempMdFile, content, 'utf8');
-        
+        await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content), 'utf8');
+
         try {
           const pandocArgs = [
             tempMdFile,
@@ -499,7 +514,7 @@ function register(deps) {
       console.log('[ExportHandlers] Temp directory:', tempDir);
       console.log('[ExportHandlers] Temp markdown file:', tempMdFile);
       
-      await fs.writeFile(tempMdFile, content);
+      await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content));
       console.log('[ExportHandlers] Written markdown content to temp file');
       
       // Prepare pandoc args for HTML with bibliography
@@ -617,7 +632,7 @@ function register(deps) {
         // Create temporary markdown file
         const tempDir = os.tmpdir();
         const tempMdFile = path.join(tempDir, 'temp_pdf_export.md');
-        await fs.writeFile(tempMdFile, content);
+        await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content));
         
         // Change to the correct working directory before running pandoc
         const originalCwd = process.cwd();
@@ -742,8 +757,8 @@ function register(deps) {
       const tempDir = os.tmpdir();
       const tempMdFile = path.join(tempDir, 'temp_powerpoint_export.md');
       
-      await fs.writeFile(tempMdFile, content, 'utf8');
-      
+      await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content), 'utf8');
+
       try {
         // Set resource path to help Pandoc find images
         console.log('[ExportHandlers] *** UPDATED CODE IS RUNNING - VERSION 2.0 ***');
@@ -833,6 +848,7 @@ module.exports = {
   __test__: {
     citationToBibTeX,
     formatPandocErrorMessage,
-    resolveExportBaseDirectory
+    resolveExportBaseDirectory,
+    normalizeCitationsForPandoc
   }
 };

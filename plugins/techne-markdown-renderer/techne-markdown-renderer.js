@@ -83,6 +83,8 @@
     //   Inline reference: [^id]
     //   Definition: [^id]: Footnote content here
     //   Multi-line definitions (indented continuation lines)
+    //   Pandoc inline footnotes: ^[content here]
+    //   Prose inline footnotes: [^content with spaces] (no matching definition)
 
     /**
      * Extract footnote definitions from markdown source.
@@ -132,6 +134,39 @@
         flushFootnote();
 
         return { body, footnotes };
+    };
+
+    /**
+     * Convert inline footnotes to reference-style footnotes.
+     * Handles two patterns:
+     *   1. Pandoc-style: ^[content here] → [^_fn_N] with auto-generated definition
+     *   2. Prose-in-brackets: [^content with spaces] (no matching definition) → [^_fn_N]
+     * Must be called after extractFootnoteDefinitions so the footnotes map exists.
+     */
+    const extractInlineFootnotes = (markdown, footnotes) => {
+        let counter = footnotes.size;
+
+        // 1. Pandoc-style inline footnotes: ^[content]
+        let processed = markdown.replace(/\^\[([^\]]+)\]/g, (_match, content) => {
+            counter++;
+            const autoId = `_fn_${counter}`;
+            footnotes.set(autoId, content.trim());
+            return `[^${autoId}]`;
+        });
+
+        // 2. Prose-in-brackets: [^content with spaces] where no definition exists
+        processed = processed.replace(/\[\^([^\]]+)\]/g, (match, id) => {
+            // Skip if a definition already exists (normal reference footnote)
+            if (footnotes.has(id)) return match;
+            // Only treat as inline footnote if id contains spaces (prose, not a key)
+            if (!id.includes(' ')) return match;
+            counter++;
+            const autoId = `_fn_${counter}`;
+            footnotes.set(autoId, id.trim());
+            return `[^${autoId}]`;
+        });
+
+        return processed;
     };
 
     /**
@@ -348,13 +383,16 @@ body.dark-mode .footnotes-separator {
         // Extract footnote definitions before marked parsing
         const { body: bodyWithoutFootnotes, footnotes } = extractFootnoteDefinitions(processed);
 
+        // Convert inline footnotes (^[content] and [^prose]) to reference-style
+        const bodyWithInlineFootnotes = extractInlineFootnotes(bodyWithoutFootnotes, footnotes);
+
         // Configure marked once, update baseDir per render
         _currentBaseDir = options.baseDir || '';
         if (markedApi.use) {
             setupMarkedOnce(markedApi);
         }
 
-        let html = markedApi.parse(bodyWithoutFootnotes);
+        let html = markedApi.parse(bodyWithInlineFootnotes);
 
         // Add custom classes to lists (post-processing since marked v13+ tokens don't have body)
         html = addListClasses(html);
@@ -434,6 +472,7 @@ body.dark-mode .footnotes-separator {
         getFootnoteCSS,
         // Exposed for testing
         _extractFootnoteDefinitions: extractFootnoteDefinitions,
+        _extractInlineFootnotes: extractInlineFootnotes,
         _renderFootnotes: renderFootnotes
     };
 })();

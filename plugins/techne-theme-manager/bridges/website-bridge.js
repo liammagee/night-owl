@@ -11,10 +11,8 @@
     const LEGACY_CLASSES = {
         'light': [],
         'dark': ['theme-dark'],
-        'techne-red-light': [],
-        'techne-red-dark': ['theme-dark'],
-        'techne-orange-light': ['theme-orange'],
-        'techne-orange-dark': ['theme-dark', 'theme-orange'],
+        'techne-red': ['theme-dark'],
+        'techne-orange': ['theme-dark', 'theme-orange'],
         'solarized-light': [],
         'solarized-dark': ['theme-dark']
     };

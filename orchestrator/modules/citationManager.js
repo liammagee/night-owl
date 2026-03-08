@@ -1536,25 +1536,51 @@ class CitationManager {
         this.showModal('import-modal-overlay');
     }
 
-    // View citation by its BibTeX key — looks up the DB record and opens the edit form
+    // View citation by its BibTeX key — looks up the DB record and opens the edit form.
+    // Falls back to showing the .bib entry when the key isn't in the database.
     async viewCitationByKey(key) {
         try {
+            // 1. Try the citation database first
             const result = await window.electronAPI.invoke('citations-get-by-key', key);
             if (result.success && result.citation) {
                 this.viewCitation(result.citation.id);
-            } else {
-                // Not in DB — try searching for it
-                const searchInput = document.getElementById('citations-search-input');
-                if (searchInput) {
-                    searchInput.value = key;
-                }
-                // Switch to citations pane if not already there
-                if (typeof window.switchStructureView === 'function') {
-                    window.switchStructureView('citations');
-                }
-                this.currentFilters = { search: key, fuzzy: true };
-                await this.refreshCitations();
+                return;
             }
+
+            // 2. Fall back to the in-memory bibEntries (from .bib files)
+            const bibEntry = (window.bibEntries || []).find(e => e.key === key || e.id === key);
+            if (bibEntry) {
+                // Populate the form with the bib entry data so the user sees it
+                this.currentEditingId = null;
+                this.currentCitationSource = 'bibtex';
+                this.populateCitationForm({
+                    title: bibEntry.title || '',
+                    authors: bibEntry.author || '',
+                    publication_year: bibEntry.year || '',
+                    journal: bibEntry.journal || '',
+                    volume: bibEntry.volume || '',
+                    issue: bibEntry.issue || bibEntry.number || '',
+                    pages: bibEntry.pages || '',
+                    publisher: bibEntry.publisher || '',
+                    doi: bibEntry.doi || '',
+                    url: bibEntry.url || '',
+                    citation_type: bibEntry.type || 'article',
+                    citation_key: key
+                });
+                this.showModal('citation-modal-overlay');
+                return;
+            }
+
+            // 3. Last resort — switch to citations pane and search
+            if (typeof window.switchStructureView === 'function') {
+                window.switchStructureView('citations');
+            }
+            const searchInput = document.getElementById('citations-search-input');
+            if (searchInput) {
+                searchInput.value = key;
+            }
+            this.currentFilters = { search: key, fuzzy: true };
+            await this.refreshCitations();
         } catch (error) {
             console.error('[Citation Manager] Error viewing citation by key:', error);
         }

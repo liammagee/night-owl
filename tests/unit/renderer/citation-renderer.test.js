@@ -17,19 +17,37 @@ function createCitationRenderer() {
 
   function parseAuthors(authorStr) {
     if (!authorStr) return [];
-    const parts = authorStr.split(/\s+and\s+/i);
-    return parts.map(part => {
-      part = part.trim();
-      if (part.includes(',')) {
-        const [last, first] = part.split(',').map(s => s.trim());
-        return { last, first };
+    const segments = authorStr.split(/\s+and\s+|\s*&\s*/i)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const authors = [];
+    for (const segment of segments) {
+      const parts = segment.split(',').map(s => s.trim()).filter(Boolean);
+
+      if (parts.length >= 2) {
+        if (parts.every(p => p.includes(' '))) {
+          for (const part of parts) {
+            const words = part.split(/\s+/);
+            authors.push({ first: words.slice(0, -1).join(' '), last: words[words.length - 1] });
+          }
+        } else if (parts.length % 2 === 0) {
+          for (let i = 0; i < parts.length; i += 2) {
+            authors.push({ last: parts[i], first: parts[i + 1] });
+          }
+        } else {
+          authors.push({ last: parts[0], first: parts.slice(1).join(', ') });
+        }
+      } else {
+        const words = segment.split(/\s+/);
+        if (words.length >= 2) {
+          authors.push({ first: words.slice(0, -1).join(' '), last: words[words.length - 1] });
+        } else if (words.length === 1 && words[0]) {
+          authors.push({ last: words[0], first: '' });
+        }
       }
-      const words = part.split(/\s+/);
-      if (words.length >= 2) {
-        return { first: words.slice(0, -1).join(' '), last: words[words.length - 1] };
-      }
-      return { last: part, first: '' };
-    });
+    }
+    return authors;
   }
 
   function formatAuthorsInline(authorStr, style) {
@@ -94,6 +112,7 @@ function createCitationRenderer() {
         const prefix = atIndex > 0 ? ref.substring(0, atIndex).trim() : '';
         const afterAt = ref.substring(atIndex + 1);
 
+        const suppressAuthor = prefix === '-';
         const authorOnly = afterAt.startsWith('-');
         const citationRef = authorOnly ? afterAt.substring(1) : afterAt;
 
@@ -103,7 +122,11 @@ function createCitationRenderer() {
         if (entry) {
           citedKeys.add(key);
 
-          if (authorOnly) {
+          if (suppressAuthor) {
+            const year = entry.year || 'n.d.';
+            const suffixStr = suffix ? `, ${suffix}` : '';
+            citations.push(`${year}${suffixStr}`);
+          } else if (authorOnly) {
             const authors = formatAuthorsInline(entry.author, currentStyle);
             citations.push(`${prefix}${authors}`);
           } else {
@@ -143,7 +166,10 @@ describe('Citation Renderer — HTML Output', () => {
     { key: 'Radford2019Languagemodels', author: 'Radford, A. and Wu, J. and Child, R.', year: '2019', title: 'Language models are unsupervised multitask learners' },
     { key: 'smith2023', author: 'Smith, John', year: '2023', title: 'Test Article' },
     { key: 'doe2022', author: 'Doe, Jane and Smith, John', year: '2022', title: 'Collaborative Research' },
-    { key: 'team2021', author: 'Alpha, A. and Beta, B. and Gamma, C.', year: '2021', title: 'Team Work' }
+    { key: 'team2021', author: 'Alpha, A. and Beta, B. and Gamma, C.', year: '2021', title: 'Team Work' },
+    { key: 'radford2018gpt', author: 'Radford, A., Narasimhan, K., Salimans, T., & Sutskever, I.', year: '2018', title: 'Improving Language Understanding' },
+    { key: 'pair2020', author: 'Garcia, M., Lopez, R.', year: '2020', title: 'Paired Research' },
+    { key: 'fullnames2024', author: 'Liam Magee, Vanicka Arora, Gus Gollings, Norma Lam-Saw', year: '2024', title: 'Full Names' }
   ];
 
   beforeEach(() => {
@@ -297,6 +323,62 @@ describe('Citation Renderer — HTML Output', () => {
       expect(html).toContain('Smith');
       // Should not include year in the inline part for author-only
       expect(html).not.toContain('2023');
+    });
+  });
+
+  // ─── Suppress-author citations (pandoc [-@key]) ──
+
+  describe('Suppress-author citations', () => {
+    test('[-@key] renders year only', () => {
+      const { html, citedKeys } = renderer.processCitations('<p>Derrida [-@smith2023] argues</p>');
+      expect(html).toBe('<p>Derrida <span class="citation">(2023)</span> argues</p>');
+      expect(citedKeys).toEqual(['smith2023']);
+    });
+
+    test('[-@key, suffix] renders year with suffix', () => {
+      const { html } = renderer.processCitations('<p>[-@smith2023, p. 42]</p>');
+      expect(html).toContain('2023, p. 42');
+      expect(html).not.toContain('Smith');
+    });
+
+    test('[-@key] with no year renders n.d.', () => {
+      renderer.setEntries([{ key: 'nodate', author: 'Test, A.', title: 'No Date' }]);
+      const { html } = renderer.processCitations('<p>[-@nodate]</p>');
+      expect(html).toContain('n.d.');
+    });
+  });
+
+  // ─── Author parsing formats ─────────────────
+
+  describe('Author parsing formats', () => {
+    test('APA-style with ampersand: 4 authors → "et al."', () => {
+      const { html } = renderer.processCitations('<p>[@radford2018gpt]</p>');
+      expect(html).toBe('<p><span class="citation">(Radford et al., 2018)</span></p>');
+    });
+
+    test('comma-separated pairs without "and" or "&"', () => {
+      const { html } = renderer.processCitations('<p>[@pair2020]</p>');
+      expect(html).toBe('<p><span class="citation">(Garcia & Lopez, 2020)</span></p>');
+    });
+
+    test('BibTeX "and"-separated: 3 authors → "et al."', () => {
+      const { html } = renderer.processCitations('<p>[@team2021]</p>');
+      expect(html).toBe('<p><span class="citation">(Alpha et al., 2021)</span></p>');
+    });
+
+    test('BibTeX "and"-separated: 2 authors → "A & B"', () => {
+      const { html } = renderer.processCitations('<p>[@doe2022]</p>');
+      expect(html).toBe('<p><span class="citation">(Doe & Smith, 2022)</span></p>');
+    });
+
+    test('single author', () => {
+      const { html } = renderer.processCitations('<p>[@smith2023]</p>');
+      expect(html).toBe('<p><span class="citation">(Smith, 2023)</span></p>');
+    });
+
+    test('comma-separated "First Last" names → "et al."', () => {
+      const { html } = renderer.processCitations('<p>[@fullnames2024]</p>');
+      expect(html).toBe('<p><span class="citation">(Magee et al., 2024)</span></p>');
     });
   });
 
