@@ -323,8 +323,11 @@
         const processedHtml = html.replace(citationPattern, (match, content) => {
             const style = STYLES[currentStyle];
 
-            // Handle multiple citations separated by semicolons
-            const refs = content.split(/\s*;\s*/);
+            // Handle multiple citations separated by semicolons or commas
+            // Normalize ", @key" → "; @key" so comma-separated citations work
+            // (commas before non-@ text are preserved as suffixes, e.g. "p. 42")
+            const normalized = content.replace(/,\s*@/g, '; @');
+            const refs = normalized.split(/\s*;\s*/);
             const citations = [];
 
             for (const ref of refs) {
