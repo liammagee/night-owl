@@ -147,7 +147,7 @@
         newDecorations.push({
           range: new monaco.Range(pos.startLine, pos.startCol, pos.endLine, pos.endCol),
           options: {
-            className: 'spell-check-error',
+            inlineClassName: 'spell-check-error',
             hoverMessage: { value: `Misspelled: **${word}**` },
             stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
           }

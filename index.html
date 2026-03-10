@@ -7,7 +7,7 @@
         script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
         style-src 'self' 'unsafe-inline';
         font-src 'self' data:;
-        img-src 'self' data: https: http: blob:;
+        img-src 'self' file: data: https: http: blob:;
         media-src 'self' blob: data:;
         connect-src 'self';
         worker-src 'self' blob:;
@@ -981,11 +981,191 @@
         .peer-cursor-line {
             border-left: 2px solid #569cd6;
         }
-        /* Spell check */
+        /* Spell check (legacy) */
         .spell-check-error {
             text-decoration: wavy underline #ef4444;
             text-decoration-skip-ink: none;
             background: rgba(239, 68, 68, 0.08);
+        }
+        /* Proofreader decorations */
+        .proofread-spelling {
+            text-decoration: wavy underline #ef4444;
+            text-decoration-skip-ink: none;
+            background: rgba(239, 68, 68, 0.08);
+        }
+        .proofread-grammar {
+            text-decoration: wavy underline #f59e0b;
+            text-decoration-skip-ink: none;
+            background: rgba(245, 158, 11, 0.08);
+        }
+        .proofread-style {
+            text-decoration: dotted underline #60a5fa;
+            text-decoration-skip-ink: none;
+            background: rgba(96, 165, 250, 0.06);
+        }
+        /* Proofreader panel */
+        #proofreader-panel {
+            position: fixed;
+            right: 12px;
+            top: 60px;
+            width: 380px;
+            max-height: calc(100vh - 80px);
+            background: var(--bg-color, #1e1e1e);
+            color: var(--text-color, #d4d4d4);
+            border: 1px solid var(--border-color, #333);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 13px;
+        }
+        .proofread-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color, #333);
+        }
+        .proofread-panel-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .proofread-badge {
+            background: #569cd6;
+            color: #fff;
+            border-radius: 10px;
+            padding: 1px 7px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .proofread-panel-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .proofread-btn {
+            background: var(--bg-secondary, #252526);
+            color: var(--text-color, #d4d4d4);
+            border: 1px solid var(--border-color, #444);
+            border-radius: 4px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .proofread-btn:hover { background: var(--hover-bg, #333); }
+        .proofread-btn:disabled { opacity: 0.5; cursor: default; }
+        .proofread-btn-ai { color: #60a5fa; border-color: #60a5fa40; }
+        .proofread-btn-ai:hover { background: rgba(96, 165, 250, 0.12); }
+        .proofread-panel-toggles {
+            display: flex;
+            gap: 12px;
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border-color, #333);
+            font-size: 11px;
+        }
+        .proofread-panel-toggles label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+        .proofread-panel-toggles input[type="checkbox"] {
+            margin: 0;
+        }
+        .proofread-panel-content {
+            overflow-y: auto;
+            flex: 1;
+            max-height: calc(100vh - 200px);
+        }
+        .proofread-empty {
+            padding: 24px;
+            text-align: center;
+            color: #888;
+        }
+        .proofread-issue {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color, #2a2a2a);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .proofread-issue:hover { background: var(--hover-bg, #2a2d30); }
+        .proofread-issue-spelling { border-left: 3px solid #ef4444; }
+        .proofread-issue-grammar { border-left: 3px solid #f59e0b; }
+        .proofread-issue-style { border-left: 3px solid #60a5fa; }
+        .proofread-issue-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 3px;
+        }
+        .proofread-issue-icon { font-size: 12px; }
+        .proofread-issue-word {
+            font-weight: 600;
+            font-size: 12px;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .proofread-issue-location {
+            font-size: 10px;
+            color: #888;
+            font-family: monospace;
+        }
+        .proofread-btn-add-dict {
+            background: none;
+            border: 1px solid #569cd640;
+            color: #569cd6;
+            border-radius: 3px;
+            padding: 0 5px;
+            font-size: 10px;
+            cursor: pointer;
+        }
+        .proofread-btn-add-dict:hover { background: rgba(86, 156, 214, 0.15); }
+        .proofread-issue-message {
+            font-size: 11px;
+            color: #999;
+            line-height: 1.4;
+        }
+        .proofread-issue-fix-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            margin-top: 5px;
+        }
+        .proofread-fix-btn {
+            background: rgba(74, 222, 128, 0.12);
+            color: #4ade80;
+            border: 1px solid #4ade8060;
+            border-radius: 4px;
+            padding: 3px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .proofread-fix-btn:hover {
+            background: rgba(74, 222, 128, 0.22);
+            border-color: #4ade80;
+        }
+        .proofread-fix-btn strong {
+            font-weight: 700;
+        }
+        .proofread-suggestion-btn {
+            background: var(--bg-secondary, #252526);
+            color: #999;
+            border: 1px solid #44444480;
+            border-radius: 3px;
+            padding: 2px 8px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .proofread-suggestion-btn:hover {
+            background: rgba(74, 222, 128, 0.12);
+            color: #4ade80;
         }
         /* Focus mode */
         .focus-mode-dimmed {
@@ -3190,6 +3370,73 @@
         body.dark-mode .footnotes-separator {
             border-top-color: var(--border-color, #3f3f46);
         }
+
+        /* Frontmatter Header Styles */
+        .frontmatter-header {
+            margin-bottom: 1.5em;
+        }
+        .frontmatter-title {
+            margin-bottom: 0.15em;
+            line-height: 1.2;
+        }
+        .frontmatter-subtitle {
+            font-size: 1.25em;
+            color: var(--text-secondary, #475569);
+            margin-top: 0;
+            margin-bottom: 0.5em;
+            font-style: italic;
+        }
+        .frontmatter-meta {
+            color: var(--text-secondary, #666);
+            font-style: italic;
+            margin-top: 0;
+            margin-bottom: 0.75em;
+        }
+        .frontmatter-abstract {
+            background: var(--bg-secondary, #f8fafc);
+            border-left: 3px solid var(--primary, #6366f1);
+            padding: 0.75em 1em;
+            margin-bottom: 0.75em;
+            font-size: 0.95em;
+            line-height: 1.6;
+            color: var(--text-secondary, #475569);
+        }
+        .frontmatter-keywords {
+            margin-bottom: 0.75em;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35em;
+        }
+        .frontmatter-keyword {
+            display: inline-block;
+            background: var(--bg-tertiary, #e2e8f0);
+            color: var(--text-secondary, #475569);
+            padding: 0.1em 0.5em;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
+        .frontmatter-separator {
+            border: none;
+            border-top: 1px solid var(--border-color, #e2e8f0);
+            margin-top: 0.5em;
+        }
+        body.dark-mode .frontmatter-subtitle {
+            color: var(--text-secondary, #a1a1aa);
+        }
+        body.dark-mode .frontmatter-meta {
+            color: var(--text-secondary, #a1a1aa);
+        }
+        body.dark-mode .frontmatter-abstract {
+            background: var(--bg-secondary, #27272a);
+            color: var(--text-secondary, #a1a1aa);
+        }
+        body.dark-mode .frontmatter-keyword {
+            background: var(--bg-tertiary, #3f3f46);
+            color: var(--text-secondary, #a1a1aa);
+        }
+        body.dark-mode .frontmatter-separator {
+            border-top-color: var(--border-color, #3f3f46);
+        }
     </style>
 </head>
 <body>
@@ -4547,6 +4794,7 @@
     <script src="orchestrator/modules/collaboration.js" defer></script>
     <script src="orchestrator/modules/static-site.js" defer></script>
     <script src="orchestrator/modules/ai-writing-coach.js" defer></script>
+    <script src="orchestrator/modules/proofreader.js" defer></script>
     <script src="orchestrator/modules/ai-outline.js" defer></script>
     <script src="orchestrator/modules/smart-autocomplete.js" defer></script>
     <script src="orchestrator/modules/large-file.js" defer></script>
