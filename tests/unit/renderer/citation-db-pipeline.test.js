@@ -423,4 +423,72 @@ The linguistic turn in Hegel scholarship owes much to Brandom
     expect(hegelPos).toBeLessThan(kojevePos);
     expect(kojevePos).toBeLessThan(pippinPos);
   });
+
+  test('bibliography lists all authors (not truncated to "et al.") for many-author works', () => {
+    const manyAuthorCitations = [
+      {
+        id: 10,
+        citation_key: 'brown2020language',
+        citation_type: 'article',
+        title: 'Language Models Are Few-Shot Learners',
+        authors: 'Brown, Tom and Mann, Benjamin and Ryder, Nick and Subbiah, Melanie and Kaplan, Jared D and Dhariwal, Prafulla and Neelakantan, Arvind and Shyam, Pranav',
+        publication_year: 2020,
+        journal: 'NeurIPS',
+        volume: '33',
+        pages: '1877-1901'
+      }
+    ];
+
+    refreshBibEntries(manyAuthorCitations);
+
+    const html = markdownToHtml('See [@brown2020language] for details.');
+    const rendered = window.TechneCitationRenderer.renderCitations(html, {
+      includeBibliography: true
+    });
+
+    // Inline should use "et al." (3+ authors)
+    expect(rendered).toMatch(/Brown et al/);
+
+    // Bibliography should list ALL 8 authors, not truncate
+    const bibSection = rendered.substring(rendered.indexOf('bibliography-section'));
+    expect(bibSection).toContain('Brown');
+    expect(bibSection).toContain('Mann');
+    expect(bibSection).toContain('Ryder');
+    expect(bibSection).toContain('Subbiah');
+    expect(bibSection).toContain('Kaplan');
+    expect(bibSection).toContain('Dhariwal');
+    expect(bibSection).toContain('Neelakantan');
+    expect(bibSection).toContain('Shyam');
+    // Should NOT contain "et al." in the bibliography
+    expect(bibSection).not.toContain('et al');
+  });
+
+  test('strips trailing "et al." from author strings before rendering', () => {
+    const citationsWithEtAl = [
+      {
+        id: 11,
+        citation_key: 'chen2025reasoning',
+        citation_type: 'article',
+        title: 'Reasoning Models Don\'t Always Say What They Think',
+        authors: 'Chen, Yanda and Benton, Joe and Radhakrishnan, Ansh and Uesato, Jonathan and Denison, Carson and Schulman, John and Somani, Arushi, et al.',
+        publication_year: 2025
+      }
+    ];
+
+    refreshBibEntries(citationsWithEtAl);
+
+    const html = markdownToHtml('[@chen2025reasoning]');
+    const rendered = window.TechneCitationRenderer.renderCitations(html, {
+      includeBibliography: true
+    });
+
+    const bibSection = rendered.substring(rendered.indexOf('bibliography-section'));
+
+    // All real authors should appear
+    expect(bibSection).toContain('Chen');
+    expect(bibSection).toContain('Benton');
+    expect(bibSection).toContain('Somani');
+    // "et al." should NOT appear as an author name in the bibliography
+    expect(bibSection).not.toMatch(/et\s+al/);
+  });
 });

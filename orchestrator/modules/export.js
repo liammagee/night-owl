@@ -339,9 +339,19 @@ async function exportToWord() {
         return;
     }
 
-    if (!window.electronAPI) return;
+    if (!window.electronAPI) {
+        console.error('[Export] electronAPI not available for Word export');
+        return;
+    }
 
     const content = getCurrentEditorContent();
+    if (!content || !content.trim()) {
+        if (window.showNotification) {
+            window.showNotification('No content to export', 'error');
+        }
+        return;
+    }
+
     try {
         if (window.showNotification) {
             window.showNotification('Preparing Word export...', 'info');
@@ -352,7 +362,17 @@ async function exportToWord() {
             pandocArgs: ['--highlight-style=pygments']
         };
 
+        console.log('[Export] Invoking perform-export-docx...');
         const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+        console.log('[Export] perform-export-docx result:', result);
+
+        if (!result) {
+            if (window.showNotification) {
+                window.showNotification('Word export returned no result — handler may not be registered', 'error');
+            }
+            return;
+        }
+
         if (result.success) {
             let message = 'Word document exported successfully';
             if (result.usedPandoc) {
@@ -372,7 +392,7 @@ async function exportToWord() {
     } catch (error) {
         console.error('[Export] Word export error:', error);
         if (window.showNotification) {
-            window.showNotification('Error during Word export: ' + error.message, 'error');
+            window.showNotification('Word export error: ' + error.message, 'error');
         }
     }
 }
@@ -385,9 +405,19 @@ async function exportToWordWithReferences() {
         return;
     }
 
-    if (!window.electronAPI) return;
+    if (!window.electronAPI) {
+        console.error('[Export] electronAPI not available for Word export with references');
+        return;
+    }
 
     const content = getCurrentEditorContent();
+    if (!content || !content.trim()) {
+        if (window.showNotification) {
+            window.showNotification('No content to export', 'error');
+        }
+        return;
+    }
+
     try {
         if (window.showNotification) {
             window.showNotification('Preparing Word export with references...', 'info');
@@ -399,7 +429,17 @@ async function exportToWordWithReferences() {
             pandocArgs: ['--highlight-style=pygments']
         };
 
+        console.log('[Export] Invoking perform-export-docx (with refs)...');
         const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+        console.log('[Export] perform-export-docx (with refs) result:', result);
+
+        if (!result) {
+            if (window.showNotification) {
+                window.showNotification('Word export returned no result — handler may not be registered', 'error');
+            }
+            return;
+        }
+
         if (result.success) {
             let message = 'Word document with references exported successfully';
             if (result.bibFilesFound > 0) {
@@ -418,7 +458,7 @@ async function exportToWordWithReferences() {
     } catch (error) {
         console.error('[Export] Word export with references error:', error);
         if (window.showNotification) {
-            window.showNotification('Error during Word export with references: ' + error.message, 'error');
+            window.showNotification('Word export error: ' + error.message, 'error');
         }
     }
 }
@@ -663,83 +703,11 @@ function initializeExportHandlers() {
         }
     });
 
-    // Word (DOCX) export handler
-    window.electronAPI.on('trigger-export-docx', async () => {
-        const content = getCurrentEditorContent();
-        try {
-            if (window.showNotification) {
-                window.showNotification('Preparing Word export...', 'info');
-            }
+    // Word (DOCX) export handler — delegates to exportToWord()
+    window.electronAPI.on('trigger-export-docx', () => exportToWord());
 
-            const exportOptions = {
-                usePandoc: true,
-                pandocArgs: [
-                    '--highlight-style=pygments'
-                ]
-            };
-
-            const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
-            if (result.success) {
-                let message = 'Word document exported successfully';
-                if (result.usedPandoc) {
-                    message += ' (with Pandoc)';
-                    if (result.bibFilesFound > 0) {
-                        message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
-                    }
-                }
-                if (window.showNotification) {
-                    window.showNotification(message, 'success');
-                }
-            } else if (!result.cancelled) {
-                if (window.showNotification) {
-                    window.showNotification(result.error || 'Word export failed', 'error');
-                }
-            }
-        } catch (error) {
-            if (window.showNotification) {
-                window.showNotification('Error during Word export', 'error');
-            }
-        }
-    });
-
-    // Word (DOCX) with references export handler
-    window.electronAPI.on('trigger-export-docx-refs', async () => {
-        const content = getCurrentEditorContent();
-        try {
-            if (window.showNotification) {
-                window.showNotification('Preparing Word export with references...', 'info');
-            }
-
-            const exportOptions = {
-                usePandoc: true,
-                withReferences: true,
-                pandocArgs: [
-                    '--highlight-style=pygments'
-                ]
-            };
-
-            const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
-            if (result.success) {
-                let message = 'Word document with references exported successfully';
-                if (result.bibFilesFound > 0) {
-                    message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
-                } else {
-                    message += ' (no bibliography files found)';
-                }
-                if (window.showNotification) {
-                    window.showNotification(message, 'success');
-                }
-            } else if (!result.cancelled) {
-                if (window.showNotification) {
-                    window.showNotification(result.error || 'Word export with references failed', 'error');
-                }
-            }
-        } catch (error) {
-            if (window.showNotification) {
-                window.showNotification('Error during Word export with references', 'error');
-            }
-        }
-    });
+    // Word (DOCX) with references export handler — delegates to exportToWordWithReferences()
+    window.electronAPI.on('trigger-export-docx-refs', () => exportToWordWithReferences());
 
     // PDF with references export handler
     window.electronAPI.on('trigger-export-pdf-pandoc', async () => {

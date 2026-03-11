@@ -89,6 +89,104 @@ function getCitationType(type) {
   return normalizedType || 'article';
 }
 
+/**
+ * Extract all citation keys referenced in a markdown string.
+ * Matches @key in Pandoc citation syntax: [@key], [@key1; @key2], [see @key, p. 42]
+ */
+function extractCitationKeysFromMarkdown(markdown) {
+  const keys = new Set();
+  if (!markdown) return keys;
+  // Match @key where key is the citation identifier (alphanumeric, underscore, hyphen, colon)
+  const re = /@([a-zA-Z0-9_][a-zA-Z0-9_:.\-]*)/g;
+  let m;
+  while ((m = re.exec(markdown)) !== null) {
+    keys.add(m[1]);
+  }
+  return keys;
+}
+
+/**
+ * Extract the first author's last name from an author string.
+ */
+function getFirstAuthorLastName(authors) {
+  if (!authors) return '';
+  const str = authors.trim();
+  // Split by "and" or "&" to get first author segment
+  const first = str.split(/\s+and\s+|\s*&\s*/i)[0].trim();
+  if (!first) return '';
+  // "Last, First" format
+  if (first.includes(',')) return first.split(',')[0].trim();
+  // "First Last" format — last word is the last name
+  const words = first.split(/\s+/);
+  return words[words.length - 1];
+}
+
+/**
+ * Get significant title words (>3 chars, lowercased) for matching.
+ */
+function getTitleSignificantWords(title) {
+  if (!title) return [];
+  return title
+    .split(/\s+/)
+    .map(w => w.replace(/[^A-Za-z]/g, ''))
+    .filter(w => w.length > 3)
+    .map(w => w.toLowerCase());
+}
+
+/**
+ * Fuzzy-match a markdown citation key to a database citation.
+ * Scores candidates by author name, year, and title word overlap.
+ * Returns the best-matching citation or null if no confident match.
+ */
+function fuzzyMatchCitation(markdownKey, dbCitations) {
+  // Parse components from the markdown key
+  const yearMatch = markdownKey.match(/(\d{4})/);
+  const keyYear = yearMatch ? parseInt(yearMatch[1]) : null;
+  const keyLower = markdownKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const citation of dbCitations) {
+    let score = 0;
+    const authorLast = getFirstAuthorLastName(citation.authors);
+    const titleWords = getTitleSignificantWords(citation.title);
+
+    // Author match: does the key start with or contain the first author's last name?
+    if (authorLast) {
+      const authorLower = authorLast.toLowerCase();
+      if (keyLower.startsWith(authorLower)) {
+        score += 10;
+      } else if (keyLower.includes(authorLower)) {
+        score += 5;
+      }
+    }
+
+    // Year match (exact or close)
+    if (keyYear && citation.publication_year) {
+      if (keyYear === citation.publication_year) {
+        score += 5;
+      } else if (Math.abs(keyYear - citation.publication_year) <= 3) {
+        score += 2;
+      }
+    }
+
+    // Title word overlap
+    if (titleWords.length > 0) {
+      const matchedWords = titleWords.filter(w => keyLower.includes(w));
+      score += matchedWords.length * 3;
+    }
+
+    // Require a minimum confidence: at least author + one other signal
+    if (score > bestScore && score >= 10) {
+      bestScore = score;
+      bestMatch = citation;
+    }
+  }
+
+  return bestMatch;
+}
+
 function generateCitationKey(citation) {
   if (citation.key && typeof citation.key === 'string') {
     return citation.key;
@@ -228,29 +326,32 @@ function register(deps) {
     );
   }
   
-  // Generate temporary .bib file from database citations
-  async function generateDatabaseBibFile() {
+  // Generate temporary .bib file from database citations.
+  // When markdownContent is provided, also emits alias BibTeX entries for
+  // citation keys in the markdown that don't directly match a DB citation_key
+  // but can be fuzzy-matched to one (e.g. multi-author keys, Zotero-style keys).
+  async function generateDatabaseBibFile(markdownContent) {
     try {
       if (!CitationService) {
         console.log('[ExportHandlers] CitationService not available, skipping database citations');
         return null;
       }
-      
+
       // Initialize citation service
       const citationService = new CitationService();
       const userDataPath = app.getPath('userData');
       await citationService.initialize(userDataPath);
-      
+
       // Get all citations from database
       const citations = await citationService.getCitations({});
-      
+
       if (citations.length === 0) {
         console.log('[ExportHandlers] No database citations found');
         return null;
       }
-      
+
       console.log(`[ExportHandlers] Converting ${citations.length} database citations to BibTeX format`);
-      
+
       const bibEntries = citations
         .map(citationToBibTeX)
         .filter(Boolean);
@@ -263,18 +364,50 @@ function register(deps) {
       const skippedEntries = citations.length - bibEntries.length;
       let bibContent = '% Database Citations\n% Generated automatically from citation database\n\n';
       bibContent += bibEntries.join('');
-      
+
+      // ── Alias resolution: emit duplicate entries for unmatched markdown keys ──
+      if (markdownContent) {
+        const markdownKeys = extractCitationKeysFromMarkdown(markdownContent);
+        const dbKeySet = new Set(citations.map(c => c.citation_key).filter(Boolean));
+
+        let aliasCount = 0;
+        const aliasEntries = [];
+
+        for (const mdKey of markdownKeys) {
+          // Skip keys that already have a direct match in the DB
+          if (dbKeySet.has(mdKey)) continue;
+
+          const matched = fuzzyMatchCitation(mdKey, citations);
+          if (matched) {
+            // Emit the same citation under the markdown's key
+            const aliasCitation = { ...matched, citation_key: mdKey, key: mdKey };
+            const aliasEntry = citationToBibTeX(aliasCitation);
+            if (aliasEntry) {
+              aliasEntries.push(aliasEntry);
+              aliasCount++;
+              console.log(`[ExportHandlers] Citation alias: ${mdKey} → ${matched.citation_key}`);
+            }
+          }
+        }
+
+        if (aliasEntries.length > 0) {
+          bibContent += '\n% ── Citation key aliases (fuzzy-matched from markdown) ──\n\n';
+          bibContent += aliasEntries.join('');
+          console.log(`[ExportHandlers] Generated ${aliasCount} citation key alias(es)`);
+        }
+      }
+
       // Write to temporary file
       const tempDir = os.tmpdir();
       const tempBibFile = path.join(tempDir, `database-citations-${Date.now()}.bib`);
       await fs.writeFile(tempBibFile, bibContent, 'utf8');
-      
+
       console.log(`[ExportHandlers] Generated database citations file: ${tempBibFile}`);
       console.log(`[ExportHandlers] Database citations file contains ${bibEntries.length} entries`);
       if (skippedEntries > 0) {
         console.log(`[ExportHandlers] Skipped ${skippedEntries} invalid citation entr${skippedEntries === 1 ? 'y' : 'ies'} during BibTeX generation`);
       }
-      
+
       return tempBibFile;
     } catch (error) {
       console.error('[ExportHandlers] Error generating database citations file:', error);
@@ -323,7 +456,7 @@ function register(deps) {
     });
   }
 
-  async function findBibFiles(baseDirectory = getExportBaseDirectory()) {
+  async function findBibFiles(baseDirectory = getExportBaseDirectory(), markdownContent = null) {
     try {
       const workingDir = baseDirectory;
       
@@ -364,7 +497,7 @@ function register(deps) {
       console.log(`[ExportHandlers] Directory contains ${allFiles.length} files total:`);
       console.log('[ExportHandlers] All files:', allFiles.slice(0, 10).join(', '), allFiles.length > 10 ? '...' : '');
       // Generate database citations .bib file (authoritative source)
-      const databaseBibFile = await generateDatabaseBibFile();
+      const databaseBibFile = await generateDatabaseBibFile(markdownContent);
       if (databaseBibFile) {
         // Exclude citations.bib from static files — it's a stale DB export artifact.
         // The fresh DB-generated file is the authoritative source for DB citations.
@@ -469,7 +602,7 @@ function register(deps) {
         const exportBaseDirectory = getExportBaseDirectory();
         
         // Find .bib files in current directory
-        bibFiles = await findBibFiles(exportBaseDirectory);
+        bibFiles = await findBibFiles(exportBaseDirectory, content);
         
         // Create temporary markdown file
         const tempDir = os.tmpdir();
@@ -576,7 +709,7 @@ function register(deps) {
       const exportBaseDirectory = getExportBaseDirectory();
       
       // Find .bib files for citations
-      const bibFiles = await findBibFiles(exportBaseDirectory);
+      const bibFiles = await findBibFiles(exportBaseDirectory, content);
       
       // Create temporary markdown file
       const tempDir = os.tmpdir();
@@ -698,7 +831,7 @@ function register(deps) {
         console.log('[ExportHandlers] Using pandoc for PDF export');
         
         // Find .bib files for citations
-        const bibFiles = await findBibFiles(exportBaseDirectory);
+        const bibFiles = await findBibFiles(exportBaseDirectory, content);
         
         // Create temporary markdown file
         const tempDir = os.tmpdir();
@@ -822,7 +955,7 @@ function register(deps) {
       
       // Find .bib files for citations
       const workingDir = getExportBaseDirectory();
-      const bibFiles = await findBibFiles(workingDir);
+      const bibFiles = await findBibFiles(workingDir, content);
       
       // Create temporary markdown file
       const tempDir = os.tmpdir();
@@ -930,7 +1063,7 @@ function register(deps) {
 
       console.log('[ExportHandlers] Using pandoc for Word export');
 
-      const bibFiles = await findBibFiles(exportBaseDirectory);
+      const bibFiles = await findBibFiles(exportBaseDirectory, content);
 
       // Create temporary markdown file
       const tempDir = os.tmpdir();
@@ -1041,6 +1174,8 @@ module.exports = {
     generateCitationKey,
     formatPandocErrorMessage,
     resolveExportBaseDirectory,
-    normalizeCitationsForPandoc
+    normalizeCitationsForPandoc,
+    extractCitationKeysFromMarkdown,
+    fuzzyMatchCitation
   }
 };

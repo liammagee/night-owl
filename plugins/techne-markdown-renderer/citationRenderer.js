@@ -203,13 +203,20 @@
         if (authors.length === 0) return 'Unknown';
 
         if (style === 'apa') {
+            const fmtApa = (a) => `${a.last}, ${a.first ? a.first.charAt(0) + '.' : ''}`;
+
             if (authors.length === 1) {
-                return `${authors[0].last}, ${authors[0].first ? authors[0].first.charAt(0) + '.' : ''}`;
+                return fmtApa(authors[0]);
             } else if (authors.length === 2) {
-                return `${authors[0].last}, ${authors[0].first ? authors[0].first.charAt(0) + '.' : ''}, & ${authors[1].last}, ${authors[1].first ? authors[1].first.charAt(0) + '.' : ''}`;
+                return `${fmtApa(authors[0])}, & ${fmtApa(authors[1])}`;
+            } else if (authors.length <= 20) {
+                // APA 7th: list all authors up to 20, with "&" before last
+                const allButLast = authors.slice(0, -1).map(fmtApa).join(', ');
+                return `${allButLast}, & ${fmtApa(authors[authors.length - 1])}`;
             } else {
-                const firstAuthor = `${authors[0].last}, ${authors[0].first ? authors[0].first.charAt(0) + '.' : ''}`;
-                return `${firstAuthor}, et al.`;
+                // 21+ authors: first 19, "...", then last author
+                const first19 = authors.slice(0, 19).map(fmtApa).join(', ');
+                return `${first19}, ... ${fmtApa(authors[authors.length - 1])}`;
             }
         }
 
@@ -238,8 +245,16 @@
     function parseAuthors(authorStr) {
         if (!authorStr) return [];
 
+        // Strip trailing "et al." / "et al" / "and others" — these are
+        // truncation markers from scraped sources, not real author names.
+        let cleaned = authorStr
+            .replace(/,?\s*et\s+al\.?\s*$/i, '')
+            .replace(/,?\s*and\s+others\s*$/i, '')
+            .replace(/,?\s*\.\.\.\s*$/, '')
+            .trim();
+
         // Split on "and" or "&" to get major segments
-        const segments = authorStr.split(/\s+and\s+|\s*&\s*/i)
+        const segments = cleaned.split(/\s+and\s+|\s*&\s*/i)
             .map(s => s.trim())
             .filter(Boolean);
 

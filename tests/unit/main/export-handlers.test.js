@@ -217,4 +217,112 @@ describe('Export Handlers', () => {
       expect(bib).toContain('author={Shapira, Itai and Benade, Gerdus and Procaccia, Ariel D.}');
     });
   });
+
+  // ─── Citation key alias resolution ───
+
+  describe('extractCitationKeysFromMarkdown', () => {
+    let extractKeys;
+
+    beforeEach(() => {
+      const exportHandlers = require('../../../ipc/exportHandlers');
+      extractKeys = exportHandlers.__test__.extractCitationKeysFromMarkdown;
+    });
+
+    test('extracts single citation key', () => {
+      const keys = extractKeys('See [@hegel1807].');
+      expect(keys).toContain('hegel1807');
+      expect(keys.size).toBe(1);
+    });
+
+    test('extracts multiple keys from semicolon-separated group', () => {
+      const keys = extractKeys('[@key1; @key2; @key3]');
+      expect(keys).toEqual(new Set(['key1', 'key2', 'key3']));
+    });
+
+    test('extracts keys with hyphens and underscores', () => {
+      const keys = extractKeys('[@andrej_karpathy_how_2025]');
+      expect(keys).toContain('andrej_karpathy_how_2025');
+    });
+
+    test('returns empty set for text without citations', () => {
+      const keys = extractKeys('No citations here.');
+      expect(keys.size).toBe(0);
+    });
+
+    test('deduplicates repeated keys', () => {
+      const keys = extractKeys('[@hegel1807] and later [@hegel1807].');
+      expect(keys.size).toBe(1);
+    });
+  });
+
+  describe('fuzzyMatchCitation', () => {
+    let fuzzyMatch;
+
+    const dbCitations = [
+      {
+        citation_key: 'Magee2026DramaMachine',
+        authors: 'Magee, Liam and Arora, S. and Gollings, T. and Lam, K. and Saw, J.',
+        title: 'The Drama Machine: Simulating Character Development',
+        publication_year: 2026
+      },
+      {
+        citation_key: 'Karpathy2025BuildingGPT',
+        authors: 'Karpathy, Andrej',
+        title: 'How to Build a GPT from Scratch',
+        publication_year: 2025
+      },
+      {
+        citation_key: 'Vaswani2017Attention',
+        authors: 'Vaswani, Ashish and Shazeer, Noam and Parmar, Niki',
+        title: 'Attention Is All You Need',
+        publication_year: 2017
+      },
+      {
+        citation_key: 'Gullett2025TeachingDialectic',
+        authors: 'Gullett, David',
+        title: 'Teaching Dialectic in the Digital Age',
+        publication_year: 2025
+      }
+    ];
+
+    beforeEach(() => {
+      const exportHandlers = require('../../../ipc/exportHandlers');
+      fuzzyMatch = exportHandlers.__test__.fuzzyMatchCitation;
+    });
+
+    test('matches multi-author key to first-author DB entry', () => {
+      const match = fuzzyMatch('MageeAroraGollingsLamSaw2024DramaMachine', dbCitations);
+      expect(match).not.toBeNull();
+      expect(match.citation_key).toBe('Magee2026DramaMachine');
+    });
+
+    test('matches Zotero-style underscore key', () => {
+      const match = fuzzyMatch('andrej_karpathy_how_2025', dbCitations);
+      expect(match).not.toBeNull();
+      expect(match.citation_key).toBe('Karpathy2025BuildingGPT');
+    });
+
+    test('matches lowercase mashed author+title key', () => {
+      const match = fuzzyMatch('ashishvaswani2017attentionis', dbCitations);
+      expect(match).not.toBeNull();
+      expect(match.citation_key).toBe('Vaswani2017Attention');
+    });
+
+    test('matches key with incomplete title suffix', () => {
+      const match = fuzzyMatch('Gullett2025teaching', dbCitations);
+      expect(match).not.toBeNull();
+      expect(match.citation_key).toBe('Gullett2025TeachingDialectic');
+    });
+
+    test('returns null for a completely unrecognizable key', () => {
+      const match = fuzzyMatch('unknownkey9999', dbCitations);
+      expect(match).toBeNull();
+    });
+
+    test('does not match when only the year matches', () => {
+      const match = fuzzyMatch('somebody2025something', dbCitations);
+      // Should not match: year alone is not enough (score < 10)
+      expect(match).toBeNull();
+    });
+  });
 });
