@@ -325,4 +325,45 @@ describe('Export Handlers', () => {
       expect(match).toBeNull();
     });
   });
+
+  // ─── Title case protection for APA/citeproc ───
+
+  describe('protectTitleCase', () => {
+    let protect;
+
+    beforeEach(() => {
+      const exportHandlers = require('../../../ipc/exportHandlers');
+      protect = exportHandlers.__test__.protectTitleCase;
+    });
+
+    test('braces words containing uppercase letters after the first word', () => {
+      expect(protect('Alignment Faking in Large Language Models'))
+        .toBe('Alignment {Faking} in {Large} {Language} {Models}');
+    });
+
+    test('leaves lowercase-only words unbraced', () => {
+      expect(protect('How to build a better mousetrap'))
+        .toBe('How to build a better mousetrap');
+    });
+
+    test('preserves already-braced words', () => {
+      expect(protect('Studying {RLHF} in practice'))
+        .toBe('Studying {RLHF} in practice');
+    });
+
+    test('handles single-word titles', () => {
+      expect(protect('Attention')).toBe('Attention');
+    });
+
+    test('returns falsy input unchanged', () => {
+      expect(protect('')).toBe('');
+      expect(protect(null)).toBeNull();
+      expect(protect(undefined)).toBeUndefined();
+    });
+
+    test('protects acronyms like AI, GPT, LLM', () => {
+      expect(protect('Understanding AI and GPT for LLM research'))
+        .toBe('Understanding {AI} and {GPT} for {LLM} research');
+    });
+  });
 });

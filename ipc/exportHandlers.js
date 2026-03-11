@@ -242,12 +242,43 @@ function addBibTeXField(lines, field, value) {
   return true;
 }
 
+/**
+ * Protect title capitalization for BibTeX/citeproc.
+ * APA and other styles apply sentence-case to titles, lowercasing words
+ * after the first. BibTeX uses {braces} to protect words that must stay
+ * capitalized (proper nouns, acronyms, etc.).
+ *
+ * Strategy: wrap any word containing an uppercase letter (after the first
+ * word and any leading punctuation) in braces, unless it's already braced.
+ * This preserves "AI", "Hegel", "LLM", "GPT-3", etc.
+ */
+function protectTitleCase(title) {
+  if (!title) return title;
+  const words = title.split(/\s+/);
+  if (words.length === 0) return title;
+
+  const result = [words[0]]; // first word is never lowercased by citeproc
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    // Skip already-braced words
+    if (word.startsWith('{') && word.endsWith('}')) {
+      result.push(word);
+    // Protect words with uppercase letters (proper nouns, acronyms)
+    } else if (/[A-Z]/.test(word)) {
+      result.push(`{${word}}`);
+    } else {
+      result.push(word);
+    }
+  }
+  return result.join(' ');
+}
+
 function citationToBibTeX(citation) {
   const key = generateCitationKey(citation);
   const type = getCitationType(citation.citation_type);
   const fields = [];
 
-  addBibTeXField(fields, 'title', citation.title);
+  addBibTeXField(fields, 'title', protectTitleCase(citation.title));
   addBibTeXField(fields, 'author', normalizeAuthorsForBibTeX(citation.authors));
   addBibTeXField(fields, 'year', citation.publication_year);
   addBibTeXField(fields, 'journal', citation.journal);
@@ -1159,6 +1190,7 @@ module.exports = {
     resolveExportBaseDirectory,
     normalizeCitationsForPandoc,
     extractCitationKeysFromMarkdown,
-    fuzzyMatchCitation
+    fuzzyMatchCitation,
+    protectTitleCase
   }
 };
