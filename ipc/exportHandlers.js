@@ -363,9 +363,17 @@ function register(deps) {
       
       console.log(`[ExportHandlers] Directory contains ${allFiles.length} files total:`);
       console.log('[ExportHandlers] All files:', allFiles.slice(0, 10).join(', '), allFiles.length > 10 ? '...' : '');
-      // Generate database citations .bib file
+      // Generate database citations .bib file (authoritative source)
       const databaseBibFile = await generateDatabaseBibFile();
       if (databaseBibFile) {
+        // Exclude citations.bib from static files — it's a stale DB export artifact.
+        // The fresh DB-generated file is the authoritative source for DB citations.
+        const staleIndex = bibFiles.findIndex(f => path.basename(f) === 'citations.bib');
+        if (staleIndex !== -1) {
+          console.log('[ExportHandlers] Excluding stale citations.bib in favour of fresh database export');
+          bibFiles.splice(staleIndex, 1);
+        }
+        // Add DB file LAST so citeproc gives it priority over static .bib files
         bibFiles.push(databaseBibFile);
         console.log('[ExportHandlers] Added database citations file to bibliography list');
       }
@@ -1029,6 +1037,8 @@ module.exports = {
   register,
   __test__: {
     citationToBibTeX,
+    normalizeAuthorsForBibTeX,
+    generateCitationKey,
     formatPandocErrorMessage,
     resolveExportBaseDirectory,
     normalizeCitationsForPandoc

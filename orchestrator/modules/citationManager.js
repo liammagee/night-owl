@@ -1890,7 +1890,12 @@ class CitationManager {
             if (result.success) {
                 this.hideModal('citation-modal-overlay');
                 this.showSuccess(this.currentEditingId ? 'Citation updated successfully' : 'Citation added successfully');
-                await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
+                await this.refreshCitationsWithSync(false); // Sync bib file + refresh bibEntries
+
+                // Refresh window.bibEntries so the preview renderer uses updated data
+                if (typeof window.loadDatabaseCitationsIntoBibEntries === 'function') {
+                    await window.loadDatabaseCitationsIntoBibEntries();
+                }
             } else {
                 throw new Error(result.error);
             }

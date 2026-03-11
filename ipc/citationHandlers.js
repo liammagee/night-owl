@@ -217,15 +217,12 @@ function normalizeBibTeXAuthors(authorValue) {
     }
 
     // Check for comma-separated "First Last" names (non-standard but common).
-    // Heuristic: if splitting on commas gives 3+ segments where most contain
+    // Heuristic: if splitting on commas gives 2+ segments where ALL contain
     // a space (i.e. "First Last"), treat as comma-separated author list.
-    // Exclude "Last, First" format (typically 2 parts, first part has no space).
+    // "Last, First" format has one part without a space, so won't match.
     const commaParts = authorValue.split(',').map(s => s.trim()).filter(Boolean);
-    if (commaParts.length >= 3) {
-        const partsWithSpace = commaParts.filter(p => p.includes(' '));
-        if (partsWithSpace.length >= commaParts.length * 0.5) {
-            return commaParts.join(' and ');
-        }
+    if (commaParts.length >= 2 && commaParts.every(p => p.includes(' '))) {
+        return commaParts.join(' and ');
     }
 
     return authorValue.trim();
@@ -806,7 +803,7 @@ function exportToBibTeX(citations) {
 
         const fields = [];
         if (citation.title) fields.push(`  title = {${citation.title}}`);
-        if (citation.authors) fields.push(`  author = {${citation.authors}}`);
+        if (citation.authors) fields.push(`  author = {${normalizeBibTeXAuthors(citation.authors)}}`);
         if (citation.publication_year) fields.push(`  year = {${citation.publication_year}}`);
         if (citation.publication_date) fields.push(`  date = {${citation.publication_date}}`);
         if (citation.journal) fields.push(`  journal = {${citation.journal}}`);

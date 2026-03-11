@@ -2592,6 +2592,20 @@ const LARGE_MARKDOWN_CHAR_THRESHOLD = 200000;
 // Expose bibEntries to window for citation renderer plugin
 window.bibEntries = bibEntries;
 
+// Allow citation manager to refresh bibEntries after edits
+window.loadDatabaseCitationsIntoBibEntries = async function() {
+    const dbEntries = await loadDatabaseCitations();
+    // Replace DB-sourced entries while keeping .bib-sourced ones
+    const bibSourced = bibEntries.filter(e => e.source !== 'database');
+    bibEntries.length = 0;
+    bibEntries.push(...bibSourced, ...dbEntries);
+    window.bibEntries = bibEntries;
+    if (window.TechneCitationRenderer?.invalidateCache) {
+        window.TechneCitationRenderer.invalidateCache();
+    }
+    console.log(`[bibEntries] Refreshed: ${bibSourced.length} from .bib + ${dbEntries.length} from DB`);
+};
+
 function computeCitationKey(citation) {
     if (citation.key && typeof citation.key === 'string') {
         return citation.key;
