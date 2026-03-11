@@ -143,4 +143,78 @@ describe('Export Handlers', () => {
         .toBe('See [@a; @b] and also [@c; @d].');
     });
   });
+
+  // ─── DB priority: citationToBibTeX uses current DB data ───
+
+  describe('citationToBibTeX — DB data produces clean BibTeX', () => {
+    let citationToBibTeX;
+
+    beforeEach(() => {
+      const exportHandlers = require('../../../ipc/exportHandlers');
+      citationToBibTeX = exportHandlers.__test__.citationToBibTeX;
+    });
+
+    test('uses current DB author/year, not stale citation_key values', () => {
+      // Scenario: citation_key was generated from old garbled data,
+      // but DB fields have since been corrected
+      const bib = citationToBibTeX({
+        citation_key: 'Freuds2022Negation',  // stale key
+        citation_type: 'article',
+        title: 'Negation',
+        authors: 'Freud, Sigmund',            // corrected
+        publication_year: 1952,                // corrected
+        journal: 'The Psychoanalytic Quarterly',
+        volume: '11',
+        pages: '235-239'
+      });
+
+      // The BibTeX entry should use the corrected DB fields
+      expect(bib).toContain('author={Freud, Sigmund}');
+      expect(bib).toContain('year={1952}');
+      // Key is preserved for reference stability
+      expect(bib).toContain('@article{Freuds2022Negation,');
+      // Must NOT contain garbled data in fields (key may retain old name)
+      expect(bib).not.toContain("Freud's");
+      expect(bib).not.toContain('Standard Edition');
+      // year field must be 1952, not the old 2022
+      expect(bib).toMatch(/year=\{1952\}/);
+    });
+
+    test('normalizes comma-separated "First Last" authors for Pandoc', () => {
+      const bib = citationToBibTeX({
+        citation_key: 'Huttunen2012Discourse',
+        citation_type: 'article',
+        title: 'Discourse and Recognition',
+        authors: 'Rauno Huttunen, Mark Murphy',
+        publication_year: 2012
+      });
+
+      // Must use "and" separator for BibTeX, not commas
+      expect(bib).toContain('author={Huttunen, Rauno and Murphy, Mark}');
+    });
+
+    test('normalizes APA &-separated authors for Pandoc', () => {
+      const bib = citationToBibTeX({
+        citation_key: 'Radford2018GPT',
+        citation_type: 'article',
+        title: 'Improving Language Understanding',
+        authors: 'Radford, A., Narasimhan, K., Salimans, T., & Sutskever, I.',
+        publication_year: 2018
+      });
+
+      expect(bib).toContain('author={Radford, A. and Narasimhan, K. and Salimans, T. and Sutskever, I.}');
+    });
+
+    test('preserves valid BibTeX "and"-separated authors unchanged', () => {
+      const bib = citationToBibTeX({
+        citation_key: 'Shapira2026RLHF',
+        citation_type: 'article',
+        title: 'How RLHF Amplifies Sycophancy',
+        authors: 'Shapira, Itai and Benade, Gerdus and Procaccia, Ariel D.',
+        publication_year: 2026
+      });
+
+      expect(bib).toContain('author={Shapira, Itai and Benade, Gerdus and Procaccia, Ariel D.}');
+    });
+  });
 });
