@@ -1,7 +1,7 @@
 // === Citation IPC Handlers ===
 // Handles communication between renderer and citation service
 
-const { ipcMain } = require('electron');
+const { ipcMain, dialog, app, BrowserWindow } = require('electron');
 const CitationService = require('../services/citationService');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -1632,12 +1632,10 @@ function registerCitationHandlers(userDataPath) {
 
             // If no path given, show save dialog
             if (!filePath) {
-                const workingDir = typeof deps.getCurrentWorkingDirectory === 'function'
-                    ? deps.getCurrentWorkingDirectory()
-                    : deps.currentWorkingDirectory || app.getPath('documents');
-                const defaultPath = path.join(workingDir, 'citations.bib');
+                const defaultPath = path.join(app.getPath('documents'), 'citations.bib');
+                const parentWindow = BrowserWindow.getFocusedWindow();
 
-                const result = await dialog.showSaveDialog(deps.mainWindow, {
+                const result = await dialog.showSaveDialog(parentWindow, {
                     title: 'Export Citations as BibTeX',
                     defaultPath,
                     filters: [{ name: 'BibTeX Files', extensions: ['bib'] }]
@@ -1666,7 +1664,8 @@ function registerCitationHandlers(userDataPath) {
         try {
             // If no path given, show open dialog
             if (!filePath) {
-                const result = await dialog.showOpenDialog(deps.mainWindow, {
+                const parentWindow = BrowserWindow.getFocusedWindow();
+                const result = await dialog.showOpenDialog(parentWindow, {
                     title: 'Import BibTeX File',
                     filters: [{ name: 'BibTeX Files', extensions: ['bib'] }],
                     properties: ['openFile']
@@ -1721,10 +1720,7 @@ function registerCitationHandlers(userDataPath) {
 
             // Determine file path
             if (!filePath) {
-                const workingDir = typeof deps.getCurrentWorkingDirectory === 'function'
-                    ? deps.getCurrentWorkingDirectory()
-                    : deps.currentWorkingDirectory || app.getPath('documents');
-                filePath = path.join(workingDir, 'citations.bib');
+                filePath = path.join(app.getPath('documents'), 'citations.bib');
             }
 
             // Phase 1: Import any external edits from the .bib file

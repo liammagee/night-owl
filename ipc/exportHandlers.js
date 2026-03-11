@@ -1008,8 +1008,13 @@ function register(deps) {
   ipcMain.handle('trigger-export', async (event, exportType) => {
     console.log('[ExportHandlers] Export trigger received for type:', exportType);
     try {
-      // This is a utility handler to trigger exports from the UI
-      // The actual export logic is handled by the specific export handlers above
+      // Forward the export request back to the renderer as an event.
+      // The renderer has on('trigger-export-<type>') listeners that
+      // gather content and call the perform-export-* handlers.
+      const channel = `trigger-export-${exportType}`;
+      if (mainWindow) {
+        mainWindow.webContents.send(channel);
+      }
       return { success: true, exportType };
     } catch (error) {
       console.error('[ExportHandlers] Error in export trigger:', error);
