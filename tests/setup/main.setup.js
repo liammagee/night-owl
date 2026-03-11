@@ -17,7 +17,7 @@ jest.mock('electron', () => ({
     whenReady: jest.fn(() => Promise.resolve()),
     quit: jest.fn()
   },
-  BrowserWindow: jest.fn(() => ({
+  BrowserWindow: Object.assign(jest.fn(() => ({
     loadFile: jest.fn(),
     loadURL: jest.fn(),
     on: jest.fn(),
@@ -26,7 +26,11 @@ jest.mock('electron', () => ({
       send: jest.fn(),
       on: jest.fn()
     }
-  })),
+  })), {
+    getFocusedWindow: jest.fn(() => ({
+      webContents: { send: jest.fn() }
+    }))
+  }),
   ipcMain: {
     handle: jest.fn(),
     on: jest.fn()
