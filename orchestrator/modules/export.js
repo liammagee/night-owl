@@ -161,85 +161,177 @@ async function generateHTMLFromMarkdown(markdownContent, customStylesheet = null
 }
 
 // --- Export Command Functions ---
-function exportToPDF() {
+async function exportToPDF() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
         }
         return;
     }
-    
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'pdf');
+    if (!window.electronAPI) return;
+
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) window.showNotification('Preparing PDF export...', 'info');
+        const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+        const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
+        const exportOptions = { usePandoc: true, pandocArgs: ['--mathjax', '--highlight-style=github'] };
+        const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent, exportOptions);
+        if (result.success) {
+            let message = 'PDF exported successfully';
+            if (result.usedPandoc) {
+                message += ' (with Pandoc)';
+                if (result.bibFilesFound > 0) message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
+            }
+            if (window.showNotification) window.showNotification(message, 'success');
+        } else if (!result.cancelled) {
+            if (window.showNotification) window.showNotification(result.error || 'PDF export failed', 'error');
+        }
+    } catch (error) {
+        console.error('[Export] PDF export error:', error);
+        if (window.showNotification) window.showNotification('Error during PDF export: ' + error.message, 'error');
     }
 }
 
-function exportToPDFWithReferences() {
+async function exportToPDFWithReferences() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
         }
         return;
     }
-    
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'pdf-pandoc');
+    if (!window.electronAPI) return;
+
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) window.showNotification('Preparing PDF export with references...', 'info');
+        const exportOptions = { usePandoc: true, pandocArgs: ['--toc'] };
+        const result = await window.electronAPI.invoke('perform-export-pdf-pandoc', content, exportOptions);
+        if (result.success) {
+            let message = 'PDF with references exported successfully';
+            if (result.bibFilesFound > 0) message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
+            if (window.showNotification) window.showNotification(message, 'success');
+        } else if (!result.cancelled) {
+            if (window.showNotification) window.showNotification(result.error || 'PDF export with references failed', 'error');
+        }
+    } catch (error) {
+        console.error('[Export] PDF with references export error:', error);
+        if (window.showNotification) window.showNotification('Error during PDF export: ' + error.message, 'error');
     }
 }
 
-function exportToHTML() {
+async function exportToHTML() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
         }
         return;
     }
-    
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'html');
+    if (!window.electronAPI) return;
+
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) window.showNotification('Preparing HTML export...', 'info');
+        const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+        const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
+        const exportOptions = { usePandoc: true, pandocArgs: ['--mathjax', '--highlight-style=github', '--css=pandoc.css'] };
+        const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent, exportOptions);
+        if (result.success) {
+            let message = 'HTML exported successfully';
+            if (result.usedPandoc) {
+                message += ' (with Pandoc)';
+                if (result.bibFilesFound > 0) message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
+            }
+            if (window.showNotification) window.showNotification(message, 'success');
+        } else if (!result.cancelled) {
+            if (window.showNotification) window.showNotification(result.error || 'HTML export failed', 'error');
+        }
+    } catch (error) {
+        console.error('[Export] HTML export error:', error);
+        if (window.showNotification) window.showNotification('Error during HTML export: ' + error.message, 'error');
     }
 }
 
-function exportToHTMLWithReferences() {
+async function exportToHTMLWithReferences() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
         }
         return;
     }
-    
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'html-pandoc');
+    if (!window.electronAPI) return;
+
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) window.showNotification('Preparing HTML export with references...', 'info');
+        const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+        const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
+        const exportOptions = { usePandoc: true, withReferences: true, pandocArgs: ['--mathjax', '--highlight-style=github'] };
+        const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, htmlContent, exportOptions);
+        if (result.success) {
+            let message = 'HTML with references exported successfully';
+            if (result.bibFilesFound > 0) message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
+            if (window.showNotification) window.showNotification(message, 'success');
+        } else if (!result.cancelled) {
+            if (window.showNotification) window.showNotification(result.error || 'HTML export with references failed', 'error');
+        }
+    } catch (error) {
+        console.error('[Export] HTML with references export error:', error);
+        if (window.showNotification) window.showNotification('Error during HTML export: ' + error.message, 'error');
     }
 }
 
-function exportToPowerPoint() {
+async function exportToPowerPoint() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
         }
         return;
     }
-    
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'pptx');
+    if (!window.electronAPI) return;
+
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) window.showNotification('Preparing PowerPoint export...', 'info');
+        const exportOptions = { usePandoc: true, pandocArgs: ['--slide-level=2'] };
+        const result = await window.electronAPI.invoke('perform-export-pptx', content, exportOptions);
+        if (result.success) {
+            if (window.showNotification) window.showNotification('PowerPoint exported successfully', 'success');
+        } else if (!result.cancelled) {
+            if (window.showNotification) window.showNotification(result.error || 'PowerPoint export failed', 'error');
+        }
+    } catch (error) {
+        console.error('[Export] PowerPoint export error:', error);
+        if (window.showNotification) window.showNotification('Error during PowerPoint export: ' + error.message, 'error');
     }
 }
 
-function exportToAccessibleHTML() {
+async function exportToAccessibleHTML() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
         }
         return;
     }
+    if (!window.electronAPI) return;
 
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'html-accessible');
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) window.showNotification('Preparing Accessible HTML export...', 'info');
+        const exportOptions = { usePandoc: true, pandocArgs: ['--mathjax', '--highlight-style=github'] };
+        const result = await window.electronAPI.invoke('perform-export-html-accessible', content, exportOptions);
+        if (result.success) {
+            if (window.showNotification) window.showNotification('Accessible HTML exported successfully', 'success');
+        } else if (!result.cancelled) {
+            if (window.showNotification) window.showNotification(result.error || 'Accessible HTML export failed', 'error');
+        }
+    } catch (error) {
+        console.error('[Export] Accessible HTML export error:', error);
+        if (window.showNotification) window.showNotification('Error during Accessible HTML export: ' + error.message, 'error');
     }
 }
 
-function exportToWord() {
+async function exportToWord() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
@@ -247,12 +339,45 @@ function exportToWord() {
         return;
     }
 
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'docx');
+    if (!window.electronAPI) return;
+
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) {
+            window.showNotification('Preparing Word export...', 'info');
+        }
+
+        const exportOptions = {
+            usePandoc: true,
+            pandocArgs: ['--highlight-style=pygments']
+        };
+
+        const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+        if (result.success) {
+            let message = 'Word document exported successfully';
+            if (result.usedPandoc) {
+                message += ' (with Pandoc)';
+                if (result.bibFilesFound > 0) {
+                    message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
+                }
+            }
+            if (window.showNotification) {
+                window.showNotification(message, 'success');
+            }
+        } else if (!result.cancelled) {
+            if (window.showNotification) {
+                window.showNotification(result.error || 'Word export failed', 'error');
+            }
+        }
+    } catch (error) {
+        console.error('[Export] Word export error:', error);
+        if (window.showNotification) {
+            window.showNotification('Error during Word export: ' + error.message, 'error');
+        }
     }
 }
 
-function exportToWordWithReferences() {
+async function exportToWordWithReferences() {
     if (!window.currentFilePath) {
         if (window.showNotification) {
             window.showNotification('Please open a file first', 'error');
@@ -260,8 +385,41 @@ function exportToWordWithReferences() {
         return;
     }
 
-    if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-export', 'docx-refs');
+    if (!window.electronAPI) return;
+
+    const content = getCurrentEditorContent();
+    try {
+        if (window.showNotification) {
+            window.showNotification('Preparing Word export with references...', 'info');
+        }
+
+        const exportOptions = {
+            usePandoc: true,
+            withReferences: true,
+            pandocArgs: ['--highlight-style=pygments']
+        };
+
+        const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+        if (result.success) {
+            let message = 'Word document with references exported successfully';
+            if (result.bibFilesFound > 0) {
+                message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
+            } else {
+                message += ' (no bibliography files found)';
+            }
+            if (window.showNotification) {
+                window.showNotification(message, 'success');
+            }
+        } else if (!result.cancelled) {
+            if (window.showNotification) {
+                window.showNotification(result.error || 'Word export with references failed', 'error');
+            }
+        }
+    } catch (error) {
+        console.error('[Export] Word export with references error:', error);
+        if (window.showNotification) {
+            window.showNotification('Error during Word export with references: ' + error.message, 'error');
+        }
     }
 }
 
