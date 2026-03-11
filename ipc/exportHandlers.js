@@ -526,33 +526,49 @@ function register(deps) {
   }
 
   async function getDefaultCSLStyle() {
-    // Check if we can use a built-in style or need to download one
-    // For now, let's try without a custom CSL style to use pandoc defaults
-    console.log('[ExportHandlers] Using pandoc default citation style (no custom CSL)');
-    return null; // Return null to skip CSL specification
+    // Use APA 7th edition CSL — lists all authors up to 20 in bibliography
+    // (Pandoc's built-in Chicago style truncates at 7)
+    const apaPath = path.join(__dirname, '..', 'templates', 'apa.csl');
+    try {
+      await fs.access(apaPath);
+      console.log('[ExportHandlers] Using APA 7th CSL style:', apaPath);
+      return apaPath;
+    } catch {
+      console.log('[ExportHandlers] APA CSL not found, using pandoc default');
+      return null;
+    }
   }
 
-  async function runPandoc(args) {
+  async function runPandoc(args, options = {}) {
     return new Promise((resolve, reject) => {
       const { spawn } = require('child_process');
-      
+
       // Log the full pandoc command
       console.log('[ExportHandlers] Full pandoc command:');
       console.log(`pandoc ${args.map(arg => arg.includes(' ') ? `"${arg}"` : arg).join(' ')}`);
-      
-      const pandoc = spawn('pandoc', args);
+      if (options.cwd) console.log(`[ExportHandlers] Working directory: ${options.cwd}`);
+
+      const spawnOpts = {};
+      if (options.cwd) spawnOpts.cwd = options.cwd;
+
+      const pandoc = spawn('pandoc', args, spawnOpts);
       let output = '';
       let errorOutput = '';
-      
+
       pandoc.stdout.on('data', (data) => {
         output += data.toString();
       });
-      
+
       pandoc.stderr.on('data', (data) => {
         errorOutput += data.toString();
       });
-      
+
       pandoc.on('close', (code) => {
+        // Always log stderr — Pandoc emits citation warnings even on success
+        if (errorOutput.trim()) {
+          const level = code === 0 ? 'warn' : 'error';
+          console[level](`[ExportHandlers] Pandoc stderr:\n${errorOutput.trim()}`);
+        }
         if (code === 0) {
           resolve(output);
         } else {
@@ -562,7 +578,7 @@ function register(deps) {
           reject(error);
         }
       });
-      
+
       pandoc.on('error', (error) => {
         reject(new Error(`Failed to start pandoc: ${error.message}`));
       });
@@ -746,33 +762,26 @@ function register(deps) {
         }
       }
       
-      // Change to the correct working directory before running pandoc
-      const originalCwd = process.cwd();
-      if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
-        console.log('[ExportHandlers] Changing working directory from', originalCwd, 'to', exportBaseDirectory);
-        process.chdir(exportBaseDirectory);
-      }
-      
       try {
         console.log('[ExportHandlers] Running pandoc with args:', pandocArgs);
-        
+
         // Add custom pandoc options if provided
         if (exportOptions?.pandocArgs) {
           console.log('[ExportHandlers] Adding custom pandoc args:', exportOptions.pandocArgs);
           pandocArgs.push(...exportOptions.pandocArgs);
         }
-        
-        await runPandoc(pandocArgs);
-        
+
+        await runPandoc(pandocArgs, { cwd: exportBaseDirectory });
+
         console.log('[ExportHandlers] Pandoc HTML export completed successfully');
-        
+
         return {
           success: true,
           filePath: result.filePath,
           usedPandoc: true,
           bibFilesFound: bibFiles.length
         };
-        
+
       } finally {
         // Check if the exported HTML file is currently being viewed in preview and refresh it
         console.log('[ExportHandlers] (Pandoc) About to send IPC message, mainWindow exists:', !!mainWindow);
@@ -783,12 +792,7 @@ function register(deps) {
         } else {
           console.warn('[ExportHandlers] (Pandoc) mainWindow is null/undefined or no result, cannot send IPC message');
         }
-        // Restore original working directory
-        if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
-          console.log('[ExportHandlers] Restoring working directory to', originalCwd);
-          process.chdir(originalCwd);
-        }
-        
+
         // Clean up temp file
         try {
           await fs.unlink(tempMdFile);
@@ -833,18 +837,11 @@ function register(deps) {
         // Find .bib files for citations
         const bibFiles = await findBibFiles(exportBaseDirectory, content);
         
-        // Create temporary markdown file
+        // Create uniquely-named temporary markdown file
         const tempDir = os.tmpdir();
-        const tempMdFile = path.join(tempDir, 'temp_pdf_export.md');
+        const tempMdFile = path.join(tempDir, `temp_pdf_export_${Date.now()}.md`);
         await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content));
-        
-        // Change to the correct working directory before running pandoc
-        const originalCwd = process.cwd();
-        if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
-          console.log('[ExportHandlers] Changing working directory from', originalCwd, 'to', exportBaseDirectory);
-          process.chdir(exportBaseDirectory);
-        }
-        
+
         try {
           // Prepare pandoc args for PDF
           const pandocArgs = [
@@ -856,7 +853,7 @@ function register(deps) {
             '--resource-path',
             exportBaseDirectory
           ];
-          
+
           // Add bibliography support if .bib files found
           if (bibFiles.length > 0) {
             console.log(`[ExportHandlers] Found ${bibFiles.length} .bib file(s):`, bibFiles.map(f => path.basename(f)));
@@ -870,31 +867,25 @@ function register(deps) {
               pandocArgs.push('--csl', cslStyle);
             }
           }
-          
+
           // Add custom pandoc options if provided
           if (exportOptions.pandocArgs) {
             pandocArgs.push(...exportOptions.pandocArgs);
           }
-          
+
           console.log('[ExportHandlers] Running pandoc with args:', pandocArgs);
-          await runPandoc(pandocArgs);
-          
+          await runPandoc(pandocArgs, { cwd: exportBaseDirectory });
+
           console.log('[ExportHandlers] Pandoc PDF export completed successfully');
-          
+
           return {
             success: true,
             filePath: result.filePath,
             usedPandoc: true,
             bibFilesFound: bibFiles.length
           };
-          
+
         } finally {
-          // Restore original working directory
-          if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
-            console.log('[ExportHandlers] Restoring working directory to', originalCwd);
-            process.chdir(originalCwd);
-          }
-          
           // Clean up temp file
           try {
             await fs.unlink(tempMdFile);
@@ -1065,16 +1056,10 @@ function register(deps) {
 
       const bibFiles = await findBibFiles(exportBaseDirectory, content);
 
-      // Create temporary markdown file
+      // Create uniquely-named temporary markdown file (prevents race conditions)
       const tempDir = os.tmpdir();
-      const tempMdFile = path.join(tempDir, 'temp_docx_export.md');
+      const tempMdFile = path.join(tempDir, `temp_docx_export_${Date.now()}.md`);
       await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content), 'utf8');
-
-      // Change to the correct working directory before running pandoc
-      const originalCwd = process.cwd();
-      if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
-        process.chdir(exportBaseDirectory);
-      }
 
       try {
         const pandocArgs = [
@@ -1119,7 +1104,8 @@ function register(deps) {
         pandocArgs.push('-o', result.filePath);
 
         console.log('[ExportHandlers] Running pandoc for Word export with args:', pandocArgs);
-        await runPandoc(pandocArgs);
+        // Use cwd option instead of process.chdir (avoids race conditions with concurrent exports)
+        await runPandoc(pandocArgs, { cwd: exportBaseDirectory });
         console.log('[ExportHandlers] Word export completed successfully');
 
         return {
@@ -1130,9 +1116,6 @@ function register(deps) {
         };
 
       } finally {
-        if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
-          process.chdir(originalCwd);
-        }
         try {
           await fs.unlink(tempMdFile);
         } catch (e) {
