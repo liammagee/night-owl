@@ -503,6 +503,24 @@ body.dark-mode .frontmatter-separator {
         return parts.length ? `<header class="frontmatter-header">${parts.join('\n')}</header>` : '';
     };
 
+    // Encode Pandoc-style image attributes into the title field.
+    // ![alt](url){width=50%} → ![alt](url "|||width=50%")
+    // ![alt](url "caption"){width=50% height=200px} → ![alt](url "caption|||width=50% height=200px")
+    const ATTR_DELIM = '|||';
+    const processImageAttributes = (markdown) => {
+        return markdown.replace(
+            /!\[([^\]]*)\]\(([^)]+)\)\{([^}]+)\}/g,
+            (_match, alt, urlPart, attrs) => {
+                const attrStr = attrs.trim();
+                const titleMatch = urlPart.match(/^(.*?)\s+"([^"]*)"$/);
+                if (titleMatch) {
+                    return `![${alt}](${titleMatch[1]} "${titleMatch[2]}${ATTR_DELIM}${attrStr}")`;
+                }
+                return `![${alt}](${urlPart} "${ATTR_DELIM}${attrStr}")`;
+            }
+        );
+    };
+
     const processMarkdownContent = (markdownContent, { processAnnotations } = {}) => {
         let processed = typeof markdownContent === 'string' ? markdownContent : String(markdownContent || '');
 
@@ -511,6 +529,7 @@ body.dark-mode .frontmatter-separator {
         }
 
         processed = processSpeakerNotes(processed);
+        processed = processImageAttributes(processed);
         return processed;
     };
 
@@ -537,12 +556,28 @@ body.dark-mode .frontmatter-separator {
                 image({ href, title, text }) {
                     const resolved = resolveImageHref(href, { baseDir: _currentBaseDir });
                     const alt = escapeHtml(text || '');
-                    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-                    const img = `<img src="${escapeHtml(resolved)}" alt="${alt}"${titleAttr} />`;
 
-                    // Wrap in <figure> with caption when title is provided
-                    if (title) {
-                        return `<figure class="md-figure"><div class="md-figure-img">${img}</div><figcaption class="md-figcaption">${escapeHtml(title)}</figcaption></figure>`;
+                    // Extract Pandoc-style attributes encoded in title via |||
+                    let displayTitle = title;
+                    let styleAttr = '';
+                    if (title && title.includes(ATTR_DELIM)) {
+                        const [titlePart, attrStr] = title.split(ATTR_DELIM, 2);
+                        displayTitle = titlePart || null;
+                        const styles = [];
+                        (attrStr || '').replace(/([\w-]+)\s*=\s*"?([^"\s}]+)"?/g, (_m, key, val) => {
+                            if (key === 'width') styles.push(`width: ${val}`);
+                            else if (key === 'height') styles.push(`height: ${val}`);
+                            else if (key === 'max-width') styles.push(`max-width: ${val}`);
+                        });
+                        if (styles.length) styleAttr = ` style="${styles.join('; ')}"`;
+                    }
+
+                    const titleHtml = displayTitle ? ` title="${escapeHtml(displayTitle)}"` : '';
+                    const img = `<img src="${escapeHtml(resolved)}" alt="${alt}"${titleHtml}${styleAttr} />`;
+
+                    // Wrap in <figure> with caption when display title is provided
+                    if (displayTitle) {
+                        return `<figure class="md-figure"><div class="md-figure-img">${img}</div><figcaption class="md-figcaption">${escapeHtml(displayTitle)}</figcaption></figure>`;
                     }
                     return img;
                 }
@@ -659,7 +694,8 @@ body.dark-mode .frontmatter-separator {
         _extractInlineFootnotes: extractInlineFootnotes,
         _renderFootnotes: renderFootnotes,
         _stripFrontmatter: stripFrontmatter,
-        _renderFrontmatterHeader: renderFrontmatterHeader
+        _renderFrontmatterHeader: renderFrontmatterHeader,
+        _processImageAttributes: processImageAttributes
     };
 })();
 
