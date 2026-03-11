@@ -163,6 +163,9 @@ class CitationManager {
             }
         });
 
+        // Register Monaco link provider so Ctrl+click on [@key] opens citation editor
+        this.registerEditorCitationLinks();
+
         // Modal event listeners
         this.setupModalEventListeners();
 
@@ -213,6 +216,38 @@ class CitationManager {
             'Citations: Export Browser Capture Bundles',
             async () => {
                 await this.exportBrowserCaptureBundles();
+            }
+        );
+
+        window.registerCommand(
+            'citations.scanAndEnrich',
+            'Citations: Scan for Duplicates & Enrich',
+            async () => {
+                await this.runCitationScanner();
+            }
+        );
+
+        window.registerCommand(
+            'citations.bibSync',
+            'Citations: Sync with BibTeX File',
+            async () => {
+                await this.syncBibTeX();
+            }
+        );
+
+        window.registerCommand(
+            'citations.bibExport',
+            'Citations: Export to BibTeX File',
+            async () => {
+                await this.exportBibTeXFile();
+            }
+        );
+
+        window.registerCommand(
+            'citations.bibImport',
+            'Citations: Import from BibTeX File',
+            async () => {
+                await this.importBibTeXFile();
             }
         );
 
@@ -1058,7 +1093,10 @@ class CitationManager {
         this.currentFilters = {};
         
         if (searchInput && searchInput.value.trim()) {
-            this.currentFilters.search = searchInput.value.trim();
+            let searchVal = searchInput.value.trim();
+            // Strip leading @ so users can paste "@key" and match citation_key
+            if (searchVal.startsWith('@')) searchVal = searchVal.slice(1);
+            this.currentFilters.search = searchVal;
             this.currentFilters.fuzzy = true;
         }
         if (typeFilter && typeFilter.value) {
@@ -1306,12 +1344,24 @@ class CitationManager {
     }
 
     // Format authors for display in the citation list.
-    // Handles both "and"-separated (BibTeX) and comma-separated (legacy) formats.
+    // Handles "and"-separated (BibTeX), "&"-separated, and comma-separated formats.
     formatAuthorsDisplay(authorStr) {
         if (!authorStr) return 'Unknown Author';
 
-        // Split on "and" (BibTeX convention)
-        const authors = authorStr.split(/\s+and\s+/i).map(a => a.trim()).filter(Boolean);
+        // Split on "and" or "&" (BibTeX/APA convention)
+        let authors = authorStr.split(/\s+and\s+|\s*&\s*/i).map(a => a.trim()).filter(Boolean);
+
+        // If we got only 1 author but it has multiple commas with full names,
+        // it's likely comma-separated "First Last, First Last, ..." format
+        if (authors.length === 1 && authors[0].includes(',')) {
+            const commaParts = authors[0].split(',').map(s => s.trim()).filter(Boolean);
+            const partsWithSpace = commaParts.filter(p => p.includes(' '));
+            if (commaParts.length >= 3 && partsWithSpace.length >= commaParts.length * 0.5) {
+                // Comma-separated full names: "Alec Radford, Jeffrey Wu, ..."
+                authors = commaParts;
+            }
+        }
+
         if (authors.length === 0) return 'Unknown Author';
 
         // Format each author: "Last, First" → "First Last" for display
@@ -1536,6 +1586,59 @@ class CitationManager {
         this.showModal('import-modal-overlay');
     }
 
+    /**
+     * Register a Monaco LinkProvider so that [@citation-key] patterns become
+     * Ctrl+clickable in the source editor, opening the citation edit dialog.
+     */
+    registerEditorCitationLinks() {
+        if (typeof monaco === 'undefined' || !monaco.languages) return;
+
+        const self = this;
+        monaco.languages.registerLinkProvider('markdown', {
+            provideLinks(model) {
+                const links = [];
+                const lineCount = model.getLineCount();
+                // Match @key inside citation brackets: [@key], [@key, p. 42], [see @key; @key2]
+                const keyPattern = /@([\w][\w\-]*)/g;
+
+                for (let i = 1; i <= lineCount; i++) {
+                    const lineContent = model.getLineContent(i);
+                    let match;
+                    keyPattern.lastIndex = 0;
+                    while ((match = keyPattern.exec(lineContent)) !== null) {
+                        const startCol = match.index + 1; // +1 for Monaco 1-based
+                        const endCol = startCol + match[0].length;
+                        links.push({
+                            range: new monaco.Range(i, startCol, i, endCol),
+                            // Use a custom URI scheme that we intercept
+                            url: `citation://${match[1]}`
+                        });
+                    }
+                }
+                return { links };
+            }
+        });
+
+        // Intercept link opens for the citation:// scheme
+        if (window.editor) {
+            const openerService = window.editor.getContribution('editor.linkDetector');
+            // Monaco doesn't expose link interception directly; use the
+            // editorService opener override instead.
+            window.editor.onDidChangeConfiguration(() => {}); // no-op, needed for context
+        }
+
+        // Override the global opener to handle citation:// links
+        const origOpen = window.open;
+        window.open = function(url, ...args) {
+            if (typeof url === 'string' && url.startsWith('citation://')) {
+                const key = url.replace('citation://', '');
+                self.viewCitationByKey(key);
+                return null;
+            }
+            return origOpen.call(window, url, ...args);
+        };
+    }
+
     // View citation by its BibTeX key — looks up the DB record and opens the edit form.
     // Falls back to showing the .bib entry when the key isn't in the database.
     async viewCitationByKey(key) {
@@ -1716,6 +1819,7 @@ class CitationManager {
             'citation-issue': citation?.issue || '',
             'citation-pages': citation?.pages || '',
             'citation-publisher': citation?.publisher || '',
+            'citation-publisher-place': citation?.publisher_place || '',
             'citation-doi': citation?.doi || '',
             'citation-url': citation?.url || '',
             'citation-file-path': citation?.file_path || '',
@@ -1757,6 +1861,7 @@ class CitationManager {
                 issue: formData.get('issue') || null,
                 pages: formData.get('pages') || null,
                 publisher: formData.get('publisher') || null,
+                publisher_place: formData.get('publisher_place') || null,
                 doi: formData.get('doi') || null,
                 url: formData.get('url') || null,
                 file_path: formData.get('file_path') || null,
@@ -3292,6 +3397,440 @@ class CitationManager {
         } else {
             // Fallback for older browsers
             setInterval(updateButtonStyle, 1000);
+        }
+    }
+
+    // ── BibTeX File Sync ──
+
+    /**
+     * Bidirectional sync: import external edits from .bib, then export full DB back.
+     * The .bib file in the working directory becomes a live exchange format.
+     */
+    async syncBibTeX(filePath) {
+        try {
+            if (window.showNotification) window.showNotification('Syncing with BibTeX file...', 'info');
+
+            const result = await window.electronAPI.invoke('citations-bib-sync', filePath || null);
+            if (!result.success) {
+                if (result.cancelled) return;
+                throw new Error(result.error);
+            }
+
+            const parts = [];
+            if (result.import.imported > 0) parts.push(`${result.import.imported} new`);
+            if (result.import.updated > 0) parts.push(`${result.import.updated} updated`);
+            parts.push(`${result.exported} exported`);
+            const msg = `BibTeX sync complete: ${parts.join(', ')}`;
+
+            if (window.showNotification) window.showNotification(msg, 'success');
+            await this.refreshCitations();
+        } catch (error) {
+            console.error('[Citation Manager] BibTeX sync error:', error);
+            if (window.showNotification) window.showNotification('BibTeX sync failed: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * Export all citations to a .bib file (with save dialog).
+     */
+    async exportBibTeXFile() {
+        try {
+            if (window.showNotification) window.showNotification('Exporting citations to BibTeX...', 'info');
+
+            const result = await window.electronAPI.invoke('citations-bib-export-to-file', null);
+            if (!result.success) {
+                if (result.cancelled) return;
+                throw new Error(result.error);
+            }
+
+            if (window.showNotification) {
+                window.showNotification(`Exported ${result.exported} citations to BibTeX`, 'success');
+            }
+        } catch (error) {
+            console.error('[Citation Manager] BibTeX export error:', error);
+            if (window.showNotification) window.showNotification('BibTeX export failed: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * Import citations from a .bib file (with open dialog).
+     */
+    async importBibTeXFile() {
+        try {
+            if (window.showNotification) window.showNotification('Importing from BibTeX file...', 'info');
+
+            const result = await window.electronAPI.invoke('citations-bib-import-from-file', null);
+            if (!result.success) {
+                if (result.cancelled) return;
+                throw new Error(result.error);
+            }
+
+            const parts = [];
+            if (result.imported > 0) parts.push(`${result.imported} new`);
+            if (result.updated > 0) parts.push(`${result.updated} updated`);
+            if (result.skipped > 0) parts.push(`${result.skipped} unchanged`);
+            const msg = `BibTeX import: ${parts.join(', ')}`;
+
+            if (window.showNotification) window.showNotification(msg, 'success');
+            await this.refreshCitations();
+        } catch (error) {
+            console.error('[Citation Manager] BibTeX import error:', error);
+            if (window.showNotification) window.showNotification('BibTeX import failed: ' + error.message, 'error');
+        }
+    }
+
+    // ── Citation Scanner: Duplicate Detection & AI Enrichment ──
+
+    /**
+     * Run the citation scanner. Finds potential duplicates, groups them,
+     * and uses the AI integration to suggest field updates and merges.
+     */
+    async runCitationScanner() {
+        try {
+            if (window.showNotification) {
+                window.showNotification('Scanning citations for duplicates and missing fields...', 'info');
+            }
+
+            // 1. Fetch all citations
+            const result = await window.electronAPI.invoke('citations-get-all', {});
+            if (!result.success || !result.citations) {
+                throw new Error(result.error || 'Failed to load citations');
+            }
+            const citations = result.citations;
+            if (citations.length === 0) {
+                if (window.showNotification) window.showNotification('No citations to scan.', 'info');
+                return;
+            }
+
+            // 2. Detect potential duplicates (fuzzy title matching)
+            const duplicateGroups = this._findDuplicateGroups(citations);
+
+            // 3. Find citations with missing fields
+            const incomplete = citations.filter(c => {
+                const missing = [];
+                if (!c.authors) missing.push('authors');
+                if (!c.publication_year) missing.push('year');
+                if (!c.journal && !c.publisher && c.citation_type !== 'webpage') missing.push('journal/publisher');
+                if (!c.doi && c.citation_type === 'article') missing.push('DOI');
+                return missing.length > 0;
+            });
+
+            // 4. Build a summary for the AI
+            const summaryParts = [];
+
+            if (duplicateGroups.length > 0) {
+                summaryParts.push(`## Potential Duplicates (${duplicateGroups.length} groups)\n`);
+                for (const group of duplicateGroups) {
+                    summaryParts.push(`Group:`);
+                    for (const c of group) {
+                        summaryParts.push(`  - [ID:${c.id}] "${c.title}" by ${c.authors || '?'} (${c.publication_year || '?'}) [type:${c.citation_type}] DOI:${c.doi || 'none'}`);
+                    }
+                }
+            }
+
+            if (incomplete.length > 0) {
+                const batch = incomplete.slice(0, 30); // Limit to avoid token overflow
+                summaryParts.push(`\n## Citations with Missing Fields (${incomplete.length} total, showing ${batch.length})\n`);
+                for (const c of batch) {
+                    const missing = [];
+                    if (!c.authors) missing.push('authors');
+                    if (!c.publication_year) missing.push('year');
+                    if (!c.journal && !c.publisher && c.citation_type !== 'webpage') missing.push('journal/publisher');
+                    if (!c.publisher_place && c.citation_type === 'book') missing.push('publisher_place');
+                    if (!c.doi && c.citation_type === 'article') missing.push('DOI');
+                    summaryParts.push(`  - [ID:${c.id}] "${c.title}" by ${c.authors || '?'} (${c.publication_year || '?'}) — missing: ${missing.join(', ')}`);
+                }
+            }
+
+            if (summaryParts.length === 0) {
+                if (window.showNotification) window.showNotification('No duplicates or missing fields found.', 'success');
+                return;
+            }
+
+            // 5. Ask AI to review and suggest updates
+            const prompt = `You are a citation database librarian. Review the following citation database issues and provide specific, actionable recommendations.
+
+${summaryParts.join('\n')}
+
+For each issue, respond with one line per action in this exact format:
+MERGE|id_to_keep|id_to_remove|reason
+UPDATE|id|field_name|new_value|reason
+SKIP|id|reason
+
+Rules:
+- For duplicates: recommend MERGE (keep the more complete record, remove the other)
+- For missing fields: recommend UPDATE with the correct value if you can infer it from the title/authors/year
+- For fields you cannot confidently fill in, use SKIP
+- field_name must be one of: title, authors, publication_year, journal, volume, issue, pages, publisher, publisher_place, doi, citation_type
+- Be conservative: only suggest updates you are confident about
+- For publisher_place on books, use the standard publishing location (e.g. "New York, NY", "Cambridge, UK", "Oxford")`;
+
+            if (window.showNotification) {
+                window.showNotification('Asking AI to review citations...', 'info');
+            }
+
+            const aiResult = await window.electronAPI.invoke('ai-chat', {
+                message: prompt,
+                options: { temperature: 0.2, maxTokens: 4000 }
+            });
+
+            if (!aiResult || !aiResult.response) {
+                throw new Error('No response from AI');
+            }
+
+            // 6. Parse AI response and present to user
+            const actions = this._parseScannerActions(aiResult.response, citations);
+            this._showScannerResults(actions, duplicateGroups, incomplete);
+
+        } catch (error) {
+            console.error('[Citation Manager] Scanner error:', error);
+            if (window.showNotification) {
+                window.showNotification('Citation scanner failed: ' + error.message, 'error');
+            }
+        }
+    }
+
+    /**
+     * Find groups of potentially duplicate citations using fuzzy title matching.
+     */
+    _findDuplicateGroups(citations) {
+        const groups = [];
+        const used = new Set();
+
+        const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        for (let i = 0; i < citations.length; i++) {
+            if (used.has(i)) continue;
+            const a = citations[i];
+            const normA = normalize(a.title);
+            if (normA.length < 10) continue; // Skip very short titles
+
+            const group = [a];
+
+            for (let j = i + 1; j < citations.length; j++) {
+                if (used.has(j)) continue;
+                const b = citations[j];
+                const normB = normalize(b.title);
+
+                // Check: same normalized title, or one contains the other, or same DOI
+                const titleMatch = normA === normB ||
+                    (normA.length > 20 && normB.length > 20 && (normA.includes(normB) || normB.includes(normA)));
+                const doiMatch = a.doi && b.doi && a.doi.toLowerCase() === b.doi.toLowerCase();
+
+                if (titleMatch || doiMatch) {
+                    group.push(b);
+                    used.add(j);
+                }
+            }
+
+            if (group.length > 1) {
+                used.add(i);
+                groups.push(group);
+            }
+        }
+
+        return groups;
+    }
+
+    /**
+     * Parse AI scanner response into structured actions.
+     */
+    _parseScannerActions(response, citations) {
+        const citationMap = new Map(citations.map(c => [c.id, c]));
+        const actions = [];
+
+        for (const line of response.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-')) continue;
+
+            const parts = trimmed.split('|').map(s => s.trim());
+            if (parts.length < 3) continue;
+
+            const type = parts[0].toUpperCase();
+
+            if (type === 'MERGE' && parts.length >= 4) {
+                const keepId = parseInt(parts[1]);
+                const removeId = parseInt(parts[2]);
+                if (citationMap.has(keepId) && citationMap.has(removeId)) {
+                    actions.push({
+                        type: 'merge',
+                        keepId,
+                        removeId,
+                        keepCitation: citationMap.get(keepId),
+                        removeCitation: citationMap.get(removeId),
+                        reason: parts[3]
+                    });
+                }
+            } else if (type === 'UPDATE' && parts.length >= 5) {
+                const id = parseInt(parts[1]);
+                const field = parts[2];
+                const value = parts[3];
+                if (citationMap.has(id) && field && value) {
+                    actions.push({
+                        type: 'update',
+                        id,
+                        citation: citationMap.get(id),
+                        field,
+                        value,
+                        reason: parts[4]
+                    });
+                }
+            }
+            // SKIP actions are informational, not included in actionable list
+        }
+
+        return actions;
+    }
+
+    /**
+     * Show scanner results in a modal dialog with accept/reject buttons.
+     */
+    _showScannerResults(actions, duplicateGroups, incomplete) {
+        if (actions.length === 0) {
+            if (window.showNotification) {
+                window.showNotification(`Scan complete. Found ${duplicateGroups.length} duplicate groups and ${incomplete.length} incomplete citations, but no confident fixes.`, 'info');
+            }
+            return;
+        }
+
+        // Build modal HTML
+        const esc = (s) => {
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        };
+
+        let html = `<div style="max-height: 70vh; overflow-y: auto; font-size: 13px;">`;
+        html += `<p style="margin-bottom: 12px; color: #999;">Found <strong>${actions.length}</strong> suggested actions. Review and accept individually.</p>`;
+
+        for (let i = 0; i < actions.length; i++) {
+            const action = actions[i];
+            if (action.type === 'merge') {
+                html += `
+                <div class="scanner-action" data-idx="${i}" style="padding: 8px 12px; margin-bottom: 8px; border: 1px solid #444; border-radius: 6px; border-left: 3px solid #f59e0b;">
+                    <div style="font-weight: 600; margin-bottom: 4px;">Merge duplicates</div>
+                    <div style="font-size: 12px; color: #999;">Keep: "${esc(action.keepCitation.title)}" (ID:${action.keepId})</div>
+                    <div style="font-size: 12px; color: #999;">Remove: "${esc(action.removeCitation.title)}" (ID:${action.removeId})</div>
+                    <div style="font-size: 11px; color: #888; margin-top: 2px;">${esc(action.reason)}</div>
+                    <div style="margin-top: 6px; display: flex; gap: 6px;">
+                        <button class="btn scanner-accept-btn" data-idx="${i}" style="font-size: 11px; padding: 2px 10px; background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid #4ade8060; border-radius: 4px; cursor: pointer;">Accept</button>
+                        <button class="btn scanner-skip-btn" data-idx="${i}" style="font-size: 11px; padding: 2px 10px; color: #999; border: 1px solid #444; border-radius: 4px; cursor: pointer;">Skip</button>
+                    </div>
+                </div>`;
+            } else if (action.type === 'update') {
+                html += `
+                <div class="scanner-action" data-idx="${i}" style="padding: 8px 12px; margin-bottom: 8px; border: 1px solid #444; border-radius: 6px; border-left: 3px solid #60a5fa;">
+                    <div style="font-weight: 600; margin-bottom: 4px;">Update: ${esc(action.field)}</div>
+                    <div style="font-size: 12px; color: #999;">"${esc(action.citation.title)}" (ID:${action.id})</div>
+                    <div style="font-size: 12px; color: #60a5fa;">Set <code>${esc(action.field)}</code> → <strong>${esc(action.value)}</strong></div>
+                    <div style="font-size: 11px; color: #888; margin-top: 2px;">${esc(action.reason)}</div>
+                    <div style="margin-top: 6px; display: flex; gap: 6px;">
+                        <button class="btn scanner-accept-btn" data-idx="${i}" style="font-size: 11px; padding: 2px 10px; background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid #4ade8060; border-radius: 4px; cursor: pointer;">Accept</button>
+                        <button class="btn scanner-skip-btn" data-idx="${i}" style="font-size: 11px; padding: 2px 10px; color: #999; border: 1px solid #444; border-radius: 4px; cursor: pointer;">Skip</button>
+                    </div>
+                </div>`;
+            }
+        }
+
+        html += `</div>`;
+        html += `<div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="btn scanner-accept-all-btn" style="background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid #4ade8060;">Accept All</button>
+            <button class="btn scanner-close-btn">Close</button>
+        </div>`;
+
+        // Show in a modal
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.id = 'scanner-modal-overlay';
+        overlay.style.cssText = 'display: flex; position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.6); align-items: center; justify-content: center;';
+        overlay.innerHTML = `
+            <div class="modal-dialog" style="width: 600px; max-width: 90vw; background: var(--bg-color, #1e1e1e); border: 1px solid var(--border-color, #333); border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
+                <div class="modal-header" style="display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border-color, #333);">
+                    <h3 style="margin: 0; font-size: 15px;">Citation Scanner Results</h3>
+                    <button class="scanner-close-btn" style="background: none; border: none; color: var(--text-color, #d4d4d4); font-size: 18px; cursor: pointer;">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 16px;">${html}</div>
+            </div>`;
+
+        document.body.appendChild(overlay);
+
+        // Bind action handlers
+        const self = this;
+        const pendingActions = [...actions];
+
+        overlay.addEventListener('click', async (e) => {
+            const acceptBtn = e.target.closest('.scanner-accept-btn');
+            const skipBtn = e.target.closest('.scanner-skip-btn');
+            const acceptAllBtn = e.target.closest('.scanner-accept-all-btn');
+            const closeBtn = e.target.closest('.scanner-close-btn');
+
+            if (closeBtn || e.target === overlay) {
+                overlay.remove();
+                return;
+            }
+
+            if (acceptBtn) {
+                const idx = parseInt(acceptBtn.dataset.idx);
+                await self._applyScannerAction(pendingActions[idx]);
+                const row = overlay.querySelector(`.scanner-action[data-idx="${idx}"]`);
+                if (row) {
+                    row.style.opacity = '0.4';
+                    row.style.pointerEvents = 'none';
+                    row.querySelector('.scanner-accept-btn').textContent = 'Done';
+                }
+            }
+
+            if (skipBtn) {
+                const idx = parseInt(skipBtn.dataset.idx);
+                const row = overlay.querySelector(`.scanner-action[data-idx="${idx}"]`);
+                if (row) {
+                    row.style.opacity = '0.3';
+                    row.style.pointerEvents = 'none';
+                }
+            }
+
+            if (acceptAllBtn) {
+                for (let i = 0; i < pendingActions.length; i++) {
+                    const row = overlay.querySelector(`.scanner-action[data-idx="${i}"]`);
+                    if (row && row.style.opacity !== '0.3' && row.style.opacity !== '0.4') {
+                        await self._applyScannerAction(pendingActions[i]);
+                        row.style.opacity = '0.4';
+                        row.style.pointerEvents = 'none';
+                    }
+                }
+                if (window.showNotification) window.showNotification('All accepted actions applied.', 'success');
+                await self.refreshCitations();
+            }
+        });
+    }
+
+    /**
+     * Apply a single scanner action (merge or update).
+     */
+    async _applyScannerAction(action) {
+        if (!action) return;
+
+        try {
+            if (action.type === 'merge') {
+                // Delete the duplicate, keeping the better record
+                await window.electronAPI.invoke('citations-delete', action.removeId);
+                console.log(`[Citation Scanner] Merged: removed ID ${action.removeId}, kept ID ${action.keepId}`);
+            } else if (action.type === 'update') {
+                const updateData = {};
+                // Map field name to DB field
+                if (action.field === 'year' || action.field === 'publication_year') {
+                    updateData.publication_year = parseInt(action.value) || null;
+                } else {
+                    updateData[action.field] = action.value;
+                }
+                await window.electronAPI.invoke('citations-update', action.id, updateData);
+                console.log(`[Citation Scanner] Updated ID ${action.id}: ${action.field} = ${action.value}`);
+            }
+        } catch (err) {
+            console.error('[Citation Scanner] Error applying action:', err);
+            if (window.showNotification) {
+                window.showNotification(`Failed to apply action: ${err.message}`, 'error');
+            }
         }
     }
 }

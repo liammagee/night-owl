@@ -146,8 +146,13 @@
     const extractInlineFootnotes = (markdown, footnotes) => {
         let counter = footnotes.size;
 
-        // 1. Pandoc-style inline footnotes: ^[content]
-        let processed = markdown.replace(/\^\[([^\]]+)\]/g, (_match, content) => {
+        // Bracket-aware content pattern: matches non-bracket chars OR complete [...] pairs
+        // Handles one level of nesting (sufficient for citations like [-@key])
+        const bracketContent = '((?:[^\\[\\]]*|\\[[^\\]]*\\])*)';
+
+        // 1. Pandoc-style inline footnotes: ^[content] (content may contain [...] pairs)
+        const pandocRe = new RegExp('\\^\\[' + bracketContent + '\\]', 'g');
+        let processed = markdown.replace(pandocRe, (_match, content) => {
             counter++;
             const autoId = `_fn_${counter}`;
             footnotes.set(autoId, content.trim());
@@ -155,7 +160,8 @@
         });
 
         // 2. Prose-in-brackets: [^content with spaces] where no definition exists
-        processed = processed.replace(/\[\^([^\]]+)\]/g, (match, id) => {
+        const proseRe = new RegExp('\\[\\^' + bracketContent + '\\]', 'g');
+        processed = processed.replace(proseRe, (match, id) => {
             // Skip if a definition already exists (normal reference footnote)
             if (footnotes.has(id)) return match;
             // Only treat as inline footnote if id contains spaces (prose, not a key)
@@ -281,6 +287,86 @@ body.dark-mode .footnotes-section {
 body.dark-mode .footnotes-separator {
     border-top-color: var(--border-color, #3f3f46);
 }
+
+/* Frontmatter Header Styles */
+.frontmatter-header {
+    margin-bottom: 1.5em;
+}
+
+.frontmatter-title {
+    margin-bottom: 0.15em;
+    line-height: 1.2;
+}
+
+.frontmatter-subtitle {
+    font-size: 1.25em;
+    color: var(--text-secondary, #475569);
+    margin-top: 0;
+    margin-bottom: 0.5em;
+    font-style: italic;
+}
+
+.frontmatter-meta {
+    color: var(--text-secondary, #666);
+    font-style: italic;
+    margin-top: 0;
+    margin-bottom: 0.75em;
+}
+
+.frontmatter-abstract {
+    background: var(--bg-secondary, #f8fafc);
+    border-left: 3px solid var(--primary, #6366f1);
+    padding: 0.75em 1em;
+    margin-bottom: 0.75em;
+    font-size: 0.95em;
+    line-height: 1.6;
+    color: var(--text-secondary, #475569);
+}
+
+.frontmatter-keywords {
+    margin-bottom: 0.75em;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+}
+
+.frontmatter-keyword {
+    display: inline-block;
+    background: var(--bg-tertiary, #e2e8f0);
+    color: var(--text-secondary, #475569);
+    padding: 0.1em 0.5em;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.frontmatter-separator {
+    border: none;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    margin-top: 0.5em;
+}
+
+/* Dark mode */
+body.dark-mode .frontmatter-subtitle {
+    color: var(--text-secondary, #a1a1aa);
+}
+
+body.dark-mode .frontmatter-meta {
+    color: var(--text-secondary, #a1a1aa);
+}
+
+body.dark-mode .frontmatter-abstract {
+    background: var(--bg-secondary, #27272a);
+    color: var(--text-secondary, #a1a1aa);
+}
+
+body.dark-mode .frontmatter-keyword {
+    background: var(--bg-tertiary, #3f3f46);
+    color: var(--text-secondary, #a1a1aa);
+}
+
+body.dark-mode .frontmatter-separator {
+    border-top-color: var(--border-color, #3f3f46);
+}
 `;
 
     // Post-process HTML to add custom classes to lists
@@ -292,7 +378,8 @@ body.dark-mode .footnotes-separator {
             .replace(/<li>/g, '<li class="markdown-list-item">');
     };
 
-    // Strip YAML frontmatter and return { body, meta } where meta has title/author/date
+    // Strip YAML frontmatter and return { body, meta } where meta has parsed fields.
+    // Handles simple values, inline arrays [a, b], block scalars (| / >), and list items (- val).
     const stripFrontmatter = (content) => {
         const str = typeof content === 'string' ? content : String(content || '');
         const match = str.match(/^(\uFEFF?\s*---\r?\n)([\s\S]*?\r?\n)(---\r?\n)/);
@@ -301,29 +388,119 @@ body.dark-mode .footnotes-separator {
         const yaml = match[2];
         const body = str.slice(match[0].length);
         const meta = {};
-        for (const line of yaml.split(/\r?\n/)) {
-            const kv = line.match(/^(\w[\w-]*)\s*:\s*(.+)$/);
-            if (kv) {
-                meta[kv[1].toLowerCase()] = kv[2].replace(/^["']|["']$/g, '').trim();
+        const lines = yaml.split(/\r?\n/);
+        let currentKey = null;
+        let currentBlock = null; // 'scalar' for |/>, 'list' for - items
+
+        const flushBlock = () => {
+            if (currentKey && currentBlock === 'scalar' && Array.isArray(meta[currentKey])) {
+                meta[currentKey] = meta[currentKey].join('\n').trim();
             }
+            currentKey = null;
+            currentBlock = null;
+        };
+
+        for (const line of lines) {
+            // Top-level key: value
+            const kv = line.match(/^(\w[\w-]*)\s*:\s*(.*)/);
+            if (kv) {
+                flushBlock();
+                const key = kv[1].toLowerCase();
+                let val = kv[2].trim();
+
+                if (val === '|' || val === '>') {
+                    // Block scalar — collect indented continuation lines
+                    currentKey = key;
+                    currentBlock = 'scalar';
+                    meta[key] = [];
+                } else if (val === '') {
+                    // Empty value — may be followed by list items or indented block
+                    currentKey = key;
+                    currentBlock = 'list';
+                    meta[key] = [];
+                } else if (val.startsWith('[') && val.endsWith(']')) {
+                    // Inline array: [a, b, c]
+                    meta[key] = val.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+                } else {
+                    meta[key] = val.replace(/^["']|["']$/g, '').trim();
+                }
+                continue;
+            }
+
+            // Indented continuation or list item
+            if (currentKey && (line.startsWith('  ') || line.startsWith('\t'))) {
+                const trimmed = line.replace(/^\s+/, '');
+                if (currentBlock === 'list' && trimmed.startsWith('- ')) {
+                    // List item
+                    const item = trimmed.slice(2).trim().replace(/^["']|["']$/g, '');
+                    if (!Array.isArray(meta[currentKey])) meta[currentKey] = [];
+                    meta[currentKey].push(item);
+                } else if (currentBlock === 'scalar') {
+                    meta[currentKey].push(trimmed);
+                } else if (currentBlock === 'list' && trimmed && !trimmed.startsWith('- ')) {
+                    // Indented text continuation (treat as scalar block)
+                    if (Array.isArray(meta[currentKey]) && meta[currentKey].length === 0) {
+                        currentBlock = 'scalar';
+                    }
+                    meta[currentKey].push(trimmed);
+                }
+                continue;
+            }
+
+            // Blank line inside a block — keep for scalar, ignore otherwise
+            if (currentKey && line.trim() === '') {
+                if (currentBlock === 'scalar') {
+                    meta[currentKey].push('');
+                }
+                continue;
+            }
+
+            flushBlock();
         }
+        flushBlock();
+
         return { body, meta };
     };
 
     const renderFrontmatterHeader = (meta) => {
         if (!meta) return '';
         const parts = [];
+
         if (meta.title) {
-            parts.push(`<h1 class="frontmatter-title" style="margin-bottom: 0.2em;">${escapeHtml(meta.title)}</h1>`);
+            parts.push(`<h1 class="frontmatter-title">${escapeHtml(meta.title)}</h1>`);
         }
-        const sub = [meta.author, meta.date].filter(Boolean).map(escapeHtml).join(' &mdash; ');
+        if (meta.subtitle) {
+            parts.push(`<p class="frontmatter-subtitle">${escapeHtml(meta.subtitle)}</p>`);
+        }
+
+        // Author(s) + date line
+        const authorStr = Array.isArray(meta.author)
+            ? meta.author.map(a => typeof a === 'string' ? a : (a.name || '')).filter(Boolean).join(', ')
+            : (meta.author || '');
+        const sub = [authorStr, meta.date].filter(Boolean).map(escapeHtml).join(' — ');
         if (sub) {
-            parts.push(`<p class="frontmatter-meta" style="color: #666; font-style: italic; margin-top: 0;">${sub}</p>`);
+            parts.push(`<p class="frontmatter-meta">${sub}</p>`);
         }
+
+        // Abstract
+        if (meta.abstract) {
+            const abstractText = Array.isArray(meta.abstract) ? meta.abstract.join(' ') : meta.abstract;
+            parts.push(`<div class="frontmatter-abstract"><strong>Abstract:</strong> ${escapeHtml(abstractText)}</div>`);
+        }
+
+        // Keywords
+        if (meta.keywords) {
+            const kws = Array.isArray(meta.keywords) ? meta.keywords : meta.keywords.split(',').map(s => s.trim());
+            if (kws.length > 0) {
+                const tags = kws.map(k => `<span class="frontmatter-keyword">${escapeHtml(k)}</span>`).join(' ');
+                parts.push(`<div class="frontmatter-keywords">${tags}</div>`);
+            }
+        }
+
         if (parts.length) {
-            parts.push('<hr>');
+            parts.push('<hr class="frontmatter-separator">');
         }
-        return parts.join('\n');
+        return parts.length ? `<header class="frontmatter-header">${parts.join('\n')}</header>` : '';
     };
 
     const processMarkdownContent = (markdownContent, { processAnnotations } = {}) => {
@@ -359,8 +536,15 @@ body.dark-mode .footnotes-separator {
                 },
                 image({ href, title, text }) {
                     const resolved = resolveImageHref(href, { baseDir: _currentBaseDir });
+                    const alt = escapeHtml(text || '');
                     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-                    return `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(text || '')}"${titleAttr} />`;
+                    const img = `<img src="${escapeHtml(resolved)}" alt="${alt}"${titleAttr} />`;
+
+                    // Wrap in <figure> with caption when title is provided
+                    if (title) {
+                        return `<figure class="md-figure"><div class="md-figure-img">${img}</div><figcaption class="md-figcaption">${escapeHtml(title)}</figcaption></figure>`;
+                    }
+                    return img;
                 }
             },
             gfm: true,
@@ -473,7 +657,9 @@ body.dark-mode .footnotes-separator {
         // Exposed for testing
         _extractFootnoteDefinitions: extractFootnoteDefinitions,
         _extractInlineFootnotes: extractInlineFootnotes,
-        _renderFootnotes: renderFootnotes
+        _renderFootnotes: renderFootnotes,
+        _stripFrontmatter: stripFrontmatter,
+        _renderFrontmatterHeader: renderFrontmatterHeader
     };
 })();
 

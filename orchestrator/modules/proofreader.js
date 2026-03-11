@@ -283,6 +283,17 @@
   // ── Grammar Check ──
 
   /**
+   * Classify a write-good reason string as 'error' or 'suggestion'.
+   * Passive voice and repeated words are grammatical errors;
+   * everything else (weasel, adverb, wordy, cliches, etc.) is a style suggestion.
+   */
+  function classifyGrammarSeverity(reason) {
+    if (/passive voice/i.test(reason)) return 'error';
+    if (/is repeated/i.test(reason)) return 'error';
+    return 'suggestion';
+  }
+
+  /**
    * Run grammar check on pre-parsed grammarText. Single IPC call.
    */
   async function runGrammarCheck(grammarText, grammarLineStarts) {
@@ -310,8 +321,10 @@
 
         if (localCol + suggestion.offset > (targetLine.original.length + 1)) continue;
 
+        const severity = classifyGrammarSeverity(suggestion.reason);
         issues.push({
           type: 'grammar',
+          severity,   // 'error' or 'suggestion'
           word: problemText.replace(/\n/g, ' ').trim(),
           message: suggestion.reason,
           suggestions: [],
@@ -433,19 +446,27 @@ ${excerpt}`
     const classMap = {
       spelling: 'proofread-spelling',
       grammar: 'proofread-grammar',
+      'grammar-suggestion': 'proofread-grammar-suggestion',
       style: 'proofread-style'
     };
 
-    const decos = issues.map(issue => ({
-      range: new monaco.Range(issue.startLine, issue.startCol, issue.endLine, issue.endCol),
-      options: {
-        inlineClassName: classMap[type] || classMap.spelling,
-        hoverMessage: {
-          value: buildHoverMessage(issue)
-        },
-        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+    const decos = issues.map(issue => {
+      // Grammar issues with severity 'suggestion' get a softer decoration
+      let decoClass = classMap[type] || classMap.spelling;
+      if (type === 'grammar' && issue.severity === 'suggestion') {
+        decoClass = classMap['grammar-suggestion'];
       }
-    }));
+      return {
+        range: new monaco.Range(issue.startLine, issue.startCol, issue.endLine, issue.endCol),
+        options: {
+          inlineClassName: decoClass,
+          hoverMessage: {
+            value: buildHoverMessage(issue)
+          },
+          stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+        }
+      };
+    });
 
     return decos;
   }
@@ -453,7 +474,11 @@ ${excerpt}`
   function buildHoverMessage(issue) {
     const icons = { spelling: '🔤', grammar: '📝', style: '✨' };
     const icon = icons[issue.type] || '📝';
-    let msg = `${icon} **${issue.type.charAt(0).toUpperCase() + issue.type.slice(1)}**: ${issue.message}`;
+    let label = issue.type.charAt(0).toUpperCase() + issue.type.slice(1);
+    if (issue.type === 'grammar' && issue.severity === 'suggestion') {
+      label = 'Suggestion';
+    }
+    let msg = `${icon} **${label}**: ${issue.message}`;
 
     if (issue.suggestions && issue.suggestions.length > 0) {
       msg += `\n\nSuggestions: ${issue.suggestions.slice(0, 5).map(s => `\`${s}\``).join(', ')}`;
@@ -542,13 +567,16 @@ ${excerpt}`
   }
 
   function buildPanelHTML() {
-    const total = currentIssues.spelling.length + currentIssues.grammar.length + currentIssues.style.length;
+    const grammarErrors = currentIssues.grammar.filter(i => i.severity !== 'suggestion').length;
+    const grammarSuggestions = currentIssues.grammar.length - grammarErrors;
+    const errors = currentIssues.spelling.length + grammarErrors;
+    const total = errors + grammarSuggestions + currentIssues.style.length;
 
     return `
       <div class="proofread-panel-header">
         <div class="proofread-panel-title">
           <span>Proofreader</span>
-          <span class="proofread-badge">${total}</span>
+          <span class="proofread-badge" title="${errors} error${errors !== 1 ? 's' : ''}, ${grammarSuggestions} suggestion${grammarSuggestions !== 1 ? 's' : ''}">${total}</span>
         </div>
         <div class="proofread-panel-actions">
           <button class="proofread-btn proofread-btn-ai" title="Run AI Style Analysis">AI Style</button>
@@ -571,7 +599,7 @@ ${excerpt}`
   function buildIssuesListHTML() {
     const allIssues = [
       ...currentIssues.spelling.map(i => ({ ...i, _type: 'spelling' })),
-      ...currentIssues.grammar.map(i => ({ ...i, _type: 'grammar' })),
+      ...currentIssues.grammar.map(i => ({ ...i, _type: i.severity === 'suggestion' ? 'suggestion' : 'grammar' })),
       ...currentIssues.style.map(i => ({ ...i, _type: 'style' }))
     ].sort((a, b) => a.startLine - b.startLine || a.startCol - b.startCol);
 
@@ -580,7 +608,7 @@ ${excerpt}`
     }
 
     return allIssues.map((issue, idx) => {
-      const icons = { spelling: '🔤', grammar: '📝', style: '✨' };
+      const icons = { spelling: '🔤', grammar: '📝', suggestion: '💡', style: '✨' };
       const icon = icons[issue._type] || '📝';
       const suggestions = issue.suggestions || [];
       const topSuggestion = suggestions[0];
@@ -1079,9 +1107,15 @@ ${excerpt}`
 
   function getStatusText() {
     if (!enabled) return '';
-    const total = currentIssues.spelling.length + currentIssues.grammar.length + currentIssues.style.length;
-    if (total === 0) return 'Proofread: OK';
-    return `Proofread: ${total} issue${total !== 1 ? 's' : ''}`;
+    const grammarErrors = currentIssues.grammar.filter(i => i.severity !== 'suggestion').length;
+    const grammarSuggestions = currentIssues.grammar.length - grammarErrors;
+    const errors = currentIssues.spelling.length + grammarErrors;
+    const suggestions = grammarSuggestions + currentIssues.style.length;
+    if (errors === 0 && suggestions === 0) return 'Proofread: OK';
+    const parts = [];
+    if (errors > 0) parts.push(`${errors} error${errors !== 1 ? 's' : ''}`);
+    if (suggestions > 0) parts.push(`${suggestions} suggestion${suggestions !== 1 ? 's' : ''}`);
+    return `Proofread: ${parts.join(', ')}`;
   }
 
   // ── Init ──

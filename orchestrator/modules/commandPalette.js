@@ -117,6 +117,8 @@ function initializeCommandPalette() {
     registerCommand('export.pdfWithRefs', 'Export: PDF with References', () => window.exportToPDFWithReferences());
     registerCommand('export.html', 'Export: HTML', () => window.exportToHTML());
     registerCommand('export.htmlWithRefs', 'Export: HTML with References', () => window.exportToHTMLWithReferences());
+    registerCommand('export.word', 'Export: Word (.docx)', () => window.exportToWord());
+    registerCommand('export.wordWithRefs', 'Export: Word with References', () => window.exportToWordWithReferences());
     registerCommand('export.powerpoint', 'Export: PowerPoint', () => window.exportToPowerPoint());
     registerCommand('export.accessible-html', 'Export: Accessible HTML', () => window.exportToAccessibleHTML());
     

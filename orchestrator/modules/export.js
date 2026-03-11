@@ -233,9 +233,35 @@ function exportToAccessibleHTML() {
         }
         return;
     }
-    
+
     if (window.electronAPI) {
         window.electronAPI.invoke('trigger-export', 'html-accessible');
+    }
+}
+
+function exportToWord() {
+    if (!window.currentFilePath) {
+        if (window.showNotification) {
+            window.showNotification('Please open a file first', 'error');
+        }
+        return;
+    }
+
+    if (window.electronAPI) {
+        window.electronAPI.invoke('trigger-export', 'docx');
+    }
+}
+
+function exportToWordWithReferences() {
+    if (!window.currentFilePath) {
+        if (window.showNotification) {
+            window.showNotification('Please open a file first', 'error');
+        }
+        return;
+    }
+
+    if (window.electronAPI) {
+        window.electronAPI.invoke('trigger-export', 'docx-refs');
     }
 }
 
@@ -479,6 +505,84 @@ function initializeExportHandlers() {
         }
     });
 
+    // Word (DOCX) export handler
+    window.electronAPI.on('trigger-export-docx', async () => {
+        const content = getCurrentEditorContent();
+        try {
+            if (window.showNotification) {
+                window.showNotification('Preparing Word export...', 'info');
+            }
+
+            const exportOptions = {
+                usePandoc: true,
+                pandocArgs: [
+                    '--highlight-style=pygments'
+                ]
+            };
+
+            const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+            if (result.success) {
+                let message = 'Word document exported successfully';
+                if (result.usedPandoc) {
+                    message += ' (with Pandoc)';
+                    if (result.bibFilesFound > 0) {
+                        message += ` and ${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'}`;
+                    }
+                }
+                if (window.showNotification) {
+                    window.showNotification(message, 'success');
+                }
+            } else if (!result.cancelled) {
+                if (window.showNotification) {
+                    window.showNotification(result.error || 'Word export failed', 'error');
+                }
+            }
+        } catch (error) {
+            if (window.showNotification) {
+                window.showNotification('Error during Word export', 'error');
+            }
+        }
+    });
+
+    // Word (DOCX) with references export handler
+    window.electronAPI.on('trigger-export-docx-refs', async () => {
+        const content = getCurrentEditorContent();
+        try {
+            if (window.showNotification) {
+                window.showNotification('Preparing Word export with references...', 'info');
+            }
+
+            const exportOptions = {
+                usePandoc: true,
+                withReferences: true,
+                pandocArgs: [
+                    '--highlight-style=pygments'
+                ]
+            };
+
+            const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+            if (result.success) {
+                let message = 'Word document with references exported successfully';
+                if (result.bibFilesFound > 0) {
+                    message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
+                } else {
+                    message += ' (no bibliography files found)';
+                }
+                if (window.showNotification) {
+                    window.showNotification(message, 'success');
+                }
+            } else if (!result.cancelled) {
+                if (window.showNotification) {
+                    window.showNotification(result.error || 'Word export with references failed', 'error');
+                }
+            }
+        } catch (error) {
+            if (window.showNotification) {
+                window.showNotification('Error during Word export with references', 'error');
+            }
+        }
+    });
+
     // PDF with references export handler
     window.electronAPI.on('trigger-export-pdf-pandoc', async () => {
         const content = getCurrentEditorContent();
@@ -532,6 +636,8 @@ function createExportMenu() {
         { label: 'PDF with References', action: exportToPDFWithReferences },
         { label: 'HTML', action: exportToHTML },
         { label: 'HTML with References', action: exportToHTMLWithReferences },
+        { label: 'Word (.docx)', action: exportToWord },
+        { label: 'Word with References', action: exportToWordWithReferences },
         { label: 'PowerPoint', action: exportToPowerPoint },
         { label: 'Accessible HTML', action: exportToAccessibleHTML }
     ];
@@ -607,5 +713,7 @@ window.exportToHTML = exportToHTML;
 window.exportToHTMLWithReferences = exportToHTMLWithReferences;
 window.exportToPowerPoint = exportToPowerPoint;
 window.exportToAccessibleHTML = exportToAccessibleHTML;
+window.exportToWord = exportToWord;
+window.exportToWordWithReferences = exportToWordWithReferences;
 window.initializeExportHandlers = initializeExportHandlers;
 window.exportAllFormats = exportAllFormats;

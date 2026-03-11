@@ -145,7 +145,8 @@ class CitationService {
                 'ALTER TABLE citations ADD COLUMN last_sync_at DATETIME',
                 'ALTER TABLE citations ADD COLUMN source TEXT DEFAULT "manual"',
                 'ALTER TABLE citations ADD COLUMN sync_version INTEGER DEFAULT 1',
-                'ALTER TABLE citations ADD COLUMN citation_key TEXT'
+                'ALTER TABLE citations ADD COLUMN citation_key TEXT',
+                'ALTER TABLE citations ADD COLUMN publisher_place TEXT'
             ];
 
             for (const migration of migrations) {
@@ -328,6 +329,7 @@ class CitationService {
                 preferNewValue('issue');
                 preferNewValue('pages');
                 preferNewValue('publisher');
+                preferNewValue('publisher_place');
                 preferNewValue('doi');
                 preferNewValue('url');
                 preferNewValue('file_path');
@@ -350,7 +352,7 @@ class CitationService {
 
             const {
                 title, authors, publication_year, publication_date, journal,
-                volume, issue, pages, publisher, doi, url, file_path,
+                volume, issue, pages, publisher, publisher_place, doi, url, file_path,
                 citation_type = 'article', abstract, notes, tags, zotero_key,
                 source = 'manual'
             } = citationData;
@@ -363,15 +365,15 @@ class CitationService {
                 const sql = `
                     INSERT INTO citations (
                         title, authors, publication_year, publication_date, journal,
-                        volume, issue, pages, publisher, doi, url, file_path,
+                        volume, issue, pages, publisher, publisher_place, doi, url, file_path,
                         citation_type, abstract, notes, tags, zotero_key,
                         source, citation_key, last_modified_at, sync_version
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
                 `;
 
                 const params = [
                     title, authors, publication_year, publication_date, journal,
-                    volume, issue, pages, publisher, doi, url, file_path,
+                    volume, issue, pages, publisher, publisher_place, doi, url, file_path,
                     citation_type, abstract, notes, tags, zotero_key, source,
                     citation_key
                 ];
@@ -737,22 +739,28 @@ class CitationService {
      * Find existing citation by multiple matching strategies
      */
     async findExistingCitation(externalCitation) {
-        // Strategy 1: Match by zotero_key
+        // Strategy 1: Match by citation_key (BibTeX round-trip)
+        if (externalCitation.citation_key) {
+            const byKey = await this.getCitationByField('citation_key', externalCitation.citation_key);
+            if (byKey) return byKey;
+        }
+
+        // Strategy 2: Match by zotero_key
         if (externalCitation.zotero_key) {
             const byZoteroKey = await this.getCitationByField('zotero_key', externalCitation.zotero_key);
             if (byZoteroKey) return byZoteroKey;
         }
 
-        // Strategy 2: Match by DOI
+        // Strategy 3: Match by DOI
         if (externalCitation.doi) {
             const byDOI = await this.getCitationByField('doi', externalCitation.doi);
             if (byDOI) return byDOI;
         }
 
-        // Strategy 3: Match by title + authors (fuzzy)
+        // Strategy 4: Match by title + authors (fuzzy)
         if (externalCitation.title) {
             const byTitle = await this.getCitationByTitleAndAuthors(
-                externalCitation.title, 
+                externalCitation.title,
                 externalCitation.authors
             );
             if (byTitle) return byTitle;

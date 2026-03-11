@@ -57,6 +57,17 @@ function sanitizeUrl(value) {
     return null;
 }
 
+/**
+ * Extract a DOI from a URL path, e.g.
+ *   https://dl.acm.org/doi/10.1145/3442188.3445922  →  10.1145/3442188.3445922
+ *   https://doi.org/10.1000/xyz                      →  10.1000/xyz
+ */
+function extractDoiFromUrl(url) {
+    if (!url) return null;
+    const match = url.match(/\b(10\.\d{4,9}\/[^\s"<>]+)/i);
+    return match ? match[1].replace(/[.),;]+$/, '') : null;
+}
+
 function splitBibTeXEntries(input) {
     if (!input || typeof input !== 'string') return [];
 
@@ -193,14 +204,31 @@ function parseBibTeXFields(body) {
 function normalizeBibTeXAuthors(authorValue) {
     if (!authorValue) return '';
 
-    // Preserve "and" as the author separator so downstream parsers
-    // (citationRenderer.parseAuthors, key generation) can reliably
-    // distinguish individual authors from "Last, First" pairs.
-    return authorValue
-        .split(/\s+and\s+/i)
-        .map(author => author.trim())
-        .filter(Boolean)
-        .join(' and ');
+    // First try standard BibTeX "and" separator
+    const andParts = authorValue.split(/\s+and\s+/i).map(a => a.trim()).filter(Boolean);
+    if (andParts.length > 1) {
+        return andParts.join(' and ');
+    }
+
+    // Single "and"-part: check for "&"-separated authors
+    const ampParts = authorValue.split(/\s*&\s*/).map(a => a.trim()).filter(Boolean);
+    if (ampParts.length > 1) {
+        return ampParts.join(' and ');
+    }
+
+    // Check for comma-separated "First Last" names (non-standard but common).
+    // Heuristic: if splitting on commas gives 3+ segments where most contain
+    // a space (i.e. "First Last"), treat as comma-separated author list.
+    // Exclude "Last, First" format (typically 2 parts, first part has no space).
+    const commaParts = authorValue.split(',').map(s => s.trim()).filter(Boolean);
+    if (commaParts.length >= 3) {
+        const partsWithSpace = commaParts.filter(p => p.includes(' '));
+        if (partsWithSpace.length >= commaParts.length * 0.5) {
+            return commaParts.join(' and ');
+        }
+    }
+
+    return authorValue.trim();
 }
 
 function mapBibTeXType(type) {
@@ -255,6 +283,7 @@ function parseBibTeXEntry(entryText) {
     const citationData = {
         title: fields.title || cleanBibTeXValue(rawKey) || 'Untitled citation',
         authors: normalizeBibTeXAuthors(fields.author || fields.editor || ''),
+        citation_key: rawKey || null,
         publication_year: publicationYear || null,
         publication_date: publicationDate || null,
         journal: fields.journal || fields.journaltitle || fields.booktitle || null,
@@ -262,6 +291,7 @@ function parseBibTeXEntry(entryText) {
         issue: fields.number || fields.issue || null,
         pages: fields.pages || null,
         publisher: fields.publisher || null,
+        publisher_place: fields.address || fields.location || null,
         doi: doi || null,
         url: inferredUrl || null,
         citation_type: mapBibTeXType(rawType),
@@ -732,9 +762,12 @@ async function fetchDOIMetadata(doi) {
             metadata.pages = work['article-number'];
         }
 
-        // Extract publisher
+        // Extract publisher and location
         if (work.publisher) {
             metadata.publisher = work.publisher;
+        }
+        if (work['publisher-location']) {
+            metadata.publisher_place = work['publisher-location'];
         }
 
         // Extract abstract (if available)
@@ -768,23 +801,28 @@ async function fetchDOIMetadata(doi) {
 function exportToBibTeX(citations) {
     return citations.map(citation => {
         const type = mapToBibTeXType(citation.citation_type);
-        const key = generateCitationKey(citation);
-        
+        // Preserve the stored citation_key for round-trip fidelity
+        const key = citation.citation_key || generateCitationKey(citation);
+
         const fields = [];
         if (citation.title) fields.push(`  title = {${citation.title}}`);
         if (citation.authors) fields.push(`  author = {${citation.authors}}`);
         if (citation.publication_year) fields.push(`  year = {${citation.publication_year}}`);
+        if (citation.publication_date) fields.push(`  date = {${citation.publication_date}}`);
         if (citation.journal) fields.push(`  journal = {${citation.journal}}`);
         if (citation.volume) fields.push(`  volume = {${citation.volume}}`);
         if (citation.issue) fields.push(`  number = {${citation.issue}}`);
         if (citation.pages) fields.push(`  pages = {${citation.pages}}`);
         if (citation.publisher) fields.push(`  publisher = {${citation.publisher}}`);
+        if (citation.publisher_place) fields.push(`  address = {${citation.publisher_place}}`);
         if (citation.doi) fields.push(`  doi = {${citation.doi}}`);
         if (citation.url) fields.push(`  url = {${citation.url}}`);
         if (citation.abstract) fields.push(`  abstract = {${citation.abstract}}`);
-        
+        if (citation.notes) fields.push(`  note = {${citation.notes}}`);
+        if (citation.tags) fields.push(`  keywords = {${citation.tags}}`);
+
         return `@${type}{${key},\n${fields.join(',\n')}\n}`;
-    }).join('\n\n');
+    }).join('\n\n') + '\n';
 }
 
 // Export to RIS format
@@ -1151,25 +1189,43 @@ function registerCitationHandlers(userDataPath) {
             const sanitizedUrl = sanitizeUrl(urlMatch ? urlMatch[0] : '');
             if (sanitizedUrl) {
                 const metadata = await extractUrlMetadata(sanitizedUrl);
-                const publicationDate = normalizeDateString(metadata.published_time) || null;
-                const publicationYear = metadata.year || extractYearFromString(publicationDate);
+
+                // Enrich with CrossRef if a DOI is found on the page or in the URL
+                const pageDoi = metadata.doi || extractDoiFromUrl(sanitizedUrl);
+                let doiMetadata = null;
+                if (pageDoi) {
+                    try {
+                        const cleanDoi = pageDoi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '');
+                        doiMetadata = await fetchDOIMetadata(cleanDoi);
+                    } catch (doiErr) {
+                        console.warn('[Citation Handlers] CrossRef enrichment failed:', doiErr.message);
+                    }
+                }
+
+                const publicationDate = normalizeDateString(metadata.published_time) || doiMetadata?.date || null;
+                const publicationYear = metadata.year || doiMetadata?.year || extractYearFromString(publicationDate);
 
                 const citationData = {
-                    title: metadata.title || inferCitationTitleFromText(cleaned),
-                    authors: metadata.author || metadata.site_name || '',
+                    title: doiMetadata?.title || metadata.title || inferCitationTitleFromText(cleaned),
+                    authors: doiMetadata?.authors || metadata.author || metadata.site_name || '',
                     url: sanitizedUrl,
-                    citation_type: 'webpage',
+                    doi: pageDoi || null,
+                    citation_type: doiMetadata?.type || (pageDoi ? 'article' : 'webpage'),
                     publication_date: publicationDate,
                     publication_year: publicationYear || null,
-                    abstract: metadata.description || '',
-                    journal: metadata.site_name || '',
-                    source: 'url'
+                    abstract: doiMetadata?.abstract || metadata.description || '',
+                    journal: doiMetadata?.journal || metadata.journal || metadata.site_name || '',
+                    volume: doiMetadata?.volume || null,
+                    issue: doiMetadata?.issue || null,
+                    pages: doiMetadata?.pages || null,
+                    publisher: doiMetadata?.publisher || null,
+                    source: pageDoi ? 'doi' : 'url'
                 };
 
                 const result = await citationService.addCitation(citationData);
                 return {
                     success: true,
-                    detected: 'url',
+                    detected: pageDoi ? 'doi' : 'url',
                     importedCount: 1,
                     citations: [result]
                 };
@@ -1200,24 +1256,43 @@ function registerCitationHandlers(userDataPath) {
     ipcMain.handle('citations-import-url', async (event, url) => {
         try {
             console.log('[Citation Handlers] Importing from URL:', url);
-            
-            // Extract metadata from URL
+
+            // Extract metadata from URL (page scraping)
             const metadata = await extractUrlMetadata(url);
-            const publicationDate = normalizeDateString(metadata.published_time) || null;
-            const publicationYear = metadata.year || extractYearFromString(publicationDate);
+
+            // If the page has a DOI, enrich with CrossRef for full author names & richer metadata
+            const pageDoi = metadata.doi || extractDoiFromUrl(url);
+            let doiMetadata = null;
+            if (pageDoi) {
+                try {
+                    const cleanDoi = pageDoi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '');
+                    doiMetadata = await fetchDOIMetadata(cleanDoi);
+                    console.log('[Citation Handlers] Enriched URL import with CrossRef metadata');
+                } catch (doiErr) {
+                    console.warn('[Citation Handlers] CrossRef enrichment failed:', doiErr.message);
+                }
+            }
+
+            const publicationDate = normalizeDateString(metadata.published_time) || doiMetadata?.date || null;
+            const publicationYear = metadata.year || doiMetadata?.year || extractYearFromString(publicationDate);
 
             const citationData = {
-                title: metadata.title || 'Web Page',
-                authors: metadata.author || metadata.site_name || '',
+                title: doiMetadata?.title || metadata.title || 'Web Page',
+                authors: doiMetadata?.authors || metadata.author || metadata.site_name || '',
                 url,
-                citation_type: 'webpage',
+                doi: pageDoi || null,
+                citation_type: doiMetadata?.type || (pageDoi ? 'article' : 'webpage'),
                 publication_date: publicationDate,
                 publication_year: publicationYear || null,
-                abstract: metadata.description || '',
-                journal: metadata.site_name || '',
-                source: 'url'
+                abstract: doiMetadata?.abstract || metadata.description || '',
+                journal: doiMetadata?.journal || metadata.journal || metadata.site_name || '',
+                volume: doiMetadata?.volume || null,
+                issue: doiMetadata?.issue || null,
+                pages: doiMetadata?.pages || null,
+                publisher: doiMetadata?.publisher || null,
+                source: pageDoi ? 'doi' : 'url'
             };
-            
+
             if (!citationService) await initializeCitationService(userDataPath);
             const result = await citationService.addCitation(citationData);
             return { success: true, citation: result };
@@ -1535,6 +1610,165 @@ function registerCitationHandlers(userDataPath) {
             return { success: true, imported, updated, skipped };
         } catch (error) {
             console.error('[Citation Handlers] Error importing bib to DB:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // ===== BIBTEX FILE SYNC =====
+
+    /**
+     * Export the full citation database to a .bib file.
+     * The file is written to the working directory or a user-chosen path.
+     * Returns the path and entry count.
+     */
+    ipcMain.handle('citations-bib-export-to-file', async (event, filePath) => {
+        try {
+            if (!citationService) await initializeCitationService(userDataPath);
+
+            const citations = await citationService.getCitations({});
+            if (citations.length === 0) {
+                return { success: true, exported: 0, filePath: null };
+            }
+
+            // If no path given, show save dialog
+            if (!filePath) {
+                const workingDir = typeof deps.getCurrentWorkingDirectory === 'function'
+                    ? deps.getCurrentWorkingDirectory()
+                    : deps.currentWorkingDirectory || app.getPath('documents');
+                const defaultPath = path.join(workingDir, 'citations.bib');
+
+                const result = await dialog.showSaveDialog(deps.mainWindow, {
+                    title: 'Export Citations as BibTeX',
+                    defaultPath,
+                    filters: [{ name: 'BibTeX Files', extensions: ['bib'] }]
+                });
+
+                if (result.canceled) return { success: false, cancelled: true };
+                filePath = result.filePath;
+            }
+
+            const bibContent = exportToBibTeX(citations);
+            await fs.writeFile(filePath, bibContent, 'utf8');
+
+            console.log(`[Citation Handlers] Exported ${citations.length} citations to ${filePath}`);
+            return { success: true, exported: citations.length, filePath };
+        } catch (error) {
+            console.error('[Citation Handlers] BibTeX file export error:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    /**
+     * Import a .bib file into the database.
+     * Reads the file, parses entries, and upserts into DB.
+     */
+    ipcMain.handle('citations-bib-import-from-file', async (event, filePath) => {
+        try {
+            // If no path given, show open dialog
+            if (!filePath) {
+                const result = await dialog.showOpenDialog(deps.mainWindow, {
+                    title: 'Import BibTeX File',
+                    filters: [{ name: 'BibTeX Files', extensions: ['bib'] }],
+                    properties: ['openFile']
+                });
+
+                if (result.canceled || !result.filePaths.length) {
+                    return { success: false, cancelled: true };
+                }
+                filePath = result.filePaths[0];
+            }
+
+            const bibContent = await fs.readFile(filePath, 'utf8');
+            if (!bibContent.trim()) {
+                return { success: true, imported: 0, updated: 0, skipped: 0 };
+            }
+
+            if (!citationService) await initializeCitationService(userDataPath);
+
+            const parsed = parseBibTeXEntries(bibContent);
+            let imported = 0, updated = 0, skipped = 0;
+
+            for (const citationData of parsed) {
+                try {
+                    const result = await citationService.addCitation(citationData);
+                    if (result._existing && result._updated) updated++;
+                    else if (result._existing) skipped++;
+                    else imported++;
+                } catch (entryError) {
+                    console.warn('[Citation Handlers] Skipping bib entry:', entryError.message);
+                    skipped++;
+                }
+            }
+
+            console.log(`[Citation Handlers] Imported from ${filePath}: ${imported} new, ${updated} updated, ${skipped} unchanged`);
+            return { success: true, imported, updated, skipped, filePath };
+        } catch (error) {
+            console.error('[Citation Handlers] BibTeX file import error:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    /**
+     * Bidirectional BibTeX sync: exports DB to .bib, then re-imports
+     * any external edits from the same file. The .bib file becomes
+     * the canonical exchange format.
+     *
+     * @param {string} filePath - Path to the .bib file (optional; prompts if missing)
+     */
+    ipcMain.handle('citations-bib-sync', async (event, filePath) => {
+        try {
+            if (!citationService) await initializeCitationService(userDataPath);
+
+            // Determine file path
+            if (!filePath) {
+                const workingDir = typeof deps.getCurrentWorkingDirectory === 'function'
+                    ? deps.getCurrentWorkingDirectory()
+                    : deps.currentWorkingDirectory || app.getPath('documents');
+                filePath = path.join(workingDir, 'citations.bib');
+            }
+
+            // Phase 1: Import any external edits from the .bib file
+            let importResult = { imported: 0, updated: 0, skipped: 0 };
+            let bibFileExists = false;
+            try {
+                const bibContent = await fs.readFile(filePath, 'utf8');
+                bibFileExists = true;
+                if (bibContent.trim()) {
+                    const parsed = parseBibTeXEntries(bibContent);
+                    for (const citationData of parsed) {
+                        try {
+                            const result = await citationService.addCitation(citationData);
+                            if (result._existing && result._updated) importResult.updated++;
+                            else if (result._existing) importResult.skipped++;
+                            else importResult.imported++;
+                        } catch (e) {
+                            importResult.skipped++;
+                        }
+                    }
+                }
+            } catch (readErr) {
+                // File doesn't exist yet — that's fine, we'll create it
+                console.log(`[Citation Handlers] No existing .bib file at ${filePath}, will create`);
+            }
+
+            // Phase 2: Export full DB to the .bib file
+            const citations = await citationService.getCitations({});
+            const bibContent = exportToBibTeX(citations);
+            await fs.writeFile(filePath, bibContent, 'utf8');
+
+            console.log(`[Citation Handlers] BibTeX sync complete: ${filePath}`);
+            console.log(`  Import: ${importResult.imported} new, ${importResult.updated} updated, ${importResult.skipped} unchanged`);
+            console.log(`  Export: ${citations.length} entries written`);
+
+            return {
+                success: true,
+                filePath,
+                bibFileExisted: bibFileExists,
+                import: importResult,
+                exported: citations.length
+            };
+        } catch (error) {
+            console.error('[Citation Handlers] BibTeX sync error:', error);
             return { success: false, error: error.message };
         }
     });

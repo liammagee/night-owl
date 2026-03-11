@@ -1254,6 +1254,22 @@ function createFileMenuItems() {
         }
       },
       {
+        label: 'Export as Word',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.webContents.send('trigger-export-docx');
+          }
+        }
+      },
+      {
+        label: 'Export as Word (with References)',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.webContents.send('trigger-export-docx-refs');
+          }
+        }
+      },
+      {
         label: 'Export as PowerPoint',
         click: () => {
           if (mainWindow) {

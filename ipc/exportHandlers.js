@@ -22,6 +22,68 @@ function normalizeBibTeXValue(value) {
   return String(value).replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Normalize an author string for BibTeX output.
+ * BibTeX requires "and" to separate multiple authors — commas within the
+ * author field mean "Last, First" for a single author.  Database entries
+ * may store authors in various formats:
+ *   - "First Last, First Last" (comma-separated full names)
+ *   - "Last, F., Last, F., & Last, F." (APA with ampersand)
+ *   - "Last, First and Last, First" (already valid BibTeX)
+ *
+ * This function parses the author string and re-emits it in canonical
+ * BibTeX format: "Last, First and Last, First and ...".
+ */
+function normalizeAuthorsForBibTeX(authorStr) {
+  if (!authorStr) return '';
+  const str = authorStr.trim();
+
+  // Already uses "and" separator (but not "&") — valid BibTeX, leave as-is
+  if (/\band\b/i.test(str) && !/\s*&\s*/.test(str)) return str;
+
+  // Parse into structured authors using same heuristics as citationRenderer
+  const segments = str.split(/\s+and\s+|\s*&\s*/i)
+    .map(s => s.trim()).filter(Boolean);
+
+  const authors = [];
+  for (const segment of segments) {
+    const parts = segment.split(',').map(s => s.trim()).filter(Boolean);
+
+    if (parts.length >= 2) {
+      if (parts.every(p => p.includes(' '))) {
+        // "First Last, First Last" — each part is a full name
+        for (const part of parts) {
+          const words = part.split(/\s+/);
+          authors.push({ first: words.slice(0, -1).join(' '), last: words[words.length - 1] });
+        }
+      } else if (parts.length % 2 === 0) {
+        // "Last, First" pairs: "Radford, A., Narasimhan, K."
+        for (let i = 0; i < parts.length; i += 2) {
+          authors.push({ last: parts[i], first: parts[i + 1] });
+        }
+      } else {
+        // Odd count — single author with complex name
+        authors.push({ last: parts[0], first: parts.slice(1).join(', ') });
+      }
+    } else {
+      // No commas: "First Last"
+      const words = segment.split(/\s+/);
+      if (words.length >= 2) {
+        authors.push({ first: words.slice(0, -1).join(' '), last: words[words.length - 1] });
+      } else if (words.length === 1 && words[0]) {
+        authors.push({ last: words[0], first: '' });
+      }
+    }
+  }
+
+  if (authors.length === 0) return str;
+
+  // Re-emit in canonical BibTeX format: "Last, First and Last, First"
+  return authors
+    .map(a => a.first ? `${a.last}, ${a.first}` : a.last)
+    .join(' and ');
+}
+
 function getCitationType(type) {
   const normalizedType = normalizeBibTeXValue(type).toLowerCase().replace(/[^a-z]/g, '');
   return normalizedType || 'article';
@@ -88,13 +150,14 @@ function citationToBibTeX(citation) {
   const fields = [];
 
   addBibTeXField(fields, 'title', citation.title);
-  addBibTeXField(fields, 'author', citation.authors);
+  addBibTeXField(fields, 'author', normalizeAuthorsForBibTeX(citation.authors));
   addBibTeXField(fields, 'year', citation.publication_year);
   addBibTeXField(fields, 'journal', citation.journal);
   addBibTeXField(fields, 'volume', citation.volume);
   addBibTeXField(fields, 'number', citation.issue);
   addBibTeXField(fields, 'pages', citation.pages);
   addBibTeXField(fields, 'publisher', citation.publisher);
+  addBibTeXField(fields, 'address', citation.publisher_place);
   addBibTeXField(fields, 'doi', citation.doi);
   addBibTeXField(fields, 'url', citation.url);
 
@@ -824,6 +887,120 @@ function register(deps) {
       }
     } catch (error) {
       console.error('[ExportHandlers] Error exporting PowerPoint:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('perform-export-docx', async (event, content, exportOptions = {}) => {
+    console.log('[ExportHandlers] Received perform-export-docx with options:', exportOptions);
+    try {
+      const currentFilePath = getCurrentFilePath();
+      const exportBaseDirectory = getExportBaseDirectory();
+      const defaultPath = currentFilePath ?
+        currentFilePath.replace(/\.[^/.]+$/, '.docx') :
+        'export.docx';
+
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: exportOptions.withReferences ? 'Export as Word (with References)' : 'Export as Word',
+        defaultPath: defaultPath,
+        filters: [
+          { name: 'Word Documents', extensions: ['docx'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      const hasPandoc = await checkPandocAvailability();
+      if (!hasPandoc) {
+        return {
+          success: false,
+          error: 'Pandoc is required for Word export. Please install pandoc from https://pandoc.org/'
+        };
+      }
+
+      console.log('[ExportHandlers] Using pandoc for Word export');
+
+      const bibFiles = await findBibFiles(exportBaseDirectory);
+
+      // Create temporary markdown file
+      const tempDir = os.tmpdir();
+      const tempMdFile = path.join(tempDir, 'temp_docx_export.md');
+      await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content), 'utf8');
+
+      // Change to the correct working directory before running pandoc
+      const originalCwd = process.cwd();
+      if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
+        process.chdir(exportBaseDirectory);
+      }
+
+      try {
+        const pandocArgs = [
+          tempMdFile,
+          '-f', 'markdown',
+          '-t', 'docx',
+          '--resource-path', exportBaseDirectory,
+          '--toc',
+          '--toc-depth=3',
+          '--highlight-style=pygments'
+        ];
+
+        // Use a reference document for styling if available
+        const referencePath = path.join(__dirname, '..', 'templates', 'reference.docx');
+        if (await fs.access(referencePath).then(() => true).catch(() => false)) {
+          pandocArgs.push('--reference-doc', referencePath);
+          console.log('[ExportHandlers] Using reference template:', referencePath);
+        }
+
+        // Add bibliography support if .bib files found and references requested (or always if bib files exist)
+        if (bibFiles.length > 0) {
+          console.log(`[ExportHandlers] Found ${bibFiles.length} .bib file(s) for Word:`, bibFiles.map(f => path.basename(f)));
+          pandocArgs.push('--citeproc');
+          bibFiles.forEach(bibFile => {
+            pandocArgs.push('--bibliography', bibFile);
+          });
+          const cslStyle = await getDefaultCSLStyle();
+          if (cslStyle) {
+            pandocArgs.push('--csl', cslStyle);
+          }
+        }
+
+        // Add custom pandoc options if provided (filter out unsupported args)
+        if (exportOptions.pandocArgs) {
+          const filteredArgs = exportOptions.pandocArgs.filter(arg => arg !== '--mathjax');
+          if (filteredArgs.length > 0) {
+            pandocArgs.push(...filteredArgs);
+          }
+        }
+
+        // Output file
+        pandocArgs.push('-o', result.filePath);
+
+        console.log('[ExportHandlers] Running pandoc for Word export with args:', pandocArgs);
+        await runPandoc(pandocArgs);
+        console.log('[ExportHandlers] Word export completed successfully');
+
+        return {
+          success: true,
+          filePath: result.filePath,
+          usedPandoc: true,
+          bibFilesFound: bibFiles.length
+        };
+
+      } finally {
+        if (exportBaseDirectory && exportBaseDirectory !== originalCwd) {
+          process.chdir(originalCwd);
+        }
+        try {
+          await fs.unlink(tempMdFile);
+        } catch (e) {
+          console.warn('[ExportHandlers] Could not clean up temp file:', e.message);
+        }
+        await cleanupDatabaseBibFiles(bibFiles);
+      }
+    } catch (error) {
+      console.error('[ExportHandlers] Error exporting Word:', error);
       return { success: false, error: error.message };
     }
   });

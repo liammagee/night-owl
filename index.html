@@ -998,6 +998,11 @@
             text-decoration-skip-ink: none;
             background: rgba(245, 158, 11, 0.08);
         }
+        .proofread-grammar-suggestion {
+            text-decoration: dotted underline #d4a04a;
+            text-decoration-skip-ink: none;
+            background: rgba(212, 160, 74, 0.05);
+        }
         .proofread-style {
             text-decoration: dotted underline #60a5fa;
             text-decoration-skip-ink: none;
@@ -1095,6 +1100,7 @@
         .proofread-issue:hover { background: var(--hover-bg, #2a2d30); }
         .proofread-issue-spelling { border-left: 3px solid #ef4444; }
         .proofread-issue-grammar { border-left: 3px solid #f59e0b; }
+        .proofread-issue-suggestion { border-left: 3px solid #d4a04a; border-left-style: dotted; }
         .proofread-issue-style { border-left: 3px solid #60a5fa; }
         .proofread-issue-header {
             display: flex;
@@ -3550,6 +3556,17 @@
                             <div class="form-group" style="flex: 2;">
                                 <label for="citation-doi">DOI</label>
                                 <input type="text" id="citation-doi" name="doi" placeholder="10.1000/example">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label for="citation-publisher">Publisher</label>
+                                <input type="text" id="citation-publisher" name="publisher" placeholder="Cambridge University Press">
+                            </div>
+                            <div class="form-group">
+                                <label for="citation-publisher-place">Place</label>
+                                <input type="text" id="citation-publisher-place" name="publisher_place" placeholder="New York, NY">
                             </div>
                         </div>
                     </div>

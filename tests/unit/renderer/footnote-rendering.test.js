@@ -240,8 +240,12 @@ describe('renderFootnotes', () => {
 function extractInlineFootnotes(markdown, footnotes) {
     let counter = footnotes.size;
 
-    // 1. Pandoc-style inline footnotes: ^[content]
-    let processed = markdown.replace(/\^\[([^\]]+)\]/g, (_match, content) => {
+    // Bracket-aware content pattern: matches non-bracket chars OR complete [...] pairs
+    const bracketContent = '((?:[^\\[\\]]*|\\[[^\\]]*\\])*)';
+
+    // 1. Pandoc-style inline footnotes: ^[content] (content may contain [...] pairs)
+    const pandocRe = new RegExp('\\^\\[' + bracketContent + '\\]', 'g');
+    let processed = markdown.replace(pandocRe, (_match, content) => {
         counter++;
         const autoId = `_fn_${counter}`;
         footnotes.set(autoId, content.trim());
@@ -249,7 +253,8 @@ function extractInlineFootnotes(markdown, footnotes) {
     });
 
     // 2. Prose-in-brackets: [^content with spaces] where no definition exists
-    processed = processed.replace(/\[\^([^\]]+)\]/g, (match, id) => {
+    const proseRe = new RegExp('\\[\\^' + bracketContent + '\\]', 'g');
+    processed = processed.replace(proseRe, (match, id) => {
         if (footnotes.has(id)) return match;
         if (!id.includes(' ')) return match;
         counter++;
@@ -330,6 +335,39 @@ describe('extractInlineFootnotes', () => {
 
         expect(footnotes.size).toBe(2);
         expect(footnotes.has('_fn_2')).toBe(true);
+    });
+
+    test('handles citations inside pandoc inline footnotes', () => {
+        const footnotes = new Map();
+        const input = 'Text ^[See Matthew Paris, *Plato and Socrates* (c. 1250), reproduced in Long [-@long_paris_2014].] here.';
+        const result = extractInlineFootnotes(input, footnotes);
+
+        expect(footnotes.size).toBe(1);
+        const content = Array.from(footnotes.values())[0];
+        expect(content).toBe('See Matthew Paris, *Plato and Socrates* (c. 1250), reproduced in Long [-@long_paris_2014].');
+        // No orphaned .]
+        expect(result).not.toContain('.]');
+        expect(result).toMatch(/\[\^_fn_1\] here\.$/);
+    });
+
+    test('handles multiple nested bracket pairs in footnote', () => {
+        const footnotes = new Map();
+        const input = '^[First [@smith2023] and second [@jones2024] citations.]';
+        const result = extractInlineFootnotes(input, footnotes);
+
+        expect(footnotes.size).toBe(1);
+        const content = Array.from(footnotes.values())[0];
+        expect(content).toBe('First [@smith2023] and second [@jones2024] citations.');
+    });
+
+    test('handles suppress-author citation in footnote', () => {
+        const footnotes = new Map();
+        const input = '^[See discussion in [-@Derrida1980].]';
+        const result = extractInlineFootnotes(input, footnotes);
+
+        expect(footnotes.size).toBe(1);
+        const content = Array.from(footnotes.values())[0];
+        expect(content).toContain('[-@Derrida1980]');
     });
 });
 

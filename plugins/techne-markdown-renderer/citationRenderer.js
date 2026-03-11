@@ -138,7 +138,9 @@
 
                 if (entry.type === 'book') {
                     const publisher = entry.publisher || '';
-                    return `${authors} ${year}. <em>${title}</em>. ${publisher}${doi}${url}`;
+                    const place = entry.publisher_place || entry.location || '';
+                    const pubStr = place && publisher ? `${place}: ${publisher}` : (publisher || place);
+                    return `${authors} ${year}. <em>${title}</em>. ${pubStr}${doi}${url}`;
                 }
 
                 return `${authors} ${year}. ${title}. ${journal}${volume ? `, ${volume}` : ''}${issue}${pages}.${doi}${url}`;
@@ -163,8 +165,8 @@
 
                 if (entry.type === 'book') {
                     const publisher = entry.publisher || '';
-                    const location = entry.location || '';
-                    return `${authors}. <em>${title}</em>. ${location ? `${location}: ` : ''}${publisher}, ${year}.${doi}`;
+                    const place = entry.publisher_place || entry.location || '';
+                    return `${authors}. <em>${title}</em>. ${place ? `${place}: ` : ''}${publisher}, ${year}.${doi}`;
                 }
 
                 return `${authors}. "${title}." ${journal} ${volume}${pages} (${year}).${doi}`;
@@ -352,20 +354,20 @@
                         // Year only: "(2023)" — author already mentioned in prose
                         const year = entry.year || 'n.d.';
                         const suffixStr = suffix ? `, ${suffix}` : '';
-                        citations.push(`${year}${suffixStr}`);
+                        citations.push(`<span class="citation-key-link" data-citation-key="${key}">${year}${suffixStr}</span>`);
                     } else if (authorOnly) {
                         // Author only: "Smith" — for narrative citations
                         const authors = formatAuthorsInline(entry.author, currentStyle);
-                        citations.push(`${prefix}${authors}`);
+                        citations.push(`<span class="citation-key-link" data-citation-key="${key}">${prefix}${authors}</span>`);
                     } else {
                         const inlineCite = style.inline(entry, suffix);
                         // Remove outer parentheses for combining
                         const inner = inlineCite.replace(/^\(/, '').replace(/\)$/, '');
-                        citations.push(`${prefix}${inner}`);
+                        citations.push(`<span class="citation-key-link" data-citation-key="${key}">${prefix}${inner}</span>`);
                     }
                 } else {
                     // Unknown citation - render as-is with warning style
-                    citations.push(`<span class="citation-unknown">@${key}</span>`);
+                    citations.push(`<span class="citation-unknown citation-key-link" data-citation-key="${key}">@${key}</span>`);
                 }
             }
 
@@ -487,6 +489,16 @@
     cursor: default;
 }
 
+.citation-key-link {
+    cursor: pointer;
+    border-bottom: 1px dotted currentColor;
+    transition: opacity 0.15s;
+}
+
+.citation-key-link:hover {
+    opacity: 0.75;
+}
+
 .citation-unknown {
     color: #ef4444;
     font-style: italic;
@@ -541,6 +553,31 @@ body.dark-mode .bibliography-item {
 `;
     }
 
+    /**
+     * Bind click handlers on .citation-key-link elements within a container.
+     * Dispatches a 'citation-key-click' CustomEvent on document so the
+     * Citation Manager can open the reference editor.
+     */
+    function bindCitationClickHandlers(container) {
+        if (!container) return;
+
+        container.addEventListener('click', (e) => {
+            const link = e.target.closest('.citation-key-link');
+            if (!link) return;
+
+            const key = link.dataset.citationKey;
+            if (!key) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            document.dispatchEvent(new CustomEvent('citation-key-click', {
+                detail: { key },
+                bubbles: true
+            }));
+        });
+    }
+
     // Prune cache periodically (every 2 minutes)
     setInterval(pruneCache, 2 * 60 * 1000);
 
@@ -549,6 +586,7 @@ body.dark-mode .bibliography-item {
         renderCitations,
         processCitations,
         generateBibliography,
+        bindCitationClickHandlers,
         setStyle,
         getStyles,
         getCSS,
