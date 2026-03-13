@@ -3975,6 +3975,13 @@ async function initializeMonacoEditor() {
                     scheduleAutoSave();
                 }
 
+                // Ensure recovery persistence even when auto-save is disabled
+                // (scheduleAutoSave bails early if auto-save is off, but we still
+                // want to persist unsaved content for crash recovery)
+                if (window.tabManager && !suppressAutoSave) {
+                    window.tabManager.syncActiveTabDirty(true);
+                }
+
                 if (!suppressAutoSave) {
                     const currentFilePath = window.currentFilePath;
                     const isMarkdownFile = currentFilePath &&
@@ -11628,39 +11635,49 @@ setupContextMenuListener();
 // Handle new file creation signal from main process
 if (window.electronAPI) {
     window.electronAPI.on('new-file-created', () => {
-        
-        // Clear current file path so save will trigger save-as dialog
-        window.currentFilePath = null;
-        window.editorFileName = null; // Also clear editorFileName
-        
-        // Clear editor
-        if (editor) {
-            editor.setValue('');
-        } else if (fallbackEditor) {
-            fallbackEditor.value = '';
+
+        // Create a new untitled tab (rather than reusing the current tab)
+        if (window.tabManager) {
+            if (window.tabManager.tabs.size >= window.tabManager.maxTabs) {
+                if (typeof showNotification === 'function') {
+                    showNotification(`Maximum ${window.tabManager.maxTabs} tabs open. Please close a tab first.`, 'warning');
+                }
+                return;
+            }
+            const untitledPath = window.tabManager.createUntitledTab();
+            window.tabManager.activateTab(untitledPath);
+        } else {
+            // Fallback when tab manager is not available
+            window.currentFilePath = null;
+            window.editorFileName = null;
+            if (editor) {
+                editor.setValue('');
+            } else if (fallbackEditor) {
+                fallbackEditor.value = '';
+            }
         }
-        // Clear preview
+
+        // Clear preview and structure for the new empty file
         if (previewContent) {
             previewContent.innerHTML = '';
         }
-        // Clear structure pane
         if (structureList) {
             structureList.innerHTML = '';
         }
-        
+
         // Update AI chat context for new file
         updateAIChatContext(null);
-        
+
         // Update breadcrumb for untitled file
         updateBreadcrumb(null);
         const nav = document.getElementById('breadcrumb-nav');
         if (nav) nav.innerHTML = '<span class="breadcrumb-segment current-file">Untitled</span>';
-        
+
         // Ensure structure view is active (optional, good UX)
         if (window.currentStructureView !== 'structure') {
             switchStructureView('structure');
         }
-        
+
     });
 }
 
@@ -13122,8 +13139,15 @@ async function saveFile() {
                 // Update current file in electron
                 window.electronAPI.invoke('set-current-file', result.filePath);
 
-                // Ensure the saved path is the active opened file/tab (not just a scratch buffer).
-                if (window.openFileInEditor) {
+                // If saving from an untitled tab, re-key it to the real path instead of
+                // opening a brand-new tab (which would leave an orphan untitled tab).
+                if (window.tabManager && window.tabManager.activeTabPath
+                    && window.isUntitledPath && window.isUntitledPath(window.tabManager.activeTabPath)) {
+                    window.tabManager.rekeyTab(window.tabManager.activeTabPath, result.filePath);
+                    // activateTab to sync globals (currentFilePath, breadcrumb, etc.)
+                    window.tabManager.activateTab(result.filePath);
+                } else if (window.openFileInEditor) {
+                    // Ensure the saved path is the active opened file/tab (not just a scratch buffer).
                     await window.openFileInEditor(result.filePath, lastSavedContent || content);
                 }
                 

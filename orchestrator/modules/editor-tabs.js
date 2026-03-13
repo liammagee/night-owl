@@ -58,6 +58,14 @@
     /**
      * TabManager — singleton managing open editor tabs
      */
+    /** Untitled tab paths use a special prefix so they're never confused with real files. */
+    const UNTITLED_PREFIX = 'untitled:';
+    let _untitledCounter = 0;
+
+    function isUntitledPath(filePath) {
+        return typeof filePath === 'string' && filePath.startsWith(UNTITLED_PREFIX);
+    }
+
     class TabManager {
         constructor() {
             this.tabs = new Map();       // filePath → TabState
@@ -110,6 +118,63 @@
         }
 
         /**
+         * Create a new untitled tab with a unique synthetic path.
+         * Returns the generated path (e.g. "untitled:1") so callers can activate it.
+         */
+        createUntitledTab() {
+            _untitledCounter++;
+            const syntheticPath = `${UNTITLED_PREFIX}${_untitledCounter}`;
+            const model = monaco.editor.createModel('', 'markdown');
+
+            const tab = {
+                filePath: syntheticPath,
+                fileName: _untitledCounter === 1 ? 'Untitled' : `Untitled-${_untitledCounter}`,
+                model,
+                viewState: null,
+                lastSavedContent: '',
+                isDirty: false,
+                language: 'markdown',
+                openedAt: Date.now()
+            };
+
+            this.tabs.set(syntheticPath, tab);
+            this.tabOrder.push(syntheticPath);
+            this._renderTabBar();
+            this._persistTabs();
+            return syntheticPath;
+        }
+
+        /**
+         * Re-key a tab (e.g. when an untitled file is saved to disk).
+         * Moves the tab from oldPath to newPath, preserving model, state, and order.
+         */
+        rekeyTab(oldPath, newPath) {
+            const tab = this.tabs.get(oldPath);
+            if (!tab) return;
+
+            // Update the tab's own data
+            tab.filePath = newPath;
+            tab.fileName = newPath.split('/').pop();
+            tab.language = detectLanguage(newPath);
+
+            // Move in the Map
+            this.tabs.delete(oldPath);
+            this.tabs.set(newPath, tab);
+
+            // Update order array
+            const idx = this.tabOrder.indexOf(oldPath);
+            if (idx >= 0) this.tabOrder[idx] = newPath;
+
+            // Update active pointer
+            if (this.activeTabPath === oldPath) {
+                this.activeTabPath = newPath;
+            }
+
+            this._renderTabBar();
+            this._persistTabs();
+        }
+
+        /**
          * Switch to a tab. Saves outgoing view state, swaps model, restores incoming state.
          * Syncs global variables so auto-save, preview, etc. continue to work.
          */
@@ -147,9 +212,11 @@
 
             this.activeTabPath = filePath;
 
-            // Sync globals that auto-save and other systems depend on
-            window.currentFilePath = filePath;
-            window.editorFileName = filePath;
+            // Sync globals that auto-save and other systems depend on.
+            // Untitled tabs must keep currentFilePath null so saveFile triggers save-as.
+            const isUntitled = isUntitledPath(filePath);
+            window.currentFilePath = isUntitled ? null : filePath;
+            window.editorFileName = isUntitled ? null : filePath;
             window.lastSavedContent = tab.lastSavedContent;
             window.hasUnsavedChanges = tab.isDirty;
 
@@ -164,15 +231,17 @@
             }
 
             // Update file directory for image path resolution
-            const lastSlash = filePath.lastIndexOf('/');
-            window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
+            if (!isUntitled) {
+                const lastSlash = filePath.lastIndexOf('/');
+                window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
+            }
 
             // UI updates
-            if (typeof window.highlightCurrentFileInTree === 'function') {
+            if (!isUntitled && typeof window.highlightCurrentFileInTree === 'function') {
                 window.highlightCurrentFileInTree(filePath);
             }
             if (typeof window.updateBreadcrumb === 'function') {
-                window.updateBreadcrumb(filePath);
+                window.updateBreadcrumb(isUntitled ? null : filePath);
             }
 
             // Update preview with the activated tab's content
@@ -245,6 +314,8 @@
             }
 
             this._persistTabs();
+            // Update recovery data (closed tab no longer needs recovery)
+            this._scheduleRecoveryPersist();
         }
 
         /**
@@ -292,6 +363,68 @@
                 tab.lastSavedContent = savedContent;
             }
             this._renderTabBar();
+            // Persist recovery data whenever dirty state changes
+            this._scheduleRecoveryPersist();
+        }
+
+        // --- Unsaved-change recovery ───────────────────────────────────
+
+        /**
+         * Debounced persistence of unsaved content for crash/restart recovery.
+         * Only stores tabs that are dirty or untitled (clean saved files can
+         * be re-read from disk and don't need recovery data).
+         */
+        _scheduleRecoveryPersist() {
+            if (this._recoveryTimer) clearTimeout(this._recoveryTimer);
+            this._recoveryTimer = setTimeout(() => this._persistRecovery(), 1500);
+        }
+
+        async _persistRecovery() {
+            if (!window.electronAPI) return;
+            try {
+                const recoveryData = {};
+                let hasRecoverableTabs = false;
+
+                for (const [filePath, tab] of this.tabs) {
+                    const untitled = isUntitledPath(filePath);
+                    // Only persist tabs that need recovery: dirty or untitled
+                    if (tab.isDirty || untitled) {
+                        const content = tab.model && !tab.model.isDisposed?.()
+                            ? tab.model.getValue()
+                            : '';
+                        recoveryData[filePath] = {
+                            content,
+                            isDirty: tab.isDirty,
+                            language: tab.language,
+                            fileName: tab.fileName,
+                            savedAt: Date.now()
+                        };
+                        hasRecoverableTabs = true;
+                    }
+                }
+
+                if (hasRecoverableTabs) {
+                    await window.electronAPI.invoke('recovery-persist', recoveryData);
+                } else {
+                    // No unsaved content — clear the recovery file
+                    await window.electronAPI.invoke('recovery-clear');
+                }
+            } catch (err) {
+                console.warn('[TabManager] Recovery persist failed:', err);
+            }
+        }
+
+        async _loadRecovery() {
+            if (!window.electronAPI) return null;
+            try {
+                const result = await window.electronAPI.invoke('recovery-load');
+                if (result.success && result.data) {
+                    return result.data;
+                }
+            } catch (err) {
+                console.warn('[TabManager] Recovery load failed:', err);
+            }
+            return null;
         }
 
         // --- Tab Bar Rendering ---
@@ -438,21 +571,75 @@
                 const tabsToOpen = tabSettings.openTabs;
                 const activeIdx = tabSettings.activeTabIndex || 0;
 
+                // Load recovery data (unsaved content from prior session)
+                const recovery = await this._loadRecovery();
+                let recoveredCount = 0;
+
                 for (const { filePath } of tabsToOpen) {
+                    const recoveryEntry = recovery?.[filePath];
+
+                    if (isUntitledPath(filePath)) {
+                        // Untitled tab — can only be restored from recovery
+                        if (recoveryEntry) {
+                            _untitledCounter++;
+                            const syntheticPath = `${UNTITLED_PREFIX}${_untitledCounter}`;
+                            const model = monaco.editor.createModel(
+                                recoveryEntry.content || '', recoveryEntry.language || 'markdown'
+                            );
+                            const tab = {
+                                filePath: syntheticPath,
+                                fileName: recoveryEntry.fileName || 'Untitled',
+                                model,
+                                viewState: null,
+                                lastSavedContent: '',
+                                isDirty: true, // untitled restored content is always dirty
+                                language: recoveryEntry.language || 'markdown',
+                                openedAt: Date.now()
+                            };
+                            this.tabs.set(syntheticPath, tab);
+                            this.tabOrder.push(syntheticPath);
+                            recoveredCount++;
+                        }
+                        continue;
+                    }
+
+                    // Real file — read from disk first
                     try {
                         const response = await window.electronAPI.invoke('read-file', filePath);
                         if (response && response.success && response.content !== undefined) {
                             this.createTab(filePath, response.content, detectLanguage(filePath));
+
+                            // Overlay recovery content if this tab had unsaved changes
+                            if (recoveryEntry && recoveryEntry.isDirty) {
+                                const tab = this.tabs.get(filePath);
+                                if (tab && tab.model) {
+                                    tab.model.setValue(recoveryEntry.content);
+                                    tab.isDirty = true;
+                                    tab.lastSavedContent = response.content;
+                                    recoveredCount++;
+                                }
+                            }
                         }
                     } catch (err) {
                         console.warn(`[TabManager] Skipping missing file: ${filePath}`, err);
                     }
                 }
 
+                if (recoveredCount > 0) {
+                    console.log(`[TabManager] Recovered unsaved changes for ${recoveredCount} tab(s)`);
+                    this._renderTabBar();
+                }
+
                 // Activate the previously active tab
                 if (this.tabOrder.length > 0) {
                     const targetIdx = Math.min(activeIdx, this.tabOrder.length - 1);
                     this.activateTab(this.tabOrder[targetIdx]);
+                }
+
+                // Clear recovery file now that data has been applied
+                // (it will be re-created if tabs are still dirty)
+                if (recovery) {
+                    await window.electronAPI.invoke('recovery-clear');
                 }
             } catch (err) {
                 console.warn('[TabManager] Failed to restore tabs:', err);
@@ -463,5 +650,13 @@
     // Create singleton and expose globally
     const tabManager = new TabManager();
     window.tabManager = tabManager;
+    window.isUntitledPath = isUntitledPath;
+
+    // Flush recovery data synchronously-ish before the window closes
+    window.addEventListener('beforeunload', () => {
+        // Cancel any pending debounce and persist immediately
+        if (tabManager._recoveryTimer) clearTimeout(tabManager._recoveryTimer);
+        tabManager._persistRecovery();
+    });
 
 })();

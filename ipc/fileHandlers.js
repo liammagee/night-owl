@@ -88,7 +88,8 @@ function register(deps) {
     mainWindow,
     getCurrentFilePath,
     setCurrentFilePath,
-    currentWorkingDirectory
+    currentWorkingDirectory,
+    userDataPath
   } = deps;
   const fileStateMap = new Map();
 
@@ -2545,6 +2546,60 @@ function register(deps) {
         }
       });
     });
+  });
+
+  // ─── Unsaved-change recovery ───────────────────────────────────────
+  // Persists editor content for dirty/untitled tabs so it survives restarts.
+
+  const recoveryDir = userDataPath ? path.join(userDataPath, 'recovery') : null;
+  const recoveryFile = recoveryDir ? path.join(recoveryDir, 'unsaved-tabs.json') : null;
+
+  async function ensureRecoveryDir() {
+    if (!recoveryDir) return;
+    try {
+      await fs.mkdir(recoveryDir, { recursive: true });
+    } catch (_) { /* ignore if exists */ }
+  }
+
+  ipcMain.handle('recovery-persist', async (_event, recoveryData) => {
+    if (!recoveryFile) return { success: false, error: 'No userData path' };
+    try {
+      await ensureRecoveryDir();
+      const json = JSON.stringify(recoveryData, null, 2);
+      // Atomic write: temp file → rename
+      const tmp = recoveryFile + '.tmp';
+      await fs.writeFile(tmp, json, 'utf-8');
+      await fs.rename(tmp, recoveryFile);
+      return { success: true };
+    } catch (error) {
+      console.error('[Recovery] Failed to persist:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('recovery-load', async () => {
+    if (!recoveryFile) return { success: true, data: null };
+    try {
+      const raw = await fs.readFile(recoveryFile, 'utf-8');
+      const data = JSON.parse(raw);
+      return { success: true, data };
+    } catch (error) {
+      if (error.code === 'ENOENT') return { success: true, data: null };
+      console.error('[Recovery] Failed to load:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('recovery-clear', async () => {
+    if (!recoveryFile) return { success: true };
+    try {
+      await fs.unlink(recoveryFile);
+      return { success: true };
+    } catch (error) {
+      if (error.code === 'ENOENT') return { success: true };
+      console.error('[Recovery] Failed to clear:', error);
+      return { success: false, error: error.message };
+    }
   });
 }
 
