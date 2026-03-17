@@ -805,6 +805,12 @@ function addToRecentWorkspaces(workspacePath) {
     saveSettings();
 }
 
+// Get recent workspaces list (paths only)
+function getRecentWorkspaces() {
+    if (!appSettings.recents || !Array.isArray(appSettings.recents.workspaces)) return [];
+    return appSettings.recents.workspaces.map(w => w.path);
+}
+
 // Save navigation history
 function saveNavigationHistory(history) {
     if (!appSettings.navigation.persistHistory) return;
@@ -1168,6 +1174,26 @@ function createFileMenuItems() {
                 dialog.showErrorBox('Open Folder Error', `Could not open the selected folder: ${err.message}`);
            }
         }
+      },
+      {
+        label: 'Recent Workspaces',
+        submenu: (() => {
+          const workspaces = getRecentWorkspaces();
+          if (workspaces.length === 0) {
+            return [{ label: 'No recent workspaces', enabled: false }];
+          }
+          return workspaces.map(workspace => ({
+            label: path.basename(workspace) || workspace,
+            click: async () => {
+              if (!mainWindow) return;
+              currentWorkingDirectory = workspace;
+              appSettings.workingDirectory = workspace;
+              saveSettings();
+              mainWindow.webContents.send('refresh-file-tree');
+              addToRecentWorkspaces(workspace);
+            }
+          }));
+        })()
       },
       { type: 'separator' },
       {
@@ -1863,7 +1889,7 @@ function createSettingsMenuItems() {
           try {
             const result = await dialog.showSaveDialog(mainWindow, {
               title: 'Export Settings',
-              defaultPath: path.join(app.getPath('documents'), 'hegel-pedagogy-ai-settings.json'),
+              defaultPath: path.join(app.getPath('documents'), 'machinespirits-ide-settings.json'),
               filters: [
                 { name: 'JSON Files', extensions: ['json'] },
                 { name: 'All Files', extensions: ['*'] }
@@ -2873,6 +2899,40 @@ app.whenReady().then(async () => {
       return { success: true };
     }
     return { success: false, error: 'Main window not available' };
+  });
+
+  // Get recent workspaces for the renderer dropdown
+  ipcMain.handle('get-recent-workspaces', () => {
+    return getRecentWorkspaces();
+  });
+
+  // Switch primary working directory (from renderer, given a path)
+  ipcMain.handle('switch-workspace', async (event, workspacePath) => {
+    try {
+      const fsSync = require('fs');
+      if (!fsSync.existsSync(workspacePath)) {
+        return { success: false, error: 'Folder no longer exists' };
+      }
+      currentWorkingDirectory = workspacePath;
+      appSettings.workingDirectory = workspacePath;
+      addToRecentWorkspaces(workspacePath);
+      saveSettings();
+      if (mainWindow) {
+        mainWindow.webContents.send('refresh-file-tree');
+      }
+      return { success: true, directory: workspacePath };
+    } catch (error) {
+      console.error('[main.js] Error switching workspace:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Save editor layout (pane proportions + visibility) from renderer
+  ipcMain.on('save-layout', (event, layoutData) => {
+    if (layoutData && typeof layoutData === 'object') {
+      appSettings.layout = { ...appSettings.layout, ...layoutData };
+      saveSettings();
+    }
   });
 
   ipcMain.on('citations-capture-ready', () => {

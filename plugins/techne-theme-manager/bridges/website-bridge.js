@@ -11,10 +11,10 @@
     const LEGACY_CLASSES = {
         'light': [],
         'dark': ['theme-dark'],
-        'techne-red': ['theme-dark'],
-        'techne-orange': ['theme-dark', 'theme-orange'],
-        'solarized-light': [],
-        'solarized-dark': ['theme-dark']
+        'techne-red-light': [],
+        'techne-red-dark': ['theme-dark'],
+        'techne-orange-light': ['theme-orange'],
+        'techne-orange-dark': ['theme-dark', 'theme-orange']
     };
 
     const ALL_LEGACY = ['theme-dark', 'theme-orange'];
@@ -41,8 +41,8 @@
             bottom: 20px;
             left: 20px;
             z-index: 9000;
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             border: 1px solid var(--techne-border, rgba(255,255,255,0.1));
             background: var(--techne-glass-bg, rgba(10,10,10,0.7));

@@ -50,6 +50,11 @@
     color: var(--preview-text, #1e293b) !important;
 }
 
+#preview-content a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+}
+
 /* Content pane styling */
 .content-pane {
     width: 100% !important;

@@ -22,9 +22,13 @@
 
         const overlay = document.createElement('div');
         overlay.id = DIALOG_ID;
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Theme Editor');
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;';
 
         const dialog = document.createElement('div');
+        dialog.setAttribute('tabindex', '-1');
         dialog.style.cssText = 'background:var(--techne-bg,#1e1e1e);color:var(--techne-text,#d4d4d4);border-radius:8px;padding:20px;width:550px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
 
         function render(editingId) {
@@ -38,7 +42,7 @@
                     <h3 style="margin:0;font-size:16px;">Theme Editor</h3>
                     <div style="display:flex;gap:8px;">
                         <button type="button" id="te-reset" style="background:transparent;color:var(--techne-text-muted,#888);border:1px solid var(--techne-border,#555);border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;">Reset Default</button>
-                        <button type="button" id="te-close" style="background:none;border:none;color:var(--techne-text-muted,#888);cursor:pointer;font-size:18px;">&#x2715;</button>
+                        <button type="button" id="te-close" style="background:none;border:none;color:var(--techne-text-muted,#888);cursor:pointer;font-size:18px;" aria-label="Close theme editor">&#x2715;</button>
                     </div>
                 </div>
 
@@ -347,10 +351,32 @@
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
 
-        // Close on overlay click or Escape
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+        // Focus the dialog for keyboard accessibility
+        const previousActiveElement = document.activeElement;
+        dialog.focus();
+
+        // Close on overlay click or Escape, and trap focus within dialog
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); previousActiveElement?.focus(); } });
         document.addEventListener('keydown', function handler(e) {
-            if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', handler); }
+            if (e.key === 'Escape') {
+                overlay.remove();
+                previousActiveElement?.focus();
+                document.removeEventListener('keydown', handler);
+            }
+            // Focus trap: cycle focus within dialog
+            if (e.key === 'Tab') {
+                const focusable = dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
         });
     }
 

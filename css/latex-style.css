@@ -90,20 +90,9 @@
 /* Paragraphs - LaTeX spacing */
 .latex-style #preview-content p {
     margin: 0 0 var(--latex-paragraph-spacing) 0 !important;
-    text-indent: 1.5em !important;
     text-align: justify !important;
     orphans: 2;
     widows: 2;
-}
-
-/* First paragraph after headings - no indent */
-.latex-style #preview-content h1 + p,
-.latex-style #preview-content h2 + p,
-.latex-style #preview-content h3 + p,
-.latex-style #preview-content h4 + p,
-.latex-style #preview-content h5 + p,
-.latex-style #preview-content h6 + p {
-    text-indent: 0 !important;
 }
 
 /* Lists - LaTeX style */
@@ -197,10 +186,10 @@
     border-bottom: none !important;
 }
 
-/* Links - subtle LaTeX style */
+/* Links */
 .latex-style #preview-content a {
-    color: var(--latex-accent) !important;
-    text-decoration: none !important;
+    color: #2563eb !important;
+    text-decoration: underline !important;
 }
 
 .latex-style #preview-content a:hover {

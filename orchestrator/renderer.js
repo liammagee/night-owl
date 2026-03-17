@@ -8345,12 +8345,22 @@ function applyLayoutSettings(layout) {
         rightPane.style.flex = `0 0 ${defaultLayout.rightWidth}`;
     }
 
-    // Apply preview pane visibility from settings
-    // Note: appSettings.editor?.showPreview defaults to true if not set
-    const showPreview = appSettings?.editor?.showPreview !== false;
-    if (!showPreview && previewVisible) {
-        // Hide preview if setting says it should be hidden
-        togglePreview();
+    // Restore pane visibility from saved layout state
+    _restoringPaneVisibility = true;
+    try {
+        if (layout?.editorVisible === false && editorVisible) {
+            toggleEditor();
+        }
+        if (layout?.sidebarVisible === false && sidebarVisible) {
+            toggleSidebar();
+        }
+        // Preview: check both the legacy editor.showPreview setting and layout state
+        const showPreview = layout?.previewVisible ?? (appSettings?.editor?.showPreview !== false);
+        if (!showPreview && previewVisible) {
+            togglePreview();
+        }
+    } finally {
+        _restoringPaneVisibility = false;
     }
 }
 
@@ -8451,26 +8461,121 @@ newFolderBtn.addEventListener('click', async () => {
     await createNewFolder();
 });
 
-// --- Change Directory Button Listener ---
-changeDirectoryBtn.addEventListener('click', async () => {
+// --- Change Directory Button Listener (dropdown with recent workspaces) ---
+changeDirectoryBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+
+    // Remove any existing dropdown
+    const existing = document.getElementById('workspace-dropdown');
+    if (existing) { existing.remove(); return; }
+
+    // Build dropdown
+    const dropdown = document.createElement('div');
+    dropdown.id = 'workspace-dropdown';
+    dropdown.style.cssText = `
+        position: absolute; z-index: 9999;
+        background: var(--surface, #fff); color: var(--text-color, #1e293b);
+        border: 1px solid var(--border-color, #ccc); border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 260px; max-width: 400px;
+        padding: 4px 0; font-size: 12px;
+    `;
+
+    // Current workspace header
+    const currentDir = window.appSettings?.workingDirectory || '';
+    const header = document.createElement('div');
+    header.style.cssText = 'padding: 6px 12px; font-size: 11px; color: var(--text-muted, #888); border-bottom: 1px solid var(--border-color, #eee);';
+    header.textContent = `Current: ${currentDir.split('/').pop() || currentDir}`;
+    header.title = currentDir;
+    dropdown.appendChild(header);
+
+    // Fetch recent workspaces
+    let recents = [];
     try {
-        const result = await window.electronAPI.invoke('change-working-directory');
-        if (result.success) {
-            // Update global settings cache with new directory
-            if (window.appSettings) {
-                window.appSettings.workingDirectory = result.directory;
-            }
-            showNotification(`Working directory changed`, 'success');
-            // Refresh file tree to show new directory contents
-            fileTreeRendered = false;
-            renderFileTree();
-        } else if (!result.error?.includes('cancelled')) {
-            showNotification(result.error, 'error');
-        }
-    } catch (error) {
-        console.error('[Renderer] Error changing directory:', error);
-        showNotification('Error changing working directory', 'error');
+        recents = await window.electronAPI.invoke('get-recent-workspaces');
+    } catch (err) {
+        console.warn('[Renderer] Could not fetch recent workspaces:', err);
     }
+
+    // Filter out the current workspace
+    const filtered = recents.filter(p => p !== currentDir);
+
+    if (filtered.length > 0) {
+        for (const ws of filtered) {
+            const item = document.createElement('div');
+            item.style.cssText = `
+                padding: 6px 12px; cursor: pointer;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            `;
+            item.textContent = ws.split('/').pop() || ws;
+            item.title = ws;
+            item.addEventListener('mouseenter', () => { item.style.background = 'var(--surface-hover, #f0f0f0)'; });
+            item.addEventListener('mouseleave', () => { item.style.background = ''; });
+            item.addEventListener('click', async () => {
+                dropdown.remove();
+                try {
+                    const result = await window.electronAPI.invoke('switch-workspace', ws);
+                    if (result.success) {
+                        if (window.appSettings) window.appSettings.workingDirectory = result.directory;
+                        showNotification(`Switched to ${ws.split('/').pop()}`, 'success');
+                        fileTreeRendered = false;
+                        renderFileTree();
+                    } else {
+                        showNotification(result.error || 'Failed to switch', 'error');
+                    }
+                } catch (err) {
+                    showNotification('Error switching workspace', 'error');
+                }
+            });
+            dropdown.appendChild(item);
+        }
+    } else {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding: 6px 12px; color: var(--text-muted, #999); font-style: italic;';
+        empty.textContent = 'No recent workspaces';
+        dropdown.appendChild(empty);
+    }
+
+    // Separator + Browse option
+    const sep = document.createElement('div');
+    sep.style.cssText = 'border-top: 1px solid var(--border-color, #eee); margin: 4px 0;';
+    dropdown.appendChild(sep);
+
+    const browse = document.createElement('div');
+    browse.style.cssText = 'padding: 6px 12px; cursor: pointer; font-weight: 500;';
+    browse.textContent = '📂 Browse…';
+    browse.addEventListener('mouseenter', () => { browse.style.background = 'var(--surface-hover, #f0f0f0)'; });
+    browse.addEventListener('mouseleave', () => { browse.style.background = ''; });
+    browse.addEventListener('click', async () => {
+        dropdown.remove();
+        try {
+            const result = await window.electronAPI.invoke('change-working-directory');
+            if (result.success) {
+                if (window.appSettings) window.appSettings.workingDirectory = result.directory;
+                showNotification(`Working directory changed`, 'success');
+                fileTreeRendered = false;
+                renderFileTree();
+            }
+        } catch (err) {
+            showNotification('Error changing working directory', 'error');
+        }
+    });
+    dropdown.appendChild(browse);
+
+    // Position relative to button
+    const rect = changeDirectoryBtn.getBoundingClientRect();
+    dropdown.style.left = `${rect.left}px`;
+    dropdown.style.top = `${rect.bottom + 4}px`;
+    dropdown.style.position = 'fixed';
+    document.body.appendChild(dropdown);
+
+    // Close on outside click
+    const closeDropdown = (ev) => {
+        if (!dropdown.contains(ev.target) && ev.target !== changeDirectoryBtn) {
+            dropdown.remove();
+            document.removeEventListener('click', closeDropdown, true);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', closeDropdown, true), 0);
 });
 
 // --- Add Workspace Folder Button Listener ---
@@ -10411,10 +10516,14 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
                 { label: pasteLabel, action: 'paste-file' }
             );
         }
+        // Add "Set as Primary Folder" for any folder
+        menuItems.push(
+            { separator: true },
+            { label: '🏠 Set as Primary Folder', action: 'set-as-primary' }
+        );
         // Add "Remove from Workspace" option for workspace folder roots (not the primary folder)
         if (isWorkspaceFolderRoot) {
             menuItems.push(
-                { separator: true },
                 { label: 'Remove from Workspace', action: 'remove-from-workspace' }
             );
         }
@@ -10825,6 +10934,24 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                 showFolderNameModalWithParent(filePath);
             } else {
                 showNotification('New folder can only be created inside directories', 'error');
+            }
+            break;
+
+        case 'set-as-primary':
+            if (isFolder) {
+                try {
+                    const result = await window.electronAPI.invoke('switch-workspace', filePath);
+                    if (result.success) {
+                        if (window.appSettings) window.appSettings.workingDirectory = result.directory;
+                        showNotification(`Primary folder set to ${filePath.split('/').pop()}`, 'success');
+                        fileTreeRendered = false;
+                        renderFileTree();
+                    } else {
+                        showNotification(result.error || 'Failed to set primary folder', 'error');
+                    }
+                } catch (error) {
+                    showNotification('Error setting primary folder', 'error');
+                }
             }
             break;
 
@@ -12311,6 +12438,19 @@ let sidebarVisible = true;
 let editorVisible = true;
 let previewVisible = true;
 
+// Persist pane visibility to settings so state survives restarts
+let _restoringPaneVisibility = false;
+function savePaneVisibility() {
+    if (_restoringPaneVisibility) return; // Skip saves during initial restore
+    if (window.electronAPI) {
+        window.electronAPI.send('save-layout', {
+            sidebarVisible,
+            editorVisible,
+            previewVisible
+        });
+    }
+}
+
 function setPaneVisibilityButtonState(toggleBtn, isVisible, onVariantClass = 'btn-primary') {
     if (!toggleBtn) return;
 
@@ -12364,6 +12504,7 @@ function toggleSidebar() {
     }
     
     sidebarVisible = !sidebarVisible;
+    savePaneVisibility();
 }
 
 function toggleEditor() {
@@ -12383,6 +12524,7 @@ function toggleEditor() {
         refreshLayoutProportions();
     }
     editorVisible = !editorVisible;
+    savePaneVisibility();
 }
 
 function togglePreview() {
@@ -12408,6 +12550,7 @@ function togglePreview() {
         refreshLayoutProportions();
     }
     previewVisible = !previewVisible;
+    savePaneVisibility();
 }
 
 // Expose togglePreview globally for command palette
@@ -12685,10 +12828,24 @@ function renderSlideThumbnails(content) {
         activeSlide = Math.min(slideIdx, slides.length - 1);
     }
 
+    // Extract background image directive from slide markdown
+    const extractSlideBg = (md) => {
+        const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
+        if (!match) return null;
+        let imgPath = match[1].trim();
+        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('/') && !imgPath.startsWith('file://') && !imgPath.startsWith('data:')) {
+            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+            if (baseDir) imgPath = `file://${baseDir}/${imgPath}`;
+        } else if (imgPath.startsWith('/')) {
+            imgPath = `file://${imgPath}`;
+        }
+        return imgPath;
+    };
+
     // Render thumbnails using marked if available
     const renderHTML = (md) => {
-        // Strip speaker notes
-        const clean = md.replace(/```notes\s*\n[\s\S]*?\n```/g, '').trim();
+        // Strip speaker notes and bg directives
+        const clean = md.replace(/```notes\s*\n[\s\S]*?\n```/g, '').replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
         if (window.marked) {
             try { return window.marked.parse(clean); } catch (e) { /* fall through */ }
         }
@@ -12698,7 +12855,9 @@ function renderSlideThumbnails(content) {
     const closeBtn = `<button class="slide-strip-close" onclick="toggleSlideThumbnails()" title="Hide slide thumbnails">✕</button>`;
     strip.innerHTML = closeBtn + slides.map((slide, i) => {
         const html = renderHTML(slide);
-        return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}">
+        const bgImage = extractSlideBg(slide);
+        const bgStyle = bgImage ? `background-image: url('${bgImage}'); background-size: cover; background-position: center;` : '';
+        return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}" style="${bgStyle}">
             <div class="slide-thumb-content">${html}</div>
             <span class="slide-thumb-label">${i + 1}</span>
         </div>`;

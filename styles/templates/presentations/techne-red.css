@@ -31,7 +31,7 @@
 #presentation-root div.absolute.slide,
 .absolute.slide,
 div.absolute.slide {
-    background: rgba(255, 255, 255, 0.94) !important;
+    background-color: rgba(255, 255, 255, 0.94) !important;
     color: var(--techne-black) !important;
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     line-height: 1.6;

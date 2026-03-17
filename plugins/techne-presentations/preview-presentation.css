@@ -1135,7 +1135,7 @@ body.is-presenting ol ol ol,
 .slide {
     box-sizing: border-box !important;
     overflow: hidden !important;
-    background: var(--slide-bg, #ffffff) !important;
+    background-color: var(--slide-bg, #ffffff) !important;
 }
 
 /* Ensure slide content doesn't overflow */
@@ -1146,6 +1146,11 @@ body.is-presenting ol ol ol,
     overflow: auto !important;
     background: var(--slide-content-bg, #ffffff) !important;
     padding: 1.5rem !important;
+}
+
+/* Slide with background image — translucent overlay for text readability */
+.slide-has-bg .slide-content {
+    background: rgba(255, 255, 255, 0.82) !important;
 }
 
 /* Tables should be responsive */

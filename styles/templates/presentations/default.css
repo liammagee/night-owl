@@ -1,25 +1,25 @@
-/* Default Green Presentation Template */
-/* Modern green theme with elegant gradients and clean typography */
+/* Default Presentation Template */
+/* Brand red theme with elegant gradients and clean typography */
 
 :root {
-    --primary-color: #065f46;
-    --secondary-color: #047857;
-    --accent-color: #10b981;
+    --primary-color: #7a1520;
+    --secondary-color: #991b2a;
+    --accent-color: #E63946;
     --text-color: #111827;
-    --bg-color: #d1fae5;
-    --slide-bg: #f0fdf4;
+    --bg-color: #fde8ea;
+    --slide-bg: #fff5f6;
     --slide-inner-bg: #ffffff;
-    --border-color: #86efac;
-    --highlight-color: #22c55e;
+    --border-color: #f5a0a7;
+    --highlight-color: #c1121f;
     --quote-bg: #f9fafb;
-    --presentation-bg-gradient: linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%);
+    --presentation-bg-gradient: linear-gradient(135deg, #7a1520 0%, #c1121f 50%, #E63946 100%);
     --presentation-slide-width: 864px;
     --presentation-slide-height: 486px;
 }
 
 /* Slide container - white background with padding, positioned within light green area */
 .slide {
-    background: var(--slide-inner-bg) !important;
+    background-color: var(--slide-inner-bg) !important;
     color: var(--text-color) !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     line-height: 1.6;
@@ -27,7 +27,7 @@
     border-radius: 8px;
     margin: 20px;
     padding: 24px 32px;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 4px 12px rgba(230, 57, 70, 0.1);
     position: relative;
     width: var(--presentation-slide-width) !important;
     min-height: var(--presentation-slide-height) !important;
@@ -53,13 +53,13 @@
 #presentation-root div.absolute.slide,
 .absolute.slide,
 div.absolute.slide {
-    background: var(--slide-inner-bg) !important;
+    background-color: var(--slide-inner-bg) !important;
     color: var(--text-color) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: 8px !important;
     margin: 0 !important;
     padding: 24px 32px !important;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1) !important;
+    box-shadow: 0 4px 12px rgba(230, 57, 70, 0.1) !important;
     position: relative;
     width: var(--presentation-slide-width) !important;
     min-height: var(--presentation-slide-height) !important;
@@ -71,7 +71,7 @@ div.absolute.slide {
 }
 
 
-/* Ensure parent containers get the green gradient background */
+/* Ensure parent containers get the red gradient background */
 #presentation-content,
 #presentation-root,
 #presentation-content .bg-white,
@@ -85,7 +85,7 @@ div.absolute.slide {
     font-size: 2.2em;
     font-weight: 700;
     margin-bottom: 0.8em;
-    text-shadow: 0 2px 4px rgba(6, 95, 70, 0.1);
+    text-shadow: 0 2px 4px rgba(230, 57, 70, 0.1);
     letter-spacing: -0.02em;
     border-bottom: 3px solid var(--accent-color);
     padding-bottom: 0.2em;
@@ -99,7 +99,7 @@ div.absolute.slide {
     margin-bottom: 0.6em;
     border-left: 5px solid var(--accent-color);
     padding-left: 12px;
-    background: linear-gradient(to right, rgba(16, 185, 129, 0.1), transparent);
+    background: linear-gradient(to right, rgba(230, 57, 70, 0.1), transparent);
 }
 
 .slide h3, .slide-content h3 {
@@ -193,7 +193,7 @@ div.absolute.slide {
     font-size: 1.2em;
     color: var(--primary-color);
     border-radius: 0 8px 8px 0;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 4px 12px rgba(230, 57, 70, 0.1);
     position: relative;
 }
 
@@ -211,7 +211,7 @@ div.absolute.slide {
 
 /* Code blocks */
 .slide code, .slide-content code {
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(230, 57, 70, 0.1);
     color: var(--primary-color);
     padding: 0.3em 0.6em;
     border-radius: 4px;
@@ -221,7 +221,7 @@ div.absolute.slide {
 }
 
 .slide pre, .slide-content pre {
-    background: rgba(16, 185, 129, 0.05);
+    background: rgba(230, 57, 70, 0.05);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 1.5em;
@@ -246,7 +246,7 @@ div.absolute.slide {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 4px 12px rgba(230, 57, 70, 0.1);
 }
 
 .slide th, .slide-content th, .slide td, .slide-content td {
@@ -262,7 +262,7 @@ div.absolute.slide {
 }
 
 .slide tr:nth-child(even), .slide-content tr:nth-child(even) {
-    background: rgba(16, 185, 129, 0.05);
+    background: rgba(230, 57, 70, 0.05);
 }
 
 /* Emphasis */
@@ -286,7 +286,7 @@ div.absolute.slide {
 
 .slide a:hover, .slide-content a:hover {
     border-bottom-color: var(--accent-color);
-    text-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+    text-shadow: 0 0 8px rgba(230, 57, 70, 0.3);
 }
 
 /* Math equations */
@@ -300,7 +300,7 @@ div.absolute.slide {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 8px 24px rgba(230, 57, 70, 0.2);
     border: 2px solid var(--border-color);
 }
 
@@ -345,13 +345,13 @@ div.absolute.slide:has(img) {
     height: 4px;
     background: linear-gradient(90deg, var(--accent-color), var(--highlight-color));
     border-radius: 2px;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 2px 8px rgba(230, 57, 70, 0.3);
 }
 
 /* Hover effects for interactive elements */
 .slide:hover {
     transform: translateY(-2px);
-    box-shadow: 0 15px 40px rgba(34, 197, 94, 0.25);
+    box-shadow: 0 15px 40px rgba(230, 57, 70, 0.25);
 }
 
 /* Force all text elements to use correct colors */

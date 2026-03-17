@@ -4043,9 +4043,14 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     line-height: 1.5;
     white-space: pre-wrap;
     word-wrap: break-word;
-    background: var(--surface-variant, #f8f9fa);
-    color: var(--text-color, #333);
+    background: var(--surface-variant, #f8f9fa) !important;
+    color: var(--text-color, #1e293b) !important;
     tab-size: 4;
+}
+
+body.dark-mode .preview-source-view {
+    background: var(--surface-variant, #1e1e1e) !important;
+    color: var(--text-color, #d4d4d4) !important;
 }
 
 /* Source view toolbar */

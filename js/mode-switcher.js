@@ -274,33 +274,39 @@ function switchToMode(modeName) {
     // Ensure React component is rendered
     const presentationRoot = document.getElementById('presentation-root');
     if (presentationRoot) {
-      const nonce = ++presentationLoadNonce;
-      presentationRoot.innerHTML = '<div style="padding: 16px; opacity: 0.8;">Loading presentation…</div>';
+      // Skip teardown+reload if React component is already mounted
+      const alreadyMounted = presentationRoot.querySelector('.slide, [data-reactroot]');
+      if (alreadyMounted && window.MarkdownPreziApp) {
+        console.log('[Mode Switching] Presentation component already mounted, reusing');
+      } else {
+        const nonce = ++presentationLoadNonce;
+        presentationRoot.innerHTML = '<div style="padding: 16px; opacity: 0.8;">Loading presentation…</div>';
 
-      (async () => {
-        const ok = await ensureTechnePresentationsReady();
-        if (nonce !== presentationLoadNonce) return;
+        (async () => {
+          const ok = await ensureTechnePresentationsReady();
+          if (nonce !== presentationLoadNonce) return;
 
-        if (!ok) {
-          presentationRoot.innerHTML =
-            '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation plugin not ready. Please try again.</div>';
-          return;
-        }
+          if (!ok) {
+            presentationRoot.innerHTML =
+              '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation plugin not ready. Please try again.</div>';
+            return;
+          }
 
-        if (!window.ReactDOM?.render || !window.React?.createElement || !window.MarkdownPreziApp) {
-          presentationRoot.innerHTML =
-            '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation runtime missing (React globals).</div>';
-          return;
-        }
+          if (!window.ReactDOM?.render || !window.React?.createElement || !window.MarkdownPreziApp) {
+            presentationRoot.innerHTML =
+              '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation runtime missing (React globals).</div>';
+            return;
+          }
 
-        console.log('[Mode Switching] Rendering React presentation component for presentation mode');
-        try {
-          window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), presentationRoot);
-          console.log('[Mode Switching] React component rendered successfully');
-        } catch (error) {
-          console.error('[Mode Switching] Error rendering React component:', error);
-        }
-      })();
+          console.log('[Mode Switching] Rendering React presentation component for presentation mode');
+          try {
+            window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), presentationRoot);
+            console.log('[Mode Switching] React component rendered successfully');
+          } catch (error) {
+            console.error('[Mode Switching] Error rendering React component:', error);
+          }
+        })();
+      }
     }
     
     // Always get the latest content from the editor when switching to presentation mode
@@ -623,6 +629,13 @@ function setupPluginModeButtons() {
       updateModeButtonVisibility();
     });
   }
+}
+
+// Wire up IPC events from menu keyboard shortcuts (Cmd+1/2/3)
+if (window.electronAPI) {
+  window.electronAPI.onSwitchToEditor?.(() => switchToMode('editor'));
+  window.electronAPI.onSwitchToPresentation?.(() => switchToMode('presentation'));
+  window.electronAPI.onSwitchToNetwork?.(() => switchToMode('network'));
 }
 
 // Export functions to global scope for backward compatibility

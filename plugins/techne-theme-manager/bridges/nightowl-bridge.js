@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    const DARK_THEMES = ['dark', 'techne-red', 'techne-orange', 'solarized-dark'];
+    const DARK_THEMES = ['dark', 'techne-red-dark', 'techne-orange-dark'];
 
     // ── Monaco dynamic theme ────────────────────────────────────────
 
@@ -80,9 +80,9 @@
 
         // Sync Techne overlay classes
         document.body.classList.remove('techne-theme', 'techne-accent-orange');
-        if (themeId === 'techne-red' || themeId === 'techne-orange') {
+        if (themeId.startsWith('techne-red') || themeId.startsWith('techne-orange')) {
             document.body.classList.add('techne-theme');
-            if (themeId === 'techne-orange') {
+            if (themeId.startsWith('techne-orange')) {
                 document.body.classList.add('techne-accent-orange');
             }
         }

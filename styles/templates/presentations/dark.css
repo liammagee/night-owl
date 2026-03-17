@@ -4,21 +4,21 @@
 :root {
     --primary-color: #ffffff;
     --secondary-color: #e8e8e8;
-    --accent-color: #64b5f6;
+    --accent-color: #ff6b6b;
     --text-color: #ffffff;
     --bg-color: #0f1419;
     --slide-bg: #1a1d24;
     --border-color: #525252;
     --highlight-color: #2a2d33;
     --code-bg: #282c34;
-    --presentation-bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f1419 100%);
+    --presentation-bg-gradient: linear-gradient(135deg, #1a0a0e 0%, #2a1015 50%, #0f1419 100%);
     --presentation-slide-width: 864px;
     --presentation-slide-height: 486px;
 }
 
 /* Slide container and content */
 .slide {
-    background: var(--slide-bg) !important;
+    background-color: var(--slide-bg) !important;
     color: var(--text-color) !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.6;
@@ -51,7 +51,7 @@
 #presentation-root div.absolute.slide,
 .absolute.slide,
 div.absolute.slide {
-    background: var(--slide-bg) !important;
+    background-color: var(--slide-bg) !important;
     color: var(--text-color) !important;
     border: 1px solid var(--border-color) !important;
     width: var(--presentation-slide-width) !important;
@@ -92,7 +92,7 @@ div.absolute.slide {
     margin-bottom: 1em;
     border-bottom: 2px solid var(--accent-color);
     padding-bottom: 0.3em;
-    text-shadow: 0 2px 4px rgba(100, 181, 246, 0.3);
+    text-shadow: 0 2px 4px rgba(255, 107, 107, 0.3);
 }
 
 .slide h3, .slide-content h3 {
@@ -241,7 +241,7 @@ div.absolute.slide {
 
 .slide a, .slide-content a:hover {
     border-bottom-color: var(--accent-color);
-    text-shadow: 0 0 8px rgba(100, 181, 246, 0.5);
+    text-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
 }
 
 /* Math equations */
@@ -298,9 +298,9 @@ div.absolute.slide:has(img) {
     right: 30px;
     width: 60px;
     height: 4px;
-    background: linear-gradient(90deg, var(--accent-color), #42a5f5);
+    background: linear-gradient(90deg, var(--accent-color), #E63946);
     border-radius: 2px;
-    box-shadow: 0 2px 8px rgba(100, 181, 246, 0.3);
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
 }
 
 /* Force all text elements to be visible on dark background */

@@ -787,6 +787,31 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     return result;
   };
 
+  // Extract slide directives (e.g., background image) from HTML comments
+  const extractSlideDirectives = (slideContent) => {
+    const bgRegex = /<!--\s*bg:\s*(.+?)\s*-->/i;
+    const match = bgRegex.exec(slideContent);
+    let backgroundImage = null;
+
+    if (match) {
+      let imagePath = match[1].trim();
+      // Resolve relative paths (same logic as inline image rendering)
+      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://') && !imagePath.startsWith('data:')) {
+        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+        if (baseDir) {
+          imagePath = `file://${baseDir}/${imagePath}`;
+        }
+      } else if (imagePath.startsWith('/')) {
+        imagePath = `file://${imagePath}`;
+      }
+      backgroundImage = imagePath;
+    }
+
+    // Remove bg directive from visible content
+    const cleanContent = slideContent.replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
+    return { cleanContent, backgroundImage };
+  };
+
   // Parse markdown into slides
   const parseMarkdown = (markdown) => {
     // Strip trailing whitespace from the entire markdown content first
@@ -797,14 +822,16 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     const slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
     const slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
     return slideTexts.map((text, index) => {
-      const { cleanContent, speakerNotes } = extractSpeakerNotes(text);
+      const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
+      const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);
       return {
         id: index,
         content: text,
         cleanContent: cleanContent,
         speakerNotes: speakerNotes,
+        backgroundImage: backgroundImage,
         position: calculateSlidePosition(index, slideTexts.length),
-        parsed: parseMarkdownContent(cleanContent) // Parse only clean content
+        parsed: parseMarkdownContent(cleanContent)
       };
     });
   };
@@ -832,21 +859,24 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   }, []);
 
   // Navigate to specific slide with smooth transition
-  const goToSlide = useCallback((slideIndex) => {
+  const goToSlide = useCallback((slideIndex, _retries = 0) => {
     if (slideIndex < 0 || slideIndex >= slides.length) return;
-    
+
+    const MAX_RETRIES = 20;
     const slide = slides[slideIndex];
     const canvas = canvasRef.current;
     if (!canvas) {
-      console.warn('[Presentation] Canvas not ready for goToSlide, retrying...');
-      setTimeout(() => goToSlide(slideIndex), 50);
+      if (_retries < MAX_RETRIES) {
+        setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
+      }
       return;
     }
 
     // Ensure canvas has proper dimensions
     if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
-      console.warn('[Presentation] Canvas dimensions not ready, retrying...');
-      setTimeout(() => goToSlide(slideIndex), 50);
+      if (_retries < MAX_RETRIES) {
+        setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
+      }
       return;
     }
 
@@ -2291,7 +2321,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           <select
             value={layoutType}
             onChange={(e) => setLayoutType(e.target.value)}
-            className="px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-green-500 outline-none shadow-lg"
+            className="px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-[#E63946] outline-none shadow-lg"
             style={{backgroundColor: '#fefdfb'}}
           >
             <option value="spiral">Spiral</option>
@@ -2557,6 +2587,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               <div
                 key={slide.id}
                 className={`absolute slide rounded-xl shadow-2xl transition-all duration-500 cursor-pointer transform ${
+                  slide.backgroundImage ? 'slide-has-bg' : ''
+                } ${
                   isFocused
                     ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse'
                     : isCurrent
@@ -2574,7 +2606,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                   zIndex: isFocused ? 1000 : isCurrent ? 999 : isPresenting && index !== currentSlide ? 0 : 1,
                   position: 'absolute',
                   boxSizing: 'border-box',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  ...(slide.backgroundImage ? {
+                    backgroundImage: `url('${slide.backgroundImage}')`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat'
+                  } : {})
                 }}
                 onDoubleClick={() => handleSlideDoubleClick(index)}
               >

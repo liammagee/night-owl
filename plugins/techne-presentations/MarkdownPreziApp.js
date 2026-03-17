@@ -700,40 +700,18 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
     // Fix image paths - convert relative paths to absolute file:// URLs
     html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (match, altText, imagePath) {
-      // Trim whitespace and handle title attribute if present
-      var cleanPath = imagePath.split(/\s+["']/)[0].trim();
-
-      // Check if this is a relative path (not http, not absolute, not file://)
-      var isRelative = cleanPath &&
-        !cleanPath.startsWith('http://') &&
-        !cleanPath.startsWith('https://') &&
-        !cleanPath.startsWith('file://') &&
-        !cleanPath.startsWith('data:');
-
-      if (isRelative) {
+      // Check if this is a relative path
+      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://')) {
         var _window$appSettings;
         // Use current file directory if available, otherwise fallback to working directory
-        var baseDir = window.currentFileDirectory ||
-          ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory) ||
-          window.currentDirectory;
-
+        var baseDir = window.currentFileDirectory || ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory);
         if (baseDir) {
-          // Handle ./ prefix
-          var normalizedPath = cleanPath.replace(/^\.\//, '');
-          // Handle absolute paths (starting with /)
-          var fullPath;
-          if (cleanPath.startsWith('/')) {
-            fullPath = "file://".concat(cleanPath);
-          } else {
-            fullPath = "file://".concat(baseDir, "/").concat(normalizedPath);
-          }
-          console.log("[React Presentation] Converting image path: ".concat(cleanPath, " -> ").concat(fullPath));
-          return "<img src=\"".concat(fullPath, "\" alt=\"").concat(altText, "\" loading=\"lazy\" />");
-        } else {
-          console.warn("[React Presentation] No base directory available for relative image: ".concat(cleanPath));
+          var fullPath = "file://".concat(baseDir, "/").concat(imagePath);
+          console.log("[React Presentation] Converting image path: ".concat(imagePath, " -> ").concat(fullPath));
+          return "<img src=\"".concat(fullPath, "\" alt=\"").concat(altText, "\" />");
         }
       }
-      return "<img src=\"".concat(cleanPath, "\" alt=\"").concat(altText, "\" loading=\"lazy\" />");
+      return "<img src=\"".concat(imagePath, "\" alt=\"").concat(altText, "\" />");
     });
 
     // Process math expressions before other markdown to preserve them
@@ -936,6 +914,34 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     return result;
   };
 
+  // Extract slide directives (e.g., background image) from HTML comments
+  var extractSlideDirectives = function extractSlideDirectives(slideContent) {
+    var bgRegex = /<!--\s*bg:\s*(.+?)\s*-->/i;
+    var match = bgRegex.exec(slideContent);
+    var backgroundImage = null;
+    if (match) {
+      var imagePath = match[1].trim();
+      // Resolve relative paths (same logic as inline image rendering)
+      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://') && !imagePath.startsWith('data:')) {
+        var _window$appSettings3;
+        var baseDir = window.currentFileDirectory || ((_window$appSettings3 = window.appSettings) === null || _window$appSettings3 === void 0 ? void 0 : _window$appSettings3.workingDirectory);
+        if (baseDir) {
+          imagePath = "file://".concat(baseDir, "/").concat(imagePath);
+        }
+      } else if (imagePath.startsWith('/')) {
+        imagePath = "file://".concat(imagePath);
+      }
+      backgroundImage = imagePath;
+    }
+
+    // Remove bg directive from visible content
+    var cleanContent = slideContent.replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
+    return {
+      cleanContent: cleanContent,
+      backgroundImage: backgroundImage
+    };
+  };
+
   // Parse markdown into slides
   var parseMarkdown = function parseMarkdown(markdown) {
     // Strip trailing whitespace from the entire markdown content first
@@ -951,15 +957,19 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     });
     return slideTexts.map(function (text, index) {
       var _extractSpeakerNotes = extractSpeakerNotes(text),
-        cleanContent = _extractSpeakerNotes.cleanContent,
+        afterNotes = _extractSpeakerNotes.cleanContent,
         speakerNotes = _extractSpeakerNotes.speakerNotes;
+      var _extractSlideDirectiv = extractSlideDirectives(afterNotes),
+        cleanContent = _extractSlideDirectiv.cleanContent,
+        backgroundImage = _extractSlideDirectiv.backgroundImage;
       return {
         id: index,
         content: text,
         cleanContent: cleanContent,
         speakerNotes: speakerNotes,
+        backgroundImage: backgroundImage,
         position: calculateSlidePosition(index, slideTexts.length),
-        parsed: parseMarkdownContent(cleanContent) // Parse only clean content
+        parsed: parseMarkdownContent(cleanContent)
       };
     });
   };
@@ -990,23 +1000,27 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Navigate to specific slide with smooth transition
   var goToSlide = useCallback(function (slideIndex) {
+    var _retries = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
     if (slideIndex < 0 || slideIndex >= slides.length) return;
+    var MAX_RETRIES = 20;
     var slide = slides[slideIndex];
     var canvas = canvasRef.current;
     if (!canvas) {
-      console.warn('[Presentation] Canvas not ready for goToSlide, retrying...');
-      setTimeout(function () {
-        return goToSlide(slideIndex);
-      }, 50);
+      if (_retries < MAX_RETRIES) {
+        setTimeout(function () {
+          return goToSlide(slideIndex, _retries + 1);
+        }, 50);
+      }
       return;
     }
 
     // Ensure canvas has proper dimensions
     if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
-      console.warn('[Presentation] Canvas dimensions not ready, retrying...');
-      setTimeout(function () {
-        return goToSlide(slideIndex);
-      }, 50);
+      if (_retries < MAX_RETRIES) {
+        setTimeout(function () {
+          return goToSlide(slideIndex, _retries + 1);
+        }, 50);
+      }
       return;
     }
     var targetZoom = isPresenting ? zoomRef.current || zoom : 1.2;
@@ -2497,7 +2511,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     onChange: function onChange(e) {
       return setLayoutType(e.target.value);
     },
-    className: "px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-green-500 outline-none shadow-lg",
+    className: "px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-[#E63946] outline-none shadow-lg",
     style: {
       backgroundColor: '#fefdfb'
     }
@@ -2691,8 +2705,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     var isCurrent = index === currentSlide;
     return /*#__PURE__*/React.createElement("div", {
       key: slide.id,
-      className: "absolute slide rounded-xl shadow-2xl transition-all duration-500 cursor-pointer transform ".concat(isFocused ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse' : isCurrent ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105' : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'),
-      style: {
+      className: "absolute slide rounded-xl shadow-2xl transition-all duration-500 cursor-pointer transform ".concat(slide.backgroundImage ? 'slide-has-bg' : '', " ").concat(isFocused ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse' : isCurrent ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105' : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'),
+      style: _objectSpread({
         left: "".concat(slide.position.x, "px"),
         top: "".concat(slide.position.y, "px"),
         width: "".concat(SLIDE_WIDTH, "px"),
@@ -2704,7 +2718,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         position: 'absolute',
         boxSizing: 'border-box',
         overflow: 'hidden'
-      },
+      }, slide.backgroundImage ? {
+        backgroundImage: "url('".concat(slide.backgroundImage, "')"),
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      } : {}),
       onDoubleClick: function onDoubleClick() {
         return handleSlideDoubleClick(index);
       }

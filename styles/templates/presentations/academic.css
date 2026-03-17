@@ -4,12 +4,12 @@
 :root {
     --primary-color: #2c3e50;
     --secondary-color: #34495e;
-    --accent-color: #c0392b;
+    --accent-color: #E63946;
     --text-color: #2c3e50;
     --bg-color: #f5f2e8;
     --slide-bg: #f5f2e8;
     --border-color: #d4b886;
-    --highlight-color: #e74c3c;
+    --highlight-color: #c1121f;
     --quote-bg: #f0ede3;
     --presentation-bg-gradient: linear-gradient(135deg, #f4f1e8 0%, #e8dcc6 50%, #d4c4a0 100%);
     --presentation-slide-width: 864px;
@@ -18,7 +18,7 @@
 
 /* Slide container */
 .slide {
-    background: var(--slide-bg) !important;
+    background-color: var(--slide-bg) !important;
     color: var(--text-color) !important;
     font-family: 'Georgia', 'Garamond', 'Times New Roman', serif;
     line-height: 1.6;
@@ -51,7 +51,7 @@
 #presentation-root div.absolute.slide,
 .absolute.slide,
 div.absolute.slide {
-    background: var(--slide-bg) !important;
+    background-color: var(--slide-bg) !important;
     color: var(--text-color) !important;
     border: 2px solid var(--border-color) !important;
     border-radius: 12px !important;
