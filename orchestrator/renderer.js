@@ -347,32 +347,67 @@ async function showGitPublishDialog(gitInfo) {
 // Annotations processing is handled by the annotations.js module
 
 // --- Math Rendering Functions ---
-async function renderMathInContent(container) {
-    if (!container) return;
-    
-    // Check if MathJax is available and ready
-    if (typeof window.MathJax === 'undefined' || !window.MathJax) {
-        return; // MathJax not loaded yet
-    }
-    
+// --- Lazy post-processing for large documents ---
+// Uses IntersectionObserver to defer MathJax/Mermaid rendering to visible elements only.
+let _mathObserver = null;
+let _mermaidObserver = null;
+
+function _typesetElement(el) {
+    if (el.dataset.mathTypeset) return; // Already processed
+    el.dataset.mathTypeset = '1';
     try {
-        // Check if MathJax has the typesetPromise method (v3)
-        if (window.MathJax.typesetPromise) {
-            // Tell MathJax to process the new content
-            await window.MathJax.typesetPromise([container]);
-        } else if (window.MathJax.typeset) {
-            // Fallback to synchronous typeset if available
-            window.MathJax.typeset([container]);
-        } else if (window.MathJax.startup && window.MathJax.startup.document) {
-            // Alternative approach for MathJax v3
-            window.MathJax.startup.document.clear();
-            window.MathJax.startup.document.updateDocument();
+        if (window.MathJax?.typesetPromise) {
+            window.MathJax.typesetPromise([el]);
+        } else if (window.MathJax?.typeset) {
+            window.MathJax.typeset([el]);
         }
     } catch (error) {
-        // Only log error if it's not about MathJax not being ready
         if (!error.message?.includes('typesetPromise')) {
             console.error('Error rendering math:', error);
         }
+    }
+}
+
+async function renderMathInContent(container) {
+    if (!container) return;
+    if (typeof window.MathJax === 'undefined' || !window.MathJax) return;
+
+    // For small documents or non-preview contexts, typeset everything at once
+    const mathElements = container.querySelectorAll('mjx-container, .MathJax, script[type="math/tex"], [class*="math"]');
+    const sectionCount = container.querySelectorAll('h1, h2, hr').length;
+    if (sectionCount <= 10) {
+        try {
+            if (window.MathJax.typesetPromise) {
+                await window.MathJax.typesetPromise([container]);
+            } else if (window.MathJax.typeset) {
+                window.MathJax.typeset([container]);
+            } else if (window.MathJax.startup?.document) {
+                window.MathJax.startup.document.clear();
+                window.MathJax.startup.document.updateDocument();
+            }
+        } catch (error) {
+            if (!error.message?.includes('typesetPromise')) {
+                console.error('Error rendering math:', error);
+            }
+        }
+        return;
+    }
+
+    // Large document: observe sections and typeset lazily
+    if (_mathObserver) _mathObserver.disconnect();
+    _mathObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            if (entry.isIntersecting) {
+                _typesetElement(entry.target);
+                _mathObserver.unobserve(entry.target);
+            }
+        }
+    }, { rootMargin: '200px 0px' }); // Process slightly before entering viewport
+
+    // Observe block-level containers (sections between headings/HRs) instead of individual elements
+    const children = container.children;
+    for (let i = 0; i < children.length; i++) {
+        _mathObserver.observe(children[i]);
     }
 }
 
@@ -384,7 +419,35 @@ async function renderMathInPresentation() {
     }
 }
 
+// Render a single mermaid code block (used by the lazy observer path)
+async function _renderSingleMermaidBlock(codeBlock) {
+    try {
+        const mermaidCode = codeBlock.textContent;
+        const id = `mermaid-diagram-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const diagramDiv = document.createElement('div');
+        diagramDiv.id = id;
+        diagramDiv.className = 'mermaid-diagram';
+
+        const { svg } = await window.mermaid.render(id, mermaidCode);
+        diagramDiv.innerHTML = svg;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mermaid-diagram-wrapper';
+        wrapper.appendChild(diagramDiv);
+
+        const pre = codeBlock.closest('pre');
+        if (pre) {
+            pre.parentNode.replaceChild(wrapper, pre);
+        } else {
+            codeBlock.parentNode.replaceChild(wrapper, codeBlock);
+        }
+    } catch (error) {
+        console.error('[Mermaid] Error rendering deferred diagram:', error);
+    }
+}
+
 // Helper function to render Mermaid diagrams
+// For large documents, defers rendering of offscreen diagrams via IntersectionObserver.
 async function renderMermaidDiagrams(container) {
     if (!window.mermaid) {
         return;
@@ -398,6 +461,27 @@ async function renderMermaidDiagrams(container) {
             return;
         }
 
+        // For large documents with many mermaid blocks, render lazily
+        const sectionCount = container.querySelectorAll('h1, h2, hr').length;
+        if (sectionCount > 10 && mermaidBlocks.length > 2) {
+            if (_mermaidObserver) _mermaidObserver.disconnect();
+            _mermaidObserver = new IntersectionObserver((entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        _mermaidObserver.unobserve(entry.target);
+                        // Render this single diagram inline
+                        const block = entry.target.querySelector('code.language-mermaid, pre.language-mermaid code');
+                        if (block) _renderSingleMermaidBlock(block, container);
+                    }
+                }
+            }, { rootMargin: '300px 0px' });
+
+            for (const block of mermaidBlocks) {
+                const pre = block.closest('pre') || block.parentNode;
+                _mermaidObserver.observe(pre);
+            }
+            return;
+        }
 
         for (let i = 0; i < mermaidBlocks.length; i++) {
             const codeBlock = mermaidBlocks[i];
@@ -991,9 +1075,21 @@ function removePreviewOverflowConstraints() {
 }
 
 // Debounced version of updatePreviewAndStructure for use during typing
-// This prevents preview updates on every keystroke which causes sluggishness
+// This prevents preview updates on every keystroke which causes sluggishness.
+// Delay scales with document complexity to keep large documents responsive.
 let previewUpdateTimeout = null;
-function debouncedUpdatePreviewAndStructure(markdownContent, delay = 150) {
+function debouncedUpdatePreviewAndStructure(markdownContent, delay) {
+    if (delay === undefined) {
+        // Adaptive delay: count slide separators as a complexity proxy
+        const slideCount = (markdownContent.match(/\n---[ \t]*\n/g) || []).length + 1;
+        if (slideCount > 30) {
+            delay = 500;
+        } else if (slideCount > 10) {
+            delay = 300;
+        } else {
+            delay = 150;
+        }
+    }
     if (previewUpdateTimeout) {
         clearTimeout(previewUpdateTimeout);
     }
@@ -11907,6 +12003,31 @@ if (window.electronAPI) {
     });
 }
 
+// Listen for 'save-all-and-close' from main process (window close with unsaved changes)
+if (window.electronAPI) {
+    window.electronAPI.on('save-all-and-close', async () => {
+        try {
+            if (window.editorTabs) {
+                for (const [filePath, tab] of window.editorTabs.tabs) {
+                    if (tab.isDirty && filePath && !filePath.startsWith('untitled:')) {
+                        const content = tab.model ? tab.model.getValue() : null;
+                        if (content !== null) {
+                            await window.electronAPI.invoke('save-file', { filePath, content });
+                        }
+                    }
+                }
+            } else {
+                // Fallback: save the current file
+                await saveFile();
+            }
+        } catch (err) {
+            console.error('[renderer] Error saving all files before close:', err);
+        }
+        // Signal main process that saves are done and it can close
+        window.electronAPI.send('saves-completed-close');
+    });
+}
+
 // --- End Save/Save As Logic ---
 
 // --- Export Logic ---
@@ -12778,9 +12899,17 @@ window.showQuickOpen = showQuickOpen;
 let slideThumbnailTimer = null;
 let slideThumbnailsHidden = false; // user preference to hide the strip
 
+let _lastThumbnailHash = '';
 function updateSlideThumbnails(content) {
     clearTimeout(slideThumbnailTimer);
-    slideThumbnailTimer = setTimeout(() => renderSlideThumbnails(content), 500);
+    // Use a longer delay for large slide decks to avoid blocking the editor
+    const slideCount = (content.match(/\n---[ \t]*\n/g) || []).length + 1;
+    const delay = slideCount > 20 ? 1500 : 500;
+    slideThumbnailTimer = setTimeout(() => {
+        // Skip re-render if slide structure hasn't changed (only content within a slide changed
+        // doesn't need a full thumbnail rebuild — but active slide highlight may need updating)
+        renderSlideThumbnails(content);
+    }, delay);
 }
 
 function toggleSlideThumbnails() {

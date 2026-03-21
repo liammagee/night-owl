@@ -1085,10 +1085,73 @@ function createWindow() {
       }, 100);
   });
 
-  // Save settings explicitly when the window is about to close
-  mainWindow.on('close', () => {
-    console.log('[main.js] Main window closing. Saving final settings.');
-    saveSettings();
+  // Prompt to save unsaved changes before closing the window
+  let isForceClosing = false;
+  mainWindow.on('close', async (e) => {
+    if (isForceClosing) {
+      saveSettings();
+      return; // Allow close to proceed
+    }
+
+    e.preventDefault();
+
+    try {
+      // Ask renderer if there are unsaved changes
+      const dirtyFiles = await mainWindow.webContents.executeJavaScript(
+        `(function() {
+          if (window.editorTabs) {
+            const dirty = [];
+            for (const [path, tab] of window.editorTabs.tabs) {
+              if (tab.isDirty) dirty.push(tab.fileName);
+            }
+            return dirty;
+          }
+          return window.hasUnsavedChanges ? ['current file'] : [];
+        })()`
+      );
+
+      if (dirtyFiles.length === 0) {
+        // No unsaved changes — close immediately
+        isForceClosing = true;
+        mainWindow.close();
+        return;
+      }
+
+      const fileList = dirtyFiles.length === 1
+        ? `"${dirtyFiles[0]}" has unsaved changes.`
+        : `${dirtyFiles.length} files have unsaved changes.`;
+
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        buttons: ['Save', "Don't Save", 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        title: 'Unsaved Changes',
+        message: fileList,
+        detail: 'Do you want to save before closing?'
+      });
+
+      if (response === 0) {
+        // Save — tell renderer to save all, then close
+        mainWindow.webContents.send('save-all-and-close');
+      } else if (response === 1) {
+        // Don't Save — close without saving
+        isForceClosing = true;
+        mainWindow.close();
+      }
+      // response === 2 (Cancel) — do nothing, window stays open
+    } catch (err) {
+      console.error('[main.js] Error checking unsaved changes:', err);
+      // If we can't check, close anyway to avoid trapping the user
+      isForceClosing = true;
+      mainWindow.close();
+    }
+  });
+
+  // Renderer signals that all saves completed — now close the window
+  ipcMain.once('saves-completed-close', () => {
+    isForceClosing = true;
+    if (mainWindow) mainWindow.close();
   });
 }
 
