@@ -1225,6 +1225,7 @@ function createFileMenuItems() {
                     currentWorkingDirectory = folderPath;
                     appSettings.workingDirectory = folderPath;
                     addToRecentWorkspaces(folderPath);
+                    saveSettings();
                     currentFilePath = null;
                     // Title remains consistent - don't change app title for directory changes
                     mainWindow.webContents.send('refresh-file-tree');
