@@ -934,8 +934,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       backgroundImage = imagePath;
     }
 
-    // Remove bg directive from visible content
-    var cleanContent = slideContent.replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
+    // Remove bg directive and all remaining HTML comments from visible content
+    var cleanContent = slideContent.replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').replace(/<!--[\s\S]*?-->\s*/g, '').trim();
     return {
       cleanContent: cleanContent,
       backgroundImage: backgroundImage

@@ -807,8 +807,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       backgroundImage = imagePath;
     }
 
-    // Remove bg directive from visible content
-    const cleanContent = slideContent.replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
+    // Remove bg directive and all remaining HTML comments from visible content
+    const cleanContent = slideContent
+      .replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '')
+      .replace(/<!--[\s\S]*?-->\s*/g, '')
+      .trim();
     return { cleanContent, backgroundImage };
   };
 
