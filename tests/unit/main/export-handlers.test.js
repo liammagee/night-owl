@@ -79,7 +79,7 @@ describe('Export Handlers', () => {
 
     const exportBaseDirectory = exportHandlers.__test__.resolveExportBaseDirectory(
       '/Users/lmagee/Dev/machinespirits-content-philosophy/articles/ai-tutor/full-paper-2026-01-28.md',
-      '/Users/lmagee/Dev/hegel-pedagogy-ai',
+      '/Users/lmagee/Dev/machinespirits/machinespirits-ide',
       '/mock/documents'
     );
 

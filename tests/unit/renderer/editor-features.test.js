@@ -81,7 +81,7 @@ describe('Breadcrumb Navigation', () => {
   });
 
   test('renders long path with ellipsis', () => {
-    updateBreadcrumb('/Users/lmagee/Dev/hegel-pedagogy-ai/orchestrator/renderer.js');
+    updateBreadcrumb('/Users/lmagee/Dev/machinespirits/machinespirits-ide/orchestrator/renderer.js');
     expect(nav.textContent).toContain('…');
     // Should show last 4 parts
     expect(nav.textContent).toContain('renderer.js');

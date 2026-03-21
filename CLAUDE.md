@@ -17,7 +17,7 @@ This copies `core/techne-plugin-system.js`, all `plugins/techne-*/` directories,
 ### Editing plugins
 
 1. **Always make changes in `~/Dev/techne-plugins` first**
-2. Then sync to consumers: `cd ~/Dev/hegel-pedagogy-ai && npm run sync-plugins`
+2. Then sync to consumers: `cd ~/Dev/machinespirits/machinespirits-ide && npm run sync-plugins`
 3. If you accidentally edited plugins here, copy them back to techne-plugins first
 
 ### Backdrop reverse sync

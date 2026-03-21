@@ -677,13 +677,13 @@ function createHelpMenu() {
             {
                 label: 'Documentation',
                 click: async () => {
-                    await shell.openExternal('https://github.com/yourusername/hegel-pedagogy-ai/wiki');
+                    await shell.openExternal('https://github.com/liammagee/night-owl/wiki');
                 }
             },
             {
                 label: 'Report Issue',
                 click: async () => {
-                    await shell.openExternal('https://github.com/yourusername/hegel-pedagogy-ai/issues');
+                    await shell.openExternal('https://github.com/liammagee/night-owl/issues');
                 }
             },
             { type: 'separator' },

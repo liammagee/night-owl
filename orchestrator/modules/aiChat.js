@@ -655,7 +655,7 @@ async function formatChatAsMarkdown(history) {
     
     // Add footer
     markdown += `\n---\n\n`;
-    markdown += `*Chat session saved from [Hegel Pedagogy AI](https://github.com/anthropics/hegel-pedagogy-ai)*  \n`;
+    markdown += `*Chat session saved from [Machine Spirits IDE](https://github.com/liammagee/night-owl)*  \n`;
     markdown += `*Generated on ${dateStr} at ${timeStr}*\n`;
     
     return markdown;
