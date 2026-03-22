@@ -675,8 +675,40 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     return processedLines.join('\n');
   };
 
-  // Enhanced markdown parser
+  // Primary markdown parser — delegates to the shared marked library when
+  // available so that preview and presentation rendering stay in sync.
+  // Falls back to the built-in regex parser when marked isn't loaded.
   var parseMarkdownContent = function parseMarkdownContent(content) {
+    if (window.marked && typeof window.marked.parse === 'function') {
+      try {
+        var html = window.marked.parse(content, {
+          breaks: false
+        });
+
+        // Fix image paths — convert relative to file:// URLs
+        html = html.replace(/<img\s+src="([^"]+)"/g, function (match, src) {
+          if (src && !src.startsWith('http') && !src.startsWith('/') && !src.startsWith('file://') && !src.startsWith('data:')) {
+            var _window$appSettings;
+            var baseDir = window.currentFileDirectory || ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory);
+            if (baseDir) return "<img src=\"file://".concat(baseDir, "/").concat(src, "\"");
+          }
+          return match;
+        });
+
+        // Auto-embed YouTube URLs that are sole content of a paragraph
+        html = html.replace(/<p>\s*(?:<a[^>]*>)?\s*https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[^<\s]*)?\s*(?:<\/a>)?\s*<\/p>/gi, function (match, videoId) {
+          return "<div class=\"slide-video-wrapper\"><iframe src=\"https://www.youtube.com/embed/".concat(videoId, "\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe></div>");
+        });
+        return html;
+      } catch (error) {
+        console.warn('[MarkdownParser] marked.parse failed, using fallback:', error);
+      }
+    }
+    return _fallbackParseMarkdown(content);
+  };
+
+  // Fallback regex-based markdown parser (used when marked is not available)
+  var _fallbackParseMarkdown = function _fallbackParseMarkdown(content) {
     var html = content;
 
     // Handle code blocks first
@@ -702,9 +734,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (match, altText, imagePath) {
       // Check if this is a relative path
       if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://')) {
-        var _window$appSettings;
+        var _window$appSettings2;
         // Use current file directory if available, otherwise fallback to working directory
-        var baseDir = window.currentFileDirectory || ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory);
+        var baseDir = window.currentFileDirectory || ((_window$appSettings2 = window.appSettings) === null || _window$appSettings2 === void 0 ? void 0 : _window$appSettings2.workingDirectory);
         if (baseDir) {
           var fullPath = "file://".concat(baseDir, "/").concat(imagePath);
           console.log("[React Presentation] Converting image path: ".concat(imagePath, " -> ").concat(fullPath));
@@ -758,8 +790,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
       // Create full path for internal links, similar to image path logic
       if (!filePath.startsWith('/') && !filePath.startsWith('http')) {
-        var _window$appSettings2;
-        var baseDir = window.currentFileDirectory || ((_window$appSettings2 = window.appSettings) === null || _window$appSettings2 === void 0 ? void 0 : _window$appSettings2.workingDirectory);
+        var _window$appSettings3;
+        var baseDir = window.currentFileDirectory || ((_window$appSettings3 = window.appSettings) === null || _window$appSettings3 === void 0 ? void 0 : _window$appSettings3.workingDirectory);
         if (baseDir) {
           filePath = "".concat(baseDir, "/").concat(filePath);
         }
@@ -928,8 +960,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       var imagePath = match[1].trim();
       // Resolve relative paths (same logic as inline image rendering)
       if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://') && !imagePath.startsWith('data:')) {
-        var _window$appSettings3;
-        var baseDir = window.currentFileDirectory || ((_window$appSettings3 = window.appSettings) === null || _window$appSettings3 === void 0 ? void 0 : _window$appSettings3.workingDirectory);
+        var _window$appSettings4;
+        var baseDir = window.currentFileDirectory || ((_window$appSettings4 = window.appSettings) === null || _window$appSettings4 === void 0 ? void 0 : _window$appSettings4.workingDirectory);
         if (baseDir) {
           imagePath = "file://".concat(baseDir, "/").concat(imagePath);
         }

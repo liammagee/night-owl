@@ -552,8 +552,41 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     return processedLines.join('\n');
   };
 
-  // Enhanced markdown parser
+  // Primary markdown parser — delegates to the shared marked library when
+  // available so that preview and presentation rendering stay in sync.
+  // Falls back to the built-in regex parser when marked isn't loaded.
   const parseMarkdownContent = (content) => {
+    if (window.marked && typeof window.marked.parse === 'function') {
+      try {
+        let html = window.marked.parse(content, { breaks: false });
+
+        // Fix image paths — convert relative to file:// URLs
+        html = html.replace(/<img\s+src="([^"]+)"/g, (match, src) => {
+          if (src && !src.startsWith('http') && !src.startsWith('/') && !src.startsWith('file://') && !src.startsWith('data:')) {
+            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+            if (baseDir) return `<img src="file://${baseDir}/${src}"`;
+          }
+          return match;
+        });
+
+        // Auto-embed YouTube URLs that are sole content of a paragraph
+        html = html.replace(
+          /<p>\s*(?:<a[^>]*>)?\s*https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[^<\s]*)?\s*(?:<\/a>)?\s*<\/p>/gi,
+          (match, videoId) => {
+            return `<div class="slide-video-wrapper"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+          }
+        );
+
+        return html;
+      } catch (error) {
+        console.warn('[MarkdownParser] marked.parse failed, using fallback:', error);
+      }
+    }
+    return _fallbackParseMarkdown(content);
+  };
+
+  // Fallback regex-based markdown parser (used when marked is not available)
+  const _fallbackParseMarkdown = (content) => {
     let html = content;
     
     // Handle code blocks first
