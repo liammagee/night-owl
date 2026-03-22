@@ -616,6 +616,14 @@ body.dark-mode .frontmatter-separator {
         // Add custom classes to lists (post-processing since marked v13+ tokens don't have body)
         html = addListClasses(html);
 
+        // Auto-embed YouTube links that are the sole content of a paragraph
+        html = html.replace(
+            /<p>\s*(?:<a[^>]*>)?\s*https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[^<\s]*)?\s*(?:<\/a>)?\s*<\/p>/gi,
+            (match, videoId) => {
+                return `<div class="slide-video-wrapper" style="position:relative;width:100%;max-width:720px;margin:1em auto;aspect-ratio:16/9"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:6px"></iframe></div>`;
+            }
+        );
+
         // Render footnote references and section
         html = renderFootnotes(html, footnotes, markedApi);
 

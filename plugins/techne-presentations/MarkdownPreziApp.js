@@ -714,6 +714,11 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       return "<img src=\"".concat(imagePath, "\" alt=\"").concat(altText, "\" />");
     });
 
+    // YouTube video embeds — bare URL on its own line becomes an iframe
+    html = html.replace(/^(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[&?][^\s]*)?)$/gm, function (match, url, videoId) {
+      return "<div class=\"slide-video-wrapper\"><iframe src=\"https://www.youtube.com/embed/".concat(videoId, "\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe></div>");
+    });
+
     // Process math expressions before other markdown to preserve them
     // Note: We preserve LaTeX math syntax for MathJax to process later
     // This ensures math expressions don't get processed as other markdown

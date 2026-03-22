@@ -590,6 +590,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       return `<img src="${imagePath}" alt="${altText}" />`;
     });
     
+    // YouTube video embeds — bare URL on its own line becomes an iframe
+    html = html.replace(
+      /^(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[&?][^\s]*)?)$/gm,
+      (match, url, videoId) => {
+        return `<div class="slide-video-wrapper"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+      }
+    );
+
     // Process math expressions before other markdown to preserve them
     // Note: We preserve LaTeX math syntax for MathJax to process later
     // This ensures math expressions don't get processed as other markdown
