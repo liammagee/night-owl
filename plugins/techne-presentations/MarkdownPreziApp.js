@@ -699,6 +699,11 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         html = html.replace(/<p>\s*(?:<a[^>]*>)?\s*https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[^<\s]*)?\s*(?:<\/a>)?\s*<\/p>/gi, function (match, videoId) {
           return "<div class=\"slide-video-wrapper\"><iframe src=\"https://www.youtube.com/embed/".concat(videoId, "\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe></div>");
         });
+
+        // Auto-embed Zoom meeting/recording links
+        html = html.replace(/<p>\s*(?:<a[^>]*>)?\s*(https?:\/\/[\w.-]*zoom\.us\/(?:j|rec\/(?:share|play))\/[^\s<]+)\s*(?:<\/a>)?\s*<\/p>/gi, function (match, url) {
+          return "<div class=\"slide-video-wrapper\"><iframe src=\"".concat(url, "\" frameborder=\"0\" allow=\"microphone; camera; fullscreen\" allowfullscreen sandbox=\"allow-same-origin allow-scripts allow-forms allow-popups\"></iframe></div>");
+        });
         return html;
       } catch (error) {
         console.warn('[MarkdownParser] marked.parse failed, using fallback:', error);
@@ -749,6 +754,11 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     // YouTube video embeds — bare URL on its own line becomes an iframe
     html = html.replace(/^(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[&?][^\s]*)?)$/gm, function (match, url, videoId) {
       return "<div class=\"slide-video-wrapper\"><iframe src=\"https://www.youtube.com/embed/".concat(videoId, "\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe></div>");
+    });
+
+    // Zoom meeting/recording embeds — bare URL on its own line
+    html = html.replace(/^(https?:\/\/[\w.-]*zoom\.us\/(?:j|rec\/(?:share|play))\/[^\s]+)$/gm, function (match, url) {
+      return "<div class=\"slide-video-wrapper\"><iframe src=\"".concat(url, "\" frameborder=\"0\" allow=\"microphone; camera; fullscreen\" allowfullscreen sandbox=\"allow-same-origin allow-scripts allow-forms allow-popups\"></iframe></div>");
     });
 
     // Process math expressions before other markdown to preserve them

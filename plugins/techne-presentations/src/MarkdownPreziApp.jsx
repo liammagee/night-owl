@@ -577,6 +577,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           }
         );
 
+        // Auto-embed Zoom meeting/recording links
+        html = html.replace(
+          /<p>\s*(?:<a[^>]*>)?\s*(https?:\/\/[\w.-]*zoom\.us\/(?:j|rec\/(?:share|play))\/[^\s<]+)\s*(?:<\/a>)?\s*<\/p>/gi,
+          (match, url) => {
+            return `<div class="slide-video-wrapper"><iframe src="${url}" frameborder="0" allow="microphone; camera; fullscreen" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe></div>`;
+          }
+        );
+
         return html;
       } catch (error) {
         console.warn('[MarkdownParser] marked.parse failed, using fallback:', error);
@@ -628,6 +636,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       /^(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)(?:[&?][^\s]*)?)$/gm,
       (match, url, videoId) => {
         return `<div class="slide-video-wrapper"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+      }
+    );
+
+    // Zoom meeting/recording embeds — bare URL on its own line
+    html = html.replace(
+      /^(https?:\/\/[\w.-]*zoom\.us\/(?:j|rec\/(?:share|play))\/[^\s]+)$/gm,
+      (match, url) => {
+        return `<div class="slide-video-wrapper"><iframe src="${url}" frameborder="0" allow="microphone; camera; fullscreen" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe></div>`;
       }
     );
 

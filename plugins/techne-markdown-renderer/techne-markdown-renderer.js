@@ -624,6 +624,14 @@ body.dark-mode .frontmatter-separator {
             }
         );
 
+        // Auto-embed Zoom meeting/recording links that are the sole content of a paragraph
+        html = html.replace(
+            /<p>\s*(?:<a[^>]*>)?\s*(https?:\/\/[\w.-]*zoom\.us\/(?:j|rec\/(?:share|play))\/[^\s<]+)\s*(?:<\/a>)?\s*<\/p>/gi,
+            (match, url) => {
+                return `<div class="slide-video-wrapper" style="position:relative;width:100%;max-width:720px;margin:1em auto;aspect-ratio:16/9"><iframe src="${url}" frameborder="0" allow="microphone; camera; fullscreen" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms allow-popups" style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:6px"></iframe></div>`;
+            }
+        );
+
         // Render footnote references and section
         html = renderFootnotes(html, footnotes, markedApi);
 
