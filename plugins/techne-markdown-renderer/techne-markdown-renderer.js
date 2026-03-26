@@ -521,6 +521,35 @@ body.dark-mode .frontmatter-separator {
         );
     };
 
+    // Fix headerless table snippets by inserting an empty header row.
+    // GFM requires: header row, separator row, data rows. If a separator row
+    // (e.g. |---|---|) appears without a preceding header row, prepend one
+    // with the correct number of columns so marked parses it as a table.
+    const fixHeaderlessTables = (markdown) => {
+        const lines = markdown.split('\n');
+        const result = [];
+        // Matches a GFM table separator: | :?-+:? | :?-+:? | ...
+        const sepRe = /^\|?([\s:]*-{1,}[\s:]*\|)+[\s:]*-{1,}[\s:]*\|?\s*$/;
+        // Matches a line that looks like a table row (has | delimiters)
+        const rowRe = /^\|.*\|/;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (sepRe.test(line)) {
+                // Check if previous line is a header row
+                const prev = i > 0 ? result[result.length - 1] : '';
+                if (!rowRe.test(prev)) {
+                    // Count columns from separator
+                    const cols = line.replace(/^\||\|$/g, '').split('|').length;
+                    const header = '| ' + Array(cols).fill(' ').join(' | ') + ' |';
+                    result.push(header);
+                }
+            }
+            result.push(line);
+        }
+        return result.join('\n');
+    };
+
     const processMarkdownContent = (markdownContent, { processAnnotations } = {}) => {
         let processed = typeof markdownContent === 'string' ? markdownContent : String(markdownContent || '');
 
@@ -530,6 +559,7 @@ body.dark-mode .frontmatter-separator {
 
         processed = processSpeakerNotes(processed);
         processed = processImageAttributes(processed);
+        processed = fixHeaderlessTables(processed);
         return processed;
     };
 

@@ -20,6 +20,48 @@
     display: none;
 }
 
+/* Tables — base styles for markdown preview */
+#preview-content table,
+.preview-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    font-size: 0.95em;
+    border: 1px solid var(--border-color, #e2e8f0);
+}
+
+#preview-content th,
+#preview-content td,
+.preview-content th,
+.preview-content td {
+    border: 1px solid var(--border-color, #e2e8f0);
+    padding: 0.5em 0.75em;
+    text-align: left;
+}
+
+#preview-content th,
+.preview-content th {
+    background: var(--bg-secondary, #f8fafc);
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+#preview-content tr:nth-child(even),
+.preview-content tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* Dark mode table adjustments */
+body.dark-mode #preview-content th,
+body.dark-mode .preview-content th {
+    background: var(--surface, rgba(255, 255, 255, 0.05));
+}
+
+body.dark-mode #preview-content tr:nth-child(even),
+body.dark-mode .preview-content tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
 /* Image figures with captions */
 .md-figure {
     margin: 1.2em 0;

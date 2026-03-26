@@ -564,10 +564,14 @@
             margin-right: 6px;
             position: relative;
             flex-shrink: 0;
-            transition: border-color 0.15s;
+            transition: border-color 0.15s, opacity 0.15s, transform 0.15s;
         }
         .slide-thumb:hover { border-color: var(--primary-500, #ef4444); }
         .slide-thumb.active { border-color: var(--primary-500, #ef4444); box-shadow: 0 0 0 2px rgba(239,68,68,0.3); }
+        .slide-thumb.selected { border-color: var(--primary-500, #ef4444); box-shadow: 0 0 0 2px rgba(239,68,68,0.25); }
+        .slide-thumb.dragging { opacity: 0.4; transform: scale(0.95); }
+        .slide-thumb.drop-before { box-shadow: -3px 0 0 0 var(--primary-500, #ef4444); }
+        .slide-thumb.drop-after { box-shadow: 3px 0 0 0 var(--primary-500, #ef4444); }
         .slide-thumb-content {
             transform: scale(0.166);
             transform-origin: top left;

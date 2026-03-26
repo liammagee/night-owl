@@ -1164,22 +1164,47 @@ function renderFrontmatterHeaderFallback(yamlBlock) {
     return parts.join('\n');
 }
 
+// Fix headerless table snippets (e.g. |---|---| without a preceding header row)
+function fixHeaderlessTables(markdown) {
+    const lines = markdown.split('\n');
+    const result = [];
+    const sepRe = /^\|?([\s:]*-{1,}[\s:]*\|)+[\s:]*-{1,}[\s:]*\|?\s*$/;
+    const rowRe = /^\|.*\|/;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (sepRe.test(line)) {
+            const prev = i > 0 ? result[result.length - 1] : '';
+            if (!rowRe.test(prev)) {
+                const cols = line.replace(/^\||\|$/g, '').split('|').length;
+                const header = '| ' + Array(cols).fill(' ').join(' | ') + ' |';
+                result.push(header);
+            }
+        }
+        result.push(line);
+    }
+    return result.join('\n');
+}
+
 function processMarkdownContent(markdownContent) {
     // Ensure we have a string to process
     if (typeof markdownContent !== 'string') {
         markdownContent = markdownContent || '';
     }
-    
+
     let processedContent = markdownContent;
-    
+
     // Process annotations first
     if (typeof processAnnotations === 'function') {
         processedContent = processAnnotations(processedContent);
     }
-    
+
     // Process speaker notes after annotations
     processedContent = processSpeakerNotes(processedContent);
-    
+
+    // Fix headerless tables for the fallback renderer
+    processedContent = fixHeaderlessTables(processedContent);
+
     return processedContent;
 }
 
@@ -4245,6 +4270,12 @@ async function initializeMonacoEditor() {
 
             // Smart keyboard command - handles images and URLs, lets normal text through
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, async () => {
+                // Only intercept paste when the editor has focus — let other
+                // inputs (Find dialog, settings, etc.) use native paste.
+                if (!editor.hasTextFocus()) {
+                    document.execCommand('paste');
+                    return;
+                }
 
                 try {
                     // First, try to detect if there are images using Electron's clipboard API
@@ -12992,13 +13023,17 @@ function renderSlideThumbnails(content) {
         </div>`;
     }).join('');
 
-    // Click to navigate to slide in editor
-    strip.querySelectorAll('.slide-thumb').forEach(thumb => {
-        thumb.addEventListener('click', () => {
-            const idx = parseInt(thumb.dataset.slideIndex);
-            navigateToSlide(idx, content);
+    // Set up drag-and-drop reordering (also handles click-to-navigate)
+    setupSlideDragAndDrop(strip, content);
+
+    // Restore selected state for multi-select
+    if (_slideSelectedIndices.size > 0) {
+        strip.querySelectorAll('.slide-thumb').forEach(t => {
+            if (_slideSelectedIndices.has(parseInt(t.dataset.slideIndex))) {
+                t.classList.add('selected');
+            }
         });
-    });
+    }
 
     // Auto-scroll to active thumbnail
     const activeEl = strip.querySelector('.slide-thumb.active');
@@ -13020,6 +13055,175 @@ function navigateToSlide(slideIndex, content) {
     window.editor.revealLineInCenter(targetLine);
     window.editor.setPosition({ lineNumber: targetLine, column: 1 });
     window.editor.focus();
+}
+
+// --- Slide Drag-and-Drop Reordering ---
+let _slideSelectedIndices = new Set(); // multi-select tracking
+let _slideDragIndices = null; // indices being dragged
+
+function reorderSlides(fromIndices, toIndex) {
+    if (!window.editor) return;
+    const content = window.editor.getValue();
+
+    // Split preserving the separator pattern. We re-join with \n\n---\n\n.
+    const slides = content.split(/\n---[ \t]*\n/);
+    if (slides.length < 2) return;
+
+    // Validate indices
+    const fromSorted = [...fromIndices].sort((a, b) => a - b);
+    if (fromSorted.some(i => i < 0 || i >= slides.length)) return;
+    if (toIndex < 0 || toIndex > slides.length) return;
+
+    // Extract the dragged slides (in their original order)
+    const dragged = fromSorted.map(i => slides[i]);
+
+    // Build the remaining slides (without the dragged ones)
+    const remaining = slides.filter((_, i) => !fromIndices.has(i));
+
+    // Adjust toIndex: for each dragged index before the target, the target shifts down by 1
+    let adjustedTo = toIndex;
+    for (const idx of fromSorted) {
+        if (idx < toIndex) adjustedTo--;
+    }
+    adjustedTo = Math.max(0, Math.min(adjustedTo, remaining.length));
+
+    // Insert dragged slides at the adjusted position
+    remaining.splice(adjustedTo, 0, ...dragged);
+
+    // Reconstruct the document
+    const newContent = remaining.join('\n\n---\n\n');
+
+    // Apply via pushEditOperations for proper undo support
+    const model = window.editor.getModel();
+    if (!model) return;
+    const fullRange = model.getFullModelRange();
+    model.pushEditOperations(
+        [],
+        [{ range: fullRange, text: newContent }],
+        () => null
+    );
+
+    // Navigate to where the first dragged slide ended up
+    _slideSelectedIndices.clear();
+    navigateToSlide(adjustedTo, newContent);
+}
+
+function setupSlideDragAndDrop(strip, content) {
+    const thumbs = strip.querySelectorAll('.slide-thumb');
+
+    thumbs.forEach(thumb => {
+        thumb.setAttribute('draggable', 'true');
+
+        // Multi-select on click with Ctrl/Cmd
+        thumb.addEventListener('click', (e) => {
+            const idx = parseInt(thumb.dataset.slideIndex);
+            if (e.metaKey || e.ctrlKey) {
+                e.preventDefault();
+                if (_slideSelectedIndices.has(idx)) {
+                    _slideSelectedIndices.delete(idx);
+                    thumb.classList.remove('selected');
+                } else {
+                    _slideSelectedIndices.add(idx);
+                    thumb.classList.add('selected');
+                }
+                return;
+            }
+            // Plain click — clear selection and navigate
+            _slideSelectedIndices.clear();
+            thumbs.forEach(t => t.classList.remove('selected'));
+            navigateToSlide(idx, content);
+        });
+
+        thumb.addEventListener('dragstart', (e) => {
+            const idx = parseInt(thumb.dataset.slideIndex);
+            // If dragging a non-selected thumb, select only that one
+            if (!_slideSelectedIndices.has(idx)) {
+                _slideSelectedIndices.clear();
+                thumbs.forEach(t => t.classList.remove('selected'));
+            }
+            _slideSelectedIndices.add(idx);
+
+            _slideDragIndices = new Set(_slideSelectedIndices);
+
+            // Visual feedback
+            thumbs.forEach(t => {
+                if (_slideDragIndices.has(parseInt(t.dataset.slideIndex))) {
+                    t.classList.add('dragging');
+                }
+            });
+
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', JSON.stringify([...sorted(_slideDragIndices)]));
+
+            // Custom drag image showing count
+            if (_slideDragIndices.size > 1) {
+                const ghost = document.createElement('div');
+                ghost.textContent = `${_slideDragIndices.size} slides`;
+                ghost.style.cssText = 'position:fixed;top:-100px;padding:4px 10px;background:#ef4444;color:#fff;border-radius:4px;font-size:12px;white-space:nowrap;';
+                document.body.appendChild(ghost);
+                e.dataTransfer.setDragImage(ghost, 0, 0);
+                requestAnimationFrame(() => ghost.remove());
+            }
+        });
+
+        thumb.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            // Determine if dropping before or after based on mouse position
+            const rect = thumb.getBoundingClientRect();
+            const midX = rect.left + rect.width / 2;
+
+            // Clear all drop indicators
+            thumbs.forEach(t => { t.classList.remove('drop-before', 'drop-after'); });
+
+            if (e.clientX < midX) {
+                thumb.classList.add('drop-before');
+            } else {
+                thumb.classList.add('drop-after');
+            }
+        });
+
+        thumb.addEventListener('dragleave', () => {
+            thumb.classList.remove('drop-before', 'drop-after');
+        });
+
+        thumb.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (!_slideDragIndices || _slideDragIndices.size === 0) return;
+
+            const targetIdx = parseInt(thumb.dataset.slideIndex);
+            const rect = thumb.getBoundingClientRect();
+            const midX = rect.left + rect.width / 2;
+            const dropIndex = e.clientX < midX ? targetIdx : targetIdx + 1;
+
+            // Don't move if dropping in the same position
+            const dragSorted = [..._slideDragIndices].sort((a, b) => a - b);
+            const isNoop = dragSorted.length === 1 && (dragSorted[0] === dropIndex || dragSorted[0] === dropIndex - 1);
+            if (!isNoop) {
+                reorderSlides(_slideDragIndices, dropIndex);
+            }
+
+            // Cleanup
+            thumbs.forEach(t => {
+                t.classList.remove('dragging', 'drop-before', 'drop-after', 'selected');
+            });
+            _slideDragIndices = null;
+            _slideSelectedIndices.clear();
+        });
+
+        thumb.addEventListener('dragend', () => {
+            thumbs.forEach(t => {
+                t.classList.remove('dragging', 'drop-before', 'drop-after');
+            });
+            _slideDragIndices = null;
+        });
+    });
+}
+
+// Helper to sort a Set of numbers
+function sorted(set) {
+    return [...set].sort((a, b) => a - b);
 }
 
 // --- Footnote Management Panel ---
