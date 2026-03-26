@@ -6453,6 +6453,11 @@ async function handleEditableFile(filePath, content, fileTypes) {
         console.error('[handleEditableFile] No editor available');
     }
 
+    // Trigger slide thumbnail strip on file open (not just on content change)
+    if (fileTypes.isMarkdown && content) {
+        updateSlideThumbnails(content);
+    }
+
     // Update last saved content for auto-save tracking
     lastSavedContent = content;
     window.hasUnsavedChanges = false;
@@ -8560,6 +8565,16 @@ if (showGitBtn2) {
     });
 }
 
+// Slides button event listener
+const showSlidesBtn = document.getElementById('show-slides-btn');
+if (showSlidesBtn) {
+    showSlidesBtn.addEventListener('click', () => {
+        if (window.currentStructureView !== 'slides') {
+            switchStructureView('slides');
+        }
+    });
+}
+
 // Refresh statistics button event listener
 const refreshStatsBtn = document.getElementById('refresh-statistics-btn');
 if (refreshStatsBtn) {
@@ -9244,6 +9259,8 @@ function switchStructureView(view) {
     if (showFootnotesBtn) showFootnotesBtn.classList.remove('active');
     const showGitBtn = document.getElementById('show-git-btn');
     if (showGitBtn) showGitBtn.classList.remove('active');
+    const showSlidesBtnEl = document.getElementById('show-slides-btn');
+    if (showSlidesBtnEl) showSlidesBtnEl.classList.remove('active');
 
     structureList.style.display = 'none';
     if (fileTreeView) fileTreeView.style.display = 'none';
@@ -9256,6 +9273,8 @@ function switchStructureView(view) {
     if (footnotesPane) footnotesPane.style.display = 'none';
     const gitPane = document.getElementById('git-pane');
     if (gitPane) gitPane.style.display = 'none';
+    const slidesPane = document.getElementById('slides-pane');
+    if (slidesPane) slidesPane.style.display = 'none';
     if (tagSearchSection) tagSearchSection.style.display = 'none';
     newFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
@@ -9321,6 +9340,13 @@ function switchStructureView(view) {
             if (window.gitPanel) {
                 window.gitPanel.refresh();
             }
+        }
+    } else if (view === 'slides') {
+        structurePaneTitle.textContent = 'Slides';
+        if (showSlidesBtnEl) showSlidesBtnEl.classList.add('active');
+        if (slidesPane) {
+            slidesPane.style.display = 'flex';
+            renderVerticalSlideThumbnails();
         }
     }
 }
@@ -12931,14 +12957,24 @@ let slideThumbnailTimer = null;
 let slideThumbnailsHidden = false; // user preference to hide the strip
 
 let _lastThumbnailHash = '';
+let _slideContentCache = new Map(); // per-slide hash → rendered HTML
+let _thumbnailObserver = null; // IntersectionObserver for lazy rendering
+
+// Simple fast hash for change detection
+function _quickHash(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+        h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    }
+    return h;
+}
+
 function updateSlideThumbnails(content) {
     clearTimeout(slideThumbnailTimer);
-    // Use a longer delay for large slide decks to avoid blocking the editor
     const slideCount = (content.match(/\n---[ \t]*\n/g) || []).length + 1;
-    const delay = slideCount > 20 ? 1500 : 500;
+    // Fast update for active slide highlight, slower for full rebuild
+    const delay = slideCount > 30 ? 1000 : slideCount > 15 ? 500 : 250;
     slideThumbnailTimer = setTimeout(() => {
-        // Skip re-render if slide structure hasn't changed (only content within a slide changed
-        // doesn't need a full thumbnail rebuild — but active slide highlight may need updating)
         renderSlideThumbnails(content);
     }, delay);
 }
@@ -12960,6 +12996,7 @@ function renderSlideThumbnails(content) {
     // Only show if there are 2+ slides and user hasn't hidden them
     if (slides.length < 2) {
         strip.style.display = 'none';
+        updateSlidesSidebarButton(content);
         return;
     }
 
@@ -12988,6 +13025,22 @@ function renderSlideThumbnails(content) {
         activeSlide = Math.min(slideIdx, slides.length - 1);
     }
 
+    // Check if only the active slide changed (cursor moved) — skip full rebuild
+    const contentHash = _quickHash(content);
+    const activeOnly = contentHash === _lastThumbnailHash;
+    _lastThumbnailHash = contentHash;
+
+    if (activeOnly) {
+        // Just update active class without rebuilding DOM
+        strip.querySelectorAll('.slide-thumb').forEach(t => {
+            const idx = parseInt(t.dataset.slideIndex);
+            t.classList.toggle('active', idx === activeSlide);
+        });
+        const activeEl = strip.querySelector('.slide-thumb.active');
+        if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        return;
+    }
+
     // Extract background image directive from slide markdown
     const extractSlideBg = (md) => {
         const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
@@ -13002,26 +13055,67 @@ function renderSlideThumbnails(content) {
         return imgPath;
     };
 
-    // Render thumbnails using marked if available
-    const renderHTML = (md) => {
-        // Strip speaker notes and bg directives
+    // Render thumbnail HTML with per-slide caching
+    const renderHTML = (md, slideHash) => {
+        if (_slideContentCache.has(slideHash)) return _slideContentCache.get(slideHash);
         const clean = md.replace(/```notes\s*\n[\s\S]*?\n```/g, '').replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
+        let html;
         if (window.marked) {
-            try { return window.marked.parse(clean); } catch (e) { /* fall through */ }
+            try { html = window.marked.parse(clean); } catch (e) { html = clean.replace(/\n/g, '<br>'); }
+        } else {
+            html = clean.replace(/\n/g, '<br>');
         }
-        return clean.replace(/\n/g, '<br>');
+        _slideContentCache.set(slideHash, html);
+        // Keep cache bounded
+        if (_slideContentCache.size > 200) {
+            const first = _slideContentCache.keys().next().value;
+            _slideContentCache.delete(first);
+        }
+        return html;
     };
 
     const closeBtn = `<button class="slide-strip-close" onclick="toggleSlideThumbnails()" title="Hide slide thumbnails">✕</button>`;
+
+    // For large decks, use lazy rendering — create placeholder thumbs
+    const LAZY_THRESHOLD = 15;
+    const useLazy = slides.length > LAZY_THRESHOLD;
+
     strip.innerHTML = closeBtn + slides.map((slide, i) => {
-        const html = renderHTML(slide);
+        const slideHash = _quickHash(slide);
         const bgImage = extractSlideBg(slide);
         const bgStyle = bgImage ? `background-image: url('${bgImage}'); background-size: cover; background-position: center;` : '';
-        return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}" style="${bgStyle}">
+        // For lazy rendering, only render nearby slides initially
+        const isNearby = !useLazy || Math.abs(i - activeSlide) <= 5;
+        const html = isNearby ? renderHTML(slide, slideHash) : '';
+        return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" data-slide-hash="${slideHash}" title="Slide ${i + 1}" style="${bgStyle}" ${!isNearby ? 'data-lazy="true"' : ''}>
             <div class="slide-thumb-content">${html}</div>
             <span class="slide-thumb-label">${i + 1}</span>
         </div>`;
     }).join('');
+
+    // Set up IntersectionObserver for lazy thumbnails
+    if (useLazy) {
+        if (_thumbnailObserver) _thumbnailObserver.disconnect();
+        _thumbnailObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const thumb = entry.target;
+                    if (thumb.dataset.lazy === 'true') {
+                        const idx = parseInt(thumb.dataset.slideIndex);
+                        const slideHash = parseInt(thumb.dataset.slideHash);
+                        const html = renderHTML(slides[idx], slideHash);
+                        thumb.querySelector('.slide-thumb-content').innerHTML = html;
+                        delete thumb.dataset.lazy;
+                        _thumbnailObserver.unobserve(thumb);
+                    }
+                }
+            });
+        }, { root: strip, rootMargin: '200px' });
+
+        strip.querySelectorAll('.slide-thumb[data-lazy="true"]').forEach(t => {
+            _thumbnailObserver.observe(t);
+        });
+    }
 
     // Set up drag-and-drop reordering (also handles click-to-navigate)
     setupSlideDragAndDrop(strip, content);
@@ -13038,6 +13132,14 @@ function renderSlideThumbnails(content) {
     // Auto-scroll to active thumbnail
     const activeEl = strip.querySelector('.slide-thumb.active');
     if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+    // Update sidebar Slides button visibility
+    updateSlidesSidebarButton(content);
+
+    // If vertical slides pane is currently active, update it too
+    if (window.currentStructureView === 'slides') {
+        renderVerticalSlideThumbnails();
+    }
 }
 
 function navigateToSlide(slideIndex, content) {
@@ -13113,6 +13215,19 @@ function setupSlideDragAndDrop(strip, content) {
 
     thumbs.forEach(thumb => {
         thumb.setAttribute('draggable', 'true');
+
+        // Right-click context menu
+        thumb.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const idx = parseInt(thumb.dataset.slideIndex);
+            if (!_slideSelectedIndices.has(idx)) {
+                _slideSelectedIndices.clear();
+                thumbs.forEach(t => t.classList.remove('selected'));
+                _slideSelectedIndices.add(idx);
+                thumb.classList.add('selected');
+            }
+            showSlideContextMenu(e, new Set(_slideSelectedIndices), content);
+        });
 
         // Multi-select on click with Ctrl/Cmd
         thumb.addEventListener('click', (e) => {
@@ -13224,6 +13339,460 @@ function setupSlideDragAndDrop(strip, content) {
 // Helper to sort a Set of numbers
 function sorted(set) {
     return [...set].sort((a, b) => a - b);
+}
+
+// --- Vertical Slide Pane (Left Sidebar) ---
+
+// Show/hide the Slides sidebar button based on whether the current file has slides
+function updateSlidesSidebarButton(content) {
+    const btn = document.getElementById('show-slides-btn');
+    if (!btn) return;
+    const slideCount = (content.match(/\n---[ \t]*\n/g) || []).length + 1;
+    btn.style.display = slideCount >= 2 ? '' : 'none';
+    const countEl = document.getElementById('slides-pane-count');
+    if (countEl) countEl.textContent = slideCount >= 2 ? slideCount : '0';
+}
+
+function renderVerticalSlideThumbnails() {
+    const paneList = document.getElementById('slides-pane-list');
+    if (!paneList) return;
+    if (!window.editor) return;
+    const content = window.editor.getValue();
+    const slides = content.split(/\n---[ \t]*\n/).map(s => s.trim()).filter(Boolean);
+    if (slides.length < 2) {
+        paneList.innerHTML = '<div style="padding: 12px; color: #999; font-size: 12px;">No slides detected. Use --- separators to create slides.</div>';
+        return;
+    }
+
+    // Find active slide
+    let activeSlide = 0;
+    const cursorLine = window.editor.getPosition()?.lineNumber || 1;
+    const lines = content.split('\n');
+    let slideIdx = 0;
+    for (let i = 0; i < lines.length && i < cursorLine; i++) {
+        if (lines[i].match(/^---\s*$/) && i > 0) slideIdx++;
+    }
+    activeSlide = Math.min(slideIdx, slides.length - 1);
+
+    const extractSlideBg = (md) => {
+        const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
+        if (!match) return null;
+        let imgPath = match[1].trim();
+        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('/') && !imgPath.startsWith('file://') && !imgPath.startsWith('data:')) {
+            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+            if (baseDir) imgPath = `file://${baseDir}/${imgPath}`;
+        } else if (imgPath.startsWith('/')) {
+            imgPath = `file://${imgPath}`;
+        }
+        return imgPath;
+    };
+
+    const renderHTML = (md) => {
+        const clean = md.replace(/```notes\s*\n[\s\S]*?\n```/g, '').replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
+        if (window.marked) {
+            try { return window.marked.parse(clean); } catch (e) { /* fall through */ }
+        }
+        return clean.replace(/\n/g, '<br>');
+    };
+
+    // Compute scale based on pane width
+    const paneWidth = paneList.clientWidth - 16; // minus padding
+    const sourceWidth = 864;
+    const sourceHeight = 486;
+    const scale = Math.max(0.1, paneWidth / sourceWidth);
+
+    paneList.innerHTML = slides.map((slide, i) => {
+        const html = renderHTML(slide);
+        const bgImage = extractSlideBg(slide);
+        const bgStyle = bgImage ? `background-image: url('${bgImage}'); background-size: cover; background-position: center;` : '';
+        const thumbHeight = sourceHeight * scale;
+        return `<div class="slide-thumb-vertical ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}" style="${bgStyle} height: ${thumbHeight}px;">
+            <div class="slide-thumb-vertical-content" style="transform: scale(${scale}); width: ${sourceWidth}px; height: ${sourceHeight}px;">${html}</div>
+            <span class="slide-thumb-vertical-label">${i + 1}</span>
+        </div>`;
+    }).join('');
+
+    // Set up drag-and-drop for vertical thumbnails (reuse same logic)
+    setupVerticalSlideDragAndDrop(paneList, content);
+
+    // Scroll active into view
+    const activeEl = paneList.querySelector('.slide-thumb-vertical.active');
+    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function setupVerticalSlideDragAndDrop(container, content) {
+    const thumbs = container.querySelectorAll('.slide-thumb-vertical');
+
+    thumbs.forEach(thumb => {
+        thumb.setAttribute('draggable', 'true');
+
+        thumb.addEventListener('click', (e) => {
+            const idx = parseInt(thumb.dataset.slideIndex);
+            if (e.metaKey || e.ctrlKey) {
+                e.preventDefault();
+                if (_slideSelectedIndices.has(idx)) {
+                    _slideSelectedIndices.delete(idx);
+                    thumb.classList.remove('selected');
+                } else {
+                    _slideSelectedIndices.add(idx);
+                    thumb.classList.add('selected');
+                }
+                return;
+            }
+            _slideSelectedIndices.clear();
+            thumbs.forEach(t => t.classList.remove('selected'));
+            navigateToSlide(idx, content);
+        });
+
+        // Right-click context menu
+        thumb.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const idx = parseInt(thumb.dataset.slideIndex);
+            // If right-clicking a non-selected thumb, select just that one
+            if (!_slideSelectedIndices.has(idx)) {
+                _slideSelectedIndices.clear();
+                thumbs.forEach(t => t.classList.remove('selected'));
+                _slideSelectedIndices.add(idx);
+                thumb.classList.add('selected');
+            }
+            showSlideContextMenu(e, new Set(_slideSelectedIndices), content);
+        });
+
+        thumb.addEventListener('dragstart', (e) => {
+            const idx = parseInt(thumb.dataset.slideIndex);
+            if (!_slideSelectedIndices.has(idx)) {
+                _slideSelectedIndices.clear();
+                thumbs.forEach(t => t.classList.remove('selected'));
+            }
+            _slideSelectedIndices.add(idx);
+            _slideDragIndices = new Set(_slideSelectedIndices);
+            thumbs.forEach(t => {
+                if (_slideDragIndices.has(parseInt(t.dataset.slideIndex))) t.classList.add('dragging');
+            });
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', JSON.stringify([...sorted(_slideDragIndices)]));
+        });
+
+        thumb.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = thumb.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            thumbs.forEach(t => { t.classList.remove('drop-before', 'drop-after'); });
+            if (e.clientY < midY) {
+                thumb.classList.add('drop-before');
+            } else {
+                thumb.classList.add('drop-after');
+            }
+        });
+
+        thumb.addEventListener('dragleave', () => {
+            thumb.classList.remove('drop-before', 'drop-after');
+        });
+
+        thumb.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (!_slideDragIndices || _slideDragIndices.size === 0) return;
+            const targetIdx = parseInt(thumb.dataset.slideIndex);
+            const rect = thumb.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            const dropIndex = e.clientY < midY ? targetIdx : targetIdx + 1;
+            const dragSorted = [..._slideDragIndices].sort((a, b) => a - b);
+            const isNoop = dragSorted.length === 1 && (dragSorted[0] === dropIndex || dragSorted[0] === dropIndex - 1);
+            if (!isNoop) reorderSlides(_slideDragIndices, dropIndex);
+            thumbs.forEach(t => t.classList.remove('dragging', 'drop-before', 'drop-after', 'selected'));
+            _slideDragIndices = null;
+            _slideSelectedIndices.clear();
+        });
+
+        thumb.addEventListener('dragend', () => {
+            thumbs.forEach(t => t.classList.remove('dragging', 'drop-before', 'drop-after'));
+            _slideDragIndices = null;
+        });
+    });
+}
+
+// Also add right-click context menu to horizontal strip thumbnails
+function addContextMenuToHorizontalThumbs(strip, content) {
+    strip.querySelectorAll('.slide-thumb').forEach(thumb => {
+        thumb.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const idx = parseInt(thumb.dataset.slideIndex);
+            if (!_slideSelectedIndices.has(idx)) {
+                _slideSelectedIndices.clear();
+                strip.querySelectorAll('.slide-thumb').forEach(t => t.classList.remove('selected'));
+                _slideSelectedIndices.add(idx);
+                thumb.classList.add('selected');
+            }
+            showSlideContextMenu(e, new Set(_slideSelectedIndices), content);
+        });
+    });
+}
+
+// --- Slide Context Menu ---
+let _slideClipboard = null; // { slides: [string], operation: 'copy'|'cut', sourceFile: string }
+
+function showSlideContextMenu(event, selectedIndices, content) {
+    // Remove existing menu
+    const existing = document.querySelector('.slide-context-menu');
+    if (existing) existing.remove();
+
+    const slides = content.split(/\n---[ \t]*\n/);
+    const selectedSlides = sorted(selectedIndices).map(i => slides[i]).filter(s => s !== undefined);
+    const count = selectedSlides.length;
+    const label = count === 1 ? 'Slide' : `${count} Slides`;
+
+    const menu = document.createElement('div');
+    menu.className = 'slide-context-menu';
+    menu.style.cssText = `
+        position: fixed;
+        left: ${event.pageX}px;
+        top: ${event.pageY}px;
+        background: var(--surface, white);
+        color: var(--text-color, #333);
+        border: 1px solid var(--border-color, #ddd);
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        min-width: 180px;
+        padding: 4px 0;
+    `;
+
+    const items = [
+        { label: `Copy ${label}`, action: 'copy' },
+        { label: `Cut ${label}`, action: 'cut' },
+        { separator: true },
+        { label: `Duplicate ${label}`, action: 'duplicate' },
+        { label: `Delete ${label}`, action: 'delete' },
+        { separator: true },
+        { label: `Paste Slide(s) Before`, action: 'paste-before', disabled: !_slideClipboard },
+        { label: `Paste Slide(s) After`, action: 'paste-after', disabled: !_slideClipboard },
+        { separator: true },
+        { label: `Copy to File...`, action: 'copy-to-file' },
+        { label: `Move to File...`, action: 'move-to-file' },
+    ];
+
+    items.forEach(item => {
+        if (item.separator) {
+            const sep = document.createElement('div');
+            sep.style.cssText = 'height: 1px; background: var(--border-color, #ddd); margin: 4px 0;';
+            menu.appendChild(sep);
+            return;
+        }
+        const el = document.createElement('div');
+        el.textContent = item.label;
+        el.style.cssText = `padding: 6px 16px; cursor: ${item.disabled ? 'default' : 'pointer'}; opacity: ${item.disabled ? '0.4' : '1'};`;
+        if (!item.disabled) {
+            el.addEventListener('mouseenter', () => { el.style.background = 'var(--primary-100, rgba(239,68,68,0.1))'; });
+            el.addEventListener('mouseleave', () => { el.style.background = ''; });
+            el.addEventListener('click', () => {
+                menu.remove();
+                handleSlideContextAction(item.action, selectedIndices, selectedSlides, content);
+            });
+        }
+        menu.appendChild(el);
+    });
+
+    document.body.appendChild(menu);
+
+    // Ensure menu stays within viewport
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 4}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 4}px`;
+
+    // Close on click outside
+    const closeMenu = (e) => {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('mousedown', closeMenu);
+        }
+    };
+    setTimeout(() => document.addEventListener('mousedown', closeMenu), 0);
+}
+
+async function handleSlideContextAction(action, selectedIndices, selectedSlides, content) {
+    const sourceFile = window.currentFilePath || '';
+
+    if (action === 'copy') {
+        _slideClipboard = { slides: selectedSlides, operation: 'copy', sourceFile };
+        showNotification(`Copied ${selectedSlides.length} slide(s) to clipboard`);
+
+    } else if (action === 'cut') {
+        _slideClipboard = { slides: selectedSlides, operation: 'cut', sourceFile };
+        // Remove from editor
+        deleteSlides(selectedIndices);
+        showNotification(`Cut ${selectedSlides.length} slide(s)`);
+
+    } else if (action === 'duplicate') {
+        duplicateSlides(selectedIndices);
+
+    } else if (action === 'delete') {
+        deleteSlides(selectedIndices);
+
+    } else if (action === 'paste-before' || action === 'paste-after') {
+        if (!_slideClipboard) return;
+        const targetIdx = action === 'paste-before'
+            ? Math.min(...sorted(selectedIndices))
+            : Math.max(...sorted(selectedIndices)) + 1;
+        pasteSlides(targetIdx, _slideClipboard.slides);
+        // If it was a cut, clear the clipboard
+        if (_slideClipboard.operation === 'cut') _slideClipboard = null;
+
+    } else if (action === 'copy-to-file' || action === 'move-to-file') {
+        await copyOrMoveSlidesToFile(selectedIndices, selectedSlides, action === 'move-to-file');
+    }
+}
+
+function deleteSlides(indices) {
+    if (!window.editor) return;
+    const content = window.editor.getValue();
+    const slides = content.split(/\n---[ \t]*\n/);
+    const remaining = slides.filter((_, i) => !indices.has(i));
+    if (remaining.length === 0) return; // Don't delete all slides
+    const model = window.editor.getModel();
+    if (!model) return;
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: remaining.join('\n\n---\n\n') }], () => null);
+}
+
+function duplicateSlides(indices) {
+    if (!window.editor) return;
+    const content = window.editor.getValue();
+    const slides = content.split(/\n---[ \t]*\n/);
+    const fromSorted = [...indices].sort((a, b) => a - b);
+    const dupes = fromSorted.map(i => slides[i]);
+    // Insert duplicates right after the last selected slide
+    const insertAfter = fromSorted[fromSorted.length - 1];
+    const newSlides = [...slides];
+    newSlides.splice(insertAfter + 1, 0, ...dupes);
+    const model = window.editor.getModel();
+    if (!model) return;
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: newSlides.join('\n\n---\n\n') }], () => null);
+}
+
+function pasteSlides(beforeIndex, slideTexts) {
+    if (!window.editor) return;
+    const content = window.editor.getValue();
+    const slides = content.split(/\n---[ \t]*\n/);
+    const idx = Math.max(0, Math.min(beforeIndex, slides.length));
+    slides.splice(idx, 0, ...slideTexts);
+    const model = window.editor.getModel();
+    if (!model) return;
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: slides.join('\n\n---\n\n') }], () => null);
+    navigateToSlide(idx, slides.join('\n\n---\n\n'));
+}
+
+async function copyOrMoveSlidesToFile(indices, slideTexts, isMove) {
+    // Get list of markdown files
+    let mdFiles = [];
+    try {
+        const result = await window.electronAPI.invoke('get-markdown-files');
+        mdFiles = (result?.files || result || []).filter(f => f !== window.currentFilePath);
+    } catch (err) {
+        showNotification('Could not list markdown files', 'error');
+        return;
+    }
+
+    if (mdFiles.length === 0) {
+        showNotification('No other markdown files found', 'error');
+        return;
+    }
+
+    // Show a simple file picker dialog
+    const existing = document.querySelector('.slide-file-picker');
+    if (existing) existing.remove();
+
+    const picker = document.createElement('div');
+    picker.className = 'slide-file-picker';
+    picker.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--surface, white);
+        color: var(--text-color, #333);
+        border: 1px solid var(--border-color, #ddd);
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        z-index: 10001;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        min-width: 300px;
+        max-width: 500px;
+        max-height: 400px;
+        display: flex;
+        flex-direction: column;
+    `;
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding: 12px 16px; border-bottom: 1px solid var(--border-color, #ddd); font-weight: 600;';
+    header.textContent = isMove ? 'Move Slide(s) to File' : 'Copy Slide(s) to File';
+    picker.appendChild(header);
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Filter files...';
+    searchInput.style.cssText = 'margin: 8px 16px; padding: 6px 8px; border: 1px solid var(--border-color, #ddd); border-radius: 4px; font-size: 12px;';
+    picker.appendChild(searchInput);
+
+    const listContainer = document.createElement('div');
+    listContainer.style.cssText = 'flex: 1; overflow-y: auto; padding: 4px 0;';
+    picker.appendChild(listContainer);
+
+    const renderList = (filter) => {
+        const filtered = filter
+            ? mdFiles.filter(f => f.toLowerCase().includes(filter.toLowerCase()))
+            : mdFiles;
+        listContainer.innerHTML = '';
+        filtered.forEach(f => {
+            const item = document.createElement('div');
+            const displayName = f.split('/').pop();
+            const dirPath = f.split('/').slice(-2, -1)[0] || '';
+            item.innerHTML = `<span style="font-weight:500">${displayName}</span> <span style="opacity:0.5;font-size:11px">${dirPath}</span>`;
+            item.style.cssText = 'padding: 6px 16px; cursor: pointer;';
+            item.addEventListener('mouseenter', () => { item.style.background = 'var(--primary-100, rgba(239,68,68,0.1))'; });
+            item.addEventListener('mouseleave', () => { item.style.background = ''; });
+            item.addEventListener('click', async () => {
+                picker.remove();
+                backdrop.remove();
+                await appendSlidesToFile(f, slideTexts);
+                if (isMove) deleteSlides(indices);
+                showNotification(`${isMove ? 'Moved' : 'Copied'} ${slideTexts.length} slide(s) to ${displayName}`);
+            });
+            listContainer.appendChild(item);
+        });
+    };
+
+    searchInput.addEventListener('input', () => renderList(searchInput.value));
+    renderList('');
+
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;background:rgba(0,0,0,0.3);';
+    backdrop.addEventListener('click', () => { picker.remove(); backdrop.remove(); });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(picker);
+    searchInput.focus();
+}
+
+async function appendSlidesToFile(filePath, slideTexts) {
+    try {
+        const result = await window.electronAPI.invoke('read-file-content-only', filePath);
+        if (!result?.success) {
+            showNotification(`Failed to read ${filePath}`, 'error');
+            return;
+        }
+        let existingContent = result.content || '';
+        // Append slides with separator
+        const slidesBlock = slideTexts.join('\n\n---\n\n');
+        const newContent = existingContent.trim()
+            ? existingContent.trimEnd() + '\n\n---\n\n' + slidesBlock
+            : slidesBlock;
+        await window.electronAPI.invoke('write-file', { filePath, content: newContent });
+    } catch (err) {
+        showNotification(`Error writing to file: ${err.message}`, 'error');
+    }
 }
 
 // --- Footnote Management Panel ---
