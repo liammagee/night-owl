@@ -348,18 +348,19 @@ function switchToMode(modeName) {
     // Sync the content to presentation
     if (currentContent) {
       console.log('[Mode Switching] Syncing fresh content to presentation');
-      
-      // Always try both methods to ensure content gets to the React component
-      if (window.syncContentToPresentation) {
+
+      // User just switched into presentation mode — bypass the visibility gate
+      // and the trailing-edge debounce so the React component receives content
+      // immediately rather than 80ms later.
+      if (typeof window.syncContentToPresentationImmediate === 'function') {
+        window.syncContentToPresentationImmediate(currentContent);
+      } else if (window.syncContentToPresentation) {
         window.syncContentToPresentation(currentContent);
       }
-      
-      // Also dispatch the event directly
-      console.log('[Mode Switching] Dispatching content update event directly');
-      const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
-        detail: { content: currentContent }
-      });
-      window.dispatchEvent(contentUpdateEvent);
+
+      // (Removed the redundant direct CustomEvent dispatch — the immediate
+      // sync above already fires it. Dispatching twice caused the React
+      // handler to parseMarkdown the same content twice on every mode switch.)
       
       // Also set it directly for immediate access
       window.pendingPresentationContent = currentContent;
@@ -527,22 +528,65 @@ function setupModeSwitching() {
   // Sync content to presentation when switching
   const presentationRoot = document.getElementById('presentation-root');
   if (presentationRoot) {
+    // Trailing-edge debounce + visibility gate.
+    // Why: dispatching `updatePresentationContent` triggers a React useEffect in
+    // MarkdownPreziApp that re-parses the markdown and runs 5 setState calls,
+    // which dominated the post-load lag (~300ms on a 28KB lecture file).
+    // We always cache the latest content so entering presentation mode picks it up,
+    // but only dispatch when the presentation UI is actually mounted/visible.
+    let _syncDebounceTimer = null;
+    const SYNC_DEBOUNCE_MS = 80;
+
+    const _isPresentationVisible = () => {
+      // Mode is presentation, OR the React app is mounted and the root is on-screen.
+      if (currentMode === 'presentation') return true;
+      const root = document.getElementById('presentation-root');
+      if (!root) return false;
+      const mounted = root.querySelector('.slide, [data-reactroot]');
+      if (!mounted) return false;
+      // offsetParent is null when the element or an ancestor has display:none
+      return root.offsetParent !== null;
+    };
+
+    const _dispatchPresentationUpdate = (content) => {
+      const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
+        detail: { content }
+      });
+      window.dispatchEvent(contentUpdateEvent);
+    };
+
     // Function to sync current editor content to presentation
     window.syncContentToPresentation = (content) => {
-      console.log('[Mode Switching] Syncing content to presentation, length:', content ? content.length : 0);
-      
-      if (content) {
-        // Store content for React component
-        window.pendingPresentationContent = content;
-        
-        // Dispatch custom event for React component to pick up
-        const contentUpdateEvent = new CustomEvent('updatePresentationContent', {
-          detail: { content: content }
-        });
-        window.dispatchEvent(contentUpdateEvent);
-        
-        console.log('[Mode Switching] Content synced and event dispatched');
+      if (!content) return;
+
+      // Always cache so a future mode switch into presentation has the latest content.
+      window.pendingPresentationContent = content;
+
+      // Skip the expensive React re-parse if presentation isn't visible.
+      if (!_isPresentationVisible()) {
+        return;
       }
+
+      // Coalesce rapid calls (e.g. file-open + tab-activate firing back-to-back)
+      // into a single trailing-edge dispatch.
+      if (_syncDebounceTimer) clearTimeout(_syncDebounceTimer);
+      _syncDebounceTimer = setTimeout(() => {
+        _syncDebounceTimer = null;
+        _dispatchPresentationUpdate(content);
+      }, SYNC_DEBOUNCE_MS);
+    };
+
+    // Expose an immediate (non-debounced, non-gated) variant for the mode
+    // switcher itself, which needs the React component to receive content
+    // synchronously when the user clicks into presentation mode.
+    window.syncContentToPresentationImmediate = (content) => {
+      if (!content) return;
+      window.pendingPresentationContent = content;
+      if (_syncDebounceTimer) {
+        clearTimeout(_syncDebounceTimer);
+        _syncDebounceTimer = null;
+      }
+      _dispatchPresentationUpdate(content);
     };
   }
 
