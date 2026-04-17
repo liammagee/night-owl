@@ -4,6 +4,155 @@ Generated from codebase deep scan on 2025-12-17.
 
 ---
 
+## Audit: 2026-04-16
+
+This pass paired a codebase walk with a live computer-use session against the running app.
+A **silent data-loss bug** was confirmed mid-session: autosave wrote the visible editor
+buffer to a stale `window.currentFilePath`, overwriting a different file on disk. Two
+files in the sibling `machinespirits-content-philosophy` repo were corrupted (one
+restored from git this session, one still pending user decision). Items below are ordered
+by blast radius, not by depth of code change.
+
+### Critical (data integrity)
+
+- [ ] **Autosave can write the active buffer to the wrong file path.** Root cause: there is no enforced invariant binding the *visible Monaco model* to the *path that autosave will write to*. The path lives in the global `window.currentFilePath` (assigned in **22 production call sites** — see `git grep "window\.currentFilePath\s*="`), the buffer lives in `editor.getValue()`, and the 2-second commit lives in `autoSaveTimer`. Any one can drift independently.
+  - **Reproduced this session.** While inspecting `lecture-7.md`, an earlier search-result click had set `window.currentFilePath` to `courses/dissertation/lecture-1.md`. Subsequent keystrokes triggered autosave, which wrote `lecture-7.md`'s buffer to `lecture-1.md` on disk. `git restore courses/dissertation/lecture-1.md` recovered it. A second file (`articles/thoughts-on-dissertations.md`) was found corrupted from an earlier instance and is still pending below.
+  - **Smoking gun #1** – `orchestrator/renderer.js:6063` sets `window.currentFilePath = filePath` **before** `handleEditableFile` swaps the Monaco model at `orchestrator/renderer.js:6121`. There is at least one async `await` (and conditionally several) between them. A pending autosave timer that fires inside this window saves the *old* buffer to the *new* path.
+  - **Smoking gun #2** – `orchestrator/modules/autosave.js:69` (`performAutoSave`) does **not** clear `autoSaveTimer` when called directly. `_openFileInEditorImpl` calls it at `orchestrator/renderer.js:5989` to flush before switching files, but the previously-scheduled `setTimeout` keeps ticking and can re-enter `performAutoSave` after the path has been swapped.
+  - **Recommended fix shape** (do not just patch the call sites — establish the invariant):
+    1. Make the tab manager (`orchestrator/modules/editor-tabs.js`) the single source of truth for "what's open here." Each tab stores `{ filePath, monacoModel, lastSavedContent }`.
+    2. Rewrite `performAutoSave` to take `tabManager.activeTab` (or assert against it), read **the model attached to that tab**, and assert `model === editor.getModel()` before the IPC call. If the assertion fails, abort the save and log — do not write.
+    3. Treat `window.currentFilePath` as a derived read-only mirror of `tabManager.activeTab.filePath`. Forbid direct writes (one assignment site, in `editor-tabs.js`); migrate the other 21 to set the tab manager state.
+    4. Have `performAutoSave` clear `autoSaveTimer` on entry, regardless of how it was invoked.
+  - **Tests to add:** unit test that mocks an in-flight `setTimeout` firing across a tab switch and asserts the write goes to the *new* tab's path with the *new* tab's content; integration test that types in tab A, clicks search result for tab B, and verifies neither file's on-disk content was altered with the other's buffer.
+
+- [ ] **Restore decision pending: `~/Dev/machinespirits/machinespirits-content-philosophy/articles/thoughts-on-dissertations.md`.** This file shows `git diff --stat → 263 insertions, 46 deletions`; the working-tree content matches `courses/lecture-7.md` ("Bitter Lessons, Stochastic Parrots…"), not the original "Thoughts on Dissertation Writing" article. mtime `Apr 16 21:55:36 2026` precedes this Claude session, so the corruption almost certainly came from an earlier instance of the autosave bug above. **Action required from user:** confirm whether to `git restore articles/thoughts-on-dissertations.md` (no legitimate edits in flight) or whether the working-tree content includes intended changes that need to be salvaged first.
+
+### High (correctness, near-misses for data loss)
+
+- [ ] **`_openFileInEditorImpl` mutates `window.currentFilePath` before the model swap completes** — `orchestrator/renderer.js:6063` runs before `orchestrator/renderer.js:6121` (`handleEditableFile`). Even after the autosave-invariant fix above, move this assignment to happen *after* a successful model swap, so failed/cancelled opens don't leave the global pointing at a file that was never actually loaded into the editor.
+
+- [ ] **`_openingFilePath` guard at `orchestrator/renderer.js:5972` doesn't protect against same-file-twice-with-different-content races.** The guard is keyed on `filePath` only. A second concurrent open of the same path with newer disk content will silently no-op, leaving the editor on the older content. Either include a content/mtime hash in the guard key, or queue the second call instead of dropping it.
+
+- [ ] **Confirm the search-click "wrong file shown" report is fully resolved by the autosave fix.** During this session the symptom of "click lecture-1.md result, see lecture-7.md content" was traced to the autosave bug having earlier overwritten `lecture-1.md` on disk with `lecture-7.md` content — i.e., the search panel and editor were both correct, but the *file* was wrong. After the autosave fix lands, re-test with: open lecture-7.md, search "phaedrus", click the result for `articles/thoughts-on-dissertations.md`, verify the editor shows that file's actual content. If still wrong, the search-result `openFileInEditor` path in `orchestrator/modules/search.js:574-607` needs separate investigation.
+
+### Medium (performance, observability)
+
+- [ ] **Re-measure `lecture-7.md` initial load** post-presentation-debounce fix in `js/mode-switcher.js`. Pre-fix: 41ms parse + 342ms idle work. Expected: ~300ms reduction in editor mode now that the React presentation broadcaster only dispatches when presentation is actually visible. Use computer-use to load the file and read the perf overlay; record numbers in this TODO.
+
+- [ ] **Verify the Monaco `Cancelled` error guard is installed.** Reload the app, open and close a few files quickly to provoke the cancellation path, and confirm no `Error: Canceled` from `restoreViewState` appears in DevTools. If not silenced, the previous `window.unhandledrejection` listener may not be reaching the right reject path.
+
+- [ ] **Autosave is silent when it skips a save.** `performAutoSave` early-returns at `orchestrator/modules/autosave.js:76` when `!hasUnsavedChanges`, and the toast says "Auto-saved" even when the underlying IPC reported a partial result. Add a structured log line on every save attempt with `{ path, byteLength, ms, modelMatchedPath }` so future data-loss incidents are debuggable from logs alone.
+
+### Notes for the next session
+
+- **The presentation-debounce fix in `js/mode-switcher.js:528-591` is in the working tree, not committed.** Many other modified files are also uncommitted (see `git status`). Before committing, separate the presentation-perf change from the much larger pile of in-progress edits.
+- **The codebase has 22 distinct write sites for `window.currentFilePath`.** Touching all of them is the substantive part of the autosave fix above; the autosave function itself only needs ~10 lines of change.
+- **Do not click inside the editor pane during computer-use diagnosis.** A misaimed DevTools click in this session injected JS into a markdown buffer, which then auto-saved to the wrong file. Future computer-use UI sweeps should interact only with sidebar/search/menu surfaces, or take a snapshot first and operate on a known-clean buffer.
+
+---
+
+## Audit: 2026-03-29
+
+### Critical Backlog
+
+- [ ] **Sanitize preview HTML paths in the renderer** - `orchestrator/renderer.js`
+  - Markdown preview and fallback rendering still inject untrusted content into `innerHTML`.
+  - The internal-link preview module is being tightened in this pass, but the main preview surface still needs a safe rendering boundary.
+
+### High-Priority Backlog
+
+- [ ] **Restrict the generic preload bridge and path-traversal write paths** - `preload.js`, `main.js`
+  - The renderer can invoke arbitrary IPC channels, which weakens `contextIsolation`.
+
+- [x] **Deduplicate image paste handling** - `orchestrator/renderer.js`, `orchestrator/modules/paste-guard.js`
+  - Image pastes now flow through a single guarded document listener plus the keyboard shortcut path.
+  - The duplicate Monaco/container/document listener fan-out is gone, which avoids double imports and redundant preview/file-tree refresh work.
+
+- [ ] **Stop Mermaid fullscreen listener leaks** - `orchestrator/renderer.js`
+  - Repeated renders accumulate `wheel` and `keydown` listeners and retain dead fullscreen logic.
+
+- [ ] **Make lazy loading actually defer secondary work** - `index.html`
+  - The readiness gate fires as soon as the editor container exists, so the “lazy” batch starts almost immediately.
+
+- [ ] **Replace internal-link hot-path alerts and debug logging** - `orchestrator/modules/internalLinks.js`, `index.html`
+  - Debug tracing currently runs on every click path, and missing-link errors still use blocking dialogs.
+
+### Quality, Performance, And Test Backlog
+
+- [ ] **Stop Jest from crawling local Codex worktrees** - `jest.config.js`
+  - Duplicate manual-mock warnings come from `.claude/worktrees/...` being treated as part of the repo.
+
+- [x] **Apply AI provider changes live** - `ipc/settingsHandlers.js`
+  - Runtime AI updates now use the live tutor bridge instead of a missing `aiService` dependency.
+  - Provider resets back to `auto` and local AI URL changes now take effect immediately.
+
+- [ ] **Cache or narrow full-workspace markdown scans** - `ipc/fileHandlers.js`
+  - Recursive workspace scanning will become increasingly expensive on large vaults.
+
+### Completed In This Pass
+
+- [x] **Restore editor mode after closing the image viewer** - `orchestrator/renderer.js`, `orchestrator/modules/image-viewer-state.js`
+  - The image viewer now switches back to editor mode, clears any lingering PDF-only layout state, and forces an editor relayout when closing.
+  - The previous close path only unhid the outer panes wrapper, which could leave the actual editor pane hidden.
+
+- [x] **Restore AI context IPC paths** - `ipc/aiHandlers.js`
+  - Added live `get-file-context` and `get-current-file-content` handlers so AI features stop calling missing IPC channels.
+  - Context-aware chat now accepts the structured `{ files: [...] }` shape produced for renderer features.
+
+- [x] **Harden the speaker notes window** - `main.js`, `speaker-notes-preload.js`, `package.json`
+  - The speaker-notes window now uses an isolated preload bridge with `contextIsolation: true` and `nodeIntegration: false`.
+  - Notes render through DOM text nodes instead of injecting raw HTML into a Node-enabled window.
+
+- [x] **Constrain image saves to the working directory** - `main.js`
+  - `save-image-to-current-dir` now normalizes the filename before writing, preventing traversal-style paths from escaping the current working directory.
+
+- [x] **Fix stale working-directory/window IPC state** - `main.js`, `ipc/fileHandlers.js`, `orchestrator/renderer.js`
+  - File handlers now read the live working directory/window through getters instead of relying on stale captured values.
+  - `check-file-exists` consumers now read the actual `{ exists }` payload instead of treating the whole object as truthy.
+
+- [x] **Make legacy `save-file` surface real failures** - `main.js`
+  - The wrapper now returns the actual save result instead of always reporting success.
+
+- [x] **Stop table insertion from forcing a second full preview refresh** - `orchestrator/modules/formatting.js`
+  - Inserting a table already triggers Monaco's normal content-change pipeline.
+  - The extra immediate `updatePreviewAndStructure()` call was removed to avoid the apparent hang after inserting tables.
+
+- [x] **Open DevTools only in development mode** - `main.js`
+  - Production launches no longer pay the constant usability/performance penalty of an always-open DevTools window.
+
+- [x] **Fix bibliography author rendering regression** - `plugins/techne-markdown-renderer/citationRenderer.js`
+  - Bibliography output still truncates 3+ authors to `et al.` even though inline citations should be the only place that abbreviates.
+  - Trailing author strings like `..., et al.` are not normalized before parsing, which corrupts bibliography output.
+  - Current Jest failure: `tests/unit/renderer/citation-db-pipeline.test.js`
+
+- [x] **Make plugin asset loading retry-safe** - `plugins/techne-plugin-system.js`
+  - `loadScript()` and `loadCSS()` mark assets as loaded before `onload`, so a failed request poisons the cache and blocks retries.
+  - Repeated `start({ enabled: [...] })` calls merge array inputs into existing state instead of replacing them, which can leave stale plugin enablement behind.
+
+- [x] **Restore renderer error notifications** - `orchestrator/utils/api-helpers.js`
+  - `invokeElectronAPI()` shadows the global `showNotification` function with a boolean option, so errors log but do not surface to users.
+
+- [x] **Fix async citation service teardown** - `services/citationService.js`, `tests/unit/main/citation-service.test.js`
+  - `close()` now resolves a promise and the unit suite waits for it, which prevents post-test logging from failing Jest.
+
+### Next
+
+- [ ] **Replace mock-only plugin integration coverage with real loader coverage** - `tests/integration/plugin-loading.test.js`
+  - The current file mostly tests local Jest doubles rather than the actual plugin system, so regressions in manifest parsing, DOM injection, and registration timing can slip through.
+
+- [ ] **Clear Electron test startup timeout after success** - `tests/e2e/electron-test-helper.js`
+  - `startElectron()` leaves the 30-second timeout armed after resolve, which can kill a successfully launched app and create intermittent E2E failures.
+
+- [ ] **Make performance E2E tests app-aware instead of wall-clock driven** - `tests/e2e/performance.e2e.js`
+  - Current thresholds depend on `Date.now()`, fixed sleeps, and generic selectors rather than stable app instrumentation, which makes the suite noisy and hard to trust.
+
+- [ ] **Deduplicate presentation services** - `services/ttsService.js`, `plugins/techne-presentations/ttsService.js`, `services/videoRecordingService.js`, `plugins/techne-presentations/videoRecordingService.js`
+  - The TTS implementation has already diverged between the app copy and the plugin copy, so bug fixes and provider behavior are no longer consistent.
+
+- [ ] **Normalize presentation runtime assumptions** - `js/mode-switcher.js`, `plugins/techne-presentations/plugin.js`, `plugins/techne-presentations/package.json`
+  - The app mixes `ReactDOM.render` and `createRoot`, and the plugin advertises React 18 while the main app depends on React 19.
+
 ## High Priority
 
 ### Incomplete Features

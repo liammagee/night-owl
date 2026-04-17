@@ -67,6 +67,13 @@ function scheduleAutoSave() {
 
 // Perform the actual auto-save
 async function performAutoSave() {
+    // Clear any pending scheduled save — a stale timer firing after this run could
+    // re-enter with a path/buffer that drifted across a tab switch and corrupt a file.
+    if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+    }
+
     console.log('[performAutoSave] Called with:', {
         hasUnsavedChanges: window.hasUnsavedChanges,
         hasEditor: !!editor,
@@ -77,35 +84,68 @@ async function performAutoSave() {
         console.log('[performAutoSave] Skipping - no unsaved changes or no editor');
         return;
     }
-    
+
+    // Data-integrity invariant: the tab manager owns the truth about
+    // {active path, active model}. We must only save if the visible Monaco
+    // model belongs to the active tab AND window.currentFilePath agrees.
+    // If any mismatch, abort rather than risk writing the active buffer to a
+    // different file on disk. See TODO.md → Audit 2026-04-16 → Critical.
+    const tm = window.tabManager;
+    const activePath = tm && tm.activeTabPath;
+    const activeTab = activePath && tm.tabs ? tm.tabs.get(activePath) : null;
+    const editorModel = editor.getModel();
+
+    if (!activeTab || !editorModel) {
+        console.warn('[performAutoSave] Abort: no active tab or editor model', { activePath });
+        return;
+    }
+    if (activeTab.model !== editorModel) {
+        console.error('[performAutoSave] ABORT: tab model does not match editor model — would corrupt file', {
+            activePath,
+            tabFilePath: activeTab.filePath,
+            windowCurrentFilePath: window.currentFilePath
+        });
+        return;
+    }
+    if (activeTab.filePath !== window.currentFilePath) {
+        console.error('[performAutoSave] ABORT: tab path and window.currentFilePath disagree', {
+            tabFilePath: activeTab.filePath,
+            windowCurrentFilePath: window.currentFilePath
+        });
+        return;
+    }
+
     try {
         const content = editor.getValue();
-        
-        // Only save if we have a current file path
-        if (window.currentFilePath && window.electronAPI) {
-            const result = await window.electronAPI.invoke('perform-save', content);
-            
-            if (result.success) {
-                lastSavedContent = content;
-                window.hasUnsavedChanges = false;
-                updateUnsavedIndicator(false);
-                showNotification('Auto-saved', 'success', 1000); // Brief notification
-                
-                // Update current file path if this was a save-as operation
-                if (result.filePath && result.filePath !== window.currentFilePath) {
-                    window.currentFilePath = result.filePath;
-                    if (window.electronAPI) {
-                        window.electronAPI.invoke('set-current-file', result.filePath);
-                    }
-                }
-            } else {
-                console.log('[performAutoSave] ❌ Save operation failed:', result);
-            }
+        const savePath = activeTab.filePath;
+
+        // Untitled tabs need an explicit save-as flow, not auto-save.
+        if (!savePath || savePath.startsWith('untitled:')) {
+            console.log('[performAutoSave] Skipping - untitled tab (needs save-as)');
+            return;
+        }
+
+        if (!window.electronAPI) {
+            console.log('[performAutoSave] Skipping - electronAPI unavailable');
+            return;
+        }
+
+        // Pass the tab's path explicitly rather than relying on main-process
+        // currentFilePath state, which has its own drift paths.
+        const result = await window.electronAPI.invoke('perform-save-with-path', content, savePath);
+
+        if (result.success) {
+            lastSavedContent = content;
+            activeTab.lastSavedContent = content;
+            activeTab.isDirty = false;
+            window.hasUnsavedChanges = false;
+            updateUnsavedIndicator(false);
+            showNotification('Auto-saved', 'success', 1000);
         } else {
-            console.log('[performAutoSave] ℹ️ Skipping - no current file path or electron API unavailable');
+            console.log('[performAutoSave] Save failed:', result);
         }
     } catch (error) {
-        console.error('[performAutoSave] ❌ Error during auto-save:', error);
+        console.error('[performAutoSave] Error during auto-save:', error);
     }
 }
 
