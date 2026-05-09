@@ -314,6 +314,10 @@
             display: flex !important;
             flex-direction: row !important;
             align-items: stretch;
+            width: 312px;
+            min-width: 250px;
+            max-width: 600px;
+            flex: 0 0 312px;
             overflow: hidden;
             background: var(--panel-bg, #ffffff);
             border-right: 1px solid var(--border-color, #d5d0c3);
@@ -334,11 +338,13 @@
         }
 
         #left-sidebar-workspace {
-            flex: 1;
-            min-width: 220px;
+            flex: 1 1 auto;
+            min-width: 0;
             display: flex;
             flex-direction: column;
             background: var(--panel-bg, #ffffff);
+            overflow: hidden;
+            container-type: inline-size;
         }
 
         #left-sidebar-content {
@@ -397,6 +403,8 @@
             margin-top: 0 !important;
             border-bottom: 1px solid var(--border-color, #d5d0c3) !important;
             background: var(--menu-bg, #ffffff);
+            flex: 0 0 auto;
+            min-width: 0;
         }
 
         #structure-pane-title {
@@ -408,17 +416,27 @@
             text-transform: uppercase;
             font-weight: 700;
             color: var(--text-secondary, #4b5563);
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         #structure-pane-header .pane-header-top {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
             gap: 8px;
-            flex-wrap: wrap;
+            min-width: 0;
         }
 
         #structure-pane-header .pane-header-actions {
+            display: flex !important;
+            min-width: 0;
             gap: 4px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             justify-content: flex-end;
+            overflow: hidden;
         }
 
         #tag-search-input {
@@ -431,8 +449,13 @@
         }
 
         #structure-pane-header .pane-header-actions .btn {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
             height: 24px !important;
             padding: 0 7px !important;
+            min-width: 0;
             border-radius: 3px !important;
             border: 1px solid var(--button-border, #c8ccd2) !important;
             background: var(--button-bg, #ffffff) !important;
@@ -440,11 +463,45 @@
             font-size: 11px !important;
             font-weight: 500;
             line-height: 22px;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        #structure-pane-header .pane-header-actions .pane-action-icon {
+            flex: 0 0 auto;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        #structure-pane-header .pane-header-actions .pane-action-label {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         #structure-pane-header .pane-header-actions .btn:hover {
             background: var(--button-hover-bg, #f6f8fa) !important;
             border-color: var(--button-hover-border, #aeb5bf) !important;
+        }
+
+        @container (max-width: 220px) {
+            #structure-pane-header .pane-header-actions .btn {
+                width: 24px;
+                padding: 0 !important;
+            }
+
+            #structure-pane-header .pane-header-actions .pane-action-label {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                margin: -1px;
+                padding: 0;
+                overflow: hidden;
+                clip: rect(0 0 0 0);
+                white-space: nowrap;
+                border: 0;
+            }
         }
 
         body.dark-mode #left-sidebar-activity {
@@ -4179,9 +4236,18 @@
                 <div class="pane-header-top" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                     <h2 id="structure-pane-title">Structure</h2>
                     <div class="pane-header-actions" style="display: flex; gap: 4px;">
-                        <button id="add-workspace-folder-btn" class="btn" title="Add existing folder to workspace (shows as separate root)" style="display: none; padding: 4px 8px; font-size: 11px;">Add Root</button>
-                        <button id="change-directory-btn" class="btn" title="Change the primary working directory" style="display: none; padding: 4px 8px; font-size: 11px;">Primary</button>
-                        <button id="new-folder-btn" class="btn" title="Create a new subfolder inside selected folder" style="padding: 4px 8px; font-size: 11px;">New Folder</button>
+                        <button id="add-workspace-folder-btn" class="btn pane-action-btn" title="Add existing folder to workspace (shows as separate root)" aria-label="Add existing folder to workspace" style="display: none; padding: 4px 8px; font-size: 11px;">
+                            <span class="pane-action-icon" aria-hidden="true">R</span>
+                            <span class="pane-action-label">Root</span>
+                        </button>
+                        <button id="change-directory-btn" class="btn pane-action-btn" title="Change the primary working directory" aria-label="Change the primary working directory" style="display: none; padding: 4px 8px; font-size: 11px;">
+                            <span class="pane-action-icon" aria-hidden="true">P</span>
+                            <span class="pane-action-label">Main</span>
+                        </button>
+                        <button id="new-folder-btn" class="btn pane-action-btn" title="Create a new subfolder inside selected folder" aria-label="Create a new subfolder inside selected folder" style="padding: 4px 8px; font-size: 11px;">
+                            <span class="pane-action-icon" aria-hidden="true">+</span>
+                            <span class="pane-action-label">Folder</span>
+                        </button>
                     </div>
                 </div>
             </div>

@@ -100,4 +100,22 @@ describe('Code quality guardrails', () => {
     expect(gitSource).not.toContain('console.log(`[GitHandlers] No git repo found');
     expect(searchSource).not.toContain('console.log(`[SearchHandlers] Global search');
   });
+
+  test('file pane toolbar remains compact inside the activity sidebar', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+
+    expect(indexSource).toContain('#left-sidebar-workspace');
+    expect(indexSource).toContain('width: 312px;');
+    expect(indexSource).toContain('flex: 0 0 312px;');
+    expect(indexSource).toContain('min-width: 0;');
+    expect(indexSource).toContain('container-type: inline-size;');
+    expect(indexSource).toContain('@container (max-width: 220px)');
+    expect(indexSource).toContain('class="btn pane-action-btn"');
+    expect(indexSource).toContain('<span class="pane-action-label">Root</span>');
+    expect(indexSource).toContain('<span class="pane-action-label">Main</span>');
+    expect(indexSource).toContain('<span class="pane-action-label">Folder</span>');
+    expect(indexSource).not.toContain('>Add Root</button>');
+    expect(indexSource).not.toContain('>Primary</button>');
+    expect(indexSource).not.toContain('>New Folder</button>');
+  });
 });
