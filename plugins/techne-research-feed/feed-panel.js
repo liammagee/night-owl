@@ -135,6 +135,11 @@
                 el('h3', null, 'Research Feed'),
                 el('div', { class: 'rf-header-actions' }, [
                     el('button', { class: 'rf-btn', title: 'Refresh now', onclick: () => this.refreshNow() }, '↻'),
+                    el('button', {
+                        class: 'rf-btn',
+                        title: 'Import open Chrome tabs (macOS) — AI-gated against current draft',
+                        onclick: () => this.importChromeTabs()
+                    }, '📑'),
                     el('button', { class: 'rf-btn', title: 'Configure sources', onclick: () => this.openSettingsModal() }, '⚙'),
                     el('button', { class: 'rf-btn', title: 'Close', onclick: () => this.close() }, '×')
                 ])
@@ -270,6 +275,29 @@
         async refreshNow() {
             this.flashHeader('refreshing…');
             try { await this.api.invoke('feed:refresh-now'); } catch (_) {}
+            await this.refreshItems();
+        }
+
+        async importChromeTabs() {
+            this.flashHeader('importing chrome tabs…');
+            let r;
+            try {
+                r = await this.api.invoke('feed:import-chrome-tabs', { aiGate: true });
+            } catch (e) {
+                this.flashHeader('Import error: ' + e.message);
+                return;
+            }
+            if (!r || !r.success) {
+                this.flashHeader('Import failed: ' + (r && r.error ? r.error : 'unknown'));
+                return;
+            }
+            const aiPart = r.gated
+                ? `, ${r.droppedByAi || 0} by AI`
+                : (r.gateReason && r.gateReason !== 'ai-gate-disabled' ? ` (AI off: ${r.gateReason})` : '');
+            this.flashHeader(
+                `Tabs: ${r.inserted} new of ${r.kept} kept (${r.droppedByBlocklist} blocked${aiPart})`
+            );
+            await this.refreshSources();
             await this.refreshItems();
         }
 

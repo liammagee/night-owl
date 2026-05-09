@@ -25,13 +25,21 @@ const ADAPTERS = {
     bluesky: require('../services/feedSources/bluesky'),
     mastodon: require('../services/feedSources/mastodon'),
     googleSearch: require('../services/feedSources/googleSearch'),
-    googleScholar: require('../services/feedSources/googleScholar')
+    googleScholar: require('../services/feedSources/googleScholar'),
+    chromeTabs: require('../services/feedSources/chromeTabs')
 };
 
 const CREDS_FOR_TYPE = {
     googleSearch: () => ({ apiKey: process.env.RF_GOOGLE_API_KEY, cx: process.env.RF_GOOGLE_CX }),
     googleScholar: () => ({ apiKey: process.env.RF_SERPAPI_KEY })
 };
+
+// Adapters that should never run in the bulk `fetch` loop. They're triggered
+// via dedicated commands only (e.g. `import-chrome-tabs`) because they read
+// live local state rather than a polling endpoint.
+const ON_DEMAND_TYPES = new Set(['chromeTabs']);
+
+const CHROME_TABS_SOURCE_ID = 'chrome-tabs';
 
 // ---- arg parsing ----------------------------------------------------------
 
@@ -163,7 +171,8 @@ async function cmdFetch(args, store) {
         if (!s) throw new Error(`no such source: ${id}`);
         targets = [s];
     } else {
-        targets = (await store.listSources()).filter((s) => s.enabled);
+        targets = (await store.listSources())
+            .filter((s) => s.enabled && !ON_DEMAND_TYPES.has(s.type));
     }
     if (!targets.length) {
         console.log(C.dim('nothing to fetch'));
@@ -262,6 +271,64 @@ async function cmdPrune(args, store) {
     console.log(C.green(`✓ pruned ${removed} item(s) older than ${days} day(s)`));
 }
 
+function parseJsonArrayFlag(args, name) {
+    if (!args.flags[name] || args.flags[name] === true) return undefined;
+    try {
+        const parsed = JSON.parse(args.flags[name]);
+        if (!Array.isArray(parsed)) throw new Error('not a JSON array');
+        return parsed;
+    } catch (e) {
+        throw new Error(`--${name} must be a JSON array of regex strings: ${e.message}`);
+    }
+}
+
+async function cmdImportChromeTabs(args, store) {
+    if (process.platform !== 'darwin') {
+        throw new Error('import-chrome-tabs is macOS-only (uses AppleScript). Got platform: ' + process.platform);
+    }
+    const config = {
+        appName: typeof args.flags.app === 'string' ? args.flags.app : 'Google Chrome',
+        allowHomepages: !!args.flags['allow-homepages'],
+        allowGenericTitles: !!args.flags['allow-generic-titles']
+    };
+    const blocklist = parseJsonArrayFlag(args, 'blocklist');
+    const extraBlocklist = parseJsonArrayFlag(args, 'extra-blocklist');
+    if (blocklist) config.blocklist = blocklist;
+    if (extraBlocklist) config.extraBlocklist = extraBlocklist;
+
+    // Lazy-create the source row so insertItems / recordSourceFetch have a
+    // row to reference. Set a 1-year interval so anyone bolting on a polling
+    // loop won't accidentally scrape Chrome on a schedule.
+    const existing = await store.getSource(CHROME_TABS_SOURCE_ID);
+    if (!existing) {
+        await store.upsertSource({
+            id: CHROME_TABS_SOURCE_ID,
+            type: 'chromeTabs',
+            config,
+            enabled: true,
+            intervalMs: 365 * 24 * 60 * 60 * 1000
+        });
+    }
+
+    const t0 = Date.now();
+    const result = await ADAPTERS.chromeTabs.fetch({ config });
+    const items = result.items || [];
+    const ins = await store.insertItems(CHROME_TABS_SOURCE_ID, items);
+    await store.recordSourceFetch(CHROME_TABS_SOURCE_ID, null);
+
+    const meta = result.meta || {};
+    console.log(C.bold('Chrome tabs import:'));
+    console.log(`  total tabs:     ${meta.total ?? items.length}`);
+    console.log(`  dropped:        ${meta.dropped ?? 0} ${C.dim('(blocklist / generic / homepage)')}`);
+    console.log(`  kept:           ${meta.kept ?? items.length}`);
+    console.log(`  newly inserted: ${C.green(ins.inserted)}`);
+    console.log(`  took:           ${Date.now() - t0}ms`);
+    console.log();
+    console.log(C.dim('Note: CLI applies the deterministic blocklist only.'));
+    console.log(C.dim('The IDE\'s "Import Chrome Tabs" runs an additional AI'));
+    console.log(C.dim('relevance gate against your current draft.'));
+}
+
 function help() {
     console.log(`Research Feed CLI
 
@@ -284,6 +351,12 @@ Commands:
   dismiss ID
   save ID
   prune [--days N]                            Remove unsaved items older than N days (default 30)
+  import-chrome-tabs                          (macOS only) read open Chrome tabs, blocklist filter, insert
+        [--app NAME]                          app name (default "Google Chrome"; also "Brave Browser", "Arc")
+        [--allow-homepages]                   include bare-domain tabs (https://example.com/)
+        [--allow-generic-titles]              include "New Tab", "Google", etc.
+        [--extra-blocklist '<json array>']    append regex patterns to the default blocklist
+        [--blocklist '<json array>']          replace the default blocklist entirely
   help
 
 Source types and config shape:
@@ -293,6 +366,8 @@ Source types and config shape:
   mastodon       { instances[], tags?[], query?, limit? }
   googleSearch   { query, cx, dateRestrict? }     env: RF_GOOGLE_API_KEY (RF_GOOGLE_CX optional)
   googleScholar  { query, asYlo?, asYhi?, num? }  env: RF_SERPAPI_KEY
+  chromeTabs     { appName?, allowHomepages?, allowGenericTitles?, extraBlocklist?[], blocklist?[] }
+                 macOS only, on-demand. Use \`import-chrome-tabs\`; not run by bulk \`fetch\`.
 
 Examples:
   node scripts/feed-cli.js test --type arxiv --config '{"category":"cs.AI","maxResults":3}'
@@ -300,6 +375,8 @@ Examples:
   node scripts/feed-cli.js fetch
   node scripts/feed-cli.js items --sort score --limit 10
   node scripts/feed-cli.js save 42
+  node scripts/feed-cli.js import-chrome-tabs
+  node scripts/feed-cli.js import-chrome-tabs --app "Brave Browser" --extra-blocklist '["mybank\\\\.com"]'
 
 xLoggedIn (x.com) is not available in CLI — it requires Electron's BrowserWindow.
 `);
@@ -318,6 +395,7 @@ const COMMANDS = {
     dismiss: (a, s) => cmdMark(a, s, 'dismiss'),
     save: (a, s) => cmdMark(a, s, 'save'),
     prune: cmdPrune,
+    'import-chrome-tabs': cmdImportChromeTabs,
     help: () => { help(); }
 };
 

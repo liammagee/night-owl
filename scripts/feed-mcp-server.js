@@ -39,13 +39,21 @@ const ADAPTERS = {
     bluesky: require('../services/feedSources/bluesky'),
     mastodon: require('../services/feedSources/mastodon'),
     googleSearch: require('../services/feedSources/googleSearch'),
-    googleScholar: require('../services/feedSources/googleScholar')
+    googleScholar: require('../services/feedSources/googleScholar'),
+    chromeTabs: require('../services/feedSources/chromeTabs')
 };
 
 const CREDS_FOR_TYPE = {
     googleSearch: () => ({ apiKey: process.env.RF_GOOGLE_API_KEY, cx: process.env.RF_GOOGLE_CX }),
     googleScholar: () => ({ apiKey: process.env.RF_SERPAPI_KEY })
 };
+
+// Adapter types that should be skipped by the bulk `feed_fetch` loop. They
+// require an explicit dedicated tool (e.g. feed_import_chrome_tabs) because
+// they read live local state rather than a polling endpoint.
+const ON_DEMAND_TYPES = new Set(['chromeTabs']);
+
+const CHROME_TABS_SOURCE_ID = 'chrome-tabs';
 
 const SERVER_INFO = { name: 'research-feed', version: '0.1.0' };
 const PROTOCOL_VERSION = '2024-11-05';
@@ -192,6 +200,38 @@ const TOOLS = [
             properties: { days: { type: 'integer', default: 30, minimum: 0 } },
             additionalProperties: false
         }
+    },
+    {
+        name: 'feed_import_chrome_tabs',
+        description: 'Read the user\'s currently-open Chrome tabs (macOS only, via AppleScript) and import the non-personal/non-generic ones as feed items. Use when the user asks to capture or save what they have open in Chrome — e.g. "add my open tabs to the feed", "pull in my browser tabs", "what am I reading?". Default blocklist drops chrome:// URLs, gmail/calendar/messaging, social media DMs, banking, etc. Returns a summary of total / dropped / kept / inserted. The first call may trigger a macOS Automation permission prompt. Note: this surface lacks the IDE\'s AI relevance gate; relies on the deterministic blocklist alone — for AI gating use the IDE panel.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                appName: {
+                    type: 'string',
+                    description: 'Browser app name. Default "Google Chrome". Also "Brave Browser", "Arc", "Microsoft Edge".'
+                },
+                allowHomepages: {
+                    type: 'boolean',
+                    description: 'Include bare-domain tabs (e.g. https://example.com/). Default false.'
+                },
+                allowGenericTitles: {
+                    type: 'boolean',
+                    description: 'Include tabs with generic titles like "New Tab", "Google", "DuckDuckGo". Default false.'
+                },
+                extraBlocklist: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Regex patterns appended to the default blocklist.'
+                },
+                blocklist: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Regex patterns that REPLACE the default blocklist entirely.'
+                }
+            },
+            additionalProperties: false
+        }
     }
 ];
 
@@ -253,7 +293,8 @@ const HANDLERS = {
             if (!s) throw new Error(`no such source: ${id}`);
             targets = [s];
         } else {
-            targets = (await store.listSources()).filter((s) => s.enabled);
+            targets = (await store.listSources())
+                .filter((s) => s.enabled && !ON_DEMAND_TYPES.has(s.type));
         }
         if (!targets.length) return 'No enabled sources to fetch.';
         const report = [];
@@ -334,6 +375,49 @@ const HANDLERS = {
         const store = await ensureStore();
         const removed = await store.pruneOlderThan(days ?? 30);
         return `Pruned ${removed} item(s) older than ${days ?? 30} day(s).`;
+    },
+
+    async feed_import_chrome_tabs({ appName, allowHomepages, allowGenericTitles, extraBlocklist, blocklist } = {}) {
+        if (process.platform !== 'darwin') {
+            throw new Error(`feed_import_chrome_tabs is macOS-only (uses AppleScript). Got platform: ${process.platform}`);
+        }
+        const config = {
+            appName: appName || 'Google Chrome',
+            allowHomepages: !!allowHomepages,
+            allowGenericTitles: !!allowGenericTitles
+        };
+        if (Array.isArray(blocklist) && blocklist.length) config.blocklist = blocklist;
+        if (Array.isArray(extraBlocklist) && extraBlocklist.length) config.extraBlocklist = extraBlocklist;
+
+        const store = await ensureStore();
+        const existing = await store.getSource(CHROME_TABS_SOURCE_ID);
+        if (!existing) {
+            await store.upsertSource({
+                id: CHROME_TABS_SOURCE_ID,
+                type: 'chromeTabs',
+                config,
+                enabled: true,
+                intervalMs: 365 * 24 * 60 * 60 * 1000
+            });
+        }
+
+        const t0 = Date.now();
+        const result = await ADAPTERS.chromeTabs.fetch({ config });
+        const items = result.items || [];
+        const ins = await store.insertItems(CHROME_TABS_SOURCE_ID, items);
+        await store.recordSourceFetch(CHROME_TABS_SOURCE_ID, null);
+
+        const meta = result.meta || {};
+        const summary = {
+            sourceId: CHROME_TABS_SOURCE_ID,
+            totalTabs: meta.total ?? items.length,
+            droppedByBlocklist: meta.dropped ?? 0,
+            kept: meta.kept ?? items.length,
+            newlyInserted: ins.inserted,
+            elapsedMs: Date.now() - t0,
+            note: 'AI relevance gate is IDE-only; this MCP surface uses the deterministic blocklist only.'
+        };
+        return JSON.stringify(summary, null, 2);
     }
 };
 

@@ -18,7 +18,8 @@ const adapters = {
     mastodon: require('../services/feedSources/mastodon'),
     googleSearch: require('../services/feedSources/googleSearch'),
     googleScholar: require('../services/feedSources/googleScholar'),
-    xLoggedIn: require('../services/feedSources/xLoggedIn')
+    xLoggedIn: require('../services/feedSources/xLoggedIn'),
+    chromeTabs: require('../services/feedSources/chromeTabs')
 };
 
 const DEFAULT_INTERVALS_MS = {
@@ -28,8 +29,14 @@ const DEFAULT_INTERVALS_MS = {
     mastodon: 15 * 60 * 1000,
     googleSearch: 24 * 60 * 60 * 1000,
     googleScholar: 24 * 60 * 60 * 1000,
-    xLoggedIn: 30 * 60 * 1000
+    xLoggedIn: 30 * 60 * 1000,
+    // chromeTabs is on-demand. Set the interval high so the poll loop won't
+    // scrape Chrome behind the user's back. Manual import via the
+    // feed:import-chrome-tabs handler is the intended path.
+    chromeTabs: 365 * 24 * 60 * 60 * 1000
 };
+
+const CHROME_TABS_SOURCE_ID = 'chrome-tabs';
 
 let store = null;
 let credentials = null;
@@ -231,6 +238,115 @@ function stopPollLoop() {
     }
 }
 
+// ------------- Chrome tabs import -------------
+
+const TAB_GATE_SYSTEM_PROMPT = `You are a research-relevance gate for browser tabs.
+Given a "current draft" excerpt and a list of open tabs (title + url), return a JSON
+array [{"id": <tab id>, "score": <0-10 integer>, "reason": "<<= 14 words>"}]. Score
+0 = personal/generic/unrelated (gmail, banking, shopping, social timelines, settings).
+Score 10 = directly relevant to the draft. Use 5 as the cutoff for "research-worth-keeping".
+Return ONLY the JSON array, no prose.`;
+
+async function gateTabsAgainstDraft(items, threshold = 5) {
+    if (!depsRef?.tutorBridge?.getAvailableProviders ||
+        depsRef.tutorBridge.getAvailableProviders().length === 0) {
+        return { gated: false, reason: 'no-ai-provider', kept: items, dropped: [] };
+    }
+    const draft = await readDraftContext();
+    if (!draft) return { gated: false, reason: 'no-current-file', kept: items, dropped: [] };
+
+    const compactItems = items.map((it, idx) => ({
+        id: idx,
+        title: it.title || it.url,
+        url: it.url
+    }));
+
+    const userMessage = [
+        '=== CURRENT DRAFT (excerpt) ===',
+        `File: ${path.basename(draft.filePath)}`,
+        draft.content,
+        '',
+        '=== OPEN BROWSER TABS ===',
+        JSON.stringify(compactItems, null, 2),
+        '',
+        'Return ONLY the JSON array described in the system prompt.'
+    ].join('\n');
+
+    try {
+        const response = await depsRef.tutorBridge.sendMessage(userMessage, {
+            systemPrompt: TAB_GATE_SYSTEM_PROMPT,
+            temperature: 0.2,
+            maxTokens: 2000
+        });
+        const text = typeof response === 'string' ? response : (response?.content || response?.text || '');
+        const match = text.match(/\[[\s\S]*\]/);
+        if (!match) return { gated: false, reason: 'no-json-found', kept: items, dropped: [] };
+        const scored = JSON.parse(match[0]);
+        const scoreById = new Map();
+        for (const r of scored) {
+            const id = Number(r.id);
+            const s = Number(r.score);
+            if (Number.isFinite(id) && Number.isFinite(s)) {
+                scoreById.set(id, { score: s, reason: r.reason || null });
+            }
+        }
+        const kept = [];
+        const dropped = [];
+        items.forEach((it, idx) => {
+            const sc = scoreById.get(idx);
+            const annotated = sc
+                ? { ...it, _aiScore: sc.score, _aiReason: sc.reason }
+                : { ...it, _aiScore: null };
+            if (!sc || sc.score >= threshold) kept.push(annotated);
+            else dropped.push(annotated);
+        });
+        return { gated: true, threshold, kept, dropped };
+    } catch (err) {
+        console.warn('[FeedHandlers] tab gate failed:', err.message);
+        return { gated: false, reason: err.message, kept: items, dropped: [] };
+    }
+}
+
+async function importChromeTabs({ aiGate = true, threshold = 5, blocklist, extraBlocklist, allowHomepages, allowGenericTitles, appName } = {}) {
+    // Make sure we have a row in `sources` so item insertion (which keys on
+    // source_id) succeeds, and so the user sees the chrome-tabs source in
+    // the panel even before the first import.
+    await store.upsertSource({
+        id: CHROME_TABS_SOURCE_ID,
+        type: 'chromeTabs',
+        config: { },
+        enabled: true,
+        intervalMs: DEFAULT_INTERVALS_MS.chromeTabs
+    });
+    const adapter = adapters.chromeTabs;
+    const { items, meta } = await adapter.fetch({
+        config: { blocklist, extraBlocklist, allowHomepages, allowGenericTitles, appName }
+    });
+    const droppedByBlocklist = (meta?.dropped) ?? 0;
+    const totalTabs = (meta?.total) ?? items.length + droppedByBlocklist;
+
+    let toInsert = items;
+    let aiResult = null;
+    if (aiGate) {
+        aiResult = await gateTabsAgainstDraft(items, threshold);
+        toInsert = aiResult.kept;
+    }
+    const ins = await store.insertItems(CHROME_TABS_SOURCE_ID, toInsert);
+    await store.recordSourceFetch(CHROME_TABS_SOURCE_ID, null);
+
+    return {
+        totalTabs,
+        droppedByBlocklist,
+        afterBlocklist: items.length,
+        gated: !!aiResult?.gated,
+        gateReason: aiResult?.gated ? null : (aiResult?.reason || (aiGate ? null : 'ai-gate-disabled')),
+        droppedByAi: aiResult?.dropped?.length || 0,
+        kept: toInsert.length,
+        inserted: ins.inserted,
+        droppedExamples: (aiResult?.dropped || []).slice(0, 5).map((d) => ({ title: d.title, url: d.url, score: d._aiScore, reason: d._aiReason }))
+    };
+}
+
 // ------------- Save to citations -------------
 
 function feedItemToCitation(item) {
@@ -372,6 +488,19 @@ function register(deps) {
     ipcMain.handle('feed:list-credentials', async (_e, { sourceId } = {}) => {
         await initializeServices(userDataPath);
         return { success: true, names: await credentials.list(sourceId) };
+    });
+
+    ipcMain.handle('feed:import-chrome-tabs', async (_e, opts = {}) => {
+        await initializeServices(userDataPath);
+        try {
+            const result = await importChromeTabs(opts);
+            if (result.inserted > 0) {
+                emit('feed:items', { sourceId: CHROME_TABS_SOURCE_ID, inserted: result.inserted });
+            }
+            return { success: true, ...result };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
     });
 
     ipcMain.handle('feed:test-source', async (_e, { sourceId } = {}) => {
