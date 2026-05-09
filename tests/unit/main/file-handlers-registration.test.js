@@ -85,6 +85,48 @@ describe('fileHandlers registration', () => {
     });
   });
 
+  test('show-confirm-dialog renders exact paths and cancel-default buttons', async () => {
+    dialog.showMessageBox.mockResolvedValue({ response: 0 });
+
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => '/workspace/current'),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: '/workspace/current',
+      userDataPath: '/mock/user-data'
+    });
+
+    const handler = getRegisteredHandler('show-confirm-dialog');
+    const result = await handler({}, {
+      title: 'Delete Files',
+      message: 'Delete selected files?',
+      detail: 'This cannot be undone.',
+      paths: ['/workspace/a.md', '/workspace/b.md'],
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+
+    expect(result).toEqual({ success: true, confirmed: true, cancelled: false });
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        type: 'warning',
+        title: 'Delete Files',
+        message: 'Delete selected files?',
+        detail: expect.stringContaining('/workspace/a.md'),
+        buttons: ['Delete', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true
+      })
+    );
+  });
+
   test('set-current-file watches the file and notifies renderer when it changes on disk', async () => {
     const tempDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-watch-'));
     const filePath = path.join(tempDir, 'watched.md');

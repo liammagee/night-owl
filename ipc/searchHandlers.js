@@ -5,6 +5,11 @@ const { ipcMain } = require('electron');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
+const {
+  createRuntimeWorkspaceResolver,
+  pathExists
+} = require('./runtimeWorkspace');
+const { createDebugLogger } = require('./logging');
 
 /**
  * Register all search IPC handlers
@@ -53,27 +58,12 @@ function register(deps) {
            /^[^*]+\*$/.test(query);              // prefix*
   }
 
-  function pathExists(folderPath) {
-    try {
-      return !!folderPath && fsSync.existsSync(folderPath);
-    } catch {
-      return false;
-    }
-  }
-
-  function readCurrentWorkingDirectory() {
-    return typeof getCurrentWorkingDirectory === 'function'
-      ? getCurrentWorkingDirectory()
-      : currentWorkingDirectory;
-  }
-
-  function getWorkingDirectory() {
-    const saved = appSettings.workingDirectory;
-    if (pathExists(saved)) {
-      return saved;
-    }
-    return readCurrentWorkingDirectory();
-  }
+  const getWorkingDirectory = createRuntimeWorkspaceResolver({
+    appSettings,
+    currentWorkingDirectory,
+    getCurrentWorkingDirectory
+  });
+  const debug = createDebugLogger('SearchHandlers');
 
   function normalizeFilePatternQuery(query) {
     let normalized = String(query || '').trim();
@@ -224,7 +214,7 @@ function register(deps) {
         }
       }
       
-      console.log(`[SearchHandlers] Global search found ${results.length} matches in ${files.length} files`);
+      debug(`Global search found ${results.length} matches in ${files.length} files`);
       return results;
       
     } catch (error) {
@@ -340,7 +330,7 @@ function register(deps) {
       const searchQuery = String(query || '').trim();
       const filePatternQuery = normalizeFilePatternQuery(query);
 
-      console.log(`[SearchHandlers] Global search for "${searchQuery}" in ${workingDir} and ${workspaceFolders.length} workspace folders`);
+      debug(`Global search for "${searchQuery}" in ${workingDir} and ${workspaceFolders.length} workspace folders`);
 
       if (searchQuery.length === 0) {
         return { success: false, error: 'Search query is required' };
@@ -354,7 +344,7 @@ function register(deps) {
       const isPatternSearch = isFilePatternQuery(filePatternQuery);
 
       if (isPatternSearch) {
-        console.log(`[SearchHandlers] Detected file pattern search: "${filePatternQuery}"`);
+        debug(`Detected file pattern search: "${filePatternQuery}"`);
 
         // Search for files by pattern
         let fileMatches = await searchFilesByPattern(workingDir, filePatternQuery, 100);
@@ -379,7 +369,7 @@ function register(deps) {
           }
         }
 
-        console.log(`[SearchHandlers] File pattern search found ${fileMatches.length} matching files`);
+        debug(`File pattern search found ${fileMatches.length} matching files`);
         return {
           success: true,
           results: [],  // No content results for file pattern search
@@ -413,7 +403,7 @@ function register(deps) {
         }
       }
 
-      console.log(`[SearchHandlers] Global search found ${allResults.length} total matches across all folders`);
+      debug(`Global search found ${allResults.length} total matches across all folders`);
       return { success: true, results: allResults };
     } catch (error) {
       console.error('[SearchHandlers] Error in global search:', error);

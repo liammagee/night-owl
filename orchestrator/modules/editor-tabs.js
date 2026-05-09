@@ -66,6 +66,11 @@
         return typeof filePath === 'string' && filePath.startsWith(UNTITLED_PREFIX);
     }
 
+    function isSameOrChildPath(candidatePath, rootPath) {
+        if (!candidatePath || !rootPath) return false;
+        return candidatePath === rootPath || candidatePath.startsWith(`${rootPath.replace(/\/+$/, '')}/`);
+    }
+
     class TabManager {
         constructor() {
             this.tabs = new Map();       // filePath → TabState
@@ -232,6 +237,40 @@
         }
 
         /**
+         * Re-key every open tab affected by a file or folder move/rename.
+         * Folder operations preserve the child path suffix under the new root.
+         */
+        rekeyTabsForPath(oldPath, newPath, options = {}) {
+            const includeChildren = Boolean(options.includeChildren);
+            const affectedPaths = this.tabOrder.filter(path => (
+                includeChildren ? isSameOrChildPath(path, oldPath) : path === oldPath
+            ));
+            const changed = [];
+            let activeNewPath = null;
+
+            for (const affectedPath of affectedPaths) {
+                const suffix = affectedPath === oldPath ? '' : affectedPath.slice(oldPath.replace(/\/+$/, '').length);
+                const targetPath = `${newPath.replace(/\/+$/, '')}${suffix}`;
+                const wasActive = this.activeTabPath === affectedPath;
+
+                if (targetPath !== affectedPath) {
+                    this.rekeyTab(affectedPath, targetPath);
+                    changed.push({ oldPath: affectedPath, newPath: targetPath });
+                }
+
+                if (wasActive) {
+                    activeNewPath = targetPath;
+                }
+            }
+
+            if (activeNewPath && this.tabs.has(activeNewPath)) {
+                this.activateTab(activeNewPath);
+            }
+
+            return changed;
+        }
+
+        /**
          * Switch to a tab. Saves outgoing view state, swaps model, restores incoming state.
          * Syncs global variables so auto-save, preview, etc. continue to work.
          */
@@ -352,7 +391,7 @@
             const wasActive = this.activeTabPath === filePath;
 
             // Dispose the Monaco model
-            if (tab.model && !tab.model.isDisposed()) {
+            if (tab.model && (typeof tab.model.isDisposed !== 'function' || !tab.model.isDisposed())) {
                 tab.model.dispose();
             }
 
@@ -366,16 +405,7 @@
                     this.activeTabPath = null; // Clear so activateTab does full activation
                     this.activateTab(this.tabOrder[nextIdx]);
                 } else {
-                    this.activeTabPath = null;
-                    // No tabs left — clear editor
-                    const editor = window.editor;
-                    if (editor) {
-                        const emptyModel = monaco.editor.createModel('', 'markdown');
-                        editor.setModel(emptyModel);
-                    }
-                    window.currentFilePath = '';
-                    window.hasUnsavedChanges = false;
-                    this._renderTabBar();
+                    this._clearEditorForNoTabs();
                 }
             } else {
                 this._renderTabBar();
@@ -384,6 +414,94 @@
             this._persistTabs();
             // Update recovery data (closed tab no longer needs recovery)
             this._scheduleRecoveryPersist();
+        }
+
+        /**
+         * Drop a tab because its backing file was deleted. This intentionally
+         * skips the dirty prompt because the caller already confirmed the disk
+         * mutation and can show the exact affected paths before deleting.
+         */
+        discardTab(filePath) {
+            const tab = this.tabs.get(filePath);
+            if (!tab) return false;
+
+            const idx = this.tabOrder.indexOf(filePath);
+            const wasActive = this.activeTabPath === filePath;
+
+            if (tab.model && (typeof tab.model.isDisposed !== 'function' || !tab.model.isDisposed())) {
+                tab.model.dispose();
+            }
+
+            this.tabs.delete(filePath);
+            if (idx >= 0) this.tabOrder.splice(idx, 1);
+
+            if (wasActive) {
+                if (this.tabOrder.length > 0) {
+                    const nextIdx = Math.min(Math.max(idx, 0), this.tabOrder.length - 1);
+                    this.activeTabPath = null;
+                    this.activateTab(this.tabOrder[nextIdx]);
+                } else {
+                    this._clearEditorForNoTabs();
+                }
+            } else {
+                this._renderTabBar();
+            }
+
+            this._persistTabs();
+            this._scheduleRecoveryPersist();
+            return true;
+        }
+
+        discardTabsForPath(targetPath, options = {}) {
+            const includeChildren = Boolean(options.includeChildren);
+            const affectedPaths = this.tabOrder.filter(path => (
+                includeChildren ? isSameOrChildPath(path, targetPath) : path === targetPath
+            ));
+
+            for (const affectedPath of affectedPaths) {
+                this.discardTab(affectedPath);
+            }
+
+            return affectedPaths;
+        }
+
+        getTabsForPath(targetPath, options = {}) {
+            const includeChildren = Boolean(options.includeChildren);
+            return this.tabOrder.filter(path => (
+                includeChildren ? isSameOrChildPath(path, targetPath) : path === targetPath
+            ));
+        }
+
+        _clearEditorForNoTabs() {
+            this.activeTabPath = null;
+            const editor = window.editor;
+            if (editor) {
+                const emptyModel = monaco.editor.createModel('', 'markdown');
+                editor.setModel(emptyModel);
+            }
+            window.currentFilePath = null;
+            window.editorFileName = null;
+            window.lastSavedContent = '';
+            window.hasUnsavedChanges = false;
+            if (typeof window._setLastSavedContent === 'function') {
+                window._setLastSavedContent('');
+            }
+            if (typeof window.updateUnsavedIndicator === 'function') {
+                window.updateUnsavedIndicator(false);
+            }
+            if (typeof window.updateBreadcrumb === 'function') {
+                window.updateBreadcrumb(null);
+            }
+            if (typeof window.updatePreviewAndStructure === 'function') {
+                window.updatePreviewAndStructure('');
+            }
+            if (typeof window.syncContentToPresentation === 'function') {
+                window.syncContentToPresentation('');
+            }
+            if (window.electronAPI) {
+                window.electronAPI.invoke('set-current-file', null);
+            }
+            this._renderTabBar();
         }
 
         /**
@@ -397,7 +515,7 @@
                     const confirmed = confirm(`"${tab.fileName}" has unsaved changes. Close anyway?`);
                     if (!confirmed) continue;
                 }
-                if (tab && tab.model && !tab.model.isDisposed()) {
+                if (tab && tab.model && (typeof tab.model.isDisposed !== 'function' || !tab.model.isDisposed())) {
                     tab.model.dispose();
                 }
                 this.tabs.delete(path);
@@ -406,14 +524,7 @@
             if (keepPath && this.tabs.has(keepPath)) {
                 this.activateTab(keepPath);
             } else if (this.tabOrder.length === 0) {
-                this.activeTabPath = null;
-                const editor = window.editor;
-                if (editor) {
-                    const emptyModel = monaco.editor.createModel('', 'markdown');
-                    editor.setModel(emptyModel);
-                }
-                window.currentFilePath = '';
-                window.hasUnsavedChanges = false;
+                this._clearEditorForNoTabs();
             }
             this._renderTabBar();
             this._persistTabs();

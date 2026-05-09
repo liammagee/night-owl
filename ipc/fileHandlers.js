@@ -12,6 +12,7 @@ const {
   describeWorkspaceOverlap,
   sanitizeWorkspaceFolders
 } = require('./workspacePaths');
+const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
 
 const SAVE_BACKUP_DIR_NAME = '.nightowl-backups';
 const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
@@ -246,17 +247,17 @@ function register(deps) {
     );
   }
 
-  function readCurrentWorkingDirectory() {
-    return typeof getCurrentWorkingDirectory === 'function'
-      ? getCurrentWorkingDirectory()
-      : currentWorkingDirectory;
-  }
-
   function updateCurrentWorkingDirectory(nextDirectory) {
     if (typeof setCurrentWorkingDirectory === 'function') {
       setCurrentWorkingDirectory(nextDirectory);
     }
   }
+
+  const getWorkingDirectory = createRuntimeWorkspaceResolver({
+    appSettings,
+    currentWorkingDirectory,
+    getCurrentWorkingDirectory
+  });
 
   function syncWorkspaceFolders(primaryFolder = getWorkingDirectory(), options = {}) {
     if (!Array.isArray(appSettings.workspaceFolders)) {
@@ -298,22 +299,6 @@ function register(deps) {
     }
 
     return roots;
-  }
-
-  // Helper function to get working directory.
-  // Prefer the saved workingDirectory only if it currently exists on disk —
-  // otherwise fall through to the runtime fallback computed at app.whenReady
-  // (currentWorkingDirectory). This is what stops the file tree from trying
-  // to walk a stale/missing path while still preserving the user's saved choice
-  // in appSettings (so it works again if the dir reappears).
-  function getWorkingDirectory() {
-    const saved = appSettings.workingDirectory;
-    if (saved) {
-      try {
-        if (require('fs').existsSync(saved)) return saved;
-      } catch { /* fall through */ }
-    }
-    return readCurrentWorkingDirectory();
   }
 
   // Helper function to update internal links after a file rename
@@ -1683,7 +1668,42 @@ function register(deps) {
     }
   });
 
-  console.log('[FileHandlers] Registered 23 file system handlers');
+  ipcMain.handle('show-confirm-dialog', async (event, options = {}) => {
+    const currentMainWindow = resolveMainWindow();
+
+    if (!currentMainWindow) {
+      console.error('[FileHandlers] No main window available for confirmation dialog');
+      return { success: false, error: 'No main window available' };
+    }
+
+    try {
+      const paths = Array.isArray(options.paths) ? options.paths.filter(Boolean) : [];
+      const pathDetail = paths.length > 0
+        ? `\n\nPaths:\n${paths.slice(0, 12).join('\n')}${paths.length > 12 ? `\n...and ${paths.length - 12} more` : ''}`
+        : '';
+      const result = await dialog.showMessageBox(currentMainWindow, {
+        type: options.variant === 'danger' ? 'warning' : 'question',
+        title: options.title || 'Confirm Action',
+        message: options.message || 'Continue?',
+        detail: `${options.detail || ''}${pathDetail}`.trim(),
+        buttons: [options.confirmText || 'Confirm', options.cancelText || 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true
+      });
+
+      return {
+        success: true,
+        confirmed: result.response === 0,
+        cancelled: result.response !== 0
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error showing confirmation dialog:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[FileHandlers] Registered file system handlers');
 
   // Helper functions
   // Directories that should never appear in the file tree.  Matches the skip

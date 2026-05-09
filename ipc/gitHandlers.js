@@ -5,9 +5,13 @@ const { ipcMain } = require('electron');
 const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { createDebugLogger } = require('./logging');
+const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
 
 function register(deps) {
   console.log('[GitHandlers] Registering git handlers...');
+  const debug = createDebugLogger('GitHandlers');
+  const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {});
 
   /**
    * Find git repository root from any subfolder
@@ -15,17 +19,18 @@ function register(deps) {
    */
   ipcMain.handle('git-find-repo', async (event, folderPath) => {
     try {
-      console.log(`[GitHandlers] Finding git repo for: ${folderPath}`);
+      const lookupPath = folderPath || getWorkingDirectory();
+      debug(`Finding git repo for: ${lookupPath}`);
 
-      if (!folderPath || !fs.existsSync(folderPath)) {
-        console.log(`[GitHandlers] Git repo lookup skipped; path does not exist: ${folderPath}`);
+      if (!lookupPath || !fs.existsSync(lookupPath)) {
+        debug(`Git repo lookup skipped; path does not exist: ${lookupPath}`);
         return { success: false, error: 'Path does not exist' };
       }
 
-      let currentPath = fs.statSync(folderPath).isDirectory()
-        ? folderPath
-        : path.dirname(folderPath);
-      const originalPath = folderPath;
+      let currentPath = fs.statSync(lookupPath).isDirectory()
+        ? lookupPath
+        : path.dirname(lookupPath);
+      const originalPath = lookupPath;
 
       // Traverse up to find .git directory
       while (currentPath !== path.dirname(currentPath)) {
@@ -34,7 +39,7 @@ function register(deps) {
           const isSubfolder = currentPath !== originalPath;
           const relativePath = isSubfolder ? path.relative(currentPath, originalPath) : '.';
 
-          console.log(`[GitHandlers] Found git repo at: ${currentPath}, subfolder: ${relativePath}`);
+          debug(`Found git repo at: ${currentPath}, subfolder: ${relativePath}`);
           return {
             success: true,
             repoRoot: currentPath,
@@ -45,7 +50,7 @@ function register(deps) {
         currentPath = path.dirname(currentPath);
       }
 
-      console.log(`[GitHandlers] No git repo found for: ${folderPath}`);
+      debug(`No git repo found for: ${lookupPath}`);
       return { success: false, error: 'Not a git repository' };
     } catch (error) {
       console.error('[GitHandlers] Error finding git repo:', error);

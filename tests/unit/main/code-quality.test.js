@@ -62,4 +62,42 @@ describe('Code quality guardrails', () => {
     expect(source).not.toContain('sandbox="allow-scripts allow-same-origin"');
     expect(source).not.toContain('<iframe srcdoc="${');
   });
+
+  test('quality scripts guard generated directories and local audits', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+    const qualityScriptPath = path.join(__dirname, '../../../scripts/quality-static-checks.js');
+    const qualityScript = fs.readFileSync(qualityScriptPath, 'utf8');
+
+    expect(packageJson.scripts.quality).toContain('quality:static');
+    expect(packageJson.scripts['quality:static']).toBe('node scripts/quality-static-checks.js');
+    expect(qualityScript).toContain('GENERATED_DIRS');
+    expect(qualityScript).toContain('assertNoTrackedGeneratedDirs');
+    expect(qualityScript).toContain('--exclude-standard');
+  });
+
+  test('trace comparison tooling is documented and scriptable', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+    const traceScript = fs.readFileSync(path.join(__dirname, '../../../scripts/compare-chromium-traces.js'), 'utf8');
+    const runbook = fs.readFileSync(path.join(__dirname, '../../../docs/performance-trace-runbook.md'), 'utf8');
+
+    expect(packageJson.scripts['quality:trace']).toBe('node scripts/compare-chromium-traces.js');
+    expect(traceScript).toContain('summarizeTrace');
+    expect(traceScript).toContain('traceEvents');
+    expect(runbook).toContain('Large-file editing');
+    expect(runbook).toContain('Markdown preview');
+    expect(runbook).toContain('Graph view');
+    expect(runbook).toContain('Presentation view');
+  });
+
+  test('noisy git and search success logs are debug-gated', () => {
+    const gitSource = fs.readFileSync(path.join(__dirname, '../../../ipc/gitHandlers.js'), 'utf8');
+    const searchSource = fs.readFileSync(path.join(__dirname, '../../../ipc/searchHandlers.js'), 'utf8');
+    const loggingSource = fs.readFileSync(path.join(__dirname, '../../../ipc/logging.js'), 'utf8');
+
+    expect(loggingSource).toContain('NIGHTOWL_DEBUG_LOGS');
+    expect(gitSource).toContain("createDebugLogger('GitHandlers')");
+    expect(searchSource).toContain("createDebugLogger('SearchHandlers')");
+    expect(gitSource).not.toContain('console.log(`[GitHandlers] No git repo found');
+    expect(searchSource).not.toContain('console.log(`[SearchHandlers] Global search');
+  });
 });

@@ -104,6 +104,33 @@ describe('Git IPC Handlers Integration', () => {
         error: 'Path does not exist'
       });
     });
+
+    test('falls back to the live runtime workspace when no path is provided', async () => {
+      const repoRoot = path.join(tempRoot, 'repo');
+      const nestedDir = path.join(repoRoot, 'docs', 'research');
+      fs.mkdirSync(path.join(repoRoot, '.git'), { recursive: true });
+      fs.mkdirSync(nestedDir, { recursive: true });
+
+      handlers = {};
+      ipcMain.handle.mockImplementation((channel, handler) => {
+        handlers[channel] = handler;
+      });
+      const gitHandlers = require('../../ipc/gitHandlers');
+      gitHandlers.register({
+        appSettings: { workingDirectory: path.join(tempRoot, 'missing') },
+        getCurrentWorkingDirectory: () => nestedDir,
+        currentWorkingDirectory: nestedDir
+      });
+
+      const result = await handlers['git-find-repo']({}, null);
+
+      expect(result).toEqual({
+        success: true,
+        repoRoot,
+        isSubfolder: true,
+        relativePath: path.join('docs', 'research')
+      });
+    });
   });
 
   describe('git-status-detailed', () => {

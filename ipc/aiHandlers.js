@@ -5,6 +5,7 @@
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
+const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
 
 /**
  * Register all AI service IPC handlers
@@ -23,9 +24,7 @@ function register(deps) {
   const getCurrentFilePath = typeof deps.getCurrentFilePath === 'function'
     ? deps.getCurrentFilePath
     : () => currentFilePath || appSettings.currentFile || null;
-  const getCurrentWorkingDirectory = typeof deps.getCurrentWorkingDirectory === 'function'
-    ? deps.getCurrentWorkingDirectory
-    : () => appSettings.workingDirectory || process.cwd();
+  const getWorkingDirectory = createRuntimeWorkspaceResolver(deps);
   const CONTEXT_FILE_EXTENSIONS = new Set(['.md', '.markdown', '.mdx', '.txt', '.text', '.bib']);
   const MAX_CONTEXT_FILES = 8;
   const MAX_CONTEXT_CHARS = 12000;
@@ -40,7 +39,7 @@ function register(deps) {
   }
 
   function readLiveWorkingDirectory() {
-    return getCurrentWorkingDirectory() || appSettings.workingDirectory || process.cwd();
+    return getWorkingDirectory();
   }
 
   function isContextFile(filePath) {

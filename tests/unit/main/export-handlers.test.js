@@ -61,6 +61,42 @@ describe('Export Handlers', () => {
     expect(result).toEqual({ success: false, cancelled: true });
   });
 
+  test('uses runtime workspace for export default path when saved workspace is stale', async () => {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const { ipcMain, dialog } = require('electron');
+    const exportHandlers = require('../../../ipc/exportHandlers');
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-export-runtime-'));
+    const runtimeDir = path.join(tempRoot, 'runtime');
+    fs.mkdirSync(runtimeDir);
+
+    exportHandlers.register({
+      mainWindow: mockMainWindow,
+      appSettings: { workingDirectory: path.join(tempRoot, 'missing') },
+      getCurrentFilePath: jest.fn(() => null),
+      getCurrentWorkingDirectory: jest.fn(() => runtimeDir),
+      currentWorkingDirectory: runtimeDir
+    });
+
+    dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true });
+
+    const [, handler] = ipcMain.handle.mock.calls.find(
+      ([channel]) => channel === 'perform-export-pdf-pandoc'
+    );
+    const result = await handler({}, '# Test Document', {});
+
+    expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+      mockMainWindow,
+      expect.objectContaining({
+        defaultPath: path.join(runtimeDir, 'document.pdf')
+      })
+    );
+    expect(result).toEqual({ success: false, cancelled: true });
+
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
   test('skips empty citations when generating BibTeX', () => {
     const exportHandlers = require('../../../ipc/exportHandlers');
 

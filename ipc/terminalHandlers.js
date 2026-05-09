@@ -4,9 +4,11 @@
 const { ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const os = require('os');
+const { createRuntimeWorkspaceResolver, pathExists } = require('./runtimeWorkspace');
 
 function register(deps) {
   console.log('[TerminalHandlers] Registering terminal handlers...');
+  const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {}, { fallback: os.homedir() });
 
   let activeProcess = null;
   let mainWindow = null;
@@ -31,7 +33,7 @@ function register(deps) {
       const args = process.platform === 'win32' ? [] : ['-i'];
 
       activeProcess = spawn(shell, args, {
-        cwd: cwd || os.homedir(),
+        cwd: pathExists(cwd) ? cwd : getWorkingDirectory(),
         env: { ...process.env, TERM: 'dumb' },
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -108,7 +110,7 @@ function register(deps) {
     try {
       const { execSync } = require('child_process');
       const output = execSync(command, {
-        cwd: cwd || os.homedir(),
+        cwd: pathExists(cwd) ? cwd : getWorkingDirectory(),
         encoding: 'utf8',
         timeout: 30000,
         maxBuffer: 1024 * 1024

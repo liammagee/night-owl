@@ -694,6 +694,47 @@
             line-height: 1;
         }
 
+        .file-icon-html::before,
+        .file-icon-code::before,
+        .file-icon-style::before,
+        .file-icon-data::before,
+        .file-icon-pdf::before {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .file-icon-html::before {
+            content: '<>';
+            color: #d73a49;
+        }
+
+        .file-icon-code::before {
+            content: '{}';
+            color: #6f42c1;
+        }
+
+        .file-icon-style::before {
+            content: '#';
+            color: #0969da;
+            font-size: 9px;
+        }
+
+        .file-icon-data::before {
+            content: 'D';
+            color: #1a7f37;
+        }
+
+        .file-icon-pdf::before {
+            content: 'P';
+            color: #cf222e;
+        }
+
         body.dark-mode .file-tree-item {
             color: #cccccc;
         }
@@ -4989,6 +5030,7 @@
     <script src="orchestrator/modules/navigation.js" defer></script>
     <script src="orchestrator/modules/commandPalette.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
+    <script src="orchestrator/modules/app-confirm.js" defer></script>
     <script src="orchestrator/modules/editor-tabs.js" defer></script>
     <script src="orchestrator/modules/settings.js" defer></script>
     <script src="orchestrator/modules/visualMarkdown.js" defer></script>

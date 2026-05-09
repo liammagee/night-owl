@@ -26,4 +26,26 @@ node scripts/quality-metrics.js 1557354 WORKTREE
 - Markdown preview rendering now has 0 synchronous bibliography-refresh awaits in the render path, down from 1. Bibliography changes rerender after the deferred refresh only when the active file and content still match.
 - Touch gesture runtime logging is now opt-in: 0 unconditional `console.log` calls, down from 42. Enable with `localStorage.setItem('nightowl.debugTouchGestures', 'true')` when diagnosing mobile presentation issues.
 - GPU diagnostics and Chromium trace capture are available through the performance IPC handlers.
-- Full Jest currently passes with 63 suites and 1062 tests.
+- Full Jest currently passes with 66 suites and 1,082 tests after the latest hardening pass.
+
+## Latest Pass Addendum
+
+Command:
+
+```bash
+npm run quality
+```
+
+Current deltas against `HEAD~1` before this pass:
+
+| Metric | Baseline | Current | Delta |
+| --- | ---: | ---: | ---: |
+| Duplicate top-level renderer functions | 0 | 0 | 0 |
+| Synchronous file-tree tag hydration awaits | 0 | 0 | 0 |
+| Synchronous preview bibliography awaits | 0 | 0 | 0 |
+| File-tree fragment creation sites | 2 | 2 | 0 |
+| File-tree fragment replacement sites | 2 | 2 | 0 |
+| Touch gesture unconditional `console.log` calls | 0 | 0 | 0 |
+| Tracked `.DS_Store` files | 0 | 0 | 0 |
+| Renderer/unit/integration test files | 78 | 82 | +4 |
+| Static test case declarations | 1363 | 1384 | +21 |

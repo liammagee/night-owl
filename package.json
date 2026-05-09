@@ -37,7 +37,10 @@
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:watch": "jest --watch",
     "thumbnail": "node scripts/generate-thumbnail.mjs",
+    "quality": "npm run quality:static && npm run quality:metrics -- HEAD~1 WORKTREE",
+    "quality:static": "node scripts/quality-static-checks.js",
     "quality:metrics": "node scripts/quality-metrics.js",
+    "quality:trace": "node scripts/compare-chromium-traces.js",
     "sync-plugins": "sync-techne-plugins",
     "postinstall": "sync-techne-plugins || true"
   },

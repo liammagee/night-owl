@@ -5,6 +5,7 @@ const { ipcMain, dialog, app } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
+const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
 
 // Import citation service for database citations
 let CitationService;
@@ -336,18 +337,17 @@ function resolveExportBaseDirectory(currentFilePath, workingDirectory, fallbackD
 function register(deps) {
   const {
     mainWindow,
+    appSettings,
     getCurrentFilePath,
     currentWorkingDirectory,
     getCurrentWorkingDirectory
   } = deps;
 
-  function getWorkingDirectory() {
-    if (typeof getCurrentWorkingDirectory === 'function') {
-      return getCurrentWorkingDirectory();
-    }
-
-    return currentWorkingDirectory;
-  }
+  const getWorkingDirectory = createRuntimeWorkspaceResolver({
+    appSettings,
+    currentWorkingDirectory,
+    getCurrentWorkingDirectory
+  });
 
   function getExportBaseDirectory() {
     return resolveExportBaseDirectory(
@@ -845,7 +845,7 @@ function register(deps) {
       const exportBaseDirectory = getExportBaseDirectory();
       const defaultPath = currentFilePath ? 
         currentFilePath.replace(/\.[^/.]+$/, '.pdf') : 
-        'export.pdf';
+        path.join(exportBaseDirectory, 'document.pdf');
       
       const result = await dialog.showSaveDialog(mainWindow, {
         title: dialogTitle,

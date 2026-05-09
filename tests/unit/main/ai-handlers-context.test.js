@@ -103,6 +103,36 @@ describe('aiHandlers context helpers', () => {
     expect(result.files[0].isCurrentFile).toBe(true);
   });
 
+  test('get-file-context uses live runtime workspace when saved workspace is stale', async () => {
+    readFileMock.mockImplementation(async (filePath) => `body:${filePath}`);
+    readdirMock.mockResolvedValue([
+      { name: 'outline.md', isFile: () => true }
+    ]);
+
+    aiHandlers.register({
+      appSettings: {
+        ai: {},
+        currentFile: '',
+        workingDirectory: '/missing/saved-workspace'
+      },
+      tutorBridge: {
+        getAvailableProviders: jest.fn(() => ['openai']),
+        sendMessage: jest.fn()
+      },
+      getCurrentFilePath: jest.fn(() => null),
+      getCurrentWorkingDirectory: jest.fn(() => '/runtime/workspace'),
+      buildSystemMessage: jest.fn(async () => 'system'),
+      cleanAIResponse: jest.fn((value) => value)
+    });
+
+    const handler = getRegisteredHandler('get-file-context');
+    const result = await handler();
+
+    expect(result.baseDirectory).toBe('/runtime/workspace');
+    expect(readdirMock).toHaveBeenCalledWith('/runtime/workspace', { withFileTypes: true });
+    expect(result.files.map((file) => file.name)).toEqual(['outline.md']);
+  });
+
   test('send-chat-message-with-context accepts structured file arrays', async () => {
     const sendMessage = jest.fn(async (message) => ({
       response: message,

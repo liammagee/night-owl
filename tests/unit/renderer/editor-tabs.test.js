@@ -301,6 +301,61 @@ describe('rekeyTab', () => {
         const existingTab = tm.tabs.get('/existing.md');
         expect(existingTab.lastSavedContent).toBe('# Existing');
     });
+
+    test('rekeyTabsForPath updates open child tabs after folder rename', () => {
+        const tm = window.tabManager;
+        tm.createTab('/project/docs/a.md', 'a');
+        tm.createTab('/project/docs/nested/b.md', 'b');
+        tm.createTab('/project/other.md', 'other');
+        tm.activateTab('/project/docs/nested/b.md');
+
+        const changed = tm.rekeyTabsForPath('/project/docs', '/project/articles', {
+            includeChildren: true
+        });
+
+        expect(changed).toEqual([
+            { oldPath: '/project/docs/a.md', newPath: '/project/articles/a.md' },
+            { oldPath: '/project/docs/nested/b.md', newPath: '/project/articles/nested/b.md' }
+        ]);
+        expect(tm.hasTab('/project/docs/a.md')).toBe(false);
+        expect(tm.hasTab('/project/articles/a.md')).toBe(true);
+        expect(tm.hasTab('/project/articles/nested/b.md')).toBe(true);
+        expect(tm.hasTab('/project/other.md')).toBe(true);
+        expect(window.currentFilePath).toBe('/project/articles/nested/b.md');
+    });
+});
+
+describe('mutation cleanup', () => {
+    test('discardTabsForPath closes deleted folder tabs and leaves unrelated tabs open', () => {
+        const tm = window.tabManager;
+        tm.createTab('/project/docs/a.md', 'a');
+        tm.createTab('/project/docs/nested/b.md', 'b');
+        tm.createTab('/project/other.md', 'other');
+        tm.activateTab('/project/docs/a.md');
+
+        const discarded = tm.discardTabsForPath('/project/docs', { includeChildren: true });
+
+        expect(discarded).toEqual(['/project/docs/a.md', '/project/docs/nested/b.md']);
+        expect(tm.hasTab('/project/docs/a.md')).toBe(false);
+        expect(tm.hasTab('/project/docs/nested/b.md')).toBe(false);
+        expect(tm.hasTab('/project/other.md')).toBe(true);
+        expect(window.currentFilePath).toBe('/project/other.md');
+    });
+
+    test('discardTab clears editor and preview when the final tab is deleted', () => {
+        const tm = window.tabManager;
+        tm.createTab('/project/only.md', 'only');
+        tm.activateTab('/project/only.md');
+
+        expect(tm.discardTab('/project/only.md')).toBe(true);
+
+        expect(tm.tabs.size).toBe(0);
+        expect(window.currentFilePath).toBeNull();
+        expect(window.editorFileName).toBeNull();
+        expect(window.updateBreadcrumb).toHaveBeenLastCalledWith(null);
+        expect(window.updatePreviewAndStructure).toHaveBeenLastCalledWith('');
+        expect(window.electronAPI.invoke).toHaveBeenCalledWith('set-current-file', null);
+    });
 });
 
 // ─── Full Cmd+N workflow integration ───

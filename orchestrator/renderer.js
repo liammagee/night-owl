@@ -9639,6 +9639,21 @@ function getFileTreeIconClass(node, isFolder) {
     if (name.endsWith('.bib')) {
         return 'file-icon-file file-icon-bib';
     }
+    if (name.endsWith('.html') || name.endsWith('.htm')) {
+        return 'file-icon-file file-icon-html';
+    }
+    if (name.endsWith('.js') || name.endsWith('.mjs') || name.endsWith('.cjs') || name.endsWith('.ts')) {
+        return 'file-icon-file file-icon-code';
+    }
+    if (name.endsWith('.css') || name.endsWith('.scss') || name.endsWith('.less')) {
+        return 'file-icon-file file-icon-style';
+    }
+    if (name.endsWith('.json') || name.endsWith('.yaml') || name.endsWith('.yml')) {
+        return 'file-icon-file file-icon-data';
+    }
+    if (name.endsWith('.pdf')) {
+        return 'file-icon-file file-icon-pdf';
+    }
     return 'file-icon-file';
 }
 
@@ -9718,8 +9733,19 @@ async function renderFileTree() {
 
         const fragment = document.createDocumentFragment();
         
+        if (fileTree && fileTree.type === 'error') {
+            fileTreeView.replaceChildren(createFileTreeMessage(
+                'stale-workspace',
+                'Workspace folder unavailable',
+                fileTree.path
+                    ? `${fileTree.path}\n${fileTree.error || 'The folder could not be read.'}`
+                    : (fileTree.error || 'The folder could not be read.')
+            ));
+            return;
+        }
+
         // Render the file tree
-        if (fileTree && fileTree.children) {
+        if (fileTree && fileTree.children && fileTree.children.length > 0) {
             // Check if this is a multi-folder workspace
             if (fileTree.isMultiFolder) {
                 // Render each folder as a separate root
@@ -9743,8 +9769,18 @@ async function renderFileTree() {
             }
             fileTreeView.replaceChildren(fragment);
             scheduleFileTreeTagHydration(fileTree);
+        } else if (fileTree && fileTree.children) {
+            fileTreeView.replaceChildren(createFileTreeMessage(
+                'no-files',
+                'No files in this workspace',
+                fileTree.path || ''
+            ));
         } else {
-            fileTreeView.replaceChildren(createFileTreeMessage('no-files', 'No files found'));
+            fileTreeView.replaceChildren(createFileTreeMessage(
+                'no-files',
+                'No workspace files available',
+                'Open or switch to a folder to populate the file tree.'
+            ));
         }
         
         
@@ -9770,10 +9806,22 @@ async function renderFileTree() {
     }
 }
 
-function createFileTreeMessage(className, text) {
+function createFileTreeMessage(className, text, detail = '') {
     const message = document.createElement('div');
-    message.className = className;
-    message.textContent = text;
+    message.className = `file-tree-state ${className}`;
+
+    const title = document.createElement('div');
+    title.className = 'file-tree-state-title';
+    title.textContent = text;
+    message.appendChild(title);
+
+    if (detail) {
+        const detailElement = document.createElement('div');
+        detailElement.className = 'file-tree-state-detail';
+        detailElement.textContent = detail;
+        message.appendChild(detailElement);
+    }
+
     return message;
 }
 
@@ -10964,6 +11012,94 @@ function expandCommonFolders(rootNode) {
     }
 }
 
+function isSameOrChildPath(candidatePath, rootPath) {
+    if (!candidatePath || !rootPath) return false;
+    const normalizedRoot = rootPath.replace(/\/+$/, '');
+    return candidatePath === normalizedRoot || candidatePath.startsWith(`${normalizedRoot}/`);
+}
+
+function getOpenTabsForMutation(filePath, isFolder = false) {
+    if (!window.tabManager || typeof window.tabManager.getTabsForPath !== 'function') {
+        return [];
+    }
+    return window.tabManager.getTabsForPath(filePath, { includeChildren: isFolder });
+}
+
+async function confirmFileMutation({ title, message, detail, paths, confirmText, variant = 'danger', includeChildren = false }) {
+    const normalizedPaths = Array.isArray(paths) ? paths.filter(Boolean) : [];
+    const affectedTabs = [];
+    for (const targetPath of normalizedPaths) {
+        const tabs = getOpenTabsForMutation(targetPath, includeChildren);
+        affectedTabs.push(...tabs);
+    }
+    const uniqueAffectedTabs = Array.from(new Set(affectedTabs));
+    const affectedDetail = uniqueAffectedTabs.length > 0
+        ? `Open editor tabs for ${uniqueAffectedTabs.length} affected file${uniqueAffectedTabs.length === 1 ? '' : 's'} will be closed.`
+        : '';
+    const fullDetail = [detail, affectedDetail].filter(Boolean).join('\n\n');
+
+    if (typeof window.showAppConfirm === 'function') {
+        return window.showAppConfirm({
+            title,
+            message,
+            detail: fullDetail,
+            paths: normalizedPaths,
+            confirmText,
+            cancelText: 'Cancel',
+            variant
+        });
+    }
+
+    return false;
+}
+
+function removeDeletedPathsFromSelection(paths, isFolder = false) {
+    const nextSelection = new Set();
+    const deletedPaths = Array.isArray(paths) ? paths : [paths];
+    for (const selectedPath of selectedFiles) {
+        const wasDeleted = deletedPaths.some(deletedPath => (
+            isFolder ? isSameOrChildPath(selectedPath, deletedPath) : selectedPath === deletedPath
+        ));
+        if (!wasDeleted) nextSelection.add(selectedPath);
+    }
+    selectedFiles = nextSelection;
+    updateFileSelectionUI();
+}
+
+function updateMovedPathsInSelection(oldPath, newPath, isFolder = false) {
+    const nextSelection = new Set();
+    const normalizedOldPath = oldPath.replace(/\/+$/, '');
+    const normalizedNewPath = newPath.replace(/\/+$/, '');
+
+    for (const selectedPath of selectedFiles) {
+        if (isFolder && isSameOrChildPath(selectedPath, normalizedOldPath)) {
+            const suffix = selectedPath === normalizedOldPath ? '' : selectedPath.slice(normalizedOldPath.length);
+            nextSelection.add(`${normalizedNewPath}${suffix}`);
+        } else if (!isFolder && selectedPath === oldPath) {
+            nextSelection.add(newPath);
+        } else {
+            nextSelection.add(selectedPath);
+        }
+    }
+
+    selectedFiles = nextSelection;
+    updateFileSelectionUI();
+}
+
+function syncDeletedPathWithOpenTabs(filePath, isFolder = false) {
+    if (window.tabManager && typeof window.tabManager.discardTabsForPath === 'function') {
+        window.tabManager.discardTabsForPath(filePath, { includeChildren: isFolder });
+    }
+    removeDeletedPathsFromSelection([filePath], isFolder);
+}
+
+function syncMovedPathWithOpenTabs(oldPath, newPath, isFolder = false) {
+    if (window.tabManager && typeof window.tabManager.rekeyTabsForPath === 'function') {
+        window.tabManager.rekeyTabsForPath(oldPath, newPath, { includeChildren: isFolder });
+    }
+    updateMovedPathsInSelection(oldPath, newPath, isFolder);
+}
+
 async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = false) {
     // Remove any existing context menu
     const existingMenu = document.querySelector('.file-context-menu');
@@ -11192,6 +11328,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                         }
 
                         showNotification(message, 'success');
+                        syncMovedPathWithOpenTabs(filePath, result.newPath, isFolder);
                         // Refresh the file tree to show the renamed item
                         renderFileTree();
                     } else {
@@ -11205,7 +11342,16 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             break;
             
         case 'delete':
-            const confirmDelete = confirm(`Are you sure you want to delete this ${isFolder ? 'folder' : 'file'}?\n\n${filePath}\n\nThis action cannot be undone.`);
+            const confirmDelete = await confirmFileMutation({
+                title: `Delete ${isFolder ? 'Folder' : 'File'}`,
+                message: `Delete "${filePath.split('/').pop()}"?`,
+                detail: isFolder
+                    ? 'This permanently removes the folder and all files inside it. This action cannot be undone.'
+                    : 'This permanently removes the file from disk. This action cannot be undone.',
+                paths: [filePath],
+                confirmText: 'Delete',
+                includeChildren: isFolder
+            });
             if (confirmDelete) {
                 try {
                     const result = await window.electronAPI.invoke('delete-item', {
@@ -11215,16 +11361,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     });
                     if (result.success) {
                         showNotification(result.message, 'success');
-                        
-                        // If we deleted the currently open file, clear the editor
-                        if (!isFolder && window.currentFilePath === filePath) {
-                            if (window.editor) {
-                                window.editor.setValue('');
-                            }
-                            window.currentFilePath = null;
-                            window.editorFileName = null; // Also clear editorFileName
-                            updateBreadcrumb(null);
-                        }
+                        syncDeletedPathWithOpenTabs(filePath, isFolder);
 
                         // Refresh file tree to show the file is gone
                         if (window.renderFileTree) {
@@ -11272,16 +11409,22 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
 
         case 'delete-multiple':
             if (selectedFiles.size > 0) {
-                const fileCount = selectedFiles.size;
-                const fileList = Array.from(selectedFiles).slice(0, 5).map(f => f.split('/').pop()).join('\n');
-                const moreText = fileCount > 5 ? `\n...and ${fileCount - 5} more` : '';
-                const confirmDelete = confirm(`Are you sure you want to delete ${fileCount} files?\n\n${fileList}${moreText}\n\nThis action cannot be undone.`);
+                const selectedPaths = Array.from(selectedFiles);
+                const fileCount = selectedPaths.length;
+                const confirmDelete = await confirmFileMutation({
+                    title: 'Delete Files',
+                    message: `Delete ${fileCount} selected file${fileCount === 1 ? '' : 's'}?`,
+                    detail: 'This permanently removes the selected files from disk. This action cannot be undone.',
+                    paths: selectedPaths,
+                    confirmText: 'Delete'
+                });
 
                 if (confirmDelete) {
                     let deletedCount = 0;
                     let failedCount = 0;
+                    const deletedPaths = [];
 
-                    for (const path of selectedFiles) {
+                    for (const path of selectedPaths) {
                         try {
                             const result = await window.electronAPI.invoke('delete-item', {
                                 path: path,
@@ -11290,15 +11433,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                             });
                             if (result.success) {
                                 deletedCount++;
-                                // If we deleted the currently open file, clear the editor
-                                if (window.currentFilePath === path) {
-                                    if (window.editor) {
-                                        window.editor.setValue('');
-                                    }
-                                    window.currentFilePath = null;
-                                    window.editorFileName = null;
-                                    updateBreadcrumb(null);
-                                }
+                                deletedPaths.push(path);
                             } else {
                                 failedCount++;
                             }
@@ -11308,7 +11443,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                         }
                     }
 
-                    // Clear selection after delete
+                    deletedPaths.forEach(path => syncDeletedPathWithOpenTabs(path, false));
                     clearFileSelection();
 
                     if (failedCount === 0) {
@@ -11471,7 +11606,15 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
 
         case 'remove-from-workspace':
             if (isFolder) {
-                const confirmRemove = confirm(`Remove this folder from workspace?\n\n${filePath}\n\nThis will only remove it from the file tree view, not delete the folder.`);
+                const confirmRemove = await confirmFileMutation({
+                    title: 'Remove Workspace Folder',
+                    message: `Remove "${filePath.split('/').pop()}" from the workspace?`,
+                    detail: 'This only removes the folder from the file tree view. It does not delete files on disk.',
+                    paths: [filePath],
+                    confirmText: 'Remove',
+                    variant: 'warning',
+                    includeChildren: true
+                });
                 if (confirmRemove) {
                     try {
                         const result = await window.electronAPI.invoke('remove-workspace-folder', filePath);
@@ -11593,6 +11736,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                                 window.currentFilePath = moveResult.newPath;
                                 updateBreadcrumb(moveResult.newPath);
                             }
+                            syncMovedPathWithOpenTabs(sourceFilePath, moveResult.newPath, false);
 
                             // Refresh file tree
                             if (window.renderFileTree) {

@@ -174,6 +174,13 @@ async function performGlobalSearch() {
                 showSearchStatus(`Found ${tagMatches} tag matches`);
             } else {
                 showSearchStatus(`Search failed: ${result.error}`);
+                if (/working directory|workspace|does not exist/i.test(result.error || '')) {
+                    showSearchState(
+                        'stale-workspace',
+                        'Workspace folder unavailable',
+                        result.error
+                    );
+                }
             }
         }
     } catch (error) {
@@ -188,6 +195,28 @@ function clearSearchResults() {
     if (searchResults) {
         searchResults.innerHTML = '';
     }
+}
+
+function showSearchState(className, title, detail = '') {
+    if (!searchResults) return;
+    clearSearchResults();
+
+    const state = document.createElement('div');
+    state.className = `search-state ${className}`;
+
+    const titleElement = document.createElement('div');
+    titleElement.className = 'search-state-title';
+    titleElement.textContent = title;
+    state.appendChild(titleElement);
+
+    if (detail) {
+        const detailElement = document.createElement('div');
+        detailElement.className = 'search-state-detail';
+        detailElement.textContent = detail;
+        state.appendChild(detailElement);
+    }
+
+    searchResults.appendChild(state);
 }
 
 function showSearchStatus(message) {
@@ -205,7 +234,11 @@ function displayFilePatternResults(fileMatches, query) {
     clearSearchResults();
 
     if (!fileMatches || fileMatches.length === 0) {
-        searchResults.innerHTML = `<div class="no-results">No files matching "${escapeHtml(query)}" found</div>`;
+        showSearchState(
+            'no-results',
+            'No matching files',
+            `No files matched "${query}". Wildcards such as *.html are matched against filenames.`
+        );
         return;
     }
 
@@ -337,7 +370,11 @@ function displaySearchResultsWithTags(contentResults, tagResults, query) {
     const hasTagResults = tagResults && tagResults.length > 0;
     
     if (!hasContentResults && !hasTagResults) {
-        searchResults.innerHTML = '<div class="no-results">No matches found</div>';
+        showSearchState(
+            'no-results',
+            'No matches found',
+            `No file content, tags, or metadata matched "${query}".`
+        );
         return;
     }
     

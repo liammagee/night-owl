@@ -30,6 +30,7 @@ Thumbs.db
 # Playwright test reports
 playwright-report/
 test-results/
+test-reports/
 
 
 lib/pdfjs/*
