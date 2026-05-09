@@ -266,8 +266,28 @@ let fileCreationParentPath = '';
 // File clipboard for cut/copy/paste operations
 let fileClipboard = {
     filePath: null,
+    filePaths: null,
     operation: null  // 'cut' or 'copy'
 };
+
+function getFileClipboardPaths() {
+    if (Array.isArray(fileClipboard.filePaths) && fileClipboard.filePaths.length > 0) {
+        return fileClipboard.filePaths.filter(Boolean);
+    }
+    return fileClipboard.filePath ? [fileClipboard.filePath] : [];
+}
+
+function hasFileClipboardItems() {
+    return Boolean(fileClipboard.operation && getFileClipboardPaths().length > 0);
+}
+
+function describeFileClipboard() {
+    const paths = getFileClipboardPaths();
+    if (paths.length === 1) {
+        return `"${paths[0].split('/').pop()}"`;
+    }
+    return `${paths.length} files`;
+}
 
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
@@ -10962,6 +10982,7 @@ function removeDeletedPathsFromSelection(paths, isFolder = false) {
         if (!wasDeleted) nextSelection.add(selectedPath);
     }
     selectedFiles = nextSelection;
+    window.selectedFiles = selectedFiles;
     updateFileSelectionUI();
 }
 
@@ -10982,6 +11003,7 @@ function updateMovedPathsInSelection(oldPath, newPath, isFolder = false) {
     }
 
     selectedFiles = nextSelection;
+    window.selectedFiles = selectedFiles;
     updateFileSelectionUI();
 }
 
@@ -10998,6 +11020,8 @@ function syncMovedPathWithOpenTabs(oldPath, newPath, isFolder = false) {
     }
     updateMovedPathsInSelection(oldPath, newPath, isFolder);
 }
+
+window.syncMovedPathWithOpenTabs = syncMovedPathWithOpenTabs;
 
 async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderRoot = false) {
     // Remove any existing context menu
@@ -11047,12 +11071,11 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             { separator: true },
             { label: '🎨 Generate Folder Thumbnail', action: 'generate-thumbnails-batch' }
         );
-        // Add Paste option if there's a file in the clipboard
-        if (fileClipboard.filePath && fileClipboard.operation) {
-            const clipboardFileName = fileClipboard.filePath.split('/').pop();
+        // Add Paste option if there are files in the clipboard
+        if (hasFileClipboardItems()) {
             const pasteLabel = fileClipboard.operation === 'cut'
-                ? `Paste (Move "${clipboardFileName}")`
-                : `Paste (Copy "${clipboardFileName}")`;
+                ? `Paste (Move ${describeFileClipboard()})`
+                : `Paste (Copy ${describeFileClipboard()})`;
             menuItems.push(
                 { separator: true },
                 { label: pasteLabel, action: 'paste-file' }
@@ -11085,6 +11108,9 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             const fileCount = selectedFiles.size;
             menuItems.push(
                 { label: `${fileCount} files selected`, action: 'none', disabled: true },
+                { separator: true },
+                { label: `Cut ${fileCount} Files`, action: 'cut-files' },
+                { label: `Copy ${fileCount} Files`, action: 'copy-files-to-clipboard' },
                 { separator: true },
                 { label: `Delete ${fileCount} Files`, action: 'delete-multiple' },
                 { label: 'Copy Paths', action: 'copy-paths-multiple' },
@@ -11572,10 +11598,35 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             }
             break;
 
+        case 'cut-files':
+            if (!isFolder && selectedFiles.size > 0) {
+                const selectedPaths = Array.from(selectedFiles);
+                fileClipboard = {
+                    filePath: selectedPaths[0],
+                    filePaths: selectedPaths,
+                    operation: 'cut'
+                };
+                showNotification(`Cut ${selectedPaths.length} files - right-click a folder to paste`, 'info');
+            }
+            break;
+
+        case 'copy-files-to-clipboard':
+            if (!isFolder && selectedFiles.size > 0) {
+                const selectedPaths = Array.from(selectedFiles);
+                fileClipboard = {
+                    filePath: selectedPaths[0],
+                    filePaths: selectedPaths,
+                    operation: 'copy'
+                };
+                showNotification(`Copied ${selectedPaths.length} files - right-click a folder to paste`, 'info');
+            }
+            break;
+
         case 'cut-file':
             if (!isFolder) {
                 fileClipboard = {
                     filePath: filePath,
+                    filePaths: null,
                     operation: 'cut'
                 };
                 const fileName = filePath.split('/').pop();
@@ -11587,6 +11638,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             if (!isFolder) {
                 fileClipboard = {
                     filePath: filePath,
+                    filePaths: null,
                     operation: 'copy'
                 };
                 const fileName = filePath.split('/').pop();
@@ -11595,75 +11647,83 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             break;
 
         case 'paste-file':
-            if (isFolder && fileClipboard.filePath && fileClipboard.operation) {
+            if (isFolder && hasFileClipboardItems()) {
                 try {
-                    const sourceFilePath = fileClipboard.filePath;
-                    const fileName = sourceFilePath.split('/').pop();
-                    const currentDir = sourceFilePath.substring(0, sourceFilePath.lastIndexOf('/'));
+                    const sourceFilePaths = getFileClipboardPaths();
                     const destinationFolder = filePath;
+                    const clipboardOperation = fileClipboard.operation;
+                    let successCount = 0;
+                    let failedCount = 0;
+                    let skippedCount = 0;
+                    let lastError = '';
 
-                    // Check if trying to paste to same location for move operation
-                    if (fileClipboard.operation === 'cut' && currentDir === destinationFolder) {
-                        showNotification('File is already in this folder', 'info');
-                        break;
-                    }
+                    for (const sourceFilePath of sourceFilePaths) {
+                        const fileName = sourceFilePath.split('/').pop();
+                        const currentDir = sourceFilePath.substring(0, sourceFilePath.lastIndexOf('/'));
+                        let destinationPath = destinationFolder + '/' + fileName;
 
-                    let destinationPath = destinationFolder + '/' + fileName;
+                        if (clipboardOperation === 'cut' && currentDir === destinationFolder) {
+                            skippedCount++;
+                            continue;
+                        }
 
-                    // For copy operation to same directory, add "(copy)" suffix
-                    if (fileClipboard.operation === 'copy' && currentDir === destinationFolder) {
-                        const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-                        const ext = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';
-                        destinationPath = destinationFolder + '/' + baseName + ' (copy)' + ext;
-                    }
+                        if (clipboardOperation === 'copy' && currentDir === destinationFolder) {
+                            const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+                            const ext = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '';
+                            destinationPath = destinationFolder + '/' + baseName + ' (copy)' + ext;
+                        }
 
-                    if (fileClipboard.operation === 'cut') {
-                        // Perform move
-                        const moveResult = await window.electronAPI.invoke('move-file', {
-                            source: sourceFilePath,
-                            destination: destinationPath
-                        });
+                        if (clipboardOperation === 'cut') {
+                            const moveResult = await window.electronAPI.invoke('move-file', {
+                                source: sourceFilePath,
+                                destination: destinationPath
+                            });
 
-                        if (moveResult.success) {
-                            showNotification(`Moved "${fileName}" to ${destinationFolder.split('/').pop()}`, 'success');
+                            if (moveResult.success) {
+                                successCount++;
 
-                            // Clear clipboard after successful cut/paste
-                            fileClipboard = { filePath: null, operation: null };
-
-                            // If this was the currently open file, update the path
-                            if (window.currentFilePath === sourceFilePath) {
-                                window.currentFilePath = moveResult.newPath;
-                                updateBreadcrumb(moveResult.newPath);
-                            }
-                            syncMovedPathWithOpenTabs(sourceFilePath, moveResult.newPath, false);
-
-                            // Refresh file tree
-                            if (window.renderFileTree) {
-                                window.renderFileTree();
+                                if (window.currentFilePath === sourceFilePath) {
+                                    window.currentFilePath = moveResult.newPath;
+                                    updateBreadcrumb(moveResult.newPath);
+                                }
+                                syncMovedPathWithOpenTabs(sourceFilePath, moveResult.newPath, false);
+                            } else {
+                                failedCount++;
+                                lastError = moveResult.error || 'Move failed';
                             }
                         } else {
-                            showNotification(`Failed to move file: ${moveResult.error}`, 'error');
+                            const copyResult = await window.electronAPI.invoke('copy-file-to', {
+                                source: sourceFilePath,
+                                destination: destinationPath
+                            });
+
+                            if (copyResult.success) {
+                                successCount++;
+                            } else {
+                                failedCount++;
+                                lastError = copyResult.error || 'Copy failed';
+                            }
                         }
+                    }
+
+                    if (clipboardOperation === 'cut' && (successCount > 0 || failedCount > 0)) {
+                        fileClipboard = { filePath: null, filePaths: null, operation: null };
+                    }
+
+                    if (successCount > 0 && window.renderFileTree) {
+                        window.renderFileTree();
+                    }
+
+                    const operationLabel = clipboardOperation === 'copy' ? 'Copied' : 'Moved';
+                    const folderName = destinationFolder.split('/').pop();
+                    if (successCount > 0 && failedCount === 0) {
+                        showNotification(`${operationLabel} ${successCount} file${successCount === 1 ? '' : 's'} to ${folderName}`, 'success');
+                    } else if (successCount > 0) {
+                        showNotification(`${operationLabel} ${successCount} file${successCount === 1 ? '' : 's'}, ${failedCount} failed`, 'warning');
+                    } else if (skippedCount > 0 && failedCount === 0) {
+                        showNotification(sourceFilePaths.length === 1 ? 'File is already in this folder' : 'Selected files are already in this folder', 'info');
                     } else {
-                        // Perform copy
-                        const copyResult = await window.electronAPI.invoke('copy-file-to', {
-                            source: sourceFilePath,
-                            destination: destinationPath
-                        });
-
-                        if (copyResult.success) {
-                            const destFileName = destinationPath.split('/').pop();
-                            showNotification(`Copied "${fileName}" to ${destinationFolder.split('/').pop()}`, 'success');
-
-                            // Keep clipboard for copy (allows multiple pastes)
-
-                            // Refresh file tree
-                            if (window.renderFileTree) {
-                                window.renderFileTree();
-                            }
-                        } else {
-                            showNotification(`Failed to copy file: ${copyResult.error}`, 'error');
-                        }
+                        showNotification(`Failed to ${clipboardOperation === 'copy' ? 'copy' : 'move'} file${sourceFilePaths.length === 1 ? '' : 's'}: ${lastError}`, 'error');
                     }
                 } catch (error) {
                     console.error('[handleFileContextMenuAction] Error pasting file:', error);

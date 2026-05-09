@@ -45,6 +45,19 @@ describe('Code quality guardrails', () => {
     expect(source).not.toContain('await preProcessMarkdownTags(fileTree)');
   });
 
+  test('file tree multi-selection can be moved through drag/drop and paste', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const dragdropSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/dragdrop.js'), 'utf8');
+
+    expect(rendererSource).toContain("action: 'cut-files'");
+    expect(rendererSource).toContain('getFileClipboardPaths()');
+    expect(rendererSource).toContain('filePaths: selectedPaths');
+    expect(rendererSource).toContain('window.syncMovedPathWithOpenTabs = syncMovedPathWithOpenTabs');
+    expect(dragdropSource).toContain('createDraggedItemFromElement');
+    expect(dragdropSource).toContain('moveDraggedItemsToFolder');
+    expect(dragdropSource).toContain('item.isMulti');
+  });
+
   test('preview render path does not synchronously wait for bibliography refresh', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
