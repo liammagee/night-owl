@@ -1047,115 +1047,6 @@ function debouncedUpdatePreviewAndStructure(markdownContent, delay) {
     }, delay);
 }
 
-function setupFallbackMarkdownRenderer() {
-    // Use marked.use() with v16 token API (old Renderer API is broken in marked v16+)
-    if (window._fallbackRendererConfigured) return;
-    window._fallbackRendererConfigured = true;
-
-    marked.use({
-        renderer: {
-            heading(token) {
-                const text = token.text;
-                const depth = token.depth;
-                const raw = token.raw;
-                const headingText = text != null ? text : (raw || '').replace(/^#+\s*/, '').trim();
-                const headingSlugText = (headingText || '')
-                    .replace(/<[^>]*>/g, '')
-                    .trim();
-                const id = `heading-${slugify(headingSlugText)}`;
-                const headingHtml = this?.parser?.parseInline && Array.isArray(token.tokens)
-                    ? this.parser.parseInline(token.tokens)
-                    : headingText;
-                if (id === 'heading-') {
-                    return `<h${depth}>${headingHtml}</h${depth}>\n`;
-                }
-                return `<h${depth} id="${id}">${headingHtml}</h${depth}>\n`;
-            },
-            image({ href, title, text }) {
-                const hrefStr = String(href || '');
-                if (hrefStr && !hrefStr.startsWith('http') && !hrefStr.startsWith('/') && !hrefStr.startsWith('file://') && !hrefStr.startsWith('data:')) {
-                    const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-                    const normalizedHref = hrefStr.replace(/^\.\//, '');
-                    const fullPath = `file://${baseDir}/${normalizedHref}`;
-                    const titleAttr = title ? ` title="${title}"` : '';
-                    return `<img src="${fullPath}" alt="${text || ''}"${titleAttr} />`;
-                }
-                const titleAttr = title ? ` title="${title}"` : '';
-                return `<img src="${hrefStr}" alt="${text || ''}"${titleAttr} />`;
-            }
-        },
-        gfm: true,
-        breaks: true
-    });
-}
-
-function renderFrontmatterHeaderFallback(yamlBlock) {
-    if (!yamlBlock) return '';
-    const meta = {};
-    for (const line of yamlBlock.split(/\r?\n/)) {
-        const kv = line.match(/^(\w[\w-]*)\s*:\s*(.+)$/);
-        if (kv) {
-            const val = kv[2].replace(/^["']|["']$/g, '').trim();
-            meta[kv[1].toLowerCase()] = val;
-        }
-    }
-    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const parts = [];
-    if (meta.title) {
-        parts.push(`<h1 class="frontmatter-title" style="margin-bottom: 0.2em;">${esc(meta.title)}</h1>`);
-    }
-    const sub = [meta.author, meta.date].filter(Boolean).map(esc).join(' &mdash; ');
-    if (sub) {
-        parts.push(`<p class="frontmatter-meta" style="color: #666; font-style: italic; margin-top: 0;">${sub}</p>`);
-    }
-    if (parts.length) parts.push('<hr>');
-    return parts.join('\n');
-}
-
-// Fix headerless table snippets (e.g. |---|---| without a preceding header row)
-function fixHeaderlessTables(markdown) {
-    const lines = markdown.split('\n');
-    const result = [];
-    const sepRe = /^\|?([\s:]*-{1,}[\s:]*\|)+[\s:]*-{1,}[\s:]*\|?\s*$/;
-    const rowRe = /^\|.*\|/;
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (sepRe.test(line)) {
-            const prev = i > 0 ? result[result.length - 1] : '';
-            if (!rowRe.test(prev)) {
-                const cols = line.replace(/^\||\|$/g, '').split('|').length;
-                const header = '| ' + Array(cols).fill(' ').join(' | ') + ' |';
-                result.push(header);
-            }
-        }
-        result.push(line);
-    }
-    return result.join('\n');
-}
-
-function processMarkdownContent(markdownContent) {
-    // Ensure we have a string to process
-    if (typeof markdownContent !== 'string') {
-        markdownContent = markdownContent || '';
-    }
-
-    let processedContent = markdownContent;
-
-    // Process annotations first
-    if (typeof processAnnotations === 'function') {
-        processedContent = processAnnotations(processedContent);
-    }
-
-    // Process speaker notes after annotations
-    processedContent = processSpeakerNotes(processedContent);
-
-    // Fix headerless tables for the fallback renderer
-    processedContent = fixHeaderlessTables(processedContent);
-
-    return processedContent;
-}
-
 async function renderMarkdownContent(markdownContent) {
     // Prefer the shared Techne markdown renderer plugin when available
     if (window.TechneMarkdownRenderer?.renderPreview) {
@@ -1190,7 +1081,12 @@ async function renderMarkdownContent(markdownContent) {
         return;
     }
 
-    setupFallbackMarkdownRenderer();
+    const previewMarkdown = window.NightOwlPreviewMarkdown;
+    if (!previewMarkdown) {
+        throw new Error('Preview markdown module is not loaded');
+    }
+
+    previewMarkdown.setupFallbackMarkdownRenderer();
 
     // Strip frontmatter before markdown parsing and render header
     let bodyContent = markdownContent;
@@ -1198,10 +1094,13 @@ async function renderMarkdownContent(markdownContent) {
     const fmMatch = markdownContent.match(/^(\uFEFF?\s*---\r?\n)([\s\S]*?\r?\n)(---\r?\n)/);
     if (fmMatch) {
         bodyContent = markdownContent.slice(fmMatch[0].length);
-        headerHtml = renderFrontmatterHeaderFallback(fmMatch[2]);
+        headerHtml = previewMarkdown.renderFrontmatterHeaderFallback(fmMatch[2]);
     }
 
-    const processedContent = processMarkdownContent(bodyContent);
+    const processedContent = previewMarkdown.processMarkdownContent(bodyContent, {
+        processAnnotations: typeof processAnnotations === 'function' ? processAnnotations : null,
+        processSpeakerNotes: typeof window.processSpeakerNotes === 'function' ? window.processSpeakerNotes : null
+    });
 
     // Extract footnote definitions before marked parsing
     let contentForParsing = processedContent;

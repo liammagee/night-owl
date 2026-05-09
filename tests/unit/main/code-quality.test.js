@@ -53,6 +53,21 @@ describe('Code quality guardrails', () => {
     expect(source).not.toContain('await refreshBibliographyFromContent(window.currentFilePath, markdownContent)');
   });
 
+  test('fallback preview markdown helpers live outside renderer', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const previewModule = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/preview-markdown.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+
+    expect(indexSource).toContain('orchestrator/modules/preview-markdown.js');
+    expect(rendererSource).toContain('window.NightOwlPreviewMarkdown');
+    expect(rendererSource).not.toContain('function setupFallbackMarkdownRenderer');
+    expect(rendererSource).not.toContain('function renderFrontmatterHeaderFallback');
+    expect(rendererSource).not.toContain('function fixHeaderlessTables');
+    expect(rendererSource).not.toContain('function processMarkdownContent');
+    expect(previewModule).toContain('window.NightOwlPreviewMarkdown');
+    expect(previewModule).toContain('function processMarkdownContent');
+  });
+
   test('HTML preview iframe is script-disabled and assigned through srcdoc property', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
