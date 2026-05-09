@@ -54,11 +54,23 @@
     }
   }
 
+  async function getRuntimeWorkingDirectory() {
+    if (window.electronAPI?.invoke) {
+      try {
+        const workingDirectory = await window.electronAPI.invoke('get-working-directory');
+        if (workingDirectory) return workingDirectory;
+      } catch (error) {
+        console.warn('[GitPanel] Could not resolve runtime working directory:', error);
+      }
+    }
+    return window.appSettings?.workingDirectory;
+  }
+
   // --- Core: Refresh panel ---
   async function refresh() {
     if (!window.electronAPI) return;
 
-    const workingDir = window.appSettings?.workingDirectory;
+    const workingDir = await getRuntimeWorkingDirectory();
     if (!workingDir) return;
 
     // Find repo

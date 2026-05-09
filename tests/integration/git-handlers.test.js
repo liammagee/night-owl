@@ -5,6 +5,9 @@
 
 const { ipcMain } = require('electron');
 const childProcess = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 jest.mock('child_process');
 
@@ -45,6 +48,61 @@ describe('Git IPC Handlers Integration', () => {
         expect(handlers[name]).toBeDefined();
         expect(typeof handlers[name]).toBe('function');
       }
+    });
+  });
+
+  describe('git-find-repo', () => {
+    let tempRoot;
+
+    beforeEach(() => {
+      tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-git-find-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    });
+
+    test('finds the repo root from a nested directory', async () => {
+      const repoRoot = path.join(tempRoot, 'repo');
+      const nestedDir = path.join(repoRoot, 'docs', 'research');
+      fs.mkdirSync(path.join(repoRoot, '.git'), { recursive: true });
+      fs.mkdirSync(nestedDir, { recursive: true });
+
+      const result = await handlers['git-find-repo']({}, nestedDir);
+
+      expect(result).toEqual({
+        success: true,
+        repoRoot,
+        isSubfolder: true,
+        relativePath: path.join('docs', 'research')
+      });
+    });
+
+    test('accepts a file path inside the repo', async () => {
+      const repoRoot = path.join(tempRoot, 'repo');
+      const nestedDir = path.join(repoRoot, 'docs');
+      const filePath = path.join(nestedDir, 'note.md');
+      fs.mkdirSync(path.join(repoRoot, '.git'), { recursive: true });
+      fs.mkdirSync(nestedDir, { recursive: true });
+      fs.writeFileSync(filePath, '# Note');
+
+      const result = await handlers['git-find-repo']({}, filePath);
+
+      expect(result).toEqual({
+        success: true,
+        repoRoot,
+        isSubfolder: true,
+        relativePath: path.join('docs', 'note.md')
+      });
+    });
+
+    test('returns a clear error for a missing path', async () => {
+      const result = await handlers['git-find-repo']({}, path.join(tempRoot, 'missing'));
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Path does not exist'
+      });
     });
   });
 

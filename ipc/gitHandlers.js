@@ -17,7 +17,14 @@ function register(deps) {
     try {
       console.log(`[GitHandlers] Finding git repo for: ${folderPath}`);
 
-      let currentPath = folderPath;
+      if (!folderPath || !fs.existsSync(folderPath)) {
+        console.log(`[GitHandlers] Git repo lookup skipped; path does not exist: ${folderPath}`);
+        return { success: false, error: 'Path does not exist' };
+      }
+
+      let currentPath = fs.statSync(folderPath).isDirectory()
+        ? folderPath
+        : path.dirname(folderPath);
       const originalPath = folderPath;
 
       // Traverse up to find .git directory

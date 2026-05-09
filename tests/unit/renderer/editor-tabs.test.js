@@ -60,6 +60,7 @@ beforeEach(() => {
     window.highlightCurrentFileInTree = jest.fn();
     window.updateBreadcrumb = jest.fn();
     window.updatePreviewAndStructure = jest.fn();
+    window.renderHTMLSourcePreview = jest.fn();
     window.syncContentToPresentation = jest.fn();
     window.getMonacoTheme = jest.fn();
     window.electronAPI = { invoke: jest.fn().mockResolvedValue({}), on: jest.fn() };
@@ -116,6 +117,20 @@ describe('TabManager', () => {
         tm.createTab('/home/user/doc.md', 'v1');
         tm.createTab('/home/user/doc.md', 'v2');
         expect(tm.tabs.size).toBe(1);
+    });
+
+    test('activateTab routes HTML tabs to the HTML source preview renderer', () => {
+        const tm = window.tabManager;
+        const html = '<h1>Hello</h1>';
+        window.editor.getValue = jest.fn(() => html);
+
+        tm.createTab('/home/user/page.html', html);
+        tm.activateTab('/home/user/page.html');
+
+        expect(tm.tabs.get('/home/user/page.html').language).toBe('html');
+        expect(window.renderHTMLSourcePreview).toHaveBeenCalledWith('/home/user/page.html', html);
+        expect(window.updatePreviewAndStructure).not.toHaveBeenCalled();
+        expect(window.syncContentToPresentation).not.toHaveBeenCalled();
     });
 });
 

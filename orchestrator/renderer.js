@@ -240,128 +240,6 @@ if (typeof require !== 'undefined') {
 // --- Status Bar Update Function ---
 // Status bar, speaker notes, and git status indicator extracted to modules/status-bar.js
 
-async function showGitPublishDialog(gitInfo) {
-    return new Promise((resolve) => {
-        const isDarkMode = document.body.classList.contains('dark-mode');
-        const status = gitInfo.status || {};
-
-        // Create overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-
-        // Create dialog
-        const dialog = document.createElement('div');
-        dialog.style.cssText = `
-            background: ${isDarkMode ? '#1e1e1e' : 'white'};
-            color: ${isDarkMode ? '#e0e0e0' : '#333'};
-            border-radius: 8px;
-            padding: 20px;
-            min-width: 400px;
-            max-width: 500px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        `;
-
-        // Build status summary
-        let statusHtml = '';
-        if (status.total > 0) {
-            const items = [];
-            if (status.staged > 0) items.push(`<span style="color: #22c55e;">+${status.staged} staged</span>`);
-            if (status.modified > 0) items.push(`<span style="color: #f59e0b;">~${status.modified} modified</span>`);
-            if (status.untracked > 0) items.push(`<span style="color: #6366f1;">?${status.untracked} untracked</span>`);
-            statusHtml = items.join(' &nbsp;|&nbsp; ');
-        } else {
-            statusHtml = '<span style="color: #22c55e;">✓ No changes to commit</span>';
-        }
-
-        dialog.innerHTML = `
-            <h3 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 20px;">📤</span>
-                Publish to Git
-            </h3>
-            <div style="margin-bottom: 15px; padding: 10px; background: ${isDarkMode ? '#2d2d2d' : '#f5f5f5'}; border-radius: 4px;">
-                <div style="font-size: 12px; color: ${isDarkMode ? '#aaa' : '#666'}; margin-bottom: 4px;">Branch</div>
-                <div style="font-weight: 500;">⎇ ${gitInfo.branch || 'unknown'}</div>
-            </div>
-            <div style="margin-bottom: 15px; padding: 10px; background: ${isDarkMode ? '#2d2d2d' : '#f5f5f5'}; border-radius: 4px;">
-                <div style="font-size: 12px; color: ${isDarkMode ? '#aaa' : '#666'}; margin-bottom: 4px;">Changes</div>
-                <div>${statusHtml}</div>
-            </div>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 500;">Commit Message</label>
-                <textarea id="git-commit-message" style="
-                    width: 100%;
-                    height: 80px;
-                    padding: 8px;
-                    border: 1px solid ${isDarkMode ? '#3c3c3c' : '#ddd'};
-                    border-radius: 4px;
-                    background: ${isDarkMode ? '#2d2d2d' : 'white'};
-                    color: ${isDarkMode ? '#e0e0e0' : '#333'};
-                    font-family: inherit;
-                    font-size: 13px;
-                    resize: vertical;
-                    box-sizing: border-box;
-                " placeholder="Describe your changes..."></textarea>
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button id="git-cancel" class="btn btn-sm btn-ghost">Cancel</button>
-                <button id="git-publish" class="btn btn-sm btn-primary" ${status.total === 0 ? 'disabled' : ''}>
-                    Commit & Push
-                </button>
-            </div>
-        `;
-
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-
-        const messageInput = dialog.querySelector('#git-commit-message');
-        const publishBtn = dialog.querySelector('#git-publish');
-        const cancelBtn = dialog.querySelector('#git-cancel');
-
-        messageInput.focus();
-
-        const handlePublish = () => {
-            const message = messageInput.value.trim();
-            if (!message) {
-                messageInput.style.borderColor = '#ef4444';
-                return;
-            }
-            document.body.removeChild(overlay);
-            resolve({ confirmed: true, message, gitInfo });
-        };
-
-        const handleCancel = () => {
-            document.body.removeChild(overlay);
-            resolve({ confirmed: false });
-        };
-
-        publishBtn.addEventListener('click', handlePublish);
-        cancelBtn.addEventListener('click', handleCancel);
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) handleCancel();
-        });
-
-        messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                handlePublish();
-            } else if (e.key === 'Escape') {
-                handleCancel();
-            }
-        });
-    });
-}
-
 // Internal links processing is handled by the internalLinks.js module
 
 // --- Process Annotations ---
@@ -3172,6 +3050,10 @@ function isMarkdownFilePath(filePath) {
     return /\.(md|markdown)$/i.test(filePath || '');
 }
 
+function isHTMLFilePath(filePath) {
+    return /\.(html|htm)$/i.test(filePath || '');
+}
+
 function getDirectoryName(filePath) {
     if (!filePath || typeof filePath !== 'string') {
         return '';
@@ -5353,8 +5235,13 @@ async function applyDiskReloadToCurrentEditor(filePath, content) {
         updateSlideThumbnails(content);
     }
 
-    await updatePreviewAndStructure(content);
-    if (window.syncContentToPresentation) {
+    if (isHTMLFilePath(filePath)) {
+        renderHTMLSourcePreview(filePath, content);
+    } else {
+        await updatePreviewAndStructure(content);
+    }
+
+    if (!isHTMLFilePath(filePath) && window.syncContentToPresentation) {
         window.syncContentToPresentation(content);
     }
     updateAIChatContext(filePath);
@@ -6416,7 +6303,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
 
     // Detect file type
     const isPDF = filePath.endsWith('.pdf');
-    const isHTML = filePath.endsWith('.html') || filePath.endsWith('.htm');
+    const isHTML = isHTMLFilePath(filePath);
     const isBibTeX = filePath.endsWith('.bib');
     const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
     const isLargeMarkdown = isMarkdown && content && content.length >= LARGE_MARKDOWN_CHAR_THRESHOLD;
@@ -6648,51 +6535,47 @@ function handlePDFFile(filePath) {
         });
 }
 
+function getHTMLPreviewText(htmlContent) {
+    try {
+        const doc = new DOMParser().parseFromString(htmlContent || '', 'text/html');
+        doc.querySelectorAll('script, style, noscript, template').forEach(el => el.remove());
+        return doc.body?.innerText || doc.body?.textContent || doc.documentElement?.textContent || '';
+    } catch (error) {
+        return String(htmlContent || '')
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ');
+    }
+}
+
+function renderHTMLSourcePreview(filePath, content) {
+    const htmlContent = typeof content === 'string' ? content : '';
+    displayHTMLInPreview(htmlContent, filePath);
+
+    if (typeof window.updateStatusBar === 'function') {
+        window.updateStatusBar(htmlContent);
+    }
+
+    if (typeof window.updatePreviewWordCountFromText === 'function') {
+        window.updatePreviewWordCountFromText(getHTMLPreviewText(htmlContent));
+    } else if (typeof window.updatePreviewWordCount === 'function') {
+        window.updatePreviewWordCount(document.getElementById('preview-content'));
+    }
+}
+
+window.renderHTMLSourcePreview = renderHTMLSourcePreview;
+
 // Handle HTML file opening
 async function handleHTMLFile(filePath, content) {
-    
-    // Check for associated Markdown file
-    const baseName = filePath.replace(/\.html?$/i, '');
-    const associatedMdFile = baseName + '.md';
-    
-    // Check if associated markdown file exists
-    window.electronAPI.invoke('check-file-exists', associatedMdFile)
-        .then(result => {
-            const exists = typeof result === 'object' ? result?.exists : result;
-            if (exists) {
-                // Load the markdown file in the editor
-                return window.electronAPI.invoke('open-file-path', associatedMdFile);
-            }
-            return null;
-        })
-        .then(async markdownResult => {
-            if (markdownResult && markdownResult.success) {
-                // Set suppression counter for both Monaco event and handleEditableFile call
-                window.suppressPreviewUpdateCount = 2;
-                await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
-            } else {
-                // No associated markdown, just show HTML in preview only
-                // Clear the editor since HTML files are not editable
-                if (editor) {
-                    editor.setValue('');
-                }
-            }
-            
-            // Display HTML in preview panel (should not be overridden by markdown rendering)
-            displayHTMLInPreview(content, filePath);
-        })
-        .catch(async error => {
-            console.error('[Renderer] Error checking for associated markdown:', error);
-            // Fallback to showing HTML in preview only
-            if (editor) {
-                editor.setValue('');
-            }
-            displayHTMLInPreview(content, filePath);
-        });
+    await handleEditableFile(filePath, content, { isHTML: true }, {
+        skipPreviewUpdate: true,
+        skipPresentationSync: true
+    });
+    renderHTMLSourcePreview(filePath, content);
 }
 
 // Handle editable files (Markdown, BibTeX, HTML)
-async function handleEditableFile(filePath, content, fileTypes) {
+async function handleEditableFile(filePath, content, fileTypes, options = {}) {
     // Exit PDF-only mode when opening editable files
     exitPDFOnlyMode();
 
@@ -6810,12 +6693,12 @@ async function handleEditableFile(filePath, content, fileTypes) {
     }
 
     // Update preview and structure (unless suppressed)
-    if (!window.suppressNextPreviewUpdate && !window.suppressPreviewUpdateCount) {
+    if (!options.skipPreviewUpdate && !window.suppressNextPreviewUpdate && !window.suppressPreviewUpdateCount) {
         await updatePreviewAndStructure(content);
     }
     
     // Sync content to presentation view (if available)
-    if (window.syncContentToPresentation) {
+    if (!options.skipPresentationSync && window.syncContentToPresentation) {
         window.syncContentToPresentation(content);
     }
     
@@ -7300,23 +7183,6 @@ async function renderPDFPage(pdf, pageNumber, smooth = false) {
 }
 
 // All PDF annotation functionality has been moved to pdfAnnotations.js module
-
-// Update cursor position for fallback textarea editor
-function updateFallbackCursorPosition() {
-    const textarea = document.getElementById('fallback-editor');
-    const cursorPosEl = document.getElementById('cursor-position');
-    
-    if (!textarea || !cursorPosEl) return;
-    
-    const cursorPos = textarea.selectionStart;
-    const textBeforeCursor = textarea.value.substring(0, cursorPos);
-    const lines = textBeforeCursor.split('\n');
-    const lineNumber = lines.length;
-    const columnNumber = lines[lines.length - 1].length + 1;
-    
-    cursorPosEl.textContent = `Ln ${lineNumber}, Col ${columnNumber}`;
-}
-
 
 // Calculate dynamic positioning for text layer based on PDF layout
 async function calculateDynamicTextLayerPositioning(page, viewport, canvasRect, currentScale) {
@@ -8098,76 +7964,6 @@ function setupPDFEventHandlers() {
             }
         }
     });
-}
-
-// Display HTML in preview panel
-function displayHTMLInPreview(htmlContent, filePath) {
-    const previewContent = document.getElementById('preview-content');
-    
-    if (previewContent) {
-        // Fix relative paths in HTML content to absolute file:// URLs
-        const htmlDir = filePath.replace(/[^\/]+$/, ''); // Get directory of HTML file
-        let fixedHtmlContent = htmlContent;
-        
-        // Fix relative image paths (src="images/..." -> src="file:///absolute/path/images/...")
-        fixedHtmlContent = fixedHtmlContent.replace(
-            /src="([^"]+)"/g,
-            (match, src) => {
-                if (!src.startsWith('http') && !src.startsWith('file://') && !src.startsWith('/')) {
-                    // Convert relative path to absolute file:// URL
-                    const absolutePath = htmlDir + src;
-                    return `src="file://${absolutePath}"`;
-                }
-                return match;
-            }
-        );
-        
-        // Fix relative href paths for links
-        fixedHtmlContent = fixedHtmlContent.replace(
-            /href="([^"]+)"/g,
-            (match, href) => {
-                if (!href.startsWith('http') && !href.startsWith('file://') && !href.startsWith('/') && !href.startsWith('#')) {
-                    // Convert relative path to absolute file:// URL
-                    const absolutePath = htmlDir + href;
-                    return `href="file://${absolutePath}"`;
-                }
-                return match;
-            }
-        );
-        
-        // Create HTML preview with safety measures
-        const htmlViewer = `
-            <div class="html-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
-                <div class="html-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); font-weight: bold; flex-shrink: 0; font-size: 14px;">
-                    🌐 ${filePath.split('/').pop()}
-                </div>
-                <div style="flex: 1; overflow: hidden; position: relative; min-height: 0;">
-                    <iframe srcdoc="${fixedHtmlContent.replace(/"/g, '&quot;')}" 
-                            style="width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;"
-                            sandbox="allow-scripts allow-same-origin">
-                    </iframe>
-                </div>
-            </div>
-        `;
-        
-        previewContent.innerHTML = htmlViewer;
-    }
-}
-
-// Update cursor position for fallback textarea editor
-function updateFallbackCursorPosition() {
-    const textarea = document.getElementById('fallback-editor');
-    const cursorPosEl = document.getElementById('cursor-position');
-    
-    if (!textarea || !cursorPosEl) return;
-    
-    const cursorPos = textarea.selectionStart;
-    const textBeforeCursor = textarea.value.substring(0, cursorPos);
-    const lines = textBeforeCursor.split('\n');
-    const lineNumber = lines.length;
-    const columnNumber = lines[lines.length - 1].length + 1;
-    
-    cursorPosEl.textContent = `Ln ${lineNumber}, Col ${columnNumber}`;
 }
 
 // Fallback editor in case Monaco fails to load
@@ -12844,6 +12640,10 @@ function showNotification(message, type = 'info', optionsOrDuration = undefined)
 
 // Mark that there are unsaved changes and schedule auto-save
 function scheduleAutoSave() {
+    if (window.scheduleAutoSave && window.scheduleAutoSave !== scheduleAutoSave) {
+        return window.scheduleAutoSave();
+    }
+
     if (!window.appSettings?.ui?.autoSave || suppressAutoSave) return;
     
     const currentContent = editor ? editor.getValue() : '';
@@ -12878,6 +12678,10 @@ function scheduleAutoSave() {
 
 // Perform the actual auto-save
 async function performAutoSave() {
+    if (window.performAutoSave && window.performAutoSave !== performAutoSave) {
+        return window.performAutoSave();
+    }
+
     if (!window.hasUnsavedChanges || !editor) {
         return;
     }

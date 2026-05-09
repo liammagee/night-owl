@@ -3,6 +3,7 @@
 
 const { ipcMain } = require('electron');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 
 /**
@@ -12,7 +13,8 @@ const path = require('path');
 function register(deps) {
   const {
     appSettings,
-    currentWorkingDirectory
+    currentWorkingDirectory,
+    getCurrentWorkingDirectory
   } = deps;
 
   // Utility functions
@@ -49,6 +51,37 @@ function register(deps) {
            /^\*[^*]+\*$/.test(query) ||          // *pattern*
            /^\*[^*]+$/.test(query) ||            // *suffix
            /^[^*]+\*$/.test(query);              // prefix*
+  }
+
+  function pathExists(folderPath) {
+    try {
+      return !!folderPath && fsSync.existsSync(folderPath);
+    } catch {
+      return false;
+    }
+  }
+
+  function readCurrentWorkingDirectory() {
+    return typeof getCurrentWorkingDirectory === 'function'
+      ? getCurrentWorkingDirectory()
+      : currentWorkingDirectory;
+  }
+
+  function getWorkingDirectory() {
+    const saved = appSettings.workingDirectory;
+    if (pathExists(saved)) {
+      return saved;
+    }
+    return readCurrentWorkingDirectory();
+  }
+
+  function normalizeFilePatternQuery(query) {
+    let normalized = String(query || '').trim();
+    const quoteMatch = normalized.match(/^(['"])(.*)\1$/);
+    if (quoteMatch) {
+      normalized = quoteMatch[2].trim();
+    }
+    return normalized;
   }
 
   /**
@@ -302,23 +335,29 @@ function register(deps) {
   // Search handlers
   ipcMain.handle('global-search', async (event, { query, options = {} }) => {
     try {
-      const workingDir = appSettings.workingDirectory || currentWorkingDirectory;
+      const workingDir = getWorkingDirectory();
       const workspaceFolders = appSettings.workspaceFolders || [];
+      const searchQuery = String(query || '').trim();
+      const filePatternQuery = normalizeFilePatternQuery(query);
 
-      console.log(`[SearchHandlers] Global search for "${query}" in ${workingDir} and ${workspaceFolders.length} workspace folders`);
+      console.log(`[SearchHandlers] Global search for "${searchQuery}" in ${workingDir} and ${workspaceFolders.length} workspace folders`);
 
-      if (!query || query.trim().length === 0) {
+      if (searchQuery.length === 0) {
         return { success: false, error: 'Search query is required' };
       }
 
+      if (!pathExists(workingDir)) {
+        return { success: false, error: 'Working directory does not exist' };
+      }
+
       // Check if this is a file pattern search (e.g., *.bib, *.md)
-      const isPatternSearch = isFilePatternQuery(query);
+      const isPatternSearch = isFilePatternQuery(filePatternQuery);
 
       if (isPatternSearch) {
-        console.log(`[SearchHandlers] Detected file pattern search: "${query}"`);
+        console.log(`[SearchHandlers] Detected file pattern search: "${filePatternQuery}"`);
 
         // Search for files by pattern
-        let fileMatches = await searchFilesByPattern(workingDir, query, 100);
+        let fileMatches = await searchFilesByPattern(workingDir, filePatternQuery, 100);
         fileMatches.forEach(file => {
           file.sourceFolder = workingDir;
           file.isPrimaryFolder = true;
@@ -327,9 +366,8 @@ function register(deps) {
         // Search workspace folders too
         for (const folderPath of workspaceFolders) {
           try {
-            const fsSync = require('fs');
             if (fsSync.existsSync(folderPath)) {
-              const folderMatches = await searchFilesByPattern(folderPath, query, 100);
+              const folderMatches = await searchFilesByPattern(folderPath, filePatternQuery, 100);
               folderMatches.forEach(file => {
                 file.sourceFolder = folderPath;
                 file.isWorkspaceFolder = true;
@@ -351,7 +389,7 @@ function register(deps) {
       }
 
       // Regular content search
-      let allResults = await performGlobalSearch(query, workingDir, options);
+      let allResults = await performGlobalSearch(searchQuery, workingDir, options);
 
       // Add source folder info to primary results
       allResults.forEach(result => {
@@ -362,9 +400,8 @@ function register(deps) {
       // Search additional workspace folders
       for (const folderPath of workspaceFolders) {
         try {
-          const fsSync = require('fs');
           if (fsSync.existsSync(folderPath)) {
-            const folderResults = await performGlobalSearch(query, folderPath, options);
+            const folderResults = await performGlobalSearch(searchQuery, folderPath, options);
             folderResults.forEach(result => {
               result.sourceFolder = folderPath;
               result.isWorkspaceFolder = true;

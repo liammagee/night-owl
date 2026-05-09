@@ -308,10 +308,12 @@
 
             // Update preview with the activated tab's content
             const content = editor.getValue();
-            if (typeof window.updatePreviewAndStructure === 'function') {
+            if (!isUntitled && tab.language === 'html' && typeof window.renderHTMLSourcePreview === 'function') {
+                window.renderHTMLSourcePreview(filePath, content);
+            } else if (typeof window.updatePreviewAndStructure === 'function') {
                 window.updatePreviewAndStructure(content);
             }
-            if (typeof window.syncContentToPresentation === 'function') {
+            if (tab.language !== 'html' && typeof window.syncContentToPresentation === 'function') {
                 window.syncContentToPresentation(content);
             }
 

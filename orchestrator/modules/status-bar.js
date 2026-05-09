@@ -120,6 +120,19 @@ function updatePreviewWordCount(previewElement = document.getElementById('previe
     previewWordCountEl.title = 'Words in the rendered preview text';
 }
 
+function updatePreviewWordCountFromText(text = '') {
+    const previewWordCountEl = document.getElementById('preview-word-count');
+    if (!previewWordCountEl) return;
+
+    const previewText = String(text || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const { words } = countWordsAndLines(previewText);
+
+    previewWordCountEl.textContent = `Preview: ${words} words`;
+    previewWordCountEl.title = 'Words in the rendered preview text';
+}
+
 function updateStatusBarWithKanban(totalTasks, doneTasks) {
     const wordCountEl = document.getElementById('word-count');
     const previewWordCountEl = document.getElementById('preview-word-count');
@@ -174,11 +187,23 @@ let gitStatusCache = {
     lastCheck: 0
 };
 
+async function getRuntimeWorkingDirectory() {
+    if (window.electronAPI?.invoke) {
+        try {
+            const workingDirectory = await window.electronAPI.invoke('get-working-directory');
+            if (workingDirectory) return workingDirectory;
+        } catch (error) {
+            console.warn('[GitStatus] Could not resolve runtime working directory:', error);
+        }
+    }
+    return window.appSettings?.workingDirectory;
+}
+
 async function updateGitStatusIndicator() {
     const indicator = document.getElementById('git-status-indicator');
     if (!indicator || !window.electronAPI) return;
 
-    const workingDir = window.appSettings?.workingDirectory;
+    const workingDir = await getRuntimeWorkingDirectory();
     if (!workingDir) {
         indicator.style.display = 'none';
         return;
@@ -284,6 +309,7 @@ function initGitStatusIndicator() {
 window.countWordsAndLines = countWordsAndLines;
 window.updateStatusBar = updateStatusBar;
 window.updatePreviewWordCount = updatePreviewWordCount;
+window.updatePreviewWordCountFromText = updatePreviewWordCountFromText;
 window.updateStatusBarWithKanban = updateStatusBarWithKanban;
 window.processSpeakerNotes = processSpeakerNotes;
 window.gitStatusCache = gitStatusCache;
