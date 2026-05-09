@@ -306,15 +306,19 @@
                 window.updateBreadcrumb(isUntitled ? null : filePath);
             }
 
-            // Update preview with the activated tab's content
+            // Update preview with the activated tab's content. The open-file
+            // pipeline can suppress this because it performs the file-type
+            // specific render after the rest of the open state is synchronized.
             const content = editor.getValue();
-            if (!isUntitled && tab.language === 'html' && typeof window.renderHTMLSourcePreview === 'function') {
-                window.renderHTMLSourcePreview(filePath, content);
-            } else if (typeof window.updatePreviewAndStructure === 'function') {
-                window.updatePreviewAndStructure(content);
-            }
-            if (tab.language !== 'html' && typeof window.syncContentToPresentation === 'function') {
-                window.syncContentToPresentation(content);
+            if (!window.__suppressTabPreviewUpdate) {
+                if (!isUntitled && tab.language === 'html' && typeof window.renderHTMLSourcePreview === 'function') {
+                    window.renderHTMLSourcePreview(filePath, content);
+                } else if (typeof window.updatePreviewAndStructure === 'function') {
+                    window.updatePreviewAndStructure(content);
+                }
+                if (tab.language !== 'html' && typeof window.syncContentToPresentation === 'function') {
+                    window.syncContentToPresentation(content);
+                }
             }
 
             // Notify backend of current file

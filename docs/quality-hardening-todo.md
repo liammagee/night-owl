@@ -17,6 +17,7 @@ This is the persisted backlog for systematic UX and code-quality hardening. Keep
 - [x] Use runtime workspace fallback for git status/panel when saved workspace path is stale.
 - [x] Use runtime workspace fallback for global search when saved workspace path is stale.
 - [x] Treat HTML files as editable source with rendered preview.
+- [x] Disable script execution and duplicate iframe renders in HTML preview to prevent app freezes when opening script-heavy HTML files.
 - [x] Audit save/autosave paths for cross-tab write corruption, especially around `window.currentFilePath`, active tab models, disk reload, and recovery restore.
 - [ ] Audit delete/move/rename flows for stale tab, preview, and file-tree state after filesystem mutations.
 
@@ -43,7 +44,7 @@ This is the persisted backlog for systematic UX and code-quality hardening. Keep
 - [x] Add a regression test that rejects duplicate top-level function declarations in the renderer.
 - [ ] Split `orchestrator/renderer.js` into cohesive modules around editor open/render, preview, file tree, and settings state.
 - [ ] Reduce duplicated runtime-working-directory fallback logic by extracting a shared main-process helper for file, search, git, export, and AI handlers.
-- [ ] Replace ad hoc regex path rewriting in HTML preview with URL/DOM-based rewriting.
+- [x] Replace ad hoc regex path rewriting in HTML preview with a base-URL injection and DOM-built iframe.
 - [ ] Add static checks for ignored/generated directories in local audits and test discovery.
 
 ## P2: Maintainability

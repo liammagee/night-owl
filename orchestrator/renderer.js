@@ -6376,7 +6376,13 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
 
             // Create a new tab (model created here, handleEditableFile will skip model setup)
             window.tabManager.createTab(filePath, content);
-            window.tabManager.activateTab(filePath);
+            const previousSuppressTabPreviewUpdate = window.__suppressTabPreviewUpdate;
+            window.__suppressTabPreviewUpdate = true;
+            try {
+                window.tabManager.activateTab(filePath);
+            } finally {
+                window.__suppressTabPreviewUpdate = previousSuppressTabPreviewUpdate;
+            }
         }
     }
 
@@ -6615,16 +6621,62 @@ function handlePDFFile(filePath) {
 }
 
 function getHTMLPreviewText(htmlContent) {
-    try {
-        const doc = new DOMParser().parseFromString(htmlContent || '', 'text/html');
-        doc.querySelectorAll('script, style, noscript, template').forEach(el => el.remove());
-        return doc.body?.innerText || doc.body?.textContent || doc.documentElement?.textContent || '';
-    } catch (error) {
-        return String(htmlContent || '')
+    const content = String(htmlContent || '');
+    if (content.length > 500000) {
+        return content
             .replace(/<script[\s\S]*?<\/script>/gi, ' ')
             .replace(/<style[\s\S]*?<\/style>/gi, ' ')
             .replace(/<[^>]+>/g, ' ');
     }
+
+    try {
+        const doc = new DOMParser().parseFromString(content, 'text/html');
+        doc.querySelectorAll('script, style, noscript, template').forEach(el => el.remove());
+        return doc.body?.innerText || doc.body?.textContent || doc.documentElement?.textContent || '';
+    } catch (error) {
+        return content
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ');
+    }
+}
+
+function escapeHTMLAttribute(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function getHTMLPreviewBaseHref(filePath) {
+    const htmlDir = getDirectoryName(filePath);
+    if (!htmlDir) {
+        return '';
+    }
+    const rawHref = `file://${htmlDir.replace(/\/?$/, '/')}`;
+    try {
+        return new URL(rawHref).href;
+    } catch (error) {
+        return rawHref;
+    }
+}
+
+function injectHTMLPreviewBase(htmlContent, filePath) {
+    const baseHref = getHTMLPreviewBaseHref(filePath);
+    if (!baseHref || /<base\b/i.test(htmlContent || '')) {
+        return htmlContent || '';
+    }
+
+    const baseTag = `<base href="${escapeHTMLAttribute(baseHref)}">`;
+    const content = String(htmlContent || '');
+    if (/<head\b[^>]*>/i.test(content)) {
+        return content.replace(/<head\b([^>]*)>/i, `<head$1>${baseTag}`);
+    }
+    if (/<html\b[^>]*>/i.test(content)) {
+        return content.replace(/<html\b([^>]*)>/i, `<html$1><head>${baseTag}</head>`);
+    }
+    return `<!doctype html><html><head>${baseTag}</head><body>${content}</body></html>`;
 }
 
 function renderHTMLSourcePreview(filePath, content) {
@@ -7072,55 +7124,34 @@ async function renderPage(pageNum, smooth = true) {
 // Display HTML in preview panel
 function displayHTMLInPreview(htmlContent, filePath) {
     const previewContent = document.getElementById('preview-content');
-    
-    if (previewContent) {
-        // Fix relative paths in HTML content to absolute file:// URLs
-        const htmlDir = filePath.replace(/[^\/]+$/, ''); // Get directory of HTML file
-        let fixedHtmlContent = htmlContent;
-        
-        // Fix relative image paths (src="images/..." -> src="file:///absolute/path/images/...")
-        fixedHtmlContent = fixedHtmlContent.replace(
-            /src="([^"]+)"/g,
-            (match, src) => {
-                if (!src.startsWith('http') && !src.startsWith('file://') && !src.startsWith('/')) {
-                    // Convert relative path to absolute file:// URL
-                    const absolutePath = htmlDir + src;
-                    return `src="file://${absolutePath}"`;
-                }
-                return match;
-            }
-        );
-        
-        // Fix relative href paths for links
-        fixedHtmlContent = fixedHtmlContent.replace(
-            /href="([^"]+)"/g,
-            (match, href) => {
-                if (!href.startsWith('http') && !href.startsWith('file://') && !href.startsWith('/') && !href.startsWith('#')) {
-                    // Convert relative path to absolute file:// URL
-                    const absolutePath = htmlDir + href;
-                    return `href="file://${absolutePath}"`;
-                }
-                return match;
-            }
-        );
-        
-        // Create HTML preview with safety measures
-        const htmlViewer = `
-            <div class="html-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
-                <div class="html-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); font-weight: bold; flex-shrink: 0; font-size: 14px;">
-                    🌐 ${filePath.split('/').pop()}
-                </div>
-                <div style="flex: 1; overflow: hidden; position: relative; min-height: 0;">
-                    <iframe srcdoc="${fixedHtmlContent.replace(/"/g, '&quot;')}" 
-                            style="width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;"
-                            sandbox="allow-scripts allow-same-origin">
-                    </iframe>
-                </div>
-            </div>
-        `;
-        
-        previewContent.innerHTML = htmlViewer;
-    }
+    if (!previewContent) return;
+
+    const fixedHtmlContent = injectHTMLPreviewBase(htmlContent, filePath);
+
+    const container = document.createElement('div');
+    container.className = 'html-preview-container';
+    container.style.cssText = 'width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0;';
+
+    const header = document.createElement('div');
+    header.className = 'html-header';
+    header.style.cssText = 'padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); font-weight: bold; flex-shrink: 0; font-size: 14px;';
+    header.textContent = `HTML Preview: ${filePath.split('/').pop()}`;
+
+    const frameWrapper = document.createElement('div');
+    frameWrapper.style.cssText = 'flex: 1; overflow: hidden; position: relative; min-height: 0;';
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;';
+    iframe.title = `Preview of ${filePath.split('/').pop()}`;
+    iframe.loading = 'lazy';
+    iframe.setAttribute('sandbox', 'allow-same-origin');
+    iframe.setAttribute('referrerpolicy', 'no-referrer');
+    iframe.srcdoc = fixedHtmlContent;
+
+    frameWrapper.appendChild(iframe);
+    container.appendChild(header);
+    container.appendChild(frameWrapper);
+    previewContent.replaceChildren(container);
 }
 
 // Update cursor position for fallback textarea editor

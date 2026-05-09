@@ -54,6 +54,7 @@ beforeEach(() => {
     window.lastSavedContent = '';
     window.hasUnsavedChanges = false;
     window.suppressAutoSave = false;
+    window.__suppressTabPreviewUpdate = false;
     window.currentFileDirectory = '';
     window._setLastSavedContent = jest.fn();
     window.updateUnsavedIndicator = jest.fn();
@@ -129,6 +130,20 @@ describe('TabManager', () => {
 
         expect(tm.tabs.get('/home/user/page.html').language).toBe('html');
         expect(window.renderHTMLSourcePreview).toHaveBeenCalledWith('/home/user/page.html', html);
+        expect(window.updatePreviewAndStructure).not.toHaveBeenCalled();
+        expect(window.syncContentToPresentation).not.toHaveBeenCalled();
+    });
+
+    test('activateTab can suppress preview rendering during file-open routing', () => {
+        const tm = window.tabManager;
+        const html = '<script>while(true){}</script><h1>Hello</h1>';
+        window.editor.getValue = jest.fn(() => html);
+        window.__suppressTabPreviewUpdate = true;
+
+        tm.createTab('/home/user/page.html', html);
+        tm.activateTab('/home/user/page.html');
+
+        expect(window.renderHTMLSourcePreview).not.toHaveBeenCalled();
         expect(window.updatePreviewAndStructure).not.toHaveBeenCalled();
         expect(window.syncContentToPresentation).not.toHaveBeenCalled();
     });

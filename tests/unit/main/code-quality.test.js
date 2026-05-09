@@ -52,4 +52,14 @@ describe('Code quality guardrails', () => {
     expect(source).toContain('scheduleBibliographyRefresh(window.currentFilePath, markdownContent)');
     expect(source).not.toContain('await refreshBibliographyFromContent(window.currentFilePath, markdownContent)');
   });
+
+  test('HTML preview iframe is script-disabled and assigned through srcdoc property', () => {
+    const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
+    const source = fs.readFileSync(rendererPath, 'utf8');
+
+    expect(source).toContain("iframe.setAttribute('sandbox', 'allow-same-origin')");
+    expect(source).toContain('iframe.srcdoc = fixedHtmlContent');
+    expect(source).not.toContain('sandbox="allow-scripts allow-same-origin"');
+    expect(source).not.toContain('<iframe srcdoc="${');
+  });
 });
