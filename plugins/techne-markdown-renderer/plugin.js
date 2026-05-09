@@ -49,8 +49,9 @@
                         for (const dir of candidateDirs) {
                             try {
                                 const files = await window.electronAPI.invoke('list-directory-files', dir);
-                                if (files?.some(file => file.isFile && file.name === filename)) {
-                                    return dir ? `${dir}/${filename}` : filename;
+                                const match = files?.find(file => file.isFile && file.name === filename);
+                                if (match) {
+                                    return match.path || (dir ? `${dir}/${filename}` : filename);
                                 }
                             } catch (error) {
                                 // Ignore missing directories or list errors for optional files.
@@ -63,13 +64,13 @@
                     try {
                         const referencesPath = await resolveBibPath('references.bib');
                         if (referencesPath) {
-                            await window.TechneBibtexParser.loadAndSetGlobal(referencesPath);
+                            await window.TechneBibtexParser.loadAndSetGlobal(referencesPath, { optional: true });
                             console.log(`[${PLUGIN_ID}] Loaded ${referencesPath}`);
                         }
 
                         const exportedPath = await resolveBibPath('exported_items.bib');
                         if (exportedPath) {
-                            const exported = await window.TechneBibtexParser.loadFromFile(exportedPath);
+                            const exported = await window.TechneBibtexParser.loadFromFile(exportedPath, { optional: true });
                             if (exported?.length) {
                                 window.TechneBibtexParser.addEntries(exported);
                                 console.log(`[${PLUGIN_ID}] Added ${exported.length} entries from ${exportedPath}`);

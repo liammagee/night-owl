@@ -1,6 +1,7 @@
 const path = require('path');
 
 const pluginEntryPath = path.resolve(__dirname, '../../../../plugins/techne-markdown-renderer/plugin.js');
+const bibtexParserPath = path.resolve(__dirname, '../../../../plugins/techne-markdown-renderer/bibtexParser.js');
 const pluginCorePath = path.resolve(
   __dirname,
   '../../../../plugins/techne-markdown-renderer/techne-markdown-renderer.js'
@@ -14,8 +15,11 @@ describe('techne-markdown-renderer plugin', () => {
 
     registered = null;
     delete window.TechneMarkdownRenderer;
+    delete window.TechneBibtexParser;
+    delete window.TechneCitationRenderer;
     delete window.previewZoom;
     delete window.currentSpeakerNotes;
+    delete window.bibEntries;
 
     document.head.innerHTML = '';
     document.body.innerHTML = `
@@ -136,5 +140,97 @@ describe('techne-markdown-renderer plugin', () => {
     expect(renderMermaidDiagrams).toHaveBeenCalledTimes(1);
     expect(updateSpeakerNotesDisplay).toHaveBeenCalledTimes(1);
   });
-});
 
+  test('BibTeX parser reads local files through Electron IPC instead of fetch', async () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    window.electronAPI = {
+      invoke: jest.fn(async (channel, payload) => {
+        if (channel === 'get-working-directory') return '/workspace';
+        if (channel === 'read-file') {
+          return {
+            success: true,
+            filePath: payload,
+            content: '@book{hegel1807,title={Phenomenology of Spirit},author={Hegel, G. W. F.},year={1807}}'
+          };
+        }
+        return null;
+      })
+    };
+
+    require(bibtexParserPath);
+
+    const entries = await window.TechneBibtexParser.loadFromFile('/workspace/references.bib');
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].key).toBe('hegel1807');
+    expect(window.electronAPI.invoke).toHaveBeenCalledWith('read-file', '/workspace/references.bib');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('optional missing BibTeX files do not log startup errors', async () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    console.error = jest.fn();
+    window.electronAPI = {
+      invoke: jest.fn(async (channel) => {
+        if (channel === 'get-working-directory') return '/workspace';
+        if (channel === 'read-file') {
+          return { success: false, error: 'File not found' };
+        }
+        return null;
+      })
+    };
+
+    require(bibtexParserPath);
+
+    await expect(
+      window.TechneBibtexParser.loadFromFile('references.bib', { optional: true })
+    ).resolves.toEqual([]);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  test('plugin passes absolute optional bibliography paths from directory listings', async () => {
+    window.TechneBibtexParser = {
+      loadAndSetGlobal: jest.fn(async () => {
+        window.bibEntries = [{ key: 'hegel1807' }];
+        return window.bibEntries;
+      }),
+      loadFromFile: jest.fn(async () => []),
+      addEntries: jest.fn()
+    };
+    window.previewZoom = {};
+    window.TechneMarkdownRenderer = {};
+    window.TechneCitationRenderer = {
+      getCSS: jest.fn(() => '.citation {}')
+    };
+    window.bibEntries = [];
+    window.appSettings = { workingDirectory: '/workspace' };
+    window.electronAPI = {
+      invoke: jest.fn(async (channel, dir) => {
+        if (channel === 'list-directory-files' && dir === '') {
+          return [{ isFile: true, name: 'references.bib', path: '/workspace/references.bib' }];
+        }
+        return [];
+      })
+    };
+
+    require(pluginEntryPath);
+
+    const host = {
+      loadCSS: jest.fn(async () => {}),
+      loadScriptsSequential: jest.fn(async () => {}),
+      emit: jest.fn()
+    };
+    await registered.init(host);
+
+    expect(window.TechneBibtexParser.loadAndSetGlobal).toHaveBeenCalledWith(
+      '/workspace/references.bib',
+      { optional: true }
+    );
+    expect(host.loadScriptsSequential).not.toHaveBeenCalled();
+    expect(host.emit).toHaveBeenCalledWith('bibliography:loaded', { count: 1 });
+  });
+});

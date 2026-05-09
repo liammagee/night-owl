@@ -150,49 +150,128 @@
         return typeMapping[type] || type;
     }
 
-    /**
-     * Load and parse a BibTeX file from URL or path
-     */
-    async function loadFromFile(url) {
+    function isRemoteUrl(url) {
+        return /^https?:\/\//i.test(String(url || ''));
+    }
+
+    function isFileUrl(url) {
+        return /^file:\/\//i.test(String(url || ''));
+    }
+
+    function isAbsoluteLocalPath(url) {
+        return typeof url === 'string' && (
+            url.startsWith('/') ||
+            /^[a-zA-Z]:[\\/]/.test(url)
+        );
+    }
+
+    function fileUrlToPath(url) {
         try {
-            let resolvedUrl = url;
+            return decodeURIComponent(new URL(url).pathname);
+        } catch (_error) {
+            return String(url || '').replace(/^file:\/\//i, '');
+        }
+    }
 
-            // If this is a relative or absolute path (not already a full URL), resolve it
-            if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
-                // Get the working directory from various sources
-                const workingDir = window.appSettings?.workingDirectory ||
-                    window.currentDirectory ||
-                    window.electronAPI?.getWorkingDirectory?.();
+    async function getRuntimeWorkingDirectory() {
+        if (window.electronAPI?.invoke) {
+            try {
+                const workingDir = await window.electronAPI.invoke('get-working-directory');
+                if (workingDir) return workingDir;
+            } catch (_error) {
+                // Fall through to renderer-side caches.
+            }
+        }
 
-                if (workingDir) {
-                    // Remove leading slash from path if present, as workingDir already has the full path
-                    const cleanPath = url.replace(/^\//, '');
-                    resolvedUrl = `file://${workingDir}/${cleanPath}`;
-                } else {
-                    // Fallback: try using electronAPI to read the file directly
-                    if (window.electronAPI?.invoke) {
-                        // Construct a likely path based on the url
-                        const filePath = url.startsWith('/') ? url : `/${url}`;
-                        console.log(`[TechneBibtexParser] Attempting to load via IPC: ${filePath}`);
-                        const result = await window.electronAPI.invoke('read-file', filePath);
-                        if (result.success && result.content) {
-                            return parse(result.content);
-                        }
-                    }
-                    console.warn(`[TechneBibtexParser] No working directory available for: ${url}`);
+        return window.appSettings?.workingDirectory || window.currentDirectory || '';
+    }
+
+    async function resolveLocalPath(url) {
+        if (isFileUrl(url)) {
+            return fileUrlToPath(url);
+        }
+        if (isAbsoluteLocalPath(url)) {
+            return url;
+        }
+
+        const workingDir = await getRuntimeWorkingDirectory();
+        if (!workingDir) return '';
+
+        const cleanBase = String(workingDir).replace(/[\\/]+$/, '');
+        const cleanPath = String(url || '').replace(/^[\\/]+/, '');
+        return `${cleanBase}/${cleanPath}`;
+    }
+
+    function isExpectedMissingError(error) {
+        const message = String(error?.message || error || '').toLowerCase();
+        return message.includes('failed to fetch') ||
+            message.includes('not found') ||
+            message.includes('enoent') ||
+            message.includes('404');
+    }
+
+    function debugLog(...args) {
+        try {
+            if (window.localStorage?.getItem('nightowl.debugBibtexParser') !== 'true') return;
+        } catch (_error) {
+            return;
+        }
+
+        if (console.debug) {
+            console.debug(...args);
+        }
+    }
+
+    function reportLoadFailure(url, error, options = {}) {
+        const optional = Boolean(options.optional);
+        if (optional || isExpectedMissingError(error)) {
+            debugLog(`[TechneBibtexParser] Optional BibTeX file unavailable: ${url}`);
+            return;
+        }
+
+        console.warn('[TechneBibtexParser] Could not load BibTeX file:', error);
+    }
+
+    /**
+     * Load and parse a BibTeX file from URL or path.
+     * Local filesystem paths are read through Electron IPC instead of fetch().
+     * That avoids noisy DevTools net::ERR_FILE_NOT_FOUND messages for optional
+     * bibliography files and works in Electron contexts where file:// fetches
+     * are blocked.
+     */
+    async function loadFromFile(url, options = {}) {
+        try {
+            if (!url) return [];
+
+            if (!isRemoteUrl(url)) {
+                if (!window.electronAPI?.invoke) {
+                    reportLoadFailure(url, new Error('Electron file API is not available'), options);
                     return [];
                 }
+
+                const filePath = await resolveLocalPath(url);
+                if (!filePath) {
+                    reportLoadFailure(url, new Error('No working directory available'), options);
+                    return [];
+                }
+
+                const result = await window.electronAPI.invoke('read-file', filePath);
+                if (result?.success && typeof result.content === 'string') {
+                    return parse(result.content);
+                }
+
+                reportLoadFailure(filePath, new Error(result?.error || 'BibTeX file not found'), options);
+                return [];
             }
 
-            console.log(`[TechneBibtexParser] Loading: ${resolvedUrl}`);
-            const response = await fetch(resolvedUrl);
+            const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`Failed to load BibTeX file: ${response.status}`);
             }
             const text = await response.text();
             return parse(text);
         } catch (error) {
-            console.error('[TechneBibtexParser] Error loading file:', error);
+            reportLoadFailure(url, error, options);
             return [];
         }
     }
@@ -200,8 +279,8 @@
     /**
      * Load BibTeX file and set as global bibEntries
      */
-    async function loadAndSetGlobal(url) {
-        const entries = await loadFromFile(url);
+    async function loadAndSetGlobal(url, options = {}) {
+        const entries = await loadFromFile(url, options);
         window.bibEntries = entries;
 
         // Notify citation renderer if available
@@ -209,7 +288,9 @@
             window.TechneCitationRenderer.invalidateCache();
         }
 
-        console.log(`[TechneBibtexParser] Loaded ${entries.length} bibliography entries`);
+        if (entries.length > 0) {
+            console.log(`[TechneBibtexParser] Loaded ${entries.length} bibliography entries`);
+        }
         return entries;
     }
 
@@ -242,5 +323,5 @@
         addEntries
     };
 
-    console.log('[TechneBibtexParser] BibTeX parser loaded');
+    debugLog('[TechneBibtexParser] BibTeX parser loaded');
 })();
