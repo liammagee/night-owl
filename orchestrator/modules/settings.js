@@ -573,6 +573,10 @@ function generatePluginsSettings() {
         'techne-maze': {
             name: 'Babel Maze',
             description: 'Library of Babel-inspired maze navigation through your documents.'
+        },
+        'techne-research-feed': {
+            name: 'Research Feed',
+            description: 'Sidebar that polls arxiv, reddit, Bluesky, Mastodon, Google, and (optionally) x.com for new posts related to what you are writing, ranked by AI relevance.'
         }
     };
 

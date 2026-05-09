@@ -37,6 +37,8 @@
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:watch": "jest --watch",
     "thumbnail": "node scripts/generate-thumbnail.mjs",
+    "feed-cli": "node scripts/feed-cli.js",
+    "feed-mcp": "node scripts/feed-mcp-server.js",
     "sync-plugins": "sync-techne-plugins",
     "postinstall": "sync-techne-plugins || true"
   },
