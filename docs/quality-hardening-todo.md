@@ -29,6 +29,8 @@ This is the persisted backlog for systematic UX and code-quality hardening. Keep
 - [x] Add Electron-native GPU diagnostics and Chromium trace capture hooks without replacing Monaco or the DOM renderer.
 - [x] Reduce file-tree DOM churn by rendering through fragments and hydrating Markdown tags after the initial paint.
 - [x] Move bibliography refresh work off the synchronous preview render path.
+- [x] Quiet touch-gesture logging behind an opt-in debug flag.
+- [x] Persist quality metrics that quantify stability and performance changes against the pre-hardening baseline.
 - [ ] Replace alert/confirm driven destructive actions with app-native modal flows that show exact paths and consequences.
 - [ ] Make no-results and stale-workspace states explicit in the UI rather than silently empty.
 - [ ] Review file tree density, icons, selection affordances, and tag layout against VS Code-style expectations.

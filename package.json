@@ -37,6 +37,7 @@
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:watch": "jest --watch",
     "thumbnail": "node scripts/generate-thumbnail.mjs",
+    "quality:metrics": "node scripts/quality-metrics.js",
     "sync-plugins": "sync-techne-plugins",
     "postinstall": "sync-techne-plugins || true"
   },

@@ -2,12 +2,27 @@
 // Adds swipe navigation and pinch-to-zoom for mobile devices
 // Optimized for fullscreen single-slide view on mobile
 
-console.log('[Touch Gestures] Script loaded - starting initialization');
+const TOUCH_GESTURES_DEBUG = (() => {
+  try {
+    return window.NIGHTOWL_DEBUG_TOUCH_GESTURES === true ||
+      window.localStorage?.getItem('nightowl.debugTouchGestures') === 'true';
+  } catch (_error) {
+    return false;
+  }
+})();
+
+function logTouchGestures(...args) {
+  if (TOUCH_GESTURES_DEBUG) {
+    console.debug(...args);
+  }
+}
+
+logTouchGestures('[Touch Gestures] Script loaded - starting initialization');
 
 (function() {
   'use strict';
 
-  console.log('[Touch Gestures] IIFE executing');
+  logTouchGestures('[Touch Gestures] IIFE executing');
 
   // Configuration
   const SWIPE_THRESHOLD = 50;  // Minimum distance for a swipe
@@ -34,7 +49,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     const isSmallScreen = window.innerWidth <= 768;
     const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
     const result = isSmallScreen && isCoarsePointer;
-    console.log('[Touch Gestures] isMobile check:', { isSmallScreen, isCoarsePointer, result, innerWidth: window.innerWidth });
+    logTouchGestures('[Touch Gestures] isMobile check:', { isSmallScreen, isCoarsePointer, result, innerWidth: window.innerWidth });
     return result;
   };
 
@@ -276,12 +291,12 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
       document.addEventListener('touchend', handleTouchEnd, { passive: true });
     }
 
-    console.log('[Touch Gestures] Initialized swipe navigation for presentations' + (isMobile() ? ' (mobile mode)' : ''));
+    logTouchGestures('[Touch Gestures] Initialized swipe navigation for presentations' + (isMobile() ? ' (mobile mode)' : ''));
   }
 
   // Clean up speaker notes visibility when exiting presentation
   function cleanupMobilePresentation() {
-    console.log('[Touch Gestures] Cleaning up mobile presentation mode');
+    logTouchGestures('[Touch Gestures] Cleaning up mobile presentation mode');
 
     const notesPanel = document.getElementById('speaker-notes-panel');
     if (notesPanel) {
@@ -330,7 +345,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
 
   // Hide the content toolbar (bookmark/glossary/flashcard icons on the right side)
   function hideContentToolbar() {
-    console.log('[Touch Gestures] hideContentToolbar called');
+    logTouchGestures('[Touch Gestures] hideContentToolbar called');
 
     // The ContentToolbar is rendered via React portal to document.body
     // It has inline styles and Tailwind classes like: fixed right-5 top-1/2 z-[12100]
@@ -353,7 +368,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
           svgs.length >= 3 &&
           !el.id?.includes('presentation') &&
           !el.id?.includes('mobile')) {
-        console.log('[Touch Gestures] Hiding content toolbar (found by style)', { right, zIndex, buttons: buttons.length });
+        logTouchGestures('[Touch Gestures] Hiding content toolbar (found by style)', { right, zIndex, buttons: buttons.length });
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
         el.style.setProperty('opacity', '0', 'important');
@@ -370,7 +385,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
 
       // Look for the characteristic structure: fixed + high z-index + on right side
       if (zIndex > 10000 && right < 100) {
-        console.log('[Touch Gestures] Hiding high z-index toolbar', { zIndex, right });
+        logTouchGestures('[Touch Gestures] Hiding high z-index toolbar', { zIndex, right });
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
         el.dataset.hiddenByPresentation = 'true';
@@ -381,7 +396,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     document.querySelectorAll('[class*="z-"]').forEach(el => {
       const classList = el.className;
       if (classList.includes('12100') || classList.includes('z-[12100]')) {
-        console.log('[Touch Gestures] Hiding element with z-12100 class');
+        logTouchGestures('[Touch Gestures] Hiding element with z-12100 class');
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
         el.dataset.hiddenByPresentation = 'true';
@@ -392,7 +407,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
   // Show the content toolbar again when exiting presentation mode
   function showContentToolbar() {
     document.querySelectorAll('[data-hidden-by-presentation="true"]').forEach(el => {
-      console.log('[Touch Gestures] Showing content toolbar');
+      logTouchGestures('[Touch Gestures] Showing content toolbar');
       el.style.removeProperty('display');
       el.style.removeProperty('visibility');
       el.style.removeProperty('pointer-events');
@@ -404,7 +419,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
   function setupMobilePresentation() {
     if (!isMobile()) return;
 
-    console.log('[Touch Gestures] Setting up mobile presentation mode');
+    logTouchGestures('[Touch Gestures] Setting up mobile presentation mode');
 
     // Hide the content toolbar (bookmark/glossary/flashcard icons on the right)
     hideContentToolbar();
@@ -412,7 +427,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     // IMMEDIATELY apply mobile styles to slides to prevent flash of multiple slides
     // Look for slides directly - don't rely on presentation-root ID
     const slides = document.querySelectorAll('.slide');
-    console.log('[Touch Gestures] setupMobilePresentation - initial slide count:', slides.length);
+    logTouchGestures('[Touch Gestures] setupMobilePresentation - initial slide count:', slides.length);
 
     if (slides.length > 0) {
       // Hide the SVG connection lines
@@ -432,7 +447,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
 
         if (isCurrent && !foundCurrent) {
           foundCurrent = true;
-          console.log('[Touch Gestures] Initial current slide:', idx);
+          logTouchGestures('[Touch Gestures] Initial current slide:', idx);
           slide.classList.add('mobile-current-slide');
           slide.style.setProperty('position', 'fixed', 'important');
           slide.style.setProperty('top', '50%', 'important');
@@ -529,7 +544,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     // Initial slide update
     setTimeout(updateMobileCurrentSlide, 100);
 
-    console.log('[Touch Gestures] Mobile presentation setup - hidden all speaker notes panels');
+    logTouchGestures('[Touch Gestures] Mobile presentation setup - hidden all speaker notes panels');
   }
 
   // Find and mark the current slide based on React's state
@@ -537,13 +552,13 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     const mobile = isMobile();
     const presenting = isPresenting();
 
-    console.log('[Touch Gestures] updateMobileCurrentSlide called:', { mobile, presenting });
+    logTouchGestures('[Touch Gestures] updateMobileCurrentSlide called:', { mobile, presenting });
 
     if (!mobile || !presenting) return;
 
     // Look for slides directly - don't rely on presentation-root ID
     const slides = document.querySelectorAll('.slide');
-    console.log('[Touch Gestures] Found slides:', slides.length);
+    logTouchGestures('[Touch Gestures] Found slides:', slides.length);
 
     if (slides.length === 0) return;
 
@@ -557,7 +572,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
       // Current slide has high z-index (999) or opacity 1 while others have 0.1
       if (zIndex >= 999 || (opacity === 1 && zIndex > 0)) {
         currentSlide = slide;
-        console.log('[Touch Gestures] Found current slide by z-index/opacity:', i, { zIndex, opacity });
+        logTouchGestures('[Touch Gestures] Found current slide by z-index/opacity:', i, { zIndex, opacity });
       }
     });
 
@@ -567,14 +582,14 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
                      document.querySelector('.slide.ring-purple-500') ||
                      document.querySelector('.slide.ring-4');
       if (currentSlide) {
-        console.log('[Touch Gestures] Found current slide by ring class');
+        logTouchGestures('[Touch Gestures] Found current slide by ring class');
       }
     }
 
     // Fallback: if still no current slide, use first slide
     if (!currentSlide && slides.length > 0) {
       currentSlide = slides[0];
-      console.log('[Touch Gestures] Using first slide as fallback');
+      logTouchGestures('[Touch Gestures] Using first slide as fallback');
     }
 
     // Update classes AND inline styles to override React's positioning
@@ -582,7 +597,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
       if (slide === currentSlide) {
         if (!slide.classList.contains('mobile-current-slide')) {
           slide.classList.add('mobile-current-slide');
-          console.log('[Touch Gestures] Added mobile-current-slide class to slide', idx);
+          logTouchGestures('[Touch Gestures] Added mobile-current-slide class to slide', idx);
         }
         // Override React's inline styles for current slide
         slide.style.setProperty('position', 'fixed', 'important');
@@ -698,7 +713,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
       });
 
       document.body.appendChild(mobileExitBtn);
-      console.log('[Touch Gestures] Created mobile exit button');
+      logTouchGestures('[Touch Gestures] Created mobile exit button');
     }
 
     // Ensure it's visible
@@ -802,7 +817,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
       mobileNav.appendChild(nextBtn);
 
       document.body.appendChild(mobileNav);
-      console.log('[Touch Gestures] Created mobile navigation bar');
+      logTouchGestures('[Touch Gestures] Created mobile navigation bar');
     }
 
     // Update slide indicator
@@ -837,22 +852,22 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
   // Watch for presentation mode changes
   const bodyObserver = new MutationObserver((mutations) => {
     const currentlyPresenting = document.body.classList.contains('is-presenting');
-    console.log('[Touch Gestures] MutationObserver fired:', { currentlyPresenting, lastPresentingState, isMobile: isMobile() });
+    logTouchGestures('[Touch Gestures] MutationObserver fired:', { currentlyPresenting, lastPresentingState, isMobile: isMobile() });
 
     // Only react to actual state changes
     if (currentlyPresenting === lastPresentingState) return;
     lastPresentingState = currentlyPresenting;
 
-    console.log('[Touch Gestures] State changed to:', currentlyPresenting ? 'PRESENTING' : 'NOT PRESENTING');
+    logTouchGestures('[Touch Gestures] State changed to:', currentlyPresenting ? 'PRESENTING' : 'NOT PRESENTING');
 
     if (currentlyPresenting) {
       // Entering presentation mode on mobile - hide speaker notes
       // Only run mobile-specific setup on actual mobile devices
       if (isMobile()) {
-        console.log('[Touch Gestures] Calling setupMobilePresentation...');
+        logTouchGestures('[Touch Gestures] Calling setupMobilePresentation...');
         setupMobilePresentation();
       } else {
-        console.log('[Touch Gestures] Skipping mobile setup - not a mobile device');
+        logTouchGestures('[Touch Gestures] Skipping mobile setup - not a mobile device');
       }
     } else {
       // Exiting presentation mode - only clean up if we're on mobile
@@ -868,21 +883,21 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
   });
 
   // Initialize when DOM is ready
-  console.log('[Touch Gestures] Document readyState:', document.readyState);
+  logTouchGestures('[Touch Gestures] Document readyState:', document.readyState);
 
   function initAndCheckState() {
-    console.log('[Touch Gestures] initAndCheckState running');
+    logTouchGestures('[Touch Gestures] initAndCheckState running');
     initTouchGestures();
     bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    console.log('[Touch Gestures] Body observer started');
+    logTouchGestures('[Touch Gestures] Body observer started');
 
     // CRITICAL: Check if already in presentation mode when script loads
     // (MutationObserver won't fire for existing state)
     const alreadyPresenting = document.body.classList.contains('is-presenting');
-    console.log('[Touch Gestures] Initial state check - already presenting?', alreadyPresenting, 'isMobile?', isMobile());
+    logTouchGestures('[Touch Gestures] Initial state check - already presenting?', alreadyPresenting, 'isMobile?', isMobile());
 
     if (alreadyPresenting && isMobile()) {
-      console.log('[Touch Gestures] Already in presentation mode on mobile - setting up immediately');
+      logTouchGestures('[Touch Gestures] Already in presentation mode on mobile - setting up immediately');
       lastPresentingState = true;
       setupMobilePresentation();
     }
@@ -890,11 +905,11 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('[Touch Gestures] DOMContentLoaded fired');
+      logTouchGestures('[Touch Gestures] DOMContentLoaded fired');
       initAndCheckState();
     });
   } else {
-    console.log('[Touch Gestures] DOM already ready, initializing immediately');
+    logTouchGestures('[Touch Gestures] DOM already ready, initializing immediately');
     initAndCheckState();
   }
 
@@ -911,11 +926,11 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
 
     const slides = document.querySelectorAll('.slide');
     if (slides.length === 0) {
-      console.log('[Touch Gestures] No slides found for preview mode');
+      logTouchGestures('[Touch Gestures] No slides found for preview mode');
       return;
     }
 
-    console.log('[Touch Gestures] Setting up mobile preview mode (simplified) - found', slides.length, 'slides');
+    logTouchGestures('[Touch Gestures] Setting up mobile preview mode (simplified) - found', slides.length, 'slides');
 
     // Hide the content toolbar to prevent it from overlaying the Present button
     hideContentToolbar();
@@ -924,14 +939,14 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     const presentBtn = document.querySelector('.presentation-present-btn');
     if (presentBtn) {
       presentBtn.style.setProperty('z-index', '15000', 'important');
-      console.log('[Touch Gestures] Boosted Present button z-index');
+      logTouchGestures('[Touch Gestures] Boosted Present button z-index');
     }
 
     // Make the top-right controls container more prominent
     const topRightControls = document.querySelector('.absolute.top-4.right-4');
     if (topRightControls) {
       topRightControls.style.setProperty('z-index', '15000', 'important');
-      console.log('[Touch Gestures] Boosted controls container z-index');
+      logTouchGestures('[Touch Gestures] Boosted controls container z-index');
     }
 
     // DON'T restructure the canvas - let CSS handle it or leave the Prezi view as-is
@@ -955,7 +970,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     const hasSlides = slides.length > 0;
 
     if (isMobile() && hasSlides && !previewModeSetup) {
-      console.log('[Touch Gestures] MutationObserver detected slides:', slides.length);
+      logTouchGestures('[Touch Gestures] MutationObserver detected slides:', slides.length);
       // Debounce to avoid running multiple times
       if (previewModeSetupTimeout) clearTimeout(previewModeSetupTimeout);
       previewModeSetupTimeout = setTimeout(() => {
@@ -988,7 +1003,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
         if (parent.classList.contains('cursor-grab') ||
             (parent.classList.contains('overflow-hidden') && parent.classList.contains('h-screen')) ||
             parent.style.background?.includes('gradient')) {
-          console.log('[Touch Gestures] Found presentation container by structure');
+          logTouchGestures('[Touch Gestures] Found presentation container by structure');
           return parent;
         }
         parent = parent.parentElement;
@@ -1014,7 +1029,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     const presenting = isPresenting();
     const mobile = isMobile();
 
-    console.log('[Touch Gestures] Poll check:', {
+    logTouchGestures('[Touch Gestures] Poll check:', {
       hasContainer: !!presentationContainer,
       slideCount: slides.length,
       previewModeSetup,
@@ -1024,7 +1039,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
 
     // If presenting on mobile, make sure we have mobile presentation setup
     if (presenting && mobile) {
-      console.log('[Touch Gestures] Mobile presentation mode detected');
+      logTouchGestures('[Touch Gestures] Mobile presentation mode detected');
       // Ensure mobile presentation is properly set up
       if (slides.length > 0) {
         setupMobilePresentation();
@@ -1035,7 +1050,7 @@ console.log('[Touch Gestures] Script loaded - starting initialization');
     if (previewModeSetup || presenting) return;
 
     if (mobile && slides.length > 0) {
-      console.log('[Touch Gestures] Poll detected slides - setting up preview mode');
+      logTouchGestures('[Touch Gestures] Poll detected slides - setting up preview mode');
       setupMobilePreviewMode();
       previewModeSetup = true;
     } else if (mobile) {
