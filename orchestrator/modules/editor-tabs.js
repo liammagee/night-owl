@@ -11,7 +11,7 @@
     // Signal to renderer.js that tabs will handle file restoration
     window._tabManagerWillRestore = true;
 
-    const MAX_TABS = 20;
+    const MAX_TABS = 30;
 
     // Language map: file extension → Monaco language ID
     const LANG_MAP = {
@@ -82,8 +82,35 @@
         async init() {
             if (this._initialized) return;
             this._initialized = true;
+            this._installMonacoCancelGuard();
             this._renderTabBar();
             await this._restoreTabs();
+        }
+
+        /**
+         * Monaco's restoreViewState/setModel internals occasionally reject pending
+         * measurement work with a "Canceled" error when models are swapped quickly
+         * (e.g. clicking another tab while view-state restoration is still in
+         * flight). The error is harmless — it just means "the operation you
+         * scheduled is no longer needed" — but it surfaces in DevTools as
+         * "Uncaught (in promise) Canceled: Canceled" noise that drowns out real
+         * errors. Filter just those rejections at the boundary.
+         *
+         * VS Code itself uses an equivalent guard for the same reason.
+         */
+        _installMonacoCancelGuard() {
+            if (window._monacoCancelGuardInstalled) return;
+            window._monacoCancelGuardInstalled = true;
+            window.addEventListener('unhandledrejection', (event) => {
+                const reason = event.reason;
+                if (!reason) return;
+                const looksLikeMonacoCancel =
+                    reason.name === 'Canceled' ||
+                    (typeof reason.message === 'string' && reason.message === 'Canceled');
+                if (looksLikeMonacoCancel) {
+                    event.preventDefault();
+                }
+            });
         }
 
         // --- Tab CRUD ---
@@ -103,7 +130,8 @@
                 lastSavedContent: content || '',
                 isDirty: false,
                 language: lang,
-                openedAt: Date.now()
+                openedAt: Date.now(),
+                lastActivatedAt: Date.now()
             };
 
             this.tabs.set(filePath, tab);
@@ -115,6 +143,34 @@
 
         hasTab(filePath) {
             return this.tabs.has(filePath);
+        }
+
+        /**
+         * Close the least-recently-activated non-dirty, non-active tab.
+         * Used as the overflow valve when a new file is opened at MAX_TABS.
+         * Returns true if a tab was evicted, false if no clean candidate exists
+         * (e.g. every non-active tab has unsaved changes).
+         *
+         * Dirty tabs are NEVER evicted — that would drop the user's work.
+         * The active tab is never evicted — the user is looking at it.
+         */
+        evictLRUCleanTab() {
+            let oldestPath = null;
+            let oldestTime = Infinity;
+            for (const [filePath, tab] of this.tabs) {
+                if (filePath === this.activeTabPath) continue;
+                if (tab.isDirty) continue;
+                const t = tab.lastActivatedAt || tab.openedAt || 0;
+                if (t < oldestTime) {
+                    oldestTime = t;
+                    oldestPath = filePath;
+                }
+            }
+            if (!oldestPath) return false;
+            // closeTab is async but resolves synchronously for clean non-active
+            // tabs (no confirm prompt, no active-tab reactivation). Fire-and-forget.
+            this.closeTab(oldestPath);
+            return true;
         }
 
         /**
@@ -134,7 +190,8 @@
                 lastSavedContent: '',
                 isDirty: false,
                 language: 'markdown',
-                openedAt: Date.now()
+                openedAt: Date.now(),
+                lastActivatedAt: Date.now()
             };
 
             this.tabs.set(syntheticPath, tab);
@@ -184,6 +241,11 @@
 
             const editor = window.editor;
             if (!editor) return;
+
+            // Record recency so LRU eviction picks truly stale tabs, not the one
+            // the user just looked at. Updated here — not in createTab — because
+            // activateTab is the only path the user actually "used" a tab.
+            tab.lastActivatedAt = Date.now();
 
             // Save outgoing tab state
             if (this.activeTabPath && this.tabs.has(this.activeTabPath)) {
@@ -429,6 +491,63 @@
 
         // --- Tab Bar Rendering ---
 
+        /**
+         * Compute disambiguation suffixes for tabs whose filenames collide.
+         *
+         * Returns Map<filePath, string> — only contains entries for tabs that
+         * actually need disambiguation. The string is the shortest unique
+         * trailing path *directory* segment(s), without the filename itself.
+         *
+         * Mirrors VS Code's editor-tab disambiguation. If two `lecture-7.md`
+         * files live at `/work/lectures/lecture-7.md` and
+         * `/work/notes/lecture-7.md`, both tabs get a `lectures` /
+         * `notes` suffix. If their parents also collide, the suffix grows.
+         *
+         * Untitled tabs are skipped — their synthetic paths can't collide
+         * with real files, and even if two `Untitled` tabs exist, the
+         * counter in their fileName already disambiguates them.
+         */
+        _computeDisambiguators() {
+            const result = new Map();
+            const byName = new Map();
+            for (const [filePath, tab] of this.tabs) {
+                if (isUntitledPath(filePath)) continue;
+                if (!byName.has(tab.fileName)) byName.set(tab.fileName, []);
+                byName.get(tab.fileName).push(filePath);
+            }
+
+            for (const [, paths] of byName) {
+                if (paths.length < 2) continue;
+
+                // Split each path into segments, strip empties from leading "/".
+                const segs = paths.map(p => p.split('/').filter(Boolean));
+
+                for (let i = 0; i < paths.length; i++) {
+                    const mySegs = segs[i];
+                    // Try increasing depth until this path's trailing suffix
+                    // is unique among the colliding set. depth=2 means
+                    // "parent dir + filename", which is the minimum useful suffix.
+                    for (let depth = 2; depth <= mySegs.length; depth++) {
+                        const mySuffix = mySegs.slice(-depth).join('/');
+                        let unique = true;
+                        for (let j = 0; j < paths.length; j++) {
+                            if (j === i) continue;
+                            const otherSuffix = segs[j].slice(-depth).join('/');
+                            if (otherSuffix === mySuffix) { unique = false; break; }
+                        }
+                        if (unique) {
+                            // Strip the filename from the suffix — we only
+                            // want the directory portion to render as the badge.
+                            const dirParts = mySegs.slice(-depth, -1);
+                            result.set(paths[i], dirParts.join('/'));
+                            break;
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
         _renderTabBar() {
             const bar = document.getElementById('editor-tabs-bar');
             if (!bar) return;
@@ -441,12 +560,17 @@
             bar.style.display = 'flex';
             bar.innerHTML = '';
 
+            const disambig = this._computeDisambiguators();
+
             for (const filePath of this.tabOrder) {
                 const tab = this.tabs.get(filePath);
                 if (!tab) continue;
 
                 const el = document.createElement('div');
-                el.className = 'editor-tab' + (filePath === this.activeTabPath ? ' active' : '');
+                const folderHint = disambig.get(filePath);
+                el.className = 'editor-tab'
+                    + (filePath === this.activeTabPath ? ' active' : '')
+                    + (folderHint ? ' has-folder-hint' : '');
                 el.dataset.filePath = filePath;
                 el.title = filePath;
 
@@ -454,6 +578,14 @@
                 nameSpan.className = 'editor-tab-name';
                 nameSpan.textContent = tab.fileName;
                 el.appendChild(nameSpan);
+
+                if (folderHint) {
+                    const folderSpan = document.createElement('span');
+                    folderSpan.className = 'editor-tab-folder';
+                    folderSpan.textContent = folderHint;
+                    folderSpan.title = filePath;
+                    el.appendChild(folderSpan);
+                }
 
                 if (tab.isDirty) {
                     const dot = document.createElement('span');

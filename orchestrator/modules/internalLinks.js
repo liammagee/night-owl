@@ -4,6 +4,50 @@
 // - hover: tooltip on hover
 // - inline: embedded content
 
+function escapeInternalLinkHTML(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderPreviewText(content) {
+    return escapeInternalLinkHTML(content).replace(/\n/g, '<br>');
+}
+
+function isAbsoluteOrExternalPath(filePath) {
+    return /^(?:[a-zA-Z]:[\\/]|\/|https?:)/.test(filePath);
+}
+
+function joinWorkingPath(basePath, filePath) {
+    const normalizedBase = String(basePath || '').replace(/[\\/]+$/, '');
+    const normalizedFile = String(filePath || '').replace(/^[\\/]+/, '');
+    if (!normalizedBase) return normalizedFile;
+    if (!normalizedFile) return normalizedBase;
+    return `${normalizedBase}/${normalizedFile}`;
+}
+
+function resolveInternalLinkPath(filePath) {
+    if (!filePath || isAbsoluteOrExternalPath(filePath)) {
+        return filePath;
+    }
+
+    const workingDir = window.appSettings?.workingDirectory;
+    return workingDir ? joinWorkingPath(workingDir, filePath) : filePath;
+}
+
+function notifyInternalLink(message, type = 'warning') {
+    if (typeof window.showNotification === 'function') {
+        window.showNotification(message, type);
+        return;
+    }
+
+    const logger = type === 'error' ? console.error : console.warn;
+    logger(`[internalLinks] ${message}`);
+}
+
 // --- Core Internal Links Processing ---
 async function processInternalLinks(content) {
     const previewMode = getLinkPreviewMode();
@@ -60,22 +104,14 @@ async function processInternalLinks(content) {
     return content.replace(internalLinkRegex, (match, link, displayText) => {
         const cleanLink = link.trim();
         const display = displayText ? displayText.trim() : cleanLink;
+        const safeDisplay = escapeInternalLinkHTML(display);
         
         let filePath = cleanLink;
         if (!filePath.endsWith('.md') && !filePath.endsWith('.bib') && !filePath.endsWith('.pdf') && !filePath.endsWith('.html') && !filePath.endsWith('.htm') && !filePath.includes('.')) {
             filePath += '.md';
         }
-        
-        // Ensure we have the full path for internal links
-        let fullFilePath = filePath;
-        if (!fullFilePath.startsWith('/') && !fullFilePath.startsWith('http')) {
-            const workingDir = window.appSettings?.workingDirectory;
-            if (workingDir) {
-                fullFilePath = `${workingDir}/${filePath}`;
-            }
-        }
 
-        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(fullFilePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${safeDisplay}">${safeDisplay}</a>`;
     });
 }
 
@@ -98,14 +134,14 @@ async function loadLinkContent(filePath) {
 }
 
 function createInlineLinkPreview(display, cleanLink, filePath, content) {
-    // Render markdown content as HTML if marked is available
-    const renderedContent = window.marked ? window.marked.parse(content) : content.replace(/\n/g, '<br>');
+    const safeDisplay = escapeInternalLinkHTML(display);
+    const renderedContent = renderPreviewText(content);
     
     return `
         <div class="inline-link-preview">
             <div class="inline-link-header">
-                <a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">
-                    📄 ${display}
+                <a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${safeDisplay}">
+                    📄 ${safeDisplay}
                 </a>
             </div>
             <div class="inline-link-content">
@@ -117,38 +153,21 @@ function createInlineLinkPreview(display, cleanLink, filePath, content) {
 
 // --- Link Click Handler ---
 function handleInternalLinkClick(event) {
-    console.log('[handleInternalLinkClick] Function called, event target:', event.target);
-    console.log('[handleInternalLinkClick] Target classes:', event.target?.classList);
-    console.log('[handleInternalLinkClick] Has internal-link class:', event.target?.classList?.contains('internal-link'));
-
     if (event.target && event.target.classList && event.target.classList.contains('internal-link')) {
-        console.log('[Preview Internal Link] Click detected on internal link');
         event.preventDefault();
 
         const filePath = decodeURIComponent(event.target.getAttribute('data-link'));
         const originalLink = decodeURIComponent(event.target.getAttribute('data-original-link'));
 
-        console.log('[Preview Internal Link] Raw filePath:', filePath);
-        console.log('[Preview Internal Link] Original link:', originalLink);
-
         // Open the linked file on any click (regular or with modifier keys)
         openInternalLink(filePath, originalLink);
-    } else {
-        console.log('[handleInternalLinkClick] Target is not an internal link, ignoring');
     }
 }
 
 // --- Open Internal Link ---
 async function openInternalLink(filePath, originalLink) {
-    console.log('[openInternalLink] CALLED with filePath:', filePath, 'originalLink:', originalLink);
-
     try {
-        // Check if filePath is already absolute, if not, make it relative to working directory
-        const workingDir = window.appSettings?.workingDirectory;
-        const fullPath = filePath.startsWith('/') ? filePath : (workingDir ? `${workingDir}/${filePath}` : filePath);
-
-        console.log('[openInternalLink] Working dir:', workingDir);
-        console.log('[openInternalLink] Full path:', fullPath);
+        const fullPath = resolveInternalLinkPath(filePath);
 
         // Check if this is a binary file type that shouldn't be loaded in the editor
         const binaryExtensions = [
@@ -165,11 +184,10 @@ async function openInternalLink(filePath, originalLink) {
 
         if (isBinaryFile) {
             // For binary files, open them with the system default application
-            console.log(`[openInternalLink] Binary file detected: ${filePath}, opening with system default`);
             if (window.electronAPI && window.electronAPI.invoke) {
                 await window.electronAPI.invoke('open-external', fullPath);
             } else {
-                alert(`Cannot open binary file ${filePath} in the editor.\n\nPlease open it with an external application.`);
+                notifyInternalLink(`Cannot open ${filePath} inside the editor. Open it externally instead.`, 'warning');
             }
             return;
         }
@@ -193,11 +211,11 @@ async function openInternalLink(filePath, originalLink) {
         } else {
             // File not found - just show an error, don't auto-create
             console.warn(`[openInternalLink] File not found: ${fullPath}`);
-            alert(`File not found: ${filePath}`);
+            notifyInternalLink(`File not found: ${filePath}`, 'warning');
         }
     } catch (error) {
         console.error('[openInternalLink] Error opening link:', error);
-        alert(`Error opening file: ${error.message || error}`);
+        notifyInternalLink(`Error opening file: ${error.message || error}`, 'error');
     }
 }
 
@@ -236,9 +254,8 @@ function handleLinkMouseMove(event) {
 
 async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
     try {
-        const workingDir = window.appSettings?.workingDirectory;
-        if (!workingDir) return;
-        const fullPath = `${workingDir}/${filePath}`;
+        const fullPath = resolveInternalLinkPath(filePath);
+        if (!fullPath) return;
         
         // CRITICAL FIX: Use read-file-content for hover previews to avoid changing currentFilePath
         const result = await window.electronAPI.invoke('read-file-content', fullPath);
@@ -341,14 +358,12 @@ function extractPreviewContent(content) {
 function createLinkPreviewTooltip(originalLink, filePath, content, x, y) {
     const tooltip = document.createElement('div');
     tooltip.className = 'link-preview-tooltip';
-    
-    // Render markdown content as HTML if marked is available
-    const renderedContent = window.marked ? window.marked.parse(content) : content.replace(/\n/g, '<br>');
+    const renderedContent = renderPreviewText(content);
     
     tooltip.innerHTML = `
         <div class="link-preview-header">
-            <strong>${originalLink}</strong>
-            <div class="link-preview-path">${filePath}</div>
+            <strong>${escapeInternalLinkHTML(originalLink)}</strong>
+            <div class="link-preview-path">${escapeInternalLinkHTML(filePath)}</div>
         </div>
         <div class="link-preview-content">${renderedContent}</div>
     `;
@@ -450,7 +465,7 @@ async function toggleLinkPreview() {
 async function autoCreateInternalLinkFile(fullPath, originalLink, filePath) {
     // DISABLED: This function was causing file overwrites
     console.error(`[autoCreateInternalLinkFile] AUTO-CREATION DISABLED - File not found: ${fullPath}`);
-    alert(`File not found: ${filePath}\n\nAuto-creation has been disabled to prevent file overwrites.`);
+    notifyInternalLink(`File not found: ${filePath}. Auto-creation is disabled to prevent overwrites.`, 'warning');
     return;
 }
 
@@ -478,22 +493,14 @@ async function processInternalLinksHTML(htmlContent) {
         return htmlContent.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, link, displayText) => {
             const cleanLink = link.trim();
             const display = displayText ? displayText.trim() : cleanLink;
+            const safeDisplay = escapeInternalLinkHTML(display);
             
             let filePath = cleanLink;
             if (!filePath.endsWith('.md') && !filePath.endsWith('.bib') && !filePath.endsWith('.pdf') && !filePath.endsWith('.html') && !filePath.endsWith('.htm') && !filePath.includes('.')) {
                 filePath += '.md';
             }
-            
-            // Ensure we have the full path for internal links
-        let fullFilePath = filePath;
-        if (!fullFilePath.startsWith('/') && !fullFilePath.startsWith('http')) {
-            const workingDir = window.appSettings?.workingDirectory;
-            if (workingDir) {
-                fullFilePath = `${workingDir}/${filePath}`;
-            }
-        }
 
-        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(fullFilePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
+        return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${safeDisplay}">${safeDisplay}</a>`;
         });
     }
     

@@ -125,6 +125,26 @@ describe('Techne plugin system', () => {
     expect(document.head.querySelectorAll('script[src="/foo.js"]').length).toBe(1);
   });
 
+  test('loadScript can retry after a failed load', async () => {
+    require(pluginSystemPath);
+
+    const firstAttempt = window.TechnePlugins.loadScript('retry.js');
+    const firstScript = document.head.querySelector('script[src="/retry.js"]');
+    expect(firstScript).toBeTruthy();
+    firstScript.onerror();
+
+    await expect(firstAttempt).resolves.toBe(false);
+    expect(document.head.querySelector('script[src="/retry.js"]')).toBeNull();
+
+    const secondAttempt = window.TechnePlugins.loadScript('retry.js');
+    const secondScript = document.head.querySelector('script[src="/retry.js"]');
+    expect(secondScript).toBeTruthy();
+    expect(secondScript).not.toBe(firstScript);
+    secondScript.onload();
+
+    await expect(secondAttempt).resolves.toBe(true);
+  });
+
   test('loadCSS resolves when onload is triggered', async () => {
     require(pluginSystemPath);
 
@@ -139,6 +159,26 @@ describe('Techne plugin system', () => {
     const again = await window.TechnePlugins.loadCSS('foo.css');
     expect(again).toBe(true);
     expect(document.head.querySelectorAll('link[href="/foo.css"]').length).toBe(1);
+  });
+
+  test('loadCSS can retry after a failed load', async () => {
+    require(pluginSystemPath);
+
+    const firstAttempt = window.TechnePlugins.loadCSS('retry.css');
+    const firstLink = document.head.querySelector('link[href="/retry.css"]');
+    expect(firstLink).toBeTruthy();
+    firstLink.onerror();
+
+    await expect(firstAttempt).resolves.toBe(false);
+    expect(document.head.querySelector('link[href="/retry.css"]')).toBeNull();
+
+    const secondAttempt = window.TechnePlugins.loadCSS('retry.css');
+    const secondLink = document.head.querySelector('link[href="/retry.css"]');
+    expect(secondLink).toBeTruthy();
+    expect(secondLink).not.toBe(firstLink);
+    secondLink.onload();
+
+    await expect(secondAttempt).resolves.toBe(true);
   });
 });
 
@@ -778,6 +818,30 @@ describe('Techne plugin system - Manifest Management', () => {
     expect(enabled).toContain('enabled-a');
     expect(enabled).toContain('enabled-c');
     expect(enabled).not.toContain('enabled-b');
+  });
+
+  test('start replaces enabled plugin arrays instead of accumulating them', async () => {
+    require(pluginSystemPath);
+
+    window.TechnePlugins.register({ id: 'enabled-a', init: jest.fn() });
+    window.TechnePlugins.register({ id: 'enabled-b', init: jest.fn() });
+
+    await window.TechnePlugins.start({
+      appId: 'test',
+      enabled: ['enabled-a'],
+      manifest: [
+        { id: 'enabled-a', entry: 'a.js' },
+        { id: 'enabled-b', entry: 'b.js' }
+      ]
+    });
+
+    await window.TechnePlugins.start({
+      enabled: ['enabled-b']
+    });
+
+    const enabled = window.TechnePlugins.getEnabled();
+    expect(enabled).toContain('enabled-b');
+    expect(enabled).not.toContain('enabled-a');
   });
 
   test('isEnabled checks plugin status correctly', async () => {

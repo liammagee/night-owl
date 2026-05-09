@@ -133,12 +133,20 @@
     function _init(host) {
         _host = host;
 
-        // Determine starting theme: saved > followSystem > 'light'
+        // Determine starting theme: saved > app preference > followSystem > Solarized Light
         let startTheme = readSaved();
+        if (!startTheme) {
+            const appTheme = typeof window.appSettings?.theme === 'string'
+                ? window.appSettings.theme
+                : null;
+            if (appTheme && THEMES[appTheme]) {
+                startTheme = appTheme;
+            }
+        }
         if (!startTheme && followSystemEnabled()) {
             startTheme = detectSystemPreference();
         }
-        applyTheme(startTheme || 'light');
+        applyTheme(startTheme || 'solarized-light');
 
         startSystemWatch();
     }

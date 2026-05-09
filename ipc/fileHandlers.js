@@ -5,6 +5,13 @@ const { ipcMain, dialog, BrowserWindow } = require('electron');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
+const {
+  normalizeWorkspacePath,
+  pathsEqual,
+  findWorkspaceOverlap,
+  describeWorkspaceOverlap,
+  sanitizeWorkspaceFolders
+} = require('./workspacePaths');
 
 const SAVE_BACKUP_DIR_NAME = '.nightowl-backups';
 const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
@@ -86,21 +93,227 @@ function register(deps) {
     appSettings,
     saveSettings,
     mainWindow,
+    getMainWindow,
     getCurrentFilePath,
     setCurrentFilePath,
+    getCurrentWorkingDirectory,
+    setCurrentWorkingDirectory,
     currentWorkingDirectory,
     userDataPath
   } = deps;
   const fileStateMap = new Map();
+  let currentFileWatcher = null;
+  let currentFileWatchPath = null;
+  let currentFileWatchTimer = null;
+  let lastNotifiedFileStateKey = null;
 
   function rememberFileState(filePath, stat) {
     if (!filePath || !stat) return;
     fileStateMap.set(filePath, { mtimeMs: stat.mtimeMs, size: stat.size });
   }
 
-  // Helper function to get working directory
+  function getFileStateKey(stat) {
+    if (!stat) return null;
+    return `${stat.mtimeMs}:${stat.size}`;
+  }
+
+  function stopWatchingCurrentFile() {
+    if (currentFileWatchTimer) {
+      clearTimeout(currentFileWatchTimer);
+      currentFileWatchTimer = null;
+    }
+    if (currentFileWatcher) {
+      try {
+        currentFileWatcher.close();
+      } catch (error) {
+        console.warn('[FileHandlers] Error closing current file watcher:', error.message);
+      }
+    }
+    currentFileWatcher = null;
+    currentFileWatchPath = null;
+    lastNotifiedFileStateKey = null;
+  }
+
+  function sendCurrentFileDiskEvent(channel, payload) {
+    const targetWindow = resolveMainWindow();
+    if (targetWindow && targetWindow.webContents && typeof targetWindow.webContents.send === 'function') {
+      targetWindow.webContents.send(channel, payload);
+    }
+  }
+
+  function shouldNotifyCurrentFileChange(filePath, stat) {
+    const stateKey = getFileStateKey(stat);
+    const knownStateKey = getFileStateKey(fileStateMap.get(filePath));
+
+    if (!stateKey || stateKey === knownStateKey || stateKey === lastNotifiedFileStateKey) {
+      return false;
+    }
+
+    lastNotifiedFileStateKey = stateKey;
+    return true;
+  }
+
+  function handleWatchedCurrentFileEvent(eventType) {
+    const filePath = currentFileWatchPath;
+    if (!filePath) return;
+
+    if (currentFileWatchTimer) {
+      clearTimeout(currentFileWatchTimer);
+    }
+
+    currentFileWatchTimer = setTimeout(() => {
+      currentFileWatchTimer = null;
+
+      let stat = null;
+      try {
+        stat = fsSync.statSync(filePath);
+      } catch (error) {
+        if (error && error.code === 'ENOENT') {
+          if (lastNotifiedFileStateKey !== 'missing') {
+            lastNotifiedFileStateKey = 'missing';
+            sendCurrentFileDiskEvent('current-file-deleted-on-disk', {
+              filePath,
+              eventType,
+              deleted: true
+            });
+          }
+          return;
+        }
+        console.warn(`[FileHandlers] Failed to stat watched file ${filePath}:`, error.message);
+        return;
+      }
+
+      if (!shouldNotifyCurrentFileChange(filePath, stat)) {
+        return;
+      }
+
+      sendCurrentFileDiskEvent('current-file-changed-on-disk', {
+        filePath,
+        eventType,
+        mtimeMs: stat.mtimeMs,
+        size: stat.size
+      });
+    }, 150);
+  }
+
+  function watchCurrentFile(filePath) {
+    stopWatchingCurrentFile();
+
+    if (!filePath || typeof filePath !== 'string' || !path.isAbsolute(filePath)) {
+      return;
+    }
+
+    let stat = null;
+    try {
+      stat = fsSync.statSync(filePath);
+      if (!stat.isFile()) return;
+    } catch (error) {
+      return;
+    }
+
+    rememberFileState(filePath, stat);
+    currentFileWatchPath = filePath;
+
+    const directory = path.dirname(filePath);
+    const fileName = path.basename(filePath);
+
+    try {
+      currentFileWatcher = fsSync.watch(directory, { persistent: false }, (eventType, changedName) => {
+        if (changedName && changedName.toString() !== fileName) {
+          return;
+        }
+        handleWatchedCurrentFileEvent(eventType);
+      });
+      currentFileWatcher.on('error', (error) => {
+        console.warn(`[FileHandlers] Current file watcher failed for ${filePath}:`, error.message);
+        stopWatchingCurrentFile();
+      });
+    } catch (error) {
+      console.warn(`[FileHandlers] Could not watch current file ${filePath}:`, error.message);
+      stopWatchingCurrentFile();
+    }
+  }
+
+  function resolveMainWindow() {
+    const allWindows = typeof BrowserWindow.getAllWindows === 'function'
+      ? BrowserWindow.getAllWindows()
+      : [];
+    return (
+      (typeof getMainWindow === 'function' ? getMainWindow() : null) ||
+      mainWindow ||
+      (typeof BrowserWindow.getFocusedWindow === 'function' ? BrowserWindow.getFocusedWindow() : null) ||
+      allWindows[0]
+    );
+  }
+
+  function readCurrentWorkingDirectory() {
+    return typeof getCurrentWorkingDirectory === 'function'
+      ? getCurrentWorkingDirectory()
+      : currentWorkingDirectory;
+  }
+
+  function updateCurrentWorkingDirectory(nextDirectory) {
+    if (typeof setCurrentWorkingDirectory === 'function') {
+      setCurrentWorkingDirectory(nextDirectory);
+    }
+  }
+
+  function syncWorkspaceFolders(primaryFolder = getWorkingDirectory(), options = {}) {
+    if (!Array.isArray(appSettings.workspaceFolders)) {
+      appSettings.workspaceFolders = [];
+    }
+
+    const result = sanitizeWorkspaceFolders(primaryFolder, appSettings.workspaceFolders);
+    if (result.changed) {
+      appSettings.workspaceFolders = result.workspaceFolders;
+      if (options.save !== false) {
+        saveSettings();
+      }
+      console.warn(
+        `[FileHandlers] Removed ${result.removed.length} duplicate/overlapping workspace folder(s)`
+      );
+    }
+
+    return appSettings.workspaceFolders;
+  }
+
+  function buildWorkspaceRoots(primaryFolder = getWorkingDirectory()) {
+    const roots = [];
+    const normalizedPrimary = normalizeWorkspacePath(primaryFolder);
+    if (normalizedPrimary) {
+      roots.push({
+        path: normalizedPrimary,
+        label: 'the primary working directory',
+        kind: 'primary'
+      });
+    }
+
+    const workspaceFolders = syncWorkspaceFolders(normalizedPrimary || primaryFolder);
+    for (const folderPath of workspaceFolders) {
+      roots.push({
+        path: folderPath,
+        label: folderPath,
+        kind: 'workspace'
+      });
+    }
+
+    return roots;
+  }
+
+  // Helper function to get working directory.
+  // Prefer the saved workingDirectory only if it currently exists on disk —
+  // otherwise fall through to the runtime fallback computed at app.whenReady
+  // (currentWorkingDirectory). This is what stops the file tree from trying
+  // to walk a stale/missing path while still preserving the user's saved choice
+  // in appSettings (so it works again if the dir reappears).
   function getWorkingDirectory() {
-    return appSettings.workingDirectory || currentWorkingDirectory;
+    const saved = appSettings.workingDirectory;
+    if (saved) {
+      try {
+        if (require('fs').existsSync(saved)) return saved;
+      } catch { /* fall through */ }
+    }
+    return readCurrentWorkingDirectory();
   }
 
   // Helper function to update internal links after a file rename
@@ -286,7 +499,7 @@ function register(deps) {
   ipcMain.handle('request-file-tree', async (event) => {
     try {
       const workingDir = getWorkingDirectory();
-      const workspaceFolders = appSettings.workspaceFolders || [];
+      const workspaceFolders = syncWorkspaceFolders(workingDir);
 
       console.log(`[FileHandlers] Building file tree for: ${workingDir}`);
       console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
@@ -363,7 +576,7 @@ function register(deps) {
   ipcMain.handle('get-available-files', async (event) => {
     try {
       const workingDir = getWorkingDirectory();
-      const workspaceFolders = appSettings.workspaceFolders || [];
+      const workspaceFolders = syncWorkspaceFolders(workingDir);
 
       console.log(`[FileHandlers] Getting available files from: ${workingDir}`);
       console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
@@ -406,7 +619,7 @@ function register(deps) {
   });
 
   ipcMain.handle('get-working-directory', () => {
-    return currentWorkingDirectory || appSettings.workingDirectory;
+    return getWorkingDirectory();
   });
 
   ipcMain.handle('list-directory-files', async (event, relativePath) => {
@@ -447,8 +660,7 @@ function register(deps) {
   });
 
   ipcMain.handle('change-working-directory', async () => {
-    const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
 
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for directory dialog');
@@ -463,18 +675,19 @@ function register(deps) {
       });
 
       if (!result.canceled && result.filePaths.length > 0) {
-        appSettings.workingDirectory = result.filePaths[0];
-        currentWorkingDirectory = appSettings.workingDirectory;
+        appSettings.workingDirectory = normalizeWorkspacePath(result.filePaths[0]) || result.filePaths[0];
+        updateCurrentWorkingDirectory(appSettings.workingDirectory);
+        syncWorkspaceFolders(appSettings.workingDirectory, { save: false });
         saveSettings();
 
         console.log(`[FileHandlers] Working directory changed to: ${appSettings.workingDirectory}`);
 
         // Notify renderer about the settings change
-        const { BrowserWindow } = require('electron');
-        const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+        const win = resolveMainWindow();
         if (win) {
           win.webContents.send('settings-changed', {
-            workingDirectory: appSettings.workingDirectory
+            workingDirectory: appSettings.workingDirectory,
+            workspaceFolders: appSettings.workspaceFolders
           });
         }
 
@@ -493,8 +706,7 @@ function register(deps) {
 
   // Add a folder to workspace (multi-folder support)
   ipcMain.handle('add-workspace-folder', async () => {
-    const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
 
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for directory dialog');
@@ -509,19 +721,15 @@ function register(deps) {
       });
 
       if (!result.canceled && result.filePaths.length > 0) {
-        const folderPath = result.filePaths[0];
-
-        // Check if folder is already in workspace
-        if (folderPath === appSettings.workingDirectory) {
-          return { success: false, error: 'This folder is already your primary working directory' };
-        }
+        const folderPath = normalizeWorkspacePath(result.filePaths[0]) || result.filePaths[0];
 
         if (!Array.isArray(appSettings.workspaceFolders)) {
           appSettings.workspaceFolders = [];
         }
 
-        if (appSettings.workspaceFolders.includes(folderPath)) {
-          return { success: false, error: 'This folder is already in your workspace' };
+        const overlap = findWorkspaceOverlap(folderPath, buildWorkspaceRoots());
+        if (overlap) {
+          return { success: false, error: describeWorkspaceOverlap(overlap) };
         }
 
         // Add to workspace folders
@@ -532,7 +740,7 @@ function register(deps) {
         console.log(`[FileHandlers] Total workspace folders: ${appSettings.workspaceFolders.length}`);
 
         // Notify renderer about the settings change
-        const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+        const win = resolveMainWindow();
         if (win) {
           win.webContents.send('settings-changed', {
             workspaceFolders: appSettings.workspaceFolders
@@ -561,7 +769,11 @@ function register(deps) {
         return { success: false, error: 'No workspace folders configured' };
       }
 
-      const index = appSettings.workspaceFolders.indexOf(folderPath);
+      const normalizedFolderPath = normalizeWorkspacePath(folderPath) || folderPath;
+      syncWorkspaceFolders();
+      const index = appSettings.workspaceFolders.findIndex((candidate) =>
+        pathsEqual(candidate, normalizedFolderPath)
+      );
       if (index === -1) {
         return { success: false, error: 'Folder not found in workspace' };
       }
@@ -574,8 +786,7 @@ function register(deps) {
       console.log(`[FileHandlers] Remaining workspace folders: ${appSettings.workspaceFolders.length}`);
 
       // Notify renderer about the settings change
-      const { BrowserWindow } = require('electron');
-      const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      const win = resolveMainWindow();
       if (win) {
         win.webContents.send('settings-changed', {
           workspaceFolders: appSettings.workspaceFolders
@@ -600,16 +811,18 @@ function register(deps) {
       if (!Array.isArray(newOrder)) {
         return { success: false, error: 'Invalid folder order' };
       }
-      appSettings.workspaceFolders = newOrder;
+      appSettings.workspaceFolders = newOrder
+        .map((folderPath) => normalizeWorkspacePath(folderPath))
+        .filter(Boolean);
+      syncWorkspaceFolders(getWorkingDirectory(), { save: false });
       saveSettings();
-      console.log(`[FileHandlers] Reordered workspace folders: ${newOrder.length} folders`);
+      console.log(`[FileHandlers] Reordered workspace folders: ${appSettings.workspaceFolders.length} folders`);
 
-      const { BrowserWindow } = require('electron');
-      const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      const win = resolveMainWindow();
       if (win) {
-        win.webContents.send('settings-changed', { workspaceFolders: newOrder });
+        win.webContents.send('settings-changed', { workspaceFolders: appSettings.workspaceFolders });
       }
-      return { success: true, workspaceFolders: newOrder };
+      return { success: true, workspaceFolders: appSettings.workspaceFolders };
     } catch (error) {
       console.error('[FileHandlers] Error reordering workspace folders:', error);
       return { success: false, error: error.message };
@@ -618,9 +831,11 @@ function register(deps) {
 
   // Get workspace folders
   ipcMain.handle('get-workspace-folders', () => {
+    const primaryFolder = getWorkingDirectory();
+    const workspaceFolders = syncWorkspaceFolders(primaryFolder);
     return {
-      primaryFolder: appSettings.workingDirectory,
-      workspaceFolders: appSettings.workspaceFolders || []
+      primaryFolder,
+      workspaceFolders
     };
   });
 
@@ -767,6 +982,7 @@ function register(deps) {
       
       // Update current file path
       setCurrentFilePath(filePath);
+      watchCurrentFile(filePath);
       
       return {
         success: true,
@@ -799,6 +1015,7 @@ function register(deps) {
       
       // Update current file path  
       setCurrentFilePath(filePath);
+      watchCurrentFile(filePath);
       
       return {
         success: true,
@@ -849,7 +1066,7 @@ function register(deps) {
   // Open a file dialog and return the selected file path
   ipcMain.handle('dialog-open-file', async (event, options = {}) => {
     const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
 
     if (!currentMainWindow) {
       return { success: false, error: 'No main window available' };
@@ -1100,7 +1317,7 @@ function register(deps) {
 
   ipcMain.handle('perform-save-as', async (event, options) => {
     const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
     
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for save dialog');
@@ -1180,6 +1397,9 @@ function register(deps) {
       if (filePath && fsSync.existsSync(filePath)) {
         const stat = fsSync.statSync(filePath);
         rememberFileState(filePath, stat);
+        watchCurrentFile(filePath);
+      } else {
+        stopWatchingCurrentFile();
       }
       return { success: true, filePath };
     } catch (error) {
@@ -1434,7 +1654,7 @@ function register(deps) {
   // Confirmation Dialog
   ipcMain.handle('show-delete-confirm', async (event, { fileName, filePath }) => {
     const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
     
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for delete dialog');
@@ -1466,11 +1686,28 @@ function register(deps) {
   console.log('[FileHandlers] Registered 23 file system handlers');
 
   // Helper functions
+  // Directories that should never appear in the file tree.  Matches the skip
+  // list used by getAvailableFiles plus common heavy/generated directories.
+  const IGNORED_DIR_NAMES = new Set([
+    'node_modules',
+    'dist',
+    'build',
+    'coverage',
+    'playwright-report',
+    'test-results',
+    'test-reports',
+    'out',
+    '.next',
+    '.cache',
+    '__pycache__',
+    '.nightowl-backups'
+  ]);
+
   async function buildFileTree(dirPath) {
     try {
       const stats = await fs.stat(dirPath);
       const name = path.basename(dirPath);
-      
+
       if (stats.isFile()) {
         return {
           name: name,
@@ -1478,15 +1715,17 @@ function register(deps) {
           path: dirPath
         };
       }
-      
+
       if (stats.isDirectory()) {
         const children = [];
         const entries = await fs.readdir(dirPath);
-        
+
         for (const entry of entries) {
           // Skip hidden files and directories
           if (entry.startsWith('.')) continue;
-          
+          // Skip heavy/generated directories (node_modules, dist, build, etc.)
+          if (IGNORED_DIR_NAMES.has(entry)) continue;
+
           const entryPath = path.join(dirPath, entry);
           try {
             const childTree = await buildFileTree(entryPath);
@@ -1602,14 +1841,14 @@ function register(deps) {
   // Image File Browser Handler
   ipcMain.handle('browse-for-image', async (event) => {
     console.log('[FileHandlers] Browse for image dialog requested');
-    console.log('[FileHandlers] mainWindow available:', !!mainWindow);
+    console.log('[FileHandlers] main window available:', !!resolveMainWindow());
     
     // Get current main window - try multiple approaches
     const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
     
     if (!currentMainWindow) {
-      console.error('[FileHandlers] No main window available - mainWindow:', !!mainWindow, 'focused:', !!BrowserWindow.getFocusedWindow(), 'total windows:', BrowserWindow.getAllWindows().length);
+      console.error('[FileHandlers] No main window available - focused:', !!BrowserWindow.getFocusedWindow(), 'total windows:', BrowserWindow.getAllWindows().length);
       return { success: false, error: 'No main window available' };
     }
     
@@ -1956,7 +2195,7 @@ function register(deps) {
 
   // Browse for destination folder
   ipcMain.handle('browse-destination-folder', async (event, { title, defaultPath }) => {
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
 
     if (!currentMainWindow) {
       return { success: false, error: 'No window available for dialog' };
@@ -2047,8 +2286,9 @@ function register(deps) {
   ipcMain.handle('refresh-file-tree', async (event) => {
     try {
       
-      if (mainWindow) {
-        mainWindow.webContents.send('refresh-file-tree');
+      const win = resolveMainWindow();
+      if (win) {
+        win.webContents.send('refresh-file-tree');
         return { success: true };
       } else {
         console.error('[FileHandlers] No main window available for file tree refresh');
@@ -2175,7 +2415,7 @@ function register(deps) {
   // Open dialog to select PDF for conversion
   ipcMain.handle('import-pdf-as-markdown', async (event) => {
     const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
 
     if (!currentMainWindow) {
       return { success: false, error: 'No main window available' };
@@ -2395,7 +2635,7 @@ function register(deps) {
   // Open dialog to select Word document for conversion
   ipcMain.handle('import-word-as-markdown', async (event) => {
     const { BrowserWindow } = require('electron');
-    const currentMainWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const currentMainWindow = resolveMainWindow();
 
     if (!currentMainWindow) {
       return { success: false, error: 'No main window available' };

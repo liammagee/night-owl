@@ -203,14 +203,14 @@
         if (authors.length === 0) return 'Unknown';
 
         if (style === 'apa') {
-            if (authors.length === 1) {
-                return `${authors[0].last}, ${authors[0].first ? authors[0].first.charAt(0) + '.' : ''}`;
-            } else if (authors.length === 2) {
-                return `${authors[0].last}, ${authors[0].first ? authors[0].first.charAt(0) + '.' : ''}, & ${authors[1].last}, ${authors[1].first ? authors[1].first.charAt(0) + '.' : ''}`;
-            } else {
-                const firstAuthor = `${authors[0].last}, ${authors[0].first ? authors[0].first.charAt(0) + '.' : ''}`;
-                return `${firstAuthor}, et al.`;
-            }
+            return authors
+                .map((author) => formatApaBibliographyAuthor(author))
+                .filter(Boolean)
+                .reduce((output, author, index, list) => {
+                    if (index === 0) return author;
+                    if (index === list.length - 1) return `${output}, & ${author}`;
+                    return `${output}, ${author}`;
+                }, '');
         }
 
         // Chicago style
@@ -238,8 +238,11 @@
     function parseAuthors(authorStr) {
         if (!authorStr) return [];
 
+        const normalized = normalizeAuthorString(authorStr);
+        if (!normalized) return [];
+
         // Split on "and" or "&" to get major segments
-        const segments = authorStr.split(/\s+and\s+|\s*&\s*/i)
+        const segments = normalized.split(/\s+and\s+|\s*&\s*/i)
             .map(s => s.trim())
             .filter(Boolean);
 
@@ -279,6 +282,26 @@
         }
 
         return authors;
+    }
+
+    function normalizeAuthorString(authorStr) {
+        return String(authorStr || '')
+            .replace(/(?:,?\s*)et\s+al\.?$/i, '')
+            .replace(/\s*(?:,|&|and)\s*$/i, '')
+            .trim();
+    }
+
+    function formatApaBibliographyAuthor(author) {
+        if (!author?.last) return '';
+
+        const initials = String(author.first || '')
+            .split(/[\s-]+/)
+            .map(part => part.trim())
+            .filter(Boolean)
+            .map(part => `${part.charAt(0)}.`)
+            .join(' ');
+
+        return initials ? `${author.last}, ${initials}` : author.last;
     }
 
     /**

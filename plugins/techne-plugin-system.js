@@ -18,6 +18,8 @@
         pending: new Map(),
         cssLoaded: new Set(),
         scriptLoaded: new Set(),
+        cssPending: new Map(),
+        scriptPending: new Map(),
         events: new Map(),
         // Plugin-specific settings storage
         pluginSettings: new Map(),
@@ -90,17 +92,29 @@
         const url = normalizePath(href);
         if (!url) return Promise.resolve(false);
         if (state.cssLoaded.has(url)) return Promise.resolve(true);
-        state.cssLoaded.add(url);
+        const pending = state.cssPending.get(url);
+        if (pending) return pending;
 
-        return new Promise((resolve) => {
+        const promise = new Promise((resolve) => {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
             link.href = url;
             if (id) link.id = String(id);
-            link.onload = () => resolve(true);
-            link.onerror = () => resolve(false);
+            link.onload = () => {
+                state.cssPending.delete(url);
+                state.cssLoaded.add(url);
+                resolve(true);
+            };
+            link.onerror = () => {
+                state.cssPending.delete(url);
+                link.remove();
+                resolve(false);
+            };
             document.head.appendChild(link);
         });
+
+        state.cssPending.set(url, promise);
+        return promise;
     };
 
     const loadScript = (src, { id, async = false, type = 'text/javascript', forceReload = false } = {}) => {
@@ -109,19 +123,40 @@
 
         // Skip cache check if forcing reload (for hot reload)
         if (!forceReload && state.scriptLoaded.has(url)) return Promise.resolve(true);
-        state.scriptLoaded.add(url);
+        if (!forceReload) {
+            const pending = state.scriptPending.get(url);
+            if (pending) return pending;
+        }
 
-        return new Promise((resolve) => {
+        const promise = new Promise((resolve) => {
             const script = document.createElement('script');
             // Add cache-busting for hot reload
             script.src = forceReload ? `${url}?t=${Date.now()}` : url;
             script.type = type;
             script.async = Boolean(async);
             if (id) script.id = String(id);
-            script.onload = () => resolve(true);
-            script.onerror = () => resolve(false);
+            script.onload = () => {
+                if (!forceReload) {
+                    state.scriptPending.delete(url);
+                }
+                state.scriptLoaded.add(url);
+                resolve(true);
+            };
+            script.onerror = () => {
+                if (!forceReload) {
+                    state.scriptPending.delete(url);
+                }
+                script.remove();
+                resolve(false);
+            };
             document.head.appendChild(script);
         });
+
+        if (!forceReload) {
+            state.scriptPending.set(url, promise);
+        }
+
+        return promise;
     };
 
     const loadScriptsSequential = async (urls) => {
@@ -515,10 +550,11 @@
     const updateEnabled = (enabled) => {
         // Handle array format: ['plugin-a', 'plugin-b']
         if (Array.isArray(enabled)) {
-            for (const id of enabled) {
-                const norm = normalizeId(id);
-                if (norm) state.enabled.add(norm);
-            }
+            state.enabled = new Set(
+                enabled
+                    .map((id) => normalizeId(id))
+                    .filter(Boolean)
+            );
             return;
         }
 

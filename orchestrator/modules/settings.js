@@ -379,7 +379,9 @@ function generateAppearanceSettings() {
                     <select id="theme-select">
                         <option value="auto" ${currentSettings.theme === 'auto' ? 'selected' : ''}>Auto (Follow System)</option>
                         <option value="light" ${currentSettings.theme === 'light' ? 'selected' : ''}>Light</option>
+                        <option value="solarized-light" ${currentSettings.theme === 'solarized-light' ? 'selected' : ''}>Solarized Light</option>
                         <option value="dark" ${currentSettings.theme === 'dark' ? 'selected' : ''}>Dark</option>
+                        <option value="solarized-dark" ${currentSettings.theme === 'solarized-dark' ? 'selected' : ''}>Solarized Dark</option>
                         <option value="techne" ${currentSettings.theme === 'techne' ? 'selected' : ''}>Techne (Swiss / Trash Polka)</option>
                     </select>
                     <span>Theme</span>
@@ -1806,7 +1808,9 @@ function addSettingsEventListeners(category) {
                 const themeNames = {
                     'auto': 'Auto theme applied (follows system)',
                     'light': 'Light theme applied',
+                    'solarized-light': 'Solarized Light theme applied',
                     'dark': 'Dark theme applied',
+                    'solarized-dark': 'Solarized Dark theme applied',
                     'techne': 'Techne theme applied'
                 };
                 window.showNotification(themeNames[newTheme] || 'Theme applied', 'success');

@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    const DARK_THEMES = ['dark', 'techne-red-dark', 'techne-orange-dark'];
+    const DARK_THEMES = ['dark', 'techne-red-dark', 'techne-orange-dark', 'solarized-dark', 'nord', 'dracula', 'monokai'];
 
     // ── Monaco dynamic theme ────────────────────────────────────────
 
@@ -73,6 +73,7 @@
 
     function syncNightOwl(themeId) {
         const isDark = DARK_THEMES.includes(themeId);
+        window.currentTheme = themeId;
 
         // Sync body classes
         document.body.classList.remove('dark-mode', 'light-mode');

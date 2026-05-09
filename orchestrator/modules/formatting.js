@@ -634,7 +634,7 @@ async function insertTable() {
     createInputDialog('Insert Table', [
         { name: 'rows', label: 'Number of Rows', type: 'number', value: '3', placeholder: '3' },
         { name: 'cols', label: 'Number of Columns', type: 'number', value: '3', placeholder: '3' }
-    ], async (values) => {
+    ], (values) => {
         const rows = parseInt(values.rows) || 3;
         const cols = parseInt(values.cols) || 3;
         
@@ -663,9 +663,8 @@ async function insertTable() {
         }]);
         
         window.editor.focus();
-        if (window.updatePreviewAndStructure) {
-            await window.updatePreviewAndStructure(window.editor.getValue());
-        }
+        // Monaco's normal content-change pipeline already refreshes preview/structure.
+        // Avoid forcing a second full refresh here, which makes table insertion feel hung.
     });
 }
 

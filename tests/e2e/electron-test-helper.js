@@ -11,6 +11,30 @@ class ElectronTestHelper {
     const appPath = path.join(__dirname, '../../');
     
     return new Promise((resolve, reject) => {
+      let startupTimeout = null;
+      let settled = false;
+
+      const cleanupTimeout = () => {
+        if (startupTimeout) {
+          clearTimeout(startupTimeout);
+          startupTimeout = null;
+        }
+      };
+
+      const resolveOnce = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanupTimeout();
+        resolve(value);
+      };
+
+      const rejectOnce = (error) => {
+        if (settled) return;
+        settled = true;
+        cleanupTimeout();
+        reject(error);
+      };
+
       // Create clean environment without ELECTRON_RUN_AS_NODE (conflicts with Electron GUI mode)
       const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
       this.electronProcess = spawn(electronPath, [appPath, '--dev'], {
@@ -22,7 +46,7 @@ class ElectronTestHelper {
         const output = data.toString();
         console.log('Electron stdout:', output);
         if (output.includes('ready-to-show') || output.includes('App ready')) {
-          resolve(this.electronProcess);
+          resolveOnce(this.electronProcess);
         }
       });
       
@@ -30,13 +54,13 @@ class ElectronTestHelper {
         console.error('Electron stderr:', data.toString());
       });
       
-      this.electronProcess.on('error', reject);
+      this.electronProcess.on('error', rejectOnce);
       
       // Timeout after 30 seconds
-      setTimeout(() => {
+      startupTimeout = setTimeout(() => {
         if (!this.electronProcess.killed) {
           this.electronProcess.kill();
-          reject(new Error('Electron app start timeout'));
+          rejectOnce(new Error('Electron app start timeout'));
         }
       }, 30000);
     });

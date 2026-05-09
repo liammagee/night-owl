@@ -90,6 +90,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "speaker-notes-preload.js",
       "index.html",
       "styles.css",
       "css/**/*",

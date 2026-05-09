@@ -15,6 +15,7 @@ function register(deps) {
     defaultSettings,
     saveSettings
   } = deps;
+  const aiRuntime = deps.tutorBridge || deps.aiService || null;
 
   const isPlainObject = (value) =>
     Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -32,7 +33,20 @@ function register(deps) {
     return result;
   };
 
+  // Keys that only the main process should change (via change-working-directory,
+  // switch-workspace, etc.).  The renderer's cached copy can become stale, so
+  // a full-object 'set-settings' call from the renderer must not overwrite them.
+  const MAIN_PROCESS_AUTHORITATIVE_KEYS = ['workingDirectory', 'workspaceFolders'];
+
   const replaceSettingsInPlace = (nextSettings) => {
+    // Preserve main-process-authoritative values before merging
+    const preserved = {};
+    for (const key of MAIN_PROCESS_AUTHORITATIVE_KEYS) {
+      if (key in appSettings) {
+        preserved[key] = appSettings[key];
+      }
+    }
+
     const merged = deepMergeSettings(appSettings, nextSettings);
 
     // Mutate in place so any other references remain valid
@@ -40,6 +54,45 @@ function register(deps) {
       delete appSettings[key];
     });
     Object.assign(appSettings, merged);
+
+    // Restore authoritative values the renderer should not override
+    Object.assign(appSettings, preserved);
+  };
+
+  const applyAISettingsUpdates = (updates) => {
+    if (!updates || !aiRuntime) return;
+
+    if (typeof updates.localAIUrl === 'string' && typeof aiRuntime.updateLocalAIUrl === 'function') {
+      try {
+        aiRuntime.updateLocalAIUrl(updates.localAIUrl);
+        console.log(`[SettingsHandlers] Updated Local AI URL: ${updates.localAIUrl}`);
+      } catch (error) {
+        console.warn('[SettingsHandlers] Could not update Local AI URL:', error);
+      }
+    }
+
+    if (typeof updates.preferredProvider === 'string' && typeof aiRuntime.setDefaultProvider === 'function') {
+      try {
+        if (updates.preferredProvider === 'auto') {
+          aiRuntime.setDefaultProvider('auto');
+          console.log('[SettingsHandlers] Reset AI provider preference to auto');
+          return;
+        }
+
+        if (typeof aiRuntime.getAvailableProviders === 'function') {
+          const availableProviders = aiRuntime.getAvailableProviders();
+          if (!availableProviders.includes(updates.preferredProvider)) {
+            console.warn(`[SettingsHandlers] Ignoring unavailable AI provider: ${updates.preferredProvider}`);
+            return;
+          }
+        }
+
+        aiRuntime.setDefaultProvider(updates.preferredProvider);
+        console.log(`[SettingsHandlers] Applied AI provider preference: ${updates.preferredProvider}`);
+      } catch (error) {
+        console.warn('[SettingsHandlers] Could not update AI provider:', error);
+      }
+    }
   };
 
   // Settings utility functions
@@ -63,18 +116,8 @@ function register(deps) {
     
     saveSettings();
     
-    // Apply AI provider settings if changed
-    if (category === 'ai' && deps.aiService && updates) {
-      if (updates.preferredProvider && updates.preferredProvider !== 'auto') {
-        try {
-          if (deps.aiService.getAvailableProviders().includes(updates.preferredProvider)) {
-            deps.aiService.setDefaultProvider(updates.preferredProvider);
-            console.log(`[SettingsHandlers] Applied AI provider preference: ${updates.preferredProvider}`);
-          }
-        } catch (error) {
-          console.warn('[SettingsHandlers] Could not update AI provider:', error);
-        }
-      }
+    if (category === 'ai' && updates) {
+      applyAISettingsUpdates(updates);
     }
     
     return appSettings[category];
@@ -152,28 +195,8 @@ function register(deps) {
     }
     saveSettings();
     
-    // Apply AI provider settings if changed
-    if (category === 'ai' && deps.aiService && newSettings) {
-      // Update Local AI URL if changed
-      if (newSettings.localAIUrl && typeof deps.aiService.updateLocalAIUrl === 'function') {
-        try {
-          deps.aiService.updateLocalAIUrl(newSettings.localAIUrl);
-          console.log(`[SettingsHandlers] Updated Local AI URL: ${newSettings.localAIUrl}`);
-        } catch (error) {
-          console.warn('[SettingsHandlers] Could not update Local AI URL:', error);
-        }
-      }
-      
-      if (newSettings.preferredProvider && newSettings.preferredProvider !== 'auto') {
-        try {
-          if (deps.aiService.getAvailableProviders().includes(newSettings.preferredProvider)) {
-            deps.aiService.setDefaultProvider(newSettings.preferredProvider);
-            console.log(`[SettingsHandlers] Applied AI provider preference: ${newSettings.preferredProvider}`);
-          }
-        } catch (error) {
-          console.warn('[SettingsHandlers] Could not update AI provider:', error);
-        }
-      }
+    if (category === 'ai' && newSettings) {
+      applyAISettingsUpdates(newSettings);
     }
   }
 
@@ -198,6 +221,9 @@ function register(deps) {
         // Legacy call: category is the full settings object
         replaceSettingsInPlace(category);
         saveSettings();
+        if (isPlainObject(category.ai)) {
+          applyAISettingsUpdates(category.ai);
+        }
         return { success: true };
       }
 

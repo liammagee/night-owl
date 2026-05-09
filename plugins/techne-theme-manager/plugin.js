@@ -42,7 +42,7 @@
                     { value: 'monokai', label: 'Monokai' },
                     { value: 'sepia', label: 'Sepia' }
                 ],
-                default: 'light'
+                default: 'solarized-light'
             },
             followSystem: {
                 type: 'boolean',

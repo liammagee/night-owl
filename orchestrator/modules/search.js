@@ -493,37 +493,73 @@ function displaySearchResults(results, query) {
     Object.entries(fileGroups).forEach(([filePath, fileResults]) => {
         const fileSection = document.createElement('div');
         fileSection.className = 'search-file-section';
-        
+
+        const first = fileResults[0];
+        const dirHint = computeDirHint(first.file, first.sourceFolder);
+
         const fileHeader = document.createElement('div');
         fileHeader.className = 'search-file-header';
+        fileHeader.title = first.file; // full path on hover
         fileHeader.innerHTML = `
-            <span class="search-file-name">${fileResults[0].fileName}</span>
+            <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+                <span class="search-file-name">${escapeHtml(first.fileName)}</span>
+                ${dirHint ? `<span class="search-file-path" style="font-size: 10px; color: var(--text-muted, #888); opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(dirHint)}</span>` : ''}
+            </div>
             <span class="search-file-count">${fileResults.length} matches</span>
         `;
         fileSection.appendChild(fileHeader);
-        
+
         const fileResultsList = document.createElement('div');
         fileResultsList.className = 'search-file-results';
-        
+
         fileResults.forEach(result => {
             const resultDiv = document.createElement('div');
             resultDiv.className = 'search-result-item';
             resultDiv.onclick = () => openSearchResult(result);
-            
+
             // Highlight the matched text
             const highlightedText = highlightSearchTerm(result.text, query);
-            
+
             resultDiv.innerHTML = `
                 <div class="search-result-line">Line ${result.line}</div>
                 <div class="search-result-text">${highlightedText}</div>
             `;
-            
+
             fileResultsList.appendChild(resultDiv);
         });
-        
+
         fileSection.appendChild(fileResultsList);
         searchResults.appendChild(fileSection);
     });
+}
+
+/**
+ * Compute a short directory hint for a search result file.
+ *
+ * Prefers a path relative to the workspace root (sourceFolder) so two
+ * files named lecture-7.md across different workspace folders are
+ * distinguishable at a glance. Falls back to the last 2 segments of the
+ * absolute directory if no sourceFolder context is available.
+ *
+ * Returns the directory portion only (no filename) so the filename row
+ * isn't duplicated.
+ */
+function computeDirHint(fullPath, sourceFolder) {
+    if (!fullPath) return '';
+    const lastSlash = fullPath.lastIndexOf('/');
+    const dir = lastSlash >= 0 ? fullPath.substring(0, lastSlash) : '';
+    if (!dir) return '';
+
+    if (sourceFolder && dir.startsWith(sourceFolder)) {
+        const rel = dir.substring(sourceFolder.length).replace(/^\/+/, '');
+        const folderLabel = sourceFolder.split('/').filter(Boolean).pop() || sourceFolder;
+        return rel ? `${folderLabel}/${rel}` : folderLabel;
+    }
+
+    // No usable workspace context — show last two segments with an ellipsis.
+    const segs = dir.split('/').filter(Boolean);
+    if (segs.length <= 2) return dir;
+    return '…/' + segs.slice(-2).join('/');
 }
 
 function highlightSearchTerm(text, searchTerm) {

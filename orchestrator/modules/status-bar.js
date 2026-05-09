@@ -60,7 +60,9 @@ function updateStatusBar(content) {
 
     // Update status bar elements with consistent styling
     if (wordCountEl) {
-        wordCountEl.textContent = `${prefix}Words: ${wordCount}`;
+        wordCountEl.textContent = isSelection
+            ? `Source sel: ${wordCount} words`
+            : `Source: ${wordCount} words`;
     }
 
     if (charCountEl) {
@@ -94,8 +96,33 @@ function updateStatusBar(content) {
     }
 }
 
+function getVisiblePreviewText(previewElement) {
+    if (!previewElement) return '';
+
+    const clone = previewElement.cloneNode(true);
+    clone.querySelectorAll('script, style, noscript, .speaker-notes-placeholder, [aria-hidden="true"]').forEach(el => {
+        el.remove();
+    });
+
+    return clone.innerText || clone.textContent || '';
+}
+
+function updatePreviewWordCount(previewElement = document.getElementById('preview-content')) {
+    const previewWordCountEl = document.getElementById('preview-word-count');
+    if (!previewWordCountEl) return;
+
+    const previewText = getVisiblePreviewText(previewElement)
+        .replace(/\s+/g, ' ')
+        .trim();
+    const { words } = countWordsAndLines(previewText);
+
+    previewWordCountEl.textContent = `Preview: ${words} words`;
+    previewWordCountEl.title = 'Words in the rendered preview text';
+}
+
 function updateStatusBarWithKanban(totalTasks, doneTasks) {
     const wordCountEl = document.getElementById('word-count');
+    const previewWordCountEl = document.getElementById('preview-word-count');
     const charCountEl = document.getElementById('char-count');
     const lineCountEl = document.getElementById('line-count');
     const cursorPosEl = document.getElementById('cursor-position');
@@ -106,6 +133,7 @@ function updateStatusBarWithKanban(totalTasks, doneTasks) {
 
     // Update status bar elements with Kanban stats
     if (wordCountEl) wordCountEl.textContent = `📋 Total Tasks: ${totalTasks}`;
+    if (previewWordCountEl) previewWordCountEl.textContent = '';
     if (charCountEl) charCountEl.textContent = `✅ Completed: ${doneTasks}`;
     if (lineCountEl) lineCountEl.textContent = `⏳ Remaining: ${inProgressTasks}`;
     if (cursorPosEl) cursorPosEl.textContent = `📊 Progress: ${progressPercent}%`;
@@ -255,6 +283,7 @@ function initGitStatusIndicator() {
 // Export to global scope
 window.countWordsAndLines = countWordsAndLines;
 window.updateStatusBar = updateStatusBar;
+window.updatePreviewWordCount = updatePreviewWordCount;
 window.updateStatusBarWithKanban = updateStatusBarWithKanban;
 window.processSpeakerNotes = processSpeakerNotes;
 window.gitStatusCache = gitStatusCache;

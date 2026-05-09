@@ -2545,7 +2545,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     ref: containerRef,
     className: "w-full h-screen relative overflow-hidden cursor-grab active:cursor-grabbing",
     style: {
-      background: 'var(--presentation-bg-gradient, linear-gradient(135deg, #14532d 0%, #15803d 50%, #22c55e 100%))'
+      background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))'
     },
     onMouseDown: handleMouseDown,
     onMouseMove: handleMouseMove,

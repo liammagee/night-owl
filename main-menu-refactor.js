@@ -1,5 +1,5 @@
 // Refactored menu creation functions
-const { app, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -656,12 +656,28 @@ function createAIMenu() {
     };
 }
 
-function createWindowMenu() {
+function createWindowMenu(context) {
+    const mainWindow = context && context.mainWindow;
     return {
         label: 'Window',
         submenu: [
             { label: 'Minimize', accelerator: 'CmdOrCtrl+M', role: 'minimize' },
-            { label: 'Close', accelerator: 'CmdOrCtrl+W', role: 'close' },
+            {
+                // Cmd+W closes the active editor tab instead of the window.
+                // Presentation popups and other child windows still get the
+                // native close behaviour via the focused-window check.
+                label: 'Close Tab',
+                accelerator: 'CmdOrCtrl+W',
+                click: () => {
+                    const focused = BrowserWindow.getFocusedWindow();
+                    if (!focused) return;
+                    if (focused === mainWindow) {
+                        focused.webContents.send('menu:close-tab');
+                    } else {
+                        focused.close();
+                    }
+                }
+            },
             ...(process.platform === 'darwin' ? [
                 { type: 'separator' },
                 { label: 'Bring All to Front', role: 'front' }

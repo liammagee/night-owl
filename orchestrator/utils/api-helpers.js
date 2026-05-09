@@ -17,7 +17,7 @@ window.ApiHelpers = window.ApiHelpers || {};
 window.ApiHelpers.invokeElectronAPI = async function(method, data = null, options = {}) {
     const {
         errorMessage = `Error calling ${method}`,
-        showNotification = true,
+        showNotification: shouldShowNotification = true,
         logError = true
     } = options;
 
@@ -41,8 +41,8 @@ window.ApiHelpers.invokeElectronAPI = async function(method, data = null, option
             console.error(`[API Helper] ${errorMessage}:`, error);
         }
         
-        if (showNotification && typeof showNotification === 'function') {
-            showNotification(errorMessage, 'error');
+        if (shouldShowNotification && typeof window.showNotification === 'function') {
+            window.showNotification(errorMessage, 'error');
         }
         
         throw error;
@@ -95,8 +95,8 @@ window.ApiHelpers.withErrorHandling = function(fn, context) {
             return await fn.apply(this, args);
         } catch (error) {
             console.error(`[${context}] Error:`, error);
-            if (typeof showNotification === 'function') {
-                showNotification(`Error in ${context}`, 'error');
+            if (typeof window.showNotification === 'function') {
+                window.showNotification(`Error in ${context}`, 'error');
             }
             throw error;
         }
@@ -111,8 +111,8 @@ window.ApiHelpers.withErrorHandling = function(fn, context) {
  */
 window.ApiHelpers.handleError = function(message, error, context = 'Unknown') {
     console.error(`[${context}] ${message}:`, error);
-    if (typeof showNotification === 'function') {
-        showNotification(message, 'error');
+    if (typeof window.showNotification === 'function') {
+        window.showNotification(message, 'error');
     }
 }
 

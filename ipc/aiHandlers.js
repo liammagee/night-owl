@@ -20,10 +20,115 @@ function register(deps) {
     buildSystemMessage,
     cleanAIResponse
   } = deps;
+  const getCurrentFilePath = typeof deps.getCurrentFilePath === 'function'
+    ? deps.getCurrentFilePath
+    : () => currentFilePath || appSettings.currentFile || null;
+  const getCurrentWorkingDirectory = typeof deps.getCurrentWorkingDirectory === 'function'
+    ? deps.getCurrentWorkingDirectory
+    : () => appSettings.workingDirectory || process.cwd();
+  const CONTEXT_FILE_EXTENSIONS = new Set(['.md', '.markdown', '.mdx', '.txt', '.text', '.bib']);
+  const MAX_CONTEXT_FILES = 8;
+  const MAX_CONTEXT_CHARS = 12000;
 
   // Helper: check if AI is available
   function aiAvailable() {
     return tutorBridge && tutorBridge.getAvailableProviders().length > 0;
+  }
+
+  function readLiveCurrentFilePath() {
+    return getCurrentFilePath() || appSettings.currentFile || null;
+  }
+
+  function readLiveWorkingDirectory() {
+    return getCurrentWorkingDirectory() || appSettings.workingDirectory || process.cwd();
+  }
+
+  function isContextFile(filePath) {
+    return CONTEXT_FILE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+  }
+
+  async function readContextFile(filePath) {
+    const content = await fs.readFile(filePath, 'utf8');
+    return content.length > MAX_CONTEXT_CHARS
+      ? `${content.slice(0, MAX_CONTEXT_CHARS)}\n[... truncated ...]`
+      : content;
+  }
+
+  async function buildFileContext() {
+    const currentPath = readLiveCurrentFilePath();
+    const workingDirectory = readLiveWorkingDirectory();
+    const baseDirectory = currentPath ? path.dirname(currentPath) : workingDirectory;
+
+    const files = [];
+    const seenPaths = new Set();
+
+    const pushFile = async (filePath, isCurrentFile = false) => {
+      if (!filePath || seenPaths.has(filePath) || !isContextFile(filePath)) {
+        return;
+      }
+
+      const content = await readContextFile(filePath);
+      files.push({
+        name: path.basename(filePath),
+        path: filePath,
+        isCurrentFile,
+        content
+      });
+      seenPaths.add(filePath);
+    };
+
+    if (currentPath && isContextFile(currentPath)) {
+      try {
+        await pushFile(currentPath, true);
+      } catch (error) {
+        console.warn('[AIHandlers] Could not read current file for context:', error.message);
+      }
+    }
+
+    try {
+      const entries = await fs.readdir(baseDirectory, { withFileTypes: true });
+      for (const entry of entries) {
+        if (files.length >= MAX_CONTEXT_FILES) break;
+        if (!entry.isFile()) continue;
+
+        const filePath = path.join(baseDirectory, entry.name);
+        if (seenPaths.has(filePath) || !isContextFile(filePath)) continue;
+
+        try {
+          await pushFile(filePath, false);
+        } catch (error) {
+          console.warn(`[AIHandlers] Skipping context file ${filePath}:`, error.message);
+        }
+      }
+    } catch (error) {
+      console.warn('[AIHandlers] Could not enumerate context directory:', error.message);
+    }
+
+    return {
+      currentFilePath: currentPath,
+      baseDirectory,
+      files
+    };
+  }
+
+  function normalizeFileContextEntries(fileContext) {
+    if (!fileContext) return [];
+
+    if (Array.isArray(fileContext.files)) {
+      return fileContext.files
+        .filter((file) => file && typeof file.content === 'string')
+        .map((file) => ({
+          name: file.name || path.basename(file.path || 'untitled'),
+          content: file.content
+        }));
+    }
+
+    return Object.entries(fileContext)
+      .filter(([_, content]) => typeof content === 'string')
+      .map(([file, content]) => ({
+        name: path.basename(file),
+        content
+      }));
   }
 
   function getLocalModelMissingResponse(error, contextLabel) {
@@ -193,10 +298,12 @@ function register(deps) {
 
       let enhancedPrompt = message;
 
-      if (fileContext && Object.keys(fileContext).length > 0) {
-        const contextEntries = Object.entries(fileContext)
-          .filter(([_, content]) => content && content.length > 100)
-          .map(([file, content]) => `### ${path.basename(file)}\n${content.substring(0, 2000)}${content.length > 2000 ? '\n[... truncated ...]' : ''}`)
+      const normalizedContextEntries = normalizeFileContextEntries(fileContext);
+
+      if (normalizedContextEntries.length > 0) {
+        const contextEntries = normalizedContextEntries
+          .filter(({ content }) => content && content.length > 100)
+          .map(({ name, content }) => `### ${name}\n${content.substring(0, 2000)}${content.length > 2000 ? '\n[... truncated ...]' : ''}`)
           .slice(0, 5);
 
         if (contextEntries.length > 0) {
@@ -365,6 +472,35 @@ function register(deps) {
     } catch (error) {
       console.error('[AIHandlers] Error setting default provider:', error);
       return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-file-context', async () => {
+    try {
+      return await buildFileContext();
+    } catch (error) {
+      console.error('[AIHandlers] Error building file context:', error);
+      return {
+        currentFilePath: readLiveCurrentFilePath(),
+        baseDirectory: readLiveWorkingDirectory(),
+        files: [],
+        error: error.message
+      };
+    }
+  });
+
+  ipcMain.handle('get-current-file-content', async () => {
+    const filePath = readLiveCurrentFilePath();
+    if (!filePath) {
+      return { success: true, filePath: null, content: '' };
+    }
+
+    try {
+      const content = await fs.readFile(filePath, 'utf8');
+      return { success: true, filePath, content };
+    } catch (error) {
+      console.error('[AIHandlers] Error reading current file content:', error);
+      return { success: false, filePath, content: '', error: error.message };
     }
   });
 

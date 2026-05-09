@@ -1548,15 +1548,25 @@ class CitationService {
 
     // Close database connection
     close() {
-        if (this.db) {
-            this.db.close((err) => {
+        if (!this.db) {
+            return Promise.resolve(true);
+        }
+
+        const db = this.db;
+        this.db = null;
+        this.isInitialized = false;
+
+        return new Promise((resolve) => {
+            db.close((err) => {
                 if (err) {
                     console.error('[Citation Service] Error closing database:', err);
+                    resolve(false);
                 } else {
                     console.log('[Citation Service] Database connection closed');
+                    resolve(true);
                 }
             });
-        }
+        });
     }
 }
 

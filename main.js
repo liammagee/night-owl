@@ -22,6 +22,10 @@ const {
   DEFAULT_CAPTURE_HOST,
   DEFAULT_CAPTURE_PORT
 } = require('./services/citationCaptureBridge');
+const {
+  normalizeWorkspacePath,
+  sanitizeWorkspaceFolders
+} = require('./ipc/workspacePaths');
 const ipcHandlers = require('./ipc');
 
 // Initialize @electron/remote after checking if electron module loaded correctly
@@ -228,11 +232,27 @@ async function packageCaptureExtension(sourceDir, outputZipPath) {
 // --- Persistent Settings Storage ---
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 let appSettings = {};
+const VALID_APP_THEMES = [
+    'auto',
+    'light',
+    'dark',
+    'techne',
+    'techne-red-light',
+    'techne-red-dark',
+    'techne-orange-light',
+    'techne-orange-dark',
+    'solarized-light',
+    'solarized-dark',
+    'nord',
+    'dracula',
+    'monokai',
+    'sepia'
+];
 
 // Default settings structure
 const defaultSettings = {
     // === Theme and Appearance ===
-    theme: 'techne', // 'light', 'dark', 'auto', 'techne'
+    theme: 'solarized-light', // 'auto', 'light', 'dark', 'techne', and managed theme variants
     customThemes: {}, // User-defined theme overrides
     techne: {
         accent: 'red', // 'red' | 'orange'
@@ -246,7 +266,8 @@ const defaultSettings = {
             'techne-backdrop',
             'techne-presentations',
             'techne-markdown-renderer',
-            'techne-network-diagram'
+            'techne-network-diagram',
+            'techne-theme-manager'
         ]
     },
     
@@ -624,6 +645,18 @@ function validateSettings() {
     if (!Array.isArray(appSettings.workspaceFolders)) {
         appSettings.workspaceFolders = [];
     }
+    const normalizedWorkingDirectory = normalizeWorkspacePath(appSettings.workingDirectory);
+    if (normalizedWorkingDirectory) {
+        appSettings.workingDirectory = normalizedWorkingDirectory;
+    }
+    const workspaceFolderResult = sanitizeWorkspaceFolders(
+        appSettings.workingDirectory,
+        appSettings.workspaceFolders
+    );
+    if (workspaceFolderResult.changed) {
+        appSettings.workspaceFolders = workspaceFolderResult.workspaceFolders;
+        console.warn(`[main.js] Removed ${workspaceFolderResult.removed.length} duplicate/overlapping workspace folder(s) from settings`);
+    }
 
     // Ensure default plugins are present (plugin list is additive)
     const defaultPlugins = Array.isArray(defaultSettings?.plugins?.enabled) ? defaultSettings.plugins.enabled : [];
@@ -654,17 +687,21 @@ function validateSettings() {
         delete appSettings.presentationLayout;
     }
     
-    // Validate working directory exists
+    // Working directory: do NOT mutate the saved value when it's missing on disk.
+    // Previously this overwrote appSettings.workingDirectory with the (huge) ~/Documents
+    // default, which was then persisted by the next saveSettings() call — silently
+    // destroying the user's chosen workspace whenever the directory was renamed/moved.
+    // The saved value represents user intent and must survive transient absences;
+    // app.whenReady computes a runtime fallback (currentWorkingDirectory) when the
+    // saved dir doesn't exist, so the app stays usable without losing the saved choice.
     if (appSettings.workingDirectory) {
         const fs = require('fs');
         try {
             if (!fs.existsSync(appSettings.workingDirectory)) {
-                console.warn('[main.js] Working directory does not exist, resetting to default:', appSettings.workingDirectory);
-                appSettings.workingDirectory = defaultSettings.workingDirectory;
+                console.warn('[main.js] Saved working directory not currently present on disk; will use a runtime fallback but keep the saved value:', appSettings.workingDirectory);
             }
         } catch (error) {
-            console.warn('[main.js] Error checking working directory:', error);
-            appSettings.workingDirectory = defaultSettings.workingDirectory;
+            console.warn('[main.js] Error checking working directory existence:', error);
         }
     }
     
@@ -683,7 +720,7 @@ function validateSettings() {
     }
     
     // Validate theme setting
-    if (appSettings.theme && !['light', 'dark', 'auto', 'techne'].includes(appSettings.theme)) {
+    if (appSettings.theme && !VALID_APP_THEMES.includes(appSettings.theme)) {
         appSettings.theme = defaultSettings.theme;
     }
 
@@ -809,6 +846,23 @@ function addToRecentWorkspaces(workspacePath) {
 function getRecentWorkspaces() {
     if (!appSettings.recents || !Array.isArray(appSettings.recents.workspaces)) return [];
     return appSettings.recents.workspaces.map(w => w.path);
+}
+
+function setPrimaryWorkingDirectory(folderPath) {
+    const normalizedFolderPath = normalizeWorkspacePath(folderPath) || folderPath;
+    currentWorkingDirectory = normalizedFolderPath;
+    appSettings.workingDirectory = normalizedFolderPath;
+
+    const workspaceFolderResult = sanitizeWorkspaceFolders(
+        normalizedFolderPath,
+        appSettings.workspaceFolders
+    );
+    if (workspaceFolderResult.changed) {
+        appSettings.workspaceFolders = workspaceFolderResult.workspaceFolders;
+        console.warn(`[main.js] Removed ${workspaceFolderResult.removed.length} duplicate/overlapping workspace folder(s) after primary folder change`);
+    }
+
+    return normalizedFolderPath;
 }
 
 // Save navigation history
@@ -1004,7 +1058,11 @@ app.on('before-quit', () => {
 // --- Theme Handling ---
 nativeTheme.on('updated', () => {
     console.log(`[main.js] nativeTheme updated. Should use dark colors: ${nativeTheme.shouldUseDarkColors}`);
-    mainWindow?.webContents.send('theme-updated', nativeTheme.shouldUseDarkColors);
+    // Guard against firing into a destroyed/closing webContents — produces the same
+    // "webFrameMain was disposed" error class as the close-handler bug otherwise.
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('theme-updated', nativeTheme.shouldUseDarkColors);
+    }
 });
 
 // --- Window Creation ---
@@ -1042,8 +1100,10 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     
-    // Always open dev tools for debugging
-    mainWindow.webContents.openDevTools();
+    const isDevMode = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
+    if (isDevMode) {
+      mainWindow.webContents.openDevTools();
+    }
     console.log(`[main.js] App name in ready-to-show: ${app.getName()}`);
     console.log(`[main.js] Process title: ${process.title}`);
   });
@@ -1095,20 +1155,61 @@ function createWindow() {
 
     e.preventDefault();
 
+    // If the renderer is already gone (crashed, navigated, or being torn down),
+    // don't try to talk to it — just save settings and tear the window down.
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed() || wc.isCrashed?.()) {
+      saveSettings();
+      isForceClosing = true;
+      if (!mainWindow.isDestroyed()) mainWindow.destroy();
+      return;
+    }
+
     try {
-      // Ask renderer if there are unsaved changes
-      const dirtyFiles = await mainWindow.webContents.executeJavaScript(
-        `(function() {
+      // Ask renderer if there are unsaved changes (only for files that still exist on disk).
+      // Race the IPC call against a timeout so a disposed/hung renderer can't trap the user —
+      // the previous "Render frame was disposed" rejection caused the close handler to hang
+      // when executeJavaScript never settled.
+      const dirtyFilesPromise = wc.executeJavaScript(
+        `(async function() {
+          async function fileExists(p) {
+            try {
+              const r = await window.electronAPI.invoke('check-file-exists', p);
+              return typeof r === 'object' ? !!r?.exists : !!r;
+            } catch (e) { return true; } // assume dirty on IPC error
+          }
           if (window.editorTabs) {
-            const dirty = [];
+            // Parallelize existence checks so we don't serialize one IPC round-trip per tab —
+            // a long sequential loop widens the window for frame-disposal races during close.
+            const checks = [];
             for (const [path, tab] of window.editorTabs.tabs) {
-              if (tab.isDirty) dirty.push(tab.fileName);
+              if (tab.isDirty) {
+                checks.push(fileExists(path).then(ok => ok ? tab.fileName : null));
+              }
             }
-            return dirty;
+            const results = await Promise.all(checks);
+            return results.filter(Boolean);
+          }
+          if (window.hasUnsavedChanges && window.currentFilePath) {
+            const ok = await fileExists(window.currentFilePath);
+            if (!ok) { window.hasUnsavedChanges = false; return []; }
           }
           return window.hasUnsavedChanges ? ['current file'] : [];
         })()`
       );
+
+      const TIMEOUT_MS = 2000;
+      let timeoutHandle;
+      const dirtyFiles = await Promise.race([
+        dirtyFilesPromise,
+        new Promise((_, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error('renderer-dirty-check-timeout')),
+            TIMEOUT_MS
+          );
+        }),
+      ]);
+      clearTimeout(timeoutHandle);
 
       if (dirtyFiles.length === 0) {
         // No unsaved changes — close immediately
@@ -1133,7 +1234,7 @@ function createWindow() {
 
       if (response === 0) {
         // Save — tell renderer to save all, then close
-        mainWindow.webContents.send('save-all-and-close');
+        if (!wc.isDestroyed()) wc.send('save-all-and-close');
       } else if (response === 1) {
         // Don't Save — close without saving
         isForceClosing = true;
@@ -1142,9 +1243,13 @@ function createWindow() {
       // response === 2 (Cancel) — do nothing, window stays open
     } catch (err) {
       console.error('[main.js] Error checking unsaved changes:', err);
-      // If we can't check, close anyway to avoid trapping the user
+      // Renderer is unreachable (disposed frame, timeout, crash). Don't trap the user —
+      // persist settings, then destroy() to bypass the close-event re-entry that close() triggers.
+      saveSettings();
       isForceClosing = true;
-      mainWindow.close();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.destroy();
+      }
     }
   });
 
@@ -1219,17 +1324,19 @@ function createFileMenuItems() {
                 const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
                     properties: ['openDirectory']
                 });
-                if (!canceled && filePaths && filePaths.length > 0) {
-                    const folderPath = filePaths[0];
-                    console.log(`[main.js] Folder selected: ${folderPath}`);
-                    currentWorkingDirectory = folderPath;
-                    appSettings.workingDirectory = folderPath;
-                    addToRecentWorkspaces(folderPath);
-                    saveSettings();
-                    currentFilePath = null;
-                    // Title remains consistent - don't change app title for directory changes
-                    mainWindow.webContents.send('refresh-file-tree');
-                     console.log('[main.js] Sent refresh-file-tree signal to renderer.');
+	                if (!canceled && filePaths && filePaths.length > 0) {
+	                    const folderPath = setPrimaryWorkingDirectory(filePaths[0]);
+	                    console.log(`[main.js] Folder selected: ${folderPath}`);
+	                    addToRecentWorkspaces(folderPath);
+	                    saveSettings();
+	                    currentFilePath = null;
+	                    // Notify renderer so its cached appSettings stays in sync
+	                    mainWindow.webContents.send('settings-changed', {
+	                        workingDirectory: folderPath,
+	                        workspaceFolders: appSettings.workspaceFolders
+	                    });
+	                    mainWindow.webContents.send('refresh-file-tree');
+	                     console.log('[main.js] Sent refresh-file-tree signal to renderer.');
                 } else {
                      console.log('[main.js] Open Folder dialog cancelled.');
                 }
@@ -1246,17 +1353,21 @@ function createFileMenuItems() {
           if (workspaces.length === 0) {
             return [{ label: 'No recent workspaces', enabled: false }];
           }
-          return workspaces.map(workspace => ({
-            label: path.basename(workspace) || workspace,
-            click: async () => {
-              if (!mainWindow) return;
-              currentWorkingDirectory = workspace;
-              appSettings.workingDirectory = workspace;
-              saveSettings();
-              mainWindow.webContents.send('refresh-file-tree');
-              addToRecentWorkspaces(workspace);
-            }
-          }));
+	          return workspaces.map(workspace => ({
+	            label: path.basename(workspace) || workspace,
+	            click: async () => {
+	              if (!mainWindow) return;
+	              const folderPath = setPrimaryWorkingDirectory(workspace);
+	              saveSettings();
+	              // Notify renderer so its cached appSettings stays in sync
+	              mainWindow.webContents.send('settings-changed', {
+	                workingDirectory: folderPath,
+	                workspaceFolders: appSettings.workspaceFolders
+	              });
+	              mainWindow.webContents.send('refresh-file-tree');
+	              addToRecentWorkspaces(folderPath);
+	            }
+	          }));
         })()
       },
       { type: 'separator' },
@@ -1303,6 +1414,22 @@ function createFileMenuItems() {
           if (mainWindow) {
             console.log('[main.js] Save As menu item clicked. Triggering save-as in renderer.');
             mainWindow.webContents.send('trigger-save-as');
+          }
+        }
+      },
+      {
+        // Cmd+W closes the active editor tab. Child windows (presentation
+        // popup, etc.) still get native close behaviour via the focused-window
+        // check — Cmd+W in those windows dismisses the popup as expected.
+        label: 'Close Tab',
+        accelerator: 'CmdOrCtrl+W',
+        click: () => {
+          const focused = BrowserWindow.getFocusedWindow();
+          if (!focused) return;
+          if (focused === mainWindow) {
+            focused.webContents.send('menu:close-tab');
+          } else {
+            focused.close();
           }
         }
       },
@@ -2666,14 +2793,41 @@ async function openFile() {
 app.whenReady().then(async () => {
   console.log('[main.js] App is ready via whenReady()');
   
-  // Use saved working directory from settings, fallback to project root
-  if (appSettings.workingDirectory && appSettings.workingDirectory.length > 0) {
-    currentWorkingDirectory = appSettings.workingDirectory;
-    console.log(`[main.js] Using saved working directory: ${currentWorkingDirectory}`);
-  } else {
-    // Default to project root (parent of app directory)
-    currentWorkingDirectory = path.resolve(app.getAppPath(), '..');
-    console.log(`[main.js] Using project root as working directory: ${currentWorkingDirectory}`);
+  // Resolve a usable runtime working directory. The saved value
+  // (appSettings.workingDirectory) is preserved as user intent — we never overwrite
+  // it here — but it may currently point at a missing dir (renamed/moved/deleted),
+  // so we pick the best existing fallback for actual runtime use.
+  // Fallback chain: saved dir → first existing workspaceFolders entry →
+  // first existing recents.workspaces entry → directory of currentFile if real →
+  // user home (NOT ~/Documents — too heavy for the file tree walk).
+  {
+    const fsSync = require('fs');
+    const candidates = [];
+    if (appSettings.workingDirectory) candidates.push(appSettings.workingDirectory);
+    if (Array.isArray(appSettings.workspaceFolders)) {
+      candidates.push(...appSettings.workspaceFolders);
+    }
+    if (appSettings.recents?.workspaces) {
+      for (const w of appSettings.recents.workspaces) {
+        const p = typeof w === 'string' ? w : w?.path;
+        if (p) candidates.push(p);
+      }
+    }
+    if (typeof appSettings.currentFile === 'string'
+        && !appSettings.currentFile.startsWith('untitled')) {
+      candidates.push(path.dirname(appSettings.currentFile));
+    }
+    candidates.push(app.getPath('home'));
+
+    currentWorkingDirectory = candidates.find((p) => {
+      try { return p && fsSync.existsSync(p); } catch { return false; }
+    }) || app.getPath('home');
+
+    if (currentWorkingDirectory !== appSettings.workingDirectory) {
+      console.warn(`[main.js] Saved workingDirectory not present; using runtime fallback: ${currentWorkingDirectory} (saved value preserved: ${appSettings.workingDirectory})`);
+    } else {
+      console.log(`[main.js] Using saved working directory: ${currentWorkingDirectory}`);
+    }
   }
 
   // Set dock icon on macOS
@@ -2763,8 +2917,9 @@ app.whenReady().then(async () => {
       minHeight: 400,
       title: 'Speaker Notes - NightOwl',
       webPreferences: {
-        contextIsolation: false,
-        nodeIntegration: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        preload: path.join(__dirname, 'speaker-notes-preload.js'),
       },
       alwaysOnTop: false,
       frame: true,
@@ -2871,17 +3026,63 @@ app.whenReady().then(async () => {
   </div>
   <div id="notes-content"><em>No speaker notes for this slide.</em></div>
   <script>
-    const { ipcRenderer } = require('electron');
-    
-    ipcRenderer.on('update-speaker-notes', (event, data) => {
+    function renderEmptyState(contentDiv) {
+      contentDiv.replaceChildren();
+      const empty = document.createElement('em');
+      empty.textContent = 'No speaker notes for this slide.';
+      contentDiv.appendChild(empty);
+    }
+
+    function renderNotes(contentDiv, notes) {
+      if (!notes) {
+        renderEmptyState(contentDiv);
+        return;
+      }
+
+      contentDiv.replaceChildren();
+      const lines = String(notes).split(/\\r?\\n/);
+      let currentList = null;
+
+      const flushList = () => {
+        currentList = null;
+      };
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          flushList();
+          return;
+        }
+
+        if (/^[-*]\\s+/.test(trimmed)) {
+          if (!currentList) {
+            currentList = document.createElement('ul');
+            contentDiv.appendChild(currentList);
+          }
+          const item = document.createElement('li');
+          item.textContent = trimmed.replace(/^[-*]\\s+/, '');
+          currentList.appendChild(item);
+          return;
+        }
+
+        flushList();
+
+        const paragraph = document.createElement('p');
+        paragraph.textContent = trimmed;
+        contentDiv.appendChild(paragraph);
+      });
+
+      if (!contentDiv.childNodes.length) {
+        renderEmptyState(contentDiv);
+      }
+    }
+
+    window.speakerNotesAPI.onUpdateSpeakerNotes((data) => {
       const contentDiv = document.getElementById('notes-content');
       const slideNumber = document.getElementById('slide-number');
       
-      if (data.notes) {
-        contentDiv.innerHTML = data.notes || '<em>No speaker notes for this slide.</em>';
-      } else {
-        contentDiv.innerHTML = '<em>No speaker notes for this slide.</em>';
-      }
+      renderNotes(contentDiv, data && data.notes);
       if (data.slideNumber !== undefined) {
         slideNumber.textContent = data.slideNumber;
       }
@@ -2974,17 +3175,22 @@ app.whenReady().then(async () => {
   ipcMain.handle('switch-workspace', async (event, workspacePath) => {
     try {
       const fsSync = require('fs');
-      if (!fsSync.existsSync(workspacePath)) {
+      const folderPath = normalizeWorkspacePath(workspacePath) || workspacePath;
+      if (!fsSync.existsSync(folderPath)) {
         return { success: false, error: 'Folder no longer exists' };
       }
-      currentWorkingDirectory = workspacePath;
-      appSettings.workingDirectory = workspacePath;
-      addToRecentWorkspaces(workspacePath);
+      setPrimaryWorkingDirectory(folderPath);
+      addToRecentWorkspaces(folderPath);
       saveSettings();
       if (mainWindow) {
+        // Notify renderer so its cached appSettings stays in sync
+        mainWindow.webContents.send('settings-changed', {
+          workingDirectory: folderPath,
+          workspaceFolders: appSettings.workspaceFolders
+        });
         mainWindow.webContents.send('refresh-file-tree');
       }
-      return { success: true, directory: workspacePath };
+      return { success: true, directory: folderPath };
     } catch (error) {
       console.error('[main.js] Error switching workspace:', error);
       return { success: false, error: error.message };
@@ -3101,7 +3307,23 @@ app.whenReady().then(async () => {
   ipcMain.handle('save-image-to-current-dir', async (event, filename, base64data) => {
     try {
       const buffer = Buffer.from(base64data, 'base64');
-      const filePath = path.join(currentWorkingDirectory || process.cwd(), filename);
+      const baseDirectory = path.resolve(currentWorkingDirectory || process.cwd());
+      const safeFilename = path.basename(String(filename || ''));
+
+      if (!safeFilename || safeFilename === '.' || safeFilename === path.sep) {
+        return {
+          success: false,
+          error: 'Invalid image filename'
+        };
+      }
+
+      const filePath = path.resolve(baseDirectory, safeFilename);
+      if (path.dirname(filePath) !== baseDirectory) {
+        return {
+          success: false,
+          error: 'Image path must stay inside the working directory'
+        };
+      }
       
       // fs is already imported as fs.promises at the top, so use it directly
       await fs.writeFile(filePath, buffer);
@@ -3122,11 +3344,10 @@ app.whenReady().then(async () => {
   // Handle saving files
   ipcMain.handle('save-file', async (event, { filePath, content }) => {
     try {
-      await saveFile(filePath, content);
-      return { 
-        success: true, 
-        path: filePath 
-      };
+      const result = await saveFile(filePath, content);
+      return result.success
+        ? { success: true, path: filePath, filePath }
+        : result;
     } catch (error) {
       console.error('Error saving file:', error);
       return { 
@@ -3220,10 +3441,14 @@ app.whenReady().then(async () => {
     defaultSettings,
     saveSettings,
     mainWindow,
+    getMainWindow: () => mainWindow,
     tutorBridge,
     imageService,
     getCurrentFilePath: () => currentFilePath,
     getCurrentWorkingDirectory: () => currentWorkingDirectory,
+    setCurrentWorkingDirectory: (directory) => {
+      currentWorkingDirectory = directory;
+    },
     currentWorkingDirectory,
     userDataPath: app.getPath('userData'),
     setCurrentFilePath: (path) => {

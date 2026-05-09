@@ -20,8 +20,8 @@ describe('CitationService', () => {
     await service.initialize(tmpDir);
   });
 
-  afterEach(() => {
-    if (service) service.close();
+  afterEach(async () => {
+    if (service) await service.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
