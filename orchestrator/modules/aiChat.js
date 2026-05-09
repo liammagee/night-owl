@@ -475,7 +475,13 @@ async function clearChat() {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
     
-    const confirmed = confirm('Are you sure you want to clear all chat messages? This will also clear the AI conversation history.');
+    const confirmed = await window.showAppConfirm({
+        title: 'Clear Chat',
+        message: 'Clear all chat messages?',
+        detail: 'This also clears the AI conversation history for the current session.',
+        confirmText: 'Clear Chat',
+        variant: 'danger'
+    });
     if (confirmed) {
         try {
             // Clear conversation history in AI service

@@ -54,6 +54,17 @@
     }
   }
 
+  function confirmGitAction(options) {
+    return window.showAppConfirm({
+      title: options.title || 'Confirm Git Action',
+      message: options.message || 'Continue?',
+      detail: options.detail || '',
+      paths: options.paths || (repoRoot ? [repoRoot] : []),
+      confirmText: options.confirmText || 'Continue',
+      variant: options.variant || 'warning'
+    });
+  }
+
   async function getRuntimeWorkingDirectory() {
     if (window.electronAPI?.invoke) {
       try {
@@ -198,7 +209,16 @@
       if (discardBtn) {
         discardBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          if (!confirm(`Discard changes to ${name}?`)) return;
+          if (!(await confirmGitAction({
+            title: 'Discard File Changes',
+            message: `Discard changes to ${name}?`,
+            detail: file.status === 'untracked'
+              ? 'This permanently removes the untracked file.'
+              : 'This permanently discards local changes for this file.',
+            paths: [file.file],
+            confirmText: 'Discard',
+            variant: 'danger'
+          }))) return;
           await window.electronAPI.invoke('git-discard', {
             repoRoot,
             paths: [file.file],
@@ -549,7 +569,13 @@
     // Check for dirty tree
     const statusResult = await window.electronAPI.invoke('git-status-detailed', repoRoot);
     if (statusResult.success && (statusResult.staged.length > 0 || statusResult.unstaged.length > 0)) {
-      const choice = confirm('You have uncommitted changes. Stash them before switching?');
+      const choice = await confirmGitAction({
+        title: 'Stash Before Switching',
+        message: 'You have uncommitted changes. Stash them before switching branches?',
+        detail: 'Choosing Cancel switches branches without creating an automatic stash.',
+        confirmText: 'Stash Changes',
+        variant: 'warning'
+      });
       if (choice) {
         const stashResult = await window.electronAPI.invoke('git-stash-save', {
           repoRoot, message: `Auto-stash before switching to ${branch}`
@@ -660,7 +686,13 @@
 
     // Cherry-pick button
     document.getElementById('git-cherry-pick-btn').addEventListener('click', async () => {
-      if (!confirm(`Cherry-pick commit ${hash.substring(0, 8)} onto ${currentBranch}?`)) return;
+      if (!(await confirmGitAction({
+        title: 'Cherry-pick Commit',
+        message: `Cherry-pick commit ${hash.substring(0, 8)} onto ${currentBranch}?`,
+        detail: 'This applies the selected commit to the current branch.',
+        confirmText: 'Cherry-pick',
+        variant: 'warning'
+      }))) return;
       const cpResult = await window.electronAPI.invoke('git-cherry-pick', { repoRoot, hash });
       if (cpResult.success) {
         closeDiffModal();
@@ -739,7 +771,13 @@
       });
 
       item.querySelector('.git-stash-drop').addEventListener('click', async () => {
-        if (!confirm('Drop this stash?')) return;
+        if (!(await confirmGitAction({
+          title: 'Drop Stash',
+          message: 'Drop this stash?',
+          detail: 'This permanently removes the stash entry.',
+          confirmText: 'Drop Stash',
+          variant: 'danger'
+        }))) return;
         const r = await window.electronAPI.invoke('git-stash-drop', { repoRoot, ref: stash.ref });
         r.success ? notify('Stash dropped', 'success') : notify('Drop failed: ' + r.error, 'error');
         refresh();
@@ -1137,7 +1175,13 @@
 
       item.querySelector('.git-tag-delete').addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (!confirm(`Delete tag "${tag.name}"?`)) return;
+        if (!(await confirmGitAction({
+          title: 'Delete Git Tag',
+          message: `Delete tag "${tag.name}"?`,
+          detail: 'This removes the local tag.',
+          confirmText: 'Delete Tag',
+          variant: 'danger'
+        }))) return;
         const r = await window.electronAPI.invoke('git-delete-tag', { repoRoot, name: tag.name });
         r.success ? notify(`Tag "${tag.name}" deleted`, 'success') : notify('Delete failed: ' + r.error, 'error');
         loadTags();
@@ -1247,7 +1291,13 @@
 
       item.querySelector('.git-remote-remove').addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (!confirm(`Remove remote "${remote.name}"?`)) return;
+        if (!(await confirmGitAction({
+          title: 'Remove Git Remote',
+          message: `Remove remote "${remote.name}"?`,
+          detail: 'This removes the remote from local git configuration.',
+          confirmText: 'Remove Remote',
+          variant: 'danger'
+        }))) return;
         const r = await window.electronAPI.invoke('git-remove-remote', { repoRoot, name: remote.name });
         r.success ? notify(`Remote "${remote.name}" removed`, 'success') : notify('Remove failed: ' + r.error, 'error');
         loadRemotes();
@@ -1504,7 +1554,14 @@
     const discardAllBtn = document.getElementById('git-discard-all-btn');
     if (discardAllBtn) {
       discardAllBtn.addEventListener('click', async () => {
-        if (!repoRoot || !confirm('Discard ALL changes? This cannot be undone.')) return;
+        if (!repoRoot || !(await confirmGitAction({
+          title: 'Discard All Changes',
+          message: 'Discard ALL changes?',
+          detail: 'This permanently discards tracked changes and removes untracked files.',
+          paths: [repoRoot],
+          confirmText: 'Discard All',
+          variant: 'danger'
+        }))) return;
         // Discard tracked changes
         try {
           await window.electronAPI.invoke('git-discard', { repoRoot, paths: ['.'], untracked: false });

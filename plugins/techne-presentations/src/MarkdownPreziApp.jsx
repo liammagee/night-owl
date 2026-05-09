@@ -1991,7 +1991,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       };
       
       // Ask user if they want to include audio
-      const includeAudio = confirm('Do you want to include audio in the recording? (Microphone permission will be requested)');
+      const includeAudio = await window.showAppConfirm({
+        title: 'Include Recording Audio',
+        message: 'Include audio in the recording?',
+        detail: 'Microphone permission will be requested when microphone audio is used.',
+        confirmText: 'Include Audio',
+        cancelText: 'Video Only',
+        variant: 'warning'
+      });
       
       if (includeAudio) {
         options.audio = true;

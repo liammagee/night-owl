@@ -382,7 +382,14 @@
 
             // Confirm close if dirty
             if (tab.isDirty) {
-                const confirmed = confirm(`"${tab.fileName}" has unsaved changes. Close anyway?`);
+                const confirmed = await window.showAppConfirm({
+                    title: 'Close Unsaved Tab',
+                    message: `"${tab.fileName}" has unsaved changes. Close anyway?`,
+                    detail: 'Unsaved editor changes in this tab will be discarded.',
+                    paths: [filePath],
+                    confirmText: 'Close Without Saving',
+                    variant: 'danger'
+                });
                 if (!confirmed) return;
             }
 
@@ -512,7 +519,14 @@
             for (const path of toClose) {
                 const tab = this.tabs.get(path);
                 if (tab && tab.isDirty) {
-                    const confirmed = confirm(`"${tab.fileName}" has unsaved changes. Close anyway?`);
+                    const confirmed = await window.showAppConfirm({
+                        title: 'Close Unsaved Tab',
+                        message: `"${tab.fileName}" has unsaved changes. Close anyway?`,
+                        detail: 'Unsaved editor changes in this tab will be discarded.',
+                        paths: [path],
+                        confirmText: 'Close Without Saving',
+                        variant: 'danger'
+                    });
                     if (!confirmed) continue;
                 }
                 if (tab && tab.model && (typeof tab.model.isDisposed !== 'function' || !tab.model.isDisposed())) {

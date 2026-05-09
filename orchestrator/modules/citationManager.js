@@ -1731,7 +1731,13 @@ class CitationManager {
 
     // Delete citation
     async deleteCitation(id) {
-        if (!confirm('Are you sure you want to delete this citation?')) return;
+        if (!(await window.showAppConfirm({
+            title: 'Delete Citation',
+            message: 'Delete this citation?',
+            detail: 'This removes the citation from the local citation database.',
+            confirmText: 'Delete Citation',
+            variant: 'danger'
+        }))) return;
 
         try {
             const result = await window.electronAPI.invoke('citations-delete', id);
@@ -2607,7 +2613,13 @@ class CitationManager {
 
             // Confirm deletion
             const confirmMessage = `Are you sure you want to delete ${selectedIds.length} selected citation${selectedIds.length > 1 ? 's' : ''}? This action cannot be undone.`;
-            if (!confirm(confirmMessage)) {
+            if (!(await window.showAppConfirm({
+                title: 'Delete Selected Citations',
+                message: confirmMessage,
+                detail: 'This removes the selected citations from the local citation database.',
+                confirmText: 'Delete Citations',
+                variant: 'danger'
+            }))) {
                 return;
             }
 
@@ -2978,7 +2990,13 @@ class CitationManager {
         }
 
         // Confirm deletion
-        if (!confirm(`This will delete ${toDelete.length} duplicate citation${toDelete.length > 1 ? 's' : ''}. Continue?`)) {
+        if (!(await window.showAppConfirm({
+            title: 'Delete Duplicate Citations',
+            message: `Delete ${toDelete.length} duplicate citation${toDelete.length > 1 ? 's' : ''}?`,
+            detail: 'This keeps the selected citation in each duplicate group and removes the others.',
+            confirmText: 'Delete Duplicates',
+            variant: 'danger'
+        }))) {
             return;
         }
 

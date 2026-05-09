@@ -707,11 +707,13 @@ async function addSlideMarkersToParagraphs() {
     }
     
     // Add confirmation dialog to prevent accidental modifications
-    const confirmed = confirm(
-        'This will add slide markers (---) after each paragraph in your document.\n\n' +
-        'This is useful for creating presentation slides from your content.\n\n' +
-        'Do you want to continue?'
-    );
+    const confirmed = await window.showAppConfirm({
+        title: 'Add Slide Markers',
+        message: 'Add slide markers after each paragraph?',
+        detail: 'This inserts --- separators to create presentation slides from your content.',
+        confirmText: 'Add Markers',
+        variant: 'warning'
+    });
     
     if (!confirmed) {
         return;
@@ -799,7 +801,13 @@ async function removeAllSlideMarkers() {
     }
     
     // Show confirmation dialog
-    const confirmed = confirm(`Are you sure you want to remove all ${slideMarkerCount} slide markers from the document?\n\nThis action cannot be undone.`);
+    const confirmed = await window.showAppConfirm({
+        title: 'Remove Slide Markers',
+        message: `Remove all ${slideMarkerCount} slide markers from the document?`,
+        detail: 'This action cannot be undone.',
+        confirmText: 'Remove Markers',
+        variant: 'danger'
+    });
     
     if (!confirmed) {
         return;
@@ -986,7 +994,14 @@ async function removeTableOfContents() {
     }
     
     // Ask user if they want to remove anchor tags from headings as well
-    const removeAnchors = confirm('Remove anchor tags from headings as well?\n\nClick OK to remove both ToC and anchors, or Cancel to remove only the ToC.');
+    const removeAnchors = await window.showAppConfirm({
+        title: 'Remove Heading Anchors',
+        message: 'Remove anchor tags from headings as well?',
+        detail: 'Choose Remove Anchors to remove both the table of contents and anchors, or Keep Anchors to remove only the table of contents.',
+        confirmText: 'Remove Anchors',
+        cancelText: 'Keep Anchors',
+        variant: 'warning'
+    });
     
     const edits = [];
     

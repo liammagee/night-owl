@@ -1426,20 +1426,21 @@ if (typeof window !== 'undefined') {
             return;
         }
         
-        const choice = confirm(
-            `Choose how to save your annotations:\n\n` +
-            `OK = Embed directly in PDF file (PERMANENT - cannot be deleted later)\n` +
-            `Cancel = Save to separate .annotations file (can be modified/deleted)\n\n` +
-            `⚠️ WARNING: Embedded annotations become permanent part of the PDF file.\n` +
-            `Once embedded, they cannot be removed through this application.\n` +
-            `A backup of the original PDF will be created.`
-        );
+        const choice = await window.showAppConfirm({
+            title: 'Save PDF Annotations',
+            message: 'Embed annotations directly into the PDF?',
+            detail: 'Embedding is permanent and cannot be removed later through this application. Choosing Save Sidecar writes a separate .annotations file that can be modified or deleted. A backup is created before embedding.',
+            paths: [window.currentFilePath].filter(Boolean),
+            confirmText: 'Embed in PDF',
+            cancelText: 'Save Sidecar',
+            variant: 'warning'
+        });
         
         await window.savePDFAnnotations(choice);
     };
 
     // Add keyboard shortcuts for PDF operations
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', async (e) => {
         // Ctrl+S or Cmd+S for save with choice
         if ((e.ctrlKey || e.metaKey) && e.key === 's' && window.currentFilePath && window.currentFilePath.endsWith('.pdf')) {
             e.preventDefault();
@@ -1449,13 +1450,14 @@ if (typeof window !== 'undefined') {
         // Ctrl+Shift+S or Cmd+Shift+S for direct PDF embedding
         if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S' && window.currentFilePath && window.currentFilePath.endsWith('.pdf')) {
             e.preventDefault();
-            const confirmed = confirm(
-                `⚠️ EMBED ANNOTATIONS DIRECTLY IN PDF?\n\n` +
-                `This will permanently embed all highlights and annotations into the PDF file.\n` +
-                `They CANNOT be removed later through this application.\n\n` +
-                `A backup of the original PDF will be created.\n\n` +
-                `Continue with embedding?`
-            );
+            const confirmed = await window.showAppConfirm({
+                title: 'Embed PDF Annotations',
+                message: 'Embed annotations directly into the PDF?',
+                detail: 'This permanently embeds all highlights and annotations into the PDF file. They cannot be removed later through this application. A backup of the original PDF will be created.',
+                paths: [window.currentFilePath],
+                confirmText: 'Embed',
+                variant: 'danger'
+            });
             if (confirmed) {
                 window.savePDFAnnotations(true);
             }

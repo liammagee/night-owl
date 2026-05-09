@@ -695,7 +695,14 @@ async function performGlobalReplace(previewOnly = false) {
                 if (window.currentFilePath && result.modifiedFiles && 
                     result.modifiedFiles.includes(window.currentFilePath)) {
                     // Optionally reload the current file
-                    if (confirm('The current file was modified. Would you like to reload it?')) {
+                    if (await window.showAppConfirm({
+                        title: 'Reload Current File',
+                        message: 'The current file was modified by replace. Reload it from disk?',
+                        detail: 'Reloading updates the editor with the replaced content from disk.',
+                        paths: [window.currentFilePath],
+                        confirmText: 'Reload',
+                        variant: 'warning'
+                    })) {
                         const reloadResult = await window.electronAPI.invoke('open-file-path', window.currentFilePath);
                         if (reloadResult.success && window.openFileInEditor) {
                             await window.openFileInEditor(reloadResult.filePath, reloadResult.content);

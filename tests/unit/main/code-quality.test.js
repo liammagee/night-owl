@@ -26,6 +26,29 @@ function findDuplicateTopLevelFunctions(filePath) {
   return duplicates;
 }
 
+function collectJavaScriptFiles(rootPath, options = {}) {
+  const ignoredNames = new Set(options.ignoredNames || ['node_modules']);
+  const files = [];
+
+  function visit(currentPath) {
+    const stat = fs.statSync(currentPath);
+    if (stat.isDirectory()) {
+      if (ignoredNames.has(path.basename(currentPath))) return;
+      for (const entry of fs.readdirSync(currentPath)) {
+        visit(path.join(currentPath, entry));
+      }
+      return;
+    }
+
+    if (/\.(js|jsx|mjs|cjs)$/.test(currentPath)) {
+      files.push(currentPath);
+    }
+  }
+
+  visit(rootPath);
+  return files;
+}
+
 describe('Code quality guardrails', () => {
   test('renderer has no duplicate top-level function declarations', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
@@ -56,6 +79,19 @@ describe('Code quality guardrails', () => {
     expect(dragdropSource).toContain('createDraggedItemFromElement');
     expect(dragdropSource).toContain('moveDraggedItemsToFolder');
     expect(dragdropSource).toContain('item.isMulti');
+  });
+
+  test('app code uses app-native confirmation instead of raw browser confirm', () => {
+    const appRoots = [
+      path.join(__dirname, '../../../orchestrator'),
+      path.join(__dirname, '../../../plugins')
+    ];
+    const offenders = appRoots
+      .flatMap(rootPath => collectJavaScriptFiles(rootPath))
+      .filter(filePath => /\b(?:window\.)?confirm\s*\(/.test(fs.readFileSync(filePath, 'utf8')))
+      .map(filePath => path.relative(path.join(__dirname, '../../..'), filePath));
+
+    expect(offenders).toEqual([]);
   });
 
   test('preview render path does not synchronously wait for bibliography refresh', () => {

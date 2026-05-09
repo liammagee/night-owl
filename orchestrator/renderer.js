@@ -3179,9 +3179,14 @@ async function setBibliographyForMarkdownFile(filePath = window.currentFilePath)
     let saveResult = await window.electronAPI.invoke('perform-save-with-path', updatedContent, filePath, saveOptions);
 
     if (!saveResult?.success && saveResult?.code === 'FILE_MODIFIED_EXTERNALLY') {
-        const overwriteConfirmed = window.confirm(
-            'This Markdown file changed on disk before the bibliography could be attached. Overwrite it and create a backup?'
-        );
+        const overwriteConfirmed = await window.showAppConfirm({
+            title: 'Overwrite Changed Markdown File',
+            message: 'This Markdown file changed on disk before the bibliography could be attached. Overwrite it?',
+            detail: 'A backup will be created before overwriting.',
+            paths: [filePath],
+            confirmText: 'Overwrite',
+            variant: 'danger'
+        });
         if (!overwriteConfirmed) {
             showNotification('Bibliography update canceled', 'warning');
             return;
@@ -14626,9 +14631,14 @@ async function saveFile() {
                     renderFileTree();
                 }
             } else if (result.code === 'FILE_MODIFIED_EXTERNALLY') {
-                const overwriteConfirmed = window.confirm(
-                    'This file changed on disk since you opened it. Overwrite anyway? A backup will be created first.'
-                );
+                const overwriteConfirmed = await window.showAppConfirm({
+                    title: 'Overwrite Changed File',
+                    message: 'This file changed on disk since you opened it. Overwrite anyway?',
+                    detail: 'A backup will be created before overwriting.',
+                    paths: [window.currentFilePath].filter(Boolean),
+                    confirmText: 'Overwrite',
+                    variant: 'danger'
+                });
                 if (!overwriteConfirmed) {
                     showNotification('Save canceled to avoid overwriting external changes', 'warning');
                     return;
@@ -15293,7 +15303,14 @@ async function extractTextToNewFile() {
             }
             
             // Optionally open the new file
-            const shouldOpen = confirm(`Text extracted to ${cleanFileName}.md. Would you like to open the new file?`);
+            const shouldOpen = await window.showAppConfirm({
+                title: 'Open Extracted Text',
+                message: `Text extracted to ${cleanFileName}.md. Open the new file?`,
+                paths: [newFilePath],
+                confirmText: 'Open File',
+                cancelText: 'Keep Current File',
+                variant: 'warning'
+            });
             if (shouldOpen) {
                 const openResult = await window.electronAPI.invoke('open-file-path', newFilePath);
                 if (openResult.success) {

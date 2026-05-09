@@ -680,7 +680,14 @@ async function handleTaskEdit(taskElement, filePath) {
 async function handleTaskDelete(taskElement, filePath) {
     const taskText = taskElement.querySelector('.kanban-task-text').textContent.trim();
     
-    if (!confirm(`Delete task: "${taskText}"?`)) {
+    if (!(await window.showAppConfirm({
+        title: 'Delete Task',
+        message: `Delete task: "${taskText}"?`,
+        detail: 'This removes the task from the source file.',
+        paths: [filePath],
+        confirmText: 'Delete Task',
+        variant: 'danger'
+    }))) {
         return;
     }
     

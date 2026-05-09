@@ -4937,8 +4937,14 @@ Offer atmospheric guidance, optionally suggest a direction (north/south/east/wes
             }
         });
 
-        resetBtn.addEventListener('click', () => {
-            if (!window.confirm('Reset the constellation to its default seed?')) {
+        resetBtn.addEventListener('click', async () => {
+            if (!(await window.showAppConfirm({
+                title: 'Reset Library Constellation',
+                message: 'Reset the constellation to its default seed?',
+                detail: 'This replaces the current library world layout with the default generated state.',
+                confirmText: 'Reset',
+                variant: 'danger'
+            }))) {
                 return;
             }
             try {

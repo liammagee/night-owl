@@ -96,6 +96,7 @@ global.document.getElementById = jest.fn((id) => {
 
 // Mock window methods
 global.window.showNotification = jest.fn();
+global.window.showAppConfirm = jest.fn(() => Promise.resolve(true));
 global.window.updatePreviewAndStructure = jest.fn();
 
 // Suppress console logs during tests (optional)

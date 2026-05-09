@@ -2127,19 +2127,29 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               videoQuality: 'high',
               frameRate: 30
             }; // Ask user if they want to include audio
-            includeAudio = confirm('Do you want to include audio in the recording? (Microphone permission will be requested)');
+            _context3.n = 2;
+            return window.showAppConfirm({
+              title: 'Include Recording Audio',
+              message: 'Include audio in the recording?',
+              detail: 'Microphone permission will be requested when microphone audio is used.',
+              confirmText: 'Include Audio',
+              cancelText: 'Video Only',
+              variant: 'warning'
+            });
+          case 2:
+            includeAudio = _context3.v;
             if (includeAudio) {
               options.audio = true;
               options.audioSource = ttsEnabled ? 'tts' : 'microphone';
             }
 
             // Initialize and start recording
-            _context3.n = 2;
-            return window.videoRecordingService.initializeRecording(options);
-          case 2:
             _context3.n = 3;
-            return window.videoRecordingService.startRecording(options);
+            return window.videoRecordingService.initializeRecording(options);
           case 3:
+            _context3.n = 4;
+            return window.videoRecordingService.startRecording(options);
+          case 4:
             setIsRecording(true);
             setIsPaused(false);
             setRecordingDuration(0);
@@ -2156,10 +2166,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               window.videoRecordingService.markSlideTransition(currentSlide + 1, slides[currentSlide].content.split('\n')[0]);
             }
             console.log('[VIDEO] Recording started successfully');
-            _context3.n = 5;
+            _context3.n = 6;
             break;
-          case 4:
-            _context3.p = 4;
+          case 5:
+            _context3.p = 5;
             _t2 = _context3.v;
             console.error('[VIDEO] Failed to start recording:', _t2);
 
@@ -2171,10 +2181,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             } else {
               alert("Failed to start recording: ".concat(_t2.message, "\n\nPlease check browser permissions and try again."));
             }
-          case 5:
+          case 6:
             return _context3.a(2);
         }
-      }, _callee3, null, [[1, 4]]);
+      }, _callee3, null, [[1, 5]]);
     }));
     return function startRecording() {
       return _ref4.apply(this, arguments);

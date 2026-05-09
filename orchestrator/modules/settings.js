@@ -1277,8 +1277,14 @@ function updateSlashCommand(oldCommand, property, newValue) {
 }
 
 // Remove slash command
-function removeSlashCommand(command) {
-    if (confirm(`Delete command ${command}?`)) {
+async function removeSlashCommand(command) {
+    if (await window.showAppConfirm({
+        title: 'Delete Slash Command',
+        message: `Delete command ${command}?`,
+        detail: 'This removes the command from AI chat settings.',
+        confirmText: 'Delete Command',
+        variant: 'danger'
+    })) {
         if (currentSettings.ai?.slashCommands) {
             delete currentSettings.ai.slashCommands[command];
             populateSlashCommands();
@@ -2859,8 +2865,14 @@ async function importSettingsFromDialog() {
     }
 }
 
-function resetSettingsFromDialog() {
-    if (confirm('Are you sure you want to reset all settings to their default values? This action cannot be undone.')) {
+async function resetSettingsFromDialog() {
+    if (await window.showAppConfirm({
+        title: 'Reset Settings',
+        message: 'Reset all settings to their default values?',
+        detail: 'This action cannot be undone.',
+        confirmText: 'Reset Settings',
+        variant: 'danger'
+    })) {
         // This will be handled by the main process menu action
         showNotification('Use Settings → Reset All Settings from the main menu', 'info');
     }
@@ -3153,8 +3165,14 @@ async function browseSystemPromptFile() {
 
 // Gamification Settings Helper Functions
 
-function clearGamificationData() {
-    if (confirm('Are you sure you want to clear all gamification data? This will reset all streaks, lore fragments, sigils, and session history. This action cannot be undone.')) {
+async function clearGamificationData() {
+    if (await window.showAppConfirm({
+        title: 'Clear Gamification Data',
+        message: 'Clear all gamification data?',
+        detail: 'This resets all streaks, lore fragments, sigils, and session history. This action cannot be undone.',
+        confirmText: 'Clear Data',
+        variant: 'danger'
+    })) {
         try {
             // Clear localStorage data
             localStorage.removeItem('gamification_daily_stats');
