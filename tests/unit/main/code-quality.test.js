@@ -33,4 +33,23 @@ describe('Code quality guardrails', () => {
 
     expect(duplicates).toEqual([]);
   });
+
+  test('file tree rendering batches DOM writes and hydrates tags off the initial paint', () => {
+    const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
+    const source = fs.readFileSync(rendererPath, 'utf8');
+
+    expect(source).toContain('function renderFileTreeNodes');
+    expect(source).toContain('document.createDocumentFragment');
+    expect(source).toContain('fileTreeView.replaceChildren(fragment)');
+    expect(source).toContain('scheduleFileTreeTagHydration(fileTree)');
+    expect(source).not.toContain('await preProcessMarkdownTags(fileTree)');
+  });
+
+  test('preview render path does not synchronously wait for bibliography refresh', () => {
+    const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
+    const source = fs.readFileSync(rendererPath, 'utf8');
+
+    expect(source).toContain('scheduleBibliographyRefresh(window.currentFilePath, markdownContent)');
+    expect(source).not.toContain('await refreshBibliographyFromContent(window.currentFilePath, markdownContent)');
+  });
 });

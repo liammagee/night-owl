@@ -3437,6 +3437,7 @@ app.whenReady().then(async () => {
 
   // Register modular IPC handlers after window is created
   ipcHandlers.registerAllHandlers({
+    app,
     appSettings,
     defaultSettings,
     saveSettings,

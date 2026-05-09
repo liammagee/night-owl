@@ -28,6 +28,11 @@ jest.mock('electron', () => ({
     }),
     getName: jest.fn(() => 'Hegel Pedagogy AI'),
     getVersion: jest.fn(() => '1.0.0'),
+    getGPUFeatureStatus: jest.fn(() => ({ gpu_compositing: 'enabled' })),
+    getGPUInfo: jest.fn(() => Promise.resolve({ auxAttributes: {}, gpuDevice: [] })),
+    commandLine: {
+      hasSwitch: jest.fn(() => false)
+    },
     on: jest.fn(),
     whenReady: jest.fn(() => Promise.resolve()),
     quit: jest.fn()
@@ -45,6 +50,10 @@ jest.mock('electron', () => ({
   ipcMain: {
     handle: jest.fn(),
     on: jest.fn()
+  },
+  contentTracing: {
+    startRecording: jest.fn(() => Promise.resolve()),
+    stopRecording: jest.fn((tracePath) => Promise.resolve(tracePath))
   },
   dialog: {
     showOpenDialog: jest.fn(),

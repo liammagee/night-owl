@@ -24,6 +24,7 @@ const spellcheckHandlers = require('./spellcheckHandlers');
 const advancedExportHandlers = require('./advancedExportHandlers');
 const collaborationHandlers = require('./collaborationHandlers');
 const staticSiteHandlers = require('./staticSiteHandlers');
+const performanceHandlers = require('./performanceHandlers');
 
 /**
  * Register all IPC handlers
@@ -123,6 +124,13 @@ function registerAllHandlers(dependencies) {
       console.log('[IPC] Static site handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering static site handlers:', error);
+    }
+
+    try {
+      performanceHandlers.register(dependencies);
+      console.log('[IPC] Performance handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering performance handlers:', error);
     }
 
     console.log('[IPC] All IPC handlers registered successfully');

@@ -6,7 +6,7 @@ This is the persisted backlog for systematic UX and code-quality hardening. Keep
 
 ## Current Baseline
 
-- Full Jest suite currently passes after the recent fixes: 62 suites, 1057 tests.
+- Full Jest suite currently passes after the recent fixes: 63 suites, 1062 tests.
 - The codebase is compact in file count but uneven in module size: 493 tracked source/test files, with `orchestrator/renderer.js` at about 16k lines and several modules above 3k lines.
 - Known high-risk area: persisted workspace state can point at stale or overlapping directories. This has caused duplicate roots, git status noise, and wildcard search misses.
 - Build artifacts, generated worktrees, PDF reading material, and `.DS_Store` are ignored in `.gitignore`, but local ignored files still exist and can confuse ad hoc scans unless excluded.
@@ -26,10 +26,14 @@ This is the persisted backlog for systematic UX and code-quality hardening. Keep
 - [x] Add autoreload for externally changed current files.
 - [x] Support Markdown bibliography frontmatter and rendered citations in preview.
 - [x] Support wildcard file search such as `*.html`.
+- [x] Add Electron-native GPU diagnostics and Chromium trace capture hooks without replacing Monaco or the DOM renderer.
+- [x] Reduce file-tree DOM churn by rendering through fragments and hydrating Markdown tags after the initial paint.
+- [x] Move bibliography refresh work off the synchronous preview render path.
 - [ ] Replace alert/confirm driven destructive actions with app-native modal flows that show exact paths and consequences.
 - [ ] Make no-results and stale-workspace states explicit in the UI rather than silently empty.
 - [ ] Review file tree density, icons, selection affordances, and tag layout against VS Code-style expectations.
 - [ ] Add browser-level smoke tests for the primary workflows: open folder, search wildcard, open HTML, edit Markdown, preview citations, save.
+- [ ] Capture and compare Chromium traces for large-file editing, large file-tree startup, Markdown preview, and graph/presentation views.
 
 ## P1: Code Quality
 

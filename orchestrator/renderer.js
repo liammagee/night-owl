@@ -89,6 +89,53 @@ let editor = null;
 let fallbackEditor = null;
 let markedInstance = null;
 
+const FILE_TREE_TAG_HYDRATION_LIMIT = 500;
+
+function runWhenBrowserIdle(callback, timeout = 250) {
+    if (typeof window.requestIdleCallback === 'function') {
+        return window.requestIdleCallback(callback, { timeout });
+    }
+    return setTimeout(() => callback({ didTimeout: true, timeRemaining: () => 0 }), 0);
+}
+
+function cancelBrowserIdleCallback(handle) {
+    if (!handle) return;
+    if (typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(handle);
+    } else {
+        clearTimeout(handle);
+    }
+}
+
+window.NightOwlPerformance = {
+    getGPUDiagnostics: async () => window.electronAPI?.invoke('performance:get-gpu-diagnostics'),
+    startTrace: async (options = {}) => window.electronAPI?.invoke('performance:start-trace', options),
+    stopTrace: async () => window.electronAPI?.invoke('performance:stop-trace')
+};
+
+async function initializePerformanceDiagnostics() {
+    if (!window.electronAPI) return;
+
+    try {
+        const diagnostics = await window.NightOwlPerformance.getGPUDiagnostics();
+        window.NightOwlPerformance.lastGPUDiagnostics = diagnostics;
+
+        if (diagnostics?.success) {
+            document.body?.classList.toggle(
+                'gpu-acceleration-disabled',
+                diagnostics.hardwareAccelerationDisabled
+            );
+            if (diagnostics.hardwareAccelerationDisabled) {
+                console.warn('[Performance] GPU acceleration appears disabled:', diagnostics.featureStatus);
+            } else {
+                console.info('[Performance] GPU diagnostics:', diagnostics.featureStatus);
+            }
+        }
+    } catch (error) {
+        console.warn('[Performance] Could not collect GPU diagnostics:', error);
+    }
+}
+
 // Auto-save variables
 let autoSaveTimer = null;
 window.hasUnsavedChanges = false; // Make this globally accessible
@@ -111,6 +158,8 @@ let tagFilteringInitialized = false;
 // File tree rendering state
 let fileTreeRendered = false;
 let isRenderingFileTree = false; // Prevent concurrent renders
+let pendingFileTreeRender = false;
+let fileTreeTagHydrationHandle = null;
 
 // Multi-select state for file tree
 let selectedFiles = new Set();        // Currently selected file paths
@@ -1210,8 +1259,8 @@ async function renderRegularMarkdown(markdownContent) {
     }
 
     try {
-        if (isMarkdownFilePath(window.currentFilePath)) {
-            await refreshBibliographyFromContent(window.currentFilePath, markdownContent);
+        if (isMarkdownFilePath(window.currentFilePath) && !isBibliographyConfigCurrent(window.currentFilePath, markdownContent)) {
+            scheduleBibliographyRefresh(window.currentFilePath, markdownContent);
         }
         await renderMarkdownContent(markdownContent);
         // Inject source line markers for scroll sync
@@ -3379,6 +3428,21 @@ function getBibliographySignature(filePath, bibliographyFiles) {
     return `${filePath || ''}::${normalized.join('|')}`;
 }
 
+function getBibliographyConfigForContent(filePath, content) {
+    const frontmatter = extractFrontmatter(content);
+    const bibliographyFiles = parseBibliographyFromFrontmatter(frontmatter);
+    return {
+        bibliographyFiles,
+        signature: getBibliographySignature(filePath, bibliographyFiles)
+    };
+}
+
+function isBibliographyConfigCurrent(filePath, content) {
+    const { signature } = getBibliographyConfigForContent(filePath, content);
+    return lastBibliographyConfig.filePath === filePath &&
+        lastBibliographyConfig.signature === signature;
+}
+
 function updateLastBibliographyConfig(filePath, signature) {
     lastBibliographyConfig = {
         filePath: filePath || null,
@@ -3468,13 +3532,11 @@ async function loadBibliographyForMarkdownFile(filePath, content) {
 }
 
 async function refreshBibliographyFromContent(filePath, content) {
-    const frontmatter = extractFrontmatter(content);
-    const bibliographyFiles = parseBibliographyFromFrontmatter(frontmatter);
-    const signature = getBibliographySignature(filePath, bibliographyFiles);
+    const { bibliographyFiles, signature } = getBibliographyConfigForContent(filePath, content);
     const sameFile = lastBibliographyConfig.filePath === filePath;
 
     if (sameFile && signature === lastBibliographyConfig.signature) {
-        return;
+        return false;
     }
 
     updateLastBibliographyConfig(filePath, signature);
@@ -3485,6 +3547,8 @@ async function refreshBibliographyFromContent(filePath, content) {
         await loadBibTeXFiles();
         showBibliographyStatus(formatBibliographyStatus([]));
     }
+
+    return true;
 }
 
 function scheduleBibliographyRefresh(filePath, content) {
@@ -3498,7 +3562,22 @@ function scheduleBibliographyRefresh(filePath, content) {
 
     bibliographyRefreshTimer = setTimeout(() => {
         bibliographyRefreshTimer = null;
-        refreshBibliographyFromContent(filePath, content);
+        refreshBibliographyFromContent(filePath, content)
+            .then((changed) => {
+                if (!changed || window.currentFilePath !== filePath) {
+                    return;
+                }
+                const currentContent = window.editor?.getValue?.();
+                if (currentContent !== content) {
+                    return;
+                }
+                if (typeof updatePreviewAndStructure === 'function') {
+                    updatePreviewAndStructure(content);
+                }
+            })
+            .catch(error => {
+                console.warn('[renderer.js] Deferred bibliography refresh failed:', error);
+            });
     }, 400);
 }
 
@@ -8338,6 +8417,7 @@ async function invokeAshExplicitly() {
 async function performAppInitialization() {
     // Load settings before initializing the rest of the app
     await loadAppSettings();
+    initializePerformanceDiagnostics();
 
     // Start Techne plugin system (shared feature bundles for Electron + web)
     try {
@@ -9531,10 +9611,51 @@ function getFileTreeIconClass(node, isFolder) {
     return 'file-icon-file';
 }
 
+function renderFileTreeTagsHTML(filePath) {
+    if (!window.tagManager) {
+        return '';
+    }
+
+    const fileTags = window.tagManager.getFileTags(filePath);
+    if (!fileTags || fileTags.length === 0) {
+        return '';
+    }
+
+    const tagElements = fileTags.slice(0, 2).map(tag =>
+        `<span class="file-tag">${escapeFileTreeText(tag)}</span>`
+    ).join('');
+    const moreCount = fileTags.length > 2
+        ? `<span class="file-tags-more">+${fileTags.length - 2}</span>`
+        : '';
+    return `<div class="file-tags">${tagElements}${moreCount}</div>`;
+}
+
+function updateFileTreeTagsForPath(filePath) {
+    const fileTreeView = document.getElementById('file-tree-view');
+    if (!fileTreeView || !window.tagManager) return;
+
+    const fileElements = fileTreeView.querySelectorAll('.file-tree-item.file');
+    for (const element of fileElements) {
+        if (element.dataset.path !== filePath) continue;
+        const main = element.querySelector('.file-tree-main');
+        if (!main) return;
+
+        const existingTags = main.querySelector('.file-tags');
+        if (existingTags) existingTags.remove();
+
+        const tagsHTML = renderFileTreeTagsHTML(filePath);
+        if (tagsHTML) {
+            main.insertAdjacentHTML('beforeend', tagsHTML);
+        }
+        return;
+    }
+}
+
 async function renderFileTree() {
     
     // Prevent concurrent renders
     if (isRenderingFileTree) {
+        pendingFileTreeRender = true;
         return;
     }
     
@@ -9558,16 +9679,13 @@ async function renderFileTree() {
             return;
         }
         
-        // Clear existing content - double check it's still the file tree view
-        if (fileTreeView.id === 'file-tree-view') {
-            fileTreeView.innerHTML = '';
-        }
-
         // Reset visible files list for multi-select range selection
         allVisibleFiles = [];
 
         // Mark tree as rendered
         fileTreeRendered = true;
+
+        const fragment = document.createDocumentFragment();
         
         // Render the file tree
         if (fileTree && fileTree.children) {
@@ -9579,11 +9697,9 @@ async function renderFileTree() {
                     if (window.expandedFolders.size === 0) {
                         expandCommonFolders(folderTree);
                     }
-                    // Pre-process tags for visible markdown files
-                    await preProcessMarkdownTags(folderTree);
                     // Render as a workspace folder root (depth 0)
                     // Pass both isWorkspaceFolder and isPrimary flags
-                    renderFileTreeNode(folderTree, fileTreeView, 0, folderTree.isWorkspaceFolder, folderTree.isPrimary);
+                    renderFileTreeNode(folderTree, fragment, 0, folderTree.isWorkspaceFolder, folderTree.isPrimary);
                 }
             } else {
                 // Single folder mode (backward compatible)
@@ -9592,13 +9708,12 @@ async function renderFileTree() {
                     expandCommonFolders(fileTree);
                 }
 
-                // Pre-process tags for visible markdown files
-                await preProcessMarkdownTags(fileTree);
-
-                renderFileTreeNode(fileTree, fileTreeView, 0);
+                renderFileTreeNode(fileTree, fragment, 0);
             }
+            fileTreeView.replaceChildren(fragment);
+            scheduleFileTreeTagHydration(fileTree);
         } else {
-            fileTreeView.innerHTML = '<div class="no-files">No files found</div>';
+            fileTreeView.replaceChildren(createFileTreeMessage('no-files', 'No files found'));
         }
         
         
@@ -9612,12 +9727,31 @@ async function renderFileTree() {
     } catch (error) {
         console.error('[renderFileTree] Error loading file tree:', error);
         if (fileTreeView) {
-            fileTreeView.innerHTML = '<div class="error">Error loading files</div>';
+            fileTreeView.replaceChildren(createFileTreeMessage('error', 'Error loading files'));
         }
     } finally {
         // Always clear the rendering flag
         isRenderingFileTree = false;
+        if (pendingFileTreeRender) {
+            pendingFileTreeRender = false;
+            renderFileTree();
+        }
     }
+}
+
+function createFileTreeMessage(className, text) {
+    const message = document.createElement('div');
+    message.className = className;
+    message.textContent = text;
+    return message;
+}
+
+function renderFileTreeNodes(nodes, container, depth) {
+    const fragment = document.createDocumentFragment();
+    for (const child of nodes || []) {
+        renderFileTreeNode(child, fragment, depth);
+    }
+    container.replaceChildren(fragment);
 }
 
 function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, isPrimary = false) {
@@ -9645,20 +9779,9 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
     const iconClass = getFileTreeIconClass(node, isFolder);
     const fileName = escapeFileTreeText(node.name);
     
-    // Get tags for markdown files
-    let tagsDisplay = '';
-    if (!isFolder && isMarkdownFilePath(node.name) && window.tagManager) {
-        const fileTags = window.tagManager.getFileTags(node.path);
-        if (fileTags && fileTags.length > 0) {
-            const tagElements = fileTags.slice(0, 2).map(tag =>
-                `<span class="file-tag">${escapeFileTreeText(tag)}</span>`
-            ).join('');
-            const moreCount = fileTags.length > 2
-                ? `<span class="file-tags-more">+${fileTags.length - 2}</span>`
-                : '';
-            tagsDisplay = `<div class="file-tags">${tagElements}${moreCount}</div>`;
-        }
-    }
+    const tagsDisplay = !isFolder && isMarkdownFilePath(node.name)
+        ? renderFileTreeTagsHTML(node.path)
+        : '';
     
     nodeElement.innerHTML = `
         <div class="file-tree-main">
@@ -9725,11 +9848,12 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                     try {
                         const result = await window.electronAPI.invoke('get-folder-contents', node.path);
                         if (result.success && result.children) {
-                            // Clear and re-render children
-                            childrenContainer.innerHTML = '';
-                            for (const child of result.children) {
-                                renderFileTreeNode(child, childrenContainer, depth + 1);
-                            }
+                            renderFileTreeNodes(result.children, childrenContainer, depth + 1);
+                            scheduleFileTreeTagHydration({
+                                type: 'folder',
+                                path: node.path,
+                                children: result.children
+                            });
                         }
                     } catch (error) {
                         console.error('[FileTree] Error refreshing folder contents:', error);
@@ -9876,10 +10000,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         childrenContainer.style.setProperty('--tree-depth', depth + 1);
         childrenContainer.style.display = 'block';
 
-        // Render children into the container
-        for (const child of node.children) {
-            renderFileTreeNode(child, childrenContainer, depth + 1);
-        }
+        renderFileTreeNodes(node.children, childrenContainer, depth + 1);
 
         container.appendChild(childrenContainer);
     }
@@ -10724,14 +10845,18 @@ async function showCitationDialog() {
     searchInput.focus();
 }
 
-// Collect all markdown file paths from a tree node
-function collectMarkdownPaths(node, paths = []) {
+// Collect visible markdown file paths from a tree node. Collapsed subtrees are
+// deliberately skipped so initial tree paints do not wait on hidden metadata.
+function collectMarkdownPaths(node, paths = [], depth = 0) {
     if (node.type === 'file' && node.name.endsWith('.md')) {
         paths.push(node.path);
     }
-    if (node.children) {
+
+    const isFolder = node.type === 'folder' || node.type === 'directory';
+    const shouldTraverseChildren = !isFolder || depth === 0 || window.expandedFolders.has(node.path);
+    if (shouldTraverseChildren && node.children) {
         for (const child of node.children) {
-            collectMarkdownPaths(child, paths);
+            collectMarkdownPaths(child, paths, depth + 1);
         }
     }
     return paths;
@@ -10742,7 +10867,7 @@ async function preProcessMarkdownTags(node) {
     if (!window.tagManager || !window.electronAPI) return;
 
     // Collect all markdown file paths
-    const markdownPaths = collectMarkdownPaths(node);
+    const markdownPaths = collectMarkdownPaths(node).slice(0, FILE_TREE_TAG_HYDRATION_LIMIT);
 
     if (markdownPaths.length === 0) return;
 
@@ -10756,6 +10881,7 @@ async function preProcessMarkdownTags(node) {
             if (result.success && result.hasFrontmatter && result.content) {
                 // Process the frontmatter content
                 window.tagManager.processFile(result.filePath, result.content);
+                updateFileTreeTagsForPath(result.filePath);
             }
         }
 
@@ -10764,6 +10890,18 @@ async function preProcessMarkdownTags(node) {
         console.warn('[preProcessMarkdownTags] Error batch processing files:', error);
         // Fall back to no tags rather than slow individual processing
     }
+}
+
+function scheduleFileTreeTagHydration(node) {
+    if (!window.tagManager || !window.electronAPI || !node) return;
+    if (fileTreeTagHydrationHandle) {
+        cancelBrowserIdleCallback(fileTreeTagHydrationHandle);
+    }
+
+    fileTreeTagHydrationHandle = runWhenBrowserIdle(async () => {
+        fileTreeTagHydrationHandle = null;
+        await preProcessMarkdownTags(node);
+    }, 600);
 }
 
 // Function to automatically expand common/important folders on first load
