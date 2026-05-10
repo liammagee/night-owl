@@ -181,9 +181,13 @@ describe('Code quality guardrails', () => {
     expect(packageJson.bin.nightowl).toBe('bin/nightowl');
     expect(packageJson.build.files).toContain('bin/**/*');
     expect(packageJson.build.files).toContain('services/**/*');
-    expect(cliSource).toContain('function isPackagedNightOwlRunning');
+    expect(cliSource).toContain('function resolveMacAppPath');
+    expect(cliSource).toContain('appendCliLaunchRequest');
+    expect(cliSource).toContain('POSIX path of (path to application "NightOwl")');
+    expect(mainSource).toContain('startCliLaunchRequestBridge');
+    expect(mainSource).toContain('consumeCliLaunchRequests');
     expect(cliSource).toContain("process.env.NIGHTOWL_CLI_DEV === '1'");
-    expect(cliSource).toContain("spawnAndExit('open', ['-a', 'NightOwl', '--args', ...args]");
+    expect(cliSource).toContain("spawnAndExit('open', [macAppPath], { cwd: process.cwd() })");
   });
 
   test('direct write handlers resolve targets through workspace path guards', () => {

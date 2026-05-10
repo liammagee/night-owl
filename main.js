@@ -29,6 +29,10 @@ const {
   parseNightOwlLaunchArgs,
   resolveLaunchTargets
 } = require('./services/launchArgs');
+const {
+  REQUEST_FILE_NAME,
+  consumeCliLaunchRequests
+} = require('./services/cliLaunchRequests');
 const { installNightOwlCli } = require('./services/cliInstaller');
 const ipcHandlers = require('./ipc');
 const { createDebugLogger } = require('./ipc/logging');
@@ -1042,6 +1046,56 @@ async function applyLaunchTargetsFromCommandLine(commandLine, cwd) {
     const applied = applyLaunchTargetToSettings(targets[0]);
     await notifyRendererOfLaunchTarget(applied);
     return applied;
+}
+
+let cliLaunchRequestWatcher = null;
+let cliLaunchRequestTimer = null;
+
+async function processCliLaunchRequests() {
+    const requests = consumeCliLaunchRequests(app.getPath('userData'));
+    if (!requests.length) return;
+
+    for (const request of requests) {
+        try {
+            await applyLaunchTargetsFromCommandLine(request.args, request.cwd);
+        } catch (error) {
+            console.error('[main.js] Failed to process CLI launch request:', error);
+        }
+    }
+}
+
+function scheduleCliLaunchRequestProcessing(delay = 50) {
+    if (cliLaunchRequestTimer) clearTimeout(cliLaunchRequestTimer);
+    cliLaunchRequestTimer = setTimeout(() => {
+        cliLaunchRequestTimer = null;
+        processCliLaunchRequests().catch((error) => {
+            console.error('[main.js] Failed to process CLI launch requests:', error);
+        });
+    }, delay);
+}
+
+function startCliLaunchRequestBridge() {
+    const userDataPath = app.getPath('userData');
+    try {
+        fsSync.mkdirSync(userDataPath, { recursive: true });
+        cliLaunchRequestWatcher = fsSync.watch(userDataPath, (_eventType, filename) => {
+            if (!filename || filename === REQUEST_FILE_NAME) {
+                scheduleCliLaunchRequestProcessing();
+            }
+        });
+    } catch (error) {
+        console.warn('[main.js] CLI launch request watcher unavailable:', error.message);
+    }
+
+    app.on('activate', () => scheduleCliLaunchRequestProcessing(0));
+    app.on('before-quit', () => {
+        if (cliLaunchRequestTimer) clearTimeout(cliLaunchRequestTimer);
+        if (cliLaunchRequestWatcher) cliLaunchRequestWatcher.close();
+        cliLaunchRequestTimer = null;
+        cliLaunchRequestWatcher = null;
+    });
+
+    scheduleCliLaunchRequestProcessing(0);
 }
 
 // Save navigation history
@@ -3625,6 +3679,7 @@ app.whenReady().then(async () => {
   }
   
   createWindow();
+  startCliLaunchRequestBridge();
   
   // Initialize tutor-bridge (async — loads ESM tutor-core via dynamic import)
   try {

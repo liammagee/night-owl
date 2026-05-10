@@ -4,6 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 const { absolutizeCliPathArgs, parseNightOwlLaunchArgs } = require('../services/launchArgs');
+const {
+  appendCliLaunchRequest,
+  getDefaultUserDataPath
+} = require('../services/cliLaunchRequests');
 
 const appRoot = path.resolve(__dirname, '..');
 const packageJson = require(path.join(appRoot, 'package.json'));
@@ -24,8 +28,8 @@ Options:
   --foreground     Keep the launcher attached to the app process.
 
 Environment:
-  NIGHTOWL_CLI_DEV=1      Prefer the local Electron checkout.
-  NIGHTOWL_APP_PATH=...   macOS .app bundle path to open when not using local Electron.`);
+  NIGHTOWL_CLI_DEV=1      Force the local Electron checkout.
+  NIGHTOWL_APP_PATH=...   macOS .app bundle path to launch.`);
 }
 
 if (parsed.help) {
@@ -43,15 +47,79 @@ const foreground = rawArgs.includes('--foreground');
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
-function isPackagedNightOwlRunning() {
+function resolveMacAppPath() {
+  if (process.platform !== 'darwin') return '';
+
+  const candidates = [
+    process.env.NIGHTOWL_APP_PATH,
+    '/Applications/NightOwl.app'
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  try {
+    const appPath = execFileSync('osascript', [
+      '-e',
+      'POSIX path of (path to application "NightOwl")'
+    ], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2000
+    }).trim().replace(/\/$/, '');
+    if (appPath && fs.existsSync(appPath)) return appPath;
+  } catch (_) {
+    // Launch Services may not know NightOwl yet on a fresh source checkout.
+  }
+
+  const localAppCandidates = [
+    path.join(appRoot, 'dist', process.arch === 'arm64' ? 'mac-arm64' : 'mac', 'NightOwl.app'),
+    path.join(appRoot, 'dist', 'mac-universal', 'NightOwl.app'),
+    path.join(appRoot, 'dist', 'mac', 'NightOwl.app'),
+    path.join(appRoot, 'dist', 'mac-arm64', 'NightOwl.app')
+  ];
+  for (const candidate of localAppCandidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return '';
+}
+
+function isNightOwlRunning() {
   if (process.platform !== 'darwin') return false;
   try {
-    execFileSync('pgrep', ['-f', 'NightOwl\\.app/Contents/MacOS/NightOwl'], {
-      stdio: 'ignore'
+    const output = execFileSync('pgrep', ['-x', 'NightOwl'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
     });
-    return true;
+    return output.trim().length > 0;
   } catch (_) {
     return false;
+  }
+}
+
+function resolveMacAppExecutable(appPath) {
+  if (!appPath) return '';
+
+  const macosDir = path.join(appPath, 'Contents', 'MacOS');
+  const preferredExecutable = path.join(macosDir, 'NightOwl');
+  if (fs.existsSync(preferredExecutable)) return preferredExecutable;
+
+  try {
+    const executable = fs.readdirSync(macosDir)
+      .map(entry => path.join(macosDir, entry))
+      .find(candidate => {
+        try {
+          fs.accessSync(candidate, fs.constants.X_OK);
+          return fs.statSync(candidate).isFile();
+        } catch (_) {
+          return false;
+        }
+      });
+    return executable || '';
+  } catch (_) {
+    return '';
   }
 }
 
@@ -83,13 +151,29 @@ const electronBin = process.platform === 'win32'
   ? path.join(appRoot, 'node_modules', '.bin', 'electron.cmd')
   : path.join(appRoot, 'node_modules', '.bin', 'electron');
 const forceLocal = process.env.NIGHTOWL_CLI_DEV === '1';
+const macAppPath = forceLocal ? '' : resolveMacAppPath();
 
-if (process.platform === 'darwin' && !forceLocal && !foreground && isPackagedNightOwlRunning()) {
-  spawnAndExit('open', ['-a', 'NightOwl', '--args', ...args], { cwd: process.cwd() });
+if (process.platform === 'darwin' && macAppPath && !foreground) {
+  if (isNightOwlRunning()) {
+    appendCliLaunchRequest({
+      userDataPath: getDefaultUserDataPath('NightOwl'),
+      args,
+      cwd: process.cwd()
+    });
+    spawnAndExit('open', [macAppPath], { cwd: process.cwd() });
+    return;
+  }
+
+  spawnAndExit('open', [macAppPath, '--args', ...args], { cwd: process.cwd() });
   return;
 }
 
-const preferLocal = forceLocal || fs.existsSync(electronBin);
+if (process.platform === 'darwin' && macAppPath && foreground && isNightOwlRunning()) {
+  console.error('nightowl: NightOwl is already running; quit it before using --foreground.');
+  process.exit(1);
+}
+
+const preferLocal = forceLocal || !macAppPath;
 
 if (preferLocal && fs.existsSync(electronBin)) {
   spawnAndExit(electronBin, [appRoot, ...args]);
@@ -97,8 +181,14 @@ if (preferLocal && fs.existsSync(electronBin)) {
 }
 
 if (process.platform === 'darwin') {
-  const appPath = process.env.NIGHTOWL_APP_PATH || '/Applications/NightOwl.app';
+  const appPath = macAppPath || process.env.NIGHTOWL_APP_PATH || '/Applications/NightOwl.app';
   if (fs.existsSync(appPath)) {
+    const appExecutable = resolveMacAppExecutable(appPath);
+    if (appExecutable) {
+      spawnAndExit(appExecutable, args, { cwd: process.cwd() });
+      return;
+    }
+
     spawnAndExit('open', [appPath, '--args', ...args], { cwd: process.cwd() });
     return;
   }
