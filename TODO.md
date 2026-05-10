@@ -194,8 +194,9 @@ by blast radius, not by depth of code change.
 - [x] **Clear Electron test startup timeout after success** - `tests/e2e/electron-test-helper.js`
   - `startElectron()` leaves the 30-second timeout armed after resolve, which can kill a successfully launched app and create intermittent E2E failures.
 
-- [ ] **Make performance E2E tests app-aware instead of wall-clock driven** - `tests/e2e/performance.e2e.js`
+- [x] **Make performance E2E tests app-aware instead of wall-clock driven** - `tests/e2e/performance.e2e.js`
   - Current thresholds depend on `Date.now()`, fixed sleeps, and generic selectors rather than stable app instrumentation, which makes the suite noisy and hard to trust.
+  - **Status 2026-05-10:** Performance E2E now waits on NightOwl-specific readiness, collects renderer navigation/paint diagnostics, and measures editor operations with in-page `performance.mark/measure` instead of Playwright-side `Date.now()` thresholds or fixed sleeps.
 
 - [ ] **Deduplicate presentation services** - `services/ttsService.js`, `plugins/techne-presentations/ttsService.js`, `services/videoRecordingService.js`, `plugins/techne-presentations/videoRecordingService.js`
   - The TTS implementation has already diverged between the app copy and the plugin copy, so bug fixes and provider behavior are no longer consistent.

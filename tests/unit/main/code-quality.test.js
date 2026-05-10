@@ -205,6 +205,7 @@ describe('Code quality guardrails', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
     const traceScript = fs.readFileSync(path.join(__dirname, '../../../scripts/compare-chromium-traces.js'), 'utf8');
     const runbook = fs.readFileSync(path.join(__dirname, '../../../docs/performance-trace-runbook.md'), 'utf8');
+    const performanceE2E = fs.readFileSync(path.join(__dirname, '../../../tests/e2e/performance.e2e.js'), 'utf8');
 
     expect(packageJson.scripts['quality:trace']).toBe('node scripts/compare-chromium-traces.js');
     expect(traceScript).toContain('summarizeTrace');
@@ -213,6 +214,11 @@ describe('Code quality guardrails', () => {
     expect(runbook).toContain('Markdown preview');
     expect(runbook).toContain('Graph view');
     expect(runbook).toContain('Presentation view');
+    expect(performanceE2E).toContain('waitForNightOwlReady');
+    expect(performanceE2E).toContain('collectAppDiagnostics');
+    expect(performanceE2E).toContain('performance.mark');
+    expect(performanceE2E).not.toContain('Date.now()');
+    expect(performanceE2E).not.toContain('waitForTimeout');
   });
 
   test('noisy git and search success logs are debug-gated', () => {
