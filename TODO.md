@@ -51,15 +51,15 @@ Feature/quality hardening pass focused on stale TODO reconciliation and low-risk
 This pass paired a codebase walk with a live computer-use session against the running app.
 A **silent data-loss bug** was confirmed mid-session: autosave wrote the visible editor
 buffer to a stale `window.currentFilePath`, overwriting a different file on disk. Two
-files in the sibling `machinespirits-content-philosophy` repo were corrupted (one
-restored from git this session, one still pending user decision). Items below are ordered
+files in the sibling `machinespirits-content-philosophy` repo were corrupted; both
+have now been restored. Items below are ordered
 by blast radius, not by depth of code change.
 
 ### Critical (data integrity)
 
 - [x] **Autosave can write the active buffer to the wrong file path.** Root cause: there is no enforced invariant binding the *visible Monaco model* to the *path that autosave will write to*. The path lives in the global `window.currentFilePath` (assigned in **22 production call sites** — see `git grep "window\.currentFilePath\s*="`), the buffer lives in `editor.getValue()`, and the 2-second commit lives in `autoSaveTimer`. Any one can drift independently.
   - **Status 2026-05-10:** The write-safety invariant now lives in `orchestrator/modules/autosave.js`: pending timers are cleared on entry, saves use `perform-save-with-path`, the active tab model must match the visible editor model, and the active tab path must match `window.currentFilePath`. Direct renderer/editor-tab writes now route through `orchestrator/modules/current-file-state.js`.
-  - **Reproduced this session.** While inspecting `lecture-7.md`, an earlier search-result click had set `window.currentFilePath` to `courses/dissertation/lecture-1.md`. Subsequent keystrokes triggered autosave, which wrote `lecture-7.md`'s buffer to `lecture-1.md` on disk. `git restore courses/dissertation/lecture-1.md` recovered it. A second file (`articles/thoughts-on-dissertations.md`) was found corrupted from an earlier instance and is still pending below.
+  - **Reproduced this session.** While inspecting `lecture-7.md`, an earlier search-result click had set `window.currentFilePath` to `courses/dissertation/lecture-1.md`. Subsequent keystrokes triggered autosave, which wrote `lecture-7.md`'s buffer to `lecture-1.md` on disk. `git restore courses/dissertation/lecture-1.md` recovered it. A second file, now at `articles/dissertations-critique/thoughts-on-dissertations.md` in the content repo, was restored from history in `machinespirits-content-philosophy` commit `527c5d5`.
   - **Smoking gun #1** – `orchestrator/renderer.js:6063` sets `window.currentFilePath = filePath` **before** `handleEditableFile` swaps the Monaco model at `orchestrator/renderer.js:6121`. There is at least one async `await` (and conditionally several) between them. A pending autosave timer that fires inside this window saves the *old* buffer to the *new* path.
   - **Smoking gun #2** – `orchestrator/modules/autosave.js:69` (`performAutoSave`) does **not** clear `autoSaveTimer` when called directly. `_openFileInEditorImpl` calls it at `orchestrator/renderer.js:5989` to flush before switching files, but the previously-scheduled `setTimeout` keeps ticking and can re-enter `performAutoSave` after the path has been swapped.
   - **Recommended fix shape** (do not just patch the call sites — establish the invariant):
@@ -69,7 +69,7 @@ by blast radius, not by depth of code change.
     4. Have `performAutoSave` clear `autoSaveTimer` on entry, regardless of how it was invoked.
   - **Tests to add:** unit test that mocks an in-flight `setTimeout` firing across a tab switch and asserts the write goes to the *new* tab's path with the *new* tab's content; integration test that types in tab A, clicks search result for tab B, and verifies neither file's on-disk content was altered with the other's buffer.
 
-- [ ] **Restore decision pending: `~/Dev/machinespirits/machinespirits-content-philosophy/articles/thoughts-on-dissertations.md`.** This file shows `git diff --stat → 263 insertions, 46 deletions`; the working-tree content matches `courses/lecture-7.md` ("Bitter Lessons, Stochastic Parrots…"), not the original "Thoughts on Dissertation Writing" article. mtime `Apr 16 21:55:36 2026` precedes this Claude session, so the corruption almost certainly came from an earlier instance of the autosave bug above. **Action required from user:** confirm whether to `git restore articles/thoughts-on-dissertations.md` (no legitimate edits in flight) or whether the working-tree content includes intended changes that need to be salvaged first.
+- [x] **Restore corrupted dissertation article in the content repo.** The stale path was `articles/thoughts-on-dissertations.md`; the current content path is `~/Dev/machinespirits/machinespirits-content-philosophy/articles/dissertations-critique/thoughts-on-dissertations.md`. The file had been overwritten with `courses/479/lecture-7.md` content ("Bitter Lessons, Stochastic Parrots..."). **Status 2026-05-10:** restored the original "Thoughts on Dissertation Writing" article from repo history and regenerated the paired HTML in content repo commit `527c5d5`.
 
 ### High (correctness, near-misses for data loss)
 
@@ -77,7 +77,7 @@ by blast radius, not by depth of code change.
 
 - [ ] **`_openingFilePath` guard at `orchestrator/renderer.js:5972` doesn't protect against same-file-twice-with-different-content races.** The guard is keyed on `filePath` only. A second concurrent open of the same path with newer disk content will silently no-op, leaving the editor on the older content. Either include a content/mtime hash in the guard key, or queue the second call instead of dropping it.
 
-- [ ] **Confirm the search-click "wrong file shown" report is fully resolved by the autosave fix.** During this session the symptom of "click lecture-1.md result, see lecture-7.md content" was traced to the autosave bug having earlier overwritten `lecture-1.md` on disk with `lecture-7.md` content — i.e., the search panel and editor were both correct, but the *file* was wrong. After the autosave fix lands, re-test with: open lecture-7.md, search "phaedrus", click the result for `articles/thoughts-on-dissertations.md`, verify the editor shows that file's actual content. If still wrong, the search-result `openFileInEditor` path in `orchestrator/modules/search.js:574-607` needs separate investigation.
+- [x] **Confirm the search-click "wrong file shown" report is fully resolved by the autosave fix.** During this session the symptom of "click lecture-1.md result, see lecture-7.md content" was traced to the autosave bug having earlier overwritten `lecture-1.md` on disk with `lecture-7.md` content — i.e., the search panel and editor were both correct, but the *file* was wrong. **Status 2026-05-10:** Electron smoke launched with an isolated `HOME`, loaded the content repo, opened `courses/479/lecture-7.md`, searched for "Thoughts On Dissertation Writing", clicked the exact `articles/dissertations-critique/thoughts-on-dissertations.md` result, and verified `window.currentFilePath` plus the editor buffer matched the restored dissertation article without "Bitter Lessons" content.
 
 ### Medium (performance, observability)
 
