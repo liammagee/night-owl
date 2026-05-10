@@ -187,8 +187,9 @@ by blast radius, not by depth of code change.
 
 ### Next
 
-- [ ] **Replace mock-only plugin integration coverage with real loader coverage** - `tests/integration/plugin-loading.test.js`
+- [x] **Replace mock-only plugin integration coverage with real loader coverage** - `tests/integration/plugin-loading.test.js`
   - The current file mostly tests local Jest doubles rather than the actual plugin system, so regressions in manifest parsing, DOM injection, and registration timing can slip through.
+  - **Status 2026-05-10:** Integration coverage now boots the real Techne plugin loader in JSDOM and verifies manifest-driven script injection, delayed registration, dependency ordering, lazy plugin loading, and CSS deduping.
 
 - [x] **Clear Electron test startup timeout after success** - `tests/e2e/electron-test-helper.js`
   - `startElectron()` leaves the 30-second timeout armed after resolve, which can kill a successfully launched app and create intermittent E2E failures.

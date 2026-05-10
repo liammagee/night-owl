@@ -1,343 +1,169 @@
-/**
- * Integration tests for plugin loading
- * Tests the plugin system functionality
- */
-
 const path = require('path');
-const fs = require('fs/promises');
+const { JSDOM } = require('jsdom');
+
+const pluginSystemPath = path.resolve(__dirname, '../../plugins/techne-plugin-system.js');
+
+function flushMicrotasks() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+async function waitForElement(selector) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const element = document.head.querySelector(selector);
+    if (element) return element;
+    // eslint-disable-next-line no-await-in-loop
+    await flushMicrotasks();
+  }
+  throw new Error(`Timed out waiting for ${selector}`);
+}
+
+function loadPluginSystem() {
+  require(pluginSystemPath);
+  return window.TechnePlugins;
+}
 
 describe('Plugin Loading Integration', () => {
-  describe('Plugin Discovery', () => {
-    function createPluginLoader(pluginDir) {
-      return {
-        discoverPlugins: jest.fn(async () => {
-          const plugins = [];
-          
-          // Simulate reading plugin directories
-          const mockPlugins = [
-            {
-              name: 'techne-maze',
-              displayName: 'Babel Maze',
-              version: '1.0.0',
-              description: 'Interactive maze navigation',
-              main: 'index.js',
-              enabled: true
-            },
-            {
-              name: 'techne-presentations',
-              displayName: 'Presentations',
-              version: '1.0.0',
-              description: 'Slide presentations',
-              main: 'index.js',
-              enabled: true
-            },
-            {
-              name: 'techne-disabled',
-              displayName: 'Disabled Plugin',
-              version: '1.0.0',
-              description: 'This is disabled',
-              main: 'index.js',
-              enabled: false
-            }
-          ];
-          
-          return mockPlugins;
-        }),
-        loadPlugin: jest.fn(async (pluginName) => {
-          const manifest = {
-            name: pluginName,
-            displayName: pluginName.replace('techne-', '').replace(/-/g, ' '),
-            version: '1.0.0',
-            main: 'index.js'
-          };
-          
-          return {
-            success: true,
-            plugin: {
-              manifest,
-              loaded: true,
-              exports: {
-                init: jest.fn(),
-                activate: jest.fn(),
-                deactivate: jest.fn()
-              }
-            }
-          };
-        }),
-        unloadPlugin: jest.fn(async (pluginName) => {
-          return { success: true, message: `Plugin ${pluginName} unloaded` };
-        })
-      };
-    }
+  let dom;
+  let consoleSpies;
 
-    test('should discover all plugins in directory', async () => {
-      const loader = createPluginLoader('/plugins');
-      const plugins = await loader.discoverPlugins();
-
-      expect(plugins).toHaveLength(3);
-      expect(plugins.map(p => p.name)).toContain('techne-maze');
-      expect(plugins.map(p => p.name)).toContain('techne-presentations');
+  beforeEach(() => {
+    jest.resetModules();
+    dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
+      url: 'http://nightowl.test/'
     });
 
-    test('should identify enabled and disabled plugins', async () => {
-      const loader = createPluginLoader('/plugins');
-      const plugins = await loader.discoverPlugins();
+    global.window = dom.window;
+    global.document = dom.window.document;
+    global.localStorage = dom.window.localStorage;
+    window.TECHNE_PLUGIN_AUTOSTART = false;
+    delete window.TECHNE_PLUGIN_MANIFEST;
 
-      const enabled = plugins.filter(p => p.enabled);
-      const disabled = plugins.filter(p => !p.enabled);
-
-      expect(enabled).toHaveLength(2);
-      expect(disabled).toHaveLength(1);
-      expect(disabled[0].name).toBe('techne-disabled');
-    });
-
-    test('should load plugin successfully', async () => {
-      const loader = createPluginLoader('/plugins');
-      const result = await loader.loadPlugin('techne-maze');
-
-      expect(result.success).toBe(true);
-      expect(result.plugin.loaded).toBe(true);
-      expect(result.plugin.manifest.name).toBe('techne-maze');
-    });
-
-    test('should unload plugin successfully', async () => {
-      const loader = createPluginLoader('/plugins');
-      const result = await loader.unloadPlugin('techne-maze');
-
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('techne-maze');
-    });
+    consoleSpies = ['log', 'warn', 'error'].map((method) =>
+      jest.spyOn(console, method).mockImplementation(() => {})
+    );
   });
 
-  describe('Plugin Manifest Validation', () => {
-    function validateManifest(manifest) {
-      const required = ['name', 'version', 'main'];
-      const missing = required.filter(field => !manifest[field]);
-      
-      if (missing.length > 0) {
-        return { valid: false, errors: missing.map(f => `Missing required field: ${f}`) };
-      }
-      
-      // Validate name format
-      if (!/^techne-[a-z0-9-]+$/.test(manifest.name)) {
-        return { valid: false, errors: ['Invalid plugin name format'] };
-      }
-      
-      // Validate version format (semver-like)
-      if (!/^\d+\.\d+\.\d+/.test(manifest.version)) {
-        return { valid: false, errors: ['Invalid version format'] };
-      }
-      
-      return { valid: true, errors: [] };
+  afterEach(() => {
+    for (const spy of consoleSpies) {
+      spy.mockRestore();
     }
-
-    test('should validate correct manifest', () => {
-      const manifest = {
-        name: 'techne-test-plugin',
-        version: '1.0.0',
-        main: 'index.js',
-        description: 'Test plugin'
-      };
-
-      const result = validateManifest(manifest);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    test('should reject manifest missing required fields', () => {
-      const manifest = {
-        name: 'techne-incomplete',
-        description: 'Missing version and main'
-      };
-
-      const result = validateManifest(manifest);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Missing required field: version');
-      expect(result.errors).toContain('Missing required field: main');
-    });
-
-    test('should reject invalid plugin name format', () => {
-      const manifest = {
-        name: 'invalid_plugin_name',
-        version: '1.0.0',
-        main: 'index.js'
-      };
-
-      const result = validateManifest(manifest);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Invalid plugin name format');
-    });
-
-    test('should reject invalid version format', () => {
-      const manifest = {
-        name: 'techne-test',
-        version: 'v1',
-        main: 'index.js'
-      };
-
-      const result = validateManifest(manifest);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Invalid version format');
-    });
+    dom.window.close();
+    delete global.window;
+    delete global.document;
+    delete global.localStorage;
   });
 
-  describe('Plugin Settings Persistence', () => {
-    function createPluginSettings() {
-      const storage = new Map();
+  test('loads a manifest entry through real script injection and delayed registration', async () => {
+    const plugins = loadPluginSystem();
+    const init = jest.fn();
 
-      return {
-        savePluginState: jest.fn((pluginName, enabled) => {
-          storage.set(pluginName, { enabled, savedAt: Date.now() });
-          return { success: true };
-        }),
-        loadPluginState: jest.fn((pluginName) => {
-          const state = storage.get(pluginName);
-          if (!state) {
-            return { enabled: true }; // Default to enabled
-          }
-          return state;
-        }),
-        getAllPluginStates: jest.fn(() => {
-          const states = {};
-          for (const [name, state] of storage) {
-            states[name] = state;
-          }
-          return states;
-        })
-      };
-    }
-
-    test('should save plugin enabled state', () => {
-      const settings = createPluginSettings();
-      
-      const result = settings.savePluginState('techne-maze', false);
-      expect(result.success).toBe(true);
-
-      const state = settings.loadPluginState('techne-maze');
-      expect(state.enabled).toBe(false);
+    const startPromise = plugins.start({
+      appId: 'nightowl-integration',
+      manifest: [
+        { id: 'integration-plugin', entry: 'plugins/integration-plugin.js', enabledByDefault: true }
+      ]
     });
 
-    test('should return default enabled state for unknown plugin', () => {
-      const settings = createPluginSettings();
-      
-      const state = settings.loadPluginState('techne-unknown');
-      expect(state.enabled).toBe(true);
+    const script = await waitForElement('script[src="/plugins/integration-plugin.js"]');
+    expect(script.async).toBe(false);
+    expect(plugins.listPlugins()).toEqual([]);
+
+    script.onload();
+    await flushMicrotasks();
+    expect(init).not.toHaveBeenCalled();
+
+    plugins.register({
+      id: 'integration-plugin',
+      init
     });
 
-    test('should get all plugin states', () => {
-      const settings = createPluginSettings();
-      
-      settings.savePluginState('techne-maze', true);
-      settings.savePluginState('techne-presentations', false);
+    const result = await startPromise;
 
-      const states = settings.getAllPluginStates();
-      expect(Object.keys(states)).toHaveLength(2);
-      expect(states['techne-maze'].enabled).toBe(true);
-      expect(states['techne-presentations'].enabled).toBe(false);
-    });
+    expect(result.enabled).toEqual(['integration-plugin']);
+    expect(plugins.listPlugins()).toEqual(['integration-plugin']);
+    expect(init).toHaveBeenCalledTimes(1);
+    expect(init.mock.calls[0][0].appId).toBe('nightowl-integration');
   });
 
-  describe('Plugin Lifecycle', () => {
-    function createPluginLifecycle() {
-      const loadedPlugins = new Map();
+  test('loads dependency scripts before dependent plugins', async () => {
+    const plugins = loadPluginSystem();
+    const initOrder = [];
 
-      return {
-        initialize: jest.fn(async (pluginName, manifest) => {
-          const plugin = {
-            name: pluginName,
-            manifest,
-            state: 'initialized',
-            exports: {
-              init: jest.fn(() => { plugin.state = 'ready'; }),
-              activate: jest.fn(() => { plugin.state = 'active'; }),
-              deactivate: jest.fn(() => { plugin.state = 'inactive'; }),
-              cleanup: jest.fn(() => { plugin.state = 'cleaned'; })
-            }
-          };
-          loadedPlugins.set(pluginName, plugin);
-          plugin.exports.init();
-          return { success: true, plugin };
-        }),
-        activate: jest.fn(async (pluginName) => {
-          const plugin = loadedPlugins.get(pluginName);
-          if (!plugin) {
-            return { success: false, error: 'Plugin not initialized' };
-          }
-          plugin.exports.activate();
-          return { success: true, state: plugin.state };
-        }),
-        deactivate: jest.fn(async (pluginName) => {
-          const plugin = loadedPlugins.get(pluginName);
-          if (!plugin) {
-            return { success: false, error: 'Plugin not loaded' };
-          }
-          plugin.exports.deactivate();
-          return { success: true, state: plugin.state };
-        }),
-        cleanup: jest.fn(async (pluginName) => {
-          const plugin = loadedPlugins.get(pluginName);
-          if (!plugin) {
-            return { success: false, error: 'Plugin not found' };
-          }
-          plugin.exports.cleanup();
-          loadedPlugins.delete(pluginName);
-          return { success: true };
-        }),
-        getState: jest.fn((pluginName) => {
-          const plugin = loadedPlugins.get(pluginName);
-          return plugin ? plugin.state : null;
-        })
-      };
-    }
-
-    test('should initialize plugin', async () => {
-      const lifecycle = createPluginLifecycle();
-      const manifest = { name: 'techne-test', version: '1.0.0' };
-
-      const result = await lifecycle.initialize('techne-test', manifest);
-
-      expect(result.success).toBe(true);
-      expect(lifecycle.getState('techne-test')).toBe('ready');
+    const startPromise = plugins.start({
+      appId: 'nightowl-integration',
+      enabled: ['dependent-plugin'],
+      manifest: [
+        { id: 'base-plugin', entry: 'plugins/base-plugin.js' },
+        { id: 'dependent-plugin', entry: 'plugins/dependent-plugin.js', dependencies: ['base-plugin'] }
+      ]
     });
 
-    test('should activate initialized plugin', async () => {
-      const lifecycle = createPluginLifecycle();
-      await lifecycle.initialize('techne-test', { name: 'techne-test' });
+    const baseScript = await waitForElement('script[src="/plugins/base-plugin.js"]');
+    expect(document.head.querySelector('script[src="/plugins/dependent-plugin.js"]')).toBeNull();
 
-      const result = await lifecycle.activate('techne-test');
+    plugins.register({
+      id: 'base-plugin',
+      init: () => initOrder.push('base-plugin')
+    });
+    baseScript.onload();
 
-      expect(result.success).toBe(true);
-      expect(lifecycle.getState('techne-test')).toBe('active');
+    const dependentScript = await waitForElement('script[src="/plugins/dependent-plugin.js"]');
+    plugins.register({
+      id: 'dependent-plugin',
+      init: () => initOrder.push('dependent-plugin')
+    });
+    dependentScript.onload();
+
+    const result = await startPromise;
+
+    expect(result.enabled).toEqual(['dependent-plugin', 'base-plugin']);
+    expect(initOrder).toEqual(['base-plugin', 'dependent-plugin']);
+  });
+
+  test('defers lazy plugins until explicit loadPlugin call', async () => {
+    const plugins = loadPluginSystem();
+    const init = jest.fn();
+
+    await plugins.start({
+      appId: 'nightowl-integration',
+      manifest: [
+        { id: 'lazy-plugin', entry: 'plugins/lazy-plugin.js', enabledByDefault: true, lazy: true }
+      ]
     });
 
-    test('should deactivate active plugin', async () => {
-      const lifecycle = createPluginLifecycle();
-      await lifecycle.initialize('techne-test', { name: 'techne-test' });
-      await lifecycle.activate('techne-test');
+    expect(plugins.isLazy('lazy-plugin')).toBe(true);
+    expect(plugins.getLazyPlugins()).toEqual(['lazy-plugin']);
+    expect(document.head.querySelector('script[src="/plugins/lazy-plugin.js"]')).toBeNull();
 
-      const result = await lifecycle.deactivate('techne-test');
+    const loadPromise = plugins.loadPlugin('lazy-plugin');
+    const lazyScript = await waitForElement('script[src="/plugins/lazy-plugin.js"]');
 
-      expect(result.success).toBe(true);
-      expect(lifecycle.getState('techne-test')).toBe('inactive');
+    plugins.register({
+      id: 'lazy-plugin',
+      init
     });
+    lazyScript.onload();
 
-    test('should cleanup and remove plugin', async () => {
-      const lifecycle = createPluginLifecycle();
-      await lifecycle.initialize('techne-test', { name: 'techne-test' });
+    const result = await loadPromise;
 
-      const result = await lifecycle.cleanup('techne-test');
+    expect(result.success).toBe(true);
+    expect(plugins.isLazy('lazy-plugin')).toBe(false);
+    expect(plugins.getLazyPlugins()).toEqual([]);
+    expect(init).toHaveBeenCalledTimes(1);
+  });
 
-      expect(result.success).toBe(true);
-      expect(lifecycle.getState('techne-test')).toBeNull();
-    });
+  test('uses the real stylesheet loader and does not duplicate loaded links', async () => {
+    const plugins = loadPluginSystem();
 
-    test('should fail to activate non-initialized plugin', async () => {
-      const lifecycle = createPluginLifecycle();
+    const firstLoad = plugins.loadCSS('plugins/integration-plugin.css', { id: 'integration-plugin-css' });
+    const link = await waitForElement('link[href="/plugins/integration-plugin.css"]');
+    expect(link.id).toBe('integration-plugin-css');
+    expect(link.rel).toBe('stylesheet');
 
-      const result = await lifecycle.activate('techne-nonexistent');
+    link.onload();
+    await expect(firstLoad).resolves.toBe(true);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('not initialized');
-    });
+    await expect(plugins.loadCSS('plugins/integration-plugin.css')).resolves.toBe(true);
+    expect(document.head.querySelectorAll('link[href="/plugins/integration-plugin.css"]')).toHaveLength(1);
   });
 });
