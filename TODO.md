@@ -34,14 +34,17 @@ Feature/quality hardening pass focused on stale TODO reconciliation and low-risk
 
 ### Added Backlog
 
-- [ ] **Finish reducing `window.currentFilePath` direct writes** - `orchestrator/renderer.js`, `orchestrator/modules/editor-tabs.js`
+- [x] **Finish reducing `window.currentFilePath` direct writes** - `orchestrator/modules/current-file-state.js`, `orchestrator/renderer.js`, `orchestrator/modules/editor-tabs.js`
   - Autosave now aborts path/model drift, but long-term maintainability still wants tab manager state to be the single writer and `window.currentFilePath` to be a derived mirror.
+  - **Status 2026-05-10:** Direct renderer/editor-tab assignments now route through `NightOwlCurrentFile`; the only production write to `window.currentFilePath` is in the state helper and is covered by code-quality and unit tests.
 
-- [ ] **Continue debug-gating routine main-process logs** - `ipc/fileHandlers.js`, `ipc/exportHandlers.js`, `ipc/citationHandlers.js`, `services/citationService.js`
+- [x] **Continue debug-gating routine main-process logs** - `ipc/fileHandlers.js`, `ipc/exportHandlers.js`, `ipc/citationHandlers.js`, `services/citationService.js`
   - Unit/integration runs still produce high-volume success-path logging. Keep warnings/errors visible, but route routine registration, migration, and successful operation logs through the shared debug logger.
+  - **Status 2026-05-10:** Routine `console.log` calls in these main-process paths now use `createDebugLogger`; enable with `NIGHTOWL_DEBUG_LOGS=FileHandlers,ExportHandlers,CitationHandlers,CitationService` or `*`.
 
-- [ ] **Add configurable file-tree artifact decluttering** - `ipc/fileHandlers.js`, `orchestrator/renderer.js`
+- [x] **Add configurable file-tree artifact decluttering** - `ipc/fileHandlers.js`, `orchestrator/modules/settings.js`
   - Article folders can mix source Markdown with generated `.docx`, `.html`, `.pdf`, and reference exports. Add an explicit tree/view option before hiding or moving durable artifacts; do not move content files on disk implicitly.
+  - **Status 2026-05-10:** `navigation.hideGeneratedArtifacts` defaults off and can be enabled from Settings to hide generated `.docx`, `.html`, `.htm`, `.pdf`, and `.pptx` files from the tree without moving files on disk.
 
 ## Audit: 2026-04-16
 
@@ -55,7 +58,7 @@ by blast radius, not by depth of code change.
 ### Critical (data integrity)
 
 - [x] **Autosave can write the active buffer to the wrong file path.** Root cause: there is no enforced invariant binding the *visible Monaco model* to the *path that autosave will write to*. The path lives in the global `window.currentFilePath` (assigned in **22 production call sites** — see `git grep "window\.currentFilePath\s*="`), the buffer lives in `editor.getValue()`, and the 2-second commit lives in `autoSaveTimer`. Any one can drift independently.
-  - **Status 2026-05-10:** The write-safety invariant now lives in `orchestrator/modules/autosave.js`: pending timers are cleared on entry, saves use `perform-save-with-path`, the active tab model must match the visible editor model, and the active tab path must match `window.currentFilePath`. Remaining cleanup of direct `window.currentFilePath` write sites is tracked in the High section below.
+  - **Status 2026-05-10:** The write-safety invariant now lives in `orchestrator/modules/autosave.js`: pending timers are cleared on entry, saves use `perform-save-with-path`, the active tab model must match the visible editor model, and the active tab path must match `window.currentFilePath`. Direct renderer/editor-tab writes now route through `orchestrator/modules/current-file-state.js`.
   - **Reproduced this session.** While inspecting `lecture-7.md`, an earlier search-result click had set `window.currentFilePath` to `courses/dissertation/lecture-1.md`. Subsequent keystrokes triggered autosave, which wrote `lecture-7.md`'s buffer to `lecture-1.md` on disk. `git restore courses/dissertation/lecture-1.md` recovered it. A second file (`articles/thoughts-on-dissertations.md`) was found corrupted from an earlier instance and is still pending below.
   - **Smoking gun #1** – `orchestrator/renderer.js:6063` sets `window.currentFilePath = filePath` **before** `handleEditableFile` swaps the Monaco model at `orchestrator/renderer.js:6121`. There is at least one async `await` (and conditionally several) between them. A pending autosave timer that fires inside this window saves the *old* buffer to the *new* path.
   - **Smoking gun #2** – `orchestrator/modules/autosave.js:69` (`performAutoSave`) does **not** clear `autoSaveTimer` when called directly. `_openFileInEditorImpl` calls it at `orchestrator/renderer.js:5989` to flush before switching files, but the previously-scheduled `setTimeout` keeps ticking and can re-enter `performAutoSave` after the path has been swapped.
@@ -70,7 +73,7 @@ by blast radius, not by depth of code change.
 
 ### High (correctness, near-misses for data loss)
 
-- [ ] **`_openFileInEditorImpl` mutates `window.currentFilePath` before the model swap completes** — `orchestrator/renderer.js:6063` runs before `orchestrator/renderer.js:6121` (`handleEditableFile`). Even after the autosave-invariant fix above, move this assignment to happen *after* a successful model swap, so failed/cancelled opens don't leave the global pointing at a file that was never actually loaded into the editor.
+- [ ] **Finish non-tab fallback sequencing in `_openFileInEditorImpl`.** Normal tabbed opens now sync the current-file mirror through `NightOwlCurrentFile` after TabManager activates the Monaco model. The no-TabManager fallback still syncs the file path before `handleEditableFile` so relative preview assets resolve; if fallback mode remains supported, pass the file path explicitly through preview/render helpers and sync the mirror after the model swap.
 
 - [ ] **`_openingFilePath` guard at `orchestrator/renderer.js:5972` doesn't protect against same-file-twice-with-different-content races.** The guard is keyed on `filePath` only. A second concurrent open of the same path with newer disk content will silently no-op, leaving the editor on the older content. Either include a content/mtime hash in the guard key, or queue the second call instead of dropping it.
 

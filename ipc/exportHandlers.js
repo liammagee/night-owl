@@ -6,6 +6,9 @@ const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('ExportHandlers');
 
 // Import citation service for database citations
 let CitationService;
@@ -364,7 +367,7 @@ function register(deps) {
   async function generateDatabaseBibFile(markdownContent) {
     try {
       if (!CitationService) {
-        console.log('[ExportHandlers] CitationService not available, skipping database citations');
+        debug('[ExportHandlers] CitationService not available, skipping database citations');
         return null;
       }
 
@@ -377,18 +380,18 @@ function register(deps) {
       const citations = await citationService.getCitations({});
 
       if (citations.length === 0) {
-        console.log('[ExportHandlers] No database citations found');
+        debug('[ExportHandlers] No database citations found');
         return null;
       }
 
-      console.log(`[ExportHandlers] Converting ${citations.length} database citations to BibTeX format`);
+      debug(`[ExportHandlers] Converting ${citations.length} database citations to BibTeX format`);
 
       const bibEntries = citations
         .map(citationToBibTeX)
         .filter(Boolean);
 
       if (bibEntries.length === 0) {
-        console.log('[ExportHandlers] Database citations were empty after sanitization');
+        debug('[ExportHandlers] Database citations were empty after sanitization');
         return null;
       }
 
@@ -416,7 +419,7 @@ function register(deps) {
             if (aliasEntry) {
               aliasEntries.push(aliasEntry);
               aliasCount++;
-              console.log(`[ExportHandlers] Citation alias: ${mdKey} → ${matched.citation_key}`);
+              debug(`[ExportHandlers] Citation alias: ${mdKey} → ${matched.citation_key}`);
             }
           }
         }
@@ -424,7 +427,7 @@ function register(deps) {
         if (aliasEntries.length > 0) {
           bibContent += '\n% ── Citation key aliases (fuzzy-matched from markdown) ──\n\n';
           bibContent += aliasEntries.join('');
-          console.log(`[ExportHandlers] Generated ${aliasCount} citation key alias(es)`);
+          debug(`[ExportHandlers] Generated ${aliasCount} citation key alias(es)`);
         }
       }
 
@@ -433,10 +436,10 @@ function register(deps) {
       const tempBibFile = path.join(tempDir, `database-citations-${Date.now()}.bib`);
       await fs.writeFile(tempBibFile, bibContent, 'utf8');
 
-      console.log(`[ExportHandlers] Generated database citations file: ${tempBibFile}`);
-      console.log(`[ExportHandlers] Database citations file contains ${bibEntries.length} entries`);
+      debug(`[ExportHandlers] Generated database citations file: ${tempBibFile}`);
+      debug(`[ExportHandlers] Database citations file contains ${bibEntries.length} entries`);
       if (skippedEntries > 0) {
-        console.log(`[ExportHandlers] Skipped ${skippedEntries} invalid citation entr${skippedEntries === 1 ? 'y' : 'ies'} during BibTeX generation`);
+        debug(`[ExportHandlers] Skipped ${skippedEntries} invalid citation entr${skippedEntries === 1 ? 'y' : 'ies'} during BibTeX generation`);
       }
 
       return tempBibFile;
@@ -452,7 +455,7 @@ function register(deps) {
       for (const bibFile of bibFiles) {
         if (bibFile.includes('database-citations-') && bibFile.includes(os.tmpdir())) {
           await fs.unlink(bibFile);
-          console.log(`[ExportHandlers] Cleaned up temporary database citations file: ${path.basename(bibFile)}`);
+          debug(`[ExportHandlers] Cleaned up temporary database citations file: ${path.basename(bibFile)}`);
         }
       }
     } catch (error) {
@@ -472,16 +475,16 @@ function register(deps) {
       
       pandoc.on('close', (code) => {
         if (code === 0 && output.includes('pandoc')) {
-          console.log('[ExportHandlers] Pandoc is available:', output.split('\n')[0]);
+          debug('[ExportHandlers] Pandoc is available:', output.split('\n')[0]);
           resolve(true);
         } else {
-          console.log('[ExportHandlers] Pandoc not found or not working');
+          debug('[ExportHandlers] Pandoc not found or not working');
           resolve(false);
         }
       });
       
       pandoc.on('error', () => {
-        console.log('[ExportHandlers] Pandoc not available (command not found)');
+        debug('[ExportHandlers] Pandoc not available (command not found)');
         resolve(false);
       });
     });
@@ -491,8 +494,8 @@ function register(deps) {
     try {
       const workingDir = baseDirectory;
       
-      console.log('\n=== BIBLIOGRAPHY DETECTION ===');
-      console.log('[ExportHandlers] Looking for .bib files in:', workingDir);
+      debug('\n=== BIBLIOGRAPHY DETECTION ===');
+      debug('[ExportHandlers] Looking for .bib files in:', workingDir);
       
       const items = await fs.readdir(workingDir, { withFileTypes: true });
       const bibFiles = [];
@@ -510,13 +513,13 @@ function register(deps) {
               const stats = await fs.stat(fullPath);
               const content = await fs.readFile(fullPath, 'utf8');
               const entryCount = (content.match(/@\w+\{/g) || []).length;
-              console.log(`[ExportHandlers] Found .bib file: ${item.name}`);
-              console.log(`  - Size: ${stats.size} bytes`);
-              console.log(`  - Entries: ${entryCount}`);
-              console.log(`  - Path: ${fullPath}`);
+              debug(`[ExportHandlers] Found .bib file: ${item.name}`);
+              debug(`  - Size: ${stats.size} bytes`);
+              debug(`  - Entries: ${entryCount}`);
+              debug(`  - Path: ${fullPath}`);
               if (content.length > 0) {
                 const preview = content.substring(0, 200).replace(/\n/g, ' ');
-                console.log(`  - Preview: ${preview}...`);
+                debug(`  - Preview: ${preview}...`);
               }
             } catch (readError) {
               console.warn(`[ExportHandlers] Could not read .bib file ${fullPath}:`, readError.message);
@@ -525,8 +528,8 @@ function register(deps) {
         }
       }
       
-      console.log(`[ExportHandlers] Directory contains ${allFiles.length} files total:`);
-      console.log('[ExportHandlers] All files:', allFiles.slice(0, 10).join(', '), allFiles.length > 10 ? '...' : '');
+      debug(`[ExportHandlers] Directory contains ${allFiles.length} files total:`);
+      debug('[ExportHandlers] All files:', allFiles.slice(0, 10).join(', '), allFiles.length > 10 ? '...' : '');
       // Generate database citations .bib file (authoritative source)
       const databaseBibFile = await generateDatabaseBibFile(markdownContent);
       if (databaseBibFile) {
@@ -534,20 +537,20 @@ function register(deps) {
         // The fresh DB-generated file is the authoritative source for DB citations.
         const staleIndex = bibFiles.findIndex(f => path.basename(f) === 'citations.bib');
         if (staleIndex !== -1) {
-          console.log('[ExportHandlers] Excluding stale citations.bib in favour of fresh database export');
+          debug('[ExportHandlers] Excluding stale citations.bib in favour of fresh database export');
           bibFiles.splice(staleIndex, 1);
         }
         // Add DB file LAST so citeproc gives it priority over static .bib files
         bibFiles.push(databaseBibFile);
-        console.log('[ExportHandlers] Added database citations file to bibliography list');
+        debug('[ExportHandlers] Added database citations file to bibliography list');
       }
       
-      console.log(`[ExportHandlers] Bibliography files found: ${bibFiles.length}`);
+      debug(`[ExportHandlers] Bibliography files found: ${bibFiles.length}`);
       bibFiles.forEach((file, index) => {
         const isDatabase = file.includes('database-citations-');
-        console.log(`  [${index + 1}]: ${path.basename(file)} ${isDatabase ? '(from database)' : '(static file)'}`);
+        debug(`  [${index + 1}]: ${path.basename(file)} ${isDatabase ? '(from database)' : '(static file)'}`);
       });
-      console.log('=== END BIBLIOGRAPHY DETECTION ===\n');
+      debug('=== END BIBLIOGRAPHY DETECTION ===\n');
       
       return bibFiles;
     } catch (error) {
@@ -562,10 +565,10 @@ function register(deps) {
     const apaPath = path.join(__dirname, '..', 'templates', 'apa.csl');
     try {
       await fs.access(apaPath);
-      console.log('[ExportHandlers] Using APA 7th CSL style:', apaPath);
+      debug('[ExportHandlers] Using APA 7th CSL style:', apaPath);
       return apaPath;
     } catch {
-      console.log('[ExportHandlers] APA CSL not found, using pandoc default');
+      debug('[ExportHandlers] APA CSL not found, using pandoc default');
       return null;
     }
   }
@@ -575,9 +578,9 @@ function register(deps) {
       const { spawn } = require('child_process');
 
       // Log the full pandoc command
-      console.log('[ExportHandlers] Full pandoc command:');
-      console.log(`pandoc ${args.map(arg => arg.includes(' ') ? `"${arg}"` : arg).join(' ')}`);
-      if (options.cwd) console.log(`[ExportHandlers] Working directory: ${options.cwd}`);
+      debug('[ExportHandlers] Full pandoc command:');
+      debug(`pandoc ${args.map(arg => arg.includes(' ') ? `"${arg}"` : arg).join(' ')}`);
+      if (options.cwd) debug(`[ExportHandlers] Working directory: ${options.cwd}`);
 
       const spawnOpts = {};
       if (options.cwd) spawnOpts.cwd = options.cwd;
@@ -618,8 +621,8 @@ function register(deps) {
 
   // Export handlers
   ipcMain.handle('perform-export-html', async (event, content, htmlContent, exportOptions) => {
-    console.log('[ExportHandlers] *** REGULAR HTML EXPORT HANDLER CALLED ***');
-    console.log('[ExportHandlers] Received perform-export-html with options:', exportOptions);
+    debug('[ExportHandlers] *** REGULAR HTML EXPORT HANDLER CALLED ***');
+    debug('[ExportHandlers] Received perform-export-html with options:', exportOptions);
     try {
       const currentFilePath = getCurrentFilePath();
       const defaultPath = currentFilePath ? 
@@ -645,7 +648,7 @@ function register(deps) {
       let bibFiles = [];
       
       if (hasPandoc && exportOptions?.usePandoc !== false) {
-        console.log('[ExportHandlers] Using pandoc for HTML export');
+        debug('[ExportHandlers] Using pandoc for HTML export');
         const exportBaseDirectory = getExportBaseDirectory();
         
         // Find .bib files in current directory
@@ -671,7 +674,7 @@ function register(deps) {
           
           // Add bibliography support if .bib files found
           if (bibFiles.length > 0) {
-            console.log(`[ExportHandlers] Found ${bibFiles.length} .bib file(s):`, bibFiles.map(f => path.basename(f)));
+            debug(`[ExportHandlers] Found ${bibFiles.length} .bib file(s):`, bibFiles.map(f => path.basename(f)));
             pandocArgs.push('--citeproc');
             bibFiles.forEach(bibFile => {
               pandocArgs.push('--bibliography', bibFile);
@@ -689,7 +692,7 @@ function register(deps) {
           }
           
           finalHtml = await runPandoc(pandocArgs);
-          console.log('[ExportHandlers] Pandoc HTML export completed successfully');
+          debug('[ExportHandlers] Pandoc HTML export completed successfully');
         } catch (pandocError) {
           console.warn('[ExportHandlers] Pandoc export failed, falling back to basic HTML:', pandocError.message);
           // Fall back to the original HTML content
@@ -703,18 +706,18 @@ function register(deps) {
           await cleanupDatabaseBibFiles(bibFiles);
         }
       } else if (!hasPandoc) {
-        console.log('[ExportHandlers] Pandoc not available, using basic HTML export');
+        debug('[ExportHandlers] Pandoc not available, using basic HTML export');
       }
 
       await fs.writeFile(result.filePath, finalHtml, 'utf8');
-      console.log(`[ExportHandlers] HTML exported successfully to: ${result.filePath}`);
+      debug(`[ExportHandlers] HTML exported successfully to: ${result.filePath}`);
       
       // Check if the exported HTML file is currently being viewed in preview and refresh it
-      console.log('[ExportHandlers] About to send IPC message, mainWindow exists:', !!mainWindow);
+      debug('[ExportHandlers] About to send IPC message, mainWindow exists:', !!mainWindow);
       if (mainWindow) {
-        console.log('[ExportHandlers] Sending html-export-completed IPC message for:', result.filePath);
+        debug('[ExportHandlers] Sending html-export-completed IPC message for:', result.filePath);
         mainWindow.webContents.send('html-export-completed', result.filePath);
-        console.log('[ExportHandlers] IPC message sent successfully');
+        debug('[ExportHandlers] IPC message sent successfully');
       } else {
         console.warn('[ExportHandlers] mainWindow is null/undefined, cannot send IPC message');
       }
@@ -732,8 +735,8 @@ function register(deps) {
   });
 
   ipcMain.handle('perform-export-html-pandoc', async (event, content, htmlContent, exportOptions) => {
-    console.log('[ExportHandlers] *** PANDOC HTML EXPORT HANDLER CALLED ***');
-    console.log('[ExportHandlers] Received perform-export-html-pandoc with options:', exportOptions);
+    debug('[ExportHandlers] *** PANDOC HTML EXPORT HANDLER CALLED ***');
+    debug('[ExportHandlers] Received perform-export-html-pandoc with options:', exportOptions);
     try {
       const currentFilePath = getCurrentFilePath();
       const defaultPath = currentFilePath ? 
@@ -752,7 +755,7 @@ function register(deps) {
         return { success: false, cancelled: true };
       }
 
-      console.log('[ExportHandlers] Using pandoc for HTML export with bibliography support');
+      debug('[ExportHandlers] Using pandoc for HTML export with bibliography support');
       const exportBaseDirectory = getExportBaseDirectory();
       
       // Find .bib files for citations
@@ -761,12 +764,12 @@ function register(deps) {
       // Create temporary markdown file
       const tempDir = os.tmpdir();
       const tempMdFile = path.join(tempDir, 'temp_html_pandoc_export.md');
-      console.log('[ExportHandlers] Working directory:', exportBaseDirectory);
-      console.log('[ExportHandlers] Temp directory:', tempDir);
-      console.log('[ExportHandlers] Temp markdown file:', tempMdFile);
+      debug('[ExportHandlers] Working directory:', exportBaseDirectory);
+      debug('[ExportHandlers] Temp directory:', tempDir);
+      debug('[ExportHandlers] Temp markdown file:', tempMdFile);
       
       await fs.writeFile(tempMdFile, normalizeCitationsForPandoc(content));
-      console.log('[ExportHandlers] Written markdown content to temp file');
+      debug('[ExportHandlers] Written markdown content to temp file');
       
       // Prepare pandoc args for HTML with bibliography
       const pandocArgs = [
@@ -781,30 +784,30 @@ function register(deps) {
       ];
       
       if (bibFiles.length > 0) {
-        console.log('[ExportHandlers] Found .bib files:', bibFiles);
+        debug('[ExportHandlers] Found .bib files:', bibFiles);
         pandocArgs.push('--citeproc');
         bibFiles.forEach(bibFile => {
           pandocArgs.push('--bibliography', bibFile);
         });
         const cslStyle = await getDefaultCSLStyle();
         if (cslStyle) {
-          console.log('[ExportHandlers] Adding CSL style for HTML:', cslStyle);
+          debug('[ExportHandlers] Adding CSL style for HTML:', cslStyle);
           pandocArgs.push('--csl', cslStyle);
         }
       }
       
       try {
-        console.log('[ExportHandlers] Running pandoc with args:', pandocArgs);
+        debug('[ExportHandlers] Running pandoc with args:', pandocArgs);
 
         // Add custom pandoc options if provided
         if (exportOptions?.pandocArgs) {
-          console.log('[ExportHandlers] Adding custom pandoc args:', exportOptions.pandocArgs);
+          debug('[ExportHandlers] Adding custom pandoc args:', exportOptions.pandocArgs);
           pandocArgs.push(...exportOptions.pandocArgs);
         }
 
         await runPandoc(pandocArgs, { cwd: exportBaseDirectory });
 
-        console.log('[ExportHandlers] Pandoc HTML export completed successfully');
+        debug('[ExportHandlers] Pandoc HTML export completed successfully');
 
         return {
           success: true,
@@ -815,11 +818,11 @@ function register(deps) {
 
       } finally {
         // Check if the exported HTML file is currently being viewed in preview and refresh it
-        console.log('[ExportHandlers] (Pandoc) About to send IPC message, mainWindow exists:', !!mainWindow);
+        debug('[ExportHandlers] (Pandoc) About to send IPC message, mainWindow exists:', !!mainWindow);
         if (mainWindow && result && result.filePath) {
-          console.log('[ExportHandlers] (Pandoc) Sending html-export-completed IPC message for:', result.filePath);
+          debug('[ExportHandlers] (Pandoc) Sending html-export-completed IPC message for:', result.filePath);
           mainWindow.webContents.send('html-export-completed', result.filePath);
-          console.log('[ExportHandlers] (Pandoc) IPC message sent successfully');
+          debug('[ExportHandlers] (Pandoc) IPC message sent successfully');
         } else {
           console.warn('[ExportHandlers] (Pandoc) mainWindow is null/undefined or no result, cannot send IPC message');
         }
@@ -839,7 +842,7 @@ function register(deps) {
   });
 
   async function exportPdfWithPandoc(content, exportOptions = {}, dialogTitle = 'Export as PDF') {
-    console.log(`[ExportHandlers] Received ${dialogTitle} request with options:`, exportOptions);
+    debug(`[ExportHandlers] Received ${dialogTitle} request with options:`, exportOptions);
     try {
       const currentFilePath = getCurrentFilePath();
       const exportBaseDirectory = getExportBaseDirectory();
@@ -863,7 +866,7 @@ function register(deps) {
       const hasPandoc = await checkPandocAvailability();
       
       if (hasPandoc) {
-        console.log('[ExportHandlers] Using pandoc for PDF export');
+        debug('[ExportHandlers] Using pandoc for PDF export');
         
         // Find .bib files for citations
         const bibFiles = await findBibFiles(exportBaseDirectory, content);
@@ -887,7 +890,7 @@ function register(deps) {
 
           // Add bibliography support if .bib files found
           if (bibFiles.length > 0) {
-            console.log(`[ExportHandlers] Found ${bibFiles.length} .bib file(s):`, bibFiles.map(f => path.basename(f)));
+            debug(`[ExportHandlers] Found ${bibFiles.length} .bib file(s):`, bibFiles.map(f => path.basename(f)));
             pandocArgs.push('--citeproc');
             bibFiles.forEach(bibFile => {
               pandocArgs.push('--bibliography', bibFile);
@@ -904,10 +907,10 @@ function register(deps) {
             pandocArgs.push(...exportOptions.pandocArgs);
           }
 
-          console.log('[ExportHandlers] Running pandoc with args:', pandocArgs);
+          debug('[ExportHandlers] Running pandoc with args:', pandocArgs);
           await runPandoc(pandocArgs, { cwd: exportBaseDirectory });
 
-          console.log('[ExportHandlers] Pandoc PDF export completed successfully');
+          debug('[ExportHandlers] Pandoc PDF export completed successfully');
 
           return {
             success: true,
@@ -926,7 +929,7 @@ function register(deps) {
           await cleanupDatabaseBibFiles(bibFiles);
         }
       } else {
-        console.log('[ExportHandlers] Pandoc not available for PDF export');
+        debug('[ExportHandlers] Pandoc not available for PDF export');
         return { success: false, error: 'PDF export requires pandoc to be installed' };
       }
     } catch (error) {
@@ -944,7 +947,7 @@ function register(deps) {
   });
 
   ipcMain.handle('perform-export-pptx', async (event, content, exportOptions) => {
-    console.log('[ExportHandlers] Received perform-export-pptx with options:', exportOptions);
+    debug('[ExportHandlers] Received perform-export-pptx with options:', exportOptions);
     try {
       const currentFilePath = getCurrentFilePath();
       const defaultPath = currentFilePath ? 
@@ -973,7 +976,7 @@ function register(deps) {
         };
       }
 
-      console.log('[ExportHandlers] Using pandoc for PowerPoint export');
+      debug('[ExportHandlers] Using pandoc for PowerPoint export');
       
       // Find .bib files for citations
       const workingDir = getExportBaseDirectory();
@@ -987,8 +990,8 @@ function register(deps) {
 
       try {
         // Set resource path to help Pandoc find images
-        console.log('[ExportHandlers] *** UPDATED CODE IS RUNNING - VERSION 2.0 ***');
-        console.log('[ExportHandlers] Working directory for resources:', workingDir);
+        debug('[ExportHandlers] *** UPDATED CODE IS RUNNING - VERSION 2.0 ***');
+        debug('[ExportHandlers] Working directory for resources:', workingDir);
 
         const pandocArgs = [
           tempMdFile,
@@ -1001,7 +1004,7 @@ function register(deps) {
         const referencePath = path.join(__dirname, '..', 'templates', 'reference.pptx');
         if (await fs.access(referencePath).then(() => true).catch(() => false)) {
           pandocArgs.push('--reference-doc', referencePath);
-          console.log('[ExportHandlers] Using reference template:', referencePath);
+          debug('[ExportHandlers] Using reference template:', referencePath);
         }
 
         // Add resource path BEFORE output file
@@ -1012,7 +1015,7 @@ function register(deps) {
 
         // Add bibliography support if .bib files found
         if (bibFiles.length > 0) {
-          console.log(`[ExportHandlers] Found ${bibFiles.length} .bib file(s) for PowerPoint:`, bibFiles.map(f => path.basename(f)));
+          debug(`[ExportHandlers] Found ${bibFiles.length} .bib file(s) for PowerPoint:`, bibFiles.map(f => path.basename(f)));
           pandocArgs.push('--citeproc');
           bibFiles.forEach(bibFile => {
             pandocArgs.push('--bibliography', bibFile);
@@ -1023,14 +1026,14 @@ function register(deps) {
         if (exportOptions?.pandocArgs) {
           const filteredArgs = exportOptions.pandocArgs.filter(arg => arg !== '--mathjax');
           if (filteredArgs.length > 0) {
-            console.log(`[ExportHandlers] Adding filtered pandoc args (removed --mathjax):`, filteredArgs);
+            debug(`[ExportHandlers] Adding filtered pandoc args (removed --mathjax):`, filteredArgs);
             pandocArgs.push(...filteredArgs);
           }
         }
 
-        console.log('[ExportHandlers] Final pandoc args before execution:', pandocArgs);
+        debug('[ExportHandlers] Final pandoc args before execution:', pandocArgs);
         await runPandoc(pandocArgs);
-        console.log('[ExportHandlers] PowerPoint export completed successfully');
+        debug('[ExportHandlers] PowerPoint export completed successfully');
         
         return { 
           success: true, 
@@ -1055,7 +1058,7 @@ function register(deps) {
   });
 
   ipcMain.handle('perform-export-docx', async (event, content, exportOptions = {}) => {
-    console.log('[ExportHandlers] Received perform-export-docx with options:', exportOptions);
+    debug('[ExportHandlers] Received perform-export-docx with options:', exportOptions);
     try {
       const currentFilePath = getCurrentFilePath();
       const exportBaseDirectory = getExportBaseDirectory();
@@ -1083,7 +1086,7 @@ function register(deps) {
         };
       }
 
-      console.log('[ExportHandlers] Using pandoc for Word export');
+      debug('[ExportHandlers] Using pandoc for Word export');
 
       const bibFiles = await findBibFiles(exportBaseDirectory, content);
 
@@ -1107,12 +1110,12 @@ function register(deps) {
         const referencePath = path.join(__dirname, '..', 'templates', 'reference.docx');
         if (await fs.access(referencePath).then(() => true).catch(() => false)) {
           pandocArgs.push('--reference-doc', referencePath);
-          console.log('[ExportHandlers] Using reference template:', referencePath);
+          debug('[ExportHandlers] Using reference template:', referencePath);
         }
 
         // Add bibliography support if .bib files found and references requested (or always if bib files exist)
         if (bibFiles.length > 0) {
-          console.log(`[ExportHandlers] Found ${bibFiles.length} .bib file(s) for Word:`, bibFiles.map(f => path.basename(f)));
+          debug(`[ExportHandlers] Found ${bibFiles.length} .bib file(s) for Word:`, bibFiles.map(f => path.basename(f)));
           pandocArgs.push('--citeproc');
           bibFiles.forEach(bibFile => {
             pandocArgs.push('--bibliography', bibFile);
@@ -1134,10 +1137,10 @@ function register(deps) {
         // Output file
         pandocArgs.push('-o', result.filePath);
 
-        console.log('[ExportHandlers] Running pandoc for Word export with args:', pandocArgs);
+        debug('[ExportHandlers] Running pandoc for Word export with args:', pandocArgs);
         // Use cwd option instead of process.chdir (avoids race conditions with concurrent exports)
         await runPandoc(pandocArgs, { cwd: exportBaseDirectory });
-        console.log('[ExportHandlers] Word export completed successfully');
+        debug('[ExportHandlers] Word export completed successfully');
 
         return {
           success: true,
@@ -1161,7 +1164,7 @@ function register(deps) {
   });
 
   ipcMain.handle('trigger-export', async (event, exportType) => {
-    console.log('[ExportHandlers] Export trigger received for type:', exportType);
+    debug('[ExportHandlers] Export trigger received for type:', exportType);
     try {
       // Forward the export request back to the renderer as an event.
       // The renderer has on('trigger-export-<type>') listeners that
@@ -1177,7 +1180,7 @@ function register(deps) {
     }
   });
 
-  console.log('[ExportHandlers] Registered export handlers');
+  debug('[ExportHandlers] Registered export handlers');
 }
 
 module.exports = {

@@ -20,6 +20,7 @@ let moduleLoaded = false;
 
 function ensureModuleLoaded() {
     if (!moduleLoaded) {
+        require('../../../orchestrator/modules/current-file-state.js');
         require('../../../orchestrator/modules/editor-tabs.js');
         moduleLoaded = true;
     }

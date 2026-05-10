@@ -57,6 +57,14 @@
         return d.toLocaleDateString();
     }
 
+    async function requestAppConfirmation(options) {
+        if (typeof window.showAppConfirm === 'function') {
+            return window.showAppConfirm(options);
+        }
+        console.warn('[ResearchFeed] Confirmation dialog unavailable');
+        return false;
+    }
+
     function dayKey(iso) {
         if (!iso) return 'undated';
         const d = new Date(iso);
@@ -498,7 +506,14 @@
                     el('button', {
                         class: 'rf-btn danger',
                         onclick: async () => {
-                            if (!confirm(`Delete source ${source.id}?`)) return;
+                            const confirmed = await requestAppConfirmation({
+                                title: 'Delete Research Source',
+                                message: `Delete source ${source.id}?`,
+                                detail: 'This removes the source from the research feed.',
+                                confirmText: 'Delete',
+                                variant: 'danger'
+                            });
+                            if (!confirmed) return;
                             await this.api.invoke('feed:delete-source', { id: source.id });
                             await onChange();
                         }
@@ -576,7 +591,14 @@
                 el('button', {
                     class: 'rf-btn danger',
                     onclick: async () => {
-                        if (!confirm('Clear x.com session cookies?')) return;
+                        const confirmed = await requestAppConfirmation({
+                            title: 'Clear x.com Session',
+                            message: 'Clear x.com session cookies?',
+                            detail: 'You will need to connect again before importing from x.com.',
+                            confirmText: 'Clear Session',
+                            variant: 'danger'
+                        });
+                        if (!confirmed) return;
                         await this.api.invoke('feed:x-clear-session');
                         refreshStatus();
                     }

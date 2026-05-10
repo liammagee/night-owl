@@ -7,6 +7,9 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
 const path = require('path');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('CitationHandlers');
 
 let citationService = null;
 
@@ -469,7 +472,7 @@ async function extractUrlMetadata(url) {
             if (isTwitter) {
                 const tweetMetadata = await fetchTweetMetadata(url, parsedUrl);
                 if (tweetMetadata) {
-                    console.log('[Citation Handlers] Extracted tweet metadata via API:', tweetMetadata);
+                    debug('[Citation Handlers] Extracted tweet metadata via API:', tweetMetadata);
                     return tweetMetadata;
                 }
             }
@@ -678,7 +681,7 @@ async function extractUrlMetadata(url) {
             }
         }
 
-        console.log('[Citation Handlers] Extracted metadata:', metadata);
+        debug('[Citation Handlers] Extracted metadata:', metadata);
         return metadata;
 
     } catch (error) {
@@ -693,7 +696,7 @@ async function extractUrlMetadata(url) {
 // Fetch metadata from DOI using CrossRef API
 async function fetchDOIMetadata(doi) {
     try {
-        console.log('[Citation Handlers] Fetching DOI metadata for:', doi);
+        debug('[Citation Handlers] Fetching DOI metadata for:', doi);
         
         const response = await axios.get(`https://api.crossref.org/works/${doi}`, {
             timeout: 10000,
@@ -783,7 +786,7 @@ async function fetchDOIMetadata(doi) {
         };
         metadata.type = typeMap[work.type] || 'article';
 
-        console.log('[Citation Handlers] Extracted DOI metadata:', metadata);
+        debug('[Citation Handlers] Extracted DOI metadata:', metadata);
         return metadata;
 
     } catch (error) {
@@ -984,7 +987,7 @@ async function initializeCitationService(userDataPath) {
         if (!citationService) {
             citationService = new CitationService();
             await citationService.initialize(userDataPath);
-            console.log('[Citation Handlers] Citation service initialized');
+            debug('[Citation Handlers] Citation service initialized');
         }
     } catch (error) {
         console.error('[Citation Handlers] Failed to initialize citation service:', error);
@@ -994,7 +997,7 @@ async function initializeCitationService(userDataPath) {
 
 // Register all citation-related IPC handlers
 function registerCitationHandlers(userDataPath) {
-    console.log('[Citation Handlers] Registering citation IPC handlers...');
+    debug('[Citation Handlers] Registering citation IPC handlers...');
 
     // Initialize service
     ipcMain.handle('citations-initialize', async () => {
@@ -1022,11 +1025,11 @@ function registerCitationHandlers(userDataPath) {
 
     // Get citations with optional filtering
     ipcMain.handle('citations-get', async (event, filters = {}) => {
-        console.log('[Citation Handlers] *** CITATIONS-GET CALLED FROM RENDERER ***');
+        debug('[Citation Handlers] *** CITATIONS-GET CALLED FROM RENDERER ***');
         try {
             if (!citationService) await initializeCitationService(userDataPath);
             const citations = await citationService.getCitations(filters);
-            console.log(`[Citation Handlers] Returning ${citations.length} citations to renderer`);
+            debug(`[Citation Handlers] Returning ${citations.length} citations to renderer`);
             return { success: true, citations };
         } catch (error) {
             console.error('[Citation Handlers] Error getting citations:', error);
@@ -1252,7 +1255,7 @@ function registerCitationHandlers(userDataPath) {
     // Import from URL (web scraping)
     ipcMain.handle('citations-import-url', async (event, url) => {
         try {
-            console.log('[Citation Handlers] Importing from URL:', url);
+            debug('[Citation Handlers] Importing from URL:', url);
 
             // Extract metadata from URL (page scraping)
             const metadata = await extractUrlMetadata(url);
@@ -1264,7 +1267,7 @@ function registerCitationHandlers(userDataPath) {
                 try {
                     const cleanDoi = pageDoi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//i, '');
                     doiMetadata = await fetchDOIMetadata(cleanDoi);
-                    console.log('[Citation Handlers] Enriched URL import with CrossRef metadata');
+                    debug('[Citation Handlers] Enriched URL import with CrossRef metadata');
                 } catch (doiErr) {
                     console.warn('[Citation Handlers] CrossRef enrichment failed:', doiErr.message);
                 }
@@ -1302,7 +1305,7 @@ function registerCitationHandlers(userDataPath) {
     // Import from DOI
     ipcMain.handle('citations-import-doi', async (event, doi) => {
         try {
-            console.log('[Citation Handlers] Importing from DOI:', doi);
+            debug('[Citation Handlers] Importing from DOI:', doi);
             
             // Clean DOI (remove URL prefix if present)
             const cleanDoi = doi.replace(/^(https?:\/\/)?(dx\.)?doi\.org\//, '');
@@ -1467,7 +1470,7 @@ function registerCitationHandlers(userDataPath) {
             const filePath = path.join(process.cwd(), filename);
             await fs.writeFile(filePath, content, 'utf8');
             
-            console.log(`[Citation Handlers] Citations exported to ${filePath}`);
+            debug(`[Citation Handlers] Citations exported to ${filePath}`);
             return { success: true, format, filename, filePath };
         } catch (error) {
             console.error('[Citation Handlers] Error exporting citations to file:', error);
@@ -1518,16 +1521,16 @@ function registerCitationHandlers(userDataPath) {
     // Live sync with Zotero (bidirectional)
     ipcMain.handle('citations-zotero-live-sync', async (event, apiKey, userID, collectionID = null) => {
         try {
-            console.log(`[Citation Handlers] Live sync requested with userID=${userID}, collectionID=${collectionID}`);
+            debug(`[Citation Handlers] Live sync requested with userID=${userID}, collectionID=${collectionID}`);
             if (!citationService) await initializeCitationService(userDataPath);
             
             // Get last sync time
             const lastSyncTime = await citationService.getLastSyncTime();
-            console.log(`[Citation Handlers] Last sync time: ${lastSyncTime}`);
+            debug(`[Citation Handlers] Last sync time: ${lastSyncTime}`);
             
             // Perform live sync
             const result = await citationService.liveSyncWithZotero(apiKey, userID, collectionID, lastSyncTime);
-            console.log(`[Citation Handlers] Live sync completed:`, result);
+            debug(`[Citation Handlers] Live sync completed:`, result);
             return result;
         } catch (error) {
             console.error('[Citation Handlers] Error with live sync:', error);
@@ -1550,7 +1553,7 @@ function registerCitationHandlers(userDataPath) {
     // Fetch Zotero collections
     ipcMain.handle('citations-fetch-zotero-collections', async (event, apiKey, userID) => {
         try {
-            console.log(`[Citation Handlers] Fetching Zotero collections for user ${userID}`);
+            debug(`[Citation Handlers] Fetching Zotero collections for user ${userID}`);
             if (!citationService) await initializeCitationService(userDataPath);
             
             const result = await citationService.fetchZoteroCollections(apiKey, userID);
@@ -1603,7 +1606,7 @@ function registerCitationHandlers(userDataPath) {
                 }
             }
 
-            console.log(`[Citation Handlers] Bib→DB sync: ${imported} imported, ${updated} updated, ${skipped} skipped`);
+            debug(`[Citation Handlers] Bib→DB sync: ${imported} imported, ${updated} updated, ${skipped} skipped`);
             return { success: true, imported, updated, skipped };
         } catch (error) {
             console.error('[Citation Handlers] Error importing bib to DB:', error);
@@ -1645,7 +1648,7 @@ function registerCitationHandlers(userDataPath) {
             const bibContent = exportToBibTeX(citations);
             await fs.writeFile(filePath, bibContent, 'utf8');
 
-            console.log(`[Citation Handlers] Exported ${citations.length} citations to ${filePath}`);
+            debug(`[Citation Handlers] Exported ${citations.length} citations to ${filePath}`);
             return { success: true, exported: citations.length, filePath };
         } catch (error) {
             console.error('[Citation Handlers] BibTeX file export error:', error);
@@ -1696,7 +1699,7 @@ function registerCitationHandlers(userDataPath) {
                 }
             }
 
-            console.log(`[Citation Handlers] Imported from ${filePath}: ${imported} new, ${updated} updated, ${skipped} unchanged`);
+            debug(`[Citation Handlers] Imported from ${filePath}: ${imported} new, ${updated} updated, ${skipped} unchanged`);
             return { success: true, imported, updated, skipped, filePath };
         } catch (error) {
             console.error('[Citation Handlers] BibTeX file import error:', error);
@@ -1741,7 +1744,7 @@ function registerCitationHandlers(userDataPath) {
                 }
             } catch (readErr) {
                 // File doesn't exist yet — that's fine, we'll create it
-                console.log(`[Citation Handlers] No existing .bib file at ${filePath}, will create`);
+                debug(`[Citation Handlers] No existing .bib file at ${filePath}, will create`);
             }
 
             // Phase 2: Export full DB to the .bib file
@@ -1749,9 +1752,9 @@ function registerCitationHandlers(userDataPath) {
             const bibContent = exportToBibTeX(citations);
             await fs.writeFile(filePath, bibContent, 'utf8');
 
-            console.log(`[Citation Handlers] BibTeX sync complete: ${filePath}`);
-            console.log(`  Import: ${importResult.imported} new, ${importResult.updated} updated, ${importResult.skipped} unchanged`);
-            console.log(`  Export: ${citations.length} entries written`);
+            debug(`[Citation Handlers] BibTeX sync complete: ${filePath}`);
+            debug(`  Import: ${importResult.imported} new, ${importResult.updated} updated, ${importResult.skipped} unchanged`);
+            debug(`  Export: ${citations.length} entries written`);
 
             return {
                 success: true,
@@ -1771,7 +1774,7 @@ function registerCitationHandlers(userDataPath) {
     // Execute raw SQL query (for advanced users/debugging)
     ipcMain.handle('citations-execute-sql', async (event, sqlQuery) => {
         try {
-            console.log(`[Citation Handlers] Executing raw SQL query: ${sqlQuery}`);
+            debug(`[Citation Handlers] Executing raw SQL query: ${sqlQuery}`);
             if (!citationService) await initializeCitationService(userDataPath);
             
             const result = await citationService.executeRawSQL(sqlQuery);
@@ -1785,7 +1788,7 @@ function registerCitationHandlers(userDataPath) {
     // Import citations from Zotero BibTeX export
     ipcMain.handle('import-zotero-bibtex', async (event, bibTexContent, workingDirectory) => {
         try {
-            console.log('[Citation Handlers] Importing Zotero BibTeX...');
+            debug('[Citation Handlers] Importing Zotero BibTeX...');
             
             // Determine the citations file path in the working directory
             const citationsPath = path.join(workingDirectory, 'citations.bib');
@@ -1796,7 +1799,7 @@ function registerCitationHandlers(userDataPath) {
                 existingContent = await fs.readFile(citationsPath, 'utf8');
             } catch (error) {
                 // File doesn't exist yet, that's fine
-                console.log('[Citation Handlers] citations.bib does not exist, creating new file');
+                debug('[Citation Handlers] citations.bib does not exist, creating new file');
             }
             
             // Parse existing entries to avoid duplicates
@@ -1835,9 +1838,9 @@ function registerCitationHandlers(userDataPath) {
                 updatedContent += '\n' + newEntries.join('\n\n') + '\n';
                 
                 await fs.writeFile(citationsPath, updatedContent, 'utf8');
-                console.log(`[Citation Handlers] Added ${newEntries.length} new citations to ${citationsPath}`);
+                debug(`[Citation Handlers] Added ${newEntries.length} new citations to ${citationsPath}`);
             } else {
-                console.log('[Citation Handlers] No new citations to add (all entries already exist)');
+                debug('[Citation Handlers] No new citations to add (all entries already exist)');
             }
             
             return { 
@@ -1853,7 +1856,7 @@ function registerCitationHandlers(userDataPath) {
         }
     });
 
-    console.log('[Citation Handlers] Citation IPC handlers registered successfully');
+    debug('[Citation Handlers] Citation IPC handlers registered successfully');
 }
 
 // Clean up on app quit

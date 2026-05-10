@@ -614,6 +614,55 @@ describe('workspace directory persistence', () => {
       expect(childNames).toContain('machinagogy-v2.docx');
       expect(childNames).toContain('machinagogy-v2.md');
     });
+
+    test('request-file-tree can declutter generated article artifacts by setting', async () => {
+      const workspace = '/Users/test/project';
+
+      mockFsPromises.stat.mockImplementation(async (p) => ({
+        isFile: () => !p.endsWith('project'),
+        isDirectory: () => p.endsWith('project')
+      }));
+
+      mockFsPromises.readdir.mockImplementation(async (p) => {
+        if (p === workspace) {
+          return [
+            'machinagogy-v2.md',
+            'machinagogy-v2.docx',
+            'machinagogy-v2.html',
+            'machinagogy-v2.pdf',
+            'references.bib',
+            'references.pdf'
+          ];
+        }
+        return [];
+      });
+
+      fileHandlers.register({
+        appSettings: {
+          workingDirectory: workspace,
+          workspaceFolders: [],
+          navigation: { hideGeneratedArtifacts: true }
+        },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const handler = getRegisteredHandler('request-file-tree');
+      const tree = await handler({});
+
+      const childNames = (tree.children || []).map(c => c.name);
+      expect(childNames).toEqual(['machinagogy-v2.md', 'references.bib']);
+      expect(childNames).not.toContain('machinagogy-v2.docx');
+      expect(childNames).not.toContain('machinagogy-v2.html');
+      expect(childNames).not.toContain('machinagogy-v2.pdf');
+      expect(childNames).not.toContain('references.pdf');
+    });
   });
 
   // ---------------------------------------------------------------------------

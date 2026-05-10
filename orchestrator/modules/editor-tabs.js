@@ -71,6 +71,14 @@
         return candidatePath === rootPath || candidatePath.startsWith(`${rootPath.replace(/\/+$/, '')}/`);
     }
 
+    function setCurrentFileMirror(filePath, options = {}) {
+        if (window.NightOwlCurrentFile && typeof window.NightOwlCurrentFile.set === 'function') {
+            return window.NightOwlCurrentFile.set(filePath, options);
+        }
+        console.warn('[TabManager] Current file state helper is unavailable');
+        return Promise.resolve({ success: false, skipped: true });
+    }
+
     class TabManager {
         constructor() {
             this.tabs = new Map();       // filePath → TabState
@@ -316,8 +324,10 @@
             // Sync globals that auto-save and other systems depend on.
             // Untitled tabs must keep currentFilePath null so saveFile triggers save-as.
             const isUntitled = isUntitledPath(filePath);
-            window.currentFilePath = isUntitled ? null : filePath;
-            window.editorFileName = isUntitled ? null : filePath;
+            setCurrentFileMirror(isUntitled ? null : filePath, {
+                syncMain: true,
+                clearDirectory: isUntitled
+            });
             window.lastSavedContent = tab.lastSavedContent;
             window.hasUnsavedChanges = tab.isDirty;
 
@@ -329,12 +339,6 @@
             // Update unsaved indicator in breadcrumb
             if (typeof window.updateUnsavedIndicator === 'function') {
                 window.updateUnsavedIndicator(tab.isDirty);
-            }
-
-            // Update file directory for image path resolution
-            if (!isUntitled) {
-                const lastSlash = filePath.lastIndexOf('/');
-                window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
             }
 
             // UI updates
@@ -358,11 +362,6 @@
                 if (tab.language !== 'html' && typeof window.syncContentToPresentation === 'function') {
                     window.syncContentToPresentation(content);
                 }
-            }
-
-            // Notify backend of current file
-            if (window.electronAPI) {
-                window.electronAPI.invoke('set-current-file', filePath);
             }
 
             // Force layout recalculation
@@ -486,8 +485,7 @@
                 const emptyModel = monaco.editor.createModel('', 'markdown');
                 editor.setModel(emptyModel);
             }
-            window.currentFilePath = null;
-            window.editorFileName = null;
+            setCurrentFileMirror(null, { syncMain: true, clearDirectory: true });
             window.lastSavedContent = '';
             window.hasUnsavedChanges = false;
             if (typeof window._setLastSavedContent === 'function') {
@@ -504,9 +502,6 @@
             }
             if (typeof window.syncContentToPresentation === 'function') {
                 window.syncContentToPresentation('');
-            }
-            if (window.electronAPI) {
-                window.electronAPI.invoke('set-current-file', null);
             }
             this._renderTabBar();
         }

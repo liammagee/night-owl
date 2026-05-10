@@ -444,7 +444,8 @@ Content to analyze:
         history: [],
         enableBreadcrumbs: true,
         showFileTree: true,
-        autoExpandFolders: false
+        autoExpandFolders: false,
+        hideGeneratedArtifacts: false
     },
     
     // === UI Preferences ===

@@ -13,6 +13,9 @@ const {
   sanitizeWorkspaceFolders
 } = require('./workspacePaths');
 const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('FileHandlers');
 
 const SAVE_BACKUP_DIR_NAME = '.nightowl-backups';
 const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
@@ -342,10 +345,10 @@ function register(deps) {
     const oldBasename = path.basename(oldPath, '.md');
     const newBasename = path.basename(newPath, '.md');
 
-    console.log(`[updateInternalLinks] Starting link update process:`);
-    console.log(`  Working directory: ${workingDir}`);
-    console.log(`  Old file: ${oldPath} (basename: ${oldBasename})`);
-    console.log(`  New file: ${newPath} (basename: ${newBasename})`);
+    debug(`[updateInternalLinks] Starting link update process:`);
+    debug(`  Working directory: ${workingDir}`);
+    debug(`  Old file: ${oldPath} (basename: ${oldBasename})`);
+    debug(`  New file: ${newPath} (basename: ${newBasename})`);
 
     let filesUpdated = 0;
 
@@ -376,18 +379,18 @@ function register(deps) {
     try {
       // Find all markdown files in the working directory
       const allMarkdownFiles = await findMarkdownFiles(workingDir);
-      console.log(`[updateInternalLinks] Found ${allMarkdownFiles.length} markdown files to scan`);
+      debug(`[updateInternalLinks] Found ${allMarkdownFiles.length} markdown files to scan`);
 
       // Regex patterns to match internal links
       // Matches [[old-name]], [[old-name.md]], [[old-name|Display Text]], or [[old-name.md|Display Text]]
       const escapedBasename = escapeRegex(oldBasename);
       const linkPattern = new RegExp(`\\[\\[${escapedBasename}(\\.md)?(\\|[^\\]]+)?\\]\\]`, 'g');
-      console.log(`[updateInternalLinks] Using regex pattern: ${linkPattern}`);
+      debug(`[updateInternalLinks] Using regex pattern: ${linkPattern}`);
 
       for (const filePath of allMarkdownFiles) {
         // Skip the renamed file itself
         if (filePath === newPath) {
-          console.log(`[updateInternalLinks] Skipping renamed file: ${filePath}`);
+          debug(`[updateInternalLinks] Skipping renamed file: ${filePath}`);
           continue;
         }
 
@@ -397,7 +400,7 @@ function register(deps) {
           // Check if file contains the old link before replacing
           const matches = content.match(linkPattern);
           if (matches) {
-            console.log(`[updateInternalLinks] Found ${matches.length} link(s) in ${filePath}:`, matches);
+            debug(`[updateInternalLinks] Found ${matches.length} link(s) in ${filePath}:`, matches);
           }
 
           const updatedContent = content.replace(linkPattern, (match, mdExtension, displayPart) => {
@@ -406,7 +409,7 @@ function register(deps) {
             const extension = mdExtension || '';
             const display = displayPart || '';
             const newLink = `[[${newBasename}${extension}${display}]]`;
-            console.log(`[updateInternalLinks] Replacing "${match}" with "${newLink}"`);
+            debug(`[updateInternalLinks] Replacing "${match}" with "${newLink}"`);
             return newLink;
           });
 
@@ -414,14 +417,14 @@ function register(deps) {
           if (updatedContent !== content) {
             await fs.writeFile(filePath, updatedContent, 'utf-8');
             filesUpdated++;
-            console.log(`[updateInternalLinks] ✓ Updated links in: ${filePath}`);
+            debug(`[updateInternalLinks] ✓ Updated links in: ${filePath}`);
           }
         } catch (fileError) {
           console.error(`[updateInternalLinks] Error processing ${filePath}:`, fileError);
         }
       }
 
-      console.log(`[updateInternalLinks] Completed. Updated ${filesUpdated} file(s)`);
+      debug(`[updateInternalLinks] Completed. Updated ${filesUpdated} file(s)`);
     } catch (error) {
       console.error('[updateInternalLinks] Error finding markdown files:', error);
       throw error;
@@ -445,7 +448,7 @@ function register(deps) {
         : workingDir;
       const folderPath = path.join(basePath, folderName);
       
-      console.log(`[FileHandlers] Creating folder: ${folderPath}`);
+      debug(`[FileHandlers] Creating folder: ${folderPath}`);
       
       // Check if folder already exists
       try {
@@ -462,7 +465,7 @@ function register(deps) {
       await fs.mkdir(folderPath, { recursive: true });
       clearFileScanCaches();
       
-      console.log(`[FileHandlers] Folder created successfully: ${folderPath}`);
+      debug(`[FileHandlers] Folder created successfully: ${folderPath}`);
       return {
         success: true,
         folderPath: folderPath,
@@ -486,7 +489,7 @@ function register(deps) {
         : workingDir;
       const filePath = path.join(basePath, fileName);
 
-      console.log(`[FileHandlers] Creating file: ${filePath}`);
+      debug(`[FileHandlers] Creating file: ${filePath}`);
 
       // Check if file already exists
       try {
@@ -503,7 +506,7 @@ function register(deps) {
       await fs.writeFile(filePath, content, 'utf8');
       clearFileScanCaches();
 
-      console.log(`[FileHandlers] File created successfully: ${filePath}`);
+      debug(`[FileHandlers] File created successfully: ${filePath}`);
       return {
         success: true,
         filePath: filePath,
@@ -523,8 +526,8 @@ function register(deps) {
       const workingDir = getWorkingDirectory();
       const workspaceFolders = syncWorkspaceFolders(workingDir);
 
-      console.log(`[FileHandlers] Building file tree for: ${workingDir}`);
-      console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
+      debug(`[FileHandlers] Building file tree for: ${workingDir}`);
+      debug(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
 
       // Build trees for all folders
       const trees = [];
@@ -582,7 +585,7 @@ function register(deps) {
         return { success: false, error: 'Invalid folder path' };
       }
 
-      console.log(`[FileHandlers] Getting folder contents: ${folderPath}`);
+      debug(`[FileHandlers] Getting folder contents: ${folderPath}`);
 
       const folderTree = await buildFileTree(folderPath);
       return {
@@ -600,8 +603,8 @@ function register(deps) {
       const workingDir = getWorkingDirectory();
       const workspaceFolders = syncWorkspaceFolders(workingDir);
 
-      console.log(`[FileHandlers] Getting available files from: ${workingDir}`);
-      console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
+      debug(`[FileHandlers] Getting available files from: ${workingDir}`);
+      debug(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
 
       // Get files from primary working directory
       const primaryFiles = await getCachedAvailableFiles(workingDir);
@@ -632,7 +635,7 @@ function register(deps) {
         }
       }
 
-      console.log(`[FileHandlers] Total available files across all folders: ${allFiles.length}`);
+      debug(`[FileHandlers] Total available files across all folders: ${allFiles.length}`);
       return allFiles;
     } catch (error) {
       console.error('[FileHandlers] Error getting available files:', error);
@@ -652,7 +655,7 @@ function register(deps) {
         ? (path.isAbsolute(relativePath) ? relativePath : path.join(workingDir, relativePath))
         : workingDir;
       
-      console.log(`[FileHandlers] Listing files in directory: ${targetDir}`);
+      debug(`[FileHandlers] Listing files in directory: ${targetDir}`);
       
       // Check if directory exists
       if (!fsSync.existsSync(targetDir)) {
@@ -673,7 +676,7 @@ function register(deps) {
           isFile: true  // Add isFile property for BibTeX loading compatibility
         }));
       
-      console.log(`[FileHandlers] Found ${files.length} files (markdown and bib)`);
+      debug(`[FileHandlers] Found ${files.length} files (markdown and bib)`);
       return files;
     } catch (error) {
       console.error('[FileHandlers] Error listing directory files:', error);
@@ -703,7 +706,7 @@ function register(deps) {
         saveSettings();
         clearFileScanCaches();
 
-        console.log(`[FileHandlers] Working directory changed to: ${appSettings.workingDirectory}`);
+        debug(`[FileHandlers] Working directory changed to: ${appSettings.workingDirectory}`);
 
         // Notify renderer about the settings change
         const win = resolveMainWindow();
@@ -760,8 +763,8 @@ function register(deps) {
         saveSettings();
         clearFileScanCaches();
 
-        console.log(`[FileHandlers] Added workspace folder: ${folderPath}`);
-        console.log(`[FileHandlers] Total workspace folders: ${appSettings.workspaceFolders.length}`);
+        debug(`[FileHandlers] Added workspace folder: ${folderPath}`);
+        debug(`[FileHandlers] Total workspace folders: ${appSettings.workspaceFolders.length}`);
 
         // Notify renderer about the settings change
         const win = resolveMainWindow();
@@ -807,8 +810,8 @@ function register(deps) {
       saveSettings();
       clearFileScanCaches();
 
-      console.log(`[FileHandlers] Removed workspace folder: ${folderPath}`);
-      console.log(`[FileHandlers] Remaining workspace folders: ${appSettings.workspaceFolders.length}`);
+      debug(`[FileHandlers] Removed workspace folder: ${folderPath}`);
+      debug(`[FileHandlers] Remaining workspace folders: ${appSettings.workspaceFolders.length}`);
 
       // Notify renderer about the settings change
       const win = resolveMainWindow();
@@ -842,7 +845,7 @@ function register(deps) {
       syncWorkspaceFolders(getWorkingDirectory(), { save: false });
       saveSettings();
       clearFileScanCaches();
-      console.log(`[FileHandlers] Reordered workspace folders: ${appSettings.workspaceFolders.length} folders`);
+      debug(`[FileHandlers] Reordered workspace folders: ${appSettings.workspaceFolders.length} folders`);
 
       const win = resolveMainWindow();
       if (win) {
@@ -868,7 +871,7 @@ function register(deps) {
   // File Reading Operations
   ipcMain.handle('read-file-content', async (event, filePath) => {
     try {
-      console.log(`[FileHandlers] Reading file content: ${filePath}`);
+      debug(`[FileHandlers] Reading file content: ${filePath}`);
       const content = await fs.readFile(filePath, 'utf8');
       
       return {
@@ -946,7 +949,7 @@ function register(deps) {
 
   ipcMain.handle('read-file', async (event, filePath) => {
     try {
-      console.log(`[FileHandlers] Reading file: ${filePath}`);
+      debug(`[FileHandlers] Reading file: ${filePath}`);
       const content = await fs.readFile(filePath, 'utf8');
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
@@ -971,7 +974,7 @@ function register(deps) {
   // File Writing Operations
   ipcMain.handle('write-file', async (event, filePath, content) => {
     try {
-      console.log(`[FileHandlers] Writing file: ${filePath} (${content.length} characters)`);
+      debug(`[FileHandlers] Writing file: ${filePath} (${content.length} characters)`);
       
       // Ensure directory exists
       const dirPath = path.dirname(filePath);
@@ -981,7 +984,7 @@ function register(deps) {
       await fs.writeFile(filePath, content, 'utf8');
       clearFileScanCaches();
       
-      console.log(`[FileHandlers] File written successfully: ${filePath}`);
+      debug(`[FileHandlers] File written successfully: ${filePath}`);
       return {
         success: true,
         filePath: filePath,
@@ -1000,7 +1003,7 @@ function register(deps) {
   // File Opening Operations  
   ipcMain.handle('open-file', async (event, filePath) => {
     try {
-      console.log(`[FileHandlers] Opening file: ${filePath}`);
+      debug(`[FileHandlers] Opening file: ${filePath}`);
       
       // Read the file content
       const content = await fs.readFile(filePath, 'utf8');
@@ -1030,7 +1033,7 @@ function register(deps) {
 
   ipcMain.handle('open-file-path', async (event, filePath) => {
     try {
-      console.log(`[FileHandlers] Opening file by path: ${filePath}`);
+      debug(`[FileHandlers] Opening file by path: ${filePath}`);
       
       // Check if file exists
       await fs.access(filePath);
@@ -1064,7 +1067,7 @@ function register(deps) {
   // Read file content without updating current file (for file tree processing, etc.)
   ipcMain.handle('read-file-content-only', async (event, filePath) => {
     try {
-      console.log(`[FileHandlers] Reading file content only: ${filePath}`);
+      debug(`[FileHandlers] Reading file content only: ${filePath}`);
       
       // Check if file exists
       await fs.access(filePath);
@@ -1246,7 +1249,7 @@ function register(deps) {
       const workingDir = getWorkingDirectory();
       const filePath = path.join(workingDir, filename);
 
-      console.log(`[FileHandlers] Performing open file: ${filePath}`);
+      debug(`[FileHandlers] Performing open file: ${filePath}`);
       
       // Check if file exists
       await fs.access(filePath);
@@ -1284,7 +1287,7 @@ function register(deps) {
         return { success: false, error: 'No file currently open' };
       }
 
-      console.log(`[FileHandlers] 💾 PERFORM-SAVE called for: ${currentFilePath} (${content.length} characters)`);
+      debug(`[FileHandlers] 💾 PERFORM-SAVE called for: ${currentFilePath} (${content.length} characters)`);
       
       const saveResult = await guardedWriteFile(currentFilePath, content, options, { fileStateMap });
       if (!saveResult.success) {
@@ -1292,7 +1295,7 @@ function register(deps) {
       }
       clearFileScanCaches();
       
-      console.log(`[FileHandlers] File saved successfully: ${currentFilePath}`);
+      debug(`[FileHandlers] File saved successfully: ${currentFilePath}`);
       return {
         success: true,
         filePath: currentFilePath,
@@ -1311,7 +1314,7 @@ function register(deps) {
 
   ipcMain.handle('perform-save-with-path', async (event, content, filePath, options = {}) => {
     try {
-      console.log(`[FileHandlers] Saving file with path: ${filePath} (${content.length} characters)`);
+      debug(`[FileHandlers] Saving file with path: ${filePath} (${content.length} characters)`);
       
       // Ensure directory exists
       const dirPath = path.dirname(filePath);
@@ -1326,7 +1329,7 @@ function register(deps) {
       // Update current file path
       setCurrentFilePath(filePath);
       
-      console.log(`[FileHandlers] File saved with path: ${filePath}`);
+      debug(`[FileHandlers] File saved with path: ${filePath}`);
       return {
         success: true,
         filePath: filePath,
@@ -1380,7 +1383,7 @@ function register(deps) {
       // Update current file path
       setCurrentFilePath(result.filePath);
       
-      console.log(`[FileHandlers] File saved as: ${result.filePath}`);
+      debug(`[FileHandlers] File saved as: ${result.filePath}`);
       return {
         success: true,
         filePath: result.filePath,
@@ -1402,7 +1405,7 @@ function register(deps) {
       // Clear current file path for new file
       setCurrentFilePath(null);
       
-      console.log('[FileHandlers] New file triggered');
+      debug('[FileHandlers] New file triggered');
       return { success: true, message: 'New file created' };
     } catch (error) {
       console.error('[FileHandlers] Error creating new file:', error);
@@ -1422,7 +1425,7 @@ function register(deps) {
 
   ipcMain.handle('set-current-file', (event, filePath) => {
     try {
-      console.log(`[FileHandlers] Current file set to: ${filePath}`);
+      debug(`[FileHandlers] Current file set to: ${filePath}`);
       setCurrentFilePath(filePath);
       if (filePath && fsSync.existsSync(filePath)) {
         const stat = fsSync.statSync(filePath);
@@ -1441,7 +1444,7 @@ function register(deps) {
   // File Deletion Operations
   ipcMain.handle('delete-file', async (event, filePath) => {
     try {
-      console.log(`[FileHandlers] Deleting file: ${filePath}`);
+      debug(`[FileHandlers] Deleting file: ${filePath}`);
       
       // Check if file exists
       await fs.access(filePath);
@@ -1450,7 +1453,7 @@ function register(deps) {
       await fs.unlink(filePath);
       clearFileScanCaches();
       
-      console.log(`[FileHandlers] File deleted successfully: ${filePath}`);
+      debug(`[FileHandlers] File deleted successfully: ${filePath}`);
       return {
         success: true,
         filePath: filePath,
@@ -1468,7 +1471,7 @@ function register(deps) {
 
   ipcMain.handle('delete-item', async (event, { path: itemPath, type, name }) => {
     try {
-      console.log(`[FileHandlers] Deleting ${type}: ${itemPath}`);
+      debug(`[FileHandlers] Deleting ${type}: ${itemPath}`);
       
       if (type === 'file') {
         await fs.unlink(itemPath);
@@ -1479,7 +1482,7 @@ function register(deps) {
       }
       clearFileScanCaches();
       
-      console.log(`[FileHandlers] ${type} deleted successfully: ${itemPath}`);
+      debug(`[FileHandlers] ${type} deleted successfully: ${itemPath}`);
       return {
         success: true,
         path: itemPath,
@@ -1501,7 +1504,7 @@ function register(deps) {
   // File Move Operations
   ipcMain.handle('move-item', async (event, { sourcePath, targetPath, operation, type }) => {
     try {
-      console.log(`[FileHandlers] Moving ${type} from ${sourcePath} to ${targetPath} (${operation})`);
+      debug(`[FileHandlers] Moving ${type} from ${sourcePath} to ${targetPath} (${operation})`);
       
       // Handle case where target is a directory - construct the full target path
       let finalTargetPath = targetPath;
@@ -1510,7 +1513,7 @@ function register(deps) {
         if (targetStats.isDirectory()) {
           const sourceFilename = path.basename(sourcePath);
           finalTargetPath = path.join(targetPath, sourceFilename);
-          console.log(`[FileHandlers] Target is directory, moving to: ${finalTargetPath}`);
+          debug(`[FileHandlers] Target is directory, moving to: ${finalTargetPath}`);
         }
       } catch (error) {
         // Target doesn't exist or can't be accessed, use targetPath as-is
@@ -1530,7 +1533,7 @@ function register(deps) {
       }
       clearFileScanCaches();
       
-      console.log(`[FileHandlers] ${type} ${operation}d successfully: ${sourcePath} -> ${finalTargetPath}`);
+      debug(`[FileHandlers] ${type} ${operation}d successfully: ${sourcePath} -> ${finalTargetPath}`);
       return {
         success: true,
         sourcePath: sourcePath,
@@ -1553,7 +1556,7 @@ function register(deps) {
   // File Rename Operation
   ipcMain.handle('rename-item', async (event, { filePath, newName }) => {
     try {
-      console.log(`[FileHandlers] Renaming item: ${filePath} to ${newName}`);
+      debug(`[FileHandlers] Renaming item: ${filePath} to ${newName}`);
       
       // Validate inputs
       if (!filePath || !newName) {
@@ -1597,7 +1600,7 @@ function register(deps) {
       await fs.rename(filePath, newPath);
       clearFileScanCaches();
 
-      console.log(`[FileHandlers] Item renamed successfully: ${filePath} -> ${newPath}`);
+      debug(`[FileHandlers] Item renamed successfully: ${filePath} -> ${newPath}`);
 
       // Check if this is a markdown file and update internal links
       const isMarkdownFile = newName.endsWith('.md');
@@ -1606,7 +1609,7 @@ function register(deps) {
       if (isMarkdownFile) {
         try {
           linksUpdated = await updateInternalLinksAfterRename(filePath, newPath);
-          console.log(`[FileHandlers] Updated ${linksUpdated} internal links referencing the renamed file`);
+          debug(`[FileHandlers] Updated ${linksUpdated} internal links referencing the renamed file`);
         } catch (linkUpdateError) {
           console.error('[FileHandlers] Error updating internal links:', linkUpdateError);
           // Don't fail the rename if link updating fails
@@ -1657,7 +1660,7 @@ function register(deps) {
         const parsedUrl = new URL(targetPath);
         if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'mailto:') {
           await shell.openExternal(targetPath);
-          console.log(`[FileHandlers] Opened external URL: ${targetPath}`);
+          debug(`[FileHandlers] Opened external URL: ${targetPath}`);
           return { success: true, url: targetPath };
         }
 
@@ -1668,7 +1671,7 @@ function register(deps) {
           if (openError) {
             return { success: false, error: openError, filePath: localPath };
           }
-          console.log(`[FileHandlers] Opened external file URL: ${targetPath}`);
+          debug(`[FileHandlers] Opened external file URL: ${targetPath}`);
           return { success: true, filePath: localPath };
         }
       } catch {
@@ -1680,7 +1683,7 @@ function register(deps) {
         return { success: false, error: openError, filePath: targetPath };
       }
 
-      console.log(`[FileHandlers] Opened external file: ${targetPath}`);
+      debug(`[FileHandlers] Opened external file: ${targetPath}`);
       return { success: true, filePath: targetPath };
     } catch (error) {
       console.error(`[FileHandlers] Error opening external target ${target}:`, error);
@@ -1696,7 +1699,7 @@ function register(deps) {
   ipcMain.handle('open-folder-in-finder', async (event, folderPath) => {
     try {
       const { shell } = require('electron');
-      console.log(`[FileHandlers] Opening folder in system file manager: ${folderPath}`);
+      debug(`[FileHandlers] Opening folder in system file manager: ${folderPath}`);
 
       // Check if folder exists
       await fs.access(folderPath);
@@ -1704,7 +1707,7 @@ function register(deps) {
       // Open the folder in the system file manager
       await shell.openPath(folderPath);
 
-      console.log(`[FileHandlers] Successfully opened folder in system file manager: ${folderPath}`);
+      debug(`[FileHandlers] Successfully opened folder in system file manager: ${folderPath}`);
       return { success: true, folderPath };
     } catch (error) {
       console.error(`[FileHandlers] Error opening folder in system file manager ${folderPath}:`, error);
@@ -1783,7 +1786,7 @@ function register(deps) {
     }
   });
 
-  console.log('[FileHandlers] Registered file system handlers');
+  debug('[FileHandlers] Registered file system handlers');
 
   // Helper functions
   // Directories that should never appear in the file tree.  Matches the skip
@@ -1803,11 +1806,28 @@ function register(deps) {
     '.nightowl-backups'
   ]);
 
+  const GENERATED_ARTIFACT_EXTENSIONS = new Set([
+    '.docx',
+    '.html',
+    '.htm',
+    '.pdf',
+    '.pptx'
+  ]);
+
+  function shouldDeclutterGeneratedArtifacts() {
+    return appSettings.navigation?.hideGeneratedArtifacts === true;
+  }
+
+  function isGeneratedFileTreeArtifact(entryName) {
+    return GENERATED_ARTIFACT_EXTENSIONS.has(path.extname(entryName).toLowerCase());
+  }
+
   function shouldHideFileTreeEntry(entryName) {
     if (!entryName) return true;
     if (entryName.startsWith('.')) return true;
     if (entryName.startsWith('~$')) return true;
     if (IGNORED_DIR_NAMES.has(entryName)) return true;
+    if (shouldDeclutterGeneratedArtifacts() && isGeneratedFileTreeArtifact(entryName)) return true;
     return false;
   }
 
@@ -2007,8 +2027,8 @@ function register(deps) {
 
   // Image File Browser Handler
   ipcMain.handle('browse-for-image', async (event) => {
-    console.log('[FileHandlers] Browse for image dialog requested');
-    console.log('[FileHandlers] main window available:', !!resolveMainWindow());
+    debug('[FileHandlers] Browse for image dialog requested');
+    debug('[FileHandlers] main window available:', !!resolveMainWindow());
     
     // Get current main window - try multiple approaches
     const { BrowserWindow } = require('electron');
@@ -2028,9 +2048,9 @@ function register(deps) {
       try {
         await fs.access(generatedImagesDir);
         defaultPath = generatedImagesDir;
-        console.log('[FileHandlers] Using generated-images directory as default:', defaultPath);
+        debug('[FileHandlers] Using generated-images directory as default:', defaultPath);
       } catch (error) {
-        console.log('[FileHandlers] Generated-images directory not found, using working directory');
+        debug('[FileHandlers] Generated-images directory not found, using working directory');
       }
       
       const result = await dialog.showOpenDialog(currentMainWindow, {
@@ -2050,7 +2070,7 @@ function register(deps) {
       const selectedPath = result.filePaths[0];
       const fileName = path.basename(selectedPath);
       
-      console.log('[FileHandlers] Image selected:', selectedPath);
+      debug('[FileHandlers] Image selected:', selectedPath);
       
       return {
         success: true,
@@ -2068,7 +2088,7 @@ function register(deps) {
   // Embed annotations into PDF file
   ipcMain.handle('embed-pdf-annotations', async (event, { highlights, annotations, filePath }) => {
     try {
-      console.log(`[FileHandlers] Embedding annotations into PDF: ${filePath}`);
+      debug(`[FileHandlers] Embedding annotations into PDF: ${filePath}`);
       
       const PDFLib = require('pdf-lib');
       const { PDFDocument, rgb } = PDFLib;
@@ -2081,16 +2101,16 @@ function register(deps) {
       const pages = pdfDoc.getPages();
       
       // Add highlights as annotations
-      console.log(`[FileHandlers] Processing ${highlights.length} highlights`);
+      debug(`[FileHandlers] Processing ${highlights.length} highlights`);
       for (const highlight of highlights) {
-        console.log(`[FileHandlers] Adding highlight:`, highlight);
+        debug(`[FileHandlers] Adding highlight:`, highlight);
         
         // Handle different highlight data structures
         const pageNum = highlight.pageNumber || highlight.pageNum;
         const bounds = highlight.bounds;
         
         if (!bounds || !pageNum) {
-          console.log(`[FileHandlers] Skipping highlight - missing bounds or pageNum:`, highlight);
+          debug(`[FileHandlers] Skipping highlight - missing bounds or pageNum:`, highlight);
           continue;
         }
         
@@ -2099,8 +2119,8 @@ function register(deps) {
           const page = pages[pageIndex];
           const { width, height } = page.getSize();
           
-          console.log(`[FileHandlers] Page ${pageNum} size: ${width}x${height}`);
-          console.log(`[FileHandlers] Bounds:`, bounds);
+          debug(`[FileHandlers] Page ${pageNum} size: ${width}x${height}`);
+          debug(`[FileHandlers] Bounds:`, bounds);
           
           // Convert canvas coordinates to PDF coordinates
           // Canvas coordinates are relative to the canvas, PDF coordinates are absolute page coordinates
@@ -2114,8 +2134,8 @@ function register(deps) {
           const lineOffset = 60; // Approximate offset for 3 lines
           const pdfY = height - y - h - lineOffset;
           
-          console.log(`[FileHandlers] Canvas coords: x=${x}, y=${y}, w=${w}, h=${h}`);
-          console.log(`[FileHandlers] PDF coords: x=${x}, y=${pdfY}, w=${w}, h=${h}`);
+          debug(`[FileHandlers] Canvas coords: x=${x}, y=${y}, w=${w}, h=${h}`);
+          debug(`[FileHandlers] PDF coords: x=${x}, y=${pdfY}, w=${w}, h=${h}`);
           
           // Draw a highlight rectangle
           page.drawRectangle({
@@ -2140,13 +2160,13 @@ function register(deps) {
       }
       
       // Add text annotations in right margin
-      console.log(`[FileHandlers] Processing ${annotations.length} text annotations`);
+      debug(`[FileHandlers] Processing ${annotations.length} text annotations`);
       for (const annotation of annotations) {
-        console.log(`[FileHandlers] Adding annotation:`, annotation);
+        debug(`[FileHandlers] Adding annotation:`, annotation);
         
         const pageNum = annotation.pageNumber || annotation.pageNum;
         if (!pageNum) {
-          console.log(`[FileHandlers] Skipping annotation - missing pageNumber:`, annotation);
+          debug(`[FileHandlers] Skipping annotation - missing pageNumber:`, annotation);
           continue;
         }
         
@@ -2167,7 +2187,7 @@ function register(deps) {
           const lineOffset = 60;
           const pdfY = height - originalY - lineOffset;
           
-          console.log(`[FileHandlers] Adding annotation "${annotationText}" in right margin at: x=${marginX}, y=${pdfY}`);
+          debug(`[FileHandlers] Adding annotation "${annotationText}" in right margin at: x=${marginX}, y=${pdfY}`);
           
           // Split long annotation text to fit in margin
           const words = annotationText.split(' ');
@@ -2250,7 +2270,7 @@ function register(deps) {
           color: rgb(1, 1, 1), // White text
         });
         
-        console.log(`[FileHandlers] Added test annotation at top of first page`);
+        debug(`[FileHandlers] Added test annotation at top of first page`);
       }
       
       // Save the modified PDF
@@ -2263,7 +2283,7 @@ function register(deps) {
       // Save the modified PDF
       await fs.writeFile(filePath, pdfBytes);
       
-      console.log(`[FileHandlers] PDF annotations embedded successfully, backup created at: ${backupPath}`);
+      debug(`[FileHandlers] PDF annotations embedded successfully, backup created at: ${backupPath}`);
       return { success: true, backupPath };
       
     } catch (error) {
@@ -2275,7 +2295,7 @@ function register(deps) {
   // Copy file handler for backups
   ipcMain.handle('copy-file', async (event, { source, destination }) => {
     try {
-      console.log(`[FileHandlers] Copying file from ${source} to ${destination}`);
+      debug(`[FileHandlers] Copying file from ${source} to ${destination}`);
       await fs.copyFile(source, destination);
       clearFileScanCaches();
       return { success: true };
@@ -2288,7 +2308,7 @@ function register(deps) {
   // Move file to a new location
   ipcMain.handle('move-file', async (event, { source, destination }) => {
     try {
-      console.log(`[FileHandlers] Moving file from ${source} to ${destination}`);
+      debug(`[FileHandlers] Moving file from ${source} to ${destination}`);
 
       // Check if source exists
       try {
@@ -2318,7 +2338,7 @@ function register(deps) {
         await fs.unlink(source);
       }
 
-      console.log(`[FileHandlers] Successfully moved file to ${destination}`);
+      debug(`[FileHandlers] Successfully moved file to ${destination}`);
       clearFileScanCaches();
       return { success: true, newPath: destination };
     } catch (error) {
@@ -2330,7 +2350,7 @@ function register(deps) {
   // Copy file to a new location (with new name support)
   ipcMain.handle('copy-file-to', async (event, { source, destination }) => {
     try {
-      console.log(`[FileHandlers] Copying file from ${source} to ${destination}`);
+      debug(`[FileHandlers] Copying file from ${source} to ${destination}`);
 
       // Check if source exists
       try {
@@ -2354,7 +2374,7 @@ function register(deps) {
       // Copy the file
       await fs.copyFile(source, destination);
 
-      console.log(`[FileHandlers] Successfully copied file to ${destination}`);
+      debug(`[FileHandlers] Successfully copied file to ${destination}`);
       clearFileScanCaches();
       return { success: true, newPath: destination };
     } catch (error) {
@@ -2395,8 +2415,8 @@ function register(deps) {
       const workingDir = getWorkingDirectory();
       const workspaceFolders = syncWorkspaceFolders(workingDir);
 
-      console.log(`[FileHandlers] Getting markdown files from: ${workingDir}`);
-      console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
+      debug(`[FileHandlers] Getting markdown files from: ${workingDir}`);
+      debug(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
 
       const markdownFileSet = new Set(await getCachedMarkdownFiles(workingDir));
 
@@ -2415,7 +2435,7 @@ function register(deps) {
       }
 
       const markdownFiles = Array.from(markdownFileSet).sort();
-      console.log(`[FileHandlers] Found ${markdownFiles.length} markdown files across all folders`);
+      debug(`[FileHandlers] Found ${markdownFiles.length} markdown files across all folders`);
       return {
         success: true,
         files: markdownFiles
@@ -2454,9 +2474,9 @@ function register(deps) {
     const logMessage = `[RENDERER-${level.toUpperCase()}] ${timestamp} ${message}`;
 
     if (data) {
-      console.log(logMessage, data);
+      debug(logMessage, data);
     } else {
-      console.log(logMessage);
+      debug(logMessage);
     }
 
     return true;
@@ -2467,7 +2487,7 @@ function register(deps) {
   ipcMain.handle('convert-pdf-to-markdown', async (event, pdfPath) => {
     const { spawn } = require('child_process');
 
-    console.log(`[FileHandlers] Converting PDF to Markdown: ${pdfPath}`);
+    debug(`[FileHandlers] Converting PDF to Markdown: ${pdfPath}`);
 
     return new Promise((resolve) => {
       // Path to the docling conversion script
@@ -2492,7 +2512,7 @@ function register(deps) {
         const pythonCmd = pythonCommands[pythonIdx];
         const args = [scriptPath, pdfPath, '--json'];
 
-        console.log(`[FileHandlers] Trying: ${pythonCmd} ${args.join(' ')}`);
+        debug(`[FileHandlers] Trying: ${pythonCmd} ${args.join(' ')}`);
 
         const proc = spawn(pythonCmd, args, {
           timeout: 300000, // 5 minute timeout for large PDFs
@@ -2508,7 +2528,7 @@ function register(deps) {
 
         proc.stderr.on('data', (data) => {
           stderr += data.toString();
-          console.log(`[FileHandlers] Docling: ${data.toString().trim()}`);
+          debug(`[FileHandlers] Docling: ${data.toString().trim()}`);
         });
 
         proc.on('error', (err) => {
@@ -2584,7 +2604,7 @@ function register(deps) {
       }
 
       const pdfPath = result.filePaths[0];
-      console.log(`[FileHandlers] User selected PDF for import: ${pdfPath}`);
+      debug(`[FileHandlers] User selected PDF for import: ${pdfPath}`);
 
       // Convert the PDF
       const conversionResult = await new Promise((resolve) => {
@@ -2606,7 +2626,7 @@ function register(deps) {
           proc.stdout.on('data', (data) => { stdout += data.toString(); });
           proc.stderr.on('data', (data) => {
             stderr += data.toString();
-            console.log(`[FileHandlers] Docling: ${data.toString().trim()}`);
+            debug(`[FileHandlers] Docling: ${data.toString().trim()}`);
           });
 
           proc.on('error', (err) => {
@@ -2690,7 +2710,7 @@ function register(deps) {
   ipcMain.handle('convert-word-to-markdown', async (event, docxPath, options = {}) => {
     const { spawn } = require('child_process');
 
-    console.log(`[FileHandlers] Converting Word document to Markdown: ${docxPath}`);
+    debug(`[FileHandlers] Converting Word document to Markdown: ${docxPath}`);
 
     // Default options
     const {
@@ -2716,7 +2736,7 @@ function register(deps) {
       // Input file
       args.push(docxPath);
 
-      console.log(`[FileHandlers] Running: pandoc ${args.join(' ')}`);
+      debug(`[FileHandlers] Running: pandoc ${args.join(' ')}`);
 
       const proc = spawn('pandoc', args, {
         timeout: 120000, // 2 minute timeout
@@ -2732,7 +2752,7 @@ function register(deps) {
 
       proc.stderr.on('data', (data) => {
         stderr += data.toString();
-        console.log(`[FileHandlers] Pandoc: ${data.toString().trim()}`);
+        debug(`[FileHandlers] Pandoc: ${data.toString().trim()}`);
       });
 
       proc.on('error', (err) => {
@@ -2804,7 +2824,7 @@ function register(deps) {
       }
 
       const docxPath = result.filePaths[0];
-      console.log(`[FileHandlers] User selected Word document for import: ${docxPath}`);
+      debug(`[FileHandlers] User selected Word document for import: ${docxPath}`);
 
       // Check if it's an old .doc format
       if (docxPath.toLowerCase().endsWith('.doc') && !docxPath.toLowerCase().endsWith('.docx')) {
@@ -2828,7 +2848,7 @@ function register(deps) {
           docxPath
         ];
 
-        console.log(`[FileHandlers] Running: pandoc ${args.join(' ')}`);
+        debug(`[FileHandlers] Running: pandoc ${args.join(' ')}`);
 
         const proc = spawn('pandoc', args, {
           timeout: 120000,
@@ -2841,7 +2861,7 @@ function register(deps) {
         proc.stdout.on('data', (data) => { stdout += data.toString(); });
         proc.stderr.on('data', (data) => {
           stderr += data.toString();
-          console.log(`[FileHandlers] Pandoc: ${data.toString().trim()}`);
+          debug(`[FileHandlers] Pandoc: ${data.toString().trim()}`);
         });
 
         proc.on('error', (err) => {

@@ -322,6 +322,10 @@ function generateGeneralSettings() {
                     <input type="text" id="default-file-type" value="${currentSettings.defaultFileType || '.md'}">
                     <span>Default File Extension</span>
                 </label>
+                <label>
+                    <input type="checkbox" id="declutter-file-tree-artifacts" ${currentSettings.navigation?.hideGeneratedArtifacts ? 'checked' : ''}>
+                    <span>Declutter generated artifacts in file tree</span>
+                </label>
             </div>
         </div>
         
@@ -2286,8 +2290,11 @@ function injectAssistantTabStyles() {
 
 async function saveSettingsDialog() {
     try {
+        const previousHideGeneratedArtifacts = currentSettings?.navigation?.hideGeneratedArtifacts === true;
+
         // Collect all form values
         const updatedSettings = collectSettingsFromForm();
+        const nextHideGeneratedArtifacts = updatedSettings?.navigation?.hideGeneratedArtifacts === true;
         
         // Update settings via IPC
         await window.electronAPI.invoke('set-settings', updatedSettings);
@@ -2301,6 +2308,18 @@ async function saveSettingsDialog() {
         // Apply editor settings immediately
         if (window.applyEditorSettings) {
             window.applyEditorSettings(updatedSettings);
+        }
+
+        if (previousHideGeneratedArtifacts !== nextHideGeneratedArtifacts) {
+            window.fileTreeData = null;
+            if (typeof window.renderFileTree === 'function') {
+                window.renderFileTree();
+            }
+            try {
+                await window.electronAPI.invoke('refresh-file-tree');
+            } catch (error) {
+                console.warn('[Settings] Could not refresh file tree after artifact setting change:', error);
+            }
         }
         
         // Refresh AI systems if AI settings were changed
@@ -2366,6 +2385,12 @@ function collectSettingsFromForm() {
     
     const defaultFileType = document.getElementById('default-file-type')?.value;
     if (defaultFileType !== undefined) updatedSettings.defaultFileType = defaultFileType;
+
+    const declutterFileTreeArtifacts = document.getElementById('declutter-file-tree-artifacts')?.checked;
+    if (declutterFileTreeArtifacts !== undefined) {
+        if (!updatedSettings.navigation) updatedSettings.navigation = {};
+        updatedSettings.navigation.hideGeneratedArtifacts = declutterFileTreeArtifacts;
+    }
     
     // Auto-save settings
     const autoSaveEnabled = document.getElementById('auto-save-enabled')?.checked;

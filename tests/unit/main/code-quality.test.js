@@ -183,6 +183,50 @@ describe('Code quality guardrails', () => {
     expect(searchSource).not.toContain('console.log(`[SearchHandlers] Global search');
   });
 
+  test('routine file, export, and citation logs are debug-gated', () => {
+    const files = [
+      '../../../ipc/fileHandlers.js',
+      '../../../ipc/exportHandlers.js',
+      '../../../ipc/citationHandlers.js',
+      '../../../services/citationService.js'
+    ];
+
+    for (const file of files) {
+      const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+      expect(source).toContain('createDebugLogger');
+      expect(source).not.toMatch(/console\.log\s*\(/);
+    }
+  });
+
+  test('current file path writes go through the current-file state helper', () => {
+    const files = [
+      '../../../orchestrator/renderer.js',
+      '../../../orchestrator/modules/editor-tabs.js',
+      '../../../orchestrator/modules/current-file-state.js'
+    ];
+
+    const assignmentSites = files
+      .filter((file) => {
+        const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+        return /window\.currentFilePath\s*=(?!=)/.test(source);
+      })
+      .map((file) => file.replace('../../../', ''));
+
+    expect(assignmentSites).toEqual(['orchestrator/modules/current-file-state.js']);
+  });
+
+  test('file tree artifact decluttering is explicit and off by default', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const settingsSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/settings.js'), 'utf8');
+    const fileHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/fileHandlers.js'), 'utf8');
+
+    expect(mainSource).toContain('hideGeneratedArtifacts: false');
+    expect(settingsSource).toContain('declutter-file-tree-artifacts');
+    expect(settingsSource).toContain('navigation.hideGeneratedArtifacts');
+    expect(fileHandlersSource).toContain('GENERATED_ARTIFACT_EXTENSIONS');
+    expect(fileHandlersSource).toContain("appSettings.navigation?.hideGeneratedArtifacts === true");
+  });
+
   test('internal link click handling has no always-on inline debug script', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const internalLinksSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/internalLinks.js'), 'utf8');

@@ -7,7 +7,7 @@ const path = require('path');
 const repoRoot = path.resolve(__dirname, '..');
 
 const GENERATED_DIRS = [
-  '.claude/',
+  '.claude/worktrees/',
   'coverage/',
   'dist/',
   'node_modules/',

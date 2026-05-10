@@ -13,6 +13,21 @@ function debugLog(level, message, data) {
     }
 }
 
+function setCurrentFilePathState(filePath, options = {}) {
+    if (window.NightOwlCurrentFile && typeof window.NightOwlCurrentFile.set === 'function') {
+        return window.NightOwlCurrentFile.set(filePath, options);
+    }
+    console.warn('[renderer.js] Current file state helper is unavailable');
+    return Promise.resolve({ success: false, skipped: true });
+}
+
+function clearCurrentFilePathState(options = {}) {
+    if (window.NightOwlCurrentFile && typeof window.NightOwlCurrentFile.clear === 'function') {
+        return window.NightOwlCurrentFile.clear(options);
+    }
+    return setCurrentFilePathState(null, { ...options, clearDirectory: options.clearDirectory !== false });
+}
+
 
 // --- Electron IPC (for theme) ---
 // Access IPC functions exposed by preload.js via window.electronAPI
@@ -5019,18 +5034,13 @@ async function loadAppSettings() {
         window.appSettings = appSettings; // Make settings globally available
         // Handle both empty string and null for currentFile
         const currentFileFromSettings = appSettings.currentFile;
-        
-        window.currentFilePath = (currentFileFromSettings && currentFileFromSettings.trim()) ? currentFileFromSettings : null;
-        
-        // Immediately sync currentFilePath with main process to ensure consistency
-        if (window.currentFilePath) {
-            try {
-                await window.electronAPI.invoke('set-current-file', window.currentFilePath);
-            } catch (error) {
-                console.error('[renderer.js] Failed to sync currentFilePath with main process:', error);
-            }
-        }
-        
+
+        const restoredFilePath = (currentFileFromSettings && currentFileFromSettings.trim()) ? currentFileFromSettings : null;
+        await setCurrentFilePathState(restoredFilePath, {
+            syncMain: Boolean(restoredFilePath),
+            clearDirectory: !restoredFilePath
+        });
+
         let themeAppliedFromSettings = false;
         
         // Store flag for file restoration to coordinate with Monaco initialization
@@ -5060,18 +5070,16 @@ async function loadAppSettings() {
                     } else {
                         console.warn('[renderer.js] Could not reopen last file:', result.error);
                         // File restoration failed - mark for default content fallback
-                        window.currentFilePath = null;
+                        await clearCurrentFilePathState({ syncMain: true });
                         window.hasFileToRestore = false;
                         window.useDefaultContentFallback = true;
-                        await window.electronAPI.invoke('set-current-file', null);
                     }
                 } catch (error) {
                     console.error('[renderer.js] Error restoring last opened file:', error);
                     // File restoration failed - mark for default content fallback
-                    window.currentFilePath = null;
+                    await clearCurrentFilePathState({ syncMain: true });
                     window.hasFileToRestore = false;
                     window.useDefaultContentFallback = true;
-                    await window.electronAPI.invoke('set-current-file', null);
                 }
             }
         }
@@ -5427,7 +5435,7 @@ async function importPdfAsMarkdown() {
             markDocumentModified();
         }
         window.hasUnsavedChanges = true;
-        window.currentFilePath = null; // No file path yet - user needs to save
+        await clearCurrentFilePathState({ syncMain: true }); // No file path yet - user needs to save
 
         // Update preview
         if (typeof updatePreviewAndStructure === 'function') {
@@ -5499,7 +5507,7 @@ async function importWordAsMarkdown() {
             markDocumentModified();
         }
         window.hasUnsavedChanges = true;
-        window.currentFilePath = null; // No file path yet - user needs to save
+        await clearCurrentFilePathState({ syncMain: true }); // No file path yet - user needs to save
 
         // Update preview
         if (typeof updatePreviewAndStructure === 'function') {
@@ -6315,8 +6323,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     
     // Only set current file path if this is NOT an internal link preview
     if (!options.isInternalLinkPreview) {
-        window.currentFilePath = filePath;
-        window.editorFileName = filePath;
+        await setCurrentFilePathState(filePath, { syncMain: true });
     }
     
     // Only update UI state if this is NOT an internal link preview
@@ -6335,12 +6342,6 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         // Still add to navigation history for internal link clicks, but skip file tree highlighting
         const fileName = filePath.split('/').pop();
         addToNavigationHistory(filePath, fileName);
-    }
-    
-    // Store current file directory for image path resolution (only for real file opens)
-    if (!options.isInternalLinkPreview) {
-        const lastSlash = filePath.lastIndexOf('/');
-        window.currentFileDirectory = lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
     }
     
     // Handle PDF files
@@ -11726,11 +11727,12 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                             if (moveResult.success) {
                                 successCount++;
 
-                                if (window.currentFilePath === sourceFilePath) {
-                                    window.currentFilePath = moveResult.newPath;
+                                const movedCurrentFile = window.currentFilePath === sourceFilePath;
+                                syncMovedPathWithOpenTabs(sourceFilePath, moveResult.newPath, false);
+                                if (movedCurrentFile && (!window.tabManager || !window.tabManager.hasTab(moveResult.newPath))) {
+                                    await setCurrentFilePathState(moveResult.newPath, { syncMain: true });
                                     updateBreadcrumb(moveResult.newPath);
                                 }
-                                syncMovedPathWithOpenTabs(sourceFilePath, moveResult.newPath, false);
                             } else {
                                 failedCount++;
                                 lastError = moveResult.error || 'Move failed';
@@ -12446,8 +12448,7 @@ if (window.electronAPI) {
             window.tabManager.activateTab(untitledPath);
         } else {
             // Fallback when tab manager is not available
-            window.currentFilePath = null;
-            window.editorFileName = null;
+            clearCurrentFilePathState({ syncMain: true });
             if (editor) {
                 editor.setValue('');
             } else if (fallbackEditor) {
@@ -13037,11 +13038,7 @@ async function performAutoSave() {
 
                 // Update current file path if this was a save-as operation
                 if (result.filePath && result.filePath !== window.currentFilePath) {
-                    window.currentFilePath = result.filePath;
-                    window.editorFileName = result.filePath; // Also update editorFileName
-                    if (window.electronAPI) {
-                        window.electronAPI.invoke('set-current-file', result.filePath);
-                    }
+                    await setCurrentFilePathState(result.filePath, { syncMain: true });
                 }
             } else {
                 console.warn('[renderer.js] Auto-save failed:', result.error);
@@ -14664,8 +14661,7 @@ async function saveFile() {
 
                 // Update file tree and current file info if this was a new file save
                 if (result.filePath && !window.currentFilePath) {
-                    window.currentFilePath = result.filePath;
-                    window.editorFileName = result.filePath; // Also update editorFileName
+                    await setCurrentFilePathState(result.filePath, { syncMain: true });
                     updateBreadcrumb(result.filePath);
                     renderFileTree();
                 }
@@ -14726,8 +14722,7 @@ async function saveFile() {
             });
             
             if (result.success && result.filePath) {
-                window.currentFilePath = result.filePath;
-                window.editorFileName = result.filePath; // Also update editorFileName
+                await setCurrentFilePathState(result.filePath, { syncMain: true });
                 
                 // Only add H1 heading for truly empty or very short content to avoid modifying existing files
                 const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
@@ -14764,9 +14759,6 @@ async function saveFile() {
                 updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
                 
-                // Update current file in electron
-                window.electronAPI.invoke('set-current-file', result.filePath);
-
                 // If saving from an untitled tab, re-key it to the real path instead of
                 // opening a brand-new tab (which would leave an orphan untitled tab).
                 if (window.tabManager && window.tabManager.activeTabPath
@@ -14892,8 +14884,7 @@ async function saveAsFile() {
         });
         
         if (result.success && result.filePath) {
-            window.currentFilePath = result.filePath;
-            window.editorFileName = result.filePath; // Also update editorFileName
+            await setCurrentFilePathState(result.filePath, { syncMain: true });
             
             // Only add H1 heading for truly empty or very short content to avoid modifying existing files
             const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension

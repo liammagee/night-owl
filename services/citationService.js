@@ -5,6 +5,9 @@ const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { fuzzyMatch, fuzzyMatchBest, hasWildcards } = require('./fuzzyMatch');
+const { createDebugLogger } = require('../ipc/logging');
+
+const debug = createDebugLogger('CitationService');
 
 class CitationService {
     constructor() {
@@ -31,7 +34,7 @@ class CitationService {
             await this.createTables();
             
             this.isInitialized = true;
-            console.log('[Citation Service] Initialized successfully');
+            debug('[Citation Service] Initialized successfully');
             
         } catch (error) {
             console.error('[Citation Service] Initialization failed:', error);
@@ -137,7 +140,7 @@ class CitationService {
     // Run database migrations for new fields
     async runMigrations() {
         try {
-            console.log('[Citation Service] Running database migrations...');
+            debug('[Citation Service] Running database migrations...');
             
             // Migration 1: Add source tracking fields
             const migrations = [
@@ -155,14 +158,14 @@ class CitationService {
                         if (err) {
                             // Ignore "duplicate column" errors for existing databases
                             if (err.message.includes('duplicate column name')) {
-                                console.log(`[Citation Service] Migration skipped (column exists): ${migration}`);
+                                debug(`[Citation Service] Migration skipped (column exists): ${migration}`);
                                 resolve();
                             } else {
                                 console.error('[Citation Service] Migration error:', err);
                                 reject(err);
                             }
                         } else {
-                            console.log(`[Citation Service] Migration completed: ${migration}`);
+                            debug(`[Citation Service] Migration completed: ${migration}`);
                             resolve();
                         }
                     });
@@ -180,7 +183,7 @@ class CitationService {
                         console.error('[Citation Service] Error setting default values:', err);
                         reject(err);
                     } else {
-                        console.log('[Citation Service] Set default values for existing citations');
+                        debug('[Citation Service] Set default values for existing citations');
                         resolve();
                     }
                 });
@@ -189,7 +192,7 @@ class CitationService {
             // Backfill citation_key for existing citations that don't have one
             await this._backfillCitationKeys();
 
-            console.log('[Citation Service] All migrations completed successfully');
+            debug('[Citation Service] All migrations completed successfully');
             
         } catch (error) {
             console.error('[Citation Service] Migration failed:', error);
@@ -239,7 +242,7 @@ class CitationService {
                 }
                 if (!rows || rows.length === 0) { resolve(); return; }
 
-                console.log(`[Citation Service] Backfilling citation_key for ${rows.length} citations`);
+                debug(`[Citation Service] Backfilling citation_key for ${rows.length} citations`);
                 let completed = 0;
                 for (const row of rows) {
                     const key = this._generateCitationKey(row);
@@ -286,12 +289,12 @@ class CitationService {
     // Add a new citation
     async addCitation(citationData) {
         try {
-            console.log('[Citation Service] Adding citation:', citationData);
+            debug('[Citation Service] Adding citation:', citationData);
             
             // Check for existing citation to prevent duplicates
             const existing = await this.findExistingCitation(citationData);
             if (existing) {
-                console.log(`[Citation Service] Citation already exists: ${citationData.title}`);
+                debug(`[Citation Service] Citation already exists: ${citationData.title}`);
 
                 const updates = {};
                 const preferNewValue = (field, options = {}) => {
@@ -378,14 +381,14 @@ class CitationService {
                     citation_key
                 ];
 
-                console.log('[Citation Service] Executing SQL with params:', params);
+                debug('[Citation Service] Executing SQL with params:', params);
 
                 this.db.run(sql, params, function(err) {
                     if (err) {
                         console.error('[Citation Service] Error adding citation:', err);
                         reject(err);
                     } else {
-                        console.log('[Citation Service] Citation added with ID:', this.lastID);
+                        debug('[Citation Service] Citation added with ID:', this.lastID);
                         resolve({ id: this.lastID, ...citationData });
                     }
                 });
@@ -651,16 +654,16 @@ class CitationService {
      * Strategy: Most recent modification wins (last-write-wins)
      */
     async resolveSyncConflict(localCitation, externalCitation, externalSource) {
-        console.log(`[Citation Service] Resolving sync conflict for citation "${localCitation.title}"`);
+        debug(`[Citation Service] Resolving sync conflict for citation "${localCitation.title}"`);
         
         const localModTime = new Date(localCitation.last_modified_at || localCitation.updated_at);
         const externalModTime = new Date(externalCitation.dateModified || externalCitation.updated_at || new Date());
         
-        console.log(`[Citation Service] Local modified: ${localModTime}, External modified: ${externalModTime}`);
+        debug(`[Citation Service] Local modified: ${localModTime}, External modified: ${externalModTime}`);
         
         // Determine which version wins
         if (externalModTime > localModTime) {
-            console.log(`[Citation Service] External version is newer - updating local citation`);
+            debug(`[Citation Service] External version is newer - updating local citation`);
             return {
                 action: 'update_local',
                 winner: 'external',
@@ -672,7 +675,7 @@ class CitationService {
                 }
             };
         } else {
-            console.log(`[Citation Service] Local version is newer - will push to external`);
+            debug(`[Citation Service] Local version is newer - will push to external`);
             return {
                 action: 'update_external', 
                 winner: 'local',
@@ -707,11 +710,11 @@ class CitationService {
                     if (resolution.action === 'update_local') {
                         await this.updateCitation(existing.id, resolution.data);
                         results.local_updated++;
-                        console.log(`[Citation Service] Updated local citation: ${existing.title}`);
+                        debug(`[Citation Service] Updated local citation: ${existing.title}`);
                     } else if (resolution.action === 'update_external') {
                         // Mark for external update (caller handles this)
                         results.external_updated++;
-                        console.log(`[Citation Service] Local version newer, external should be updated: ${existing.title}`);
+                        debug(`[Citation Service] Local version newer, external should be updated: ${existing.title}`);
                     }
                 } else {
                     // Add new citation from external source
@@ -721,7 +724,7 @@ class CitationService {
                         last_sync_at: new Date().toISOString()
                     });
                     results.added_to_local++;
-                    console.log(`[Citation Service] Added new citation from ${externalSource}: ${externalCitation.title}`);
+                    debug(`[Citation Service] Added new citation from ${externalSource}: ${externalCitation.title}`);
                 }
             } catch (error) {
                 console.error(`[Citation Service] Error processing citation:`, error);
@@ -849,10 +852,10 @@ class CitationService {
 
     async syncWithZotero(zoteroAPIKey, userID, collectionID = null, lastSyncTime = null) {
         try {
-            console.log('[Citation Service] Starting Zotero sync...');
-            console.log('[Citation Service] User ID:', userID);
-            console.log('[Citation Service] Collection ID:', collectionID || 'None (syncing entire library)');
-            console.log('[Citation Service] Last sync time:', lastSyncTime || 'None (full sync)');
+            debug('[Citation Service] Starting Zotero sync...');
+            debug('[Citation Service] User ID:', userID);
+            debug('[Citation Service] Collection ID:', collectionID || 'None (syncing entire library)');
+            debug('[Citation Service] Last sync time:', lastSyncTime || 'None (full sync)');
             
             const axios = require('axios');
             let apiUrl = `https://api.zotero.org/users/${userID}/items`;
@@ -874,7 +877,7 @@ class CitationService {
             }
             
             apiUrl += '?' + params.toString();
-            console.log('[Citation Service] API URL:', apiUrl);
+            debug('[Citation Service] API URL:', apiUrl);
 
             const response = await axios.get(apiUrl, {
                 headers: {
@@ -885,18 +888,18 @@ class CitationService {
             });
 
             const zoteroItems = response.data;
-            console.log(`[Citation Service] Retrieved ${zoteroItems.length} items from Zotero API`);
+            debug(`[Citation Service] Retrieved ${zoteroItems.length} items from Zotero API`);
 
             // Debug: show modification dates of all items (or first 5)
             if (zoteroItems.length > 0) {
-                console.log('[Citation Service] DEBUG: Item modification dates:');
+                debug('[Citation Service] DEBUG: Item modification dates:');
                 zoteroItems.slice(0, 5).forEach((item, index) => {
                     if (item.data) {
-                        console.log(`[Citation Service] DEBUG: Item ${index + 1}: "${item.data.title?.substring(0, 40)}..." modified: ${item.data.dateModified} version: ${item.version}`);
+                        debug(`[Citation Service] DEBUG: Item ${index + 1}: "${item.data.title?.substring(0, 40)}..." modified: ${item.data.dateModified} version: ${item.version}`);
                     }
                 });
                 if (zoteroItems.length > 5) {
-                    console.log(`[Citation Service] DEBUG: ... and ${zoteroItems.length - 5} more items`);
+                    debug(`[Citation Service] DEBUG: ... and ${zoteroItems.length - 5} more items`);
                 }
             }
 
@@ -908,11 +911,11 @@ class CitationService {
                 
                 // Skip items without titles
                 if (!data.title) {
-                    console.log(`[Citation Service] Skipping item without title: ${item.key}`);
+                    debug(`[Citation Service] Skipping item without title: ${item.key}`);
                     continue;
                 }
                 
-                console.log(`[Citation Service] Processing item: ${data.title} (${item.key})`);
+                debug(`[Citation Service] Processing item: ${data.title} (${item.key})`);
 
                 // Map Zotero item to our citation format
                 const citationData = {
@@ -940,18 +943,18 @@ class CitationService {
                 
                 if (existing) {
                     // Update existing citation
-                    console.log(`[Citation Service] Updating existing citation: ${data.title}`);
+                    debug(`[Citation Service] Updating existing citation: ${data.title}`);
                     await this.updateCitation(existing.id, citationData);
                     updatedCount++;
                 } else {
                     // Add new citation
-                    console.log(`[Citation Service] Adding new citation: ${data.title}`);
+                    debug(`[Citation Service] Adding new citation: ${data.title}`);
                     await this.addCitation(citationData);
                     syncedCount++;
                 }
             }
 
-            console.log(`[Citation Service] Zotero sync completed: ${syncedCount} new, ${updatedCount} updated`);
+            debug(`[Citation Service] Zotero sync completed: ${syncedCount} new, ${updatedCount} updated`);
             return { 
                 success: true, 
                 synced: syncedCount, 
@@ -1057,7 +1060,7 @@ class CitationService {
 
     // Fetch collections from Zotero
     async fetchZoteroCollections(zoteroAPIKey, userID) {
-        console.log('[Citation Service] Fetching Zotero collections...');
+        debug('[Citation Service] Fetching Zotero collections...');
         
         try {
             const axios = require('axios');
@@ -1078,7 +1081,7 @@ class CitationService {
                 itemCount: collection.meta.numItems || 0
             }));
 
-            console.log(`[Citation Service] Found ${collections.length} collections`);
+            debug(`[Citation Service] Found ${collections.length} collections`);
             return { success: true, collections };
             
         } catch (error) {
@@ -1140,7 +1143,7 @@ class CitationService {
 
     // Export citations to Zotero
     async exportToZotero(citationIds, zoteroAPIKey, userID, collectionID = null) {
-        console.log('[Citation Service] Starting export to Zotero...', { citationIds, collectionID });
+        debug('[Citation Service] Starting export to Zotero...', { citationIds, collectionID });
         
         try {
             const axios = require('axios');
@@ -1159,7 +1162,7 @@ class CitationService {
                     
                     // Create item in Zotero
                     let apiUrl = `https://api.zotero.org/users/${userID}/items`;
-                    console.log(`[Citation Service] Sending to Zotero:`, JSON.stringify(zoteroItem, null, 2));
+                    debug(`[Citation Service] Sending to Zotero:`, JSON.stringify(zoteroItem, null, 2));
                     
                     const response = await axios.post(apiUrl, [zoteroItem], {
                         headers: {
@@ -1170,7 +1173,7 @@ class CitationService {
                         timeout: 30000
                     });
 
-                    console.log(`[Citation Service] Zotero response status: ${response.status}`, response.data);
+                    debug(`[Citation Service] Zotero response status: ${response.status}`, response.data);
 
                     // Check for successful creation (201 for created, 200 for modified)
                     if ((response.status === 200 || response.status === 201) && response.data && response.data.successful) {
@@ -1179,13 +1182,13 @@ class CitationService {
                         if (successfulKeys.length > 0) {
                             const firstSuccessKey = successfulKeys[0];
                             const createdItemKey = response.data.success[firstSuccessKey]; // Use the success object for the key
-                            console.log(`[Citation Service] Created Zotero item with key: ${createdItemKey}`);
+                            debug(`[Citation Service] Created Zotero item with key: ${createdItemKey}`);
                             
                             // If collection specified, add to collection
                             if (collectionID) {
                                 try {
                                     await this.addItemToZoteroCollection(createdItemKey, collectionID, zoteroAPIKey, userID);
-                                    console.log(`[Citation Service] Added item to collection ${collectionID}`);
+                                    debug(`[Citation Service] Added item to collection ${collectionID}`);
                                 } catch (collectionError) {
                                     console.error(`[Citation Service] Failed to add item to collection:`, collectionError.message);
                                 }
@@ -1198,7 +1201,7 @@ class CitationService {
                             });
                             
                             exportedCount++;
-                            console.log(`[Citation Service] Successfully exported citation: ${citation.title}`);
+                            debug(`[Citation Service] Successfully exported citation: ${citation.title}`);
                         } else {
                             throw new Error(`No successful items in response: ${JSON.stringify(response.data)}`);
                         }
@@ -1231,7 +1234,7 @@ class CitationService {
     // Add item to Zotero collection
     async addItemToZoteroCollection(itemKey, collectionID, zoteroAPIKey, userID) {
         const axios = require('axios');
-        console.log(`[Citation Service] Adding item ${itemKey} to collection ${collectionID}`);
+        debug(`[Citation Service] Adding item ${itemKey} to collection ${collectionID}`);
         
         // Get the current item to update its collections
         const getItemUrl = `https://api.zotero.org/users/${userID}/items/${itemKey}`;
@@ -1262,9 +1265,9 @@ class CitationService {
                 }
             });
             
-            console.log(`[Citation Service] Successfully added item to collection`);
+            debug(`[Citation Service] Successfully added item to collection`);
         } else {
-            console.log(`[Citation Service] Item already in collection`);
+            debug(`[Citation Service] Item already in collection`);
         }
     }
 
@@ -1335,8 +1338,8 @@ class CitationService {
 
     // Live sync with Zotero - compare timestamps and sync changes both ways
     async liveSyncWithZotero(zoteroAPIKey, userID, collectionID = null, lastSyncTime = null) {
-        console.log('[Citation Service] Starting live sync with Zotero...');
-        console.log(`[Citation Service] Parameters: userID=${userID}, collectionID=${collectionID}, lastSyncTime=${lastSyncTime}`);
+        debug('[Citation Service] Starting live sync with Zotero...');
+        debug(`[Citation Service] Parameters: userID=${userID}, collectionID=${collectionID}, lastSyncTime=${lastSyncTime}`);
         
         try {
             const syncResults = {
@@ -1348,29 +1351,29 @@ class CitationService {
 
             // Check if database is empty - if so, force full sync
             const allCitations = await this.getCitations({});
-            console.log(`[Citation Service] Current database has ${allCitations.length} citations`);
+            debug(`[Citation Service] Current database has ${allCitations.length} citations`);
             
             let effectiveLastSyncTime = lastSyncTime;
             if (allCitations.length === 0) {
-                console.log('[Citation Service] Database is empty, forcing full sync (ignoring lastSyncTime)');
+                debug('[Citation Service] Database is empty, forcing full sync (ignoring lastSyncTime)');
                 effectiveLastSyncTime = null;
             }
 
             // Step 1: Import from Zotero (items modified since last sync)
-            console.log('[Citation Service] Step 1: Importing from Zotero...');
+            debug('[Citation Service] Step 1: Importing from Zotero...');
             const zoteroSyncResult = await this.syncWithZotero(zoteroAPIKey, userID, collectionID, effectiveLastSyncTime);
             if (zoteroSyncResult.success) {
                 syncResults.importedFromZotero = zoteroSyncResult.synced || 0;
-                console.log(`[Citation Service] Imported ${syncResults.importedFromZotero} items from Zotero`);
+                debug(`[Citation Service] Imported ${syncResults.importedFromZotero} items from Zotero`);
             }
 
             // Step 2: Export local changes to Zotero (BEFORE updating sync time)
-            console.log('[Citation Service] Step 2: Getting local changes...');
+            debug('[Citation Service] Step 2: Getting local changes...');
             const localChanges = await this.getLocalChangesAfter(lastSyncTime);
-            console.log(`[Citation Service] Found ${localChanges.length} local changes to export`);
+            debug(`[Citation Service] Found ${localChanges.length} local changes to export`);
             
             if (localChanges.length > 0) {
-                console.log('[Citation Service] Step 3: Exporting to Zotero...');
+                debug('[Citation Service] Step 3: Exporting to Zotero...');
                 const exportResult = await this.exportToZotero(
                     localChanges.map(c => c.id), 
                     zoteroAPIKey, 
@@ -1380,13 +1383,13 @@ class CitationService {
                 if (exportResult.success) {
                     syncResults.exportedToZotero = exportResult.exportedCount;
                     syncResults.errors = exportResult.errors;
-                    console.log(`[Citation Service] Successfully exported ${exportResult.exportedCount} citations to Zotero`);
+                    debug(`[Citation Service] Successfully exported ${exportResult.exportedCount} citations to Zotero`);
                 } else {
                     console.error('[Citation Service] Failed to export to Zotero:', exportResult.error);
                     syncResults.errors.push(exportResult.error);
                 }
             } else {
-                console.log('[Citation Service] No local changes to export');
+                debug('[Citation Service] No local changes to export');
             }
 
             // Update last sync timestamp AFTER both import and export are complete
@@ -1394,7 +1397,7 @@ class CitationService {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
             const conservativeTime = oneHourAgo.toISOString();
             await this.updateLastSyncTime(conservativeTime);
-            console.log(`[Citation Service] Set conservative sync time to ${conservativeTime} (1 hour ago)`);
+            debug(`[Citation Service] Set conservative sync time to ${conservativeTime} (1 hour ago)`);
             const currentTime = new Date().toISOString(); // Keep for return value
 
             return {
@@ -1427,7 +1430,7 @@ class CitationService {
                     ORDER BY COALESCE(last_modified_at, updated_at) DESC
                 `;
                 params = [];
-                console.log(`[Citation Service] Searching for unsynced citations with SQL: ${sql}`);
+                debug(`[Citation Service] Searching for unsynced citations with SQL: ${sql}`);
             } else {
                 // Return citations modified after the timestamp
                 sql = `
@@ -1437,13 +1440,13 @@ class CitationService {
                     ORDER BY COALESCE(last_modified_at, updated_at) DESC
                 `;
                 params = [timestamp];
-                console.log(`[Citation Service] Searching for changes after ${timestamp} with SQL: ${sql}`);
+                debug(`[Citation Service] Searching for changes after ${timestamp} with SQL: ${sql}`);
             }
             
             // First, let's see all citations for debugging
             this.db.all('SELECT id, title, source, zotero_key, last_modified_at, updated_at FROM citations LIMIT 10', [], (err, allRows) => {
                 if (!err) {
-                    console.log(`[Citation Service] DEBUG: Sample of all citations in database:`, allRows.map(r => ({
+                    debug(`[Citation Service] DEBUG: Sample of all citations in database:`, allRows.map(r => ({
                         id: r.id,
                         title: r.title?.substring(0, 50) + '...',
                         source: r.source,
@@ -1459,9 +1462,9 @@ class CitationService {
                     console.error('[Citation Service] Error getting local changes:', err);
                     reject(err);
                 } else {
-                    console.log(`[Citation Service] Found ${rows.length} local changes after ${timestamp || 'never'}`);
+                    debug(`[Citation Service] Found ${rows.length} local changes after ${timestamp || 'never'}`);
                     if (rows.length > 0) {
-                        console.log(`[Citation Service] Sample local changes:`, rows.slice(0, 3).map(r => ({
+                        debug(`[Citation Service] Sample local changes:`, rows.slice(0, 3).map(r => ({
                             id: r.id,
                             title: r.title?.substring(0, 50) + '...',
                             source: r.source,
@@ -1525,7 +1528,7 @@ class CitationService {
     // Execute raw SQL query (for advanced users/debugging)
     async executeRawSQL(sqlQuery) {
         return new Promise((resolve, reject) => {
-            console.log(`[Citation Service] Executing raw SQL: ${sqlQuery}`);
+            debug(`[Citation Service] Executing raw SQL: ${sqlQuery}`);
             
             // Safety check - only allow SELECT statements for now
             const trimmedQuery = sqlQuery.trim().toLowerCase();
@@ -1539,7 +1542,7 @@ class CitationService {
                     console.error('[Citation Service] SQL execution error:', err);
                     reject(err);
                 } else {
-                    console.log(`[Citation Service] SQL query returned ${rows.length} rows`);
+                    debug(`[Citation Service] SQL query returned ${rows.length} rows`);
                     resolve(rows);
                 }
             });
@@ -1562,7 +1565,7 @@ class CitationService {
                     console.error('[Citation Service] Error closing database:', err);
                     resolve(false);
                 } else {
-                    console.log('[Citation Service] Database connection closed');
+                    debug('[Citation Service] Database connection closed');
                     resolve(true);
                 }
             });
