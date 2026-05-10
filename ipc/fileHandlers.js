@@ -1803,6 +1803,14 @@ function register(deps) {
     '.nightowl-backups'
   ]);
 
+  function shouldHideFileTreeEntry(entryName) {
+    if (!entryName) return true;
+    if (entryName.startsWith('.')) return true;
+    if (entryName.startsWith('~$')) return true;
+    if (IGNORED_DIR_NAMES.has(entryName)) return true;
+    return false;
+  }
+
   async function buildFileTree(dirPath) {
     try {
       const stats = await fs.stat(dirPath);
@@ -1821,10 +1829,7 @@ function register(deps) {
         const entries = await fs.readdir(dirPath);
 
         for (const entry of entries) {
-          // Skip hidden files and directories
-          if (entry.startsWith('.')) continue;
-          // Skip heavy/generated directories (node_modules, dist, build, etc.)
-          if (IGNORED_DIR_NAMES.has(entry)) continue;
+          if (shouldHideFileTreeEntry(entry)) continue;
 
           const entryPath = path.join(dirPath, entry);
           try {

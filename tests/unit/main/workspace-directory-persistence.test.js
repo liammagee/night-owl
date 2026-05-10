@@ -580,6 +580,40 @@ describe('workspace directory persistence', () => {
       const childNames = (tree.children || []).map(c => c.name);
       expect(childNames).not.toContain(dirName);
     });
+
+    test('request-file-tree hides transient Office lock files', async () => {
+      const workspace = '/Users/test/project';
+
+      mockFsPromises.stat.mockImplementation(async (p) => ({
+        isFile: () => !p.endsWith('project'),
+        isDirectory: () => p.endsWith('project')
+      }));
+
+      mockFsPromises.readdir.mockImplementation(async (p) => {
+        if (p === workspace) return ['~$machinagogy-v2.docx', 'machinagogy-v2.docx', 'machinagogy-v2.md'];
+        return [];
+      });
+
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const handler = getRegisteredHandler('request-file-tree');
+      const tree = await handler({});
+
+      const childNames = (tree.children || []).map(c => c.name);
+      expect(childNames).not.toContain('~$machinagogy-v2.docx');
+      expect(childNames).toContain('machinagogy-v2.docx');
+      expect(childNames).toContain('machinagogy-v2.md');
+    });
   });
 
   // ---------------------------------------------------------------------------
