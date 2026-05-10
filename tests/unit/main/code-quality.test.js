@@ -170,6 +170,18 @@ describe('Code quality guardrails', () => {
     expect(orchestratorPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
   });
 
+  test('NightOwl command-line installer is reachable from the app menu and packaged build', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+
+    expect(mainSource).toContain('installNightOwlShellCommand');
+    expect(mainSource).toContain("Install 'nightowl' Shell Command");
+    expect(mainSource).toContain('installNightOwlCli(getCliInstallerOptions())');
+    expect(packageJson.bin.nightowl).toBe('bin/nightowl');
+    expect(packageJson.build.files).toContain('bin/**/*');
+    expect(packageJson.build.files).toContain('services/**/*');
+  });
+
   test('direct write handlers resolve targets through workspace path guards', () => {
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const fileHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/fileHandlers.js'), 'utf8');

@@ -31,6 +31,7 @@ const {
   parseNightOwlLaunchArgs,
   resolveLaunchTargets
 } = require('./services/launchArgs');
+const { installNightOwlCli } = require('./services/cliInstaller');
 const ipcHandlers = require('./ipc');
 
 // Initialize @electron/remote after checking if electron module loaded correctly
@@ -894,6 +895,51 @@ function addToRecentWorkspaces(workspacePath) {
 function getRecentWorkspaces() {
     if (!appSettings.recents || !Array.isArray(appSettings.recents.workspaces)) return [];
     return appSettings.recents.workspaces.map(w => w.path);
+}
+
+function getMacAppBundlePath() {
+    if (process.platform !== 'darwin') return '';
+    let current = process.execPath;
+    while (current && current !== path.dirname(current)) {
+        if (current.endsWith('.app')) return current;
+        current = path.dirname(current);
+    }
+    return '';
+}
+
+function getCliInstallerOptions() {
+    const isPackaged = Boolean(app.isPackaged);
+    const appPath = process.platform === 'darwin'
+        ? getMacAppBundlePath()
+        : process.execPath;
+    return {
+        appName: app.getName() || 'NightOwl',
+        appPath: isPackaged ? appPath : '',
+        launcherPath: isPackaged ? '' : path.join(__dirname, 'bin', 'nightowl')
+    };
+}
+
+async function installNightOwlShellCommand() {
+    try {
+        const result = installNightOwlCli(getCliInstallerOptions());
+        const pathNote = result.pathIncludesTargetDir
+            ? 'You can now run: nightowl .'
+            : `Add this directory to PATH before using it: ${result.targetDir}`;
+
+        await dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'NightOwl Command Installed',
+            message: 'Installed the nightowl command.',
+            detail: `${result.target}\n\n${pathNote}`
+        });
+    } catch (error) {
+        await dialog.showMessageBox(mainWindow, {
+            type: 'error',
+            title: 'NightOwl Command Install Failed',
+            message: 'Could not install the nightowl command.',
+            detail: error.message || String(error)
+        });
+    }
 }
 
 function setPrimaryWorkingDirectory(folderPath) {
@@ -2318,6 +2364,13 @@ View:
 • F11: Toggle fullscreen
             `.trim()
           });
+        }
+      },
+      { type: 'separator' },
+      {
+        label: "Install 'nightowl' Shell Command",
+        click: async () => {
+          await installNightOwlShellCommand();
         }
       }
     ];
