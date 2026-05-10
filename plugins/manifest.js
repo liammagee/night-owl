@@ -42,5 +42,10 @@ window.TECHNE_PLUGIN_MANIFEST = [
         id: 'techne-theme-manager',
         entry: 'plugins/techne-theme-manager/plugin.js',
         enabledByDefault: true
+    },
+    {
+        id: 'techne-research-feed',
+        entry: 'plugins/techne-research-feed/plugin.js',
+        enabledByDefault: false
     }
 ];

@@ -43,4 +43,5 @@ lectures/texts/
 .env.local
 .env.*.local
 
-.claude
+.claude/*
+!.claude/skills/

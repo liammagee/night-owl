@@ -25,6 +25,7 @@ const advancedExportHandlers = require('./advancedExportHandlers');
 const collaborationHandlers = require('./collaborationHandlers');
 const staticSiteHandlers = require('./staticSiteHandlers');
 const performanceHandlers = require('./performanceHandlers');
+const feedHandlers = require('./feedHandlers');
 
 /**
  * Register all IPC handlers
@@ -133,6 +134,13 @@ function registerAllHandlers(dependencies) {
       console.error('[IPC] Error registering performance handlers:', error);
     }
 
+    try {
+      feedHandlers.register(dependencies);
+      console.log('[IPC] Research-feed handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering research-feed handlers:', error);
+    }
+
     console.log('[IPC] All IPC handlers registered successfully');
   } catch (error) {
     console.error('[IPC] Error registering handlers:', error);
@@ -158,6 +166,11 @@ function cleanupHandlers() {
     console.log('[IPC] Handlers cleaned up successfully');
   } catch (error) {
     console.error('[IPC] Error cleaning up handlers:', error);
+  }
+  try {
+    feedHandlers.cleanup();
+  } catch (error) {
+    console.error('[IPC] Error cleaning up research-feed handlers:', error);
   }
 }
 
