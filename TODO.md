@@ -648,8 +648,6 @@ by blast radius, not by depth of code change.
   - Auto-disables expensive features (word wrap, folding, suggestions) for files >200KB
   - Read-only mode for files >2MB with warning
   - File size indicator in status bar
-- [ ] **Plugin Marketplace** - Browse and install third-party plugins from a registry
-
 ---
 
 ## Notes
