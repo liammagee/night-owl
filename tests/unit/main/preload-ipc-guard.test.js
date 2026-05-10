@@ -48,8 +48,12 @@ describe('preload IPC guard', () => {
 
   test('keeps the expected channel sets explicit', () => {
     expect(ALLOWED_INVOKE_CHANNELS.has('perform-save-with-path')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('feed:list-sources')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('shell-run')).toBe(false);
     expect(ALLOWED_ON_CHANNELS.has('settings-changed')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('feed:items')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('feed:scored')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('feed:source-error')).toBe(true);
     expect(ALLOWED_SEND_CHANNELS.has('save-layout')).toBe(true);
   });
 

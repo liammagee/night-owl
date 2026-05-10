@@ -1098,6 +1098,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // The preload imports local app modules; Electron sandbox preloads cannot require them.
+      sandbox: false,
       enableRemoteModule: false,
       spellcheck: true,
     },

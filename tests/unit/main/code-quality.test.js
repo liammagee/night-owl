@@ -135,9 +135,15 @@ describe('Code quality guardrails', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const previewModule = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/preview-markdown.js'), 'utf8');
     const techneRenderer = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-markdown-renderer/techne-markdown-renderer.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
 
     expect(previewModule).toContain('function sanitizePreviewHTML');
     expect(previewModule).toContain('function setSanitizedHTML');
+    expect(indexSource).toContain('frame-src');
+    expect(indexSource).toContain('https://www.youtube.com');
+    expect(indexSource).toContain('https://www.youtube-nocookie.com');
+    expect(indexSource).toContain('https://player.vimeo.com');
+    expect(indexSource).toContain('https://*.zoom.us');
     expect(rendererSource).toContain('previewMarkdown.setSanitizedHTML(previewContent, headerHtml + htmlContent)');
     expect(rendererSource).toContain('pre.textContent = markdownContent');
     expect(rendererSource).not.toContain("previewContent.innerHTML = '<pre>' + markdownContent + '</pre>'");
@@ -148,11 +154,13 @@ describe('Code quality guardrails', () => {
   test('preload bridge only exposes allowlisted IPC channels', () => {
     const rootPreload = fs.readFileSync(path.join(__dirname, '../../../preload.js'), 'utf8');
     const orchestratorPreload = fs.readFileSync(path.join(__dirname, '../../../orchestrator/preload.js'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const guardSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
 
     expect(rootPreload).toContain('createGuardedIpcBridge');
     expect(orchestratorPreload).toContain('createGuardedIpcBridge');
+    expect(mainSource).toContain('sandbox: false');
     expect(packageJson.build.files).toContain('preload-ipc-guard.js');
     expect(guardSource).toContain('ALLOWED_INVOKE_CHANNELS');
     expect(guardSource).toContain('assertAllowedChannel');
