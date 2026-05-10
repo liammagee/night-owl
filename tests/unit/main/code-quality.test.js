@@ -215,6 +215,32 @@ describe('Code quality guardrails', () => {
     expect(assignmentSites).toEqual(['orchestrator/modules/current-file-state.js']);
   });
 
+  test('editable file opens sync current path after model swap', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const modelFallbackIndex = rendererSource.indexOf("currentModel.setValue(content)");
+    const deferredSyncIndex = rendererSource.indexOf("await setCurrentFilePathState(filePath, { syncMain: true });", modelFallbackIndex);
+    const previewIndex = rendererSource.indexOf("await updatePreviewAndStructure(content);", deferredSyncIndex);
+
+    expect(rendererSource).toContain('const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile');
+    expect(rendererSource).toContain('syncCurrentFileAfterModel: shouldDeferCurrentFileSync');
+    expect(modelFallbackIndex).toBeGreaterThan(-1);
+    expect(deferredSyncIndex).toBeGreaterThan(modelFallbackIndex);
+    expect(previewIndex).toBeGreaterThan(deferredSyncIndex);
+  });
+
+  test('same-path open requests are queued instead of dropped', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+
+    expect(rendererSource).toContain('const _queuedOpenFileRequests = new Map();');
+    expect(rendererSource).toContain('_queuedOpenFileRequests.set(filePath, {');
+    expect(rendererSource).toContain('refreshExistingTabContent: true');
+    expect(rendererSource).toContain('const queuedRequest = _queuedOpenFileRequests.get(filePath);');
+    expect(rendererSource).toContain('tab.model.setValue(content);');
+    expect(rendererSource).toContain('tab.lastSavedContent = content;');
+    expect(rendererSource).toContain('await openFileInEditor(');
+    expect(rendererSource).not.toContain('if (_openingFilePath === filePath) return;');
+  });
+
   test('file tree artifact decluttering is explicit and off by default', () => {
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const settingsSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/settings.js'), 'utf8');

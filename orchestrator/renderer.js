@@ -6221,15 +6221,36 @@ async function generateThumbnailForMultipleFiles(filePaths) {
 
 // Guard against concurrent openFileInEditor calls for the same file
 let _openingFilePath = null;
+const _queuedOpenFileRequests = new Map();
 
 async function openFileInEditor(filePath, content, options = {}) {
-    // Prevent duplicate concurrent opens for the same file
-    if (_openingFilePath === filePath) return;
+    // If the same file is requested again while its first open is still
+    // swapping models, keep the latest request instead of dropping it. The
+    // newer content may reflect a disk reload or search/open race.
+    if (_openingFilePath === filePath) {
+        _queuedOpenFileRequests.set(filePath, {
+            filePath,
+            content,
+            options: { ...options, refreshExistingTabContent: true }
+        });
+        return;
+    }
+
     _openingFilePath = filePath;
     try {
         await _openFileInEditorImpl(filePath, content, options);
     } finally {
         if (_openingFilePath === filePath) _openingFilePath = null;
+
+        const queuedRequest = _queuedOpenFileRequests.get(filePath);
+        if (queuedRequest) {
+            _queuedOpenFileRequests.delete(filePath);
+            await openFileInEditor(
+                queuedRequest.filePath,
+                queuedRequest.content,
+                queuedRequest.options
+            );
+        }
     }
 }
 
@@ -6259,15 +6280,40 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         setTimeout(() => editor.layout(), 0);
     }
 
+    // Detect file type before any state sync so editable files can defer
+    // currentFilePath updates until after their Monaco model is swapped.
+    const isPDF = filePath.endsWith('.pdf');
+    const isImageFile = /\.(png|jpg|jpeg|gif|bmp|svg|webp|ico)$/i.test(filePath);
+    const isHTML = isHTMLFilePath(filePath);
+    const isBibTeX = filePath.endsWith('.bib');
+    const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+    const isLargeMarkdown = isMarkdown && content && content.length >= LARGE_MARKDOWN_CHAR_THRESHOLD;
+    const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile;
+
     // --- Tab Manager routing ---
     if (window.tabManager && !options.isInternalLinkPreview) {
-        const isPDFFile = filePath.endsWith('.pdf');
-        const isImageFile = /\.(png|jpg|jpeg|gif|bmp|svg|webp|ico)$/i.test(filePath);
-
         // Only manage non-binary files as tabs
-        if (!isPDFFile && !isImageFile) {
+        if (!isPDF && !isImageFile) {
             // If tab already exists, just activate it (preserves cursor, scroll, undo)
             if (window.tabManager.hasTab(filePath)) {
+                if (options.refreshExistingTabContent && typeof content === 'string') {
+                    const tab = window.tabManager.tabs.get(filePath);
+                    if (tab?.model && typeof tab.model.setValue === 'function') {
+                        const currentTabContent = typeof tab.model.getValue === 'function'
+                            ? tab.model.getValue()
+                            : null;
+                        if (currentTabContent !== content) {
+                            window.suppressAutoSave = true;
+                            try {
+                                tab.model.setValue(content);
+                            } finally {
+                                window.suppressAutoSave = false;
+                            }
+                            tab.lastSavedContent = content;
+                            tab.isDirty = false;
+                        }
+                    }
+                }
                 window.tabManager.activateTab(filePath);
                 // Still run tag processing for markdown files
                 const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
@@ -6309,20 +6355,14 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         }
     }
 
-    // Detect file type
-    const isPDF = filePath.endsWith('.pdf');
-    const isHTML = isHTMLFilePath(filePath);
-    const isBibTeX = filePath.endsWith('.bib');
-    const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
-    const isLargeMarkdown = isMarkdown && content && content.length >= LARGE_MARKDOWN_CHAR_THRESHOLD;
-    
     // Exit PDF-only mode if we're opening a non-PDF file
     if (!isPDF && !options.isInternalLinkPreview) {
         exitPDFOnlyMode();
     }
     
-    // Only set current file path if this is NOT an internal link preview
-    if (!options.isInternalLinkPreview) {
+    // Non-editable files have no model swap, so sync immediately. Editable
+    // paths sync inside handleEditableFile() after the model content changes.
+    if (!options.isInternalLinkPreview && !shouldDeferCurrentFileSync) {
         await setCurrentFilePathState(filePath, { syncMain: true });
     }
     
@@ -6353,7 +6393,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     
     // Handle HTML files
     if (isHTML) {
-        await handleHTMLFile(filePath, content);
+        await handleHTMLFile(filePath, content, { syncCurrentFileAfterModel: shouldDeferCurrentFileSync });
         updateAIChatContext(filePath);
         return;
     }
@@ -6374,7 +6414,9 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     }
 
     // Handle editable files (Markdown, BibTeX)
-    await handleEditableFile(filePath, content, { isBibTeX, isMarkdown });
+    await handleEditableFile(filePath, content, { isBibTeX, isMarkdown }, {
+        syncCurrentFileAfterModel: shouldDeferCurrentFileSync
+    });
     
     // Update AI chat context when file changes
     updateAIChatContext(filePath);
@@ -6613,10 +6655,11 @@ function renderHTMLSourcePreview(filePath, content) {
 window.renderHTMLSourcePreview = renderHTMLSourcePreview;
 
 // Handle HTML file opening
-async function handleHTMLFile(filePath, content) {
+async function handleHTMLFile(filePath, content, options = {}) {
     await handleEditableFile(filePath, content, { isHTML: true }, {
         skipPreviewUpdate: true,
-        skipPresentationSync: true
+        skipPresentationSync: true,
+        syncCurrentFileAfterModel: options.syncCurrentFileAfterModel === true
     });
     renderHTMLSourcePreview(filePath, content);
 }
@@ -6724,6 +6767,10 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
         console.error('[handleEditableFile] No editor available');
     }
 
+    if (options.syncCurrentFileAfterModel) {
+        await setCurrentFilePathState(filePath, { syncMain: true });
+    }
+
     // Trigger slide thumbnail strip on file open (not just on content change)
     if (fileTypes.isMarkdown && content) {
         updateSlideThumbnails(content);
@@ -6749,8 +6796,11 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
         window.syncContentToPresentation(content);
     }
     
-    // Save current file to settings (redundant, but ensures consistency)
-    window.electronAPI.invoke('set-current-file', filePath);
+    // Save current file to settings for direct handleEditableFile callers that
+    // still bypass the main open-file pipeline.
+    if (!options.syncCurrentFileAfterModel) {
+        window.electronAPI.invoke('set-current-file', filePath);
+    }
 }
 
 // Clear the editor
