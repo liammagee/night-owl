@@ -81,6 +81,20 @@ describe('Code quality guardrails', () => {
     expect(dragdropSource).toContain('item.isMulti');
   });
 
+  test('file tree active-folder and clipboard state live outside renderer', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const stateSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-tree-state.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+
+    expect(indexSource).toContain('orchestrator/modules/file-tree-state.js');
+    expect(stateSource).toContain('window.NightOwlFileTreeState');
+    expect(stateSource).toContain('function setActiveTreeFolder');
+    expect(stateSource).toContain('function setClipboard');
+    expect(rendererSource).toContain('const fileTreeState = window.NightOwlFileTreeState');
+    expect(rendererSource).not.toContain('let fileClipboard = {');
+    expect(rendererSource).not.toContain('function setActiveTreeFolder');
+  });
+
   test('app code uses app-native confirmation instead of raw browser confirm', () => {
     const appRoots = [
       path.join(__dirname, '../../../orchestrator'),
@@ -199,6 +213,12 @@ describe('Code quality guardrails', () => {
     expect(qualityScript).toContain('GENERATED_DIRS');
     expect(qualityScript).toContain('assertNoTrackedGeneratedDirs');
     expect(qualityScript).toContain('--exclude-standard');
+  });
+
+  test('quality hardening backlog file is retired after completion', () => {
+    const backlogPath = path.join(__dirname, '../../../docs/quality-hardening-todo.md');
+
+    expect(fs.existsSync(backlogPath)).toBe(false);
   });
 
   test('trace comparison tooling is documented and scriptable', () => {

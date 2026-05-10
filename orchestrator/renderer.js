@@ -181,26 +181,14 @@ let selectedFiles = new Set();        // Currently selected file paths
 let lastSelectedFile = null;          // Last clicked file (for Shift+click range selection)
 let allVisibleFiles = [];             // Ordered list of all visible file paths (for range selection)
 
-// Currently "active" folder in the file tree — used as the default directory
-// for new file / save-as dialogs. Updated when the user clicks a folder, opens
-// a file (set to that file's parent), or right-clicks a folder. Falls back to
-// appSettings.workingDirectory in saveFile/saveAsFile when null.
-window.selectedFolderPath = null;
-function setActiveTreeFolder(folderPath) {
-    if (window.selectedFolderPath === folderPath) return;
-    document.querySelectorAll('.file-tree-item.folder-active').forEach((el) => {
-        el.classList.remove('folder-active');
-    });
-    window.selectedFolderPath = folderPath || null;
-    if (folderPath) {
-        const escaped = (window.CSS && typeof window.CSS.escape === 'function')
-            ? window.CSS.escape(folderPath)
-            : folderPath.replace(/(["\\])/g, '\\$1');
-        const el = document.querySelector(`.file-tree-item.folder[data-path="${escaped}"]`);
-        if (el) el.classList.add('folder-active');
-    }
-}
-window.setActiveTreeFolder = setActiveTreeFolder;
+const fileTreeState = window.NightOwlFileTreeState;
+const setActiveTreeFolder = fileTreeState?.setActiveTreeFolder || (() => {});
+const setFileClipboard = fileTreeState?.setClipboard || (() => ({ filePath: null, filePaths: null, operation: null }));
+const clearFileClipboard = fileTreeState?.clearClipboard || (() => ({ filePath: null, filePaths: null, operation: null }));
+const getFileClipboard = fileTreeState?.getClipboard || (() => ({ filePath: null, filePaths: null, operation: null }));
+const getFileClipboardPaths = fileTreeState?.getClipboardPaths || (() => []);
+const hasFileClipboardItems = fileTreeState?.hasClipboardItems || (() => false);
+const describeFileClipboard = fileTreeState?.describeClipboard || (() => '0 files');
 
 // Speaker notes variables (currentSpeakerNotes managed by modules/status-bar.js via window.currentSpeakerNotes)
 window.currentSpeakerNotes = window.currentSpeakerNotes || [];
@@ -277,32 +265,6 @@ let folderCreationParentPath = '';
 
 // Track parent folder for context menu file creation
 let fileCreationParentPath = '';
-
-// File clipboard for cut/copy/paste operations
-let fileClipboard = {
-    filePath: null,
-    filePaths: null,
-    operation: null  // 'cut' or 'copy'
-};
-
-function getFileClipboardPaths() {
-    if (Array.isArray(fileClipboard.filePaths) && fileClipboard.filePaths.length > 0) {
-        return fileClipboard.filePaths.filter(Boolean);
-    }
-    return fileClipboard.filePath ? [fileClipboard.filePath] : [];
-}
-
-function hasFileClipboardItems() {
-    return Boolean(fileClipboard.operation && getFileClipboardPaths().length > 0);
-}
-
-function describeFileClipboard() {
-    const paths = getFileClipboardPaths();
-    if (paths.length === 1) {
-        return `"${paths[0].split('/').pop()}"`;
-    }
-    return `${paths.length} files`;
-}
 
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
@@ -11118,7 +11080,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
         );
         // Add Paste option if there are files in the clipboard
         if (hasFileClipboardItems()) {
-            const pasteLabel = fileClipboard.operation === 'cut'
+            const pasteLabel = getFileClipboard().operation === 'cut'
                 ? `Paste (Move ${describeFileClipboard()})`
                 : `Paste (Copy ${describeFileClipboard()})`;
             menuItems.push(
@@ -11685,11 +11647,11 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'cut-files':
             if (!isFolder && selectedFiles.size > 0) {
                 const selectedPaths = Array.from(selectedFiles);
-                fileClipboard = {
+                setFileClipboard({
                     filePath: selectedPaths[0],
                     filePaths: selectedPaths,
                     operation: 'cut'
-                };
+                });
                 showNotification(`Cut ${selectedPaths.length} files - right-click a folder to paste`, 'info');
             }
             break;
@@ -11697,22 +11659,22 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'copy-files-to-clipboard':
             if (!isFolder && selectedFiles.size > 0) {
                 const selectedPaths = Array.from(selectedFiles);
-                fileClipboard = {
+                setFileClipboard({
                     filePath: selectedPaths[0],
                     filePaths: selectedPaths,
                     operation: 'copy'
-                };
+                });
                 showNotification(`Copied ${selectedPaths.length} files - right-click a folder to paste`, 'info');
             }
             break;
 
         case 'cut-file':
             if (!isFolder) {
-                fileClipboard = {
+                setFileClipboard({
                     filePath: filePath,
                     filePaths: null,
                     operation: 'cut'
-                };
+                });
                 const fileName = filePath.split('/').pop();
                 showNotification(`Cut "${fileName}" - right-click a folder to paste`, 'info');
             }
@@ -11720,11 +11682,11 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
 
         case 'copy-file-to-clipboard':
             if (!isFolder) {
-                fileClipboard = {
+                setFileClipboard({
                     filePath: filePath,
                     filePaths: null,
                     operation: 'copy'
-                };
+                });
                 const fileName = filePath.split('/').pop();
                 showNotification(`Copied "${fileName}" - right-click a folder to paste`, 'info');
             }
@@ -11735,7 +11697,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                 try {
                     const sourceFilePaths = getFileClipboardPaths();
                     const destinationFolder = filePath;
-                    const clipboardOperation = fileClipboard.operation;
+                    const clipboardOperation = getFileClipboard().operation;
                     let successCount = 0;
                     let failedCount = 0;
                     let skippedCount = 0;
@@ -11792,7 +11754,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     }
 
                     if (clipboardOperation === 'cut' && (successCount > 0 || failedCount > 0)) {
-                        fileClipboard = { filePath: null, filePaths: null, operation: null };
+                        clearFileClipboard();
                     }
 
                     if (successCount > 0 && window.renderFileTree) {
