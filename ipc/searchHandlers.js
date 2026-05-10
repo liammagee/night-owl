@@ -231,7 +231,7 @@ function register(deps) {
       previewOnly = false
     } = options;
 
-    console.log(`[SearchHandlers] Performing global replace ${previewOnly ? '(preview)' : '(execute)'}`);
+    debug(`[SearchHandlers] Performing global replace ${previewOnly ? '(preview)' : '(execute)'}`);
     
     // Group search results by file
     const fileGroups = {};
@@ -299,7 +299,7 @@ function register(deps) {
           const newContent = modifiedLines.join('\n');
           await fs.writeFile(filePath, newContent, 'utf8');
           modifiedFilePaths.push(filePath);
-          console.log(`[SearchHandlers] Modified ${filePath} with ${fileReplacements} replacements`);
+          debug(`[SearchHandlers] Modified ${filePath} with ${fileReplacements} replacements`);
         }
 
       } catch (error) {
@@ -413,7 +413,7 @@ function register(deps) {
 
   ipcMain.handle('global-replace', async (event, { searchQuery, replaceText, searchResults, options = {} }) => {
     try {
-      console.log(`[SearchHandlers] Global replace "${searchQuery}" with "${replaceText}"`);
+      debug(`[SearchHandlers] Global replace "${searchQuery}" with "${replaceText}"`);
       
       if (!searchQuery || !searchResults || searchResults.length === 0) {
         return { success: false, error: 'Invalid search parameters' };
@@ -427,7 +427,7 @@ function register(deps) {
     }
   });
 
-  console.log('[SearchHandlers] Registered search and replace handlers');
+  debug('Registered search and replace handlers');
 }
 
 module.exports = {

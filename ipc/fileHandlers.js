@@ -584,7 +584,7 @@ function register(deps) {
             folderTree.isWorkspaceFolder = true; // Mark as workspace folder
             trees.push(folderTree);
           } else {
-            console.warn(`[FileHandlers] Workspace folder not found: ${folderPath}`);
+            debug(`[FileHandlers] Workspace folder not found: ${folderPath}`);
           }
         } catch (folderError) {
           console.error(`[FileHandlers] Error building tree for workspace folder ${folderPath}:`, folderError);
@@ -665,7 +665,7 @@ function register(deps) {
             });
             allFiles = allFiles.concat(folderFiles);
           } else {
-            console.warn(`[FileHandlers] Workspace folder not found: ${folderPath}`);
+            debug(`[FileHandlers] Workspace folder not found: ${folderPath}`);
           }
         } catch (folderError) {
           console.error(`[FileHandlers] Error getting files from workspace folder ${folderPath}:`, folderError);
@@ -696,7 +696,7 @@ function register(deps) {
       
       // Check if directory exists
       if (!fsSync.existsSync(targetDir)) {
-        console.warn(`[FileHandlers] Directory not found: ${targetDir}`);
+        debug(`[FileHandlers] Directory not found: ${targetDir}`);
         return [];
       }
       
@@ -2517,7 +2517,7 @@ function register(deps) {
             const folderFiles = await getCachedMarkdownFiles(folderPath);
             folderFiles.forEach(filePath => markdownFileSet.add(filePath));
           } else {
-            console.warn(`[FileHandlers] Workspace folder not found: ${folderPath}`);
+            debug(`[FileHandlers] Workspace folder not found: ${folderPath}`);
           }
         } catch (folderError) {
           console.error(`[FileHandlers] Error searching workspace folder ${folderPath}:`, folderError);

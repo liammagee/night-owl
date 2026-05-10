@@ -6,6 +6,9 @@ const { ipcMain, dialog } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
 const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('AIHandlers');
 
 /**
  * Register all AI service IPC handlers
@@ -159,9 +162,9 @@ function register(deps) {
     const isExplicitRequest = assistantConfig?.explicitRequest || assistantConfig?.bypassFlowDetection;
     const requestSource = assistantConfig?.source || 'unknown';
     if (isExplicitRequest) {
-      console.log(`[AIHandlers] Explicit AI request from ${requestSource} - bypassing flow detection`);
+      debug(`[AIHandlers] Explicit AI request from ${requestSource} - bypassing flow detection`);
     } else {
-      console.log(`[AIHandlers] Received chat message of ${userMessage.length} characters`);
+      debug(`[AIHandlers] Received chat message of ${userMessage.length} characters`);
     }
 
     try {
@@ -182,7 +185,7 @@ function register(deps) {
       };
 
       const response = await tutorBridge.sendMessage(userMessage, options);
-      console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      debug(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
 
       return {
         response: cleanAIResponse(response.response),
@@ -203,12 +206,12 @@ function register(deps) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
-    console.log('[AIHandlers] Message length:', userMessage.length, 'characters');
-    console.log('[AIHandlers] Options:', JSON.stringify(options, null, 2));
+    debug('[AIHandlers] Message length:', userMessage.length, 'characters');
+    debug('[AIHandlers] Options:', JSON.stringify(options, null, 2));
 
     try {
       const response = await tutorBridge.sendMessage(userMessage, options);
-      console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      debug(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
 
       return {
         response: cleanAIResponse(response.response),
@@ -231,8 +234,8 @@ function register(deps) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
-    console.log('[AIHandlers] AI Chat request received');
-    console.log('[AIHandlers] Message length:', message?.length || 0);
+    debug('[AIHandlers] AI Chat request received');
+    debug('[AIHandlers] Message length:', message?.length || 0);
 
     try {
       const aiSettings = appSettings.ai || {};
@@ -256,11 +259,11 @@ function register(deps) {
           finalOptions.maxTokens = assistantSettings.maxTokens;
         }
 
-        console.log(`[AIHandlers] Using assistant '${assistantKey}' with provider: ${finalOptions.provider}, model: ${finalOptions.model}`);
+        debug(`[AIHandlers] Using assistant '${assistantKey}' with provider: ${finalOptions.provider}, model: ${finalOptions.model}`);
       }
 
       const response = await tutorBridge.sendMessage(message, finalOptions);
-      console.log(`[AIHandlers] AI Chat response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      debug(`[AIHandlers] AI Chat response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
 
       return {
         response: cleanAIResponse(response.response),
@@ -284,7 +287,7 @@ function register(deps) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
-    console.log('[AIHandlers] Context-aware chat request received');
+    debug('[AIHandlers] Context-aware chat request received');
 
     try {
       const aiSettings = appSettings.ai || {};
@@ -320,7 +323,7 @@ function register(deps) {
       };
 
       const response = await tutorBridge.sendMessage(enhancedPrompt, options);
-      console.log(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      debug(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
 
       return {
         response: cleanAIResponse(response.response),
@@ -554,14 +557,14 @@ function register(deps) {
   // ============================================================================
 
   ipcMain.handle('test-ai-service', async (event) => {
-    console.log('[AIHandlers] Testing AI service...');
+    debug('[AIHandlers] Testing AI service...');
 
     if (!tutorBridge) {
       return { success: false, error: 'AI Service not initialized' };
     }
 
-    console.log('[AIHandlers] Available providers:', tutorBridge.getAvailableProviders());
-    console.log('[AIHandlers] Default provider:', tutorBridge.getDefaultProvider());
+    debug('[AIHandlers] Available providers:', tutorBridge.getAvailableProviders());
+    debug('[AIHandlers] Default provider:', tutorBridge.getDefaultProvider());
 
     try {
       const testMessage = 'Hello, this is a test message. Please respond with "Test successful".';
@@ -621,7 +624,7 @@ Example format:
 
 Generate the heading and bullet points only, nothing else.`;
 
-    console.log(`[AIHandlers] Summarizing ${selectedText.length} chars`);
+    debug(`[AIHandlers] Summarizing ${selectedText.length} chars`);
 
     try {
       const ashSettings = appSettings.ai?.assistants?.ash?.aiSettings || {};
@@ -780,7 +783,7 @@ Generate the heading and bullet points only, nothing else.`;
       return { error: 'No content provided for summarization.' };
     }
 
-    console.log(`[AIHandlers] Generating document summaries for content (${content.length} chars)`);
+    debug(`[AIHandlers] Generating document summaries for content (${content.length} chars)`);
 
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Summary generation timed out after 90 seconds')), 90000);
@@ -870,14 +873,14 @@ Generate the heading and bullet points only, nothing else.`;
       return { success: false, error: 'Image generation not available (OPENAI_API_KEY required)' };
     }
 
-    console.log('[AIHandlers] Image generation request:', {
+    debug('[AIHandlers] Image generation request:', {
       prompt: options.prompt?.substring(0, 100) + '...',
       size: options.size,
     });
 
     try {
       const result = await imageService.generateImage(options.prompt, options);
-      console.log('[AIHandlers] Image generated successfully');
+      debug('[AIHandlers] Image generated successfully');
       return { success: true, ...result };
     } catch (error) {
       console.error('[AIHandlers] Image generation failed:', error);
@@ -889,7 +892,7 @@ Generate the heading and bullet points only, nothing else.`;
   ipcMain.handle('generate-thumbnail', async (event, options) => {
     const { spawn } = require('child_process');
 
-    console.log('[AIHandlers] Thumbnail generation request:', {
+    debug('[AIHandlers] Thumbnail generation request:', {
       input: options.input,
       style: options.style || 'illustration',
       size: options.size || 'medium'
@@ -1008,7 +1011,7 @@ Generate the heading and bullet points only, nothing else.`;
     }
   });
 
-  console.log('[AIHandlers] Registered AI service handlers (via tutor-bridge)');
+  debug('Registered AI service handlers (via tutor-bridge)');
 }
 
 module.exports = {

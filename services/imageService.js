@@ -3,6 +3,9 @@
 // Extracted from aiService.js during tutor-core migration.
 
 const { OpenAI } = require('openai');
+const { createDebugLogger } = require('../ipc/logging');
+
+const debug = createDebugLogger('ImageService');
 
 class ImageService {
   constructor() {
@@ -13,12 +16,12 @@ class ImageService {
       try {
         this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
         this.available = true;
-        console.log('[ImageService] Initialized with OpenAI DALL-E support');
+        debug('Initialized with OpenAI DALL-E support');
       } catch (error) {
         console.warn('[ImageService] Could not initialize OpenAI client:', error.message);
       }
     } else {
-      console.log('[ImageService] No OPENAI_API_KEY — image generation unavailable');
+      debug('No OPENAI_API_KEY - image generation unavailable');
     }
   }
 
@@ -47,8 +50,8 @@ class ImageService {
       style = 'vivid',
     } = options;
 
-    console.log(`[ImageService] Generating image with DALL-E`);
-    console.log(`[ImageService] Model: ${model}, Size: ${size}, Quality: ${quality}`);
+    debug('Generating image with DALL-E');
+    debug(`Model: ${model}, Size: ${size}, Quality: ${quality}`);
 
     try {
       const response = await this.client.images.generate({
@@ -60,7 +63,7 @@ class ImageService {
         style,
       });
 
-      console.log('[ImageService] Image generated successfully');
+      debug('Image generated successfully');
 
       return {
         images: response.data.map(img => ({

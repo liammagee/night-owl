@@ -237,8 +237,10 @@ describe('Code quality guardrails', () => {
 
   test('quality hardening backlog file is retired after completion', () => {
     const backlogPath = path.join(__dirname, '../../../docs/quality-hardening-todo.md');
+    const rootTodoPath = path.join(__dirname, '../../../TODO.md');
 
     expect(fs.existsSync(backlogPath)).toBe(false);
+    expect(fs.existsSync(rootTodoPath)).toBe(false);
   });
 
   test('trace comparison tooling is documented and scriptable', () => {
@@ -284,6 +286,29 @@ describe('Code quality guardrails', () => {
     for (const file of files) {
       const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
       expect(source).toContain('createDebugLogger');
+      expect(source).not.toMatch(/console\.log\s*\(/);
+    }
+  });
+
+  test('routine launch and research-feed logs are debug-gated', () => {
+    const files = [
+      '../../../main.js',
+      '../../../ipc/index.js',
+      '../../../ipc/feedHandlers.js',
+      '../../../ipc/aiHandlers.js',
+      '../../../ipc/settingsHandlers.js',
+      '../../../ipc/ttsHandlers.js',
+      '../../../ipc/videoHandlers.js',
+      '../../../preload.js',
+      '../../../services/feedStore.js',
+      '../../../services/feedSources/reddit.js',
+      '../../../services/feedSources/mastodon.js',
+      '../../../services/imageService.js',
+      '../../../plugins/techne-research-feed/feed-panel.js'
+    ];
+
+    for (const file of files) {
+      const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
       expect(source).not.toMatch(/console\.log\s*\(/);
     }
   });
@@ -435,6 +460,7 @@ describe('Code quality guardrails', () => {
 
   test('startup chrome keeps basic accessibility affordances', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
 
     expect(indexSource).toContain('id="format-inline-math-btn"');
     expect(indexSource).toContain('aria-label="Inline Math"');
@@ -442,5 +468,7 @@ describe('Code quality guardrails', () => {
     expect(indexSource).toContain('aria-label="Display Math"');
     expect(indexSource).toContain('id="current-file-name"');
     expect(indexSource).not.toContain('id="current-file-name" class="breadcrumb-segment" style="color: var(--text-muted, #999);"');
+    expect(mainSource).toContain("process.env.NIGHTOWL_OPEN_DEVTOOLS === '1'");
+    expect(mainSource).not.toContain("accelerator: 'CmdOrCtrl+K CmdOrCtrl");
   });
 });

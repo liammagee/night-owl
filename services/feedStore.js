@@ -5,6 +5,9 @@
 const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
+const { createDebugLogger } = require('../ipc/logging');
+
+const debug = createDebugLogger('FeedStore');
 
 class FeedStore {
     constructor() {
@@ -20,7 +23,7 @@ class FeedStore {
         this.db = new sqlite3.Database(this.dbPath);
         await this.createTables();
         this.isInitialized = true;
-        console.log('[FeedStore] Initialized at', this.dbPath);
+        debug('Initialized at', this.dbPath);
     }
 
     async createTables() {

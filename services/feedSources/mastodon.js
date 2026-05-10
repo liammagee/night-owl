@@ -9,7 +9,9 @@
 // No auth needed for public timelines; some instances may rate-limit anonymous traffic.
 
 const axios = require('axios');
+const { createDebugLogger } = require('../../ipc/logging');
 
+const debug = createDebugLogger('FeedSources');
 const TIMEOUT_MS = 15000;
 
 function normalizeStatus(s, instance) {
@@ -66,7 +68,7 @@ async function fetch({ config = {} } = {}) {
         for (const tag of tags) {
             tasks.push(
                 fetchTagTimeline(instance, tag, limit).catch((err) => {
-                    console.warn(`[mastodon] ${instance}#${tag} failed:`, err.message);
+                    debug(`mastodon ${instance}#${tag} failed:`, err.message);
                     return [];
                 })
             );
@@ -74,7 +76,7 @@ async function fetch({ config = {} } = {}) {
         if (config.query) {
             tasks.push(
                 fetchSearch(instance, config.query, limit).catch((err) => {
-                    console.warn(`[mastodon] ${instance} search failed:`, err.message);
+                    debug(`mastodon ${instance} search failed:`, err.message);
                     return [];
                 })
             );

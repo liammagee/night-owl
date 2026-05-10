@@ -4,9 +4,12 @@
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('AdvancedExportHandlers');
 
 function register(deps) {
-  console.log('[AdvancedExportHandlers] Registering advanced export handlers...');
+  debug('Registering advanced export handlers...');
 
   /**
    * Export markdown to LaTeX format.
@@ -108,7 +111,7 @@ function register(deps) {
     };
   });
 
-  console.log('[AdvancedExportHandlers] Registered advanced export handlers');
+  debug('Registered advanced export handlers');
 }
 
 // ── Markdown to LaTeX conversion ──

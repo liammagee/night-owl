@@ -5,9 +5,12 @@ const { ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const os = require('os');
 const { createRuntimeWorkspaceResolver, pathExists } = require('./runtimeWorkspace');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('TerminalHandlers');
 
 function register(deps) {
-  console.log('[TerminalHandlers] Registering terminal handlers...');
+  debug('Registering terminal handlers...');
   const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {}, { fallback: os.homedir() });
 
   let activeProcess = null;
@@ -125,7 +128,7 @@ function register(deps) {
     }
   });
 
-  console.log('[TerminalHandlers] Registered terminal handlers');
+  debug('Registered terminal handlers');
 }
 
 module.exports = { register };

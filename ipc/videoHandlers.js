@@ -4,13 +4,16 @@
 const { ipcMain, desktopCapturer, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('VideoHandlers');
 
 /**
  * Register all video recording IPC handlers
  * @param {Object} deps - Dependencies from main.js
  */
 function register(deps) {
-  console.log('[VIDEO] Video handlers register function called');
+  debug('Video handlers register function called');
   const { mainWindow, appSettings } = deps;
 
   // Get available screen sources for recording
@@ -29,7 +32,7 @@ function register(deps) {
         thumbnail: source.thumbnail.toDataURL()
       }));
 
-      console.log('[VIDEO] Found', sources.length, 'recording sources');
+      debug('Found', sources.length, 'recording sources');
       
       return {
         success: true,
@@ -60,7 +63,7 @@ function register(deps) {
         source = sources[0]; // Fallback to first available
       }
 
-      console.log('[VIDEO] Using source:', source.name);
+      debug('Using source:', source.name);
       
       return [{
         id: source.id,
@@ -93,12 +96,12 @@ function register(deps) {
 
       // Save video file
       fs.writeFileSync(videoPath, Buffer.from(buffer));
-      console.log('[VIDEO] Video saved to:', videoPath);
+      debug('Video saved to:', videoPath);
 
       // Save metadata file
       if (metadata) {
         fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-        console.log('[VIDEO] Metadata saved to:', metadataPath);
+        debug('Metadata saved to:', metadataPath);
       }
 
       // Show in finder/explorer
@@ -198,7 +201,7 @@ function register(deps) {
         await deps.saveSettings();
       }
 
-      console.log('[VIDEO] Settings updated:', newSettings);
+      debug('Settings updated:', newSettings);
       
       return {
         success: true,
@@ -213,13 +216,13 @@ function register(deps) {
     }
   });
 
-  console.log('[VIDEO] All video handlers registered successfully:');
-  console.log('  - video-get-sources');
-  console.log('  - get-screen-sources');
-  console.log('  - save-video-recording');
-  console.log('  - choose-recording-location');
-  console.log('  - video-get-settings');
-  console.log('  - video-update-settings');
+  debug('All video handlers registered successfully:');
+  debug('  - video-get-sources');
+  debug('  - get-screen-sources');
+  debug('  - save-video-recording');
+  debug('  - choose-recording-location');
+  debug('  - video-get-settings');
+  debug('  - video-update-settings');
 }
 
 module.exports = {

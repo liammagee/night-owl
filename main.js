@@ -5,11 +5,9 @@
 // that set this variable, which would cause Electron to run as Node.js instead of GUI
 if (process.env.ELECTRON_RUN_AS_NODE) {
   delete process.env.ELECTRON_RUN_AS_NODE;
-  console.log('[main.js] Cleared ELECTRON_RUN_AS_NODE environment variable');
 }
 
-console.log('--- main.js execution START ---');
-require('dotenv').config(); // Load .env file
+require('dotenv').config({ quiet: true }); // Load .env file
 const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
@@ -33,12 +31,16 @@ const {
 } = require('./services/launchArgs');
 const { installNightOwlCli } = require('./services/cliInstaller');
 const ipcHandlers = require('./ipc');
+const { createDebugLogger } = require('./ipc/logging');
+
+const debugMain = createDebugLogger('Main');
+debugMain('main.js execution START');
 
 // Initialize @electron/remote after checking if electron module loaded correctly
 try {
     if (typeof ipcMain !== 'undefined' && ipcMain && typeof ipcMain.on === 'function') {
         require('@electron/remote/main').initialize();
-        console.log('[main.js] @electron/remote initialized successfully');
+        debugMain('@electron/remote initialized successfully');
     } else {
         console.warn('[main.js] Skipping @electron/remote initialization - ipcMain not available');
     }
@@ -58,10 +60,10 @@ function cleanAIResponse(response) {
 if (app && typeof app.setName === 'function') {
     app.setName('NightOwl');
     process.title = 'NightOwl';
-    console.log(`[main.js] App name set to: ${app.getName()}`);
-    console.log(`[main.js] Process title set to: ${process.title}`);
+    debugMain(`App name set to: ${app.getName()}`);
+    debugMain(`Process title set to: ${process.title}`);
 } else {
-    console.log('[main.js] Running in Node.js mode - skipping Electron app setup');
+    debugMain('Running in Node.js mode - skipping Electron app setup');
     process.exit(0);
 }
 
@@ -71,7 +73,7 @@ const hasSingleInstanceLock = !shouldUseSingleInstanceLock ||
   typeof app.requestSingleInstanceLock !== 'function' ||
   app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
-  console.log('[main.js] Another NightOwl instance is already running; forwarding launch arguments.');
+  debugMain('Another NightOwl instance is already running; forwarding launch arguments.');
   app.quit();
   process.exit(0);
 }
@@ -109,7 +111,7 @@ if (process.argv.includes('--dev')) {
         /\.bib$/ // Ignore BibTeX files (citations.bib is written by citation manager)
       ]
     });
-    console.log('[main.js] Electron auto-reload enabled for development - app files only');
+    debugMain('Electron auto-reload enabled for development - app files only');
   } catch (error) {
     console.error('[main.js] Failed to enable electron-reload:', error);
   }
@@ -139,7 +141,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Handle process termination gracefully
 process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down gracefully...');
+  debugMain('Received SIGINT, shutting down gracefully...');
   if (mainWindow) {
     mainWindow.close();
   } else {
@@ -148,7 +150,7 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
-  console.log('Received SIGTERM, shutting down gracefully...');
+  debugMain('Received SIGTERM, shutting down gracefully...');
   if (mainWindow) {
     mainWindow.close();
   } else {
@@ -622,14 +624,14 @@ function loadSettings() {
             // Validate critical settings
             validateSettings();
             
-            console.log('[main.js] Loaded settings:', appSettings);
+            debugMain('Loaded settings', appSettings);
         } else {
-            console.log('[main.js] No settings file found, using defaults.');
+            debugMain('No settings file found, using defaults.');
             appSettings = JSON.parse(JSON.stringify(defaultSettings)); // Deep copy
         }
     } catch (err) {
         console.error('[main.js] Failed to load settings:', err);
-        console.log('[main.js] Backing up corrupted settings file and using defaults.');
+        debugMain('Backing up corrupted settings file and using defaults.');
         
         // Backup the corrupted file if it exists
         const fsSync = require('fs');
@@ -637,7 +639,7 @@ function loadSettings() {
             try {
                 const backupPath = SETTINGS_FILE + '.backup.' + Date.now();
                 fsSync.copyFileSync(SETTINGS_FILE, backupPath);
-                console.log(`[main.js] Corrupted settings backed up to: ${backupPath}`);
+                debugMain(`Corrupted settings backed up to: ${backupPath}`);
             } catch (backupError) {
                 console.warn('[main.js] Could not backup corrupted settings:', backupError);
             }
@@ -747,7 +749,7 @@ function validateSettings() {
         const fs = require('fs');
         try {
             if (!fs.existsSync(appSettings.workingDirectory)) {
-                console.warn('[main.js] Saved working directory not currently present on disk; will use a runtime fallback but keep the saved value:', appSettings.workingDirectory);
+                debugMain('Saved working directory not currently present on disk; will use a runtime fallback but keep the saved value:', appSettings.workingDirectory);
             }
         } catch (error) {
             console.warn('[main.js] Error checking working directory existence:', error);
@@ -987,7 +989,7 @@ function applyLaunchTargetToSettings(target) {
         appSettings.currentFile = '';
         clearPersistedEditorTabs();
         saveSettings();
-        console.log(`[main.js] Launch target applied as workspace: ${folderPath}`);
+        debugMain(`Launch target applied as workspace: ${folderPath}`);
         return { ...target, path: folderPath };
     }
 
@@ -1004,7 +1006,7 @@ function applyLaunchTargetToSettings(target) {
             activeTabIndex: 0
         };
         saveSettings();
-        console.log(`[main.js] Launch target applied as file: ${filePath}`);
+        debugMain(`Launch target applied as file: ${filePath}`);
         return { ...target, path: filePath, workspacePath: folderPath };
     }
 
@@ -1069,7 +1071,7 @@ function updateSettingsCategory(category, updates) {
         if (updates.preferredProvider && updates.preferredProvider !== 'auto') {
             try {
                 tutorBridge.setDefaultProvider(updates.preferredProvider);
-                console.log(`[main.js] Applied AI provider preference: ${updates.preferredProvider}`);
+                debugMain(`Applied AI provider preference: ${updates.preferredProvider}`);
             } catch (error) {
                 console.warn('[main.js] Could not apply AI provider preference:', error);
             }
@@ -1162,7 +1164,7 @@ function updateSettings(category, newSettings) {
         if (newSettings.localAIUrl) {
             try {
                 tutorBridge.updateLocalAIUrl(newSettings.localAIUrl);
-                console.log(`[main.js] Updated Local AI URL: ${newSettings.localAIUrl}`);
+                debugMain(`Updated Local AI URL: ${newSettings.localAIUrl}`);
             } catch (error) {
                 console.warn('[main.js] Could not update Local AI URL:', error);
             }
@@ -1171,7 +1173,7 @@ function updateSettings(category, newSettings) {
         if (newSettings.preferredProvider && newSettings.preferredProvider !== 'auto') {
             try {
                 tutorBridge.setDefaultProvider(newSettings.preferredProvider);
-                console.log(`[main.js] Applied AI provider preference: ${newSettings.preferredProvider}`);
+                debugMain(`Applied AI provider preference: ${newSettings.preferredProvider}`);
             } catch (error) {
                 console.warn('[main.js] Could not apply AI provider preference:', error);
             }
@@ -1189,7 +1191,7 @@ if (initialLaunchTargets.length > 0) {
 // Initialize Image Service (standalone, synchronous)
 try {
   imageService = new ImageService();
-  console.log('[main.js] ImageService initialized, available:', imageService.isAvailable());
+  debugMain('ImageService initialized, available:', imageService.isAvailable());
 } catch (error) {
   console.error('[main.js] Error initializing ImageService:', error);
 }
@@ -1197,7 +1199,7 @@ try {
 // Set LOCAL_AI_URL from settings before tutor-bridge init
 if (appSettings.ai && appSettings.ai.localAIUrl) {
   process.env.LOCAL_AI_URL = appSettings.ai.localAIUrl;
-  console.log('[main.js] Setting LOCAL_AI_URL from settings:', appSettings.ai.localAIUrl);
+  debugMain('Setting LOCAL_AI_URL from settings:', appSettings.ai.localAIUrl);
 }
 
 // Note: tutorBridge.initTutorBridge() is called in app.whenReady() (async)
@@ -1206,10 +1208,10 @@ if (appSettings.ai && appSettings.ai.localAIUrl) {
 // Initialize currentFilePath from saved settings
 if (appSettings.currentFile && typeof appSettings.currentFile === 'string' && appSettings.currentFile.trim() !== '') {
     currentFilePath = appSettings.currentFile;
-    console.log('[main.js] Initialized currentFilePath from settings:', currentFilePath);
+    debugMain('Initialized currentFilePath from settings:', currentFilePath);
 } else {
     currentFilePath = null;
-    console.log('[main.js] No current file in settings, currentFilePath set to null');
+    debugMain('No current file in settings, currentFilePath set to null');
 }
 
 // Set additional app metadata
@@ -1238,7 +1240,7 @@ app.on('before-quit', () => {
 
 // --- Theme Handling ---
 nativeTheme.on('updated', () => {
-    console.log(`[main.js] nativeTheme updated. Should use dark colors: ${nativeTheme.shouldUseDarkColors}`);
+    debugMain(`nativeTheme updated. Should use dark colors: ${nativeTheme.shouldUseDarkColors}`);
     // Guard against firing into a destroyed/closing webContents — produces the same
     // "webFrameMain was disposed" error class as the close-handler bug otherwise.
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
@@ -1250,7 +1252,7 @@ nativeTheme.on('updated', () => {
 let speakerNotesWindow = null;
 
 function createWindow() {
-  console.log('[main.js] Creating main window...');
+  debugMain('Creating main window...');
   rendererCitationCaptureReady = false;
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -1277,18 +1279,19 @@ function createWindow() {
 
   // Load the index.html of the app.
   const indexPath = path.join(__dirname, 'index.html');
-  console.log(`[main.js] Loading URL: ${indexPath}`);
+  debugMain(`Loading URL: ${indexPath}`);
   mainWindow.loadFile(indexPath);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     
-    const isDevMode = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
-    if (isDevMode) {
+    const shouldOpenDevTools = process.argv.includes('--open-devtools') ||
+      process.env.NIGHTOWL_OPEN_DEVTOOLS === '1';
+    if (shouldOpenDevTools) {
       mainWindow.webContents.openDevTools();
     }
-    console.log(`[main.js] App name in ready-to-show: ${app.getName()}`);
-    console.log(`[main.js] Process title: ${process.title}`);
+    debugMain(`App name in ready-to-show: ${app.getName()}`);
+    debugMain(`Process title: ${process.title}`);
   });
 
   // Set up application menu
@@ -1309,7 +1312,7 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
-    console.log('[main.js] Main window closed.');
+    debugMain('Main window closed.');
     rendererCitationCaptureReady = false;
     mainWindow = null;
   });
@@ -1317,13 +1320,13 @@ function createWindow() {
   // Send initial theme to renderer once DOM is ready
   mainWindow.webContents.on('did-finish-load', () => {
       const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-      console.log(`[main.js] Window finished loading. Sending initial theme: ${theme}`);
+      debugMain(`Window finished loading. Sending initial theme: ${theme}`);
       mainWindow.webContents.send('theme-changed', theme);
       rendererCitationCaptureReady = false;
       
       // Send refresh signal with a slight delay to ensure renderer is ready
       setTimeout(() => {
-        console.log('[main.js] Sending refresh-file-tree signal to renderer.');
+        debugMain('Sending refresh-file-tree signal to renderer.');
         mainWindow.webContents.send('refresh-file-tree');
       }, 100);
   });
@@ -1451,11 +1454,11 @@ function createFileMenuItems() {
         accelerator: 'CmdOrCtrl+N',
         click: async () => {
           if (!mainWindow) return;
-          console.log('[main.js] New File menu item clicked.');
+          debugMain('[main.js] New File menu item clicked.');
           currentFilePath = null;
           // Title remains consistent - don't change app title for new files
           mainWindow.webContents.send('new-file-created');
-          console.log('[main.js] Sent new-file-created signal to renderer.');
+          debugMain('[main.js] Sent new-file-created signal to renderer.');
         }
       },
       {
@@ -1463,12 +1466,12 @@ function createFileMenuItems() {
         accelerator: 'CmdOrCtrl+O',
         click: async () => {
           if (!mainWindow) return;
-          console.log('[main.js] Open File menu item clicked.');
+          debugMain('[main.js] Open File menu item clicked.');
           const result = await openFile();
           if (result && result.filePath && mainWindow) {
-              console.log(`[main.js] File opened via menu: ${result.filePath}`);
+              debugMain(`[main.js] File opened via menu: ${result.filePath}`);
           } else {
-               console.log('[main.js] Open File dialog cancelled or failed.');
+               debugMain('[main.js] Open File dialog cancelled or failed.');
           }
         }
       },
@@ -1502,14 +1505,14 @@ function createFileMenuItems() {
         accelerator: 'CmdOrCtrl+Alt+O',
         click: async () => {
            if (!mainWindow) return;
-           console.log('[main.js] Open Folder menu item clicked.');
+           debugMain('[main.js] Open Folder menu item clicked.');
            try {
                 const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
                     properties: ['openDirectory']
                 });
 	                if (!canceled && filePaths && filePaths.length > 0) {
 	                    const folderPath = setPrimaryWorkingDirectory(filePaths[0]);
-	                    console.log(`[main.js] Folder selected: ${folderPath}`);
+	                    debugMain(`[main.js] Folder selected: ${folderPath}`);
 	                    addToRecentWorkspaces(folderPath);
 	                    saveSettings();
 	                    currentFilePath = null;
@@ -1519,9 +1522,9 @@ function createFileMenuItems() {
 	                        workspaceFolders: appSettings.workspaceFolders
 	                    });
 	                    mainWindow.webContents.send('refresh-file-tree');
-	                     console.log('[main.js] Sent refresh-file-tree signal to renderer.');
+	                     debugMain('[main.js] Sent refresh-file-tree signal to renderer.');
                 } else {
-                     console.log('[main.js] Open Folder dialog cancelled.');
+                     debugMain('[main.js] Open Folder dialog cancelled.');
                 }
            } catch (err) {
                 console.error('[main.js] Error opening folder:', err);
@@ -1558,7 +1561,7 @@ function createFileMenuItems() {
         label: 'Import PDF as Markdown (Docling)',
         click: async () => {
           if (!mainWindow) return;
-          console.log('[main.js] Import PDF as Markdown menu item clicked.');
+          debugMain('[main.js] Import PDF as Markdown menu item clicked.');
           mainWindow.webContents.send('trigger-import-pdf');
         }
       },
@@ -1566,7 +1569,7 @@ function createFileMenuItems() {
         label: 'Import Word as Markdown (Pandoc)',
         click: async () => {
           if (!mainWindow) return;
-          console.log('[main.js] Import Word as Markdown menu item clicked.');
+          debugMain('[main.js] Import Word as Markdown menu item clicked.');
           mainWindow.webContents.send('trigger-import-word');
         }
       },
@@ -1575,7 +1578,7 @@ function createFileMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+T',
         click: async () => {
           if (!mainWindow) return;
-          console.log('[main.js] Generate Thumbnail menu item clicked.');
+          debugMain('[main.js] Generate Thumbnail menu item clicked.');
           mainWindow.webContents.send('trigger-generate-thumbnail');
         }
       },
@@ -1585,7 +1588,7 @@ function createFileMenuItems() {
         accelerator: 'CmdOrCtrl+S',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Save menu item clicked. Triggering save in renderer.');
+            debugMain('[main.js] Save menu item clicked. Triggering save in renderer.');
             mainWindow.webContents.send('trigger-save');
           }
         }
@@ -1595,7 +1598,7 @@ function createFileMenuItems() {
         accelerator: 'Shift+CmdOrCtrl+S',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Save As menu item clicked. Triggering save-as in renderer.');
+            debugMain('[main.js] Save As menu item clicked. Triggering save-as in renderer.');
             mainWindow.webContents.send('trigger-save-as');
           }
         }
@@ -1621,7 +1624,7 @@ function createFileMenuItems() {
         label: 'Export as HTML',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Export HTML menu item clicked. Triggering export-html in renderer.');
+            debugMain('[main.js] Export HTML menu item clicked. Triggering export-html in renderer.');
             mainWindow.webContents.send('trigger-export-html');
           }
         }
@@ -1630,7 +1633,7 @@ function createFileMenuItems() {
         label: 'Export as HTML (with References)',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Export HTML with References menu item clicked. Triggering export-html-pandoc in renderer.');
+            debugMain('[main.js] Export HTML with References menu item clicked. Triggering export-html-pandoc in renderer.');
             mainWindow.webContents.send('trigger-export-html-pandoc');
           }
         }
@@ -1639,7 +1642,7 @@ function createFileMenuItems() {
         label: 'Export as PDF',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Export PDF menu item clicked. Triggering export-pdf in renderer.');
+            debugMain('[main.js] Export PDF menu item clicked. Triggering export-pdf in renderer.');
             mainWindow.webContents.send('trigger-export-pdf');
           }
         }
@@ -1648,7 +1651,7 @@ function createFileMenuItems() {
         label: 'Export as PDF (with References)',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Export PDF with References menu item clicked. Triggering export-pdf-pandoc in renderer.');
+            debugMain('[main.js] Export PDF with References menu item clicked. Triggering export-pdf-pandoc in renderer.');
             mainWindow.webContents.send('trigger-export-pdf-pandoc');
           }
         }
@@ -1673,7 +1676,7 @@ function createFileMenuItems() {
         label: 'Export as PowerPoint',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Export PowerPoint menu item clicked. Triggering export-pptx in renderer.');
+            debugMain('[main.js] Export PowerPoint menu item clicked. Triggering export-pptx in renderer.');
             mainWindow.webContents.send('trigger-export-pptx');
           }
         }
@@ -1682,7 +1685,7 @@ function createFileMenuItems() {
         label: 'Export as Accessible HTML',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Export Accessible HTML menu item clicked. Triggering export-html-accessible in renderer.');
+            debugMain('[main.js] Export Accessible HTML menu item clicked. Triggering export-html-accessible in renderer.');
             mainWindow.webContents.send('trigger-export-html-accessible');
           }
         }
@@ -1725,10 +1728,10 @@ function createViewMenuItems() {
             type: 'radio', 
             checked: nativeTheme.themeSource === 'light', 
             click: () => { 
-              console.log('[main.js] Theme menu: Light selected'); 
+              debugMain('[main.js] Theme menu: Light selected');
               nativeTheme.themeSource = 'light'; 
               if (mainWindow) { 
-                console.log('[main.js] Sending set-theme: light');
+                debugMain('[main.js] Sending set-theme: light');
                 mainWindow.webContents.send('set-theme', 'light'); 
               } 
             } 
@@ -1738,10 +1741,10 @@ function createViewMenuItems() {
             type: 'radio', 
             checked: nativeTheme.themeSource === 'dark', 
             click: () => { 
-              console.log('[main.js] Theme menu: Dark selected'); 
+              debugMain('[main.js] Theme menu: Dark selected');
               nativeTheme.themeSource = 'dark'; 
               if (mainWindow) { 
-                console.log('[main.js] Sending set-theme: dark');
+                debugMain('[main.js] Sending set-theme: dark');
                 mainWindow.webContents.send('set-theme', 'dark'); 
               } 
             } 
@@ -1751,11 +1754,11 @@ function createViewMenuItems() {
             type: 'radio', 
             checked: nativeTheme.themeSource === 'system', 
             click: () => { 
-              console.log('[main.js] Theme menu: System selected'); 
+              debugMain('[main.js] Theme menu: System selected');
               nativeTheme.themeSource = 'system'; 
               if (mainWindow) { 
                 const sysTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-                console.log('[main.js] Sending set-theme:', sysTheme);
+                debugMain('[main.js] Sending set-theme:', sysTheme);
                 mainWindow.webContents.send('set-theme', sysTheme); 
               } 
             } 
@@ -1768,7 +1771,7 @@ function createViewMenuItems() {
         accelerator: 'CmdOrCtrl+1',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Switching to Editor mode via menu');
+            debugMain('[main.js] Switching to Editor mode via menu');
             mainWindow.webContents.send('switch-to-editor');
           }
         }
@@ -1778,7 +1781,7 @@ function createViewMenuItems() {
         accelerator: 'CmdOrCtrl+2',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Switching to Presentation mode via menu');
+            debugMain('[main.js] Switching to Presentation mode via menu');
             mainWindow.webContents.send('switch-to-presentation');
           }
         }
@@ -1788,7 +1791,7 @@ function createViewMenuItems() {
         accelerator: 'CmdOrCtrl+3',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Switching to Network mode via menu');
+            debugMain('[main.js] Switching to Network mode via menu');
             mainWindow.webContents.send('switch-to-network');
           }
         }
@@ -1799,7 +1802,7 @@ function createViewMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+P',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Opening Command Palette via menu');
+            debugMain('[main.js] Opening Command Palette via menu');
             mainWindow.webContents.send('show-command-palette');
           }
         }
@@ -1809,7 +1812,7 @@ function createViewMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+T',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Opening Style Settings via menu');
+            debugMain('[main.js] Opening Style Settings via menu');
             mainWindow.webContents.send('open-style-settings');
           }
         }
@@ -1819,7 +1822,7 @@ function createViewMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+G',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Toggling Writing Stats panel via menu');
+            debugMain('[main.js] Toggling Writing Stats panel via menu');
             mainWindow.webContents.send('toggle-gamification-panel');
           }
         }
@@ -1831,7 +1834,7 @@ function createViewMenuItems() {
         checked: appSettings.editor?.visualMarkdown || false,
         click: (menuItem) => {
           if (mainWindow) {
-            console.log('[main.js] Toggling Visual Markdown:', menuItem.checked);
+            debugMain('[main.js] Toggling Visual Markdown:', menuItem.checked);
             // Save the setting
             if (!appSettings.editor) appSettings.editor = {};
             appSettings.editor.visualMarkdown = menuItem.checked;
@@ -1847,7 +1850,7 @@ function createViewMenuItems() {
         checked: appSettings.editor?.showPreview !== false, // Default to true
         click: (menuItem) => {
           if (mainWindow) {
-            console.log('[main.js] Toggling Preview Pane:', menuItem.checked);
+            debugMain('[main.js] Toggling Preview Pane:', menuItem.checked);
             // Save the setting
             if (!appSettings.editor) appSettings.editor = {};
             appSettings.editor.showPreview = menuItem.checked;
@@ -1872,7 +1875,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+B',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Bold');
+            debugMain('[main.js] Format: Bold');
             mainWindow.webContents.send('format-text', { type: 'bold' });
           }
         }
@@ -1882,7 +1885,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+I',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Italic');
+            debugMain('[main.js] Format: Italic');
             mainWindow.webContents.send('format-text', { type: 'italic' });
           }
         }
@@ -1892,7 +1895,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+`',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Code');
+            debugMain('[main.js] Format: Code');
             mainWindow.webContents.send('format-text', { type: 'code' });
           }
         }
@@ -1903,7 +1906,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Alt+1',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Heading 1');
+            debugMain('[main.js] Format: Heading 1');
             mainWindow.webContents.send('format-text', { type: 'heading1' });
           }
         }
@@ -1913,7 +1916,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Alt+2',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Heading 2');
+            debugMain('[main.js] Format: Heading 2');
             mainWindow.webContents.send('format-text', { type: 'heading2' });
           }
         }
@@ -1923,7 +1926,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Alt+3',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Heading 3');
+            debugMain('[main.js] Format: Heading 3');
             mainWindow.webContents.send('format-text', { type: 'heading3' });
           }
         }
@@ -1934,7 +1937,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+8',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Bullet List');
+            debugMain('[main.js] Format: Bullet List');
             mainWindow.webContents.send('format-text', { type: 'bulletlist' });
           }
         }
@@ -1944,7 +1947,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+7',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Numbered List');
+            debugMain('[main.js] Format: Numbered List');
             mainWindow.webContents.send('format-text', { type: 'numberedlist' });
           }
         }
@@ -1955,7 +1958,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+K',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Insert Link');
+            debugMain('[main.js] Format: Insert Link');
             mainWindow.webContents.send('format-text', { type: 'link' });
           }
         }
@@ -1965,7 +1968,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+I',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Insert Image');
+            debugMain('[main.js] Format: Insert Image');
             mainWindow.webContents.send('format-text', { type: 'image' });
           }
         }
@@ -1976,7 +1979,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+.',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Blockquote');
+            debugMain('[main.js] Format: Blockquote');
             mainWindow.webContents.send('format-text', { type: 'blockquote' });
           }
         }
@@ -1986,7 +1989,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+X',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Strikethrough');
+            debugMain('[main.js] Format: Strikethrough');
             mainWindow.webContents.send('format-text', { type: 'strikethrough' });
           }
         }
@@ -1997,7 +2000,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+[',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Fold Current');
+            debugMain('[main.js] Format: Fold Current');
             mainWindow.webContents.send('format-text', { type: 'fold-current' });
           }
         }
@@ -2007,7 +2010,7 @@ function createFormatMenuItems() {
         accelerator: 'CmdOrCtrl+Shift+]',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Expand Current');
+            debugMain('[main.js] Format: Expand Current');
             mainWindow.webContents.send('format-text', { type: 'unfold-current' });
           }
         }
@@ -2015,20 +2018,18 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Fold All Sections',
-        accelerator: 'CmdOrCtrl+K CmdOrCtrl+0',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Fold All');
+            debugMain('[main.js] Format: Fold All');
             mainWindow.webContents.send('format-text', { type: 'fold-all' });
           }
         }
       },
       {
         label: 'Expand All Sections',
-        accelerator: 'CmdOrCtrl+K CmdOrCtrl+J',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Format: Expand All');
+            debugMain('[main.js] Format: Expand All');
             mainWindow.webContents.send('format-text', { type: 'unfold-all' });
           }
         }
@@ -2043,7 +2044,7 @@ function createPresentationMenuItems() {
         accelerator: 'CmdOrCtrl+G',
         click: async () => {
           if (mainWindow) {
-            console.log('[main.js] Generate Lecture Summary clicked');
+            debugMain('[main.js] Generate Lecture Summary clicked');
             await generateAndLoadLectureSummary();
           }
         }
@@ -2186,7 +2187,7 @@ function createSettingsMenuItems() {
         accelerator: 'CmdOrCtrl+,',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Opening settings dialog');
+            debugMain('[main.js] Opening settings dialog');
             mainWindow.webContents.send('open-settings-dialog');
           }
         }
@@ -2196,7 +2197,7 @@ function createSettingsMenuItems() {
         label: 'AI Configuration',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Opening AI configuration dialog');
+            debugMain('[main.js] Opening AI configuration dialog');
             mainWindow.webContents.send('open-ai-settings-dialog');
           }
         }
@@ -2205,7 +2206,7 @@ function createSettingsMenuItems() {
         label: 'Editor Settings',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Opening editor settings dialog');
+            debugMain('[main.js] Opening editor settings dialog');
             mainWindow.webContents.send('open-editor-settings-dialog');
           }
         }
@@ -2214,7 +2215,7 @@ function createSettingsMenuItems() {
         label: 'Export Preferences',
         click: () => {
           if (mainWindow) {
-            console.log('[main.js] Opening export settings dialog');
+            debugMain('[main.js] Opening export settings dialog');
             mainWindow.webContents.send('open-export-settings-dialog');
           }
         }
@@ -2496,7 +2497,7 @@ function buildFileTree(basePath, files) {
 async function saveFile(filePath, content) {
     try {
         await fs.writeFile(filePath, content, 'utf8');
-        console.log(`[main.js] Content successfully saved to ${filePath}`);
+        debugMain(`[main.js] Content successfully saved to ${filePath}`);
         currentFilePath = filePath;
         // Title remains consistent - don't change app title based on file name
         return { success: true, filePath: filePath };
@@ -2528,34 +2529,34 @@ function resolveMainWorkspaceWritePath(filePath, label = 'File path') {
 
 // Add H1 heading with filename if needed
 function addH1HeadingIfNeeded(content, fileName) {
-    console.log('[main.js] addH1HeadingIfNeeded called with:', { content: content.substring(0, 50), fileName });
+    debugMain('[main.js] addH1HeadingIfNeeded called with:', { content: content.substring(0, 50), fileName });
     
     // Clean the filename for use as a heading
     const cleanFileName = fileName
         .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
         .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize each word
     
-    console.log('[main.js] Clean filename:', cleanFileName);
+    debugMain('[main.js] Clean filename:', cleanFileName);
     
     // Check if content is empty or very short (just whitespace)
     const trimmedContent = content.trim();
-    console.log('[main.js] Trimmed content length:', trimmedContent.length);
+    debugMain('[main.js] Trimmed content length:', trimmedContent.length);
     
     if (trimmedContent.length === 0) {
         // Empty file - add H1 heading
         const result = `# ${cleanFileName}\n\n`;
-        console.log('[main.js] Empty file - adding H1:', result);
+        debugMain('[main.js] Empty file - adding H1:', result);
         return result;
     }
     
     // Check if content already starts with an H1 heading
     const lines = content.split('\n');
     const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
-    console.log('[main.js] First non-empty line:', firstNonEmptyLine);
+    debugMain('[main.js] First non-empty line:', firstNonEmptyLine);
     
     if (firstNonEmptyLine && firstNonEmptyLine.trim().startsWith('# ')) {
         // Already has H1 heading - don't add another
-        console.log('[main.js] Already has H1 - no change');
+        debugMain('[main.js] Already has H1 - no change');
         return content;
     }
     
@@ -2563,7 +2564,7 @@ function addH1HeadingIfNeeded(content, fileName) {
     if (firstNonEmptyLine && firstNonEmptyLine.trim() === '---') {
         // This is presentation content with slide markers
         // Add H1 as the first slide content, not before the markers
-        console.log('[main.js] Detected slide markers - adding H1 as first slide');
+        debugMain('[main.js] Detected slide markers - adding H1 as first slide');
         
         // Find the end of the first slide marker section
         let insertIndex = 0;
@@ -2578,13 +2579,13 @@ function addH1HeadingIfNeeded(content, fileName) {
         const beforeMarker = lines.slice(0, insertIndex);
         const afterMarker = lines.slice(insertIndex);
         const result = beforeMarker.concat([`# ${cleanFileName}`, ''], afterMarker).join('\n');
-        console.log('[main.js] Adding H1 after first slide marker:', result.substring(0, 100));
+        debugMain('[main.js] Adding H1 after first slide marker:', result.substring(0, 100));
         return result;
     }
     
     // Add H1 heading at the beginning (normal content)
     const result = `# ${cleanFileName}\n\n${content}`;
-    console.log('[main.js] Adding H1 to beginning:', result.substring(0, 100));
+    debugMain('[main.js] Adding H1 to beginning:', result.substring(0, 100));
     return result;
 }
 
@@ -2622,11 +2623,11 @@ async function performSaveAs(options) {
         });
 
         if (canceled || !filePath) {
-            console.log('[main.js] Save As dialog was cancelled.');
+            debugMain('[main.js] Save As dialog was cancelled.');
             return { success: false };
         }
 
-        console.log(`[main.js] User chose path for Save As: ${filePath}`);
+        debugMain(`[main.js] User chose path for Save As: ${filePath}`);
         // Add H1 heading with filename if needed
         const fileName = path.basename(filePath, path.extname(filePath)); // Remove extension
         const contentWithHeading = addH1HeadingIfNeeded(content, fileName);
@@ -2710,7 +2711,7 @@ async function performGlobalSearch(query, workingDir, options = {}) {
             }
         }
         
-        console.log(`[main.js] Global search found ${results.length} matches in ${files.length} files`);
+        debugMain(`[main.js] Global search found ${results.length} matches in ${files.length} files`);
         return results;
         
     } catch (error) {
@@ -2763,7 +2764,7 @@ async function performGlobalReplace(searchQuery, replaceText, searchResults, opt
         previewOnly = false
     } = options;
 
-    console.log(`[main.js] Performing global replace ${previewOnly ? '(preview)' : '(execute)'}`);
+    debugMain(`[main.js] Performing global replace ${previewOnly ? '(preview)' : '(execute)'}`);
     
     // Group search results by file
     const fileGroups = {};
@@ -2836,7 +2837,7 @@ async function performGlobalReplace(searchQuery, replaceText, searchResults, opt
                 const newContent = modifiedLines.join('\n');
                 await fs.writeFile(filePath, newContent, 'utf8');
                 modifiedFilePaths.push(filePath);
-                console.log(`[main.js] Modified ${filePath} with ${fileReplacements} replacements`);
+                debugMain(`[main.js] Modified ${filePath} with ${fileReplacements} replacements`);
             }
 
         } catch (error) {
@@ -2877,11 +2878,11 @@ function getLinePreview(lines, lineIndex, contextLines = 2) {
 
 async function generateAndLoadLectureSummary() {
     try {
-        console.log('[main.js] Starting lecture summary generation...');
+        debugMain('[main.js] Starting lecture summary generation...');
         
         // Get the current working directory (should be the lectures folder)
         const workingDir = appSettings.workingDirectory || path.join(__dirname, 'lectures');
-        console.log(`[main.js] Using working directory: ${workingDir}`);
+        debugMain(`[main.js] Using working directory: ${workingDir}`);
         
         // Run the Python script with the working directory and output path
         const { spawn } = require('child_process');
@@ -2907,13 +2908,13 @@ async function generateAndLoadLectureSummary() {
             
             pythonProcess.on('close', async (code) => {
                 if (code === 0) {
-                    console.log('[main.js] Lecture summary generated successfully');
-                    console.log(`[main.js] Python output: ${stdout}`);
+                    debugMain('[main.js] Lecture summary generated successfully');
+                    debugMain(`[main.js] Python output: ${stdout}`);
                     
                     // Load the generated summary.md file from the working directory
                     try {
                         const content = await fs.readFile(outputPath, 'utf8');
-                        console.log('[main.js] Loaded lecture summary content from:', outputPath);
+                        debugMain('[main.js] Loaded lecture summary content from:', outputPath);
                         
                         // Send the content to the presentation mode (but don't auto-switch)
                         if (mainWindow) {
@@ -2963,7 +2964,7 @@ async function generateAndLoadLectureSummary() {
 
 async function openFile() {
     if (!mainWindow) return null;
-    console.log('[main.js] Showing Open File dialog...');
+    debugMain('[main.js] Showing Open File dialog...');
     try {
         const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
             properties: ['openFile'],
@@ -2977,18 +2978,18 @@ async function openFile() {
         });
 
         if (canceled || !filePaths || filePaths.length === 0) {
-            console.log('[main.js] Open File dialog cancelled.');
+            debugMain('[main.js] Open File dialog cancelled.');
             return null;
         }
 
         const filePath = filePaths[0];
-        console.log(`[main.js] User selected file: ${filePath}`);
+        debugMain(`[main.js] User selected file: ${filePath}`);
         const content = await fs.readFile(filePath, 'utf8');
         currentFilePath = filePath;
         // Title remains consistent - don't change app title based on file name
          if (mainWindow) {
             mainWindow.webContents.send('file-opened', { filePath, content });
-            console.log(`[main.js] Sent file-opened event for ${filePath}`);
+            debugMain(`[main.js] Sent file-opened event for ${filePath}`);
          }
         return { filePath, content };
     } catch (err) {
@@ -3000,7 +3001,7 @@ async function openFile() {
 
 // --- App Initialization ---
 app.whenReady().then(async () => {
-  console.log('[main.js] App is ready via whenReady()');
+  debugMain('App is ready via whenReady()');
   
   // Resolve a usable runtime working directory. The saved value
   // (appSettings.workingDirectory) is preserved as user intent — we never overwrite
@@ -3033,9 +3034,9 @@ app.whenReady().then(async () => {
     }) || app.getPath('home');
 
     if (currentWorkingDirectory !== appSettings.workingDirectory) {
-      console.warn(`[main.js] Saved workingDirectory not present; using runtime fallback: ${currentWorkingDirectory} (saved value preserved: ${appSettings.workingDirectory})`);
+      debugMain(`Saved workingDirectory not present; using runtime fallback: ${currentWorkingDirectory} (saved value preserved: ${appSettings.workingDirectory})`);
     } else {
-      console.log(`[main.js] Using saved working directory: ${currentWorkingDirectory}`);
+      debugMain(`Using saved working directory: ${currentWorkingDirectory}`);
     }
   }
 
@@ -3045,7 +3046,7 @@ app.whenReady().then(async () => {
     try {
       if (require('fs').existsSync(dockIconPath)) {
         app.dock.setIcon(dockIconPath);
-        console.log('[main.js] Dock icon set successfully');
+        debugMain('Dock icon set successfully');
       }
     } catch (error) {
       console.warn('[main.js] Could not set dock icon:', error);
@@ -3064,7 +3065,7 @@ app.whenReady().then(async () => {
         if (aiSettings.systemPromptFile && aiSettings.systemPromptFile.trim()) {
           try {
             systemMessage = await fs.readFile(aiSettings.systemPromptFile, 'utf8');
-            console.log(`[main.js] Loaded system prompt from file: ${aiSettings.systemPromptFile}`);
+            debugMain(`Loaded system prompt from file: ${aiSettings.systemPromptFile}`);
           } catch (error) {
             console.warn(`[main.js] Could not load system prompt file: ${error.message}`);
             systemMessage = 'You are a helpful AI assistant focused on academic writing and research.';
@@ -3114,7 +3115,7 @@ app.whenReady().then(async () => {
         width: mainWidth,
         height: windowHeight
       });
-      console.log(`[main.js] Positioned main window: ${mainWidth}x${windowHeight} at (0,0)`);
+      debugMain(`[main.js] Positioned main window: ${mainWidth}x${windowHeight} at (0,0)`);
     }
     
     speakerNotesWindow = new BrowserWindow({
@@ -3322,7 +3323,7 @@ app.whenReady().then(async () => {
           width: screenWidth,
           height: screenHeight
         });
-        console.log('[main.js] Restored main window to full screen after manual close');
+        debugMain('[main.js] Restored main window to full screen after manual close');
         
         // Notify main window that speaker notes window was closed
         mainWindow.webContents.send('speaker-notes-window-closed');
@@ -3350,7 +3351,7 @@ app.whenReady().then(async () => {
         width: screenWidth,
         height: screenHeight
       });
-      console.log('[main.js] Restored main window to full screen');
+      debugMain('[main.js] Restored main window to full screen');
     }
     
     return { success: true };
@@ -3606,7 +3607,7 @@ app.whenReady().then(async () => {
       const address = await citationCaptureServer.start();
       citationCaptureBridgeConfig = address;
       captureBridgeStarted = true;
-      console.log(`[main.js] Citation capture bridge listening on http://${address.host}:${address.port}/capture`);
+    debugMain(`Citation capture bridge listening on http://${address.host}:${address.port}/capture`);
       break;
     } catch (error) {
       const isAddressInUse = error && error.code === 'EADDRINUSE';
@@ -3615,7 +3616,7 @@ app.whenReady().then(async () => {
         break;
       }
 
-      console.warn(`[main.js] Capture bridge port ${candidatePort} is in use, trying next port...`);
+      debugMain(`Capture bridge port ${candidatePort} is in use, trying next port...`);
     }
   }
 
@@ -3631,23 +3632,23 @@ app.whenReady().then(async () => {
       learnerId: 'local-writer',
       dbPath: path.join(app.getPath('userData'), 'tutor-core.db')
     });
-    console.log('[main.js] TutorBridge initialized successfully');
+    debugMain('TutorBridge initialized successfully');
 
     // Apply saved AI settings
     if (appSettings.ai && appSettings.ai.preferredProvider) {
       try {
         tutorBridge.setDefaultProvider(appSettings.ai.preferredProvider);
-        console.log(`[main.js] Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
+        debugMain(`Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
       } catch (error) {
         console.warn('[main.js] Could not apply saved AI provider preference:', error);
       }
     }
 
     const providers = tutorBridge.getAvailableProviders();
-    console.log('[main.js] AI providers available via tutor-core:', providers);
+    debugMain('AI providers available via tutor-core:', providers);
     if (providers.length === 0) {
-      console.warn('[main.js] WARNING: No AI providers configured. AI Chat feature will be disabled.');
-      console.warn('[main.js] Please add API keys to your .env file. See .env.example for details.');
+      debugMain('No AI providers configured. AI Chat feature will be disabled.');
+      debugMain('Add API keys to your .env file to enable AI Chat. See .env.example for details.');
     }
   } catch (error) {
     console.error('[main.js] Error initializing TutorBridge:', error);
@@ -3674,7 +3675,7 @@ app.whenReady().then(async () => {
       currentFilePath = path;
       appSettings.currentFile = path;
       saveSettings();
-      console.log(`[main.js] Current file updated and saved to settings: ${path}`);
+      debugMain(`Current file updated and saved to settings: ${path}`);
     },
     buildSystemMessage,
     cleanAIResponse
@@ -3688,7 +3689,7 @@ app.whenReady().then(async () => {
 
   nativeTheme.on('updated', () => {
     const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-    console.log(`[main.js] Native theme updated. Sending to renderer.`);
+    debugMain('Native theme updated. Sending to renderer.');
     if (mainWindow) {
       mainWindow.webContents.send('theme-changed', theme);
     }

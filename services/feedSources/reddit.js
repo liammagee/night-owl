@@ -5,7 +5,9 @@
 // If `query` is set, uses /search.json across the listed subreddits instead of new/hot.
 
 const axios = require('axios');
+const { createDebugLogger } = require('../../ipc/logging');
 
+const debug = createDebugLogger('FeedSources');
 const USER_AGENT = 'machinespirits-ide:research-feed:v1 (by /u/anonymous)';
 const TIMEOUT_MS = 15000;
 
@@ -76,7 +78,7 @@ async function fetch({ config = {} } = {}) {
     } else {
         const lists = await Promise.all(subs.map((s) =>
             fetchSubreddit(s, sort, Math.ceil(limit / subs.length)).catch((err) => {
-                console.warn(`[reddit] r/${s} failed:`, err.message);
+                debug(`reddit r/${s} failed:`, err.message);
                 return [];
             })
         ));

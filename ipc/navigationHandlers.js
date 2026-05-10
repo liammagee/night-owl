@@ -2,6 +2,9 @@
 // Handles all navigation and history related IPC communication
 
 const { ipcMain } = require('electron');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('NavigationHandlers');
 
 /**
  * Register all navigation IPC handlers
@@ -98,7 +101,7 @@ function register(deps) {
     }
   });
 
-  console.log('[NavigationHandlers] Registered 4 navigation handlers');
+  debug('Registered 4 navigation handlers');
 }
 
 module.exports = {

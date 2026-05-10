@@ -6,6 +6,9 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('ImageHandlers');
 
 /**
  * Register all image-related IPC handlers
@@ -17,7 +20,7 @@ function register(deps) {
     mainWindow
   } = deps;
 
-  console.log('[ImageHandlers] Starting registration of image handlers...');
+  debug('Starting registration of image handlers...');
 
   // Helper function to get working directory
   function getWorkingDirectory() {
@@ -65,7 +68,7 @@ function register(deps) {
       await fs.access(imagesDir);
     } catch (err) {
       // Directory doesn't exist, create it
-      console.log(`[ImageHandlers] Creating images directory: ${imagesDir}`);
+      debug(`Creating images directory: ${imagesDir}`);
       await fs.mkdir(imagesDir, { recursive: true });
     }
     
@@ -112,7 +115,7 @@ function register(deps) {
       let relativePath = path.relative(baseDir, filePath) || defaultRelativePath;
       relativePath = relativePath.replace(/\\/g, '/');
 
-      console.log('[ImageHandlers] Pasted image saved:', {
+      debug('Pasted image saved:', {
         baseDir,
         imagesDir,
         filePath,
@@ -190,7 +193,7 @@ function register(deps) {
   try {
     ipcMain.handle('copy-local-image-file', async (event, sourceFilePath) => {
       try {
-        console.log(`[ImageHandlers] Copying local image file: ${sourceFilePath}`);
+        debug(`Copying local image file: ${sourceFilePath}`);
 
         // Check if source file exists
         await fs.access(sourceFilePath);
@@ -227,7 +230,7 @@ function register(deps) {
         // Copy the file
         await fs.copyFile(sourceFilePath, targetFilePath);
 
-        console.log(`[ImageHandlers] Image copied successfully: ${sourceFilePath} -> ${targetFilePath}`);
+        debug(`Image copied successfully: ${sourceFilePath} -> ${targetFilePath}`);
 
         // Return the relative path for markdown
         const relativePath = `images/${filename}`;
@@ -249,7 +252,7 @@ function register(deps) {
         };
       }
     });
-    console.log('[ImageHandlers] Registered copy-local-image-file handler successfully');
+    debug('Registered copy-local-image-file handler successfully');
   } catch (error) {
     console.error('[ImageHandlers] Error registering copy-local-image-file handler:', error);
   }
@@ -257,7 +260,7 @@ function register(deps) {
   // Register handler for fetching URL titles
   try {
     ipcMain.handle('fetch-url-title', async (event, url) => {
-      console.log('[ImageHandlers] Fetching title for URL:', url);
+      debug('Fetching title for URL:', url);
 
       try {
         // Use node-fetch or the built-in fetch (Node 18+) to get the page
@@ -293,7 +296,7 @@ function register(deps) {
             title = title.substring(0, 97) + '...';
           }
 
-          console.log('[ImageHandlers] Found title:', title);
+          debug('Found title:', title);
 
           return {
             success: true,
@@ -326,7 +329,7 @@ function register(deps) {
         }
       }
     });
-    console.log('[ImageHandlers] Registered fetch-url-title handler successfully');
+    debug('Registered fetch-url-title handler successfully');
   } catch (error) {
     console.error('[ImageHandlers] Error registering fetch-url-title handler:', error);
   }
@@ -336,7 +339,7 @@ function register(deps) {
     const { dialog, BrowserWindow } = require('electron');
 
     ipcMain.handle('select-image-file', async (event) => {
-      console.log('[ImageHandlers] Opening image file selection dialog');
+      debug('Opening image file selection dialog');
 
       try {
         const currentWindow = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
@@ -355,7 +358,7 @@ function register(deps) {
         }
 
         const filePath = result.filePaths[0];
-        console.log('[ImageHandlers] Image file selected:', filePath);
+        debug('Image file selected:', filePath);
 
         return {
           success: true,
@@ -369,12 +372,12 @@ function register(deps) {
         };
       }
     });
-    console.log('[ImageHandlers] Registered select-image-file handler successfully');
+    debug('Registered select-image-file handler successfully');
   } catch (error) {
     console.error('[ImageHandlers] Error registering select-image-file handler:', error);
   }
 
-  console.log('[ImageHandlers] Successfully registered 5 image handlers: paste-image-from-clipboard, save-image-data, copy-local-image-file, fetch-url-title, select-image-file');
+  debug('Successfully registered 5 image handlers: paste-image-from-clipboard, save-image-data, copy-local-image-file, fetch-url-title, select-image-file');
 }
 
 module.exports = { register };

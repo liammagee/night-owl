@@ -4,6 +4,9 @@
 const { ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('SettingsHandlers');
 
 /**
  * Register all settings IPC handlers
@@ -65,7 +68,7 @@ function register(deps) {
     if (typeof updates.localAIUrl === 'string' && typeof aiRuntime.updateLocalAIUrl === 'function') {
       try {
         aiRuntime.updateLocalAIUrl(updates.localAIUrl);
-        console.log(`[SettingsHandlers] Updated Local AI URL: ${updates.localAIUrl}`);
+        debug(`Updated Local AI URL: ${updates.localAIUrl}`);
       } catch (error) {
         console.warn('[SettingsHandlers] Could not update Local AI URL:', error);
       }
@@ -75,7 +78,7 @@ function register(deps) {
       try {
         if (updates.preferredProvider === 'auto') {
           aiRuntime.setDefaultProvider('auto');
-          console.log('[SettingsHandlers] Reset AI provider preference to auto');
+          debug('Reset AI provider preference to auto');
           return;
         }
 
@@ -88,7 +91,7 @@ function register(deps) {
         }
 
         aiRuntime.setDefaultProvider(updates.preferredProvider);
-        console.log(`[SettingsHandlers] Applied AI provider preference: ${updates.preferredProvider}`);
+        debug(`Applied AI provider preference: ${updates.preferredProvider}`);
       } catch (error) {
         console.warn('[SettingsHandlers] Could not update AI provider:', error);
       }
@@ -168,7 +171,7 @@ function register(deps) {
         }
       });
       
-      console.log('[SettingsHandlers] Settings imported successfully');
+      debug('[SettingsHandlers] Settings imported successfully');
       return { success: true, message: 'Settings imported successfully' };
     } catch (error) {
       console.error('[SettingsHandlers] Import settings error:', error);
@@ -333,7 +336,7 @@ function register(deps) {
     }
   });
 
-  console.log('[SettingsHandlers] Registered 10 settings handlers');
+  debug('Registered 10 settings handlers');
 }
 
 module.exports = {

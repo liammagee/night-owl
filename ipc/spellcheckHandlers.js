@@ -5,6 +5,9 @@ const { ipcMain, session } = require('electron');
 const nspell = require('nspell');
 const fs = require('fs');
 const path = require('path');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('SpellcheckHandlers');
 
 let spellChecker = null;
 let spellReady = false;
@@ -22,7 +25,7 @@ async function initSpellChecker() {
     const dict = dictModule.default;
     spellChecker = nspell(dict);
     spellReady = true;
-    console.log('[SpellcheckHandlers] nspell initialized with en dictionary (ESM)');
+    debug('nspell initialized with en dictionary (ESM)');
   } catch (esmError) {
     // Fallback: load .aff/.dic files directly
     try {
@@ -31,7 +34,7 @@ async function initSpellChecker() {
       const dic = fs.readFileSync(path.join(dictDir, 'index.dic'));
       spellChecker = nspell({ aff, dic });
       spellReady = true;
-      console.log('[SpellcheckHandlers] nspell initialized with en dictionary (fallback)');
+      debug('nspell initialized with en dictionary (fallback)');
     } catch (fallbackError) {
       console.error('[SpellcheckHandlers] Failed to init nspell:', esmError.message, fallbackError.message);
     }
@@ -46,14 +49,14 @@ function getWriteGood() {
     try {
       writeGood = require('write-good');
     } catch (e) {
-      console.warn('[SpellcheckHandlers] write-good not available:', e.message);
+      debug('write-good not available:', e.message);
     }
   }
   return writeGood;
 }
 
 function register(deps) {
-  console.log('[SpellcheckHandlers] Registering spell check & grammar handlers...');
+  debug('Registering spell check & grammar handlers...');
 
   // Start loading dictionary in background
   initSpellChecker();
@@ -254,10 +257,10 @@ function register(deps) {
     const ses = session.defaultSession;
     ses.setSpellCheckerLanguages(['en-US']);
   } catch (e) {
-    console.warn('[SpellcheckHandlers] Could not set default language:', e.message);
+    debug('Could not set default language:', e.message);
   }
 
-  console.log('[SpellcheckHandlers] Registered spell check & grammar handlers');
+  debug('Registered spell check & grammar handlers');
 }
 
 module.exports = { register };

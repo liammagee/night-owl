@@ -70,7 +70,7 @@
 
     // Override console.log to filter noisy messages
     console.log = function(...args) {
-        if (!shouldFilter(args)) {
+        if (currentLevel >= 2 && !shouldFilter(args)) {
             originalConsole.log(...args);
         }
     };

@@ -1,5 +1,8 @@
 const path = require('path');
 const { app, contentTracing, ipcMain } = require('electron');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('PerformanceHandlers');
 
 const DEFAULT_TRACE_CATEGORIES = [
   'devtools.timeline',
@@ -88,7 +91,7 @@ function register(dependencies = {}) {
     stopPerformanceTrace(electronApp)
   ));
 
-  console.log('[PerformanceHandlers] Registered performance handlers');
+  debug('Registered performance handlers');
 }
 
 module.exports = {

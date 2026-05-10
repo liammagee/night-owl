@@ -4,9 +4,12 @@
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('StaticSiteHandlers');
 
 function register(deps) {
-  console.log('[StaticSiteHandlers] Registering static site handlers...');
+  debug('Registering static site handlers...');
 
   ipcMain.handle('static-site-generate', async (event, { files, options }) => {
     try {
@@ -61,7 +64,7 @@ function register(deps) {
     }
   });
 
-  console.log('[StaticSiteHandlers] Registered static site handlers');
+  debug('Registered static site handlers');
 }
 
 function slugify(text) {

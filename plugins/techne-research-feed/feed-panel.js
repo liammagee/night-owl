@@ -61,7 +61,7 @@
         if (typeof window.showAppConfirm === 'function') {
             return window.showAppConfirm(options);
         }
-        console.warn('[ResearchFeed] Confirmation dialog unavailable');
+        if (window.DEBUG_VERBOSE) console.warn('[ResearchFeed] Confirmation dialog unavailable');
         return false;
     }
 
@@ -239,7 +239,7 @@
                 if (this.paneEl.style.display !== 'none') this.refreshItems();
             });
             const u3 = this.api.on('feed:source-error', ({ sourceId, message }) => {
-                console.warn(`[research-feed] source ${sourceId} error: ${message}`);
+                if (window.DEBUG_VERBOSE) console.warn(`[research-feed] source ${sourceId} error: ${message}`);
                 this.flashHeader(`${sourceId}: ${message}`);
             });
             this.unsubscribers.push(u1, u2, u3);

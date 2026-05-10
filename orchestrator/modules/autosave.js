@@ -110,7 +110,7 @@ async function performAutoSave() {
     // {active path, active model}. We must only save if the visible Monaco
     // model belongs to the active tab AND window.currentFilePath agrees.
     // If any mismatch, abort rather than risk writing the active buffer to a
-    // different file on disk. See TODO.md → Audit 2026-04-16 → Critical.
+    // different file on disk.
     const tm = window.tabManager;
     const activePath = tm && tm.activeTabPath;
     const activeTab = activePath && tm.tabs ? tm.tabs.get(activePath) : null;

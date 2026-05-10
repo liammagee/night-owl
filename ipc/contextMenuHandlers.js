@@ -2,23 +2,26 @@
 // Handles context menu operations including scholar support
 
 const { ipcMain, Menu, BrowserWindow } = require('electron');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('ContextMenuHandlers');
 
 function register(dependencies) {
   const { aiService } = dependencies;
   
-  console.log('[ContextMenuHandlers] Registering context menu handlers...');
+  debug('Registering context menu handlers...');
   
   // Handle text selection context menu
   ipcMain.handle('show-text-context-menu', async (event, data) => {
     const { selectedText, x, y } = data;
     
-    console.log('[ContextMenu] Showing context menu for selected text:', selectedText?.substring(0, 50) + '...');
+    debug('Showing context menu for selected text:', selectedText?.substring(0, 50) + '...');
     
     const template = [
       {
         label: '📑 Generate AI Heading',
         click: async () => {
-          console.log('[ContextMenu] Generate AI Heading clicked');
+          debug('Generate AI Heading clicked');
           
           // Send command back to renderer to handle the heading generation
           const window = BrowserWindow.fromWebContents(event.sender);
@@ -62,7 +65,7 @@ function register(dependencies) {
   ipcMain.handle('show-context-menu', async (event, data) => {
     const { lineNumber } = data;
     
-    console.log('[ContextMenu] Showing context menu for line:', lineNumber);
+    debug('Showing context menu for line:', lineNumber);
     
     const template = [
       {
@@ -101,7 +104,7 @@ function register(dependencies) {
     return true;
   });
   
-  console.log('[ContextMenuHandlers] Registered 2 context menu handlers');
+  debug('Registered 2 context menu handlers');
 }
 
 module.exports = { register };

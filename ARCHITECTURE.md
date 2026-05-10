@@ -344,8 +344,4 @@ State is managed through:
 
 ## Future Improvements
 
-See [TODO.md](TODO.md) for planned improvements including:
-- Module splitting for large files
-- Virtual scrolling for performance
-- Plugin hot reload
-- Real-time collaboration indicators
+Track planned improvements in issues or focused design notes. Keep completed audit trails out of the repo root so stale checklist state does not reappear in task surfaces.

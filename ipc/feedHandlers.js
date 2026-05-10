@@ -10,6 +10,9 @@ const crypto = require('crypto');
 const { getFeedStore } = require('../services/feedStore');
 const { getCredentialStore } = require('../services/credentialStore');
 const CitationService = require('../services/citationService');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('FeedHandlers');
 
 const adapters = {
     arxiv: require('../services/feedSources/arxiv'),
@@ -168,7 +171,7 @@ async function scoreUnscoredBatch() {
         emit('feed:scored', { count: n });
         return { scored: n };
     } catch (err) {
-        console.warn('[FeedHandlers] scoring failed:', err.message);
+        debug('scoring failed:', err.message);
         return { scored: 0, error: err.message };
     } finally {
         scoringInFlight = false;
@@ -219,14 +222,14 @@ async function pollDueSources() {
 function startPollLoop() {
     if (pollTimer) return;
     pollTimer = setInterval(() => {
-        pollDueSources().catch((err) => console.warn('[FeedHandlers] poll loop:', err.message));
+        pollDueSources().catch((err) => debug('poll loop:', err.message));
     }, POLL_TICK_MS);
     // Run once shortly after startup so a fresh app has data quickly.
     setTimeout(() => pollDueSources().catch(() => {}), 5000);
     // Daily prune.
     setInterval(() => {
         store.pruneOlderThan(30).then((n) => {
-            if (n > 0) console.log(`[FeedHandlers] pruned ${n} old items`);
+            if (n > 0) debug(`pruned ${n} old items`);
         }).catch(() => {});
     }, 24 * 60 * 60 * 1000);
 }
@@ -302,7 +305,7 @@ async function gateTabsAgainstDraft(items, threshold = 5) {
         });
         return { gated: true, threshold, kept, dropped };
     } catch (err) {
-        console.warn('[FeedHandlers] tab gate failed:', err.message);
+        debug('tab gate failed:', err.message);
         return { gated: false, reason: err.message, kept: items, dropped: [] };
     }
 }
@@ -385,7 +388,7 @@ function register(deps) {
 
     initializeServices(userDataPath).then(() => {
         startPollLoop();
-        console.log('[FeedHandlers] services ready, polling started');
+        debug('services ready, polling started');
     }).catch((err) => {
         console.error('[FeedHandlers] init failed:', err);
     });
@@ -543,7 +546,7 @@ function register(deps) {
         }
     });
 
-    console.log('[FeedHandlers] registered');
+    debug('registered');
 }
 
 function cleanup() {

@@ -143,7 +143,7 @@ async function initializePerformanceDiagnostics() {
             if (diagnostics.hardwareAccelerationDisabled) {
                 console.warn('[Performance] GPU acceleration appears disabled:', diagnostics.featureStatus);
             } else {
-                console.info('[Performance] GPU diagnostics:', diagnostics.featureStatus);
+                window.DebugLogger?.info('[Performance] GPU diagnostics:', diagnostics.featureStatus);
             }
         }
     } catch (error) {
@@ -1193,7 +1193,7 @@ function validateStructurePaneInputs(markdownContent) {
     }
     
     if (!markdownContent || typeof markdownContent !== 'string') {
-        console.warn('[renderer.js] markdownContent is undefined or not a string:', markdownContent);
+        window.DebugLogger?.debug('[renderer.js] markdownContent is undefined or not a string:', markdownContent);
         const structurePane = document.getElementById('structure-pane');
         if (structurePane) {
             structurePane.innerHTML = '<p>No content to display structure.</p>';

@@ -4,6 +4,9 @@
 const { ipcMain } = require('electron');
 const http = require('http');
 const crypto = require('crypto');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('CollaborationHandlers');
 
 let wsServer = null;
 let httpServer = null;
@@ -11,7 +14,7 @@ let clients = new Map(); // ws -> { id, name, cursor }
 let sharedDoc = { content: '', version: 0 };
 
 function register(deps) {
-  console.log('[CollaborationHandlers] Registering collaboration handlers...');
+  debug('Registering collaboration handlers...');
 
   ipcMain.handle('collab-start-server', async (event, { port }) => {
     try {
@@ -113,7 +116,7 @@ function register(deps) {
     return { success: true };
   });
 
-  console.log('[CollaborationHandlers] Registered collaboration handlers');
+  debug('Registered collaboration handlers');
 }
 
 function handleMessage(socket, data, sender) {

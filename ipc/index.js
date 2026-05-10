@@ -2,6 +2,9 @@
 // Central registry for all IPC handlers organized by category
 
 const { ipcMain } = require('electron');
+const { createDebugLogger } = require('./logging');
+
+const debug = createDebugLogger('IPC');
 
 // Clear module cache to ensure fresh load
 delete require.cache[require.resolve('./exportHandlers')];
@@ -32,116 +35,116 @@ const feedHandlers = require('./feedHandlers');
  * @param {Object} dependencies - Shared dependencies passed from main.js
  */
 function registerAllHandlers(dependencies) {
-  console.log('[IPC] Registering all IPC handlers...');
+  debug('Registering all IPC handlers...');
   
   try {
     // Register each category of handlers
     aiHandlers.register(dependencies);
-    console.log('[IPC] AI handlers registered');
+    debug('AI handlers registered');
     
     fileHandlers.register(dependencies);
-    console.log('[IPC] File handlers registered');
+    debug('File handlers registered');
     
     settingsHandlers.register(dependencies);
-    console.log('[IPC] Settings handlers registered');
+    debug('Settings handlers registered');
     
     exportHandlers.register(dependencies);
-    console.log('[IPC] Export handlers registered');
+    debug('Export handlers registered');
     
     navigationHandlers.register(dependencies);
-    console.log('[IPC] Navigation handlers registered');
+    debug('Navigation handlers registered');
     
     searchHandlers.register(dependencies);
-    console.log('[IPC] Search handlers registered');
+    debug('Search handlers registered');
     
     contextMenuHandlers.register(dependencies);
-    console.log('[IPC] Context menu handlers registered');
+    debug('Context menu handlers registered');
     
     try {
       ttsHandlers.register(dependencies);
-      console.log('[IPC] TTS handlers registered');
+      debug('TTS handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering TTS handlers:', error);
     }
     
     try {
       videoHandlers.register(dependencies);
-      console.log('[IPC] Video recording handlers registered');
+      debug('Video recording handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering video handlers:', error);
     }
     
     try {
       citationHandlers.registerCitationHandlers(dependencies.userDataPath);
-      console.log('[IPC] Citation handlers registered');
+      debug('Citation handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering citation handlers:', error);
     }
     
     try {
       imageHandlers.register(dependencies);
-      console.log('[IPC] Image handlers registered');
+      debug('Image handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering image handlers:', error);
     }
 
     try {
       gitHandlers.register(dependencies);
-      console.log('[IPC] Git handlers registered');
+      debug('Git handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering git handlers:', error);
     }
 
     try {
       terminalHandlers.register(dependencies);
-      console.log('[IPC] Terminal handlers registered');
+      debug('Terminal handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering terminal handlers:', error);
     }
 
     try {
       spellcheckHandlers.register(dependencies);
-      console.log('[IPC] Spellcheck handlers registered');
+      debug('Spellcheck handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering spellcheck handlers:', error);
     }
 
     try {
       advancedExportHandlers.register(dependencies);
-      console.log('[IPC] Advanced export handlers registered');
+      debug('Advanced export handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering advanced export handlers:', error);
     }
 
     try {
       collaborationHandlers.register(dependencies);
-      console.log('[IPC] Collaboration handlers registered');
+      debug('Collaboration handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering collaboration handlers:', error);
     }
 
     try {
       staticSiteHandlers.register(dependencies);
-      console.log('[IPC] Static site handlers registered');
+      debug('Static site handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering static site handlers:', error);
     }
 
     try {
       performanceHandlers.register(dependencies);
-      console.log('[IPC] Performance handlers registered');
+      debug('Performance handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering performance handlers:', error);
     }
 
     try {
       feedHandlers.register(dependencies);
-      console.log('[IPC] Research-feed handlers registered');
+      debug('Research-feed handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering research-feed handlers:', error);
     }
 
-    console.log('[IPC] All IPC handlers registered successfully');
+    debug('All IPC handlers registered successfully');
   } catch (error) {
     console.error('[IPC] Error registering handlers:', error);
     throw error;
@@ -163,7 +166,7 @@ function getHandlerCount() {
 function cleanupHandlers() {
   try {
     citationHandlers.cleanupCitationService();
-    console.log('[IPC] Handlers cleaned up successfully');
+    debug('Handlers cleaned up successfully');
   } catch (error) {
     console.error('[IPC] Error cleaning up handlers:', error);
   }

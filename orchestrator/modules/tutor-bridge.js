@@ -6,6 +6,20 @@
 // replacing the old services/aiService.js. It wraps tutor-core's
 // unifiedAIProvider.call() / callStream() with conversation history management.
 
+function isDebugLoggingEnabled(namespace) {
+    const raw = typeof process !== 'undefined' && process.env
+        ? process.env.NIGHTOWL_DEBUG_LOGS || ''
+        : '';
+    if (!raw) return false;
+    const enabled = raw.split(',').map(value => value.trim()).filter(Boolean);
+    return enabled.includes('*') || enabled.includes(namespace);
+}
+
+function debug(...args) {
+    if (isDebugLoggingEnabled('TutorBridge')) {
+        console.log('[TutorBridge]', ...args);
+    }
+}
 let tutorCore = null;
 let bridgeState = {
     initialized: false,
@@ -22,6 +36,20 @@ let conversationHistory = [];
 let currentSystemMessage = null;
 let defaultProvider = null; // Override from NightOwl settings
 
+function runTutorCoreQuietly(fn) {
+    if (isDebugLoggingEnabled('TutorBridge') || isDebugLoggingEnabled('TutorCore')) {
+        return fn();
+    }
+
+    const originalLog = console.log;
+    try {
+        console.log = () => {};
+        return fn();
+    } finally {
+        console.log = originalLog;
+    }
+}
+
 /**
  * Dynamically load tutor-core ES module from CommonJS context.
  * @returns {object|null} The tutor-core module namespace, or null on failure.
@@ -31,7 +59,7 @@ async function loadTutorCore() {
 
     try {
         tutorCore = await import('@machinespirits/tutor-core');
-        console.log('[TutorBridge] tutor-core loaded successfully');
+        debug('[TutorBridge] tutor-core loaded successfully');
         return tutorCore;
     } catch (error) {
         console.warn('[TutorBridge] Could not load tutor-core:', error.message);
@@ -67,29 +95,29 @@ async function initTutorBridge(options = {}) {
         // Configure database path before first use
         if (options.dbPath && core.initDb) {
             try {
-                core.initDb({ dbPath: options.dbPath });
-                console.log(`[TutorBridge] Database configured at: ${options.dbPath}`);
+                runTutorCoreQuietly(() => core.initDb({ dbPath: options.dbPath }));
+                debug(`[TutorBridge] Database configured at: ${options.dbPath}`);
             } catch (dbErr) {
                 // initDb throws if already initialized - that's fine
-                console.log(`[TutorBridge] Database already initialized: ${dbErr.message}`);
+                debug(`[TutorBridge] Database already initialized: ${dbErr.message}`);
             }
         }
 
         // Initialize writing pad for the local writer
         if (core.writingPadService && core.writingPadService.initializeWritingPad) {
-            core.writingPadService.initializeWritingPad(learnerId);
-            console.log(`[TutorBridge] Writing pad initialized for learner: ${learnerId}`);
+            runTutorCoreQuietly(() => core.writingPadService.initializeWritingPad(learnerId));
+            debug(`[TutorBridge] Writing pad initialized for learner: ${learnerId}`);
         }
 
         // Run initial maintenance cycle
         if (core.recognitionOrchestrator) {
-            const maintenance = core.recognitionOrchestrator.runMaintenance(learnerId);
-            console.log(`[TutorBridge] Initial maintenance completed:`, maintenance.tasks);
+            const maintenance = runTutorCoreQuietly(() => core.recognitionOrchestrator.runMaintenance(learnerId));
+            debug(`[TutorBridge] Initial maintenance completed:`, maintenance.tasks);
         }
 
         bridgeState.initialized = true;
         bridgeState.initError = null;
-        console.log('[TutorBridge] Bridge initialized successfully');
+        debug('[TutorBridge] Bridge initialized successfully');
         return { ok: true, learnerId };
     } catch (error) {
         bridgeState.initError = error.message;
@@ -334,7 +362,7 @@ function setDefaultProvider(providerId) {
     } else {
         defaultProvider = providerId;
     }
-    console.log(`[TutorBridge] Default provider set to: ${defaultProvider || 'auto'}`);
+    debug(`[TutorBridge] Default provider set to: ${defaultProvider || 'auto'}`);
 }
 
 /**
@@ -384,7 +412,7 @@ function getCurrentConfiguration() {
 function clearConversation() {
     conversationHistory = [];
     currentSystemMessage = null;
-    console.log('[TutorBridge] Conversation cleared');
+    debug('[TutorBridge] Conversation cleared');
 }
 
 /**
@@ -402,7 +430,7 @@ function getConversationHistory() {
 function updateLocalAIUrl(url) {
     if (url) {
         process.env.LOCAL_AI_URL = url;
-        console.log(`[TutorBridge] LOCAL_AI_URL updated to: ${url}`);
+        debug(`[TutorBridge] LOCAL_AI_URL updated to: ${url}`);
     }
 }
 

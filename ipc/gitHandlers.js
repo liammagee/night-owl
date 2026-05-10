@@ -9,8 +9,8 @@ const { createDebugLogger } = require('./logging');
 const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
 
 function register(deps) {
-  console.log('[GitHandlers] Registering git handlers...');
   const debug = createDebugLogger('GitHandlers');
+  debug('Registering git handlers...');
   const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {});
 
   /**
@@ -64,7 +64,7 @@ function register(deps) {
    */
   ipcMain.handle('git-status', async (event, { repoRoot, subfolder }) => {
     try {
-      console.log(`[GitHandlers] Getting git status for repo: ${repoRoot}, subfolder: ${subfolder || '.'}`);
+      debug(`[GitHandlers] Getting git status for repo: ${repoRoot}, subfolder: ${subfolder || '.'}`);
 
       // Get status in porcelain format for easy parsing
       const statusOutput = execSync('git status --porcelain', {
@@ -99,7 +99,7 @@ function register(deps) {
         changes.push({ file, status: statusLabel, statusCode: status.trim() });
       }
 
-      console.log(`[GitHandlers] Found ${changes.length} changes`);
+      debug(`[GitHandlers] Found ${changes.length} changes`);
       return { success: true, changes };
     } catch (error) {
       console.error('[GitHandlers] Error getting git status:', error);
@@ -112,7 +112,7 @@ function register(deps) {
    */
   ipcMain.handle('git-publish', async (event, { repoRoot, subfolder, message }) => {
     try {
-      console.log(`[GitHandlers] Publishing to git: ${repoRoot}, subfolder: ${subfolder || '.'}`);
+      debug(`[GitHandlers] Publishing to git: ${repoRoot}, subfolder: ${subfolder || '.'}`);
 
       // Sanitize commit message - escape double quotes
       const safeMessage = message.replace(/"/g, '\\"');
@@ -121,7 +121,7 @@ function register(deps) {
       const addPath = subfolder && subfolder !== '.' ? `"${subfolder}"` : '.';
 
       // Stage changes
-      console.log(`[GitHandlers] Staging: git add ${addPath}`);
+      debug(`[GitHandlers] Staging: git add ${addPath}`);
       execSync(`git add ${addPath}`, {
         cwd: repoRoot,
         encoding: 'utf8',
@@ -129,7 +129,7 @@ function register(deps) {
       });
 
       // Commit
-      console.log(`[GitHandlers] Committing with message: ${message.substring(0, 50)}...`);
+      debug(`[GitHandlers] Committing with message: ${message.substring(0, 50)}...`);
       const commitOutput = execSync(`git commit -m "${safeMessage}"`, {
         cwd: repoRoot,
         encoding: 'utf8',
@@ -141,14 +141,14 @@ function register(deps) {
       const commitHash = hashMatch ? hashMatch[1] : 'unknown';
 
       // Push
-      console.log('[GitHandlers] Pushing to remote...');
+      debug('[GitHandlers] Pushing to remote...');
       execSync('git push', {
         cwd: repoRoot,
         encoding: 'utf8',
         timeout: 60000
       });
 
-      console.log(`[GitHandlers] Published successfully, commit: ${commitHash}`);
+      debug(`[GitHandlers] Published successfully, commit: ${commitHash}`);
       return { success: true, commitHash };
     } catch (error) {
       console.error('[GitHandlers] Error publishing:', error);
@@ -1040,7 +1040,7 @@ function register(deps) {
     }
   });
 
-  console.log('[GitHandlers] Registered git handlers');
+  debug('Registered git handlers');
 }
 
 module.exports = { register };
