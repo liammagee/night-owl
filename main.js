@@ -27,6 +27,10 @@ const {
   sanitizeWorkspaceFolders
 } = require('./ipc/workspacePaths');
 const { resolvePathWithinRoots } = require('./ipc/pathGuards');
+const {
+  parseNightOwlLaunchArgs,
+  resolveLaunchTargets
+} = require('./services/launchArgs');
 const ipcHandlers = require('./ipc');
 
 // Initialize @electron/remote after checking if electron module loaded correctly
@@ -59,6 +63,32 @@ if (app && typeof app.setName === 'function') {
     console.log('[main.js] Running in Node.js mode - skipping Electron app setup');
     process.exit(0);
 }
+
+const shouldUseSingleInstanceLock = process.env.NIGHTOWL_DISABLE_SINGLE_INSTANCE !== '1' &&
+  process.env.NODE_ENV !== 'test';
+const hasSingleInstanceLock = !shouldUseSingleInstanceLock ||
+  typeof app.requestSingleInstanceLock !== 'function' ||
+  app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  console.log('[main.js] Another NightOwl instance is already running; forwarding launch arguments.');
+  app.quit();
+  process.exit(0);
+}
+
+app.on('second-instance', async (_event, commandLine, workingDirectory) => {
+  try {
+    const applied = await applyLaunchTargetsFromCommandLine(
+      Array.isArray(commandLine) ? commandLine.slice(1) : [],
+      workingDirectory || process.cwd()
+    );
+    if (!applied && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  } catch (error) {
+    console.error('[main.js] Failed to handle second-instance launch:', error);
+  }
+});
 
 // Enable hot reload for electron app in development
 if (process.argv.includes('--dev')) {
@@ -883,6 +913,89 @@ function setPrimaryWorkingDirectory(folderPath) {
     return normalizedFolderPath;
 }
 
+function getLaunchTargetsFromCommandLine(commandLine = process.argv.slice(1), cwd = process.cwd()) {
+    const parsed = parseNightOwlLaunchArgs(commandLine, { appRoot: __dirname, cwd });
+    return resolveLaunchTargets(parsed.paths, { cwd, fs: fsSync })
+        .filter((target) => {
+            if (target.type === 'directory' || target.type === 'file') return true;
+            console.warn(`[main.js] Ignoring launch path "${target.rawPath}": ${target.error}`);
+            return false;
+        });
+}
+
+function clearPersistedEditorTabs() {
+    if (!appSettings.editorTabs || typeof appSettings.editorTabs !== 'object') {
+        appSettings.editorTabs = {};
+    }
+    appSettings.editorTabs.openTabs = [];
+    appSettings.editorTabs.activeTabIndex = 0;
+}
+
+function applyLaunchTargetToSettings(target) {
+    if (!target || !target.path) return null;
+
+    if (target.type === 'directory') {
+        const folderPath = setPrimaryWorkingDirectory(target.path);
+        addToRecentWorkspaces(folderPath);
+        currentFilePath = null;
+        appSettings.currentFile = '';
+        clearPersistedEditorTabs();
+        saveSettings();
+        console.log(`[main.js] Launch target applied as workspace: ${folderPath}`);
+        return { ...target, path: folderPath };
+    }
+
+    if (target.type === 'file') {
+        const filePath = target.path;
+        const folderPath = setPrimaryWorkingDirectory(target.workspacePath || path.dirname(filePath));
+        addToRecentWorkspaces(folderPath);
+        addToRecentFiles(filePath);
+        currentFilePath = filePath;
+        appSettings.currentFile = filePath;
+        appSettings.editorTabs = {
+            ...(appSettings.editorTabs || {}),
+            openTabs: [{ filePath, fileName: path.basename(filePath) }],
+            activeTabIndex: 0
+        };
+        saveSettings();
+        console.log(`[main.js] Launch target applied as file: ${filePath}`);
+        return { ...target, path: filePath, workspacePath: folderPath };
+    }
+
+    return null;
+}
+
+async function notifyRendererOfLaunchTarget(target) {
+    if (!target || !mainWindow || mainWindow.isDestroyed()) return;
+
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('settings-changed', {
+        workingDirectory: appSettings.workingDirectory,
+        workspaceFolders: appSettings.workspaceFolders,
+        currentFile: appSettings.currentFile,
+        editorTabs: appSettings.editorTabs
+    });
+    mainWindow.webContents.send('refresh-file-tree');
+
+    if (target.type !== 'file') return;
+
+    try {
+        const content = await fs.readFile(target.path, 'utf8');
+        mainWindow.webContents.send('file-opened', { filePath: target.path, content });
+    } catch (error) {
+        console.error(`[main.js] Could not open launch file ${target.path}:`, error);
+    }
+}
+
+async function applyLaunchTargetsFromCommandLine(commandLine, cwd) {
+    const targets = getLaunchTargetsFromCommandLine(commandLine, cwd);
+    if (!targets.length) return null;
+    const applied = applyLaunchTargetToSettings(targets[0]);
+    await notifyRendererOfLaunchTarget(applied);
+    return applied;
+}
+
 // Save navigation history
 function saveNavigationHistory(history) {
     if (!appSettings.navigation.persistHistory) return;
@@ -1022,6 +1135,10 @@ function updateSettings(category, newSettings) {
 
 // Load settings before app ready
 loadSettings();
+const initialLaunchTargets = getLaunchTargetsFromCommandLine(process.argv.slice(1), process.cwd());
+if (initialLaunchTargets.length > 0) {
+  applyLaunchTargetToSettings(initialLaunchTargets[0]);
+}
 
 // Initialize Image Service (standalone, synchronous)
 try {

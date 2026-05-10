@@ -1,0 +1,93 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const { absolutizeCliPathArgs, parseNightOwlLaunchArgs } = require('../services/launchArgs');
+
+const appRoot = path.resolve(__dirname, '..');
+const packageJson = require(path.join(appRoot, 'package.json'));
+const rawArgs = process.argv.slice(2);
+const parsed = parseNightOwlLaunchArgs(rawArgs, { cwd: process.cwd(), appRoot });
+
+function printUsage() {
+  console.log(`NightOwl CLI
+
+Usage:
+  nightowl [path]
+  nightowl .
+  nightowl path/to/file.md
+
+Options:
+  -h, --help       Show this help.
+  -v, --version    Show the NightOwl version.
+  --foreground     Keep the launcher attached to the app process.
+
+Environment:
+  NIGHTOWL_CLI_DEV=1      Prefer the local Electron checkout.
+  NIGHTOWL_APP_PATH=...   macOS .app bundle path to open when not using local Electron.`);
+}
+
+if (parsed.help) {
+  printUsage();
+  process.exit(0);
+}
+
+if (parsed.version) {
+  console.log(packageJson.version || '0.0.0');
+  process.exit(0);
+}
+
+const args = absolutizeCliPathArgs(rawArgs, { cwd: process.cwd() }).filter(arg => arg !== '--foreground');
+const foreground = rawArgs.includes('--foreground');
+const env = { ...process.env };
+delete env.ELECTRON_RUN_AS_NODE;
+
+function spawnAndExit(command, commandArgs, options = {}) {
+  const child = spawn(command, commandArgs, {
+    cwd: options.cwd || appRoot,
+    env,
+    stdio: foreground ? 'inherit' : 'ignore',
+    detached: !foreground
+  });
+
+  child.on('error', (error) => {
+    console.error(`nightowl: failed to launch NightOwl: ${error.message}`);
+    process.exit(1);
+  });
+
+  if (!foreground) {
+    child.unref();
+    return;
+  }
+
+  child.on('exit', (code, signal) => {
+    if (signal) process.kill(process.pid, signal);
+    process.exit(code || 0);
+  });
+}
+
+const electronBin = process.platform === 'win32'
+  ? path.join(appRoot, 'node_modules', '.bin', 'electron.cmd')
+  : path.join(appRoot, 'node_modules', '.bin', 'electron');
+const preferLocal = process.env.NIGHTOWL_CLI_DEV === '1' || fs.existsSync(electronBin);
+
+if (preferLocal && fs.existsSync(electronBin)) {
+  spawnAndExit(electronBin, [appRoot, ...args]);
+  return;
+}
+
+if (process.platform === 'darwin') {
+  const appPath = process.env.NIGHTOWL_APP_PATH || '/Applications/NightOwl.app';
+  if (fs.existsSync(appPath)) {
+    spawnAndExit('open', [appPath, '--args', ...args], { cwd: process.cwd() });
+    return;
+  }
+
+  spawnAndExit('open', ['-a', 'NightOwl', '--args', ...args], { cwd: process.cwd() });
+  return;
+}
+
+console.error('nightowl: no local Electron checkout or installed NightOwl app was found.');
+console.error('nightowl: run from the NightOwl checkout, install the app, or set NIGHTOWL_APP_PATH.');
+process.exit(1);

@@ -17,6 +17,9 @@
   },
   "license": "Apache-2.0",
   "main": "main.js",
+  "bin": {
+    "nightowl": "bin/nightowl"
+  },
   "scripts": {
     "dev": "npm run electron-dev",
     "preelectron": "npm run native:sign",
@@ -41,6 +44,8 @@
     "quality:static": "node scripts/quality-static-checks.js",
     "quality:metrics": "node scripts/quality-metrics.js",
     "quality:trace": "node scripts/compare-chromium-traces.js",
+    "cli:install": "node scripts/install-nightowl-cli.js",
+    "cli:uninstall": "node scripts/install-nightowl-cli.js --uninstall",
     "feed-cli": "node scripts/feed-cli.js",
     "feed-mcp": "node scripts/feed-mcp-server.js",
     "sync-plugins": "sync-techne-plugins",
@@ -100,6 +105,7 @@
       "speaker-notes-preload.js",
       "index.html",
       "styles.css",
+      "bin/**/*",
       "css/**/*",
       "js/**/*",
       "ipc/**/*",
