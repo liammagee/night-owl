@@ -114,8 +114,9 @@ by blast radius, not by depth of code change.
   - Image pastes now flow through a single guarded document listener plus the keyboard shortcut path.
   - The duplicate Monaco/container/document listener fan-out is gone, which avoids double imports and redundant preview/file-tree refresh work.
 
-- [ ] **Stop Mermaid fullscreen listener leaks** - `orchestrator/renderer.js`
+- [x] **Stop Mermaid fullscreen listener leaks** - `orchestrator/renderer.js`
   - Repeated renders accumulate `wheel` and `keydown` listeners and retain dead fullscreen logic.
+  - **Status 2026-05-10:** Mermaid fullscreen now uses named wheel, Escape, and overlay-click handlers with explicit detach paths around each Panzoom reset, and the stale `.mermaid-expanded` Escape branch was removed.
 
 - [x] **Make lazy loading actually defer secondary work** - `index.html`
   - The readiness gate fires as soon as the editor container exists, so the “lazy” batch starts almost immediately.

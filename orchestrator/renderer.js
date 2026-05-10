@@ -533,152 +533,164 @@ async function renderMermaidDiagrams(container) {
                 // Initialize panzoom on the diagram
                 let panzoomInstance = null;
                 if (window.Panzoom && svgElement) {
-                    panzoomInstance = window.Panzoom(svgElement, {
+                    let mermaidWheelHandler = null;
+                    let overlayElement = null;
+                    let overlayEscapeHandler = null;
+                    let overlayClickHandler = null;
+                    let originalParent = null;
+                    let originalNextSibling = null;
+
+                    const createPanzoomInstance = () => window.Panzoom(svgElement, {
                         maxScale: 10,
                         minScale: 0.1,
                         step: 0.3,
                         cursor: 'move'
                     });
 
+                    const detachWheelZoom = () => {
+                        if (!mermaidWheelHandler) return;
+                        diagramDiv.removeEventListener('wheel', mermaidWheelHandler);
+                        mermaidWheelHandler = null;
+                    };
+
+                    const attachWheelZoom = () => {
+                        detachWheelZoom();
+                        mermaidWheelHandler = (event) => {
+                            if (!event.ctrlKey && !event.metaKey) {
+                                return;
+                            }
+                            if (panzoomInstance && typeof panzoomInstance.zoomWithWheel === 'function') {
+                                panzoomInstance.zoomWithWheel(event);
+                            }
+                        };
+                        diagramDiv.addEventListener('wheel', mermaidWheelHandler, { passive: false });
+                    };
+
+                    const destroyPanzoomInstance = () => {
+                        detachWheelZoom();
+                        if (panzoomInstance && typeof panzoomInstance.destroy === 'function') {
+                            panzoomInstance.destroy();
+                        }
+                        panzoomInstance = null;
+                    };
+
+                    const resetPanzoomInstance = () => {
+                        destroyPanzoomInstance();
+                        panzoomInstance = createPanzoomInstance();
+                        attachWheelZoom();
+                    };
+
+                    const removeFullscreenListeners = () => {
+                        if (overlayEscapeHandler) {
+                            document.removeEventListener('keydown', overlayEscapeHandler);
+                            overlayEscapeHandler = null;
+                        }
+                        if (overlayElement && overlayClickHandler) {
+                            overlayElement.removeEventListener('click', overlayClickHandler);
+                            overlayClickHandler = null;
+                        }
+                    };
+
+                    const restoreWrapperFromOverlay = () => {
+                        if (!originalParent) return;
+                        if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+                            originalParent.insertBefore(wrapper, originalNextSibling);
+                        } else {
+                            originalParent.appendChild(wrapper);
+                        }
+                    };
+
+                    const closeFullscreen = () => {
+                        if (!overlayElement) return;
+
+                        removeFullscreenListeners();
+                        restoreWrapperFromOverlay();
+
+                        if (overlayElement.parentNode) {
+                            overlayElement.parentNode.removeChild(overlayElement);
+                        }
+
+                        document.body.style.overflow = '';
+                        expandBtn.textContent = '⛶';
+                        expandBtn.title = 'Expand Diagram';
+
+                        wrapper.classList.remove('mermaid-in-fullscreen');
+                        diagramDiv.classList.remove('mermaid-in-fullscreen');
+                        svgElement.classList.remove('mermaid-in-fullscreen');
+
+                        overlayElement = null;
+                        originalParent = null;
+                        originalNextSibling = null;
+                        resetPanzoomInstance();
+                    };
+
+                    const openFullscreen = () => {
+                        if (overlayElement) return;
+
+                        destroyPanzoomInstance();
+
+                        originalParent = wrapper.parentNode;
+                        originalNextSibling = wrapper.nextSibling;
+                        overlayElement = document.createElement('div');
+                        overlayElement.className = 'mermaid-fullscreen-overlay';
+                        overlayElement.id = `overlay-${id}`;
+
+                        overlayElement.appendChild(wrapper);
+                        document.body.appendChild(overlayElement);
+                        document.body.style.overflow = 'hidden';
+
+                        wrapper.style.cssText = '';
+                        diagramDiv.style.cssText = '';
+                        svgElement.style.cssText = '';
+                        svgElement.removeAttribute('width');
+                        svgElement.removeAttribute('height');
+
+                        wrapper.classList.add('mermaid-in-fullscreen');
+                        diagramDiv.classList.add('mermaid-in-fullscreen');
+                        svgElement.classList.add('mermaid-in-fullscreen');
+
+                        resetPanzoomInstance();
+
+                        expandBtn.textContent = '✕';
+                        expandBtn.title = 'Close (Esc)';
+
+                        overlayEscapeHandler = (event) => {
+                            if (event.key === 'Escape') {
+                                closeFullscreen();
+                            }
+                        };
+                        overlayClickHandler = (event) => {
+                            if (event.target === overlayElement) {
+                                closeFullscreen();
+                            }
+                        };
+
+                        document.addEventListener('keydown', overlayEscapeHandler);
+                        overlayElement.addEventListener('click', overlayClickHandler);
+                    };
+
+                    resetPanzoomInstance();
+
                     // Attach control event listeners
                     controls.querySelector('[data-action="zoom-in"]').addEventListener('click', () => {
-                        panzoomInstance.zoomIn();
+                        if (panzoomInstance) panzoomInstance.zoomIn();
                     });
 
                     controls.querySelector('[data-action="zoom-out"]').addEventListener('click', () => {
-                        panzoomInstance.zoomOut();
+                        if (panzoomInstance) panzoomInstance.zoomOut();
                     });
 
                     controls.querySelector('[data-action="reset"]').addEventListener('click', () => {
-                        panzoomInstance.reset();
+                        if (panzoomInstance) panzoomInstance.reset();
                     });
 
                     // Add expand/collapse functionality
                     const expandBtn = controls.querySelector('[data-action="expand"]');
-                    let overlayElement = null;
-                    let originalParent = null;
-                    let originalNextSibling = null;
-
                     expandBtn.addEventListener('click', () => {
-                        // Check if we're currently in an overlay
                         if (overlayElement && document.body.contains(overlayElement)) {
-                            // Close overlay
-
-                            // Move wrapper back to original location
-                            if (originalNextSibling) {
-                                originalParent.insertBefore(wrapper, originalNextSibling);
-                            } else {
-                                originalParent.appendChild(wrapper);
-                            }
-
-                            // Remove overlay
-                            document.body.removeChild(overlayElement);
-                            document.body.style.overflow = '';
-                            expandBtn.textContent = '⛶';
-                            expandBtn.title = 'Expand Diagram';
-                            overlayElement = null;
-
-                            // Remove fullscreen classes
-                            wrapper.classList.remove('mermaid-in-fullscreen');
-                            diagramDiv.classList.remove('mermaid-in-fullscreen');
-                            svgElement.classList.remove('mermaid-in-fullscreen');
-
-                            // Destroy overlay panzoom before recreating
-                            if (panzoomInstance) {
-                                panzoomInstance.destroy();
-                                panzoomInstance = null;
-                            }
-
-                            // Recreate panzoom instance for normal view
-                            if (window.Panzoom) {
-                                panzoomInstance = window.Panzoom(svgElement, {
-                                    maxScale: 10,
-                                    minScale: 0.1,
-                                    step: 0.3,
-                                    cursor: 'move'
-                                });
-
-                                // Re-enable wheel zoom
-                                diagramDiv.addEventListener('wheel', (event) => {
-                                    if (!event.ctrlKey && !event.metaKey) {
-                                        return;
-                                    }
-                                    panzoomInstance.zoomWithWheel(event);
-                                });
-                            }
+                            closeFullscreen();
                         } else {
-                            // Open overlay
-
-                            // DESTROY panzoom before moving - this is the key!
-                            if (panzoomInstance) {
-                                panzoomInstance.destroy();
-                                panzoomInstance = null;
-                            }
-
-                            // Store the original parent so we can restore later
-                            originalParent = wrapper.parentNode;
-                            originalNextSibling = wrapper.nextSibling;
-
-                            // Create fullscreen overlay
-                            overlayElement = document.createElement('div');
-                            overlayElement.className = 'mermaid-fullscreen-overlay';
-                            overlayElement.id = `overlay-${id}`;
-
-                            // Move the wrapper into the overlay
-                            overlayElement.appendChild(wrapper);
-                            document.body.appendChild(overlayElement);
-                            document.body.style.overflow = 'hidden';
-
-                            // Clear any inline styles that panzoom may have set
-                            wrapper.style.cssText = '';
-                            diagramDiv.style.cssText = '';
-                            svgElement.style.cssText = '';
-                            svgElement.removeAttribute('width');
-                            svgElement.removeAttribute('height');
-
-                            // Add special class to force CSS overrides
-                            wrapper.classList.add('mermaid-in-fullscreen');
-                            diagramDiv.classList.add('mermaid-in-fullscreen');
-                            svgElement.classList.add('mermaid-in-fullscreen');
-
-                            // Recreate panzoom for the overlay
-                            if (window.Panzoom) {
-                                panzoomInstance = window.Panzoom(svgElement, {
-                                    maxScale: 10,
-                                    minScale: 0.1,
-                                    step: 0.3,
-                                    cursor: 'move'
-                                });
-
-                                // Re-enable wheel zoom
-                                diagramDiv.addEventListener('wheel', (event) => {
-                                    if (!event.ctrlKey && !event.metaKey) {
-                                        return;
-                                    }
-                                    panzoomInstance.zoomWithWheel(event);
-                                });
-                            }
-
-                            // Change expand button to close button
-                            expandBtn.textContent = '✕';
-                            expandBtn.title = 'Close (Esc)';
-
-                            // Escape key handler
-                            const overlayEscapeHandler = (event) => {
-                                if (event.key === 'Escape' && overlayElement) {
-                                    expandBtn.click(); // Reuse the button logic
-                                    document.removeEventListener('keydown', overlayEscapeHandler);
-                                }
-                            };
-                            document.addEventListener('keydown', overlayEscapeHandler);
-
-                            // Click outside to close
-                            overlayElement.addEventListener('click', (e) => {
-                                if (e.target === overlayElement) {
-                                    expandBtn.click(); // Reuse the button logic
-                                }
-                            });
-
+                            openFullscreen();
                         }
                     });
 
@@ -795,33 +807,6 @@ async function renderMermaidDiagrams(container) {
                             console.error('[Mermaid] Error copying diagram:', error);
                             alert('Failed to copy diagram: ' + error.message);
                         }
-                    });
-
-                    // Add Escape key handler for expanded diagrams
-                    const escapeHandler = (event) => {
-                        if (event.key === 'Escape' && wrapper.classList.contains('mermaid-expanded')) {
-                            wrapper.classList.remove('mermaid-expanded');
-                            expandBtn.textContent = '⛶';
-                            expandBtn.title = 'Expand Diagram';
-                            document.body.style.overflow = '';
-
-                            // Restore original styles
-                            diagramDiv.style.overflow = '';
-                            diagramDiv.style.width = '';
-                            diagramDiv.style.height = '';
-
-                            svgElement.style.width = '';
-                            svgElement.style.height = '';
-                        }
-                    };
-                    document.addEventListener('keydown', escapeHandler);
-
-                    // Enable mouse wheel zoom
-                    diagramDiv.addEventListener('wheel', (event) => {
-                        if (!event.ctrlKey && !event.metaKey) {
-                            return;
-                        }
-                        panzoomInstance.zoomWithWheel(event);
                     });
 
                 }

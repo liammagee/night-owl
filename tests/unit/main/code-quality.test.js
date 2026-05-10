@@ -285,6 +285,18 @@ describe('Code quality guardrails', () => {
     expect(rendererSource).not.toContain('if (_openingFilePath === filePath) return;');
   });
 
+  test('Mermaid fullscreen controls clean up transient listeners', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+
+    expect(rendererSource).toContain('let mermaidWheelHandler = null;');
+    expect(rendererSource).toContain('const detachWheelZoom = () =>');
+    expect(rendererSource).toContain("diagramDiv.removeEventListener('wheel', mermaidWheelHandler)");
+    expect(rendererSource).toContain('const removeFullscreenListeners = () =>');
+    expect(rendererSource).toContain("document.removeEventListener('keydown', overlayEscapeHandler)");
+    expect(rendererSource).toContain("overlayElement.removeEventListener('click', overlayClickHandler)");
+    expect(rendererSource).not.toContain("wrapper.classList.contains('mermaid-expanded')");
+  });
+
   test('file tree artifact decluttering is explicit and off by default', () => {
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const settingsSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/settings.js'), 'utf8');
