@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const { absolutizeCliPathArgs, parseNightOwlLaunchArgs } = require('../services/launchArgs');
 
 const appRoot = path.resolve(__dirname, '..');
@@ -43,6 +43,18 @@ const foreground = rawArgs.includes('--foreground');
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
+function isPackagedNightOwlRunning() {
+  if (process.platform !== 'darwin') return false;
+  try {
+    execFileSync('pgrep', ['-f', 'NightOwl\\.app/Contents/MacOS/NightOwl'], {
+      stdio: 'ignore'
+    });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function spawnAndExit(command, commandArgs, options = {}) {
   const child = spawn(command, commandArgs, {
     cwd: options.cwd || appRoot,
@@ -70,7 +82,14 @@ function spawnAndExit(command, commandArgs, options = {}) {
 const electronBin = process.platform === 'win32'
   ? path.join(appRoot, 'node_modules', '.bin', 'electron.cmd')
   : path.join(appRoot, 'node_modules', '.bin', 'electron');
-const preferLocal = process.env.NIGHTOWL_CLI_DEV === '1' || fs.existsSync(electronBin);
+const forceLocal = process.env.NIGHTOWL_CLI_DEV === '1';
+
+if (process.platform === 'darwin' && !forceLocal && !foreground && isPackagedNightOwlRunning()) {
+  spawnAndExit('open', ['-a', 'NightOwl', '--args', ...args], { cwd: process.cwd() });
+  return;
+}
+
+const preferLocal = forceLocal || fs.existsSync(electronBin);
 
 if (preferLocal && fs.existsSync(electronBin)) {
   spawnAndExit(electronBin, [appRoot, ...args]);

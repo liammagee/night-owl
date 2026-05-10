@@ -172,6 +172,7 @@ describe('Code quality guardrails', () => {
 
   test('NightOwl command-line installer is reachable from the app menu and packaged build', () => {
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const cliSource = fs.readFileSync(path.join(__dirname, '../../../bin/nightowl'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
 
     expect(mainSource).toContain('installNightOwlShellCommand');
@@ -180,6 +181,9 @@ describe('Code quality guardrails', () => {
     expect(packageJson.bin.nightowl).toBe('bin/nightowl');
     expect(packageJson.build.files).toContain('bin/**/*');
     expect(packageJson.build.files).toContain('services/**/*');
+    expect(cliSource).toContain('function isPackagedNightOwlRunning');
+    expect(cliSource).toContain("process.env.NIGHTOWL_CLI_DEV === '1'");
+    expect(cliSource).toContain("spawnAndExit('open', ['-a', 'NightOwl', '--args', ...args]");
   });
 
   test('direct write handlers resolve targets through workspace path guards', () => {
