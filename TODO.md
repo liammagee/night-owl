@@ -106,8 +106,9 @@ by blast radius, not by depth of code change.
 
 ### High-Priority Backlog
 
-- [ ] **Restrict the generic preload bridge and path-traversal write paths** - `preload.js`, `main.js`
+- [x] **Restrict the generic preload bridge and path-traversal write paths** - `preload.js`, `main.js`
   - The renderer can invoke arbitrary IPC channels, which weakens `contextIsolation`.
+  - **Status 2026-05-10:** `electronAPI.invoke`/`on`/`send` now pass through an explicit preload IPC allowlist, and direct write/move/delete IPC handlers resolve renderer-supplied paths through workspace root guards before touching disk.
 
 - [x] **Deduplicate image paste handling** - `orchestrator/renderer.js`, `orchestrator/modules/paste-guard.js`
   - Image pastes now flow through a single guarded document listener plus the keyboard shortcut path.

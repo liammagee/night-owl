@@ -131,6 +131,36 @@ describe('Code quality guardrails', () => {
     expect(techneRenderer).toContain('window.NightOwlPreviewMarkdown?.setSanitizedHTML');
   });
 
+  test('preload bridge only exposes allowlisted IPC channels', () => {
+    const rootPreload = fs.readFileSync(path.join(__dirname, '../../../preload.js'), 'utf8');
+    const orchestratorPreload = fs.readFileSync(path.join(__dirname, '../../../orchestrator/preload.js'), 'utf8');
+    const guardSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+
+    expect(rootPreload).toContain('createGuardedIpcBridge');
+    expect(orchestratorPreload).toContain('createGuardedIpcBridge');
+    expect(packageJson.build.files).toContain('preload-ipc-guard.js');
+    expect(guardSource).toContain('ALLOWED_INVOKE_CHANNELS');
+    expect(guardSource).toContain('assertAllowedChannel');
+    expect(rootPreload).not.toContain('invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)');
+    expect(orchestratorPreload).not.toContain('invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)');
+    expect(rootPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
+    expect(orchestratorPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
+  });
+
+  test('direct write handlers resolve targets through workspace path guards', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const fileHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/fileHandlers.js'), 'utf8');
+
+    expect(mainSource).toContain('resolveMainWorkspaceWritePath(filePath,');
+    expect(fileHandlersSource).toContain('function resolveWorkspaceWritePath');
+    expect(fileHandlersSource).toContain("resolveWorkspaceWritePath(payload.filePath, 'File path')");
+    expect(fileHandlersSource).toContain("resolveWorkspaceWritePath(filePath, 'Save path')");
+    expect(fileHandlersSource).toContain("validatePathSegment(fileName, 'File name')");
+    expect(fileHandlersSource).toContain("validatePathSegment(folderName, 'Folder name')");
+    expect(fileHandlersSource).toContain("resolveWorkspaceWritePath(destination, 'Destination path')");
+  });
+
   test('Monaco workers use the AMD worker bootstrap instead of direct language worker files', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');

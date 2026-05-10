@@ -96,6 +96,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "preload-ipc-guard.js",
       "speaker-notes-preload.js",
       "index.html",
       "styles.css",

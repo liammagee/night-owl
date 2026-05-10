@@ -26,6 +26,7 @@ const {
   normalizeWorkspacePath,
   sanitizeWorkspaceFolders
 } = require('./ipc/workspacePaths');
+const { resolvePathWithinRoots } = require('./ipc/pathGuards');
 const ipcHandlers = require('./ipc');
 
 // Initialize @electron/remote after checking if electron module loaded correctly
@@ -2334,6 +2335,25 @@ async function saveFile(filePath, content) {
     }
 }
 
+function getMainWorkspaceWriteRoots() {
+    const roots = [
+        currentWorkingDirectory,
+        appSettings.workingDirectory,
+        ...(Array.isArray(appSettings.workspaceFolders) ? appSettings.workspaceFolders : [])
+    ];
+
+    return roots
+        .map((rootPath) => normalizeWorkspacePath(rootPath) || rootPath)
+        .filter(Boolean);
+}
+
+function resolveMainWorkspaceWritePath(filePath, label = 'File path') {
+    return resolvePathWithinRoots(filePath, getMainWorkspaceWriteRoots(), {
+        label,
+        baseDirectory: currentWorkingDirectory || appSettings.workingDirectory || process.cwd()
+    });
+}
+
 // Add H1 heading with filename if needed
 function addH1HeadingIfNeeded(content, fileName) {
     console.log('[main.js] addH1HeadingIfNeeded called with:', { content: content.substring(0, 50), fileName });
@@ -3361,9 +3381,18 @@ app.whenReady().then(async () => {
   // Handle saving files
   ipcMain.handle('save-file', async (event, { filePath, content }) => {
     try {
-      const result = await saveFile(filePath, content);
+      const targetResult = resolveMainWorkspaceWritePath(filePath, 'File path');
+      if (!targetResult.success) {
+        return {
+          success: false,
+          error: targetResult.error,
+          filePath
+        };
+      }
+
+      const result = await saveFile(targetResult.path, content);
       return result.success
-        ? { success: true, path: filePath, filePath }
+        ? { success: true, path: targetResult.path, filePath: targetResult.path }
         : result;
     } catch (error) {
       console.error('Error saving file:', error);

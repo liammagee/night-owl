@@ -14,6 +14,10 @@ const {
 } = require('./workspacePaths');
 const { createRuntimeWorkspaceResolver } = require('./runtimeWorkspace');
 const { createDebugLogger } = require('./logging');
+const {
+  resolvePathWithinRoots,
+  validatePathSegment
+} = require('./pathGuards');
 
 const debug = createDebugLogger('FileHandlers');
 
@@ -339,6 +343,35 @@ function register(deps) {
     return roots;
   }
 
+  function getWorkspaceWriteRoots() {
+    return buildWorkspaceRoots().map((root) => root.path);
+  }
+
+  function resolveWorkspaceWritePath(filePath, label = 'Path', options = {}) {
+    return resolvePathWithinRoots(filePath, getWorkspaceWriteRoots(), {
+      label,
+      baseDirectory: options.baseDirectory || getWorkingDirectory()
+    });
+  }
+
+  function pathGuardFailure(result, extra = {}) {
+    return {
+      success: false,
+      error: result.error,
+      ...extra
+    };
+  }
+
+  function normalizeWriteFilePayload(filePathOrPayload, content) {
+    if (filePathOrPayload && typeof filePathOrPayload === 'object') {
+      return {
+        filePath: filePathOrPayload.filePath,
+        content: filePathOrPayload.content
+      };
+    }
+    return { filePath: filePathOrPayload, content };
+  }
+
   // Helper function to update internal links after a file rename
   async function updateInternalLinksAfterRename(oldPath, newPath) {
     const workingDir = getWorkingDirectory();
@@ -442,11 +475,13 @@ function register(deps) {
   ipcMain.handle('create-folder', async (event, folderName, parentPath = '') => {
     try {
       const workingDir = getWorkingDirectory();
-      // If parentPath is already absolute, use it directly; otherwise join with workingDir
-      const basePath = parentPath
-        ? (path.isAbsolute(parentPath) ? parentPath : path.join(workingDir, parentPath))
-        : workingDir;
-      const folderPath = path.join(basePath, folderName);
+      const nameResult = validatePathSegment(folderName, 'Folder name');
+      if (!nameResult.success) return pathGuardFailure(nameResult);
+
+      const baseResult = resolveWorkspaceWritePath(parentPath || workingDir, 'Parent folder');
+      if (!baseResult.success) return pathGuardFailure(baseResult);
+
+      const folderPath = path.join(baseResult.path, nameResult.value);
       
       debug(`[FileHandlers] Creating folder: ${folderPath}`);
       
@@ -483,11 +518,13 @@ function register(deps) {
   ipcMain.handle('create-file', async (event, fileName, parentPath = '', content = '') => {
     try {
       const workingDir = getWorkingDirectory();
-      // If parentPath is already absolute, use it directly; otherwise join with workingDir
-      const basePath = parentPath
-        ? (path.isAbsolute(parentPath) ? parentPath : path.join(workingDir, parentPath))
-        : workingDir;
-      const filePath = path.join(basePath, fileName);
+      const nameResult = validatePathSegment(fileName, 'File name');
+      if (!nameResult.success) return pathGuardFailure(nameResult);
+
+      const baseResult = resolveWorkspaceWritePath(parentPath || workingDir, 'Parent folder');
+      if (!baseResult.success) return pathGuardFailure(baseResult);
+
+      const filePath = path.join(baseResult.path, nameResult.value);
 
       debug(`[FileHandlers] Creating file: ${filePath}`);
 
@@ -904,6 +941,9 @@ function register(deps) {
       if (!path.isAbsolute(absoluteSource)) {
         absoluteSource = path.join(workingDir, sourcePath);
       }
+      const sourceResult = resolveWorkspaceWritePath(absoluteSource, 'Source path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult);
+      absoluteSource = sourceResult.path;
 
       const content = await fs.readFile(absoluteSource, 'utf8');
       const baseTarget = targetId.replace(/\.md$/i, '');
@@ -974,6 +1014,17 @@ function register(deps) {
   // File Writing Operations
   ipcMain.handle('write-file', async (event, filePath, content) => {
     try {
+      const payload = normalizeWriteFilePayload(filePath, content);
+      const targetResult = resolveWorkspaceWritePath(payload.filePath, 'File path');
+      if (!targetResult.success) {
+        return pathGuardFailure(targetResult, { filePath: payload.filePath });
+      }
+      filePath = targetResult.path;
+      content = payload.content;
+      if (typeof content !== 'string') {
+        content = content == null ? '' : String(content);
+      }
+
       debug(`[FileHandlers] Writing file: ${filePath} (${content.length} characters)`);
       
       // Ensure directory exists
@@ -1314,6 +1365,12 @@ function register(deps) {
 
   ipcMain.handle('perform-save-with-path', async (event, content, filePath, options = {}) => {
     try {
+      const targetResult = resolveWorkspaceWritePath(filePath, 'Save path');
+      if (!targetResult.success) {
+        return pathGuardFailure(targetResult, { filePath });
+      }
+      filePath = targetResult.path;
+
       debug(`[FileHandlers] Saving file with path: ${filePath} (${content.length} characters)`);
       
       // Ensure directory exists
@@ -1444,6 +1501,10 @@ function register(deps) {
   // File Deletion Operations
   ipcMain.handle('delete-file', async (event, filePath) => {
     try {
+      const targetResult = resolveWorkspaceWritePath(filePath, 'File path');
+      if (!targetResult.success) return pathGuardFailure(targetResult, { filePath });
+      filePath = targetResult.path;
+
       debug(`[FileHandlers] Deleting file: ${filePath}`);
       
       // Check if file exists
@@ -1471,6 +1532,10 @@ function register(deps) {
 
   ipcMain.handle('delete-item', async (event, { path: itemPath, type, name }) => {
     try {
+      const targetResult = resolveWorkspaceWritePath(itemPath, 'Item path');
+      if (!targetResult.success) return pathGuardFailure(targetResult, { path: itemPath, type });
+      itemPath = targetResult.path;
+
       debug(`[FileHandlers] Deleting ${type}: ${itemPath}`);
       
       if (type === 'file') {
@@ -1504,6 +1569,15 @@ function register(deps) {
   // File Move Operations
   ipcMain.handle('move-item', async (event, { sourcePath, targetPath, operation, type }) => {
     try {
+      const sourceResult = resolveWorkspaceWritePath(sourcePath, 'Source path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult, { sourcePath, targetPath });
+
+      const targetResult = resolveWorkspaceWritePath(targetPath, 'Target path');
+      if (!targetResult.success) return pathGuardFailure(targetResult, { sourcePath, targetPath });
+
+      sourcePath = sourceResult.path;
+      targetPath = targetResult.path;
+
       debug(`[FileHandlers] Moving ${type} from ${sourcePath} to ${targetPath} (${operation})`);
       
       // Handle case where target is a directory - construct the full target path
@@ -1513,6 +1587,9 @@ function register(deps) {
         if (targetStats.isDirectory()) {
           const sourceFilename = path.basename(sourcePath);
           finalTargetPath = path.join(targetPath, sourceFilename);
+          const finalTargetResult = resolveWorkspaceWritePath(finalTargetPath, 'Target path');
+          if (!finalTargetResult.success) return pathGuardFailure(finalTargetResult, { sourcePath, targetPath });
+          finalTargetPath = finalTargetResult.path;
           debug(`[FileHandlers] Target is directory, moving to: ${finalTargetPath}`);
         }
       } catch (error) {
@@ -1566,24 +1643,16 @@ function register(deps) {
         };
       }
       
-      // Validate new name (basic validation)
-      if (newName.includes('/') || newName.includes('\\')) {
-        return {
-          success: false,
-          error: 'File name cannot contain path separators'
-        };
-      }
-      
-      if (newName.trim() === '') {
-        return {
-          success: false,
-          error: 'File name cannot be empty'
-        };
-      }
+      const sourceResult = resolveWorkspaceWritePath(filePath, 'Item path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult, { filePath });
+      filePath = sourceResult.path;
+
+      const nameResult = validatePathSegment(newName, 'File name');
+      if (!nameResult.success) return pathGuardFailure(nameResult, { filePath });
       
       // Construct new path
       const directory = path.dirname(filePath);
-      const newPath = path.join(directory, newName);
+      const newPath = path.join(directory, nameResult.value);
       
       // Check if target already exists
       try {
@@ -2295,6 +2364,13 @@ function register(deps) {
   // Copy file handler for backups
   ipcMain.handle('copy-file', async (event, { source, destination }) => {
     try {
+      const sourceResult = resolveWorkspaceWritePath(source, 'Source path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult, { source, destination });
+      const destinationResult = resolveWorkspaceWritePath(destination, 'Destination path');
+      if (!destinationResult.success) return pathGuardFailure(destinationResult, { source, destination });
+      source = sourceResult.path;
+      destination = destinationResult.path;
+
       debug(`[FileHandlers] Copying file from ${source} to ${destination}`);
       await fs.copyFile(source, destination);
       clearFileScanCaches();
@@ -2308,6 +2384,13 @@ function register(deps) {
   // Move file to a new location
   ipcMain.handle('move-file', async (event, { source, destination }) => {
     try {
+      const sourceResult = resolveWorkspaceWritePath(source, 'Source path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult, { source, destination });
+      const destinationResult = resolveWorkspaceWritePath(destination, 'Destination path');
+      if (!destinationResult.success) return pathGuardFailure(destinationResult, { source, destination });
+      source = sourceResult.path;
+      destination = destinationResult.path;
+
       debug(`[FileHandlers] Moving file from ${source} to ${destination}`);
 
       // Check if source exists
@@ -2350,6 +2433,13 @@ function register(deps) {
   // Copy file to a new location (with new name support)
   ipcMain.handle('copy-file-to', async (event, { source, destination }) => {
     try {
+      const sourceResult = resolveWorkspaceWritePath(source, 'Source path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult, { source, destination });
+      const destinationResult = resolveWorkspaceWritePath(destination, 'Destination path');
+      if (!destinationResult.success) return pathGuardFailure(destinationResult, { source, destination });
+      source = sourceResult.path;
+      destination = destinationResult.path;
+
       debug(`[FileHandlers] Copying file from ${source} to ${destination}`);
 
       // Check if source exists
@@ -3019,6 +3109,8 @@ module.exports = {
     hasExternalModification,
     buildBackupFilePath,
     createFileBackup,
-    guardedWriteFile
+    guardedWriteFile,
+    resolvePathWithinRoots,
+    validatePathSegment
   }
 };

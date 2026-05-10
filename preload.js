@@ -1,26 +1,26 @@
 console.log('[preload.js] Script executing...');
 
 const { contextBridge, ipcRenderer } = require('electron');
+const {
+  createGuardedIpcBridge,
+  removeAllAllowedListeners
+} = require('./preload-ipc-guard');
 
 console.log('[preload.js] electronAPI exposed via contextBridge (attempted).');
+
+const guardedIpc = createGuardedIpcBridge(ipcRenderer);
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   // Two-way communication (Renderer -> Main -> Renderer)
-  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  invoke: guardedIpc.invoke,
   
   // One-way communication (Main -> Renderer)
-  on: (channel, listener) => {
-    const subscription = (event, ...args) => listener(...args);
-    ipcRenderer.on(channel, subscription);
-    return () => {
-        ipcRenderer.removeListener(channel, subscription);
-    };
-  },
+  on: guardedIpc.on,
   
   // Renderer -> Main (one-way)
-  send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+  send: guardedIpc.send,
 
   // Save image to current directory
   saveImageToCurrentDir: async (filename, base64data) => {
@@ -34,116 +34,116 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Presentation-specific file operations
   loadPresentationFile: (callback) => {
-    ipcRenderer.on('load-presentation-file', (_, content, filePath, error) => {
+    return guardedIpc.on('load-presentation-file', (content, filePath, error) => {
       callback(content, filePath, error);
     });
   },
 
   // Navigation controls from menu
   onNextSlide: (callback) => {
-    ipcRenderer.on('next-slide', callback);
+    return guardedIpc.on('next-slide', callback);
   },
 
   onPreviousSlide: (callback) => {
-    ipcRenderer.on('previous-slide', callback);
+    return guardedIpc.on('previous-slide', callback);
   },
 
   onFirstSlide: (callback) => {
-    ipcRenderer.on('first-slide', callback);
+    return guardedIpc.on('first-slide', callback);
   },
 
   // Presentation controls
   onStartPresentation: (callback) => {
-    ipcRenderer.on('start-presentation', callback);
+    return guardedIpc.on('start-presentation', callback);
   },
 
   onExitPresentation: (callback) => {
-    ipcRenderer.on('exit-presentation', callback);
+    return guardedIpc.on('exit-presentation', callback);
   },
 
   onTogglePresentationMode: (callback) => {
-    ipcRenderer.on('toggle-presentation-mode', callback);
+    return guardedIpc.on('toggle-presentation-mode', callback);
   },
 
   onShowPresentationStatistics: (callback) => {
-    ipcRenderer.on('show-presentation-statistics', callback);
+    return guardedIpc.on('show-presentation-statistics', callback);
   },
 
   onLoadPresentationContent: (callback) => {
-    ipcRenderer.on('load-presentation-content', (_, content) => {
+    return guardedIpc.on('load-presentation-content', (content) => {
       callback(content);
     });
   },
 
   onSwitchToPresentation: (callback) => {
-    ipcRenderer.on('switch-to-presentation', callback);
+    return guardedIpc.on('switch-to-presentation', callback);
   },
 
   onSwitchToEditor: (callback) => {
-    ipcRenderer.on('switch-to-editor', callback);
+    return guardedIpc.on('switch-to-editor', callback);
   },
 
   onSwitchToNetwork: (callback) => {
-    ipcRenderer.on('switch-to-network', callback);
+    return guardedIpc.on('switch-to-network', callback);
   },
 
   onFormatText: (callback) => {
-    ipcRenderer.on('format-text', (event, data) => {
+    return guardedIpc.on('format-text', (data) => {
       callback(data);
     });
   },
 
   // Zoom controls
   onZoomIn: (callback) => {
-    ipcRenderer.on('zoom-in', callback);
+    return guardedIpc.on('zoom-in', callback);
   },
 
   onZoomOut: (callback) => {
-    ipcRenderer.on('zoom-out', callback);
+    return guardedIpc.on('zoom-out', callback);
   },
 
   onResetZoom: (callback) => {
-    ipcRenderer.on('reset-zoom', callback);
+    return guardedIpc.on('reset-zoom', callback);
   },
 
   // Layout changes
   onChangeLayout: (callback) => {
-    ipcRenderer.on('change-layout', (_, layout) => {
+    return guardedIpc.on('change-layout', (layout) => {
       callback(layout);
     });
   },
   
   // Gamification panel toggle
   onToggleGamificationPanel: (callback) => {
-    ipcRenderer.on('toggle-gamification-panel', callback);
+    return guardedIpc.on('toggle-gamification-panel', callback);
   },
 
   // Visual Markdown toggle
   onToggleVisualMarkdown: (callback) => {
-    ipcRenderer.on('toggle-visual-markdown', (_, enabled) => {
+    return guardedIpc.on('toggle-visual-markdown', (enabled) => {
       callback(enabled);
     });
   },
 
   onTogglePreviewPane: (callback) => {
-    ipcRenderer.on('toggle-preview-pane', (_, visible) => {
+    return guardedIpc.on('toggle-preview-pane', (visible) => {
       callback(visible);
     });
   },
 
   // PDF Import trigger
   onTriggerImportPdf: (callback) => {
-    ipcRenderer.on('trigger-import-pdf', callback);
+    return guardedIpc.on('trigger-import-pdf', callback);
   },
 
   // Word Import trigger
   onTriggerImportWord: (callback) => {
-    ipcRenderer.on('trigger-import-word', callback);
+    return guardedIpc.on('trigger-import-word', callback);
   },
 
   // Thumbnail generation trigger
   onTriggerGenerateThumbnail: (callback) => {
-    ipcRenderer.on('trigger-generate-thumbnail', callback);
+    return guardedIpc.on('trigger-generate-thumbnail', callback);
   },
 
   // Utility functions
@@ -152,28 +152,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Remove all listeners (cleanup)
   removeAllListeners: () => {
-    ipcRenderer.removeAllListeners('load-presentation-file');
-    ipcRenderer.removeAllListeners('next-slide');
-    ipcRenderer.removeAllListeners('previous-slide');
-    ipcRenderer.removeAllListeners('first-slide');
-    ipcRenderer.removeAllListeners('start-presentation');
-    ipcRenderer.removeAllListeners('exit-presentation');
-    ipcRenderer.removeAllListeners('toggle-presentation-mode');
-    ipcRenderer.removeAllListeners('load-presentation-content');
-    ipcRenderer.removeAllListeners('switch-to-presentation');
-    ipcRenderer.removeAllListeners('switch-to-editor');
-    ipcRenderer.removeAllListeners('switch-to-network');
-    ipcRenderer.removeAllListeners('format-text');
-    ipcRenderer.removeAllListeners('zoom-in');
-    ipcRenderer.removeAllListeners('zoom-out');
-    ipcRenderer.removeAllListeners('reset-zoom');
-    ipcRenderer.removeAllListeners('change-layout');
-    ipcRenderer.removeAllListeners('toggle-gamification-panel');
-    ipcRenderer.removeAllListeners('toggle-visual-markdown');
-    ipcRenderer.removeAllListeners('toggle-preview-pane');
-    ipcRenderer.removeAllListeners('trigger-import-pdf');
-    ipcRenderer.removeAllListeners('trigger-import-word');
-    ipcRenderer.removeAllListeners('trigger-generate-thumbnail');
+    removeAllAllowedListeners(ipcRenderer);
   }
 });
 
