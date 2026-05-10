@@ -62,8 +62,12 @@ describe('techne-presentations plugin', () => {
   });
 
   test('includes presenter bundle when React globals exist', async () => {
-    window.React = {};
-    window.ReactDOM = {};
+    window.React = {
+      createElement: jest.fn()
+    };
+    window.ReactDOM = {
+      createRoot: jest.fn()
+    };
 
     require(pluginPath);
 
@@ -77,6 +81,75 @@ describe('techne-presentations plugin', () => {
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
     expect(scriptsArg.some(url => url.includes('MarkdownPreziApp.js'))).toBe(true);
+  });
+
+  test('mounts presentation mode with createRoot when available', async () => {
+    const render = jest.fn();
+    const unmount = jest.fn();
+    window.React = {
+      createElement: jest.fn((component, props) => ({ component, props }))
+    };
+    window.ReactDOM = {
+      createRoot: jest.fn(() => ({ render, unmount }))
+    };
+    window.MarkdownPreziApp = function MarkdownPreziApp() {};
+
+    require(pluginPath);
+
+    const host = {
+      loadCSS: jest.fn(async () => true),
+      loadScriptsSequential: jest.fn(async () => true),
+      emit: jest.fn()
+    };
+
+    await registered.init(host);
+
+    const modeEvent = host.emit.mock.calls.find(call => call[0] === 'mode:available');
+    expect(modeEvent).toBeTruthy();
+
+    const container = document.createElement('div');
+    const view = await modeEvent[1].mount(container, { content: '# Test' });
+    expect(window.ReactDOM.createRoot).toHaveBeenCalledWith(container);
+    expect(render).toHaveBeenCalledWith({
+      component: window.MarkdownPreziApp,
+      props: expect.objectContaining({ markdown: '# Test' })
+    });
+
+    modeEvent[1].unmount(view);
+    expect(unmount).toHaveBeenCalled();
+  });
+
+  test('mounts presentation mode with legacy ReactDOM.render fallback', async () => {
+    window.React = {
+      createElement: jest.fn((component, props) => ({ component, props }))
+    };
+    window.ReactDOM = {
+      render: jest.fn(),
+      unmountComponentAtNode: jest.fn()
+    };
+    window.MarkdownPreziApp = function MarkdownPreziApp() {};
+
+    require(pluginPath);
+
+    const host = {
+      loadCSS: jest.fn(async () => true),
+      loadScriptsSequential: jest.fn(async () => true),
+      emit: jest.fn()
+    };
+
+    await registered.init(host);
+
+    const modeEvent = host.emit.mock.calls.find(call => call[0] === 'mode:available');
+    const container = document.createElement('div');
+    const view = await modeEvent[1].mount(container, { content: '# Legacy' });
+
+    expect(window.ReactDOM.render).toHaveBeenCalledWith({
+      component: window.MarkdownPreziApp,
+      props: expect.objectContaining({ markdown: '# Legacy' })
+    }, container);
+
+    modeEvent[1].unmount(view);
+    expect(window.ReactDOM.unmountComponentAtNode).toHaveBeenCalledWith(container);
   });
 
   test('does not include presenter bundle when React globals are missing', async () => {
@@ -94,4 +167,3 @@ describe('techne-presentations plugin', () => {
     expect(scriptsArg.some(url => url.includes('MarkdownPreziApp.js'))).toBe(false);
   });
 });
-

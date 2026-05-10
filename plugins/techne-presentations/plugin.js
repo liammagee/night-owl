@@ -2,8 +2,53 @@
     const PLUGIN_ID = 'techne-presentations';
     const BASE = 'plugins/techne-presentations';
     const VERSION = '20251222g'; // Bump this to bust cache
+    const reactRoots = new WeakMap();
 
     const cacheBust = (url) => `${url}?v=${VERSION}`;
+
+    const getReactRuntime = () => {
+        const react = window.React;
+        const reactDOM = window.ReactDOM;
+        const canCreateElement = typeof react?.createElement === 'function';
+        const canCreateRoot = typeof reactDOM?.createRoot === 'function';
+        const canLegacyRender = typeof reactDOM?.render === 'function';
+
+        if (!canCreateElement || (!canCreateRoot && !canLegacyRender)) {
+            return null;
+        }
+
+        return { react, reactDOM, canCreateRoot, canLegacyRender };
+    };
+
+    const renderPresentation = (container, props = {}) => {
+        const runtime = getReactRuntime();
+        if (!runtime || !window.MarkdownPreziApp) {
+            throw new Error('Presentation runtime missing');
+        }
+
+        const element = runtime.react.createElement(window.MarkdownPreziApp, props);
+        if (runtime.canCreateRoot) {
+            let root = reactRoots.get(container);
+            if (!root) {
+                root = runtime.reactDOM.createRoot(container);
+                reactRoots.set(container, root);
+            }
+            root.render(element);
+            return {
+                unmount: () => {
+                    root.unmount();
+                    reactRoots.delete(container);
+                }
+            };
+        }
+
+        runtime.reactDOM.render(element, container);
+        return {
+            unmount: () => {
+                runtime.reactDOM.unmountComponentAtNode?.(container);
+            }
+        };
+    };
 
     const ensureSpeakerNotesPanel = () => {
         if (document.getElementById('speaker-notes-panel')) return;
@@ -43,7 +88,7 @@
                     cacheBust(`${BASE}/touch-gestures.js`)
                 ];
 
-                const hasGlobalReact = Boolean(window.React && window.ReactDOM);
+                const hasGlobalReact = Boolean(getReactRuntime());
                 if (hasGlobalReact && !window.MarkdownPreziApp) {
                     scripts.push(cacheBust(`${BASE}/MarkdownPreziApp.js`));
                 }
@@ -53,24 +98,23 @@
                     try {
                         window.setupSpeakerNotesResize();
                     } catch (error) {
-                        host.warn('setupSpeakerNotesResize failed:', error);
+                        host.warn?.('setupSpeakerNotesResize failed:', error);
                     }
                 }
 
                 // Emit mode:available if MarkdownPreziApp is loaded
                 if (window.MarkdownPreziApp) {
-                    host.log(`[${PLUGIN_ID}] MarkdownPreziApp loaded, registering mode`);
+                    host.log?.(`[${PLUGIN_ID}] MarkdownPreziApp loaded, registering mode`);
                     host.emit('mode:available', {
                         id: 'presentations',
                         title: 'Presentations',
                         icon: '🎭',
                         mount: async (container, options = {}) => {
-                            const root = window.ReactDOM.createRoot(container);
                             const content = options.content || '# Slide 1\n\nContent here\n\n---\n\n# Slide 2\n\nMore content';
-                            root.render(window.React.createElement(window.MarkdownPreziApp, {
+                            const root = renderPresentation(container, {
                                 markdown: content,
                                 onClose: options.onClose || (() => {})
-                            }));
+                            });
                             return { root, container };
                         },
                         unmount: (view) => {

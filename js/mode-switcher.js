@@ -5,6 +5,47 @@
 let currentMode = 'editor';
 let presentationEditorContent = '';
 let presentationLoadNonce = 0;
+const presentationReactRoots = new WeakMap();
+
+function getPresentationReactRuntime() {
+  const react = window.React;
+  const reactDOM = window.ReactDOM;
+  const canCreateElement = typeof react?.createElement === 'function';
+  const canCreateRoot = typeof reactDOM?.createRoot === 'function';
+  const canLegacyRender = typeof reactDOM?.render === 'function';
+
+  if (!canCreateElement || (!canCreateRoot && !canLegacyRender)) {
+    return null;
+  }
+
+  return {
+    react,
+    reactDOM,
+    canCreateRoot,
+    canLegacyRender
+  };
+}
+
+function renderPresentationComponent(container) {
+  const runtime = getPresentationReactRuntime();
+  if (!runtime || !window.MarkdownPreziApp) {
+    return false;
+  }
+
+  const element = runtime.react.createElement(window.MarkdownPreziApp);
+  if (runtime.canCreateRoot) {
+    let root = presentationReactRoots.get(container);
+    if (!root) {
+      root = runtime.reactDOM.createRoot(container);
+      presentationReactRoots.set(container, root);
+    }
+    root.render(element);
+    return true;
+  }
+
+  runtime.reactDOM.render(element, container);
+  return true;
+}
 
 function ensureTechnePresentationsReady(timeoutMs = 8000) {
   const isReady = () =>
@@ -292,7 +333,7 @@ function switchToMode(modeName) {
             return;
           }
 
-          if (!window.ReactDOM?.render || !window.React?.createElement || !window.MarkdownPreziApp) {
+          if (!getPresentationReactRuntime() || !window.MarkdownPreziApp) {
             presentationRoot.innerHTML =
               '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation runtime missing (React globals).</div>';
             return;
@@ -300,7 +341,7 @@ function switchToMode(modeName) {
 
           console.log('[Mode Switching] Rendering React presentation component for presentation mode');
           try {
-            window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), presentationRoot);
+            renderPresentationComponent(presentationRoot);
             console.log('[Mode Switching] React component rendered successfully');
           } catch (error) {
             console.error('[Mode Switching] Error rendering React component:', error);

@@ -35,14 +35,19 @@ class TTSService {
       this.initializeVoices();
     }
     
-    // Delay TTS settings loading to ensure handlers are ready
-    setTimeout(() => {
-      this.loadSettings();
-    }, 1000);
+    // Delay TTS settings loading to ensure Electron handlers are ready.
+    // CommonJS tests can require this module without a browser window.
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        this.loadSettings();
+      }, 1000);
+    } else {
+      this.setDefaults();
+    }
   }
 
   async loadSettings(retryCount = 0) {
-    if (window.electronAPI && window.electronAPI.invoke) {
+    if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.invoke) {
       try {
         // First check if the handler is available by testing a simple TTS handler
         await window.electronAPI.invoke('tts-test');

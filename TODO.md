@@ -198,11 +198,13 @@ by blast radius, not by depth of code change.
   - Current thresholds depend on `Date.now()`, fixed sleeps, and generic selectors rather than stable app instrumentation, which makes the suite noisy and hard to trust.
   - **Status 2026-05-10:** Performance E2E now waits on NightOwl-specific readiness, collects renderer navigation/paint diagnostics, and measures editor operations with in-page `performance.mark/measure` instead of Playwright-side `Date.now()` thresholds or fixed sleeps.
 
-- [ ] **Deduplicate presentation services** - `services/ttsService.js`, `plugins/techne-presentations/ttsService.js`, `services/videoRecordingService.js`, `plugins/techne-presentations/videoRecordingService.js`
+- [x] **Deduplicate presentation services** - `services/ttsService.js`, `plugins/techne-presentations/ttsService.js`, `services/videoRecordingService.js`, `plugins/techne-presentations/videoRecordingService.js`
   - The TTS implementation has already diverged between the app copy and the plugin copy, so bug fixes and provider behavior are no longer consistent.
+  - **Status 2026-05-10:** The app-level service files now delegate to the canonical `techne-presentations` plugin implementations instead of carrying second copies; code-quality coverage guards against reintroducing duplicate service classes.
 
-- [ ] **Normalize presentation runtime assumptions** - `js/mode-switcher.js`, `plugins/techne-presentations/plugin.js`, `plugins/techne-presentations/package.json`
+- [x] **Normalize presentation runtime assumptions** - `js/mode-switcher.js`, `plugins/techne-presentations/plugin.js`, `plugins/techne-presentations/package.json`
   - The app mixes `ReactDOM.render` and `createRoot`, and the plugin advertises React 18 while the main app depends on React 19.
+  - **Status 2026-05-10:** Presentation rendering now prefers `ReactDOM.createRoot` with a legacy `render` fallback, and the plugin peer range explicitly supports React/ReactDOM 18 and 19.
 
 ## High Priority
 

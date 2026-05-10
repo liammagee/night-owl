@@ -340,6 +340,36 @@ describe('Code quality guardrails', () => {
     expect(source).not.toMatch(/console\.log\s*\(/);
   });
 
+  test('presentation service implementations are not duplicated between app and plugin paths', () => {
+    const appTts = fs.readFileSync(path.join(__dirname, '../../../services/ttsService.js'), 'utf8');
+    const pluginTts = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/ttsService.js'), 'utf8');
+    const appVideo = fs.readFileSync(path.join(__dirname, '../../../services/videoRecordingService.js'), 'utf8');
+    const pluginVideo = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/videoRecordingService.js'), 'utf8');
+
+    expect(appTts).toContain("../plugins/techne-presentations/ttsService.js");
+    expect(appTts).not.toContain('class TTSService');
+    expect(pluginTts).toContain('class TTSService');
+    expect(appVideo).toContain("../plugins/techne-presentations/videoRecordingService.js");
+    expect(appVideo).not.toContain('class VideoRecordingService');
+    expect(pluginVideo).toContain('class VideoRecordingService');
+  });
+
+  test('presentation runtime handles React 18 and later root APIs consistently', () => {
+    const modeSwitcher = fs.readFileSync(path.join(__dirname, '../../../js/mode-switcher.js'), 'utf8');
+    const presentationPlugin = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/plugin.js'), 'utf8');
+    const presentationPackage = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/package.json'), 'utf8'));
+
+    expect(modeSwitcher).toContain('function getPresentationReactRuntime');
+    expect(modeSwitcher).toContain('function renderPresentationComponent');
+    expect(modeSwitcher).toContain('runtime.reactDOM.createRoot(container)');
+    expect(modeSwitcher).not.toContain('window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), presentationRoot)');
+    expect(presentationPlugin).toContain('const getReactRuntime = () =>');
+    expect(presentationPlugin).toContain('runtime.reactDOM.createRoot(container)');
+    expect(presentationPlugin).toContain('runtime.reactDOM.render(element, container)');
+    expect(presentationPackage.peerDependencies.react).toBe('>=18 <20');
+    expect(presentationPackage.peerDependencies['react-dom']).toBe('>=18 <20');
+  });
+
   test('file pane toolbar remains compact inside the activity sidebar', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
 
