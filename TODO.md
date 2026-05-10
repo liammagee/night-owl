@@ -83,7 +83,7 @@ by blast radius, not by depth of code change.
 
 - [ ] **Re-measure `lecture-7.md` initial load** post-presentation-debounce fix in `js/mode-switcher.js`. Pre-fix: 41ms parse + 342ms idle work. Expected: ~300ms reduction in editor mode now that the React presentation broadcaster only dispatches when presentation is actually visible. Use computer-use to load the file and read the perf overlay; record numbers in this TODO.
 
-- [ ] **Verify the Monaco `Cancelled` error guard is installed.** Reload the app, open and close a few files quickly to provoke the cancellation path, and confirm no `Error: Canceled` from `restoreViewState` appears in DevTools. If not silenced, the previous `window.unhandledrejection` listener may not be reaching the right reject path.
+- [x] **Verify the Monaco `Cancelled` error guard is installed.** Reload the app, open and close a few files quickly to provoke the cancellation path, and confirm no `Error: Canceled` from `restoreViewState` appears in DevTools. **Status 2026-05-10:** Electron smoke confirmed `window._monacoCancelGuardInstalled === true` after rapid tab activation/close cycles and observed no console/page errors matching `Canceled`, `Cancelled`, or `restoreViewState`.
 
 - [x] **Autosave is silent when it skips a save.** `performAutoSave` now emits a structured `[performAutoSave] Save attempt` log for saved, skipped, aborted, failed, and error paths with `{ path, byteLength, ms, modelMatchedPath, status }`. Regression coverage lives in `tests/unit/renderer/autosave.test.js`.
 
