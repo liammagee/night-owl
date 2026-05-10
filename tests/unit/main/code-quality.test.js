@@ -117,6 +117,20 @@ describe('Code quality guardrails', () => {
     expect(previewModule).toContain('function processMarkdownContent');
   });
 
+  test('markdown preview writes pass through the sanitizer boundary', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const previewModule = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/preview-markdown.js'), 'utf8');
+    const techneRenderer = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-markdown-renderer/techne-markdown-renderer.js'), 'utf8');
+
+    expect(previewModule).toContain('function sanitizePreviewHTML');
+    expect(previewModule).toContain('function setSanitizedHTML');
+    expect(rendererSource).toContain('previewMarkdown.setSanitizedHTML(previewContent, headerHtml + htmlContent)');
+    expect(rendererSource).toContain('pre.textContent = markdownContent');
+    expect(rendererSource).not.toContain("previewContent.innerHTML = '<pre>' + markdownContent + '</pre>'");
+    expect(rendererSource).not.toContain('previewContent.innerHTML = headerHtml + htmlContent');
+    expect(techneRenderer).toContain('window.NightOwlPreviewMarkdown?.setSanitizedHTML');
+  });
+
   test('Monaco workers use the AMD worker bootstrap instead of direct language worker files', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');

@@ -39,6 +39,40 @@ describe('preview markdown helpers', () => {
     expect(processed).toContain('notes');
   });
 
+  test('sanitizePreviewHTML removes dangerous preview markup', () => {
+    const html = helpers.sanitizePreviewHTML(`
+      <h1 onclick="alert(1)">Title</h1>
+      <script>alert(1)</script>
+      <a href="javascript:alert(1)" target="_blank">bad</a>
+      <img src="data:text/html;base64,PHNjcmlwdD4=" onerror="alert(1)">
+      <iframe srcdoc="<script>alert(1)</script>"></iframe>
+      <iframe src="https://www.youtube.com/embed/abc123"></iframe>
+    `);
+
+    expect(html).toContain('<h1>Title</h1>');
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('onclick');
+    expect(html).not.toContain('javascript:');
+    expect(html).not.toContain('onerror');
+    expect(html).not.toContain('data:text/html');
+    expect(html).not.toContain('srcdoc');
+    expect(html).not.toContain('<iframe></iframe>');
+    expect(html).toContain('https://www.youtube.com/embed/abc123');
+    expect(html).toContain('sandbox=');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+
+  test('setSanitizedHTML replaces children with sanitized nodes', () => {
+    const container = document.createElement('div');
+
+    const sanitized = helpers.setSanitizedHTML(container, '<p>ok</p><script>bad()</script>');
+
+    expect(sanitized).toContain('<p>ok</p>');
+    expect(sanitized).not.toContain('<script');
+    expect(container.querySelector('p').textContent).toBe('ok');
+    expect(container.querySelector('script')).toBeNull();
+  });
+
   test('setupFallbackMarkdownRenderer configures marked heading and relative image rendering', () => {
     const renderer = {};
     window.currentFileDirectory = '/workspace/articles';

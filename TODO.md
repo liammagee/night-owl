@@ -99,9 +99,10 @@ by blast radius, not by depth of code change.
 
 ### Critical Backlog
 
-- [ ] **Sanitize preview HTML paths in the renderer** - `orchestrator/renderer.js`
+- [x] **Sanitize preview HTML paths in the renderer** - `orchestrator/renderer.js`, `orchestrator/modules/preview-markdown.js`, `plugins/techne-markdown-renderer/techne-markdown-renderer.js`
   - Markdown preview and fallback rendering still inject untrusted content into `innerHTML`.
   - The internal-link preview module is being tightened in this pass, but the main preview surface still needs a safe rendering boundary.
+  - **Status 2026-05-10:** Markdown preview HTML now passes through `NightOwlPreviewMarkdown.setSanitizedHTML()`, which strips blocked tags, inline event handlers, `srcdoc`, dangerous protocols, and unsafe data URLs before replacing preview children. The raw fallback path now writes markdown to `textContent`, and the Techne Markdown plugin uses the same sanitizer boundary.
 
 ### High-Priority Backlog
 

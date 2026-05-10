@@ -144,11 +144,159 @@
         return fixHeaderlessTables(processedContent);
     }
 
+    const BLOCKED_PREVIEW_TAGS = new Set([
+        'script',
+        'style',
+        'object',
+        'embed',
+        'link',
+        'meta',
+        'base',
+        'form',
+        'input',
+        'button',
+        'textarea',
+        'select',
+        'option'
+    ]);
+    const URI_ATTRIBUTES = new Set([
+        'href',
+        'src',
+        'xlink:href',
+        'poster',
+        'action',
+        'formaction'
+    ]);
+    const ALLOWED_IFRAME_HOSTS = new Set([
+        'www.youtube.com',
+        'youtube.com',
+        'www.youtube-nocookie.com',
+        'player.vimeo.com'
+    ]);
+
+    function isAllowedDataImage(value) {
+        return /^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(String(value || '').trim());
+    }
+
+    function isAllowedPreviewUrl(value, tagName, attrName) {
+        const raw = String(value || '').trim();
+        if (!raw) return true;
+        if (raw.startsWith('#') || raw.startsWith('/') || raw.startsWith('./') || raw.startsWith('../')) {
+            return true;
+        }
+
+        let parsed;
+        try {
+            parsed = new URL(raw, 'file:///');
+        } catch {
+            return false;
+        }
+
+        const protocol = parsed.protocol.toLowerCase();
+        if (attrName === 'href' && (protocol === 'http:' || protocol === 'https:' || protocol === 'file:' || protocol === 'mailto:')) {
+            return true;
+        }
+        if (tagName === 'img' && attrName === 'src') {
+            return protocol === 'http:' || protocol === 'https:' || protocol === 'file:' || isAllowedDataImage(raw);
+        }
+        if (tagName === 'iframe' && attrName === 'src') {
+            return protocol === 'https:' && (
+                ALLOWED_IFRAME_HOSTS.has(parsed.hostname) ||
+                parsed.hostname.endsWith('.zoom.us')
+            );
+        }
+
+        return protocol === 'http:' || protocol === 'https:' || protocol === 'file:';
+    }
+
+    function sanitizeStyleAttribute(element) {
+        const style = element.getAttribute('style');
+        if (!style) return;
+        if (/(?:url\s*\(|expression\s*\(|javascript:|vbscript:)/i.test(style)) {
+            element.removeAttribute('style');
+        }
+    }
+
+    function sanitizePreviewHTML(html) {
+        if (typeof document === 'undefined') {
+            return String(html || '');
+        }
+
+        const template = document.createElement('template');
+        template.innerHTML = String(html || '');
+
+        const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT);
+        const blocked = [];
+
+        while (walker.nextNode()) {
+            const element = walker.currentNode;
+            const tagName = element.tagName.toLowerCase();
+
+            if (BLOCKED_PREVIEW_TAGS.has(tagName)) {
+                blocked.push(element);
+                continue;
+            }
+
+            if (tagName === 'iframe') {
+                const src = element.getAttribute('src') || '';
+                if (!src || !isAllowedPreviewUrl(src, tagName, 'src')) {
+                    blocked.push(element);
+                    continue;
+                }
+                element.removeAttribute('srcdoc');
+                element.setAttribute('sandbox', element.getAttribute('sandbox') || 'allow-same-origin allow-scripts allow-popups');
+                element.setAttribute('referrerpolicy', element.getAttribute('referrerpolicy') || 'no-referrer');
+            }
+
+            for (const attr of Array.from(element.attributes)) {
+                const attrName = attr.name.toLowerCase();
+                if (attrName.startsWith('on') || attrName === 'srcdoc') {
+                    element.removeAttribute(attr.name);
+                    continue;
+                }
+
+                if (URI_ATTRIBUTES.has(attrName) && !isAllowedPreviewUrl(attr.value, tagName, attrName)) {
+                    element.removeAttribute(attr.name);
+                    continue;
+                }
+
+                if (attrName === 'style') {
+                    sanitizeStyleAttribute(element);
+                }
+            }
+
+            if (tagName === 'a' && element.getAttribute('target') === '_blank') {
+                element.setAttribute('rel', 'noopener noreferrer');
+            }
+        }
+
+        blocked.forEach((element) => element.remove());
+        return template.innerHTML;
+    }
+
+    function setSanitizedHTML(element, html) {
+        if (!element) return '';
+        const sanitized = sanitizePreviewHTML(html);
+        const template = document.createElement('template');
+        template.innerHTML = sanitized;
+        if (typeof element.replaceChildren === 'function') {
+            element.replaceChildren(template.content.cloneNode(true));
+        } else {
+            while (element.firstChild) {
+                element.removeChild(element.firstChild);
+            }
+            element.appendChild(template.content.cloneNode(true));
+        }
+        return sanitized;
+    }
+
     const api = {
         setupFallbackMarkdownRenderer,
         renderFrontmatterHeaderFallback,
         fixHeaderlessTables,
-        processMarkdownContent
+        processMarkdownContent,
+        sanitizePreviewHTML,
+        setSanitizedHTML
     };
 
     if (typeof window !== 'undefined') {

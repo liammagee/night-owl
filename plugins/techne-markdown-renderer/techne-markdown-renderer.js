@@ -716,7 +716,11 @@ body.dark-mode .frontmatter-separator {
             }
         }
 
-        previewElement.innerHTML = html;
+        if (window.NightOwlPreviewMarkdown?.setSanitizedHTML) {
+            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html);
+        } else {
+            previewElement.innerHTML = html;
+        }
 
         if (typeof renderMathInContent === 'function') {
             await renderMathInContent(previewElement);
@@ -744,4 +748,3 @@ body.dark-mode .frontmatter-separator {
         _processImageAttributes: processImageAttributes
     };
 })();
-

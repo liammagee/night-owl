@@ -1113,12 +1113,16 @@ async function renderMarkdownContent(markdownContent) {
     // Check if marked is available
     if (typeof marked === 'undefined') {
         console.error('[renderer.js] Marked library not loaded, using fallback');
-        previewContent.innerHTML = '<pre>' + markdownContent + '</pre>';
+        const pre = document.createElement('pre');
+        pre.textContent = markdownContent;
+        previewContent.replaceChildren(pre);
         return;
     }
 
     if (!window.marked) {
-        previewContent.innerHTML = '<p>Markdown preview loading...</p>';
+        const loading = document.createElement('p');
+        loading.textContent = 'Markdown preview loading...';
+        previewContent.replaceChildren(loading);
         return;
     }
 
@@ -1171,7 +1175,7 @@ async function renderMarkdownContent(markdownContent) {
         htmlContent = await window.previewZoom.onPreviewUpdate(window.currentFilePath, htmlContent);
     }
 
-    previewContent.innerHTML = headerHtml + htmlContent;
+    previewMarkdown.setSanitizedHTML(previewContent, headerHtml + htmlContent);
 
     // Render math equations with MathJax
     await renderMathInContent(previewContent);

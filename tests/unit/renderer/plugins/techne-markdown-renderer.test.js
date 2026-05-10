@@ -6,17 +6,21 @@ const pluginCorePath = path.resolve(
   __dirname,
   '../../../../plugins/techne-markdown-renderer/techne-markdown-renderer.js'
 );
+const previewMarkdownPath = path.resolve(__dirname, '../../../../orchestrator/modules/preview-markdown.js');
+const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind(document);
 
 describe('techne-markdown-renderer plugin', () => {
   let registered = null;
 
   beforeEach(() => {
     jest.resetModules();
+    document.getElementById = nativeGetElementById;
 
     registered = null;
     delete window.TechneMarkdownRenderer;
     delete window.TechneBibtexParser;
     delete window.TechneCitationRenderer;
+    delete window.NightOwlPreviewMarkdown;
     delete window.previewZoom;
     delete window.currentSpeakerNotes;
     delete window.bibEntries;
@@ -117,6 +121,7 @@ describe('techne-markdown-renderer plugin', () => {
   });
 
   test('renderPreview writes to the preview element', async () => {
+    require(previewMarkdownPath);
     require(pluginCorePath);
 
     const previewElement = document.getElementById('preview-content');
@@ -139,6 +144,25 @@ describe('techne-markdown-renderer plugin', () => {
     expect(renderMathInContent).toHaveBeenCalledTimes(1);
     expect(renderMermaidDiagrams).toHaveBeenCalledTimes(1);
     expect(updateSpeakerNotesDisplay).toHaveBeenCalledTimes(1);
+  });
+
+  test('renderPreview sanitizes dangerous raw HTML before writing preview', async () => {
+    require(previewMarkdownPath);
+    require(pluginCorePath);
+
+    const previewElement = document.getElementById('preview-content');
+    await window.TechneMarkdownRenderer.renderPreview({
+      markdownContent: '<script>alert(1)</script>\n<a href="javascript:alert(1)" onclick="alert(1)">bad</a>',
+      previewElement,
+      filePath: 'test.md',
+      baseDir: '/tmp',
+      previewZoom: null
+    });
+
+    expect(previewElement.querySelector('script')).toBeNull();
+    expect(previewElement.innerHTML).not.toContain('javascript:');
+    expect(previewElement.innerHTML).not.toContain('onclick');
+    expect(previewElement.textContent).toContain('bad');
   });
 
   test('BibTeX parser reads local files through Electron IPC instead of fetch', async () => {
