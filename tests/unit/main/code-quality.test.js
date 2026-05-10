@@ -117,6 +117,24 @@ describe('Code quality guardrails', () => {
     expect(previewModule).toContain('function processMarkdownContent');
   });
 
+  test('Monaco workers use the AMD worker bootstrap instead of direct language worker files', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const monacoEnvironmentSource = fs.readFileSync(
+      path.join(__dirname, '../../../orchestrator/modules/monaco-environment.js'),
+      'utf8'
+    );
+
+    expect(indexSource).toContain('orchestrator/modules/monaco-environment.js');
+    expect(indexSource).toContain('./vs/loader.js');
+    expect(monacoEnvironmentSource).toContain('base/worker/workerMain.js');
+    expect(monacoEnvironmentSource).toContain('URL.createObjectURL');
+    expect(monacoEnvironmentSource).toContain('importScripts');
+    expect(rendererSource).not.toMatch(/language\/(?:json|css|html|typescript)\/(?:json|css|html|ts)Worker\.js/);
+    expect(indexSource).not.toContain('getWorker: function');
+    expect(indexSource).not.toContain('return undefined; // Disable web workers');
+  });
+
   test('HTML preview iframe is script-disabled and assigned through srcdoc property', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
@@ -165,10 +183,37 @@ describe('Code quality guardrails', () => {
     expect(searchSource).not.toContain('console.log(`[SearchHandlers] Global search');
   });
 
+  test('internal link click handling has no always-on inline debug script', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const internalLinksSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/internalLinks.js'), 'utf8');
+
+    expect(indexSource).not.toContain('[Internal Link] *** GLOBAL SCRIPT LOADED ***');
+    expect(indexSource).not.toContain('*** CLICK DETECTED ***');
+    expect(internalLinksSource).toContain('window.handleInternalLinkClick = handleInternalLinkClick');
+  });
+
+  test('secondary module lazy loading waits for the editor or fallback timeout', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+
+    expect(indexSource).toContain('var editorReady = !!(window.editor');
+    expect(indexSource).toContain('var fallbackReady = Date.now() - lazyLoadStartedAt > 5000');
+    expect(indexSource).not.toContain("window.editor || document.getElementById('editor-container')");
+  });
+
+  test('TODO gamification routine logs are debug-gated', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/todo-gamification.js'), 'utf8');
+
+    expect(source).toContain('function logTodoGamification');
+    expect(source).toContain("nightowl.debugTodoGamification");
+    expect(source).not.toMatch(/console\.log\s*\(/);
+  });
+
   test('file pane toolbar remains compact inside the activity sidebar', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
 
     expect(indexSource).toContain('#left-sidebar-workspace');
+    expect(indexSource).toContain('<div id="left-sidebar-activity" aria-label="Navigation views">');
+    expect(indexSource).not.toContain('<aside id="left-sidebar-activity"');
     expect(indexSource).toContain('width: 312px;');
     expect(indexSource).toContain('flex: 0 0 312px;');
     expect(indexSource).toContain('flex: 0 0 48px;');
@@ -184,5 +229,16 @@ describe('Code quality guardrails', () => {
     expect(indexSource).not.toContain('>Add Root</button>');
     expect(indexSource).not.toContain('>Primary</button>');
     expect(indexSource).not.toContain('>New Folder</button>');
+  });
+
+  test('startup chrome keeps basic accessibility affordances', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+
+    expect(indexSource).toContain('id="format-inline-math-btn"');
+    expect(indexSource).toContain('aria-label="Inline Math"');
+    expect(indexSource).toContain('id="format-display-math-btn"');
+    expect(indexSource).toContain('aria-label="Display Math"');
+    expect(indexSource).toContain('id="current-file-name"');
+    expect(indexSource).not.toContain('id="current-file-name" class="breadcrumb-segment" style="color: var(--text-muted, #999);"');
   });
 });

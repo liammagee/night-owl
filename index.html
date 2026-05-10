@@ -4190,7 +4190,7 @@
     <div id="app-container">
         <!-- Left Sidebar (Always visible) -->
         <nav id="left-sidebar" aria-label="File navigation and tools">
-            <aside id="left-sidebar-activity" aria-label="Navigation views">
+            <div id="left-sidebar-activity" aria-label="Navigation views">
                 <div class="toggle-buttons structure-toggle-buttons activity-toggle-buttons">
                     <button id="show-files-btn" class="btn pane-toggle-button" title="Files" aria-label="Files">📁</button>
                     <button id="show-structure-btn" class="btn pane-toggle-button active" title="Structure" aria-label="Structure">🏗️</button>
@@ -4201,7 +4201,7 @@
                     <button id="show-git-btn" class="btn pane-toggle-button" title="Git" aria-label="Git">🔀</button>
                     <button id="show-slides-btn" class="btn pane-toggle-button" title="Slides" aria-label="Slides" style="display:none;">🎞️</button>
                 </div>
-            </aside>
+            </div>
             <div id="left-sidebar-workspace">
             <div id="structure-pane-header">
                 <!-- Tag search interface (only visible in Files view) -->
@@ -4570,7 +4570,7 @@
                     </button>
                     <div style="width: 1px; height: 20px; background: var(--border-color, #ccc); margin: 0 8px;"></div>
                     <nav id="breadcrumb-nav" style="font-size: 11px; color: var(--text-muted, #666); display: flex; align-items: center; gap: 2px; overflow: hidden; max-width: 400px;">
-                        <span id="current-file-name" class="breadcrumb-segment" style="color: var(--text-muted, #999);">No file selected</span>
+                        <span id="current-file-name" class="breadcrumb-segment" style="color: var(--text-secondary, #555);">No file selected</span>
                     </nav>
                 </div>
                 
@@ -4637,10 +4637,10 @@
                             &gt;
                         </button>
                         <div class="toolbar-separator"></div>
-                        <button id="format-inline-math-btn" class="toolbar-btn toolbar-btn-code" title="Inline Math ($...$)">
+                        <button id="format-inline-math-btn" class="toolbar-btn toolbar-btn-code" title="Inline Math ($...$)" aria-label="Inline Math">
                             $x$
                         </button>
-                        <button id="format-display-math-btn" class="toolbar-btn toolbar-btn-code" title="Display Math ($$...$$)">
+                        <button id="format-display-math-btn" class="toolbar-btn toolbar-btn-code" title="Display Math ($$...$$)" aria-label="Display Math">
                             $$
                         </button>
                         <div class="toolbar-separator"></div>
@@ -5032,24 +5032,8 @@
     </div>
 
     <!-- Scripts -->
-    <script>
-    // Monaco editor configuration for Electron - disable web workers to avoid file:// issues
-    window.MonacoEnvironment = {
-        getWorker: function (workerId, label) {
-            return undefined; // Disable web workers, use main thread
-        }
-    };
-    
-    // Check if Monaco editor resources are available before loading renderer
-    if (typeof require !== 'undefined') {
-        // Load Monaco editor configuration
-        require.config({ 
-            paths: { 'vs': './node_modules/monaco-editor/min/vs' },
-            'vs/nls': { availableLanguages: { '*': 'en' } }
-        });
-    }
-	    </script>
-	    <script src="./node_modules/monaco-editor/min/vs/loader.js" defer></script>
+    <script src="orchestrator/modules/monaco-environment.js"></script>
+    <script src="./vs/loader.js" defer></script>
 
 	    <!-- Debug logger (load first) - set window.DEBUG_LEVEL before this to control verbosity -->
 	    <script src="js/debug-logger.js"></script>
@@ -5072,6 +5056,7 @@
     <script src="orchestrator/modules/app-confirm.js" defer></script>
     <script src="orchestrator/modules/editor-tabs.js" defer></script>
     <script src="orchestrator/modules/preview-markdown.js" defer></script>
+    <script src="orchestrator/modules/published-url.js" defer></script>
     <script src="orchestrator/modules/settings.js" defer></script>
     <script src="orchestrator/modules/visualMarkdown.js" defer></script>
     <script src="orchestrator/modules/search.js" defer></script>
@@ -5087,8 +5072,11 @@
     <script>
     document.addEventListener('DOMContentLoaded', function() {
       // Wait for editor to be ready before loading secondary modules
+      var lazyLoadStartedAt = Date.now();
       var checkEditor = setInterval(function() {
-        if (window.editor || document.getElementById('editor-container')) {
+        var editorReady = !!(window.editor && (!window.editor.getModel || window.editor.getModel()));
+        var fallbackReady = Date.now() - lazyLoadStartedAt > 5000;
+        if (editorReady || fallbackReady) {
           clearInterval(checkEditor);
           if (window.lazyLoader) {
             window.lazyLoader.loadInBatches([
@@ -5156,73 +5144,6 @@
     <script src="orchestrator/modules/file-tree-nav.js" defer></script>
 
     <!-- Presentation UI is provided by the Techne presentations plugin -->
-
-    <!-- Internal link Cmd/Ctrl+click handler -->
-    <script>
-        console.log('[Internal Link] *** GLOBAL SCRIPT LOADED ***');
-
-        // Set up global click handler for internal links
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('[Internal Link] *** DOM READY - Setting up click handler ***');
-
-            document.addEventListener('click', function(event) {
-                console.log('[Internal Link] *** CLICK DETECTED ***', {
-                    target: event.target,
-                    tagName: event.target.tagName,
-                    className: event.target.className,
-                    metaKey: event.metaKey,
-                    ctrlKey: event.ctrlKey,
-                    hasInternalLinkClass: event.target.classList?.contains('internal-link')
-                });
-
-                // Check if this is a click on an internal link (but not in preview pane which has its own handler)
-                if (event.target.classList?.contains('internal-link') && !event.target.closest('#preview-content')) {
-                    // Check for Cmd/Ctrl modifier
-                    if (event.metaKey || event.ctrlKey) {
-                        console.log('[Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
-                        event.preventDefault();
-                        event.stopPropagation();
-
-                        const linkPath = event.target.getAttribute('data-link');
-                        if (linkPath) {
-                            let decodedPath = decodeURIComponent(linkPath);
-                            console.log('[Internal Link] Raw linkPath:', linkPath);
-                            console.log('[Internal Link] Decoded path:', decodedPath);
-
-                            // If the path doesn't start with /, add the working directory path
-                            if (!decodedPath.startsWith('/') && !decodedPath.startsWith('http')) {
-                                const workingDir = window.appSettings?.workingDirectory;
-                                if (workingDir) {
-                                    const fullPath = workingDir + '/' + decodedPath;
-                                    console.log('[Internal Link] Converting relative to full path:', fullPath);
-                                    decodedPath = fullPath;
-                                }
-                            }
-
-                            console.log('[Internal Link] Final path to open:', decodedPath);
-
-                            // Use the existing window API to open the file
-                            if (window.openFile) {
-                                console.log('[Internal Link] Using window.openFile');
-                                window.openFile(decodedPath);
-                            } else if (window.electronAPI && window.electronAPI.invoke) {
-                                console.log('[Internal Link] Using electronAPI');
-                                window.electronAPI.invoke('open-file', decodedPath);
-                            } else {
-                                console.warn('[Internal Link] No file opening API available');
-                            }
-                        } else {
-                            console.warn('[Internal Link] No data-link attribute found');
-                        }
-                    } else {
-                        // Regular click on internal link - prevent default
-                        console.log('[Internal Link] Regular click on internal link - preventing default');
-                        event.preventDefault();
-                    }
-                }
-            }, true); // Use capture phase
-        });
-    </script>
 
     <!-- Load JavaScript modules -->
     <!-- Presentation services are provided by the Techne presentations plugin -->

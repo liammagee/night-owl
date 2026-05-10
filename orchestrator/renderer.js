@@ -301,9 +301,15 @@ const commandPaletteResults = document.getElementById('command-palette-results')
 
 // Speaker notes pane elements
 
-// Keep require.config as needed - only if require is available
-if (typeof require !== 'undefined') {
-    require.config({ paths: { 'vs': './node_modules/monaco-editor/min/vs' } });
+// Keep Monaco's AMD loader and worker configuration available when renderer.js
+// runs before the deferred loader script.
+if (typeof window.configureMonacoEnvironment === 'function') {
+    window.configureMonacoEnvironment();
+} else if (typeof require !== 'undefined' && typeof require.config === 'function') {
+    require.config({
+        paths: { vs: './vs' },
+        'vs/nls': { availableLanguages: { '*': 'en' } }
+    });
 }
 
 // --- Status Bar Update Function ---
@@ -4028,27 +4034,12 @@ window.toggleInlineAICompletions = toggleInlineAICompletions;
 async function initializeMonacoEditor() {
     // Add error handling for require itself
     try {
+        if (typeof window.configureMonacoEnvironment === 'function') {
+            window.configureMonacoEnvironment();
+        }
+
         await new Promise((resolve, reject) => {
             require(['vs/editor/editor.main'], async function() {
-        
-        // Configure Monaco Environment for Electron
-        self.MonacoEnvironment = {
-            getWorkerUrl: function (moduleId, label) {
-                if (label === 'json') {
-                    return './node_modules/monaco-editor/min/vs/language/json/jsonWorker.js';
-                }
-                if (label === 'css' || label === 'scss' || label === 'less') {
-                    return './node_modules/monaco-editor/min/vs/language/css/cssWorker.js';
-                }
-                if (label === 'html' || label === 'handlebars' || label === 'razor') {
-                    return './node_modules/monaco-editor/min/vs/language/html/htmlWorker.js';
-                }
-                if (label === 'typescript' || label === 'javascript') {
-                    return './node_modules/monaco-editor/min/vs/language/typescript/tsWorker.js';
-                }
-                return './node_modules/monaco-editor/min/vs/base/worker/workerMain.js';
-            }
-        };
         
         // Register BibTeX language support
         registerBibTeXLanguage();
@@ -11044,6 +11035,14 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
         }
     }
 
+    const publishedUrl = window.NightOwlPublishedUrls?.resolvePublishedUrl?.(filePath, {
+        settings: window.appSettings || {},
+        isFolder
+    });
+    const publishedMenuItem = publishedUrl
+        ? { label: 'Open Published Page', action: 'open-published-url', publishedUrl }
+        : { label: 'Configure Published URL...', action: 'configure-published-url' };
+
     // Create context menu
     const menu = document.createElement('div');
     menu.className = 'file-context-menu';
@@ -11071,6 +11070,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             { label: 'New Folder', action: 'new-subfolder' },
             { separator: true },
             { label: 'Open in Finder', action: 'open-in-finder' },
+            publishedMenuItem,
             { label: 'Rename Folder', action: 'rename' },
             { label: 'Delete Folder', action: 'delete' },
             { separator: true },
@@ -11114,6 +11114,8 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             menuItems.push(
                 { label: `${fileCount} files selected`, action: 'none', disabled: true },
                 { separator: true },
+                publishedMenuItem,
+                { separator: true },
                 { label: `Cut ${fileCount} Files`, action: 'cut-files' },
                 { label: `Copy ${fileCount} Files`, action: 'copy-files-to-clipboard' },
                 { separator: true },
@@ -11136,6 +11138,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
             menuItems.push(
                 { label: 'Open', action: 'open' },
                 { label: 'Open in Split Editor', action: 'open-in-split' },
+                publishedMenuItem,
                 { label: 'Rename File', action: 'rename' },
                 { separator: true },
                 { label: 'Cut', action: 'cut-file' },
@@ -11188,7 +11191,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
         `;
         menuItem.textContent = item.label;
         menuItem.addEventListener('click', () => {
-            handleFileContextMenuAction(item.action, filePath, isFolder, item.gitInfo);
+            handleFileContextMenuAction(item.action, filePath, isFolder, item.gitInfo, item);
             menu.remove();
         });
         menuItem.addEventListener('mouseenter', () => {
@@ -11214,7 +11217,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
     }, 10);
 }
 
-async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo = null) {
+async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo = null, menuItem = {}) {
     
     switch (action) {
         case 'open':
@@ -11234,6 +11237,42 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'open-in-split':
             if (!isFolder && window.splitEditor) {
                 window.splitEditor.openInSplit(filePath);
+            }
+            break;
+
+        case 'open-published-url':
+            try {
+                const resolvedUrl = menuItem.publishedUrl || window.NightOwlPublishedUrls?.resolvePublishedUrl?.(filePath, {
+                    settings: window.appSettings || {},
+                    isFolder
+                });
+                if (!resolvedUrl) {
+                    showNotification('No published URL mapping configured for this path', 'warning');
+                    break;
+                }
+
+                const result = await window.electronAPI.invoke('open-external', resolvedUrl);
+                if (!result?.success) {
+                    showNotification(`Failed to open published page: ${result?.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                console.error('[handleFileContextMenuAction] Error opening published URL:', error);
+                showNotification('Error opening published page', 'error');
+            }
+            break;
+
+        case 'configure-published-url':
+            try {
+                const settingsOpener = window.openSettingsDialog ||
+                    (typeof openSettingsDialog === 'function' ? openSettingsDialog : null);
+                if (typeof settingsOpener === 'function') {
+                    await settingsOpener('publishing');
+                } else {
+                    showNotification('Open Settings → Publishing to configure published URLs', 'info');
+                }
+            } catch (error) {
+                console.error('[handleFileContextMenuAction] Error opening publishing settings:', error);
+                showNotification('Error opening publishing settings', 'error');
             }
             break;
 

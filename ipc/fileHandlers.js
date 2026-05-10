@@ -107,6 +107,41 @@ function register(deps) {
   let currentFileWatchPath = null;
   let currentFileWatchTimer = null;
   let lastNotifiedFileStateKey = null;
+  const FILE_SCAN_CACHE_TTL_MS = 10000;
+  const availableFilesCache = new Map();
+  const markdownFilesCache = new Map();
+
+  function cloneFileList(files) {
+    return (Array.isArray(files) ? files : []).map(file => {
+      if (!file || typeof file !== 'object') return file;
+      return {
+        ...file,
+        modified: file.modified instanceof Date ? new Date(file.modified) : file.modified
+      };
+    });
+  }
+
+  function getCachedFileList(cache, cacheKey) {
+    const entry = cache.get(cacheKey);
+    if (!entry) return null;
+    if (Date.now() - entry.createdAt > FILE_SCAN_CACHE_TTL_MS) {
+      cache.delete(cacheKey);
+      return null;
+    }
+    return cloneFileList(entry.files);
+  }
+
+  function setCachedFileList(cache, cacheKey, files) {
+    cache.set(cacheKey, {
+      createdAt: Date.now(),
+      files: cloneFileList(files)
+    });
+  }
+
+  function clearFileScanCaches() {
+    availableFilesCache.clear();
+    markdownFilesCache.clear();
+  }
 
   function rememberFileState(filePath, stat) {
     if (!filePath || !stat) return;
@@ -425,6 +460,7 @@ function register(deps) {
       
       // Create the folder
       await fs.mkdir(folderPath, { recursive: true });
+      clearFileScanCaches();
       
       console.log(`[FileHandlers] Folder created successfully: ${folderPath}`);
       return {
@@ -465,6 +501,7 @@ function register(deps) {
 
       // Create the file with optional content
       await fs.writeFile(filePath, content, 'utf8');
+      clearFileScanCaches();
 
       console.log(`[FileHandlers] File created successfully: ${filePath}`);
       return {
@@ -567,7 +604,7 @@ function register(deps) {
       console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
 
       // Get files from primary working directory
-      const primaryFiles = await getAvailableFiles(workingDir);
+      const primaryFiles = await getCachedAvailableFiles(workingDir);
       // Mark files with their source folder for UI differentiation
       primaryFiles.forEach(file => {
         file.sourceFolder = workingDir;
@@ -580,7 +617,7 @@ function register(deps) {
       for (const folderPath of workspaceFolders) {
         try {
           if (fsSync.existsSync(folderPath)) {
-            const folderFiles = await getAvailableFiles(folderPath);
+            const folderFiles = await getCachedAvailableFiles(folderPath);
             // Mark files with their source folder
             folderFiles.forEach(file => {
               file.sourceFolder = folderPath;
@@ -664,6 +701,7 @@ function register(deps) {
         updateCurrentWorkingDirectory(appSettings.workingDirectory);
         syncWorkspaceFolders(appSettings.workingDirectory, { save: false });
         saveSettings();
+        clearFileScanCaches();
 
         console.log(`[FileHandlers] Working directory changed to: ${appSettings.workingDirectory}`);
 
@@ -720,6 +758,7 @@ function register(deps) {
         // Add to workspace folders
         appSettings.workspaceFolders.push(folderPath);
         saveSettings();
+        clearFileScanCaches();
 
         console.log(`[FileHandlers] Added workspace folder: ${folderPath}`);
         console.log(`[FileHandlers] Total workspace folders: ${appSettings.workspaceFolders.length}`);
@@ -766,6 +805,7 @@ function register(deps) {
       // Remove from workspace folders
       appSettings.workspaceFolders.splice(index, 1);
       saveSettings();
+      clearFileScanCaches();
 
       console.log(`[FileHandlers] Removed workspace folder: ${folderPath}`);
       console.log(`[FileHandlers] Remaining workspace folders: ${appSettings.workspaceFolders.length}`);
@@ -801,6 +841,7 @@ function register(deps) {
         .filter(Boolean);
       syncWorkspaceFolders(getWorkingDirectory(), { save: false });
       saveSettings();
+      clearFileScanCaches();
       console.log(`[FileHandlers] Reordered workspace folders: ${appSettings.workspaceFolders.length} folders`);
 
       const win = resolveMainWindow();
@@ -938,6 +979,7 @@ function register(deps) {
       
       // Write the file
       await fs.writeFile(filePath, content, 'utf8');
+      clearFileScanCaches();
       
       console.log(`[FileHandlers] File written successfully: ${filePath}`);
       return {
@@ -1248,6 +1290,7 @@ function register(deps) {
       if (!saveResult.success) {
         return saveResult;
       }
+      clearFileScanCaches();
       
       console.log(`[FileHandlers] File saved successfully: ${currentFilePath}`);
       return {
@@ -1278,6 +1321,7 @@ function register(deps) {
       if (!saveResult.success) {
         return saveResult;
       }
+      clearFileScanCaches();
       
       // Update current file path
       setCurrentFilePath(filePath);
@@ -1331,6 +1375,7 @@ function register(deps) {
       if (!saveResult.success) {
         return saveResult;
       }
+      clearFileScanCaches();
       
       // Update current file path
       setCurrentFilePath(result.filePath);
@@ -1403,6 +1448,7 @@ function register(deps) {
       
       // Delete the file
       await fs.unlink(filePath);
+      clearFileScanCaches();
       
       console.log(`[FileHandlers] File deleted successfully: ${filePath}`);
       return {
@@ -1431,6 +1477,7 @@ function register(deps) {
       } else {
         throw new Error(`Unknown item type: ${type}`);
       }
+      clearFileScanCaches();
       
       console.log(`[FileHandlers] ${type} deleted successfully: ${itemPath}`);
       return {
@@ -1481,6 +1528,7 @@ function register(deps) {
       } else {
         throw new Error(`Unknown operation: ${operation}`);
       }
+      clearFileScanCaches();
       
       console.log(`[FileHandlers] ${type} ${operation}d successfully: ${sourcePath} -> ${finalTargetPath}`);
       return {
@@ -1547,6 +1595,7 @@ function register(deps) {
       
       // Perform the rename
       await fs.rename(filePath, newPath);
+      clearFileScanCaches();
 
       console.log(`[FileHandlers] Item renamed successfully: ${filePath} -> ${newPath}`);
 
@@ -1594,20 +1643,51 @@ function register(deps) {
     }
   });
 
-  // External File Opening
-  ipcMain.handle('open-external', async (event, filePath) => {
+  // External File/URL Opening
+  ipcMain.handle('open-external', async (event, target) => {
     try {
       const { shell } = require('electron');
-      await shell.openPath(filePath);
+      const targetPath = String(target || '').trim();
 
-      console.log(`[FileHandlers] Opened external file: ${filePath}`);
-      return { success: true, filePath };
+      if (!targetPath) {
+        return { success: false, error: 'No file or URL provided' };
+      }
+
+      try {
+        const parsedUrl = new URL(targetPath);
+        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'mailto:') {
+          await shell.openExternal(targetPath);
+          console.log(`[FileHandlers] Opened external URL: ${targetPath}`);
+          return { success: true, url: targetPath };
+        }
+
+        if (parsedUrl.protocol === 'file:') {
+          const { fileURLToPath } = require('url');
+          const localPath = fileURLToPath(parsedUrl);
+          const openError = await shell.openPath(localPath);
+          if (openError) {
+            return { success: false, error: openError, filePath: localPath };
+          }
+          console.log(`[FileHandlers] Opened external file URL: ${targetPath}`);
+          return { success: true, filePath: localPath };
+        }
+      } catch {
+        // Not a URL; treat it as a local filesystem path.
+      }
+
+      const openError = await shell.openPath(targetPath);
+      if (openError) {
+        return { success: false, error: openError, filePath: targetPath };
+      }
+
+      console.log(`[FileHandlers] Opened external file: ${targetPath}`);
+      return { success: true, filePath: targetPath };
     } catch (error) {
-      console.error(`[FileHandlers] Error opening external file ${filePath}:`, error);
+      console.error(`[FileHandlers] Error opening external target ${target}:`, error);
       return {
         success: false,
-        error: `Failed to open file: ${error.message}`,
-        filePath: filePath
+        error: `Failed to open file or URL: ${error.message}`,
+        filePath: target
       };
     }
   });
@@ -1856,6 +1936,68 @@ function register(deps) {
       console.error(`[FileHandlers] Error getting available files from ${dirPath}:`, error);
       return [];
     }
+  }
+
+  async function getCachedAvailableFiles(dirPath) {
+    const cacheKey = normalizeWorkspacePath(dirPath);
+    const cachedFiles = getCachedFileList(availableFilesCache, cacheKey);
+    if (cachedFiles) return cachedFiles;
+
+    const files = await getAvailableFiles(dirPath);
+    setCachedFileList(availableFilesCache, cacheKey, files);
+    return cloneFileList(files);
+  }
+
+  async function findMarkdownFilesInRoot(dirPath) {
+    const markdownFiles = [];
+    const ignoredDirNames = new Set([
+      'node_modules',
+      '.git',
+      '.vscode',
+      'dist',
+      'build',
+      '.next',
+      'coverage',
+      'playwright-report',
+      'test-results',
+      'test-reports',
+      'out',
+      '.cache'
+    ]);
+
+    async function walk(currentDir) {
+      try {
+        const entries = await fs.readdir(currentDir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(currentDir, entry.name);
+
+          if (entry.isSymbolicLink()) continue;
+          if (entry.isDirectory()) {
+            if (!ignoredDirNames.has(entry.name)) {
+              await walk(fullPath);
+            }
+          } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.markdown'))) {
+            markdownFiles.push(fullPath);
+          }
+        }
+      } catch (dirError) {
+        console.warn(`[FileHandlers] Error reading directory ${currentDir}:`, dirError);
+      }
+    }
+
+    await walk(dirPath);
+    return markdownFiles.sort();
+  }
+
+  async function getCachedMarkdownFiles(dirPath) {
+    const cacheKey = normalizeWorkspacePath(dirPath);
+    const cachedFiles = getCachedFileList(markdownFilesCache, cacheKey);
+    if (cachedFiles) return cachedFiles;
+
+    const files = await findMarkdownFilesInRoot(dirPath);
+    setCachedFileList(markdownFilesCache, cacheKey, files);
+    return cloneFileList(files);
   }
 
   // Image File Browser Handler
@@ -2130,6 +2272,7 @@ function register(deps) {
     try {
       console.log(`[FileHandlers] Copying file from ${source} to ${destination}`);
       await fs.copyFile(source, destination);
+      clearFileScanCaches();
       return { success: true };
     } catch (error) {
       console.error('[FileHandlers] Error copying file:', error);
@@ -2171,6 +2314,7 @@ function register(deps) {
       }
 
       console.log(`[FileHandlers] Successfully moved file to ${destination}`);
+      clearFileScanCaches();
       return { success: true, newPath: destination };
     } catch (error) {
       console.error('[FileHandlers] Error moving file:', error);
@@ -2206,6 +2350,7 @@ function register(deps) {
       await fs.copyFile(source, destination);
 
       console.log(`[FileHandlers] Successfully copied file to ${destination}`);
+      clearFileScanCaches();
       return { success: true, newPath: destination };
     } catch (error) {
       console.error('[FileHandlers] Error copying file:', error);
@@ -2243,43 +2388,19 @@ function register(deps) {
   ipcMain.handle('get-markdown-files', async (event) => {
     try {
       const workingDir = getWorkingDirectory();
-      const workspaceFolders = appSettings.workspaceFolders || [];
+      const workspaceFolders = syncWorkspaceFolders(workingDir);
 
       console.log(`[FileHandlers] Getting markdown files from: ${workingDir}`);
       console.log(`[FileHandlers] Additional workspace folders: ${workspaceFolders.length}`);
 
-      const markdownFiles = [];
-
-      // Recursive function to find markdown files
-      async function findMarkdownFiles(dir) {
-        try {
-          const entries = await fs.readdir(dir, { withFileTypes: true });
-
-          for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-
-            if (entry.isDirectory()) {
-              // Skip common non-content directories
-              if (!['node_modules', '.git', '.vscode', 'dist', 'build', '.next', 'coverage'].includes(entry.name)) {
-                await findMarkdownFiles(fullPath);
-              }
-            } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.markdown'))) {
-              markdownFiles.push(fullPath);
-            }
-          }
-        } catch (dirError) {
-          console.warn(`[FileHandlers] Error reading directory ${dir}:`, dirError);
-        }
-      }
-
-      // Search primary working directory
-      await findMarkdownFiles(workingDir);
+      const markdownFileSet = new Set(await getCachedMarkdownFiles(workingDir));
 
       // Search all workspace folders
       for (const folderPath of workspaceFolders) {
         try {
           if (fsSync.existsSync(folderPath)) {
-            await findMarkdownFiles(folderPath);
+            const folderFiles = await getCachedMarkdownFiles(folderPath);
+            folderFiles.forEach(filePath => markdownFileSet.add(filePath));
           } else {
             console.warn(`[FileHandlers] Workspace folder not found: ${folderPath}`);
           }
@@ -2288,10 +2409,11 @@ function register(deps) {
         }
       }
 
+      const markdownFiles = Array.from(markdownFileSet).sort();
       console.log(`[FileHandlers] Found ${markdownFiles.length} markdown files across all folders`);
       return {
         success: true,
-        files: markdownFiles.sort() // Sort alphabetically
+        files: markdownFiles
       };
     } catch (error) {
       console.error('[FileHandlers] Error getting markdown files:', error);
@@ -2305,6 +2427,7 @@ function register(deps) {
   // Refresh file tree handler
   ipcMain.handle('refresh-file-tree', async (event) => {
     try {
+      clearFileScanCaches();
       
       const win = resolveMainWindow();
       if (win) {

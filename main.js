@@ -283,6 +283,9 @@ const defaultSettings = {
     workspaceFolders: [], // Additional folders to show in file tree (multi-folder support)
     currentFile: '',
     defaultFileType: '.md', // Default extension for new files
+    publishing: {
+        urlMappings: [] // [{ localRoot, urlTemplate }] for opening published pages from the file tree
+    },
     
     // === Presentation Settings ===
     presentation: {
@@ -628,6 +631,9 @@ function validateSettings() {
     if (!appSettings.advanced) appSettings.advanced = {};
     if (!appSettings.plugins) appSettings.plugins = {};
     if (!appSettings.techne) appSettings.techne = {};
+    if (!appSettings.publishing || typeof appSettings.publishing !== 'object' || Array.isArray(appSettings.publishing)) {
+        appSettings.publishing = {};
+    }
     
     // Ensure arrays exist
     if (!Array.isArray(appSettings.navigation.history)) {
@@ -645,6 +651,16 @@ function validateSettings() {
     if (!Array.isArray(appSettings.workspaceFolders)) {
         appSettings.workspaceFolders = [];
     }
+    if (!Array.isArray(appSettings.publishing.urlMappings)) {
+        appSettings.publishing.urlMappings = [];
+    }
+    appSettings.publishing.urlMappings = appSettings.publishing.urlMappings
+        .filter(mapping => mapping && typeof mapping === 'object')
+        .map(mapping => ({
+            localRoot: typeof mapping.localRoot === 'string' ? mapping.localRoot.trim() : '',
+            urlTemplate: typeof mapping.urlTemplate === 'string' ? mapping.urlTemplate.trim() : ''
+        }))
+        .filter(mapping => mapping.localRoot && mapping.urlTemplate);
     const normalizedWorkingDirectory = normalizeWorkspacePath(appSettings.workingDirectory);
     if (normalizedWorkingDirectory) {
         appSettings.workingDirectory = normalizedWorkingDirectory;

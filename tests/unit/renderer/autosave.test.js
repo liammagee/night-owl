@@ -71,6 +71,52 @@ describe('autosave module', () => {
     expect(activeTab.lastSavedContent).toBe('changed');
     expect(activeTab.isDirty).toBe(false);
     expect(context.window.hasUnsavedChanges).toBe(false);
+    expect(context.console.log).toHaveBeenCalledWith(
+      '[performAutoSave] Save attempt',
+      expect.objectContaining({
+        path: '/project/doc.md',
+        byteLength: 'changed'.length,
+        modelMatchedPath: true,
+        status: 'saved'
+      })
+    );
+  });
+
+  test('logs structured save attempts even when autosave skips', async () => {
+    const { context } = loadAutosaveModule({
+      context: {
+        window: {
+          appSettings: {
+            autoSave: {
+              enabled: true,
+              interval: 1000
+            }
+          },
+          currentFilePath: '/project/doc.md',
+          hasUnsavedChanges: false,
+          tabManager: {
+            activeTabPath: '/project/doc.md',
+            tabs: new Map()
+          },
+          electronAPI: {
+            invoke: jest.fn(async () => ({ success: true }))
+          }
+        }
+      }
+    });
+
+    await context.window.performAutoSave();
+
+    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.console.log).toHaveBeenCalledWith(
+      '[performAutoSave] Save attempt',
+      expect.objectContaining({
+        path: '/project/doc.md',
+        byteLength: 0,
+        modelMatchedPath: false,
+        status: 'skipped'
+      })
+    );
   });
 
   test('aborts instead of saving when editor model and active tab model drift', async () => {
@@ -92,6 +138,14 @@ describe('autosave module', () => {
     expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
     expect(activeTab.isDirty).toBe(true);
     expect(context.window.hasUnsavedChanges).toBe(true);
+    expect(context.console.log).toHaveBeenCalledWith(
+      '[performAutoSave] Save attempt',
+      expect.objectContaining({
+        path: '/project/doc.md',
+        modelMatchedPath: false,
+        status: 'aborted'
+      })
+    );
   });
 
   test('aborts instead of saving when active tab path and current file path drift', async () => {

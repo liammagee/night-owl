@@ -1,6 +1,22 @@
 // === TODO Gamification System ===
 // Mints catalogue sigils, reminders, achievements, and AI suggestions for Kanban TODO boards
 
+function isTodoGamificationDebugEnabled() {
+    try {
+        return window.DEBUG_VERBOSE === true ||
+            window.DEBUG_LEVEL >= 3 ||
+            window.localStorage?.getItem('nightowl.debugTodoGamification') === 'true';
+    } catch (_error) {
+        return false;
+    }
+}
+
+function logTodoGamification(...args) {
+    if (isTodoGamificationDebugEnabled()) {
+        console.debug(...args);
+    }
+}
+
 class TodoGamification {
     constructor(gamificationInstance) {
         this.gamification = gamificationInstance;
@@ -61,7 +77,7 @@ class TodoGamification {
         if (this.initialized) return;
         
         try {
-            console.log('[TODO Gamification] Initializing TODO gamification system...');
+            logTodoGamification('[TODO Gamification] Initializing TODO gamification system...');
             
             // Set up reminders
             this.setupReminders();
@@ -76,7 +92,7 @@ class TodoGamification {
             this.createGamificationUI();
             
             this.initialized = true;
-            console.log('[TODO Gamification] TODO gamification system initialized successfully');
+            logTodoGamification('[TODO Gamification] TODO gamification system initialized successfully');
             
         } catch (error) {
             console.error('[TODO Gamification] Initialization failed:', error);
@@ -176,7 +192,7 @@ class TodoGamification {
         
         // DISABLED: AI suggestions to prevent background AI requests
         // this.checkAndGenerateAISuggestions(boardData);
-        console.log('[TODO Gamification] ⏸️ AI suggestions check disabled to prevent background AI requests');
+        logTodoGamification('[TODO Gamification] ⏸️ AI suggestions check disabled to prevent background AI requests');
         
         // Set up reminders for tasks
         this.setupTaskReminders(boardData);
@@ -265,7 +281,7 @@ class TodoGamification {
         // Show achievement notification
         this.showAchievementNotification(achievement);
         
-        console.log(`[TODO Gamification] Achievement unlocked: ${achievement.name}`);
+        logTodoGamification(`[TODO Gamification] Achievement unlocked: ${achievement.name}`);
     }
     
     // === Reminders System ===
@@ -278,7 +294,7 @@ class TodoGamification {
         
         // DISABLED: Initial check to prevent background AI requests
         // setTimeout(() => this.checkReminders(), 5000);
-        console.log('[TODO Gamification] ⏸️ Reminder system disabled to prevent background AI requests');
+        logTodoGamification('[TODO Gamification] ⏸️ Reminder system disabled to prevent background AI requests');
     }
     
     checkReminders() {
@@ -337,7 +353,7 @@ class TodoGamification {
         }
         
         // Log reminder
-        console.log(`[TODO Gamification] Reminder: ${type}`, tasks);
+        logTodoGamification(`[TODO Gamification] Reminder: ${type}`, tasks);
     }
     
     setupTaskReminders(boardData) {
@@ -358,7 +374,7 @@ class TodoGamification {
             lastSeen: Date.now()
         }));
         
-        console.log(`[TODO Gamification] Set up reminders for ${allTasks.length} tasks`);
+        logTodoGamification(`[TODO Gamification] Set up reminders for ${allTasks.length} tasks`);
     }
     
     // === AI Suggestions System ===
@@ -369,21 +385,21 @@ class TodoGamification {
     }
     
     async checkAndGenerateAISuggestions(boardData) {
-        console.log('[TODO Gamification] Checking AI suggestions...', {
+        logTodoGamification('[TODO Gamification] Checking AI suggestions...', {
             enabled: this.aiSuggestions.enabled,
             cooldownRemaining: this.aiSuggestions.cooldown - (Date.now() - this.aiSuggestions.lastGenerated),
             boardData
         });
         
         if (!this.aiSuggestions.enabled) {
-            console.log('[TODO Gamification] AI suggestions disabled');
+            logTodoGamification('[TODO Gamification] AI suggestions disabled');
             return;
         }
         
         const now = Date.now();
         const timeSinceLastGenerated = now - this.aiSuggestions.lastGenerated;
         if (timeSinceLastGenerated < this.aiSuggestions.cooldown) {
-            console.log('[TODO Gamification] Still in cooldown period:', {
+            logTodoGamification('[TODO Gamification] Still in cooldown period:', {
                 timeSinceLastGenerated,
                 cooldown: this.aiSuggestions.cooldown
             });
@@ -397,20 +413,20 @@ class TodoGamification {
         
         // DISABLED: AI suggestion timer to prevent automatic AI requests
         // this.suggestionTimer = setTimeout(() => {
-        //     console.log('[TODO Gamification] Generating AI suggestions after timeout...');
+        //     logTodoGamification('[TODO Gamification] Generating AI suggestions after timeout...');
         //     this.generateAISuggestions(boardData);
         // }, 5000);
-        console.log('[TODO Gamification] ⏸️ AI suggestion timer disabled to prevent background AI requests');
+        logTodoGamification('[TODO Gamification] ⏸️ AI suggestion timer disabled to prevent background AI requests');
     }
     
     async generateAISuggestions(boardData) {
         try {
-            console.log('[TODO Gamification] Starting AI suggestion generation...');
+            logTodoGamification('[TODO Gamification] Starting AI suggestion generation...');
             
             const context = await this.extractTodoContext();
             const currentTasks = this.extractTasksFromBoard(document.querySelector('.kanban-board'));
             
-            console.log('[TODO Gamification] Extracted data:', {
+            logTodoGamification('[TODO Gamification] Extracted data:', {
                 context,
                 contextSource: context ? 'extracted' : 'none found',
                 filePath: window.currentFilePath,
@@ -421,14 +437,14 @@ class TodoGamification {
             // Always generate suggestions, even if no context or tasks
             const suggestions = await this.callAIForSuggestions(context, currentTasks);
             
-            console.log('[TODO Gamification] Generated suggestions:', suggestions);
+            logTodoGamification('[TODO Gamification] Generated suggestions:', suggestions);
             
             if (suggestions && suggestions.length > 0) {
                 this.displayAISuggestions(suggestions);
                 this.aiSuggestions.lastGenerated = Date.now();
-                console.log('[TODO Gamification] AI suggestions displayed successfully');
+                logTodoGamification('[TODO Gamification] AI suggestions displayed successfully');
             } else {
-                console.log('[TODO Gamification] No suggestions to display');
+                logTodoGamification('[TODO Gamification] No suggestions to display');
             }
             
         } catch (error) {
@@ -547,7 +563,7 @@ class TodoGamification {
     async callAIForSuggestions(context, currentTasks) {
         // Check if AI chat is available
         if (!window.sendChatMessage) {
-            console.log('[TODO Gamification] AI chat not available, generating offline suggestions');
+            logTodoGamification('[TODO Gamification] AI chat not available, generating offline suggestions');
             return this.generateOfflineSuggestions(context, currentTasks);
         }
         
@@ -567,7 +583,7 @@ etc.
 Keep suggestions practical and relevant to the context. Don't repeat existing tasks.`;
 
             // Send request to AI (this would need to be integrated with the existing AI system)
-            console.log('[TODO Gamification] Requesting AI suggestions...');
+            logTodoGamification('[TODO Gamification] Requesting AI suggestions...');
             
             // TODO: Integrate with actual AI service
             // For now, return contextual offline suggestions
@@ -580,7 +596,7 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
     }
     
     generateOfflineSuggestions(context, currentTasks) {
-        console.log('[TODO Gamification] Generating offline contextual suggestions...');
+        logTodoGamification('[TODO Gamification] Generating offline contextual suggestions...');
         
         const suggestions = [];
         const existingTaskTexts = currentTasks.map(t => t.text.toLowerCase());
@@ -886,7 +902,7 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             this.awardSigils(3, `Adopted AI suggestion: ${suggestion}`);
             
             // Refresh the editor and kanban board to show the new task (following kanban.js pattern)
-            console.log('[TODO Gamification] Refreshing UI...', {
+            logTodoGamification('[TODO Gamification] Refreshing UI...', {
                 currentFilePath: window.currentFilePath,
                 targetFilePath: filePath,
                 filePathsMatch: window.currentFilePath === filePath,
@@ -895,7 +911,7 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             
             if (window.currentFilePath === filePath) {
                 if (window.refreshCurrentFile) {
-                    console.log('[TODO Gamification] Calling refreshCurrentFile...');
+                    logTodoGamification('[TODO Gamification] Calling refreshCurrentFile...');
                     await window.refreshCurrentFile();
                     if (window.editor) {
                         window.lastSavedContent = window.editor.getValue();
@@ -904,34 +920,34 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
                             window.updateUnsavedIndicator(false);
                         }
                     }
-                    console.log('[TODO Gamification] refreshCurrentFile completed');
+                    logTodoGamification('[TODO Gamification] refreshCurrentFile completed');
                 }
             } else {
-                console.log('[TODO Gamification] File paths do not match, skipping refresh');
+                logTodoGamification('[TODO Gamification] File paths do not match, skipping refresh');
             }
             
             // Force kanban board to refresh by resetting state
-            console.log('[TODO Gamification] Forcing kanban board refresh...', {
+            logTodoGamification('[TODO Gamification] Forcing kanban board refresh...', {
                 resetKanbanStateExists: !!window.resetKanbanState,
                 updatePreviewAndStructureExists: !!window.updatePreviewAndStructure
             });
             
             if (window.resetKanbanState) {
-                console.log('[TODO Gamification] Resetting kanban state...');
+                logTodoGamification('[TODO Gamification] Resetting kanban state...');
                 window.resetKanbanState();
             }
             
             // Trigger a preview update to show the new task
             if (window.updatePreviewAndStructure) {
                 setTimeout(() => {
-                    console.log('[TODO Gamification] Calling updatePreviewAndStructure...');
+                    logTodoGamification('[TODO Gamification] Calling updatePreviewAndStructure...');
                     // Pass editor content if available, otherwise let the function handle it
                     const content = window.editor && window.editor.getValue ? window.editor.getValue() : undefined;
                     window.updatePreviewAndStructure(content);
-                    console.log('[TODO Gamification] updatePreviewAndStructure called');
+                    logTodoGamification('[TODO Gamification] updatePreviewAndStructure called');
                 }, 100);
             } else {
-                console.log('[TODO Gamification] updatePreviewAndStructure not available');
+                logTodoGamification('[TODO Gamification] updatePreviewAndStructure not available');
             }
             
             // Close the suggestion panel after successful addition
@@ -997,7 +1013,7 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
         const aiBtn = panel.querySelector('.ai-suggestions-btn');
         if (aiBtn) {
             aiBtn.onclick = () => {
-                console.log('[TODO Gamification] Manual AI suggestions trigger');
+                logTodoGamification('[TODO Gamification] Manual AI suggestions trigger');
                 aiBtn.disabled = true;
                 aiBtn.textContent = '⏳ Generating...';
                 
@@ -1130,7 +1146,7 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
     }
     
     logTaskAction(action, task, extra = {}) {
-        console.log(`[TODO Gamification] Task ${action}:`, {
+        logTodoGamification(`[TODO Gamification] Task ${action}:`, {
             action,
             task: task.text,
             timestamp: new Date().toISOString(),
@@ -1189,12 +1205,12 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
     async generateAISuggestionsNow() {
         // Force generation without cooldown check
         try {
-            console.log('[TODO Gamification] Force generating AI suggestions...');
+            logTodoGamification('[TODO Gamification] Force generating AI suggestions...');
             
             const context = await this.extractTodoContext();
             const currentTasks = this.extractTasksFromBoard(document.querySelector('.kanban-board'));
             
-            console.log('[TODO Gamification] Extracted data:', {
+            logTodoGamification('[TODO Gamification] Extracted data:', {
                 context,
                 contextSource: context ? 'extracted' : 'none found',
                 filePath: window.currentFilePath,
@@ -1204,14 +1220,14 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
             
             const suggestions = await this.callAIForSuggestions(context, currentTasks);
             
-            console.log('[TODO Gamification] Generated suggestions:', suggestions);
+            logTodoGamification('[TODO Gamification] Generated suggestions:', suggestions);
             
             if (suggestions && suggestions.length > 0) {
                 this.displayAISuggestions(suggestions);
                 this.aiSuggestions.lastGenerated = Date.now();
-                console.log('[TODO Gamification] AI suggestions displayed successfully');
+                logTodoGamification('[TODO Gamification] AI suggestions displayed successfully');
             } else {
-                console.log('[TODO Gamification] No suggestions to display');
+                logTodoGamification('[TODO Gamification] No suggestions to display');
                 if (window.showNotification) {
                     window.showNotification('No AI suggestions available at this time', 'info');
                 }
@@ -1239,12 +1255,12 @@ Keep suggestions practical and relevant to the context. Don't repeat existing ta
     
     toggleReminders(enabled) {
         this.reminders.enabled = enabled;
-        console.log(`[TODO Gamification] Reminders ${enabled ? 'enabled' : 'disabled'}`);
+        logTodoGamification(`[TODO Gamification] Reminders ${enabled ? 'enabled' : 'disabled'}`);
     }
     
     toggleAISuggestions(enabled) {
         this.aiSuggestions.enabled = enabled;
-        console.log(`[TODO Gamification] AI suggestions ${enabled ? 'enabled' : 'disabled'}`);
+        logTodoGamification(`[TODO Gamification] AI suggestions ${enabled ? 'enabled' : 'disabled'}`);
     }
 }
 

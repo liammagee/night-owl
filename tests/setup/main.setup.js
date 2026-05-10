@@ -48,6 +48,10 @@ jest.mock('electron', () => ({
     showOpenDialog: jest.fn(),
     showSaveDialog: jest.fn(),
     showMessageBox: jest.fn()
+  },
+  shell: {
+    openPath: jest.fn(() => Promise.resolve('')),
+    openExternal: jest.fn(() => Promise.resolve())
   }
 }));
 

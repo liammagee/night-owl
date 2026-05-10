@@ -4,6 +4,39 @@ Generated from codebase deep scan on 2025-12-17.
 
 ---
 
+## Audit: 2026-05-10
+
+Feature/quality hardening pass focused on stale TODO reconciliation and low-risk fixes that could be made with tests.
+
+### Completed
+
+- [x] **Published URL mappings in file context menus** - `orchestrator/modules/published-url.js`, `orchestrator/modules/settings.js`, `orchestrator/renderer.js`
+  - Right-click menus can resolve configured local-root to URL-template mappings, including `~` expansion and `{contentId}` templates such as `https://machinespirits.org/content/{contentId}`.
+
+- [x] **Wildcard file search regression coverage** - `ipc/searchHandlers.js`, `tests/integration/search-handlers.test.js`
+  - Searches like `*.html` are covered against current and runtime-updated working directories.
+
+- [x] **Remove stray macOS metadata files from the checkout** - `.DS_Store`
+  - `.DS_Store` is already ignored and quality-guarded; the remaining local copies were removed during this pass.
+
+- [x] **Cache repeated file/markdown workspace scans** - `ipc/fileHandlers.js`
+  - `get-available-files` and `get-markdown-files` now reuse short-lived per-root scan results and invalidate on refresh and file/workspace mutations.
+
+- [x] **Gate TODO gamification console logging behind the shared debug logger** - `orchestrator/modules/todo-gamification.js`
+  - The module still has many direct `console.log` calls; touch-gesture logging is already opt-in, but this feature remains noisy during TODO-heavy sessions.
+  - **Status 2026-05-10:** Routine logs now flow through `logTodoGamification()` and are opt-in via `window.DEBUG_VERBOSE`, `window.DEBUG_LEVEL >= 3`, or `nightowl.debugTodoGamification`.
+
+- [x] **Fix startup accessibility regressions surfaced by E2E** - `index.html`
+  - The activity rail no longer uses a nested complementary landmark, the empty breadcrumb has stronger contrast, and math toolbar buttons have explicit accessible labels.
+
+### Added Backlog
+
+- [ ] **Finish reducing `window.currentFilePath` direct writes** - `orchestrator/renderer.js`, `orchestrator/modules/editor-tabs.js`
+  - Autosave now aborts path/model drift, but long-term maintainability still wants tab manager state to be the single writer and `window.currentFilePath` to be a derived mirror.
+
+- [ ] **Continue debug-gating routine main-process logs** - `ipc/fileHandlers.js`, `ipc/exportHandlers.js`, `ipc/citationHandlers.js`, `services/citationService.js`
+  - Unit/integration runs still produce high-volume success-path logging. Keep warnings/errors visible, but route routine registration, migration, and successful operation logs through the shared debug logger.
+
 ## Audit: 2026-04-16
 
 This pass paired a codebase walk with a live computer-use session against the running app.
@@ -15,7 +48,8 @@ by blast radius, not by depth of code change.
 
 ### Critical (data integrity)
 
-- [ ] **Autosave can write the active buffer to the wrong file path.** Root cause: there is no enforced invariant binding the *visible Monaco model* to the *path that autosave will write to*. The path lives in the global `window.currentFilePath` (assigned in **22 production call sites** — see `git grep "window\.currentFilePath\s*="`), the buffer lives in `editor.getValue()`, and the 2-second commit lives in `autoSaveTimer`. Any one can drift independently.
+- [x] **Autosave can write the active buffer to the wrong file path.** Root cause: there is no enforced invariant binding the *visible Monaco model* to the *path that autosave will write to*. The path lives in the global `window.currentFilePath` (assigned in **22 production call sites** — see `git grep "window\.currentFilePath\s*="`), the buffer lives in `editor.getValue()`, and the 2-second commit lives in `autoSaveTimer`. Any one can drift independently.
+  - **Status 2026-05-10:** The write-safety invariant now lives in `orchestrator/modules/autosave.js`: pending timers are cleared on entry, saves use `perform-save-with-path`, the active tab model must match the visible editor model, and the active tab path must match `window.currentFilePath`. Remaining cleanup of direct `window.currentFilePath` write sites is tracked in the High section below.
   - **Reproduced this session.** While inspecting `lecture-7.md`, an earlier search-result click had set `window.currentFilePath` to `courses/dissertation/lecture-1.md`. Subsequent keystrokes triggered autosave, which wrote `lecture-7.md`'s buffer to `lecture-1.md` on disk. `git restore courses/dissertation/lecture-1.md` recovered it. A second file (`articles/thoughts-on-dissertations.md`) was found corrupted from an earlier instance and is still pending below.
   - **Smoking gun #1** – `orchestrator/renderer.js:6063` sets `window.currentFilePath = filePath` **before** `handleEditableFile` swaps the Monaco model at `orchestrator/renderer.js:6121`. There is at least one async `await` (and conditionally several) between them. A pending autosave timer that fires inside this window saves the *old* buffer to the *new* path.
   - **Smoking gun #2** – `orchestrator/modules/autosave.js:69` (`performAutoSave`) does **not** clear `autoSaveTimer` when called directly. `_openFileInEditorImpl` calls it at `orchestrator/renderer.js:5989` to flush before switching files, but the previously-scheduled `setTimeout` keeps ticking and can re-enter `performAutoSave` after the path has been swapped.
@@ -42,7 +76,7 @@ by blast radius, not by depth of code change.
 
 - [ ] **Verify the Monaco `Cancelled` error guard is installed.** Reload the app, open and close a few files quickly to provoke the cancellation path, and confirm no `Error: Canceled` from `restoreViewState` appears in DevTools. If not silenced, the previous `window.unhandledrejection` listener may not be reaching the right reject path.
 
-- [ ] **Autosave is silent when it skips a save.** `performAutoSave` early-returns at `orchestrator/modules/autosave.js:76` when `!hasUnsavedChanges`, and the toast says "Auto-saved" even when the underlying IPC reported a partial result. Add a structured log line on every save attempt with `{ path, byteLength, ms, modelMatchedPath }` so future data-loss incidents are debuggable from logs alone.
+- [x] **Autosave is silent when it skips a save.** `performAutoSave` now emits a structured `[performAutoSave] Save attempt` log for saved, skipped, aborted, failed, and error paths with `{ path, byteLength, ms, modelMatchedPath, status }`. Regression coverage lives in `tests/unit/renderer/autosave.test.js`.
 
 ### Notes for the next session
 
@@ -72,23 +106,26 @@ by blast radius, not by depth of code change.
 - [ ] **Stop Mermaid fullscreen listener leaks** - `orchestrator/renderer.js`
   - Repeated renders accumulate `wheel` and `keydown` listeners and retain dead fullscreen logic.
 
-- [ ] **Make lazy loading actually defer secondary work** - `index.html`
+- [x] **Make lazy loading actually defer secondary work** - `index.html`
   - The readiness gate fires as soon as the editor container exists, so the “lazy” batch starts almost immediately.
+  - **Status 2026-05-10:** The gate now waits for `window.editor`/model readiness, with a 5-second fallback so secondary modules still load if editor init stalls.
 
-- [ ] **Replace internal-link hot-path alerts and debug logging** - `orchestrator/modules/internalLinks.js`, `index.html`
+- [x] **Replace internal-link hot-path alerts and debug logging** - `orchestrator/modules/internalLinks.js`, `index.html`
   - Debug tracing currently runs on every click path, and missing-link errors still use blocking dialogs.
+  - **Status 2026-05-10:** Missing links use notifications, and the inline click-capture debug script was removed from `index.html`; `internalLinks.js` remains the single click-handler owner.
 
 ### Quality, Performance, And Test Backlog
 
-- [ ] **Stop Jest from crawling local Codex worktrees** - `jest.config.js`
+- [x] **Stop Jest from crawling local Codex worktrees** - `jest.config.js`
   - Duplicate manual-mock warnings come from `.claude/worktrees/...` being treated as part of the repo.
 
 - [x] **Apply AI provider changes live** - `ipc/settingsHandlers.js`
   - Runtime AI updates now use the live tutor bridge instead of a missing `aiService` dependency.
   - Provider resets back to `auto` and local AI URL changes now take effect immediately.
 
-- [ ] **Cache or narrow full-workspace markdown scans** - `ipc/fileHandlers.js`
+- [x] **Cache or narrow full-workspace markdown scans** - `ipc/fileHandlers.js`
   - Recursive workspace scanning will become increasingly expensive on large vaults.
+  - **Status 2026-05-10:** `get-markdown-files` and `get-available-files` now use a short main-process scan cache with refresh/mutation invalidation and regression coverage.
 
 ### Completed In This Pass
 
@@ -141,7 +178,7 @@ by blast radius, not by depth of code change.
 - [ ] **Replace mock-only plugin integration coverage with real loader coverage** - `tests/integration/plugin-loading.test.js`
   - The current file mostly tests local Jest doubles rather than the actual plugin system, so regressions in manifest parsing, DOM injection, and registration timing can slip through.
 
-- [ ] **Clear Electron test startup timeout after success** - `tests/e2e/electron-test-helper.js`
+- [x] **Clear Electron test startup timeout after success** - `tests/e2e/electron-test-helper.js`
   - `startElectron()` leaves the 30-second timeout armed after resolve, which can kill a successfully launched app and create intermittent E2E failures.
 
 - [ ] **Make performance E2E tests app-aware instead of wall-clock driven** - `tests/e2e/performance.e2e.js`

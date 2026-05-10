@@ -67,6 +67,23 @@ function scheduleAutoSave() {
 
 // Perform the actual auto-save
 async function performAutoSave() {
+    const startedAt = Date.now();
+    let saveAttemptLogged = false;
+    const logSaveAttempt = (status, details = {}) => {
+        saveAttemptLogged = true;
+        const attempt = {
+            path: details.path ?? window.currentFilePath ?? null,
+            byteLength: Number.isFinite(details.byteLength) ? details.byteLength : 0,
+            ms: Math.max(0, Date.now() - startedAt),
+            modelMatchedPath: Boolean(details.modelMatchedPath),
+            status
+        };
+        if (details.error) {
+            attempt.error = details.error.message || String(details.error);
+        }
+        console.log('[performAutoSave] Save attempt', attempt);
+    };
+
     // Clear any pending scheduled save — a stale timer firing after this run could
     // re-enter with a path/buffer that drifted across a tab switch and corrupt a file.
     if (autoSaveTimer) {
@@ -81,6 +98,10 @@ async function performAutoSave() {
     });
 
     if (!window.hasUnsavedChanges || !editor) {
+        logSaveAttempt('skipped', {
+            path: window.currentFilePath,
+            modelMatchedPath: false
+        });
         console.log('[performAutoSave] Skipping - no unsaved changes or no editor');
         return;
     }
@@ -94,12 +115,26 @@ async function performAutoSave() {
     const activePath = tm && tm.activeTabPath;
     const activeTab = activePath && tm.tabs ? tm.tabs.get(activePath) : null;
     const editorModel = editor.getModel();
+    const modelMatchedPath = Boolean(
+        activeTab &&
+        editorModel &&
+        activeTab.model === editorModel &&
+        activeTab.filePath === window.currentFilePath
+    );
 
     if (!activeTab || !editorModel) {
+        logSaveAttempt('aborted', {
+            path: activeTab?.filePath || activePath || window.currentFilePath,
+            modelMatchedPath
+        });
         console.warn('[performAutoSave] Abort: no active tab or editor model', { activePath });
         return;
     }
     if (activeTab.model !== editorModel) {
+        logSaveAttempt('aborted', {
+            path: activeTab.filePath,
+            modelMatchedPath
+        });
         console.error('[performAutoSave] ABORT: tab model does not match editor model — would corrupt file', {
             activePath,
             tabFilePath: activeTab.filePath,
@@ -108,6 +143,10 @@ async function performAutoSave() {
         return;
     }
     if (activeTab.filePath !== window.currentFilePath) {
+        logSaveAttempt('aborted', {
+            path: activeTab.filePath,
+            modelMatchedPath
+        });
         console.error('[performAutoSave] ABORT: tab path and window.currentFilePath disagree', {
             tabFilePath: activeTab.filePath,
             windowCurrentFilePath: window.currentFilePath
@@ -121,11 +160,21 @@ async function performAutoSave() {
 
         // Untitled tabs need an explicit save-as flow, not auto-save.
         if (!savePath || savePath.startsWith('untitled:')) {
+            logSaveAttempt('skipped', {
+                path: savePath,
+                byteLength: content.length,
+                modelMatchedPath
+            });
             console.log('[performAutoSave] Skipping - untitled tab (needs save-as)');
             return;
         }
 
         if (!window.electronAPI) {
+            logSaveAttempt('skipped', {
+                path: savePath,
+                byteLength: content.length,
+                modelMatchedPath
+            });
             console.log('[performAutoSave] Skipping - electronAPI unavailable');
             return;
         }
@@ -141,16 +190,34 @@ async function performAutoSave() {
             window.hasUnsavedChanges = false;
             updateUnsavedIndicator(false);
             showNotification('Auto-saved', 'success', 1000);
+            logSaveAttempt('saved', {
+                path: savePath,
+                byteLength: content.length,
+                modelMatchedPath
+            });
         } else {
+            logSaveAttempt('failed', {
+                path: savePath,
+                byteLength: content.length,
+                modelMatchedPath,
+                error: result?.error || 'Unknown save failure'
+            });
             console.log('[performAutoSave] Save failed:', result);
         }
     } catch (error) {
+        if (!saveAttemptLogged) {
+            logSaveAttempt('error', { error });
+        }
         console.error('[performAutoSave] Error during auto-save:', error);
     }
 }
 
 // Update the unsaved changes indicator
 function updateUnsavedIndicator(hasUnsaved) {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
     const currentFileName = document.getElementById('current-file-name');
     if (currentFileName) {
         const text = currentFileName.textContent;

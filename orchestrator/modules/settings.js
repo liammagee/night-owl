@@ -181,6 +181,7 @@ function createSettingsSidebar() {
         { id: 'appearance', label: 'Appearance', icon: '🎨' },
         { id: 'themes', label: 'Templates', icon: '🎭' },
         { id: 'editor', label: 'Editor', icon: '📝' },
+        { id: 'publishing', label: 'Publishing', icon: '🌐' },
         { id: 'plugins', label: 'Plugins', icon: '🧩' },
         { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
@@ -235,6 +236,7 @@ function showSettingsCategory(category) {
             appearance: 'Appearance',
             themes: 'Templates',
             editor: 'Editor Settings',
+            publishing: 'Publishing',
             plugins: 'Plugins',
             gamification: 'Gamification Settings',
             ai: 'AI Configuration',
@@ -271,6 +273,8 @@ function generateSettingsContent(category) {
             return generateThemesSettings();
         case 'editor':
             return generateEditorSettings();
+        case 'publishing':
+            return generatePublishingSettings();
         case 'plugins':
             return generatePluginsSettings();
         case 'gamification':
@@ -292,6 +296,16 @@ function generateSettingsContent(category) {
         default:
             return '<p>Select a settings category from the sidebar.</p>';
     }
+}
+
+function escapeSettingsHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[ch] || ch));
 }
 
 function generateGeneralSettings() {
@@ -359,6 +373,32 @@ function generateGeneralSettings() {
                 </label>
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
                     Choose how internal links ([[filename]]) are displayed and behave in your documents.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+function generatePublishingSettings() {
+    const mappings = currentSettings.publishing?.urlMappings || [];
+    const mappingText = window.NightOwlPublishedUrls?.serializeMappings
+        ? window.NightOwlPublishedUrls.serializeMappings(mappings)
+        : mappings.map(mapping => `${mapping.localRoot || ''} => ${mapping.urlTemplate || ''}`).join('\n');
+
+    return `
+        <div class="settings-section">
+            <h3>Published URL Mappings</h3>
+            <div class="settings-group">
+                <label style="display: block;">
+                    <span>URL mappings</span>
+                    <textarea id="published-url-mappings" rows="8" style="width: 100%; box-sizing: border-box; margin-top: 6px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px; resize: vertical;" placeholder="/path/to/content => https://example.org/#/{contentId}">${escapeSettingsHtml(mappingText)}</textarea>
+                    <small class="setting-description">Use one mapping per line. Format: local folder =&gt; URL template. Local folders can use {workingDirectory}.</small>
+                </label>
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    Templates can use {relativePath}, {htmlPath}, {htmlPathNoExt}, {slug}, {parentSlugAndSlug}, and {contentId}. Markdown paths convert to HTML for htmlPath tokens.
+                </p>
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    Example for the Machine Spirits content package: /path/to/machinespirits-content-philosophy =&gt; https://machinespirits.org/#/{contentId}
                 </p>
             </div>
         </div>
@@ -2347,6 +2387,14 @@ function collectSettingsFromForm() {
         if (!updatedSettings.notifications) updatedSettings.notifications = {};
         updatedSettings.notifications.aiEnabled = !disableAINotifications;
     }
+
+    const publishedUrlMappings = document.getElementById('published-url-mappings')?.value;
+    if (publishedUrlMappings !== undefined) {
+        if (!updatedSettings.publishing) updatedSettings.publishing = {};
+        updatedSettings.publishing.urlMappings = window.NightOwlPublishedUrls?.parseMappingLines
+            ? window.NightOwlPublishedUrls.parseMappingLines(publishedUrlMappings)
+            : [];
+    }
     
     // Theme settings
     const theme = document.getElementById('theme-select')?.value;
@@ -3334,4 +3382,9 @@ async function initializeAIModelDropdowns() {
     } catch (error) {
         console.error('[Settings] Error initializing AI model dropdowns:', error);
     }
+}
+
+if (typeof window !== 'undefined') {
+    window.openSettingsDialog = openSettingsDialog;
+    window.closeSettingsDialog = closeSettingsDialog;
 }

@@ -6,6 +6,7 @@ describe('fileHandlers registration', () => {
   let fileHandlers;
   let ipcMain;
   let dialog;
+  let shell;
 
   function getRegisteredHandler(channel) {
     const entry = ipcMain.handle.mock.calls.find(([name]) => name === channel);
@@ -17,9 +18,13 @@ describe('fileHandlers registration', () => {
 
   beforeEach(() => {
     jest.resetModules();
-    ({ ipcMain, dialog } = require('electron'));
+    ({ ipcMain, dialog, shell } = require('electron'));
     ipcMain.handle.mockClear();
     dialog.showOpenDialog.mockReset();
+    shell.openPath.mockClear();
+    shell.openExternal.mockClear();
+    shell.openPath.mockResolvedValue('');
+    shell.openExternal.mockResolvedValue();
     fileHandlers = require('../../../ipc/fileHandlers');
   });
 
@@ -162,6 +167,92 @@ describe('fileHandlers registration', () => {
     );
 
     setCurrentFile(null, null);
+    fsSync.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('open-external opens web URLs in the browser instead of treating them as file paths', async () => {
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => '/workspace/current'),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: '/workspace/current',
+      userDataPath: '/mock/user-data'
+    });
+
+    const handler = getRegisteredHandler('open-external');
+    const result = await handler(null, 'https://machinespirits.org/#/ai-tutor-machinagogy-v2');
+
+    expect(result).toEqual({
+      success: true,
+      url: 'https://machinespirits.org/#/ai-tutor-machinagogy-v2'
+    });
+    expect(shell.openExternal).toHaveBeenCalledWith('https://machinespirits.org/#/ai-tutor-machinagogy-v2');
+    expect(shell.openPath).not.toHaveBeenCalled();
+  });
+
+  test('open-external still opens local file paths with the system handler', async () => {
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => '/workspace/current'),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: '/workspace/current',
+      userDataPath: '/mock/user-data'
+    });
+
+    const handler = getRegisteredHandler('open-external');
+    const result = await handler(null, '/workspace/current/a.pdf');
+
+    expect(result).toEqual({
+      success: true,
+      filePath: '/workspace/current/a.pdf'
+    });
+    expect(shell.openPath).toHaveBeenCalledWith('/workspace/current/a.pdf');
+    expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  test('get-markdown-files caches workspace scans and refresh invalidates them', async () => {
+    const tempDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-markdown-cache-'));
+    const send = jest.fn();
+    fsSync.writeFileSync(path.join(tempDir, 'a.md'), '# A\n', 'utf8');
+
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => ({ webContents: { send } })),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => tempDir),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: tempDir,
+      userDataPath: '/mock/user-data'
+    });
+
+    const getMarkdownFiles = getRegisteredHandler('get-markdown-files');
+    const refreshFileTree = getRegisteredHandler('refresh-file-tree');
+
+    const firstResult = await getMarkdownFiles();
+    expect(firstResult.files).toEqual([path.join(tempDir, 'a.md')]);
+
+    fsSync.writeFileSync(path.join(tempDir, 'b.md'), '# B\n', 'utf8');
+
+    const cachedResult = await getMarkdownFiles();
+    expect(cachedResult.files).toEqual([path.join(tempDir, 'a.md')]);
+
+    await refreshFileTree();
+    const refreshedResult = await getMarkdownFiles();
+    expect(refreshedResult.files).toEqual([
+      path.join(tempDir, 'a.md'),
+      path.join(tempDir, 'b.md')
+    ]);
+
     fsSync.rmSync(tempDir, { recursive: true, force: true });
   });
 });
