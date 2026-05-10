@@ -81,7 +81,7 @@ by blast radius, not by depth of code change.
 
 ### Medium (performance, observability)
 
-- [ ] **Re-measure `lecture-7.md` initial load** post-presentation-debounce fix in `js/mode-switcher.js`. Pre-fix: 41ms parse + 342ms idle work. Expected: ~300ms reduction in editor mode now that the React presentation broadcaster only dispatches when presentation is actually visible. Use computer-use to load the file and read the perf overlay; record numbers in this TODO.
+- [x] **Re-measure `lecture-7.md` initial load** post-presentation-debounce fix in `js/mode-switcher.js`. Pre-fix: 41ms parse + 342ms idle work. **Status 2026-05-10:** automated Electron timing in editor mode against the 28,056-character content repo file recorded open/render samples of 116.3ms, 68.1ms, 109.6ms, 69.8ms, and 180.1ms (median 109.6ms). The hidden presentation root received 0 `updatePresentationContent` events, confirming the previous presentation reparse/idle-work path is gated off while not visible.
 
 - [x] **Verify the Monaco `Cancelled` error guard is installed.** Reload the app, open and close a few files quickly to provoke the cancellation path, and confirm no `Error: Canceled` from `restoreViewState` appears in DevTools. **Status 2026-05-10:** Electron smoke confirmed `window._monacoCancelGuardInstalled === true` after rapid tab activation/close cycles and observed no console/page errors matching `Canceled`, `Cancelled`, or `restoreViewState`.
 
