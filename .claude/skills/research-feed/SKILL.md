@@ -20,17 +20,11 @@ This skill drives the `research-feed` MCP server (configured in `.mcp.json`). It
 
 If the user wants the rich panel UI (drag, click, AI relevance gating against current draft), tell them to open the IDE — `npm run dev`, then `Cmd+,` → 🧩 Plugins → toggle `techne-research-feed` → click the floating ⚲ button. The MCP tools cover the same data but without the AI gate.
 
-## Storage gotcha — read this first
+## Storage
 
-By default the IDE writes to `~/Library/Application Support/NightOwl/research-feed/` while the MCP server writes to `~/.machinespirits-research-feed-cli/research-feed/`. **Items added through MCP do not appear in the IDE panel by default**, and vice versa.
+All three surfaces (IDE plugin, CLI, MCP server) share one SQLite DB at `~/Library/Application Support/NightOwl/research-feed/feed.db` on macOS — Electron's `app.getPath('userData')` for this app. Anything added through any surface shows up in the others.
 
-If the user asks "why isn't this showing up in the panel?" — that's the cause. The fix is to set `RF_USER_DATA` in `.mcp.json` to point at NightOwl's path:
-
-```json
-"env": { "RF_USER_DATA": "${HOME}/Library/Application Support/NightOwl" }
-```
-
-Don't make this change unprompted — it's reversible but requires a Claude Code restart to take effect.
+Override per surface with `RF_USER_DATA` (env, set in `.mcp.json` for MCP; same env var or `--user-data` flag for the CLI). The IDE always uses Electron's path and is not configurable.
 
 ## Recipes
 

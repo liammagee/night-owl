@@ -6,9 +6,10 @@
 //
 // Transport: stdio, line-delimited JSON-RPC 2.0 (per MCP spec).
 // Methods supported: initialize, notifications/initialized, tools/list, tools/call.
-// Storage: defaults to ~/.machinespirits-research-feed-cli/ — same dir the CLI
-// uses, so anything Claude adds is visible from `npm run feed-cli` and vice
-// versa. Override with RF_USER_DATA.
+// Storage: defaults to NightOwl's Electron userData path
+// (e.g. ~/Library/Application Support/NightOwl on macOS), shared with the IDE
+// plugin and the feed-cli script, so items added via any surface show up in
+// the IDE panel. Override with RF_USER_DATA (set in .mcp.json env).
 // Credentials (Google / SerpAPI): env vars only, since safeStorage requires
 // Electron. Set RF_GOOGLE_API_KEY, RF_GOOGLE_CX, RF_SERPAPI_KEY in .mcp.json.
 
@@ -55,6 +56,18 @@ const ON_DEMAND_TYPES = new Set(['chromeTabs']);
 
 const CHROME_TABS_SOURCE_ID = 'chrome-tabs';
 
+// Mirror Electron's app.getPath('userData') so the MCP server shares storage
+// with the IDE without depending on Electron. Override via RF_USER_DATA.
+function defaultUserDataPath() {
+    if (process.platform === 'darwin') {
+        return path.join(os.homedir(), 'Library', 'Application Support', 'NightOwl');
+    }
+    if (process.platform === 'win32') {
+        return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'NightOwl');
+    }
+    return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'NightOwl');
+}
+
 const SERVER_INFO = { name: 'research-feed', version: '0.1.0' };
 const PROTOCOL_VERSION = '2024-11-05';
 
@@ -63,8 +76,7 @@ const PROTOCOL_VERSION = '2024-11-05';
 let storeRef = null;
 async function ensureStore() {
     if (storeRef) return storeRef;
-    const userData = process.env.RF_USER_DATA ||
-        path.join(os.homedir(), '.machinespirits-research-feed-cli');
+    const userData = process.env.RF_USER_DATA || defaultUserDataPath();
     if (!fs.existsSync(userData)) fs.mkdirSync(userData, { recursive: true });
     const s = getFeedStore();
     if (!s.isInitialized) await s.initialize(userData);

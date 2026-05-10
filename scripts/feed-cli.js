@@ -3,9 +3,10 @@
 // Drives the same services/feedStore.js + services/feedSources/* used by the
 // IDE plugin, but from plain node so adapters can be exercised without Electron.
 //
-// Defaults to a CLI-only user-data dir (~/.machinespirits-research-feed-cli)
-// so it never touches the IDE's production DB. Pass --user-data to point
-// somewhere else.
+// Defaults to the same user-data dir the IDE uses (NightOwl's Electron
+// userData path, e.g. ~/Library/Application Support/NightOwl on macOS), so
+// items added via CLI show up in the IDE panel and vice versa. Override
+// with --user-data <path> or the RF_USER_DATA env var (CLI flag wins).
 //
 // Credentials normally live in safeStorage (Electron only). The CLI substitutes
 // env vars: RF_GOOGLE_API_KEY, RF_GOOGLE_CX, RF_SERPAPI_KEY.
@@ -40,6 +41,18 @@ const CREDS_FOR_TYPE = {
 const ON_DEMAND_TYPES = new Set(['chromeTabs']);
 
 const CHROME_TABS_SOURCE_ID = 'chrome-tabs';
+
+// Mirror Electron's app.getPath('userData') so CLI/MCP and IDE share storage
+// without depending on Electron itself. Override via --user-data or RF_USER_DATA.
+function defaultUserDataPath() {
+    if (process.platform === 'darwin') {
+        return path.join(os.homedir(), 'Library', 'Application Support', 'NightOwl');
+    }
+    if (process.platform === 'win32') {
+        return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'NightOwl');
+    }
+    return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'NightOwl');
+}
 
 // ---- arg parsing ----------------------------------------------------------
 
@@ -418,7 +431,8 @@ async function main() {
     let store = null;
     if (!NO_STORE_COMMANDS.has(cmd)) {
         const userData = args.flags['user-data'] ||
-            path.join(os.homedir(), '.machinespirits-research-feed-cli');
+            process.env.RF_USER_DATA ||
+            defaultUserDataPath();
         if (!fs.existsSync(userData)) fs.mkdirSync(userData, { recursive: true });
         store = getFeedStore();
         if (!store.isInitialized) await store.initialize(userData);

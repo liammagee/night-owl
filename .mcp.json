@@ -4,7 +4,7 @@
       "command": "node",
       "args": ["scripts/feed-mcp-server.js"],
       "env": {
-        "RF_USER_DATA": "${HOME}/.machinespirits-research-feed-cli"
+        "RF_USER_DATA": "${HOME}/Library/Application Support/NightOwl"
       }
     }
   }
