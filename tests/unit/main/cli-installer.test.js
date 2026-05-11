@@ -46,14 +46,17 @@ describe('NightOwl CLI installer', () => {
     expect(result.pathIncludesTargetDir).toBe(false);
   });
 
-  test('standalone macOS shim falls back to open -a NightOwl', () => {
+  test('standalone macOS shim launches app bundles with workspace profiles', () => {
     const shim = makeUnixShim({
       appName: 'NightOwl',
       appPath: '/Applications/NightOwl.app'
     });
 
-    expect(shim).toContain('open "$APP_PATH" --args');
-    expect(shim).toContain('open -a "$APP_NAME" --args');
+    expect(shim).toContain('append_workspace_profile_args');
+    expect(shim).toContain('--nightowl-user-data-dir');
+    expect(shim).toContain('workspace-profiles');
+    expect(shim).toContain('exec "$APP_PATH/Contents/MacOS/$APP_NAME"');
+    expect(shim).toContain('open -n -a "$APP_NAME" --args');
     expect(shim).toContain('resolve_arg');
   });
 

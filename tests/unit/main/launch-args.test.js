@@ -12,7 +12,7 @@ describe('NightOwl launch argument handling', () => {
   test('parses editor-style path arguments while ignoring Electron app args', () => {
     const appRoot = '/Users/example/NightOwl';
     const parsed = parseNightOwlLaunchArgs(
-      [appRoot, '--dev', '--remote-debugging-port=0', '.'],
+      [appRoot, '--dev', '--nightowl-user-data-dir', '/tmp/nightowl-profile', '--remote-debugging-port=0', '.'],
       { cwd: '/Users/example/project', appRoot }
     );
 

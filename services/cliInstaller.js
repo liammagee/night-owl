@@ -91,18 +91,87 @@ for arg in "$@"; do
   args+=("$(resolve_arg "$arg")")
 done
 
+append_workspace_profile_args() {
+  local has_user_data=0
+  local expect_user_data_value=0
+  local first_path=''
+  local arg
+  for arg in "\${args[@]}"; do
+    if [[ "$expect_user_data_value" == "1" ]]; then
+      expect_user_data_value=0
+      continue
+    fi
+    case "$arg" in
+      --nightowl-user-data-dir|--user-data-dir)
+        has_user_data=1
+        expect_user_data_value=1
+        ;;
+      --nightowl-user-data-dir=*|--user-data-dir=*)
+        has_user_data=1
+        ;;
+      --|--*|-*)
+        ;;
+      *)
+        if [[ -z "$first_path" ]]; then
+          first_path="$arg"
+        fi
+        ;;
+    esac
+  done
+
+  if [[ "$has_user_data" == "1" || -z "$first_path" ]]; then
+    return
+  fi
+
+  local workspace="$first_path"
+  if [[ -f "$workspace" ]]; then
+    workspace="$(dirname "$workspace")"
+  elif [[ ! -d "$workspace" && "$workspace" == *.* ]]; then
+    workspace="$(dirname "$workspace")"
+  fi
+  if [[ -d "$workspace" ]]; then
+    workspace="$(cd "$workspace" && pwd -P)"
+  fi
+
+  local base_name
+  base_name="$(basename "$workspace" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-48)"
+  if [[ -z "$base_name" ]]; then
+    base_name='workspace'
+  fi
+
+  local hash
+  hash="$(printf '%s' "$workspace" | shasum | awk '{print substr($1, 1, 12)}')"
+
+  local base_user_data
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    base_user_data="\${NIGHTOWL_USER_DATA_DIR:-$HOME/Library/Application Support/NightOwl}"
+  else
+    base_user_data="\${NIGHTOWL_USER_DATA_DIR:-\${XDG_CONFIG_HOME:-$HOME/.config}/NightOwl}"
+  fi
+
+  args=("--nightowl-user-data-dir" "$base_user_data/workspace-profiles/$base_name-$hash" "\${args[@]}")
+}
+
+append_workspace_profile_args
+
 if [[ -n "$LOCAL_LAUNCHER" && -f "$LOCAL_LAUNCHER" ]]; then
   exec node "$LOCAL_LAUNCHER" "\${args[@]}"
 fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   if [[ -n "\${NIGHTOWL_APP_PATH:-}" ]]; then
-    exec open "\${NIGHTOWL_APP_PATH}" --args "\${args[@]}"
+    if [[ -d "\${NIGHTOWL_APP_PATH}" && -x "\${NIGHTOWL_APP_PATH}/Contents/MacOS/$APP_NAME" ]]; then
+      exec "\${NIGHTOWL_APP_PATH}/Contents/MacOS/$APP_NAME" "\${args[@]}"
+    fi
+    exec open -n "\${NIGHTOWL_APP_PATH}" --args "\${args[@]}"
   fi
   if [[ -n "$APP_PATH" && -d "$APP_PATH" ]]; then
-    exec open "$APP_PATH" --args "\${args[@]}"
+    if [[ -x "$APP_PATH/Contents/MacOS/$APP_NAME" ]]; then
+      exec "$APP_PATH/Contents/MacOS/$APP_NAME" "\${args[@]}"
+    fi
+    exec open -n "$APP_PATH" --args "\${args[@]}"
   fi
-  exec open -a "$APP_NAME" --args "\${args[@]}"
+  exec open -n -a "$APP_NAME" --args "\${args[@]}"
 fi
 
 if [[ -n "\${NIGHTOWL_APP_PATH:-}" && -x "\${NIGHTOWL_APP_PATH}" ]]; then

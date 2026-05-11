@@ -6,6 +6,7 @@ const VALUE_FLAGS = new Set([
   '--inspect',
   '--inspect-brk',
   '--js-flags',
+  '--nightowl-user-data-dir',
   '--remote-debugging-port',
   '--user-data-dir'
 ]);
