@@ -9764,11 +9764,12 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
     const isExpanded = window.expandedFolders.has(node.path);
 
     
-    // Create expand/collapse arrow for folders with children
+    // Reserve the disclosure column for every row so file and folder icons
+    // align by depth instead of shifting when only folders have arrows.
     let expandArrow = '';
     if (hasChildren) {
         expandArrow = `<span class="expand-arrow" aria-hidden="true">${isExpanded ? '▾' : '▸'}</span>`;
-    } else if (isFolder) {
+    } else {
         expandArrow = '<span class="expand-spacer" aria-hidden="true"></span>';
     }
 

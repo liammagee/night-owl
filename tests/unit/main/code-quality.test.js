@@ -87,6 +87,7 @@ describe('Code quality guardrails', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
 
     expect(indexSource).toContain('orchestrator/modules/file-tree-state.js');
+    expect(rendererSource).toContain('align by depth');
     expect(stateSource).toContain('window.NightOwlFileTreeState');
     expect(stateSource).toContain('function setActiveTreeFolder');
     expect(stateSource).toContain('function setClipboard');
