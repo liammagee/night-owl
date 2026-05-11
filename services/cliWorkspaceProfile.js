@@ -4,6 +4,7 @@ const os = require('os');
 const path = require('path');
 
 const WORKSPACE_PROFILE_FLAG = '--nightowl-user-data-dir';
+const WORKSPACE_PROFILE_ENV = 'NIGHTOWL_WORKSPACE_USER_DATA_DIR';
 
 function getDefaultUserDataPath(appName = 'NightOwl', platform = process.platform, env = process.env) {
   if (platform === 'darwin') {
@@ -71,10 +72,17 @@ function appendWorkspaceProfileArgs(argv = [], options = {}) {
   if (!userDataPath) return argv.slice();
 
   return [
-    WORKSPACE_PROFILE_FLAG,
-    userDataPath,
+    `--user-data-dir=${userDataPath}`,
+    `${WORKSPACE_PROFILE_FLAG}=${userDataPath}`,
     ...argv
   ];
+}
+
+function resolveWorkspaceUserDataPath(cliPaths = [], options = {}) {
+  if (hasUserDataArg(options.argv || [])) return '';
+
+  const workspacePath = getWorkspacePathForProfile(cliPaths, options);
+  return getWorkspaceUserDataPath(workspacePath, options);
 }
 
 function extractWorkspaceUserDataDir(argv = []) {
@@ -95,11 +103,13 @@ function extractWorkspaceUserDataDir(argv = []) {
 }
 
 module.exports = {
+  WORKSPACE_PROFILE_ENV,
   WORKSPACE_PROFILE_FLAG,
   appendWorkspaceProfileArgs,
   extractWorkspaceUserDataDir,
   getDefaultUserDataPath,
   getWorkspacePathForProfile,
   getWorkspaceUserDataPath,
-  hasUserDataArg
+  hasUserDataArg,
+  resolveWorkspaceUserDataPath
 };

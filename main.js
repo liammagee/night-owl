@@ -30,6 +30,7 @@ const {
   resolveLaunchTargets
 } = require('./services/launchArgs');
 const {
+  WORKSPACE_PROFILE_ENV,
   extractWorkspaceUserDataDir
 } = require('./services/cliWorkspaceProfile');
 const { installNightOwlCli } = require('./services/cliInstaller');
@@ -62,7 +63,7 @@ function cleanAIResponse(response) {
 // Set app name immediately - before anything else
 if (app && typeof app.setName === 'function') {
     app.setName('NightOwl');
-    const workspaceUserDataDir = extractWorkspaceUserDataDir(process.argv);
+    const workspaceUserDataDir = process.env[WORKSPACE_PROFILE_ENV] || extractWorkspaceUserDataDir(process.argv);
     if (workspaceUserDataDir) {
         try {
             fsSync.mkdirSync(workspaceUserDataDir, { recursive: true });

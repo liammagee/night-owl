@@ -91,6 +91,8 @@ for arg in "$@"; do
   args+=("$(resolve_arg "$arg")")
 done
 
+workspace_profile_args=()
+
 append_workspace_profile_args() {
   local has_user_data=0
   local expect_user_data_value=0
@@ -149,7 +151,9 @@ append_workspace_profile_args() {
     base_user_data="\${NIGHTOWL_USER_DATA_DIR:-\${XDG_CONFIG_HOME:-$HOME/.config}/NightOwl}"
   fi
 
-  args=("--nightowl-user-data-dir" "$base_user_data/workspace-profiles/$base_name-$hash" "\${args[@]}")
+  local workspace_user_data="$base_user_data/workspace-profiles/$base_name-$hash"
+  workspace_profile_args=("--user-data-dir=$workspace_user_data" "--nightowl-user-data-dir=$workspace_user_data")
+  export NIGHTOWL_WORKSPACE_USER_DATA_DIR="$workspace_user_data"
 }
 
 append_workspace_profile_args
@@ -161,17 +165,17 @@ fi
 if [[ "$(uname -s)" == "Darwin" ]]; then
   if [[ -n "\${NIGHTOWL_APP_PATH:-}" ]]; then
     if [[ -d "\${NIGHTOWL_APP_PATH}" && -x "\${NIGHTOWL_APP_PATH}/Contents/MacOS/$APP_NAME" ]]; then
-      exec "\${NIGHTOWL_APP_PATH}/Contents/MacOS/$APP_NAME" "\${args[@]}"
+      exec "\${NIGHTOWL_APP_PATH}/Contents/MacOS/$APP_NAME" "\${workspace_profile_args[@]}" "\${args[@]}"
     fi
-    exec open -n "\${NIGHTOWL_APP_PATH}" --args "\${args[@]}"
+    exec open -n "\${NIGHTOWL_APP_PATH}" --args "\${workspace_profile_args[@]}" "\${args[@]}"
   fi
   if [[ -n "$APP_PATH" && -d "$APP_PATH" ]]; then
     if [[ -x "$APP_PATH/Contents/MacOS/$APP_NAME" ]]; then
-      exec "$APP_PATH/Contents/MacOS/$APP_NAME" "\${args[@]}"
+      exec "$APP_PATH/Contents/MacOS/$APP_NAME" "\${workspace_profile_args[@]}" "\${args[@]}"
     fi
-    exec open -n "$APP_PATH" --args "\${args[@]}"
+    exec open -n "$APP_PATH" --args "\${workspace_profile_args[@]}" "\${args[@]}"
   fi
-  exec open -n -a "$APP_NAME" --args "\${args[@]}"
+  exec open -n -a "$APP_NAME" --args "\${workspace_profile_args[@]}" "\${args[@]}"
 fi
 
 if [[ -n "\${NIGHTOWL_APP_PATH:-}" && -x "\${NIGHTOWL_APP_PATH}" ]]; then

@@ -183,11 +183,15 @@ describe('Code quality guardrails', () => {
     expect(packageJson.build.files).toContain('services/**/*');
     expect(cliSource).toContain('function resolveMacAppPath');
     expect(cliSource).toContain('appendWorkspaceProfileArgs');
-    expect(cliSource).toContain('POSIX path of (path to application "NightOwl")');
+    expect(cliSource).toContain('resolveWorkspaceUserDataPath');
+    expect(cliSource).toContain("path.join(appRoot, 'dist', process.arch === 'arm64' ? 'mac-arm64' : 'mac', 'NightOwl.app')");
+    expect(cliSource).not.toContain('path to application "NightOwl"');
     expect(mainSource).toContain('extractWorkspaceUserDataDir');
+    expect(mainSource).toContain('WORKSPACE_PROFILE_ENV');
     expect(mainSource).toContain("app.setPath('userData', workspaceUserDataDir)");
     expect(cliSource).toContain("process.env.NIGHTOWL_CLI_DEV === '1'");
-    expect(cliSource).toContain("spawnAndExit('open', ['-n', appPath, '--args', ...appArgs]");
+    expect(cliSource).toContain('directAppArgs');
+    expect(cliSource).toContain('`--user-data-dir=${workspaceUserDataPath}`');
   });
 
   test('direct write handlers resolve targets through workspace path guards', () => {

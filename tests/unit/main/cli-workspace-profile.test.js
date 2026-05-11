@@ -1,12 +1,14 @@
 const path = require('path');
 
 const {
+  WORKSPACE_PROFILE_ENV,
   WORKSPACE_PROFILE_FLAG,
   appendWorkspaceProfileArgs,
   extractWorkspaceUserDataDir,
   getWorkspacePathForProfile,
   getWorkspaceUserDataPath,
-  hasUserDataArg
+  hasUserDataArg,
+  resolveWorkspaceUserDataPath
 } = require('../../../services/cliWorkspaceProfile');
 const { parseNightOwlLaunchArgs } = require('../../../services/launchArgs');
 
@@ -53,6 +55,17 @@ describe('NightOwl CLI workspace profiles', () => {
     expect(first).toContain(path.join('/tmp/NightOwl', 'workspace-profiles', 'project-'));
   });
 
+  test('resolves profile path for environment handoff without mutating argv', () => {
+    const userDataPath = resolveWorkspaceUserDataPath(['/Users/example/project'], {
+      argv: ['/Users/example/project'],
+      baseUserDataPath: '/tmp/NightOwl',
+      fs: { statSync: () => ({ isDirectory: () => true, isFile: () => false }) }
+    });
+
+    expect(WORKSPACE_PROFILE_ENV).toBe('NIGHTOWL_WORKSPACE_USER_DATA_DIR');
+    expect(userDataPath).toContain(path.join('/tmp/NightOwl', 'workspace-profiles', 'project-'));
+  });
+
   test('prepends workspace user-data args unless the caller already provided them', () => {
     const args = appendWorkspaceProfileArgs(['/Users/example/project'], {
       cliPaths: ['/Users/example/project'],
@@ -60,9 +73,10 @@ describe('NightOwl CLI workspace profiles', () => {
       fs: { statSync: () => ({ isDirectory: () => true, isFile: () => false }) }
     });
 
-    expect(args[0]).toBe(WORKSPACE_PROFILE_FLAG);
-    expect(args[1]).toContain(path.join('/tmp/NightOwl', 'workspace-profiles', 'project-'));
-    expect(args.slice(2)).toEqual(['/Users/example/project']);
+    expect(args[0]).toContain('--user-data-dir=');
+    expect(args[0]).toContain(path.join('/tmp/NightOwl', 'workspace-profiles', 'project-'));
+    expect(args[1]).toContain(`${WORKSPACE_PROFILE_FLAG}=`);
+    expect(args[2]).toBe('/Users/example/project');
 
     expect(appendWorkspaceProfileArgs(['--user-data-dir', '/tmp/custom', '/Users/example/project'], {
       cliPaths: ['/Users/example/project']

@@ -2,11 +2,13 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
 const { absolutizeCliPathArgs, parseNightOwlLaunchArgs } = require('../services/launchArgs');
 const {
   appendWorkspaceProfileArgs,
-  getDefaultUserDataPath
+  getDefaultUserDataPath,
+  resolveWorkspaceUserDataPath,
+  WORKSPACE_PROFILE_ENV
 } = require('../services/cliWorkspaceProfile');
 
 const appRoot = path.resolve(__dirname, '..');
@@ -60,20 +62,6 @@ function resolveMacAppPath() {
     if (fs.existsSync(candidate)) return candidate;
   }
 
-  try {
-    const appPath = execFileSync('osascript', [
-      '-e',
-      'POSIX path of (path to application "NightOwl")'
-    ], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 2000
-    }).trim().replace(/\/$/, '');
-    if (appPath && fs.existsSync(appPath)) return appPath;
-  } catch (_) {
-    // Launch Services may not know NightOwl yet on a fresh source checkout.
-  }
-
   const localAppCandidates = [
     path.join(appRoot, 'dist', process.arch === 'arm64' ? 'mac-arm64' : 'mac', 'NightOwl.app'),
     path.join(appRoot, 'dist', 'mac-universal', 'NightOwl.app'),
@@ -114,7 +102,7 @@ function resolveMacAppExecutable(appPath) {
 function spawnAndExit(command, commandArgs, options = {}) {
   const child = spawn(command, commandArgs, {
     cwd: options.cwd || appRoot,
-    env,
+    env: options.env || env,
     stdio: foreground ? 'inherit' : 'ignore',
     detached: !foreground
   });
@@ -140,16 +128,29 @@ const electronBin = process.platform === 'win32'
   : path.join(appRoot, 'node_modules', '.bin', 'electron');
 const forceLocal = process.env.NIGHTOWL_CLI_DEV === '1';
 const macAppPath = forceLocal ? '' : resolveMacAppPath();
-const appArgs = appendWorkspaceProfileArgs(args, {
+const profileOptions = {
+  argv: args,
   baseUserDataPath: process.env.NIGHTOWL_USER_DATA_DIR || getDefaultUserDataPath('NightOwl'),
   cliPaths: parsed.paths,
   cwd: process.cwd()
-});
+};
+const workspaceUserDataPath = resolveWorkspaceUserDataPath(parsed.paths, profileOptions);
+const appEnv = workspaceUserDataPath
+  ? { ...env, [WORKSPACE_PROFILE_ENV]: workspaceUserDataPath }
+  : env;
+const directAppArgs = workspaceUserDataPath
+  ? [
+    `--user-data-dir=${workspaceUserDataPath}`,
+    `--nightowl-user-data-dir=${workspaceUserDataPath}`,
+    ...args
+  ]
+  : args;
+const openAppArgs = appendWorkspaceProfileArgs(args, profileOptions);
 
 const preferLocal = forceLocal || !macAppPath;
 
 if (preferLocal && fs.existsSync(electronBin)) {
-  spawnAndExit(electronBin, [appRoot, ...appArgs]);
+  spawnAndExit(electronBin, [appRoot, ...directAppArgs], { env: appEnv });
   return;
 }
 
@@ -158,15 +159,15 @@ if (process.platform === 'darwin') {
   if (fs.existsSync(appPath)) {
     const appExecutable = resolveMacAppExecutable(appPath);
     if (appExecutable) {
-      spawnAndExit(appExecutable, appArgs, { cwd: process.cwd() });
+      spawnAndExit(appExecutable, directAppArgs, { cwd: process.cwd(), env: appEnv });
       return;
     }
 
-    spawnAndExit('open', ['-n', appPath, '--args', ...appArgs], { cwd: process.cwd() });
+    spawnAndExit('open', ['-n', appPath, '--args', ...openAppArgs], { cwd: process.cwd() });
     return;
   }
 
-  spawnAndExit('open', ['-n', '-a', 'NightOwl', '--args', ...appArgs], { cwd: process.cwd() });
+  spawnAndExit('open', ['-n', '-a', 'NightOwl', '--args', ...openAppArgs], { cwd: process.cwd() });
   return;
 }
 
