@@ -103,7 +103,8 @@ describe('terminalHandlers', () => {
     expect(sender.send).toHaveBeenCalledWith('terminal-output', {
       sessionId: 'assistant',
       data: 'ready',
-      stream: 'stdout'
+      stream: 'stdout',
+      pid: 1234
     });
   });
 
@@ -163,7 +164,8 @@ describe('terminalHandlers', () => {
     expect(sender.send).toHaveBeenCalledWith('terminal-output', {
       sessionId: 'assistant',
       data: 'pty ready',
-      stream: 'stdout'
+      stream: 'stdout',
+      pid: 5678
     });
 
     const writeHandler = getRegisteredHandler('terminal-write');
@@ -180,6 +182,68 @@ describe('terminalHandlers', () => {
       rows: 28
     })).resolves.toEqual({ success: true });
     expect(ptyProc.resize).toHaveBeenCalledWith(100, 28);
+  });
+
+  test('replacing a terminal suppresses stale exit events and keeps the new PTY active', async () => {
+    const firstPty = new EventEmitter();
+    firstPty.pid = 1111;
+    firstPty.write = jest.fn();
+    firstPty.resize = jest.fn();
+    firstPty.kill = jest.fn();
+    firstPty.onData = jest.fn((handler) => {
+      firstPty.emitData = handler;
+      return { dispose: jest.fn() };
+    });
+    firstPty.onExit = jest.fn((handler) => {
+      firstPty.emitExit = handler;
+      return { dispose: jest.fn() };
+    });
+
+    const secondPty = new EventEmitter();
+    secondPty.pid = 2222;
+    secondPty.write = jest.fn();
+    secondPty.resize = jest.fn();
+    secondPty.kill = jest.fn();
+    secondPty.onData = jest.fn((handler) => {
+      secondPty.emitData = handler;
+      return { dispose: jest.fn() };
+    });
+    secondPty.onExit = jest.fn((handler) => {
+      secondPty.emitExit = handler;
+      return { dispose: jest.fn() };
+    });
+
+    const ptySpawnMock = jest.fn()
+      .mockReturnValueOnce(firstPty)
+      .mockReturnValueOnce(secondPty);
+    jest.dontMock('node-pty');
+    jest.doMock('node-pty', () => ({ spawn: ptySpawnMock }), { virtual: true });
+
+    const terminalHandlers = require('../../../ipc/terminalHandlers');
+    const sender = { send: jest.fn() };
+    terminalHandlers.register({
+      appSettings: { workingDirectory: runtimeDir },
+      getCurrentWorkingDirectory: () => runtimeDir,
+      currentWorkingDirectory: runtimeDir
+    });
+
+    const spawnHandler = getRegisteredHandler('terminal-spawn');
+    await spawnHandler({ sender }, { cwd: runtimeDir, sessionId: 'assistant' });
+    await spawnHandler({ sender }, { cwd: runtimeDir, sessionId: 'assistant' });
+
+    expect(firstPty.kill).toHaveBeenCalled();
+    firstPty.emitExit({ exitCode: 0 });
+    expect(sender.send).not.toHaveBeenCalledWith('terminal-output', expect.objectContaining({
+      stream: 'exit',
+      pid: 1111
+    }));
+
+    const writeHandler = getRegisteredHandler('terminal-write');
+    await expect(writeHandler({}, {
+      sessionId: 'assistant',
+      data: 'echo still-active\n'
+    })).resolves.toEqual({ success: true });
+    expect(secondPty.write).toHaveBeenCalledWith('echo still-active\n');
   });
 
   test('terminal-exec falls back to live workspace when requested cwd is stale', async () => {

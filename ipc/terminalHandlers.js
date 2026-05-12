@@ -111,9 +111,9 @@ function getPtyModule() {
   return cachedPtyModule;
 }
 
-function sendTerminalOutput(sender, sessionId, data, stream) {
+function sendTerminalOutput(sender, sessionId, data, stream, metadata = {}) {
   try {
-    sender.send('terminal-output', { sessionId, data, stream });
+    sender.send('terminal-output', { sessionId, data, stream, ...metadata });
   } catch (error) {
     // Window may be closed.
   }
@@ -136,19 +136,23 @@ function createPtySession({ spawnConfig, cwd, env, sender, sessionId, onExit, co
     cols: normalizeTerminalDimension(cols, 120, { min: 20 }),
     rows: normalizeTerminalDimension(rows, 30, { min: 5 })
   });
+  let session;
 
   term.onData((data) => {
-    sendTerminalOutput(sender, sessionId, data, 'stdout');
+    sendTerminalOutput(sender, sessionId, data, 'stdout', { pid: term.pid });
   });
 
   term.onExit(({ exitCode }) => {
-    sendTerminalOutput(sender, sessionId, `\n[Process exited with code ${exitCode}]\n`, 'exit');
-    onExit();
+    if (!session?.suppressExit) {
+      sendTerminalOutput(sender, sessionId, `\n[Process exited with code ${exitCode}]\n`, 'exit', { pid: term.pid });
+    }
+    onExit(session);
   });
 
-  return {
+  session = {
     backend: 'pty',
     pid: term.pid,
+    suppressExit: false,
     write: (data) => term.write(data),
     resize: (nextCols, nextRows) => {
       if (typeof term.resize === 'function') {
@@ -160,6 +164,7 @@ function createPtySession({ spawnConfig, cwd, env, sender, sessionId, onExit, co
     },
     kill: () => term.kill()
   };
+  return session;
 }
 
 function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit }) {
@@ -168,28 +173,34 @@ function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit })
     env,
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  let session;
 
   child.stdout.on('data', (data) => {
-    sendTerminalOutput(sender, sessionId, data.toString(), 'stdout');
+    sendTerminalOutput(sender, sessionId, data.toString(), 'stdout', { pid: child.pid });
   });
 
   child.stderr.on('data', (data) => {
-    sendTerminalOutput(sender, sessionId, data.toString(), 'stderr');
+    sendTerminalOutput(sender, sessionId, data.toString(), 'stderr', { pid: child.pid });
   });
 
   child.on('exit', (code) => {
-    sendTerminalOutput(sender, sessionId, `\n[Process exited with code ${code}]\n`, 'exit');
-    onExit();
+    if (!session?.suppressExit) {
+      sendTerminalOutput(sender, sessionId, `\n[Process exited with code ${code}]\n`, 'exit', { pid: child.pid });
+    }
+    onExit(session);
   });
 
   child.on('error', (err) => {
-    sendTerminalOutput(sender, sessionId, `\n[Error: ${err.message}]\n`, 'error');
-    onExit();
+    if (!session?.suppressExit) {
+      sendTerminalOutput(sender, sessionId, `\n[Error: ${err.message}]\n`, 'error', { pid: child.pid });
+    }
+    onExit(session);
   });
 
-  return {
+  session = {
     backend: 'pipe',
     pid: child.pid,
+    suppressExit: false,
     write: (data) => {
       if (!child.stdin?.writable) {
         throw new Error('No active terminal');
@@ -199,6 +210,7 @@ function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit })
     resize: () => {},
     kill: () => child.kill()
   };
+  return session;
 }
 
 function register(deps) {
@@ -221,6 +233,7 @@ function register(deps) {
     try {
       const existingProcess = activeProcesses.get(normalizedSessionId);
       if (existingProcess) {
+        existingProcess.suppressExit = true;
         try { existingProcess.kill(); } catch (e) { /* ignore */ }
         activeProcesses.delete(normalizedSessionId);
       }
@@ -229,7 +242,11 @@ function register(deps) {
       const sender = event.sender;
       const resolvedCwd = pathExists(cwd) ? cwd : getWorkingDirectory();
       const env = buildTerminalEnv();
-      const onExit = () => activeProcesses.delete(normalizedSessionId);
+      const onExit = (exitedProcess) => {
+        if (activeProcesses.get(normalizedSessionId) === exitedProcess) {
+          activeProcesses.delete(normalizedSessionId);
+        }
+      };
 
       const activeProcess = createPtySession({
         spawnConfig,
@@ -302,6 +319,7 @@ function register(deps) {
       const normalizedSessionId = normalizeSessionId(sessionId);
       const activeProcess = activeProcesses.get(normalizedSessionId);
       if (activeProcess) {
+        activeProcess.suppressExit = true;
         activeProcess.kill();
         activeProcesses.delete(normalizedSessionId);
       }

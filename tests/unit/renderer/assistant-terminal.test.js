@@ -100,6 +100,26 @@ describe('Assistant terminal', () => {
     expect(output).not.toContain('wrong');
   });
 
+  test('ignores stale exit events from replaced PTYs', async () => {
+    document.getElementById('assistant-launch-shell').click();
+    await flushAsync();
+
+    listeners['terminal-output']({
+      sessionId: 'assistant',
+      pid: 1,
+      data: '\n[Process exited with code 0]\n',
+      stream: 'exit'
+    });
+
+    await window.assistantTerminal.runCommand('echo still-active');
+
+    expect(document.getElementById('assistant-terminal-output').textContent).not.toContain('Process exited');
+    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-write', {
+      sessionId: 'assistant',
+      data: 'echo still-active\n'
+    });
+  });
+
   test('loads xterm UMD globals without Monaco AMD capture', async () => {
     const previousDefine = window.define;
     const appendChild = document.head.appendChild.bind(document.head);

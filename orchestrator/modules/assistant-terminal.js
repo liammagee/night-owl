@@ -26,6 +26,7 @@
   let cleanupListener = null;
   let emulatorLoadPromise = null;
   let activeProcess = false;
+  let activePid = null;
   let autoShellStarted = false;
   const commandHistory = [];
   let historyIndex = -1;
@@ -134,12 +135,14 @@
     cleanupListener = window.electronAPI.on('terminal-output', (message = {}) => {
       if (message.sessionId && message.sessionId !== SESSION_ID) return;
       if (!message.sessionId && activeProcess === false) return;
+      if (message.pid && activePid && message.pid !== activePid) return;
 
       if (message.data) {
         writeOutput(message.data, message.stream || 'stdout');
       }
       if (message.stream === 'exit' || message.stream === 'error') {
         activeProcess = false;
+        activePid = null;
       }
     });
   }
@@ -347,6 +350,7 @@
 
     const result = await window.electronAPI.invoke('terminal-kill', { sessionId: SESSION_ID });
     activeProcess = false;
+    activePid = null;
     if (!quiet) writeStatus('\n[assistant terminal process stopped]\n', 'info');
     return result;
   }
@@ -372,6 +376,7 @@
 
     if (result?.success) {
       activeProcess = true;
+      activePid = result.pid || null;
       if (!terminal) {
         const label = options.command
           ? [options.command, ...(options.args || [])].join(' ')
