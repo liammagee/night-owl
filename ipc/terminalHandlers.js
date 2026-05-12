@@ -36,6 +36,8 @@ function buildTerminalEnv() {
       ? currentPath
       : `${commonPath}:${currentPath}`,
     TERM: process.env.TERM || 'xterm-256color',
+    COLORTERM: process.env.COLORTERM || 'truecolor',
+    TERM_PROGRAM: process.env.TERM_PROGRAM || 'NightOwl',
     NIGHTOWL_TERMINAL: '1'
   };
 }
@@ -53,6 +55,29 @@ function buildCommandLine(command, args = [], { windows = false } = {}) {
   return [command, ...args].map(quote).join(' ');
 }
 
+function getShellName(shell) {
+  return String(shell || '').split(/[\\/]/).pop().toLowerCase();
+}
+
+function getInteractiveShellArgs(shell) {
+  const shellName = getShellName(shell);
+  if (shellName.includes('zsh') || shellName.includes('bash')) {
+    return ['-il'];
+  }
+  if (shellName.includes('fish')) {
+    return ['-l', '-i'];
+  }
+  return ['-i'];
+}
+
+function getCommandShellArgs(shell, commandLine) {
+  const shellName = getShellName(shell);
+  if (shellName.includes('fish')) {
+    return ['-lc', commandLine];
+  }
+  return ['-ilc', commandLine];
+}
+
 function getShellSpawnConfig(command, args = []) {
   if (process.platform === 'win32') {
     if (command) {
@@ -68,10 +93,10 @@ function getShellSpawnConfig(command, args = []) {
   if (command) {
     return {
       shell,
-      args: ['-ilc', buildCommandLine(command, args)]
+      args: getCommandShellArgs(shell, buildCommandLine(command, args))
     };
   }
-  return { shell, args: ['-i'] };
+  return { shell, args: getInteractiveShellArgs(shell) };
 }
 
 function getPtyModule() {
@@ -94,7 +119,13 @@ function sendTerminalOutput(sender, sessionId, data, stream) {
   }
 }
 
-function createPtySession({ spawnConfig, cwd, env, sender, sessionId, onExit }) {
+function normalizeTerminalDimension(value, fallback, { min = 1, max = 500 } = {}) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
+}
+
+function createPtySession({ spawnConfig, cwd, env, sender, sessionId, onExit, cols, rows }) {
   const pty = getPtyModule();
   if (!pty?.spawn) return null;
 
@@ -102,8 +133,8 @@ function createPtySession({ spawnConfig, cwd, env, sender, sessionId, onExit }) 
     name: env.TERM || 'xterm-256color',
     cwd,
     env,
-    cols: 120,
-    rows: 30
+    cols: normalizeTerminalDimension(cols, 120, { min: 20 }),
+    rows: normalizeTerminalDimension(rows, 30, { min: 5 })
   });
 
   term.onData((data) => {
@@ -119,6 +150,14 @@ function createPtySession({ spawnConfig, cwd, env, sender, sessionId, onExit }) 
     backend: 'pty',
     pid: term.pid,
     write: (data) => term.write(data),
+    resize: (nextCols, nextRows) => {
+      if (typeof term.resize === 'function') {
+        term.resize(
+          normalizeTerminalDimension(nextCols, 120, { min: 20 }),
+          normalizeTerminalDimension(nextRows, 30, { min: 5 })
+        );
+      }
+    },
     kill: () => term.kill()
   };
 }
@@ -157,6 +196,7 @@ function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit })
       }
       child.stdin.write(data);
     },
+    resize: () => {},
     kill: () => child.kill()
   };
 }
@@ -176,7 +216,7 @@ function register(deps) {
   /**
    * Spawn a shell process
    */
-  ipcMain.handle('terminal-spawn', async (event, { cwd, command, args = [], sessionId } = {}) => {
+  ipcMain.handle('terminal-spawn', async (event, { cwd, command, args = [], sessionId, cols, rows } = {}) => {
     const normalizedSessionId = normalizeSessionId(sessionId);
     try {
       const existingProcess = activeProcesses.get(normalizedSessionId);
@@ -197,7 +237,9 @@ function register(deps) {
         env,
         sender,
         sessionId: normalizedSessionId,
-        onExit
+        onExit,
+        cols,
+        rows
       }) || createPipeSession({
         spawnConfig,
         cwd: resolvedCwd,
@@ -215,6 +257,22 @@ function register(deps) {
         sessionId: normalizedSessionId,
         backend: activeProcess.backend
       };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Resize a live pseudo-terminal to match the renderer viewport.
+   */
+  ipcMain.handle('terminal-resize', async (event, { sessionId, cols, rows } = {}) => {
+    try {
+      const activeProcess = activeProcesses.get(normalizeSessionId(sessionId));
+      if (!activeProcess) {
+        return { success: false, error: 'No active terminal' };
+      }
+      activeProcess.resize(cols, rows);
+      return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }

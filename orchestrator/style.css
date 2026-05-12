@@ -4099,6 +4099,7 @@ body.dark-mode .preview-source-view {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
 }
 
 .assistant-terminal-header {
@@ -4120,6 +4121,36 @@ body.dark-mode .preview-source-view {
     word-break: break-word;
     line-height: 1.45;
     min-height: 0;
+    border: 1px solid var(--border-color, rgba(127,127,127,0.28));
+    border-radius: 6px;
+    background: var(--terminal-background, var(--bg-primary));
+    color: var(--terminal-foreground, var(--text-color));
+    padding: 10px;
+}
+
+.assistant-terminal-output.xterm-host {
+    white-space: normal;
+    word-break: normal;
+    padding: 0;
+    overflow: hidden !important;
+}
+
+.assistant-terminal-output.xterm-host .xterm {
+    height: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.assistant-terminal-output.xterm-host .xterm-viewport {
+    background: transparent !important;
+}
+
+.assistant-terminal-output.xterm-host .xterm-screen {
+    background: transparent !important;
+}
+
+.assistant-terminal-pane.terminal-emulator-ready .assistant-terminal-input-area {
+    display: none !important;
 }
 
 .assistant-terminal-line {

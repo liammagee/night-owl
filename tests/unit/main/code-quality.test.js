@@ -490,11 +490,14 @@ describe('Code quality guardrails', () => {
     expect(rendererSource).not.toContain('window.initializeChatFunctionality');
     expect(assistantTerminalSource).toContain("const SESSION_ID = 'assistant'");
     expect(assistantTerminalSource).toContain('launchAssistant');
+    expect(assistantTerminalSource).toContain("const XTERM_SCRIPT = 'node_modules/@xterm/xterm/lib/xterm.js'");
+    expect(assistantTerminalSource).toContain("const FIT_SCRIPT = 'node_modules/@xterm/addon-fit/lib/addon-fit.js'");
     expect(assistantTerminalSource).toContain("codex: { command: 'codex'");
     expect(assistantTerminalSource).toContain("claude: { command: 'claude'");
     expect(assistantTerminalSource).toContain("gemini: { command: 'gemini'");
     expect(terminalHandlersSource).toContain('function normalizeSessionId');
     expect(terminalHandlersSource).toContain('function getShellSpawnConfig');
+    expect(terminalHandlersSource).toContain('terminal-resize');
     expect(terminalHandlersSource).toContain('NIGHTOWL_TERMINAL');
   });
 
@@ -527,10 +530,15 @@ describe('Code quality guardrails', () => {
 
   test('assistant terminal has a real PTY backend with pipe fallback', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+    const assistantTerminalSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/assistant-terminal.js'), 'utf8');
     const terminalHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/terminalHandlers.js'), 'utf8');
 
+    expect(packageJson.dependencies['@xterm/xterm']).toBeDefined();
+    expect(packageJson.dependencies['@xterm/addon-fit']).toBeDefined();
     expect(packageJson.dependencies['node-pty']).toBeDefined();
     expect(packageJson.scripts['native:rebuild']).toContain('node-pty');
+    expect(assistantTerminalSource).toContain('new TerminalCtor');
+    expect(assistantTerminalSource).toContain('resizeActiveTerminal');
     expect(terminalHandlersSource).toContain("require('node-pty')");
     expect(terminalHandlersSource).toContain('createPtySession');
     expect(terminalHandlersSource).toContain('createPipeSession');

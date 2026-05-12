@@ -230,6 +230,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'switch-workspace',
   'terminal-exec',
   'terminal-kill',
+  'terminal-resize',
   'terminal-spawn',
   'terminal-write',
   'test-ai-service',

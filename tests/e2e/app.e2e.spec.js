@@ -288,10 +288,15 @@ test.describe('NightOwl - End User Tests', () => {
       }
     });
 
-    test('should have terminal input field', async () => {
+    test('should have terminal input surface', async () => {
       const terminalInput = sharedWindow.locator('#assistant-terminal-input');
-      if (await terminalInput.count() > 0) {
-        await expect(terminalInput.first()).toBeVisible();
+      const terminalViewport = sharedWindow.locator('#assistant-terminal-output');
+      if (await terminalViewport.count() > 0) {
+        await expect(terminalViewport.first()).toBeVisible();
+        const emulatorReady = await sharedWindow.locator('#chat-pane.terminal-emulator-ready').count();
+        if (!emulatorReady && await terminalInput.count() > 0) {
+          await expect(terminalInput.first()).toBeVisible();
+        }
       }
     });
   });

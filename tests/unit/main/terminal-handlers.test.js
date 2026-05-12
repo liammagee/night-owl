@@ -111,6 +111,7 @@ describe('terminalHandlers', () => {
     const ptyProc = new EventEmitter();
     ptyProc.pid = 5678;
     ptyProc.write = jest.fn();
+    ptyProc.resize = jest.fn();
     ptyProc.kill = jest.fn();
     ptyProc.onData = jest.fn((handler) => {
       ptyProc.emitData = handler;
@@ -137,7 +138,9 @@ describe('terminalHandlers', () => {
     await expect(spawnHandler({ sender }, {
       cwd: runtimeDir,
       sessionId: 'assistant',
-      command: 'claude'
+      command: 'claude',
+      cols: 88,
+      rows: 22
     })).resolves.toEqual({ success: true, pid: 5678, sessionId: 'assistant', backend: 'pty' });
 
     expect(ptySpawnMock).toHaveBeenCalledWith(
@@ -145,9 +148,13 @@ describe('terminalHandlers', () => {
       expect.arrayContaining([expect.stringContaining('claude')]),
       expect.objectContaining({
         cwd: runtimeDir,
-        env: expect.objectContaining({ NIGHTOWL_TERMINAL: '1' }),
-        cols: 120,
-        rows: 30
+        env: expect.objectContaining({
+          COLORTERM: 'truecolor',
+          NIGHTOWL_TERMINAL: '1',
+          TERM_PROGRAM: 'NightOwl'
+        }),
+        cols: 88,
+        rows: 22
       })
     );
     expect(spawnMock).not.toHaveBeenCalled();
@@ -165,6 +172,14 @@ describe('terminalHandlers', () => {
       data: 'hello\n'
     })).resolves.toEqual({ success: true });
     expect(ptyProc.write).toHaveBeenCalledWith('hello\n');
+
+    const resizeHandler = getRegisteredHandler('terminal-resize');
+    await expect(resizeHandler({}, {
+      sessionId: 'assistant',
+      cols: 100,
+      rows: 28
+    })).resolves.toEqual({ success: true });
+    expect(ptyProc.resize).toHaveBeenCalledWith(100, 28);
   });
 
   test('terminal-exec falls back to live workspace when requested cwd is stale', async () => {

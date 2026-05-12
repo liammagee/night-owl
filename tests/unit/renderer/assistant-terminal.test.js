@@ -6,6 +6,12 @@ const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind
 describe('Assistant terminal', () => {
   let listeners;
 
+  async function flushAsync(times = 6) {
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
+  }
+
   beforeEach(() => {
     jest.resetModules();
     jest.useFakeTimers();
@@ -56,15 +62,16 @@ describe('Assistant terminal', () => {
 
   test('launches Codex through the assistant terminal session', async () => {
     document.getElementById('assistant-launch-codex').click();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushAsync();
 
     expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-kill', { sessionId: 'assistant' });
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-spawn', {
+    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-spawn', expect.objectContaining({
       sessionId: 'assistant',
       cwd: '/tmp/nightowl-workspace',
-      command: 'codex'
-    });
+      command: 'codex',
+      cols: 120,
+      rows: 30
+    }));
     expect(document.getElementById('assistant-terminal-output').textContent).toContain('Launching Codex');
   });
 
@@ -72,8 +79,7 @@ describe('Assistant terminal', () => {
     const input = document.getElementById('assistant-terminal-input');
     input.value = 'pwd';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushAsync();
 
     expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-exec', {
       command: 'pwd',
@@ -84,8 +90,7 @@ describe('Assistant terminal', () => {
 
   test('filters terminal output by session', async () => {
     document.getElementById('assistant-launch-shell').click();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushAsync();
 
     listeners['terminal-output']({ sessionId: 'default', data: 'wrong', stream: 'stdout' });
     listeners['terminal-output']({ sessionId: 'assistant', data: 'right', stream: 'stdout' });
