@@ -155,15 +155,69 @@
     document.head.appendChild(link);
   }
 
+  function disableAmdForUmdScript() {
+    const defineFn = window.define;
+    if (typeof defineFn !== 'function' || !defineFn.amd) {
+      return () => {};
+    }
+
+    try {
+      window.define = undefined;
+      return () => {
+        window.define = defineFn;
+      };
+    } catch (error) {
+      // Fall back to masking only the AMD marker below.
+    }
+
+    const previousAmd = defineFn.amd;
+    try {
+      defineFn.amd = undefined;
+    } catch (error) {
+      return () => {};
+    }
+
+    return () => {
+      try {
+        defineFn.amd = previousAmd;
+      } catch (error) {
+        // Monaco may have already replaced its loader; in that case there is
+        // nothing useful to restore.
+      }
+    };
+  }
+
+  function getTerminalConstructor() {
+    if (typeof window.Terminal === 'function') return window.Terminal;
+    if (typeof window.Terminal?.Terminal === 'function') return window.Terminal.Terminal;
+    return null;
+  }
+
+  function getFitAddonConstructor() {
+    if (typeof window.FitAddon === 'function') return window.FitAddon;
+    if (typeof window.FitAddon?.FitAddon === 'function') return window.FitAddon.FitAddon;
+    return null;
+  }
+
   function loadScriptOnce(src, isReady) {
     if (isReady()) return Promise.resolve();
 
     const existing = document.querySelector(`script[data-nightowl-terminal="${src}"]`);
     if (existing) {
-      return new Promise((resolve, reject) => {
-        existing.addEventListener('load', () => resolve(), { once: true });
-        existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
-      });
+      if (existing.dataset.nightowlTerminalLoaded === 'true' && !isReady()) {
+        existing.remove();
+      } else {
+        return new Promise((resolve, reject) => {
+          existing.addEventListener('load', () => {
+            if (isReady()) {
+              resolve();
+            } else {
+              reject(new Error(`${src} loaded without exposing the expected terminal API`));
+            }
+          }, { once: true });
+          existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+        });
+      }
     }
 
     return new Promise((resolve, reject) => {
@@ -171,8 +225,20 @@
       script.src = src;
       script.async = true;
       script.dataset.nightowlTerminal = src;
-      script.addEventListener('load', () => resolve(), { once: true });
-      script.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+      const restoreAmd = disableAmdForUmdScript();
+      script.addEventListener('load', () => {
+        restoreAmd();
+        script.dataset.nightowlTerminalLoaded = 'true';
+        if (isReady()) {
+          resolve();
+        } else {
+          reject(new Error(`${src} loaded without exposing the expected terminal API`));
+        }
+      }, { once: true });
+      script.addEventListener('error', () => {
+        restoreAmd();
+        reject(new Error(`Failed to load ${src}`));
+      }, { once: true });
       document.head.appendChild(script);
     });
   }
@@ -223,11 +289,14 @@
     emulatorLoadPromise = (async () => {
       try {
         loadStylesheetOnce(XTERM_CSS);
-        await loadScriptOnce(XTERM_SCRIPT, () => typeof window.Terminal === 'function');
-        await loadScriptOnce(FIT_SCRIPT, () => typeof window.FitAddon?.FitAddon === 'function');
+        await loadScriptOnce(XTERM_SCRIPT, () => typeof getTerminalConstructor() === 'function');
+        await loadScriptOnce(FIT_SCRIPT, () => typeof getFitAddonConstructor() === 'function');
 
-        const TerminalCtor = window.Terminal;
-        const FitAddonCtor = window.FitAddon?.FitAddon;
+        const TerminalCtor = getTerminalConstructor();
+        const FitAddonCtor = getFitAddonConstructor();
+        if (typeof TerminalCtor !== 'function') {
+          throw new Error('xterm did not expose a Terminal constructor');
+        }
         terminal = new TerminalCtor({
           allowTransparency: false,
           convertEol: false,

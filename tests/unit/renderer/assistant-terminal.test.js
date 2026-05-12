@@ -99,4 +99,77 @@ describe('Assistant terminal', () => {
     expect(output).toContain('right');
     expect(output).not.toContain('wrong');
   });
+
+  test('loads xterm UMD globals without Monaco AMD capture', async () => {
+    const previousDefine = window.define;
+    const appendChild = document.head.appendChild.bind(document.head);
+    const appendSpy = jest.spyOn(document.head, 'appendChild');
+    const observedAmdValues = [];
+    const monacoAmd = { loader: 'monaco' };
+    const TerminalMock = jest.fn(function TerminalMock() {
+      this.cols = 100;
+      this.rows = 28;
+      this.clear = jest.fn();
+      this.dispose = jest.fn();
+      this.focus = jest.fn();
+      this.loadAddon = jest.fn();
+      this.onData = jest.fn();
+      this.onResize = jest.fn();
+      this.open = jest.fn();
+      this.write = jest.fn();
+    });
+    const FitAddonMock = jest.fn(function FitAddonMock() {
+      this.fit = jest.fn();
+    });
+
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Electron'
+    });
+    window.define = function define() {};
+    window.define.amd = monacoAmd;
+
+    appendSpy.mockImplementation((node) => {
+      const result = appendChild(node);
+      if (node.tagName === 'SCRIPT') {
+        observedAmdValues.push(window.define?.amd);
+        const src = node.getAttribute('src') || '';
+        if (src.includes('xterm.js')) {
+          window.Terminal = TerminalMock;
+        }
+        if (src.includes('addon-fit.js')) {
+          window.FitAddon = { FitAddon: FitAddonMock };
+        }
+        node.dispatchEvent(new Event('load'));
+      }
+      return result;
+    });
+
+    try {
+      await window.assistantTerminal.launchShell();
+      jest.runOnlyPendingTimers();
+      await flushAsync();
+
+      expect(observedAmdValues).toEqual([undefined, undefined]);
+      expect(window.define.amd).toBe(monacoAmd);
+      expect(TerminalMock).toHaveBeenCalled();
+      expect(FitAddonMock).toHaveBeenCalled();
+      expect(document.getElementById('chat-pane').classList.contains('terminal-emulator-ready')).toBe(true);
+      expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-spawn', expect.objectContaining({
+        sessionId: 'assistant',
+        cols: 100,
+        rows: 28
+      }));
+    } finally {
+      appendSpy.mockRestore();
+      delete window.Terminal;
+      delete window.FitAddon;
+      if (previousDefine) {
+        window.define = previousDefine;
+      } else {
+        delete window.define;
+      }
+      delete window.navigator.userAgent;
+    }
+  });
 });

@@ -492,6 +492,10 @@ describe('Code quality guardrails', () => {
     expect(assistantTerminalSource).toContain('launchAssistant');
     expect(assistantTerminalSource).toContain("const XTERM_SCRIPT = 'node_modules/@xterm/xterm/lib/xterm.js'");
     expect(assistantTerminalSource).toContain("const FIT_SCRIPT = 'node_modules/@xterm/addon-fit/lib/addon-fit.js'");
+    expect(assistantTerminalSource).toContain('disableAmdForUmdScript');
+    expect(assistantTerminalSource).toContain('window.define = undefined');
+    expect(assistantTerminalSource).toContain('defineFn.amd = undefined');
+    expect(assistantTerminalSource).toContain('getTerminalConstructor');
     expect(assistantTerminalSource).toContain("codex: { command: 'codex'");
     expect(assistantTerminalSource).toContain("claude: { command: 'claude'");
     expect(assistantTerminalSource).toContain("gemini: { command: 'gemini'");
