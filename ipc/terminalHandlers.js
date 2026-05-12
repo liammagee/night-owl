@@ -1,5 +1,5 @@
 // === Terminal IPC Handlers ===
-// Lightweight integrated terminal using child_process
+// Integrated terminal backed by node-pty when available, with a pipe fallback.
 
 const { ipcMain } = require('electron');
 const { spawn } = require('child_process');
@@ -10,6 +10,8 @@ const { createDebugLogger } = require('./logging');
 const debug = createDebugLogger('TerminalHandlers');
 
 const DEFAULT_SESSION_ID = 'default';
+let cachedPtyModule;
+let ptyLoadAttempted = false;
 
 function normalizeSessionId(sessionId) {
   return typeof sessionId === 'string' && sessionId.trim()
@@ -72,6 +74,93 @@ function getShellSpawnConfig(command, args = []) {
   return { shell, args: ['-i'] };
 }
 
+function getPtyModule() {
+  if (ptyLoadAttempted) return cachedPtyModule;
+  ptyLoadAttempted = true;
+  try {
+    cachedPtyModule = require('node-pty');
+  } catch (error) {
+    cachedPtyModule = null;
+    debug('node-pty unavailable; falling back to pipe terminal backend:', error.message);
+  }
+  return cachedPtyModule;
+}
+
+function sendTerminalOutput(sender, sessionId, data, stream) {
+  try {
+    sender.send('terminal-output', { sessionId, data, stream });
+  } catch (error) {
+    // Window may be closed.
+  }
+}
+
+function createPtySession({ spawnConfig, cwd, env, sender, sessionId, onExit }) {
+  const pty = getPtyModule();
+  if (!pty?.spawn) return null;
+
+  const term = pty.spawn(spawnConfig.shell, spawnConfig.args, {
+    name: env.TERM || 'xterm-256color',
+    cwd,
+    env,
+    cols: 120,
+    rows: 30
+  });
+
+  term.onData((data) => {
+    sendTerminalOutput(sender, sessionId, data, 'stdout');
+  });
+
+  term.onExit(({ exitCode }) => {
+    sendTerminalOutput(sender, sessionId, `\n[Process exited with code ${exitCode}]\n`, 'exit');
+    onExit();
+  });
+
+  return {
+    backend: 'pty',
+    pid: term.pid,
+    write: (data) => term.write(data),
+    kill: () => term.kill()
+  };
+}
+
+function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit }) {
+  const child = spawn(spawnConfig.shell, spawnConfig.args, {
+    cwd,
+    env,
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  child.stdout.on('data', (data) => {
+    sendTerminalOutput(sender, sessionId, data.toString(), 'stdout');
+  });
+
+  child.stderr.on('data', (data) => {
+    sendTerminalOutput(sender, sessionId, data.toString(), 'stderr');
+  });
+
+  child.on('exit', (code) => {
+    sendTerminalOutput(sender, sessionId, `\n[Process exited with code ${code}]\n`, 'exit');
+    onExit();
+  });
+
+  child.on('error', (err) => {
+    sendTerminalOutput(sender, sessionId, `\n[Error: ${err.message}]\n`, 'error');
+    onExit();
+  });
+
+  return {
+    backend: 'pipe',
+    pid: child.pid,
+    write: (data) => {
+      if (!child.stdin?.writable) {
+        throw new Error('No active terminal');
+      }
+      child.stdin.write(data);
+    },
+    kill: () => child.kill()
+  };
+}
+
 function register(deps) {
   debug('Registering terminal handlers...');
   const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {}, { fallback: os.homedir() });
@@ -97,44 +186,35 @@ function register(deps) {
       }
 
       const spawnConfig = getShellSpawnConfig(command, Array.isArray(args) ? args : []);
+      const sender = event.sender;
+      const resolvedCwd = pathExists(cwd) ? cwd : getWorkingDirectory();
+      const env = buildTerminalEnv();
+      const onExit = () => activeProcesses.delete(normalizedSessionId);
 
-      const activeProcess = spawn(spawnConfig.shell, spawnConfig.args, {
-        cwd: pathExists(cwd) ? cwd : getWorkingDirectory(),
-        env: buildTerminalEnv(),
-        stdio: ['pipe', 'pipe', 'pipe']
+      const activeProcess = createPtySession({
+        spawnConfig,
+        cwd: resolvedCwd,
+        env,
+        sender,
+        sessionId: normalizedSessionId,
+        onExit
+      }) || createPipeSession({
+        spawnConfig,
+        cwd: resolvedCwd,
+        env,
+        sender,
+        sessionId: normalizedSessionId,
+        onExit
       });
+
       activeProcesses.set(normalizedSessionId, activeProcess);
 
-      // Send output to renderer via events
-      const sender = event.sender;
-
-      activeProcess.stdout.on('data', (data) => {
-        try {
-          sender.send('terminal-output', { sessionId: normalizedSessionId, data: data.toString(), stream: 'stdout' });
-        } catch (e) { /* window may be closed */ }
-      });
-
-      activeProcess.stderr.on('data', (data) => {
-        try {
-          sender.send('terminal-output', { sessionId: normalizedSessionId, data: data.toString(), stream: 'stderr' });
-        } catch (e) { /* window may be closed */ }
-      });
-
-      activeProcess.on('exit', (code) => {
-        try {
-          sender.send('terminal-output', { sessionId: normalizedSessionId, data: `\n[Process exited with code ${code}]\n`, stream: 'exit' });
-        } catch (e) { /* window may be closed */ }
-        activeProcesses.delete(normalizedSessionId);
-      });
-
-      activeProcess.on('error', (err) => {
-        try {
-          sender.send('terminal-output', { sessionId: normalizedSessionId, data: `\n[Error: ${err.message}]\n`, stream: 'error' });
-        } catch (e) { /* window may be closed */ }
-        activeProcesses.delete(normalizedSessionId);
-      });
-
-      return { success: true, pid: activeProcess.pid, sessionId: normalizedSessionId };
+      return {
+        success: true,
+        pid: activeProcess.pid,
+        sessionId: normalizedSessionId,
+        backend: activeProcess.backend
+      };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -146,10 +226,10 @@ function register(deps) {
   ipcMain.handle('terminal-write', async (event, { data, sessionId } = {}) => {
     try {
       const activeProcess = activeProcesses.get(normalizeSessionId(sessionId));
-      if (!activeProcess || !activeProcess.stdin.writable) {
+      if (!activeProcess) {
         return { success: false, error: 'No active terminal' };
       }
-      activeProcess.stdin.write(data);
+      activeProcess.write(data);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };

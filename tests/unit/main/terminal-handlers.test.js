@@ -39,6 +39,9 @@ describe('terminalHandlers', () => {
       spawn: spawnMock,
       execSync: execSyncMock
     }));
+    jest.doMock('node-pty', () => {
+      throw new Error('node-pty unavailable in fallback tests');
+    }, { virtual: true });
 
     ({ ipcMain } = require('electron'));
     ipcMain.handle.mockClear();
@@ -46,6 +49,7 @@ describe('terminalHandlers', () => {
 
   afterEach(() => {
     jest.dontMock('child_process');
+    jest.dontMock('node-pty');
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
@@ -60,7 +64,7 @@ describe('terminalHandlers', () => {
     const handler = getRegisteredHandler('terminal-spawn');
     await expect(handler({ sender: { send: jest.fn() } }, {
       cwd: path.join(tempRoot, 'stale')
-    })).resolves.toEqual({ success: true, pid: 1234, sessionId: 'default' });
+    })).resolves.toEqual({ success: true, pid: 1234, sessionId: 'default', backend: 'pipe' });
 
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -83,7 +87,7 @@ describe('terminalHandlers', () => {
       cwd: runtimeDir,
       sessionId: 'assistant',
       command: 'codex'
-    })).resolves.toEqual({ success: true, pid: 1234, sessionId: 'assistant' });
+    })).resolves.toEqual({ success: true, pid: 1234, sessionId: 'assistant', backend: 'pipe' });
 
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -101,6 +105,66 @@ describe('terminalHandlers', () => {
       data: 'ready',
       stream: 'stdout'
     });
+  });
+
+  test('terminal-spawn uses node-pty when available', async () => {
+    const ptyProc = new EventEmitter();
+    ptyProc.pid = 5678;
+    ptyProc.write = jest.fn();
+    ptyProc.kill = jest.fn();
+    ptyProc.onData = jest.fn((handler) => {
+      ptyProc.emitData = handler;
+      return { dispose: jest.fn() };
+    });
+    ptyProc.onExit = jest.fn((handler) => {
+      ptyProc.emitExit = handler;
+      return { dispose: jest.fn() };
+    });
+
+    const ptySpawnMock = jest.fn(() => ptyProc);
+    jest.dontMock('node-pty');
+    jest.doMock('node-pty', () => ({ spawn: ptySpawnMock }), { virtual: true });
+
+    const terminalHandlers = require('../../../ipc/terminalHandlers');
+    const sender = { send: jest.fn() };
+    terminalHandlers.register({
+      appSettings: { workingDirectory: runtimeDir },
+      getCurrentWorkingDirectory: () => runtimeDir,
+      currentWorkingDirectory: runtimeDir
+    });
+
+    const spawnHandler = getRegisteredHandler('terminal-spawn');
+    await expect(spawnHandler({ sender }, {
+      cwd: runtimeDir,
+      sessionId: 'assistant',
+      command: 'claude'
+    })).resolves.toEqual({ success: true, pid: 5678, sessionId: 'assistant', backend: 'pty' });
+
+    expect(ptySpawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining([expect.stringContaining('claude')]),
+      expect.objectContaining({
+        cwd: runtimeDir,
+        env: expect.objectContaining({ NIGHTOWL_TERMINAL: '1' }),
+        cols: 120,
+        rows: 30
+      })
+    );
+    expect(spawnMock).not.toHaveBeenCalled();
+
+    ptyProc.emitData('pty ready');
+    expect(sender.send).toHaveBeenCalledWith('terminal-output', {
+      sessionId: 'assistant',
+      data: 'pty ready',
+      stream: 'stdout'
+    });
+
+    const writeHandler = getRegisteredHandler('terminal-write');
+    await expect(writeHandler({}, {
+      sessionId: 'assistant',
+      data: 'hello\n'
+    })).resolves.toEqual({ success: true });
+    expect(ptyProc.write).toHaveBeenCalledWith('hello\n');
   });
 
   test('terminal-exec falls back to live workspace when requested cwd is stale', async () => {

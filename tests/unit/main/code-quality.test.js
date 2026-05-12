@@ -516,6 +516,19 @@ describe('Code quality guardrails', () => {
     expect(migrationPlan).toContain('Migration 2: Techne Plugins to App Features');
   });
 
+  test('assistant terminal has a real PTY backend with pipe fallback', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+    const terminalHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/terminalHandlers.js'), 'utf8');
+
+    expect(packageJson.dependencies['node-pty']).toBeDefined();
+    expect(packageJson.scripts['native:rebuild']).toContain('node-pty');
+    expect(terminalHandlersSource).toContain("require('node-pty')");
+    expect(terminalHandlersSource).toContain('createPtySession');
+    expect(terminalHandlersSource).toContain('createPipeSession');
+    expect(terminalHandlersSource).toContain("backend: 'pty'");
+    expect(terminalHandlersSource).toContain("backend: 'pipe'");
+  });
+
   test('startup chrome keeps basic accessibility affordances', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
