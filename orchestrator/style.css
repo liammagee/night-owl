@@ -576,14 +576,14 @@ body.dark-mode .toggle-buttons {
     background-color: #232323 !important;
 }
 
-body.dark-mode .chat-input-area,
-body.dark-mode #chat-input {
+body.dark-mode .assistant-terminal-input-area,
+body.dark-mode #assistant-terminal-input {
     background-color: #232323 !important;
     color: #d4d4d4 !important;
     border-color: #444 !important;
 }
 
-/* Terminal-style chat messages */
+/* Terminal-style assistant output */
 .terminal-message {
     margin-bottom: 4px;
     padding: 2px 0;
@@ -648,61 +648,6 @@ body.dark-mode #chat-input {
     color: var(--text-muted);
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-weight: normal;
-}
-
-/* Legacy chat styles for compatibility */
-.chat-message {
-    margin-bottom: 8px;
-    padding: 6px 10px;
-    border-radius: 5px;
-    max-width: 85%;
-    word-wrap: break-word;
-}
-
-.chat-message-user {
-    background-color: #e1f5fe;
-    margin-left: auto;
-    text-align: left;
-}
-
-.chat-message-ai {
-    background-color: #f0f0f0;
-    margin-right: auto;
-    text-align: left;
-}
-
-.chat-sender {
-    font-weight: bold;
-    margin-right: 5px;
-    display: block; /* Put sender on its own line */
-    margin-bottom: 3px;
-    font-size: 0.9em;
-    color: #555;
-}
-
-.chat-content {
-    line-height: 1.4;
-}
-
-.chat-input-area {
-    display: flex;
-    align-items: center; /* Vertically align items if textarea grows */
-    padding-top: 5px;
-    border-top: 1px solid #ccc; /* Separator line */
-}
-
-#chat-input {
-    flex-grow: 1; /* Allow textarea to take up remaining space */
-    margin-right: 5px; /* Space between textarea and send button */
-    margin-left: 5px; /* Space between load button and textarea */
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    resize: none; /* Prevent manual resizing */
-    overflow-y: auto; /* Allow vertical scrolling if needed */
-    min-height: 40px; /* Minimum height */
-    max-height: 150px; /* Maximum height before scrolling */
-    font-size: 1em;
 }
 
 /* Base Button Style */
@@ -4139,7 +4084,7 @@ body.dark-mode .preview-source-view {
     }
 }
 
-/* Terminal Chat Styling */
+/* Assistant Terminal Styling */
 .terminal-chat {
     background-color: var(--bg-primary);
     color: var(--text-color);
@@ -4148,6 +4093,56 @@ body.dark-mode .preview-source-view {
     /* Ensure chat doesn't interfere with toggle buttons */
     position: relative !important;
     z-index: 1 !important;
+}
+
+.assistant-terminal-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.assistant-terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.assistant-terminal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.assistant-terminal-output {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.45;
+    min-height: 0;
+}
+
+.assistant-terminal-line {
+    display: inline;
+}
+
+.assistant-terminal-command {
+    color: var(--primary-600, #0b63b6);
+    font-weight: 600;
+}
+
+.assistant-terminal-info,
+.assistant-terminal-exit {
+    color: var(--text-secondary, #64748b);
+}
+
+.assistant-terminal-stderr,
+.assistant-terminal-error {
+    color: var(--error, #dc2626);
+}
+
+.assistant-terminal-stdin {
+    color: var(--text-muted, #64748b);
 }
 
 .terminal-header {

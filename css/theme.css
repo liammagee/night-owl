@@ -431,7 +431,7 @@ body.dark-mode #preview-content hr {
 }
 
 /* =====================================================
-   CHAT PANE DARK MODE
+   ASSISTANT TERMINAL DARK MODE
    ===================================================== */
 
 body.dark-mode #chat-pane {
@@ -439,14 +439,14 @@ body.dark-mode #chat-pane {
     color: var(--text-color) !important;
 }
 
-body.dark-mode .chat-input-area,
-body.dark-mode #chat-input {
+body.dark-mode .assistant-terminal-input-area,
+body.dark-mode #assistant-terminal-input {
     background: var(--input-bg) !important;
     border-color: var(--input-border) !important;
     color: var(--text-color) !important;
 }
 
-body.dark-mode #chat-messages {
+body.dark-mode #assistant-terminal-output {
     background: var(--panel-bg) !important;
 }
 

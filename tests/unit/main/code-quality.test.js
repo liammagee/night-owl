@@ -471,6 +471,51 @@ describe('Code quality guardrails', () => {
     expect(indexSource).not.toContain('>New Folder</button>');
   });
 
+  test('right pane assistant surface is terminal-first, not bespoke AI chat', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const assistantTerminalSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/assistant-terminal.js'), 'utf8');
+    const terminalHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/terminalHandlers.js'), 'utf8');
+
+    expect(indexSource).toContain('id="assistant-terminal-output"');
+    expect(indexSource).toContain('id="assistant-launch-codex"');
+    expect(indexSource).toContain('id="assistant-launch-claude"');
+    expect(indexSource).toContain('id="assistant-launch-gemini"');
+    expect(indexSource).toContain('orchestrator/modules/assistant-terminal.js');
+    expect(indexSource).not.toContain('id="chat-input"');
+    expect(indexSource).not.toContain('id="chat-messages"');
+    expect(indexSource).not.toContain('id="attach-image-btn"');
+    expect(indexSource).not.toContain('Ask Dr Chen anything');
+    expect(rendererSource).toContain('Assistant terminal is lazy-loaded');
+    expect(rendererSource).not.toContain('window.initializeChatFunctionality');
+    expect(assistantTerminalSource).toContain("const SESSION_ID = 'assistant'");
+    expect(assistantTerminalSource).toContain('launchAssistant');
+    expect(assistantTerminalSource).toContain("codex: { command: 'codex'");
+    expect(assistantTerminalSource).toContain("claude: { command: 'claude'");
+    expect(assistantTerminalSource).toContain("gemini: { command: 'gemini'");
+    expect(terminalHandlersSource).toContain('function normalizeSessionId');
+    expect(terminalHandlersSource).toContain('function getShellSpawnConfig');
+    expect(terminalHandlersSource).toContain('NIGHTOWL_TERMINAL');
+  });
+
+  test('external Techne plugin sync workflow is retired', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+    const packageLock = fs.readFileSync(path.join(__dirname, '../../../package-lock.json'), 'utf8');
+    const claudeNotes = fs.readFileSync(path.join(__dirname, '../../../CLAUDE.md'), 'utf8');
+    const migrationPlan = fs.readFileSync(
+      path.join(__dirname, '../../../docs/refactoring/assistant-terminal-and-feature-migration.md'),
+      'utf8'
+    );
+
+    expect(packageJson.scripts['sync-plugins']).toBeUndefined();
+    expect(packageJson.scripts.postinstall).toBeUndefined();
+    expect(packageJson.devDependencies['@machinespirits/techne-plugins']).toBeUndefined();
+    expect(packageLock).not.toContain('@machinespirits/techne-plugins');
+    expect(packageLock).not.toContain('sync-techne-plugins');
+    expect(claudeNotes).toContain('source-of-truth workflow has been retired');
+    expect(migrationPlan).toContain('Migration 2: Techne Plugins to App Features');
+  });
+
   test('startup chrome keeps basic accessibility affordances', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
@@ -483,5 +528,23 @@ describe('Code quality guardrails', () => {
     expect(indexSource).not.toContain('id="current-file-name" class="breadcrumb-segment" style="color: var(--text-muted, #999);"');
     expect(mainSource).toContain("process.env.NIGHTOWL_OPEN_DEVTOOLS === '1'");
     expect(mainSource).not.toContain("accelerator: 'CmdOrCtrl+K CmdOrCtrl");
+  });
+
+  test('managed Techne themes cover legacy NightOwl chrome', () => {
+    const adapterSource = fs.readFileSync(path.join(__dirname, '../../../css/techne-theme-adapter.css'), 'utf8');
+
+    expect(adapterSource).toContain('--primary-wcag: var(--techne-accent-active)');
+    expect(adapterSource).toContain('--primary-500: var(--techne-accent)');
+    expect(adapterSource).toContain('--neutral-0: var(--techne-bg)');
+    expect(adapterSource).toContain('--activity-bar-bg: var(--techne-surface)');
+    expect(adapterSource).toContain('--folder-icon-fill');
+    expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity');
+    expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity .pane-toggle-button.active');
+    expect(adapterSource).toContain('body[data-techne-theme] #editor-status-bar');
+    expect(adapterSource).toContain('body[data-techne-theme] .mode-btn.active');
+    expect(adapterSource).toContain('body[data-techne-theme] .pane-visibility-btn');
+    expect(adapterSource).toContain('body[data-techne-theme] .file-tree-item.current-file');
+    expect(adapterSource).toContain('body[data-techne-theme] .flow-indicator.flow-struggling');
+    expect(adapterSource).toContain('body[data-techne-theme] .ai-flow-indicator.flow-struggling');
   });
 });

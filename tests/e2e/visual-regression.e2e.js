@@ -103,13 +103,13 @@ The dialectical method...`);
     await expect(modal).toHaveScreenshot('settings-modal.png');
   });
 
-  test('AI chat panel', async () => {
-    await window.click('button[title="AI Chat"]');
-    await window.waitForSelector('#ai-chat-panel');
+  test('assistant terminal panel', async () => {
+    await window.click('button[title="Assistant Terminal"]');
+    await window.waitForSelector('#chat-pane');
     await window.waitForTimeout(300);
     
-    const chatPanel = await window.locator('#ai-chat-panel');
-    await expect(chatPanel).toHaveScreenshot('ai-chat-panel.png');
+    const terminalPanel = await window.locator('#chat-pane');
+    await expect(terminalPanel).toHaveScreenshot('assistant-terminal-panel.png');
   });
 
   test('gamification menu', async () => {

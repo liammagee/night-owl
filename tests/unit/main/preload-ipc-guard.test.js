@@ -54,6 +54,7 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_ON_CHANNELS.has('feed:items')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:scored')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:source-error')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('toggle-assistant-terminal')).toBe(true);
     expect(ALLOWED_SEND_CHANNELS.has('save-layout')).toBe(true);
   });
 

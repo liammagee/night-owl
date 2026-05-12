@@ -132,6 +132,7 @@
 
       // Listen for output
       cleanupListener = window.electronAPI.on('terminal-output', (msg) => {
+        if (msg.sessionId && msg.sessionId !== 'default') return;
         if (msg.data) {
           appendOutput(msg.data, msg.stream);
         }

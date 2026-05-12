@@ -1,31 +1,14 @@
-## Plugin Development Workflow
+## NightOwl Development Notes
 
-This repository uses a related repository of plugins located in `~/Dev/techne-plugins`, installed as an npm dependency (`@machinespirits/techne-plugins`).
+NightOwl now treats bundled feature code as part of this application repository.
 
-**IMPORTANT: `techne-plugins` is the source of truth for all plugin code.**
+The old `@machinespirits/techne-plugins` source-of-truth workflow has been retired. Do not edit a separate `~/Dev/techne-plugins` repository and sync it back into this app. If a feature currently lives under `plugins/techne-*`, treat it as legacy bundled app code until it is ported into an app-native module.
 
-### Syncing plugins
+### Feature Migration Direction
 
-Plugins are synced automatically on `npm install` (via postinstall hook), or manually:
+1. Keep active user-facing features working while they are still in `plugins/`.
+2. Port features into `orchestrator/modules/`, `css/`, `styles/`, or service modules one at a time.
+3. Remove each feature from the generic plugin loader after it has an app-native startup path.
+4. Delete `plugins/techne-plugin-system.js` only after no runtime code depends on `window.TechnePlugins`.
 
-```bash
-npm run sync-plugins
-```
-
-This copies `core/techne-plugin-system.js`, all `plugins/techne-*/` directories, and `themes/presentations/` from techne-plugins into this repo. App-specific files (`manifest.js`) are never overwritten.
-
-### Editing plugins
-
-1. **Always make changes in `~/Dev/techne-plugins` first**
-2. Then sync to consumers: `cd ~/Dev/machinespirits/machinespirits-ide && npm run sync-plugins`
-3. If you accidentally edited plugins here, copy them back to techne-plugins first
-
-### Backdrop reverse sync
-
-Visual layer definitions are authored in `machinespirits-website/index.html` and extracted into the backdrop plugin:
-
-```bash
-cd ~/Dev/techne-plugins
-node scripts/extract-backdrop-from-website.js ~/Dev/machinespirits-website
-```
-
+See `docs/refactoring/assistant-terminal-and-feature-migration.md` for the current migration plan.

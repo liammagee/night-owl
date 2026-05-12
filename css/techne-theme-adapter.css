@@ -15,6 +15,19 @@ body[data-techne-theme] {
     --panel-bg: var(--techne-surface);
     --preview-bg: var(--techne-surface);
 
+    /* Legacy neutral scale used by older inline NightOwl chrome */
+    --neutral-0: var(--techne-bg);
+    --neutral-50: var(--techne-surface-elevated);
+    --neutral-100: color-mix(in srgb, var(--techne-text) 6%, var(--techne-bg));
+    --neutral-200: color-mix(in srgb, var(--techne-text) 12%, var(--techne-bg));
+    --neutral-300: color-mix(in srgb, var(--techne-text) 22%, var(--techne-bg));
+    --neutral-400: var(--techne-text-muted);
+    --neutral-500: var(--techne-text-muted);
+    --neutral-600: var(--techne-text);
+    --neutral-700: color-mix(in srgb, var(--techne-text) 86%, var(--techne-bg));
+    --neutral-800: color-mix(in srgb, var(--techne-text) 92%, var(--techne-bg));
+    --neutral-900: var(--techne-text);
+
     /* Text — must override both --text and --text-color since
        body uses color: var(--text), and the renderer may force
        light-mode class even when techne tokens are dark */
@@ -29,7 +42,23 @@ body[data-techne-theme] {
     /* Accent */
     --primary: var(--techne-accent);
     --primary-hover: var(--techne-accent-hover);
+    --primary-active: var(--techne-accent-active);
     --primary-light: var(--techne-accent);
+    --primary-subtle: color-mix(in srgb, var(--techne-accent) 12%, var(--techne-bg));
+    --primary-wcag: var(--techne-accent-active);
+    --primary-50: color-mix(in srgb, var(--techne-accent) 10%, var(--techne-bg));
+    --primary-100: color-mix(in srgb, var(--techne-accent) 16%, var(--techne-bg));
+    --primary-200: color-mix(in srgb, var(--techne-accent) 26%, var(--techne-bg));
+    --primary-300: color-mix(in srgb, var(--techne-accent) 38%, var(--techne-bg));
+    --primary-400: color-mix(in srgb, var(--techne-accent) 68%, var(--techne-bg));
+    --primary-500: var(--techne-accent);
+    --primary-600: var(--techne-accent-hover);
+    --primary-700: var(--techne-accent-active);
+    --primary-800: color-mix(in srgb, var(--techne-accent-active) 74%, var(--techne-text));
+    --primary-900: color-mix(in srgb, var(--techne-accent-active) 48%, var(--techne-text));
+    --accent-color: var(--techne-accent);
+    --highlight-bg: var(--primary-50);
+    --border-accent: var(--techne-accent);
 
     /* Surfaces */
     --surface: var(--techne-surface);
@@ -41,8 +70,28 @@ body[data-techne-theme] {
     --border: var(--techne-border);
     --border-color: var(--techne-border);
     --border-strong: var(--techne-border);
+    --button-hover-border: var(--techne-border);
     --hover-color: var(--techne-surface-elevated);
     --active-color: var(--techne-surface-elevated);
+
+    /* Activity rail and file tree */
+    --activity-bar-bg: var(--techne-surface);
+    --activity-icon: var(--techne-text-muted);
+    --activity-icon-active: var(--techne-text);
+    --tree-indent-guide: var(--techne-border-subtle);
+    --list-hover-bg: color-mix(in srgb, var(--techne-text) 7%, transparent);
+    --list-active-bg: color-mix(in srgb, var(--techne-accent) 14%, var(--techne-bg));
+    --list-focus-bg: color-mix(in srgb, var(--techne-accent) 10%, var(--techne-bg));
+    --folder-icon-fill: color-mix(in srgb, var(--techne-accent) 34%, #d6a94f);
+    --folder-icon-border: color-mix(in srgb, var(--techne-accent-active) 42%, #9f7430);
+    --file-icon-fill: var(--techne-surface-elevated);
+    --file-icon-border: var(--techne-border);
+    --file-icon-markdown: var(--techne-accent);
+    --file-icon-bib: color-mix(in srgb, var(--techne-accent) 60%, #7c3aed);
+    --tag-bg: var(--primary-100);
+    --tag-text: var(--techne-accent-active);
+    --tag-bg-dark: var(--primary-900);
+    --tag-text-dark: var(--techne-text-inverted);
 
     /* Cards */
     --card-bg: var(--techne-surface);
@@ -56,12 +105,16 @@ body[data-techne-theme] {
     --menu-text-color: var(--techne-text);
     --menu-content-bg: var(--techne-surface);
     --menu-header-bg: var(--techne-surface-elevated);
+    --menu-header-hover-bg: var(--techne-surface-elevated);
 
     /* Buttons */
     --button-bg: var(--techne-surface-elevated);
     --button-border: var(--techne-border);
     --button-text: var(--techne-text);
     --button-hover-bg: var(--techne-surface-elevated);
+    --button-muted-bg: var(--techne-surface);
+    --button-muted-border: var(--techne-border-subtle);
+    --button-muted-text: var(--techne-text-muted);
 
     /* Input fields */
     --input-bg: var(--techne-bg);
@@ -76,14 +129,34 @@ body[data-techne-theme] {
     --scrollbar-track: var(--techne-surface);
     --scrollbar-thumb: var(--techne-border);
     --scrollbar-thumb-hover: var(--techne-text-muted);
+
+    /* Semantic UI states used by older notification/chip styles */
+    --success: color-mix(in srgb, var(--techne-accent) 70%, #2aa198);
+    --success-subtle: color-mix(in srgb, var(--techne-accent) 12%, var(--techne-bg));
+    --warning: color-mix(in srgb, var(--techne-accent) 35%, #b58900);
+    --warning-subtle: color-mix(in srgb, #b58900 14%, var(--techne-bg));
+    --error: color-mix(in srgb, var(--techne-accent) 25%, #dc322f);
+    --error-subtle: color-mix(in srgb, #dc322f 12%, var(--techne-bg));
+    --danger: var(--error);
 }
 
 /* ── Direct element overrides ──────────────────────────────────────────
    These ensure areas that may have hardcoded colors or competing
    selectors (e.g. body.dark-mode … !important) pick up the theme. */
 
+/* App shell */
+body[data-techne-theme],
+body[data-techne-theme] #app-container,
+body[data-techne-theme] #main-content,
+body[data-techne-theme] #panes-container,
+body[data-techne-theme] #editor-pane {
+    background: var(--techne-bg) !important;
+    color: var(--techne-text) !important;
+}
+
 /* Editor container (behind Monaco canvas) */
-body[data-techne-theme] #editor-container {
+body[data-techne-theme] #editor-container,
+body[data-techne-theme] #wholepart-visualization {
     background: var(--techne-bg);
 }
 
@@ -94,6 +167,16 @@ body[data-techne-theme] #preview-content,
 body[data-techne-theme] .content-pane {
     background: var(--techne-surface) !important;
     color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #right-pane {
+    border-left-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme] .toggle-buttons,
+body[data-techne-theme] #right-pane > .toggle-buttons {
+    background: var(--techne-surface) !important;
+    border-color: var(--techne-border) !important;
 }
 
 /* Preview content inner elements */
@@ -168,25 +251,191 @@ body[data-techne-theme] #editor-toolbar {
     border-bottom-color: var(--techne-border);
 }
 
+body[data-techne-theme] .mode-btn:not(.active),
+body[data-techne-theme] .nav-btn,
+body[data-techne-theme] .pane-visibility-btn,
+body[data-techne-theme] .pane-toggle-button:not(.active),
 body[data-techne-theme] .toolbar-btn,
-body[data-techne-theme] .toolbar-button {
-    color: var(--techne-text);
+body[data-techne-theme] .toolbar-button,
+body[data-techne-theme] .preview-toolbar-btn,
+body[data-techne-theme] .preview-source-toolbar-btn,
+body[data-techne-theme] #structure-pane-header .pane-header-actions .btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body[data-techne-theme] .mode-btn:not(.active):hover,
+body[data-techne-theme] .nav-btn:hover:not(:disabled),
+body[data-techne-theme] .pane-visibility-btn:hover:not(:disabled),
+body[data-techne-theme] .pane-toggle-button:hover:not(.active),
+body[data-techne-theme] .toolbar-btn:hover:not(:disabled),
+body[data-techne-theme] .toolbar-button:hover:not(:disabled),
+body[data-techne-theme] .preview-toolbar-btn:hover,
+body[data-techne-theme] .preview-source-toolbar-btn:hover,
+body[data-techne-theme] #structure-pane-header .pane-header-actions .btn:hover {
+    background: var(--button-hover-bg) !important;
+    border-color: var(--button-hover-border) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] .mode-btn.active,
+body[data-techne-theme] #right-pane > .toggle-buttons .pane-toggle-button.active,
+body[data-techne-theme] .preview-source-toolbar-btn.active,
+body[data-techne-theme] .btn-primary:not(.pane-visibility-btn) {
+    background: var(--primary-wcag) !important;
+    border-color: var(--primary-wcag) !important;
+    color: var(--text-on-primary) !important;
+}
+
+body[data-techne-theme] .btn-warning.pane-visibility-btn,
+body[data-techne-theme] .pane-visibility-btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
 }
 
 /* Status bar */
-body[data-techne-theme] #status-bar {
+body[data-techne-theme] #status-bar,
+body[data-techne-theme] #editor-status-bar {
     background: var(--techne-surface);
     border-top-color: var(--techne-border);
     color: var(--techne-text-muted);
 }
 
 /* Left sidebar / file tree */
-body[data-techne-theme] .left-pane {
+body[data-techne-theme] .left-pane,
+body[data-techne-theme] #left-sidebar,
+body[data-techne-theme] #left-sidebar-workspace,
+body[data-techne-theme] #left-sidebar-content,
+body[data-techne-theme] #file-tree-view,
+body[data-techne-theme] #structure-list {
     background: var(--techne-surface);
+    color: var(--techne-text);
 }
 
 body[data-techne-theme] nav#left-sidebar {
     background: var(--techne-surface);
+}
+
+body[data-techne-theme] #left-sidebar,
+body[data-techne-theme] #left-sidebar-activity,
+body[data-techne-theme] #structure-pane-header {
+    border-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme] #left-sidebar-activity {
+    background: var(--activity-bar-bg) !important;
+}
+
+body[data-techne-theme] #left-sidebar-activity .pane-toggle-button,
+body[data-techne-theme] #left-sidebar-activity .pane-toggle-button:hover:not(.active) {
+    background: transparent !important;
+    border-color: transparent !important;
+}
+
+body[data-techne-theme] #left-sidebar-activity .pane-toggle-button {
+    color: var(--activity-icon) !important;
+}
+
+body[data-techne-theme] #left-sidebar-activity .pane-toggle-button:hover:not(.active) {
+    background: var(--list-hover-bg) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #left-sidebar-activity .pane-toggle-button.active {
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--activity-icon-active) !important;
+    box-shadow: inset 2px 0 0 var(--primary-500) !important;
+}
+
+body[data-techne-theme] #structure-pane-header {
+    background: var(--techne-surface) !important;
+}
+
+body[data-techne-theme] #structure-pane-title,
+body[data-techne-theme] .file-tree-item.file .file-name,
+body[data-techne-theme] .file-tree-item .expand-arrow,
+body[data-techne-theme] .file-tree-item .expand-spacer {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme] .file-tree-item,
+body[data-techne-theme] .file-tree-item.folder .file-name,
+body[data-techne-theme] .file-tree-item:hover .expand-arrow {
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] .file-tree-item:hover {
+    background: var(--list-hover-bg) !important;
+}
+
+body[data-techne-theme] .file-tree-item.current-file,
+body[data-techne-theme] .file-tree-item.file-selected {
+    background: var(--list-active-bg) !important;
+    border-left-color: var(--primary-500) !important;
+    box-shadow: inset 3px 0 0 var(--primary-500) !important;
+}
+
+body[data-techne-theme] .file-tree-item.folder-active,
+body[data-techne-theme] .file-tree-item.primary-folder-root {
+    background: var(--list-focus-bg) !important;
+    border-left-color: var(--primary-500) !important;
+}
+
+body[data-techne-theme] #tag-search-input,
+body[data-techne-theme] input[type="text"],
+body[data-techne-theme] input[type="search"],
+body[data-techne-theme] input[type="number"],
+body[data-techne-theme] textarea,
+body[data-techne-theme] select {
+    background: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #tag-search-input::placeholder,
+body[data-techne-theme] input::placeholder,
+body[data-techne-theme] textarea::placeholder {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme] .internal-link {
+    background: var(--primary-50) !important;
+    border-color: var(--primary-200) !important;
+    color: var(--primary-700) !important;
+}
+
+/* Flow indicators are injected after plugin CSS and some versions use
+   inline gradients, so the theme adapter has to win with explicit chrome
+   selectors. */
+body[data-techne-theme] .flow-indicator,
+body[data-techne-theme] .ai-flow-indicator {
+    background: var(--techne-surface-elevated) !important;
+    border: 1px solid var(--techne-border) !important;
+    color: var(--techne-text) !important;
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--techne-text) 16%, transparent) !important;
+}
+
+body[data-techne-theme] .flow-indicator.flow-deep,
+body[data-techne-theme] .flow-indicator.flow-light,
+body[data-techne-theme] .flow-indicator.flow-focused,
+body[data-techne-theme] .flow-indicator.flow-struggling,
+body[data-techne-theme] .flow-indicator.flow-blocked,
+body[data-techne-theme] .ai-flow-indicator.flow-deep,
+body[data-techne-theme] .ai-flow-indicator.flow-light,
+body[data-techne-theme] .ai-flow-indicator.flow-struggling {
+    background: linear-gradient(135deg, var(--primary-100) 0%, var(--techne-surface-elevated) 100%) !important;
+    border-color: var(--primary-300) !important;
+    color: var(--primary-700) !important;
+}
+
+body[data-techne-theme] .flow-close,
+body[data-techne-theme] .flow-indicator-close {
+    background: var(--techne-surface) !important;
+    border-color: var(--techne-border) !important;
+    color: var(--techne-text-muted) !important;
 }
 
 /* Monaco editor canvas — CSS variables don't penetrate the canvas,

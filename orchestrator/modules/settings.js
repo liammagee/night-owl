@@ -1077,10 +1077,6 @@ function generateAISettings() {
             <h3>AI Features</h3>
             <div class="settings-group">
                 <label>
-                    <input type="checkbox" id="ai-chat-enabled" ${currentSettings.ai?.enableChat ? 'checked' : ''}>
-                    <span>Enable AI Chat</span>
-                </label>
-                <label>
                     <input type="checkbox" id="ai-summarization-enabled" ${currentSettings.ai?.enableSummarization ? 'checked' : ''}>
                     <span>Enable Summarization</span>
                 </label>
@@ -1168,7 +1164,7 @@ function generateAIPromptsSettings() {
         <div class="settings-section">
             <h3>Custom AI Prompts</h3>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
-                Create custom slash commands for AI Chat with your own prompts and templates. Use <code>{content}</code> to insert selected text or document content, and <code>{statistics}</code> for document statistics.
+                Legacy prompt templates used by writing actions. Use <code>{content}</code> to insert selected text or document content, and <code>{statistics}</code> for document statistics.
             </p>
             
             <div id="slash-commands-container">
@@ -2353,7 +2349,7 @@ async function saveSettingsDialog() {
                 }
             }
             
-            // Force refresh of AI Chat system
+            // Force refresh of built-in AI services used by writing tools.
             if (window.refreshAISystem) {
                 try {
                     await window.refreshAISystem();
@@ -2667,12 +2663,6 @@ function collectSettingsFromForm() {
     }
     
     // AI feature settings
-    const aiChatEnabled = document.getElementById('ai-chat-enabled')?.checked;
-    if (aiChatEnabled !== undefined) {
-        if (!updatedSettings.ai) updatedSettings.ai = {};
-        updatedSettings.ai.enableChat = aiChatEnabled;
-    }
-    
     const aiSummarizationEnabled = document.getElementById('ai-summarization-enabled')?.checked;
     if (aiSummarizationEnabled !== undefined) {
         if (!updatedSettings.ai) updatedSettings.ai = {};

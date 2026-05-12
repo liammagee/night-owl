@@ -108,7 +108,7 @@ Files with classes needing organization:
 5. `todo-gamification.js` - 1,226 lines
 6. `previewZoom.js` - 1,157 lines
 7. `formatting.js` - 981 lines
-8. `aiChat.js` - 971 lines
+8. `assistant-terminal.js` - terminal-first assistant launcher replacing the retired `aiChat.js`
 9. `kanban.js` - 924 lines
 10. `listManagement.js` - 902 lines
 

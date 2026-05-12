@@ -9,11 +9,74 @@ const { createDebugLogger } = require('./logging');
 
 const debug = createDebugLogger('TerminalHandlers');
 
+const DEFAULT_SESSION_ID = 'default';
+
+function normalizeSessionId(sessionId) {
+  return typeof sessionId === 'string' && sessionId.trim()
+    ? sessionId.trim()
+    : DEFAULT_SESSION_ID;
+}
+
+function buildTerminalEnv() {
+  const commonPath = [
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin'
+  ].join(':');
+  const currentPath = process.env.PATH || '';
+
+  return {
+    ...process.env,
+    PATH: currentPath.includes('/opt/homebrew/bin')
+      ? currentPath
+      : `${commonPath}:${currentPath}`,
+    TERM: process.env.TERM || 'xterm-256color',
+    NIGHTOWL_TERMINAL: '1'
+  };
+}
+
+function quoteShellArg(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function quoteWindowsArg(value) {
+  return `"${String(value).replace(/"/g, '\\"')}"`;
+}
+
+function buildCommandLine(command, args = [], { windows = false } = {}) {
+  const quote = windows ? quoteWindowsArg : quoteShellArg;
+  return [command, ...args].map(quote).join(' ');
+}
+
+function getShellSpawnConfig(command, args = []) {
+  if (process.platform === 'win32') {
+    if (command) {
+      return {
+        shell: 'cmd.exe',
+        args: ['/d', '/s', '/c', buildCommandLine(command, args, { windows: true })]
+      };
+    }
+    return { shell: 'cmd.exe', args: [] };
+  }
+
+  const shell = process.env.SHELL || '/bin/zsh';
+  if (command) {
+    return {
+      shell,
+      args: ['-ilc', buildCommandLine(command, args)]
+    };
+  }
+  return { shell, args: ['-i'] };
+}
+
 function register(deps) {
   debug('Registering terminal handlers...');
   const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {}, { fallback: os.homedir() });
 
-  let activeProcess = null;
+  const activeProcesses = new Map();
   let mainWindow = null;
 
   // Store window reference
@@ -24,53 +87,54 @@ function register(deps) {
   /**
    * Spawn a shell process
    */
-  ipcMain.handle('terminal-spawn', async (event, { cwd }) => {
+  ipcMain.handle('terminal-spawn', async (event, { cwd, command, args = [], sessionId } = {}) => {
+    const normalizedSessionId = normalizeSessionId(sessionId);
     try {
-      // Kill existing process
-      if (activeProcess) {
-        try { activeProcess.kill(); } catch (e) { /* ignore */ }
-        activeProcess = null;
+      const existingProcess = activeProcesses.get(normalizedSessionId);
+      if (existingProcess) {
+        try { existingProcess.kill(); } catch (e) { /* ignore */ }
+        activeProcesses.delete(normalizedSessionId);
       }
 
-      const shell = process.platform === 'win32' ? 'cmd.exe' : (process.env.SHELL || '/bin/zsh');
-      const args = process.platform === 'win32' ? [] : ['-i'];
+      const spawnConfig = getShellSpawnConfig(command, Array.isArray(args) ? args : []);
 
-      activeProcess = spawn(shell, args, {
+      const activeProcess = spawn(spawnConfig.shell, spawnConfig.args, {
         cwd: pathExists(cwd) ? cwd : getWorkingDirectory(),
-        env: { ...process.env, TERM: 'dumb' },
+        env: buildTerminalEnv(),
         stdio: ['pipe', 'pipe', 'pipe']
       });
+      activeProcesses.set(normalizedSessionId, activeProcess);
 
       // Send output to renderer via events
       const sender = event.sender;
 
       activeProcess.stdout.on('data', (data) => {
         try {
-          sender.send('terminal-output', { data: data.toString(), stream: 'stdout' });
+          sender.send('terminal-output', { sessionId: normalizedSessionId, data: data.toString(), stream: 'stdout' });
         } catch (e) { /* window may be closed */ }
       });
 
       activeProcess.stderr.on('data', (data) => {
         try {
-          sender.send('terminal-output', { data: data.toString(), stream: 'stderr' });
+          sender.send('terminal-output', { sessionId: normalizedSessionId, data: data.toString(), stream: 'stderr' });
         } catch (e) { /* window may be closed */ }
       });
 
       activeProcess.on('exit', (code) => {
         try {
-          sender.send('terminal-output', { data: `\n[Process exited with code ${code}]\n`, stream: 'exit' });
+          sender.send('terminal-output', { sessionId: normalizedSessionId, data: `\n[Process exited with code ${code}]\n`, stream: 'exit' });
         } catch (e) { /* window may be closed */ }
-        activeProcess = null;
+        activeProcesses.delete(normalizedSessionId);
       });
 
       activeProcess.on('error', (err) => {
         try {
-          sender.send('terminal-output', { data: `\n[Error: ${err.message}]\n`, stream: 'error' });
+          sender.send('terminal-output', { sessionId: normalizedSessionId, data: `\n[Error: ${err.message}]\n`, stream: 'error' });
         } catch (e) { /* window may be closed */ }
-        activeProcess = null;
+        activeProcesses.delete(normalizedSessionId);
       });
 
-      return { success: true, pid: activeProcess.pid };
+      return { success: true, pid: activeProcess.pid, sessionId: normalizedSessionId };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -79,8 +143,9 @@ function register(deps) {
   /**
    * Write input to the shell
    */
-  ipcMain.handle('terminal-write', async (event, { data }) => {
+  ipcMain.handle('terminal-write', async (event, { data, sessionId } = {}) => {
     try {
+      const activeProcess = activeProcesses.get(normalizeSessionId(sessionId));
       if (!activeProcess || !activeProcess.stdin.writable) {
         return { success: false, error: 'No active terminal' };
       }
@@ -94,11 +159,13 @@ function register(deps) {
   /**
    * Kill the shell process
    */
-  ipcMain.handle('terminal-kill', async (event) => {
+  ipcMain.handle('terminal-kill', async (event, { sessionId } = {}) => {
     try {
+      const normalizedSessionId = normalizeSessionId(sessionId);
+      const activeProcess = activeProcesses.get(normalizedSessionId);
       if (activeProcess) {
         activeProcess.kill();
-        activeProcess = null;
+        activeProcesses.delete(normalizedSessionId);
       }
       return { success: true };
     } catch (error) {

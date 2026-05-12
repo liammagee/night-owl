@@ -8,7 +8,7 @@ The Global Search feature provides powerful search capabilities across all files
 ### Opening Global Search
 - **Ctrl+Shift+F** (Cmd+Shift+F on Mac): Open Global Search panel
 - Click the **Search** button in the right pane toolbar
-- The search panel appears in the right pane alongside Preview and AI Chat
+- The search panel appears in the right pane alongside Preview and Assistant Terminal
 
 ### Search Interface
 - **Search Input**: Enter your search query

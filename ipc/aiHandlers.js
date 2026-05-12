@@ -234,7 +234,7 @@ function register(deps) {
       return { error: 'AI Service not configured. Please check server logs and API keys in .env file.' };
     }
 
-    debug('[AIHandlers] AI Chat request received');
+    debug('[AIHandlers] AI request received');
     debug('[AIHandlers] Message length:', message?.length || 0);
 
     try {
@@ -263,7 +263,7 @@ function register(deps) {
       }
 
       const response = await tutorBridge.sendMessage(message, finalOptions);
-      debug(`[AIHandlers] AI Chat response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
+      debug(`[AIHandlers] AI response from ${response.provider} (${response.model}):`, response.response?.substring(0, 100) + '...');
 
       return {
         response: cleanAIResponse(response.response),

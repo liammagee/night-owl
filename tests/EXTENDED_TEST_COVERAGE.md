@@ -221,7 +221,7 @@ npx playwright test tests/e2e/ui-interactions.spec.js
 ## Future Test Expansion
 
 ### Planned Additions
-1. **AI Chat Functionality Tests** - Testing chat interactions and AI responses
+1. **Assistant Terminal Tests** - Testing CLI launches and terminal session interactions
 2. **File Operations Tests** - Comprehensive file I/O and export testing
 3. **CSS Regression Tests** - Visual regression testing for styling
 4. **Performance Tests** - Load time and responsiveness benchmarks

@@ -1723,20 +1723,20 @@ Be concise and supportive. Guide toward deeper learning.`;
                 {
                     id: 'chat',
                     target: '#chat-pane',
-                    title: 'AI Chat Assistant',
-                    content: 'Meet Dr. Chen! Get writing feedback, ask questions, or use commands like /analyze and /improve.',
+                    title: 'Assistant Terminal',
+                    content: 'Launch Codex, Claude, Gemini, or a workspace shell from the right pane.',
                     position: 'left',
                     spotlight: true,
-                    aiPrompts: ['What slash commands are available?', 'How do I get feedback?'],
+                    aiPrompts: ['How do I launch Codex?', 'How do I open a workspace shell?'],
                     substeps: [
                         {
                             id: 'chat-commands',
                             target: '#chat-pane',
-                            title: 'Slash Commands',
-                            content: '/analyze - Document analysis, /summarize - Quick summary, /improve - Writing enhancement, /explain - Clarify concepts',
+                            title: 'CLI Launchers',
+                            content: 'Use the launcher buttons or type codex, claude, gemini, shell, clear, or kill.',
                             position: 'left',
                             spotlight: true,
-                            aiPrompts: ['What else can Dr. Chen do?']
+                            aiPrompts: ['Can I run shell commands here?']
                         },
                         {
                             id: 'chat-ash',

@@ -276,28 +276,22 @@ test.describe('NightOwl - End User Tests', () => {
   });
 
   // =====================
-  // AI Chat Interface
+  // Assistant Terminal
   // =====================
-  test.describe('AI Chat Interface', () => {
-    test('should display AI chat panel', async () => {
-      const chatPanel = sharedWindow.locator('#ai-chat-panel, #chat-panel, .ai-chat-container');
-      const panelExists = await chatPanel.count() > 0;
-
-      if (panelExists) {
-        const toggleBtn = sharedWindow.locator('#toggle-chat-btn, #show-chat-btn');
-        if (await toggleBtn.count() > 0) {
-          await toggleBtn.click();
-          await sharedWindow.waitForTimeout(300);
-        }
-        await expect(chatPanel.first()).toBeVisible();
+  test.describe('Assistant Terminal', () => {
+    test('should display assistant terminal panel', async () => {
+      const toggleBtn = sharedWindow.locator('#show-chat-btn');
+      if (await toggleBtn.count() > 0) {
+        await toggleBtn.click();
+        await sharedWindow.waitForTimeout(300);
+        await expect(sharedWindow.locator('#chat-pane')).toBeVisible();
       }
     });
 
-    test('should have chat input field', async () => {
-      const chatInput = sharedWindow.locator('#chat-input, #ai-input, .chat-input, textarea[placeholder*="message"], textarea[placeholder*="Message"]');
-      const inputExists = await chatInput.count() > 0;
-      if (inputExists) {
-        await expect(chatInput.first()).toBeVisible();
+    test('should have terminal input field', async () => {
+      const terminalInput = sharedWindow.locator('#assistant-terminal-input');
+      if (await terminalInput.count() > 0) {
+        await expect(terminalInput.first()).toBeVisible();
       }
     });
   });

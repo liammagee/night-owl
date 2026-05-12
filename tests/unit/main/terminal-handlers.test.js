@@ -60,13 +60,47 @@ describe('terminalHandlers', () => {
     const handler = getRegisteredHandler('terminal-spawn');
     await expect(handler({ sender: { send: jest.fn() } }, {
       cwd: path.join(tempRoot, 'stale')
-    })).resolves.toEqual({ success: true, pid: 1234 });
+    })).resolves.toEqual({ success: true, pid: 1234, sessionId: 'default' });
 
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(Array),
       expect.objectContaining({ cwd: runtimeDir })
     );
+  });
+
+  test('terminal-spawn can launch an assistant CLI in an isolated session', async () => {
+    const terminalHandlers = require('../../../ipc/terminalHandlers');
+    const sender = { send: jest.fn() };
+    terminalHandlers.register({
+      appSettings: { workingDirectory: runtimeDir },
+      getCurrentWorkingDirectory: () => runtimeDir,
+      currentWorkingDirectory: runtimeDir
+    });
+
+    const handler = getRegisteredHandler('terminal-spawn');
+    await expect(handler({ sender }, {
+      cwd: runtimeDir,
+      sessionId: 'assistant',
+      command: 'codex'
+    })).resolves.toEqual({ success: true, pid: 1234, sessionId: 'assistant' });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining([expect.stringContaining('codex')]),
+      expect.objectContaining({
+        cwd: runtimeDir,
+        env: expect.objectContaining({ NIGHTOWL_TERMINAL: '1' })
+      })
+    );
+
+    const proc = spawnMock.mock.results[0].value;
+    proc.stdout.emit('data', Buffer.from('ready'));
+    expect(sender.send).toHaveBeenCalledWith('terminal-output', {
+      sessionId: 'assistant',
+      data: 'ready',
+      stream: 'stdout'
+    });
   });
 
   test('terminal-exec falls back to live workspace when requested cwd is stale', async () => {

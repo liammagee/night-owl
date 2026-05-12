@@ -86,23 +86,18 @@ test.describe('Hegel Pedagogy AI - User Workflows', () => {
     }
   });
 
-  test('AI chat panel opens and accepts input', async () => {
-    // Open AI chat
-    await window.click('button[title="AI Chat"]');
+  test('assistant terminal opens and accepts input', async () => {
+    await window.click('button[title="Assistant Terminal"]');
     
-    // Wait for chat panel
-    await window.waitForSelector('#ai-chat-panel', { timeout: 5000 });
+    await window.waitForSelector('#chat-pane', { timeout: 5000 });
     
-    // Check chat input exists
-    const chatInput = await window.locator('#chat-input');
-    await expect(chatInput).toBeVisible();
+    const terminalInput = await window.locator('#assistant-terminal-input');
+    await expect(terminalInput).toBeVisible();
     
-    // Type a message
-    await chatInput.fill('Hello AI assistant');
+    await terminalInput.fill('pwd');
     
-    // Check message was entered
-    const value = await chatInput.inputValue();
-    expect(value).toBe('Hello AI assistant');
+    const value = await terminalInput.inputValue();
+    expect(value).toBe('pwd');
   });
 
   test('presentation mode can be activated', async () => {

@@ -615,11 +615,11 @@ function createAIMenu() {
         label: 'AI',
         submenu: [
             {
-                label: 'AI Chat',
+                label: 'Assistant Terminal',
                 accelerator: 'CmdOrCtrl+Shift+A',
                 click: () => {
                     if (!mainWindow) return;
-                    mainWindow.webContents.send('toggle-ai-chat');
+                    mainWindow.webContents.send('toggle-assistant-terminal');
                 }
             },
             {

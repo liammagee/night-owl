@@ -127,7 +127,7 @@ async function initTutorBridge(options = {}) {
 }
 
 // ============================================================================
-// AI Chat Interface (replaces aiService.sendMessage / getAvailableProviders etc.)
+// AI service bridge (replaces aiService.sendMessage / getAvailableProviders etc.)
 // ============================================================================
 
 /**
@@ -665,7 +665,7 @@ if (typeof module !== 'undefined' && module.exports) {
         // Initialization
         initTutorBridge,
         isAvailable,
-        // AI Chat interface (replaces aiService)
+        // AI service interface (replaces aiService)
         sendMessage,
         streamMessage,
         generateText,

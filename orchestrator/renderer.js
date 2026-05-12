@@ -215,7 +215,6 @@ window.fileTreeView = fileTreeView;
 const newFolderBtn = document.getElementById('new-folder-btn');
 const changeDirectoryBtn = document.getElementById('change-directory-btn');
 const addWorkspaceFolderBtn = document.getElementById('add-workspace-folder-btn');
-const chatMessages = document.getElementById('chat-messages');
 
 // Source view elements
 const previewSourceBtn = document.getElementById('preview-source-btn');
@@ -265,11 +264,6 @@ let folderCreationParentPath = '';
 
 // Track parent folder for context menu file creation
 let fileCreationParentPath = '';
-
-const chatInput = document.getElementById('chat-input');
-const chatSendBtn = document.getElementById('chat-send-btn');
-const loadEditorToChatBtn = document.getElementById('load-editor-to-chat-btn'); // Get the new button
-const copyAIResponseBtn = document.getElementById('copy-ai-response-btn'); // New button
 
 // Command Palette elements
 const commandPaletteOverlay = document.getElementById('command-palette-overlay');
@@ -5286,10 +5280,9 @@ async function refreshCurrentFile() {
     }
 }
 
-// Update AI Chat context when file changes
+// Update Assistant Terminal context when file changes.
 function updateAIChatContext(filePath) {
-    // Update the chat context display
-    const contextDisplay = document.getElementById('chat-context-display');
+    const contextDisplay = document.getElementById('assistant-terminal-context');
     if (contextDisplay) {
         if (filePath) {
             const fileName = filePath.split('/').pop() || filePath.split('\\').pop();
@@ -5306,39 +5299,11 @@ function updateAIChatContext(filePath) {
                 }
             }
             
-            contextDisplay.textContent = `Context: ${fileName}${stats} | Type /help`;
+            contextDisplay.textContent = `Assistant terminal • ${fileName}${stats}`;
         } else {
-            contextDisplay.textContent = 'No file open | Type /help for commands';
+            contextDisplay.textContent = 'Assistant terminal • Workspace shell';
         }
     }
-    
-    // Check if chat pane is visible and show an initial context message only if chat is empty
-    const chatPane = document.getElementById('chat-pane');
-    const chatMessages = document.getElementById('chat-messages');
-    
-    if (chatPane && chatMessages && chatPane.style.display !== 'none') {
-        // Only add a message if the chat is empty (first time opening)
-        if (chatMessages.children.length === 0 && window.addChatMessage) {
-            const fileName = filePath ? (filePath.split('/').pop() || filePath.split('\\').pop()) : null;
-            if (fileName) {
-                // Get editor content stats
-                let stats = '';
-                if (window.editor && typeof window.editor.getValue === 'function') {
-                    const content = window.editor.getValue();
-                    if (content) {
-                        const counts = countWordsAndLines(content);
-                        const wordCount = counts.words;
-                        const lineCount = counts.lines;
-                        stats = ` (${lineCount} lines, ${wordCount} words)`;
-                    }
-                }
-                window.addChatMessage(`AI Assistant ready. Currently editing: ${fileName}${stats}\n\nEditor content will be automatically included with your messages.\nType /help for available commands.`, 'AI');
-            } else {
-                window.addChatMessage(`AI Assistant ready. No file currently open.\n\nType /help for available commands.`, 'AI');
-            }
-        }
-    }
-
 }
 
 // --- PDF to Markdown Import (Docling) ---
@@ -8484,11 +8449,7 @@ async function performAppInitialization() {
         switchStructureView('file'); // Switch to file view (this will also render the tree)
     }
     
-    // Initialize AI Chat functionality (may be lazy-loaded later)
-    if (window.initializeChatFunctionality) {
-        window.initializeChatFunctionality();
-    } else {
-    }
+    // Assistant terminal is lazy-loaded after editor readiness.
     
     // Initialize Export handlers
     if (window.initializeExportHandlers) {
@@ -12523,6 +12484,15 @@ if (window.electronAPI && window.electronAPI.on) {
         }
     });
 
+    window.electronAPI.on('toggle-assistant-terminal', () => {
+        showRightPane('chat');
+    });
+
+    // Backward-compatible menu event name from older builds.
+    window.electronAPI.on('toggle-ai-chat', () => {
+        showRightPane('chat');
+    });
+
     window.electronAPI.on('toggle-visual-markdown', (enabled) => {
         if (typeof window.setVisualMarkdownEnabled === 'function') {
             window.setVisualMarkdownEnabled(enabled);
@@ -12551,7 +12521,7 @@ if (window.electronAPI && window.electronAPI.on) {
     });
 }
 
-// AI chat functionality is handled by the aiChat.js module
+// Assistant terminal is handled by orchestrator/modules/assistant-terminal.js.
 
 // --- Save/Save As Logic ---
 // Function to get current editor content

@@ -295,6 +295,8 @@ const ALLOWED_ON_CHANNELS = new Set([
   'terminal-output',
   'theme-changed',
   'theme-updated',
+  'toggle-ai-chat',
+  'toggle-assistant-terminal',
   'toggle-gamification-panel',
   'toggle-presentation-mode',
   'toggle-preview-pane',

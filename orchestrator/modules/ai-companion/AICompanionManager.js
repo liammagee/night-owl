@@ -554,7 +554,7 @@ class AICompanionManager {
                         👍 Thanks
                     </button>
                     <button class="ai-feedback-save-btn" onclick="window.aiCompanion.saveFeedbackToChat('${feedbackId}')">
-                        📋 Save to Chat
+                        📋 Copy Feedback
                     </button>
                 </div>
             </div>
@@ -685,9 +685,7 @@ class AICompanionManager {
         return pane;
     }
 
-    saveFeedbackToChat(feedbackId) {
-        console.log('[AICompanionManager] saveFeedbackToChat called with ID:', feedbackId);
-
+    async saveFeedbackToChat(feedbackId) {
         // Get the feedback data from the popup
         const feedbackPane = document.getElementById('ai-companion-feedback');
         if (!feedbackPane) {
@@ -699,38 +697,30 @@ class AICompanionManager {
             const feedbackData = JSON.parse(feedbackPane.getAttribute('data-feedback'));
             const analysisData = JSON.parse(feedbackPane.getAttribute('data-analysis'));
 
-            console.log('[AICompanionManager] Feedback data:', { feedbackData, analysisData });
-            console.log('[AICompanionManager] addChatMessage available:', typeof window.addChatMessage === 'function');
+            const contextSummary = `Writing Context: ${analysisData.flowState || 'unknown'} flow, ${analysisData.wordCount || 0} words`;
+            const fullMessage = `Ash's Feedback:\n\n${feedbackData.message}\n\n${contextSummary}`;
 
-            if (typeof window.addChatMessage === 'function') {
-                const contextSummary = `Writing Context: ${analysisData.flowState || 'unknown'} flow, ${analysisData.wordCount || 0} words`;
-                const fullMessage = `**Ash's Feedback:**\n\n${feedbackData.message}\n\n_${contextSummary}_`;
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(fullMessage);
+            }
 
-                console.log('[AICompanionManager] Sending to AI Chat:', fullMessage);
-                window.addChatMessage(fullMessage, 'AI');
+            this.showNotification('📋 Feedback copied', 'success', 2000);
+            feedbackPane.style.display = 'none';
 
-                // Show confirmation and hide the feedback popup
-                this.showNotification('💾 Feedback saved to AI Chat', 'success', 2000);
-                feedbackPane.style.display = 'none';
-
-                // Record feedback acceptance as a recognition event
-                if (this.tutorBridge && this.tutorBridge.isAvailable()) {
-                    this.tutorBridge.recordWritingEvent({
-                        type: 'feedback_response',
-                        data: {
-                            suggestion: feedbackData.message,
-                            action: 'saved_to_chat',
-                            isBreakthrough: false,
-                        },
-                    }).catch(err => console.warn('[AICompanionManager] Failed to record feedback event:', err.message));
-                }
-            } else {
-                console.warn('[AICompanionManager] addChatMessage function not available');
-                this.showNotification('⚠️ AI Chat not available', 'warning', 3000);
+            // Record feedback acceptance as a recognition event
+            if (this.tutorBridge && this.tutorBridge.isAvailable()) {
+                this.tutorBridge.recordWritingEvent({
+                    type: 'feedback_response',
+                    data: {
+                        suggestion: feedbackData.message,
+                        action: 'copied_feedback',
+                        isBreakthrough: false,
+                    },
+                }).catch(err => console.warn('[AICompanionManager] Failed to record feedback event:', err.message));
             }
         } catch (error) {
-            console.error('[AICompanionManager] Error saving feedback to chat:', error);
-            this.showNotification('❌ Failed to save feedback', 'error', 2000);
+            console.error('[AICompanionManager] Error copying feedback:', error);
+            this.showNotification('❌ Failed to copy feedback', 'error', 2000);
         }
     }
 

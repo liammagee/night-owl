@@ -3660,8 +3660,8 @@ app.whenReady().then(async () => {
     const providers = tutorBridge.getAvailableProviders();
     debugMain('AI providers available via tutor-core:', providers);
     if (providers.length === 0) {
-      debugMain('No AI providers configured. AI Chat feature will be disabled.');
-      debugMain('Add API keys to your .env file to enable AI Chat. See .env.example for details.');
+      debugMain('No AI providers configured. Built-in AI writing features will be disabled.');
+      debugMain('Add API keys to your .env file to enable built-in AI features. See .env.example for details.');
     }
   } catch (error) {
     console.error('[main.js] Error initializing TutorBridge:', error);
