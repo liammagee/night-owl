@@ -113,22 +113,12 @@
     <script src="lib/react-dom.production.min.js"></script>
     <script src="lib/html2canvas.min.js"></script>
 
-    <script>
-      window.TECHNE_PLUGIN_AUTOSTART = false;
-      window.TECHNE_PLUGIN_MANIFEST = [
-        {
-          id: "techne-presentations",
-          entry: "plugins/techne-presentations/plugin.js",
-          enabledByDefault: true,
-        },
-      ];
-    </script>
-    <script src="plugins/techne-plugin-system.js"></script>
+    <script src="orchestrator/modules/feature-loader.js"></script>
   </head>
   <body class="techne-theme techne-accent-red">
     <div class="wrap">
       <div class="panel">
-        <h1>Presentations Plugin Harness</h1>
+        <h1>Presentations Feature Harness</h1>
 
         <div class="row theme-toggle">
           <label for="theme-select">Theme</label>
@@ -140,7 +130,7 @@
         </div>
 
         <div class="row">
-          <button class="btn primary" id="start-btn">Start plugin</button>
+          <button class="btn primary" id="start-btn">Start feature</button>
           <button class="btn" id="mount-btn" disabled>Mount UI</button>
         </div>
 
@@ -221,14 +211,14 @@ Pause on "possible worlds".
         if (window.showSpeakerNotesPanel) window.showSpeakerNotesPanel(markdown, true);
       };
 
-      const startPlugin = async () => {
-        setStatus("starting plugin…");
-        await window.TechnePlugins.start({
+      const startFeature = async () => {
+        setStatus("starting feature...");
+        await window.NightOwlFeatures.start({
           appId: "harness",
           enabled: ["techne-presentations"],
           settings: {},
         });
-        setStatus("plugin started");
+        setStatus("feature started");
         els.mount.disabled = false;
       };
 
@@ -246,7 +236,7 @@ Pause on "possible worlds".
       };
 
       els.start.addEventListener("click", () => {
-        startPlugin().catch((err) => {
+        startFeature().catch((err) => {
           console.error(err);
           setStatus(`start failed: ${err?.message || err}`);
         });
@@ -266,4 +256,3 @@ Pause on "possible worlds".
     </script>
   </body>
 </html>
-

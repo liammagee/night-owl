@@ -8,7 +8,5 @@ The old `@machinespirits/techne-plugins` source-of-truth workflow has been retir
 
 1. Keep active user-facing features working while they are still in `plugins/`.
 2. Port features into `orchestrator/modules/`, `css/`, `styles/`, or service modules one at a time.
-3. Remove each feature from the generic plugin loader after it has an app-native startup path.
-4. Delete `plugins/techne-plugin-system.js` only after no runtime code depends on `window.TechnePlugins`.
-
-See `docs/refactoring/assistant-terminal-and-feature-migration.md` for the current migration plan.
+3. Register remaining bundled feature wrappers through `window.NightOwlFeatures`; do not reintroduce the retired Techne global.
+4. Keep completed migration notes out of the repo. Use focused tests and code-quality guards for durable follow-through.

@@ -50,7 +50,7 @@ async function collectAppDiagnostics(page) {
       fileTreeDataLoaded: Boolean(window.fileTreeData),
       fileTreeStateVisible: Boolean(fileTreeState),
       fileTreeStateText: fileTreeState?.textContent || '',
-      pluginSystemReady: Boolean(window.TechnePlugins),
+      featureLoaderReady: Boolean(window.NightOwlFeatures),
       electronBridgeReady: Boolean(window.electronAPI?.invoke),
       navigation: navigation ? {
         domInteractive: navigation.domInteractive,
@@ -85,12 +85,12 @@ test.describe('Performance Tests', () => {
     }
   });
 
-  test('app reaches editor, file tree, and plugin readiness', async () => {
+  test('app reaches editor, file tree, and feature readiness', async () => {
     const diagnostics = await collectAppDiagnostics(window);
 
     expect(diagnostics.editorReady).toBe(true);
     expect(diagnostics.fileTreeReady).toBe(true);
-    expect(diagnostics.pluginSystemReady).toBe(true);
+    expect(diagnostics.featureLoaderReady).toBe(true);
     expect(diagnostics.navigation).toBeTruthy();
   });
 

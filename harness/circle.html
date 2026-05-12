@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Techne Circle Plugin - Test Harness</title>
+    <title>Hermeneutic Circle Feature - Test Harness</title>
     <style>
         * {
             box-sizing: border-box;
@@ -88,7 +88,7 @@
 </head>
 <body>
     <header>
-        <h1>Techne Circle Plugin - Test Harness</h1>
+        <h1>Hermeneutic Circle Feature - Test Harness</h1>
         <p>Hermeneutic Circle visualization for iterative understanding patterns</p>
     </header>
     <main>
@@ -104,10 +104,8 @@
     <!-- D3.js -->
     <script src="/lib/d3.min.js"></script>
 
-    <!-- Plugin system -->
-    <script>window.TECHNE_PLUGIN_AUTOSTART = false;</script>
-    <script src="/plugins/techne-plugin-system.js"></script>
-    <script src="/plugins/manifest.js"></script>
+    <!-- Bundled feature loader -->
+    <script src="/orchestrator/modules/feature-loader.js"></script>
 
     <script>
         // Mock data for testing
@@ -172,7 +170,7 @@ But the circle also operates historically. Our understanding of past texts shape
         };
 
         // Extend host with mock capabilities
-        TechnePlugins.extendHost({
+        NightOwlFeatures.extendHost({
             readFile: async (filePath) => {
                 log(`Mock: readFile(${filePath})`);
                 const content = mockContent[filePath];
@@ -205,16 +203,16 @@ But the circle also operates historically. Our understanding of past texts shape
             status.textContent = 'Initializing...';
 
             try {
-                // Start the plugin system with only the circle plugin
-                await TechnePlugins.start({
+                // Start the feature loader with only the circle feature
+                await NightOwlFeatures.start({
                     enabled: ['techne-circle'],
                     appId: 'harness'
                 });
 
-                log('Plugin system started');
+                log('Feature loader started');
 
                 // Listen for mode availability
-                TechnePlugins.on('mode:available', async (mode) => {
+                NightOwlFeatures.on('mode:available', async (mode) => {
                     log(`Mode available: ${mode.id} - ${mode.title}`);
 
                     if (mode.id === 'circle') {

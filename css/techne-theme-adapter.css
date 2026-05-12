@@ -1,6 +1,6 @@
 /* Techne Theme Adapter — NightOwl
    Maps canonical --techne-* tokens to this app's CSS variables.
-   Loaded when the techne-theme-manager plugin is enabled.
+   Loaded at app startup with the native NightOwl theme manager.
 
    Uses body[data-techne-theme] to beat the specificity of both
    :root defaults and body.dark-mode overrides in theme.css.

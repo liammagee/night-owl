@@ -47,7 +47,7 @@ function renderPresentationComponent(container) {
   return true;
 }
 
-function ensureTechnePresentationsReady(timeoutMs = 8000) {
+function ensurePresentationsReady(timeoutMs = 8000) {
   const isReady = () =>
     Boolean(window.MarkdownPreziApp) &&
     typeof window.showSpeakerNotesPanel === 'function' &&
@@ -55,16 +55,16 @@ function ensureTechnePresentationsReady(timeoutMs = 8000) {
 
   if (isReady()) return Promise.resolve(true);
 
-  const startPluginsBestEffort = async () => {
-    if (!window.TechnePlugins?.start) return;
+  const startFeaturesBestEffort = async () => {
+    if (!window.NightOwlFeatures?.start) return;
     try {
-      await window.TechnePlugins.start({
+      await window.NightOwlFeatures.start({
         appId: 'nightowl',
-        enabled: window.appSettings?.plugins?.enabled || null,
-        settings: window.appSettings?.plugins || null
+        enabled: window.appSettings?.features || null,
+        settings: window.appSettings?.features || null
       });
     } catch (error) {
-      console.warn('[Mode Switching] Failed to start TechnePlugins:', error);
+      console.warn('[Mode Switching] Failed to start NightOwl features:', error);
     }
   };
 
@@ -85,14 +85,14 @@ function ensureTechnePresentationsReady(timeoutMs = 8000) {
       if (isReady()) finish(true);
     };
 
-    if (window.TechnePlugins?.on) {
-      unsubscribe = window.TechnePlugins.on('presentations:ready', () => check());
+    if (window.NightOwlFeatures?.on) {
+      unsubscribe = window.NightOwlFeatures.on('presentations:ready', () => check());
     }
 
     const intervalId = setInterval(check, 50);
     const timeoutId = setTimeout(() => finish(isReady()), timeoutMs);
 
-    startPluginsBestEffort();
+    startFeaturesBestEffort();
     check();
   });
 }
@@ -324,12 +324,12 @@ function switchToMode(modeName) {
         presentationRoot.innerHTML = '<div style="padding: 16px; opacity: 0.8;">Loading presentation…</div>';
 
         (async () => {
-          const ok = await ensureTechnePresentationsReady();
+          const ok = await ensurePresentationsReady();
           if (nonce !== presentationLoadNonce) return;
 
           if (!ok) {
             presentationRoot.innerHTML =
-              '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation plugin not ready. Please try again.</div>';
+              '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation feature not ready. Please try again.</div>';
             return;
           }
 
@@ -446,24 +446,27 @@ function switchToMode(modeName) {
     document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
 
-    // Try to use the plugin's maze mode first
-    const mazeMode = window.__techneAvailableModes?.['maze'] || window.__techneAvailableModes?.['library'];
+    // Try to use the feature-provided maze mode first
+    const mazeMode = window.__nightOwlAvailableModes?.['maze'] ||
+      window.__nightOwlAvailableModes?.['library'] ||
+      window.__techneAvailableModes?.['maze'] ||
+      window.__techneAvailableModes?.['library'];
     const container = document.getElementById('library-mode-root');
 
     if (mazeMode && container) {
-      // Use the plugin's mount function
+      // Use the feature's mount function
       if (!window._mazeViewInstance) {
         mazeMode.mount(container, {
           gamification: window.gamificationInstance || window.gamificationManager
         }).then(view => {
           window._mazeViewInstance = view;
-          console.log('[Mode Switching] Maze plugin mounted');
+          console.log('[Mode Switching] Maze feature mounted');
         }).catch(err => {
-          console.warn('[Mode Switching] Failed to mount maze plugin:', err);
+          console.warn('[Mode Switching] Failed to mount maze feature:', err);
         });
       }
     } else {
-      // Fallback to gamification explorerView if plugin not available
+      // Fallback to gamification explorerView if the feature is not available
       const explorer =
         (window.gamificationInstance && window.gamificationInstance.explorerView) ||
         (window.gamificationManager && window.gamificationManager.explorerView) ||
@@ -633,67 +636,69 @@ function setupModeSwitching() {
 
   // Custom window controls removed - using native titlebar
 
-  // Setup plugin-aware mode button visibility
-  setupPluginModeButtons();
+  // Setup feature-aware mode button visibility
+  setupFeatureModeButtons();
 
   console.log('[Mode Switching] Mode switching setup completed');
 }
 
-// Map plugin IDs to mode button IDs
-const pluginToModeButton = {
+// Map bundled feature IDs to mode button IDs
+const featureToModeButton = {
   'techne-presentations': 'presentation-mode-btn',
   'techne-network-diagram': 'network-mode-btn',
   'techne-maze': 'library-mode-btn',
   'techne-circle': 'circle-mode-btn'
 };
 
-// Update mode button visibility based on plugin state
+// Update mode button visibility based on feature state
 function updateModeButtonVisibility() {
-  if (!window.TechnePlugins) {
-    console.log('[Mode Switching] TechnePlugins not available yet');
+  if (!window.NightOwlFeatures) {
+    console.log('[Mode Switching] Feature loader not available yet');
     return;
   }
 
-  const enabledPlugins = window.TechnePlugins.getEnabled?.() || [];
-  console.log('[Mode Switching] Enabled plugins:', enabledPlugins);
+  const enabledFeatures = window.NightOwlFeatures.getEnabled?.() || [];
+  console.log('[Mode Switching] Enabled features:', enabledFeatures);
 
-  for (const [pluginId, buttonId] of Object.entries(pluginToModeButton)) {
+  for (const [featureId, buttonId] of Object.entries(featureToModeButton)) {
     const button = document.getElementById(buttonId);
-    const isEnabled = enabledPlugins.includes(pluginId);
-    console.log(`[Mode Switching] Plugin ${pluginId}: enabled=${isEnabled}, button=${buttonId}, found=${!!button}`);
+    const isEnabled = enabledFeatures.includes(featureId);
+    console.log(`[Mode Switching] Feature ${featureId}: enabled=${isEnabled}, button=${buttonId}, found=${!!button}`);
     if (button) {
       button.style.display = isEnabled ? '' : 'none';
     }
   }
 }
 
-// Setup listeners for plugin enable/disable events
-function setupPluginModeButtons() {
+// Setup listeners for feature enable/disable events
+function setupFeatureModeButtons() {
   // Initialize the available modes registry
-  window.__techneAvailableModes = window.__techneAvailableModes || {};
+  const availableModes = window.__nightOwlAvailableModes || window.__techneAvailableModes || {};
+  window.__nightOwlAvailableModes = availableModes;
+  window.__techneAvailableModes = availableModes;
 
-  // Initial update after a short delay to ensure plugins are loaded
+  // Initial update after a short delay to ensure features are loaded
   setTimeout(updateModeButtonVisibility, 100);
 
-  // Listen for plugin enable/disable events
-  if (window.TechnePlugins?.on) {
-    // Listen for mode:available events from plugins (e.g., techne-maze, techne-circle)
-    window.TechnePlugins.on('mode:available', (mode) => {
+  // Listen for feature enable/disable events
+  if (window.NightOwlFeatures?.on) {
+    // Listen for mode:available events from bundled features.
+    window.NightOwlFeatures.on('mode:available', (mode) => {
       if (mode?.id) {
         console.log('[Mode Switching] Mode available:', mode.id, mode.title);
-        window.__techneAvailableModes[mode.id] = mode;
+        window.__nightOwlAvailableModes[mode.id] = mode;
       }
     });
 
-    window.TechnePlugins.on('plugin:enabled', ({ id }) => {
-      console.log('[Mode Switching] Plugin enabled:', id);
+    window.NightOwlFeatures.on('feature:enabled', ({ id }) => {
+      console.log('[Mode Switching] Feature enabled:', id);
       updateModeButtonVisibility();
     });
 
-    window.TechnePlugins.on('plugin:disabled', ({ id }) => {
-      console.log('[Mode Switching] Plugin disabled:', id);
+    window.NightOwlFeatures.on('feature:disabled', ({ id }) => {
+      console.log('[Mode Switching] Feature disabled:', id);
       // If we're in the mode that was disabled, switch to editor
-      const buttonId = pluginToModeButton[id];
+      const buttonId = featureToModeButton[id];
       if (buttonId) {
         const modeMap = {
           'presentation-mode-btn': 'presentation',
@@ -709,8 +714,8 @@ function setupPluginModeButtons() {
       updateModeButtonVisibility();
     });
 
-    // Also listen for plugins:started to update initially
-    window.TechnePlugins.on('plugins:started', () => {
+    // Also listen for features:started to update initially
+    window.NightOwlFeatures.on('features:started', () => {
       updateModeButtonVisibility();
     });
   }

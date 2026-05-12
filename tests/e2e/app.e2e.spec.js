@@ -606,10 +606,10 @@ Another paragraph with [[link-three]].`;
   });
 
   // =====================
-  // Plugin System
+  // Features
   // =====================
-  test.describe('Plugin System', () => {
-    test('should have plugin settings section', async () => {
+  test.describe('Features', () => {
+    test('should have feature settings section', async () => {
       // First open settings
       const settingsBtn = sharedWindow.locator('#settings-btn, #open-settings-btn, button[title*="Settings"]');
 
@@ -617,26 +617,26 @@ Another paragraph with [[link-three]].`;
         await settingsBtn.first().click();
         await sharedWindow.waitForTimeout(500);
 
-        const pluginSection = sharedWindow.locator('#plugin-settings, .plugin-section, [data-section="plugins"]');
-        if (await pluginSection.count() > 0) {
-          await expect(pluginSection.first()).toBeVisible();
+        const featureSection = sharedWindow.locator('#feature-settings, .feature-section, [data-section="features"]');
+        if (await featureSection.count() > 0) {
+          await expect(featureSection.first()).toBeVisible();
         }
 
         await sharedWindow.keyboard.press('Escape');
       }
     });
 
-    test('should list available plugins', async () => {
-      const pluginList = sharedWindow.locator('.plugin-list, .plugin-item, [data-plugin]');
-      const pluginCount = await pluginList.count();
-      // Plugins may or may not be visible depending on UI state
+    test('should list available features', async () => {
+      const featureList = sharedWindow.locator('.features-list, .feature-row, [data-feature]');
+      const featureCount = await featureList.count();
+      // Features may or may not be visible depending on UI state.
     });
 
-    test('should toggle plugin state', async () => {
-      const pluginToggle = sharedWindow.locator('.plugin-toggle, input[type="checkbox"][data-plugin], .plugin-switch');
+    test('should toggle feature state', async () => {
+      const featureToggle = sharedWindow.locator('.feature-toggle, input[type="checkbox"][data-feature], .feature-switch');
 
-      if (await pluginToggle.count() > 0) {
-        const firstToggle = pluginToggle.first();
+      if (await featureToggle.count() > 0) {
+        const firstToggle = featureToggle.first();
         const initialState = await firstToggle.isChecked();
 
         await firstToggle.click();

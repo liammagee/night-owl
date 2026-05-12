@@ -502,10 +502,9 @@ describe('Code quality guardrails', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
     const packageLock = fs.readFileSync(path.join(__dirname, '../../../package-lock.json'), 'utf8');
     const claudeNotes = fs.readFileSync(path.join(__dirname, '../../../CLAUDE.md'), 'utf8');
-    const migrationPlan = fs.readFileSync(
-      path.join(__dirname, '../../../docs/refactoring/assistant-terminal-and-feature-migration.md'),
-      'utf8'
-    );
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const featureLoaderSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/feature-loader.js'), 'utf8');
+    const modeSwitcherSource = fs.readFileSync(path.join(__dirname, '../../../js/mode-switcher.js'), 'utf8');
 
     expect(packageJson.scripts['sync-plugins']).toBeUndefined();
     expect(packageJson.scripts.postinstall).toBeUndefined();
@@ -513,7 +512,17 @@ describe('Code quality guardrails', () => {
     expect(packageLock).not.toContain('@machinespirits/techne-plugins');
     expect(packageLock).not.toContain('sync-techne-plugins');
     expect(claudeNotes).toContain('source-of-truth workflow has been retired');
-    expect(migrationPlan).toContain('Migration 2: Techne Plugins to App Features');
+    expect(indexSource).toContain('orchestrator/modules/feature-loader.js');
+    expect(indexSource).not.toContain('techne-plugin-system.js');
+    expect(indexSource).not.toContain('plugins/manifest.js');
+    expect(featureLoaderSource).toContain('window.NightOwlFeatures');
+    expect(featureLoaderSource).not.toContain('window.TechnePlugins');
+    expect(modeSwitcherSource).toContain('window.NightOwlFeatures');
+    expect(modeSwitcherSource).not.toContain('window.TechnePlugins');
+    expect(fs.existsSync(path.join(__dirname, '../../../plugins/techne-plugin-system.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../plugins/manifest.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../docs/PLUGINS.md'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../docs/refactoring/assistant-terminal-and-feature-migration.md'))).toBe(false);
   });
 
   test('assistant terminal has a real PTY backend with pipe fallback', () => {
@@ -547,8 +556,15 @@ describe('Code quality guardrails', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const adapterSource = fs.readFileSync(path.join(__dirname, '../../../css/techne-theme-adapter.css'), 'utf8');
+    const featureLoaderSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/feature-loader.js'), 'utf8');
 
     expect(indexSource).toContain('css/techne-theme-adapter.css');
+    expect(indexSource).toContain('plugins/techne-theme-manager/techne-tokens.css');
+    expect(indexSource).toContain('plugins/techne-theme-manager/themes.js');
+    expect(indexSource).toContain('plugins/techne-theme-manager/theme-manager.js');
+    expect(rendererSource).toContain('function initializeNativeThemeManager');
+    expect(rendererSource).toContain('window.techneThemeManager._init(host)');
+    expect(featureLoaderSource).not.toContain('techne-theme-manager');
     expect(rendererSource).toContain('const MANAGED_THEME_FALLBACKS');
     expect(rendererSource).toContain("'solarized-light'");
     expect(rendererSource).toContain("body.setAttribute('data-techne-theme', preference)");

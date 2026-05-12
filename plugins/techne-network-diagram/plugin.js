@@ -3,9 +3,9 @@
     const BASE = 'plugins/techne-network-diagram';
 
     const register = () => {
-        if (!window.TechnePlugins?.register) return;
+        if (!window.NightOwlFeatures?.register) return;
 
-        window.TechnePlugins.register({
+        window.NightOwlFeatures.register({
             id: PLUGIN_ID,
             init: async (host) => {
                 const scripts = [];
@@ -79,4 +79,3 @@
 
     register();
 })();
-

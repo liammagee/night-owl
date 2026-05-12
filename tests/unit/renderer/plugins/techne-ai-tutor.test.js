@@ -25,12 +25,12 @@ describe('Techne AI Tutor - Plugin Registration', () => {
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
     // Reset globals
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI;
 
-    // Minimal TechnePlugins mock
-    window.TechnePlugins = {
+    // Minimal NightOwlFeatures mock
+    window.NightOwlFeatures = {
       register: jest.fn()
     };
 
@@ -51,16 +51,16 @@ describe('Techne AI Tutor - Plugin Registration', () => {
   test('registers plugin with correct id', () => {
     require(pluginPath);
 
-    expect(window.TechnePlugins.register).toHaveBeenCalled();
+    expect(window.NightOwlFeatures.register).toHaveBeenCalled();
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     expect(plugin.id).toBe('techne-ai-tutor');
   });
 
   test('plugin has required methods', () => {
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
 
     expect(typeof plugin.init).toBe('function');
     expect(typeof plugin.destroy).toBe('function');
@@ -69,7 +69,7 @@ describe('Techne AI Tutor - Plugin Registration', () => {
   test('exposes TechneAITutor API after init', () => {
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     const host = { log: jest.fn(), emit: jest.fn() };
 
     plugin.init(host);
@@ -80,7 +80,7 @@ describe('Techne AI Tutor - Plugin Registration', () => {
   test('TechneAITutor has complete API', () => {
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     plugin.init({ log: jest.fn(), emit: jest.fn() });
 
     const api = window.TechneAITutor;
@@ -115,17 +115,17 @@ describe('Techne AI Tutor - Tour State', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI;
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '<div class="editor-container"></div>';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    plugin = window.TechnePlugins.register.mock.calls[0][0];
+    plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     host = { log: jest.fn(), emit: jest.fn() };
     plugin.init(host);
   });
@@ -178,17 +178,17 @@ describe('Techne AI Tutor - Event System', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI;
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '<div class="editor-container"></div>';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    plugin = window.TechnePlugins.register.mock.calls[0][0];
+    plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     plugin.init({ log: jest.fn(), emit: jest.fn() });
   });
 
@@ -260,17 +260,17 @@ describe('Techne AI Tutor - Progress Persistence', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI;
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '<div class="editor-container"></div>';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     plugin.init({ log: jest.fn(), emit: jest.fn() });
   });
 
@@ -317,7 +317,7 @@ describe('Techne AI Tutor - AI Adapter (Web Mode)', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI; // Ensure not in Electron mode
 
@@ -328,13 +328,13 @@ describe('Techne AI Tutor - AI Adapter (Web Mode)', () => {
     });
     global.fetch = fetchMock;
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '<div class="editor-container"></div>';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     plugin.init({ log: jest.fn(), emit: jest.fn() });
   });
 
@@ -387,7 +387,7 @@ describe('Techne AI Tutor - AI Adapter (Electron Mode)', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
 
     // Setup Electron mock
@@ -397,13 +397,13 @@ describe('Techne AI Tutor - AI Adapter (Electron Mode)', () => {
       invoke: mockInvoke
     };
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '<div class="editor-container"></div>';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     plugin.init({ log: jest.fn(), emit: jest.fn() });
   });
 
@@ -463,17 +463,17 @@ describe('Techne AI Tutor - Tour Mode', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI;
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '<div class="editor-container"></div>';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     plugin.init({ log: jest.fn(), emit: jest.fn() });
   });
 
@@ -523,17 +523,17 @@ describe('Techne AI Tutor - Host Integration', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI;
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     const host = { log: jest.fn(), emit: jest.fn() };
 
     plugin.init(host);
@@ -549,7 +549,7 @@ describe('Techne AI Tutor - Host Integration', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
 
     window.electronAPI = {
@@ -557,13 +557,13 @@ describe('Techne AI Tutor - Host Integration', () => {
       invoke: jest.fn()
     };
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     const host = { log: jest.fn(), emit: jest.fn() };
 
     plugin.init(host);
@@ -581,17 +581,17 @@ describe('Techne AI Tutor - Host Integration', () => {
     Storage.prototype.setItem = jest.fn((key, value) => { localStorageData[key] = value; });
     Storage.prototype.removeItem = jest.fn((key) => { delete localStorageData[key]; });
 
-    delete window.TechnePlugins;
+    delete window.NightOwlFeatures;
     delete window.TechneAITutor;
     delete window.electronAPI;
 
-    window.TechnePlugins = { register: jest.fn() };
+    window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '';
     document.head.innerHTML = '';
 
     require(pluginPath);
 
-    const plugin = window.TechnePlugins.register.mock.calls[0][0];
+    const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
     const host = { log: jest.fn(), emit: jest.fn() };
 
     plugin.init(host);

@@ -1,4 +1,4 @@
-/* Techne Circle Plugin
+/* NightOwl Hermeneutic Circle feature
    Hermeneutic circle visualization for iterative understanding patterns.
    Dependencies: D3.js (loaded via host)
 */
@@ -6,7 +6,7 @@
 (function () {
     const PLUGIN_ID = 'techne-circle';
 
-    window.TechnePlugins.register({
+    window.NightOwlFeatures.register({
         id: PLUGIN_ID,
 
         async init(host) {

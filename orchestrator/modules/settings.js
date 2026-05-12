@@ -116,45 +116,49 @@ function createSettingsDialog() {
         }
     });
 
-    // Set up event delegation for plugin toggles on the content area
+    // Set up event delegation for bundled feature toggles on the content area
     // This avoids timing issues with dynamically generated content
     // Use 'change' event which fires reliably on checkbox state change
     content.addEventListener('change', async (e) => {
-        // Check if this is a change on a plugin toggle checkbox
-        if (e.target.classList.contains('plugin-enabled-toggle')) {
-            const pluginId = e.target.dataset.pluginId;
+        // Check if this is a change on a feature toggle checkbox
+        if (e.target.classList.contains('feature-enabled-toggle')) {
+            const featureId = e.target.dataset.featureId;
             const isEnabled = e.target.checked;
-            console.log(`[Settings] Plugin toggle changed: ${pluginId} -> ${isEnabled}`);
+            console.log(`[Settings] Feature toggle changed: ${featureId} -> ${isEnabled}`);
 
-            const row = e.target.closest('.plugin-row');
+            const row = e.target.closest('.feature-row');
             const statusBadge = row?.querySelector('.status-badge:not(.status-default)');
 
             try {
                 if (isEnabled) {
-                    console.log(`[Settings] Calling enablePlugin for ${pluginId}...`);
-                    await window.TechnePlugins?.enablePlugin?.(pluginId);
-                    console.log(`[Settings] Plugin enabled: ${pluginId}`);
+                    await window.NightOwlFeatures?.enableFeature?.(featureId);
+                    console.log(`[Settings] Feature enabled: ${featureId}`);
 
                     if (statusBadge) {
                         statusBadge.className = 'status-badge status-loaded';
                         statusBadge.textContent = 'Loaded';
                     }
-                    window.showNotification?.(`Plugin "${pluginId}" enabled`, 'success');
+                    window.showNotification?.(`Feature "${featureId}" enabled`, 'success');
                 } else {
-                    window.TechnePlugins?.disablePlugin?.(pluginId);
-                    console.log(`[Settings] Plugin disabled: ${pluginId}`);
+                    window.NightOwlFeatures?.disableFeature?.(featureId);
+                    console.log(`[Settings] Feature disabled: ${featureId}`);
 
                     if (statusBadge) {
                         statusBadge.className = 'status-badge status-not-loaded';
                         statusBadge.textContent = 'Disabled';
                     }
-                    window.showNotification?.(`Plugin "${pluginId}" disabled`, 'info');
+                    window.showNotification?.(`Feature "${featureId}" disabled`, 'info');
                 }
 
-                // Save plugin state to settings
+                // Save feature state to settings
                 if (!window.appSettings) window.appSettings = {};
-                if (!window.appSettings.plugins) window.appSettings.plugins = {};
-                window.appSettings.plugins[pluginId] = { enabled: isEnabled };
+                if (!window.appSettings.features) window.appSettings.features = {};
+                window.appSettings.features[featureId] = { enabled: isEnabled };
+                const enabledFeatures = window.NightOwlFeatures?.getEnabled?.();
+                if (Array.isArray(enabledFeatures)) {
+                    window.appSettings.features.enabled = enabledFeatures;
+                }
+                delete window.appSettings.plugins;
 
                 // Persist to settings file
                 await window.electronAPI?.invoke?.('set-settings', window.appSettings);
@@ -164,9 +168,9 @@ function createSettingsDialog() {
                     window.updateModeButtonVisibility();
                 }
             } catch (error) {
-                console.error(`[Settings] Failed to toggle plugin "${pluginId}":`, error);
+                console.error(`[Settings] Failed to toggle feature "${featureId}":`, error);
                 e.target.checked = !isEnabled;
-                window.showNotification?.(`Failed to ${isEnabled ? 'enable' : 'disable'} plugin`, 'error');
+                window.showNotification?.(`Failed to ${isEnabled ? 'enable' : 'disable'} feature`, 'error');
             }
         }
     });
@@ -182,7 +186,7 @@ function createSettingsSidebar() {
         { id: 'themes', label: 'Templates', icon: '🎭' },
         { id: 'editor', label: 'Editor', icon: '📝' },
         { id: 'publishing', label: 'Publishing', icon: '🌐' },
-        { id: 'plugins', label: 'Plugins', icon: '🧩' },
+        { id: 'features', label: 'Features', icon: '🧩' },
         { id: 'gamification', label: 'Gamification', icon: '🎮' },
         { id: 'ai', label: 'AI Settings', icon: '🤖' },
         { id: 'ai-prompts', label: 'AI Custom Prompts', icon: '💬' },
@@ -237,7 +241,8 @@ function showSettingsCategory(category) {
             themes: 'Templates',
             editor: 'Editor Settings',
             publishing: 'Publishing',
-            plugins: 'Plugins',
+            features: 'Features',
+            plugins: 'Features',
             gamification: 'Gamification Settings',
             ai: 'AI Configuration',
             tts: 'Text-to-Speech Settings',
@@ -275,8 +280,9 @@ function generateSettingsContent(category) {
             return generateEditorSettings();
         case 'publishing':
             return generatePublishingSettings();
+        case 'features':
         case 'plugins':
-            return generatePluginsSettings();
+            return generateFeaturesSettings();
         case 'gamification':
             return generateGamificationSettings();
         case 'ai':
@@ -587,13 +593,11 @@ function generateEditorSettings() {
     `;
 }
 
-function generatePluginsSettings() {
-    // Get plugin information from TechnePlugins
-    const manifest = window.TechnePlugins?.getManifest?.() || window.TECHNE_PLUGIN_MANIFEST || [];
-    const enabledPlugins = window.TechnePlugins?.getEnabled?.() || [];
+function generateFeaturesSettings() {
+    const manifest = window.NightOwlFeatures?.getManifest?.() || [];
+    const enabledFeatures = window.NightOwlFeatures?.getEnabled?.() || [];
 
-    // Plugin metadata for display
-    const pluginInfo = {
+    const featureInfo = {
         'techne-backdrop': {
             name: 'Backdrop',
             description: 'Animated background effects with grid patterns and visual flourishes.'
@@ -624,28 +628,31 @@ function generatePluginsSettings() {
         }
     };
 
-    let pluginRows = '';
-    for (const plugin of manifest) {
-        const info = pluginInfo[plugin.id] || { name: plugin.id, description: 'No description available.' };
-        const isEnabled = enabledPlugins.includes(plugin.id);
-        const isLoaded = window.TechnePlugins?.getPlugin?.(plugin.id) != null;
+    let featureRows = '';
+    for (const feature of manifest) {
+        const info = featureInfo[feature.id] || {
+            name: feature.name || feature.id,
+            description: feature.description || 'No description available.'
+        };
+        const isEnabled = enabledFeatures.includes(feature.id);
+        const isLoaded = window.NightOwlFeatures?.getFeature?.(feature.id) != null;
 
-        pluginRows += `
-            <div class="plugin-row" data-plugin-id="${plugin.id}">
-                <div class="plugin-toggle">
+        featureRows += `
+            <div class="feature-row" data-feature-id="${feature.id}">
+                <div class="feature-toggle">
                     <label class="toggle-switch">
-                        <input type="checkbox" class="plugin-enabled-toggle" data-plugin-id="${plugin.id}" ${isEnabled ? 'checked' : ''}>
+                        <input type="checkbox" class="feature-enabled-toggle" data-feature-id="${feature.id}" ${isEnabled ? 'checked' : ''}>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
-                <div class="plugin-info">
-                    <div class="plugin-name">${info.name}</div>
-                    <div class="plugin-description">${info.description}</div>
-                    <div class="plugin-status">
+                <div class="feature-info">
+                    <div class="feature-name">${info.name}</div>
+                    <div class="feature-description">${info.description}</div>
+                    <div class="feature-status">
                         <span class="status-badge ${isLoaded ? 'status-loaded' : 'status-not-loaded'}">
                             ${isLoaded ? 'Loaded' : 'Not loaded'}
                         </span>
-                        ${plugin.enabledByDefault ? '<span class="status-badge status-default">Default</span>' : ''}
+                        ${feature.enabledByDefault ? '<span class="status-badge status-default">Default</span>' : ''}
                     </div>
                 </div>
             </div>
@@ -653,22 +660,22 @@ function generatePluginsSettings() {
     }
 
     return `
-        <div class="settings-section">
-            <h3>Techne Plugins</h3>
-            <p class="section-description">Enable or disable plugins to customize your NightOwl experience. Some plugins may require a reload to fully activate or deactivate.</p>
-            <div class="plugins-list">
-                ${pluginRows || '<p class="no-plugins">No plugins available.</p>'}
+        <div class="settings-section" id="feature-settings" data-section="features">
+            <h3>Features</h3>
+            <p class="section-description">Enable or disable bundled NightOwl features. Some features may require a reload to fully activate or deactivate.</p>
+            <div class="features-list">
+                ${featureRows || '<p class="no-features">No features available.</p>'}
             </div>
         </div>
 
         <style>
-            .plugins-list {
+            .features-list {
                 display: flex;
                 flex-direction: column;
                 gap: 12px;
                 margin-top: 16px;
             }
-            .plugin-row {
+            .feature-row {
                 display: flex;
                 align-items: flex-start;
                 gap: 16px;
@@ -677,25 +684,25 @@ function generatePluginsSettings() {
                 border-radius: 8px;
                 border: 1px solid var(--border-color, #ddd);
             }
-            .plugin-toggle {
+            .feature-toggle {
                 flex-shrink: 0;
                 padding-top: 2px;
             }
-            .plugin-info {
+            .feature-info {
                 flex: 1;
                 min-width: 0;
             }
-            .plugin-name {
+            .feature-name {
                 font-weight: 600;
                 font-size: 14px;
                 margin-bottom: 4px;
             }
-            .plugin-description {
+            .feature-description {
                 font-size: 13px;
                 color: var(--text-secondary, #666);
                 margin-bottom: 8px;
             }
-            .plugin-status {
+            .feature-status {
                 display: flex;
                 gap: 8px;
                 flex-wrap: wrap;
@@ -767,7 +774,7 @@ function generatePluginsSettings() {
                 font-size: 13px;
                 margin: 8px 0 0 0;
             }
-            .no-plugins {
+            .no-features {
                 color: var(--text-secondary, #666);
                 font-style: italic;
             }

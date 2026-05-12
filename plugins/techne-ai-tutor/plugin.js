@@ -1,5 +1,5 @@
 /**
- * Techne AI Tutor Plugin
+ * NightOwl AI Tutor feature
  *
  * An AI-powered guided tour system that provides interactive tutorials
  * for Techne-based applications. Supports pause/resume, AI explanations,
@@ -1348,7 +1348,7 @@ Be concise, friendly, and practical. Focus on the current feature. Use markdown 
 
         initWebTutor(host) {
             // Detect if this is the test app or a real app
-            const isTestApp = window.TechnePlugins?.getAppId?.()?.includes('test') ||
+            const isTestApp = window.NightOwlFeatures?.getAppId?.()?.includes('test') ||
                               document.title.includes('Test App') ||
                               document.querySelector('.plugin-list') !== null;
 
@@ -1974,16 +1974,16 @@ Be concise and supportive. Guide toward deeper learning.`;
 
             delete window.TechneAITutor;
 
-            this.host?.log('AI Tutor plugin destroyed');
+            this.host?.log('AI Tutor feature destroyed');
         }
     };
 
-    // Register the plugin
-    if (window.TechnePlugins) {
-        window.TechnePlugins.register(plugin);
+    // Register the feature
+    if (window.NightOwlFeatures) {
+        window.NightOwlFeatures.register(plugin);
     } else {
-        window.TECHNE_PLUGIN_QUEUE = window.TECHNE_PLUGIN_QUEUE || [];
-        window.TECHNE_PLUGIN_QUEUE.push(plugin);
+        window.NIGHTOWL_FEATURE_QUEUE = window.NIGHTOWL_FEATURE_QUEUE || [];
+        window.NIGHTOWL_FEATURE_QUEUE.push(plugin);
     }
 
 })();

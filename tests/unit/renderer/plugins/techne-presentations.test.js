@@ -20,14 +20,14 @@ describe('techne-presentations plugin', () => {
     delete window.ReactDOM;
     delete window.MarkdownPreziApp;
 
-    window.TechnePlugins = {
+    window.NightOwlFeatures = {
       register: (plugin) => {
         registered = plugin;
       }
     };
   });
 
-  test('registers itself with TechnePlugins', () => {
+  test('registers itself with NightOwlFeatures', () => {
     require(pluginPath);
     expect(registered).toBeTruthy();
     expect(registered.id).toBe('techne-presentations');

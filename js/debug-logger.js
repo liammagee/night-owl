@@ -31,7 +31,7 @@
         '[FileHandlers]',
         '[Settings]',
         '[Plugins]',
-        '[TechnePlugins]',
+        '[NightOwlFeatures]',
         '[Collaboration]',
         '[Internal Links]',
         '[Decoration]',

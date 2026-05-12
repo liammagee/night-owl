@@ -4,9 +4,9 @@
     const VERSION = '20260124a'; // Cache bust version
 
     const register = () => {
-        if (!window.TechnePlugins?.register) return;
+        if (!window.NightOwlFeatures?.register) return;
 
-        window.TechnePlugins.register({
+        window.NightOwlFeatures.register({
             id: PLUGIN_ID,
             init: async (host) => {
                 await host.loadCSS(`${BASE}/techne-markdown-renderer.css?v=${VERSION}`, { id: `${PLUGIN_ID}-css` });

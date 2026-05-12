@@ -307,14 +307,13 @@ const defaultSettings = {
         noise: true
     },
 
-    // === Plugins (shared feature bundles) ===
-    plugins: {
+    // === Bundled app features ===
+    features: {
         enabled: [
             'techne-backdrop',
             'techne-presentations',
             'techne-markdown-renderer',
-            'techne-network-diagram',
-            'techne-theme-manager'
+            'techne-network-diagram'
         ]
     },
     
@@ -597,9 +596,13 @@ Content to analyze:
         showPerformanceMetrics: false,
         enableExperimentalFeatures: false,
         customCSSPath: '', // Path to custom CSS file
-        pluginPaths: [] // Paths to custom plugins (future feature)
+        featurePaths: [] // Paths to custom feature bundles (future feature)
     }
 };
+
+const retiredFeatureIds = new Set([
+    'techne-theme-manager'
+]);
 
 // Deep merge function for nested objects
 function deepMerge(target, source) {
@@ -677,7 +680,7 @@ function validateSettings() {
     if (!appSettings.presentation) appSettings.presentation = {};
     if (!appSettings.accessibility) appSettings.accessibility = {};
     if (!appSettings.advanced) appSettings.advanced = {};
-    if (!appSettings.plugins) appSettings.plugins = {};
+    if (!appSettings.features) appSettings.features = {};
     if (!appSettings.techne) appSettings.techne = {};
     if (!appSettings.publishing || typeof appSettings.publishing !== 'object' || Array.isArray(appSettings.publishing)) {
         appSettings.publishing = {};
@@ -693,8 +696,10 @@ function validateSettings() {
     if (!Array.isArray(appSettings.recents.workspaces)) {
         appSettings.recents.workspaces = [];
     }
-    if (!Array.isArray(appSettings.plugins.enabled)) {
-        appSettings.plugins.enabled = [];
+    if (!Array.isArray(appSettings.features.enabled)) {
+        appSettings.features.enabled = Array.isArray(appSettings.plugins?.enabled)
+            ? appSettings.plugins.enabled.filter(Boolean)
+            : [];
     }
     if (!Array.isArray(appSettings.workspaceFolders)) {
         appSettings.workspaceFolders = [];
@@ -722,13 +727,36 @@ function validateSettings() {
         console.warn(`[main.js] Removed ${workspaceFolderResult.removed.length} duplicate/overlapping workspace folder(s) from settings`);
     }
 
-    // Ensure default plugins are present (plugin list is additive)
-    const defaultPlugins = Array.isArray(defaultSettings?.plugins?.enabled) ? defaultSettings.plugins.enabled : [];
-    for (const pluginId of defaultPlugins) {
-        if (!pluginId) continue;
-        if (!appSettings.plugins.enabled.includes(pluginId)) {
-            appSettings.plugins.enabled.push(pluginId);
+    // Ensure default bundled features are present (feature list is additive)
+    const defaultFeatures = Array.isArray(defaultSettings?.features?.enabled) ? defaultSettings.features.enabled : [];
+    for (const featureId of defaultFeatures) {
+        if (!featureId) continue;
+        if (!appSettings.features.enabled.includes(featureId)) {
+            appSettings.features.enabled.push(featureId);
         }
+    }
+    appSettings.features.enabled = appSettings.features.enabled
+        .filter(featureId => featureId && !retiredFeatureIds.has(featureId));
+    for (const featureId of retiredFeatureIds) {
+        delete appSettings.features[featureId];
+    }
+
+    // Migrate legacy per-plugin enable/disable overrides into feature settings.
+    if (appSettings.plugins && typeof appSettings.plugins === 'object') {
+        for (const [featureId, config] of Object.entries(appSettings.plugins)) {
+            if (retiredFeatureIds.has(featureId)) continue;
+            if (featureId === 'enabled' || !config || typeof config !== 'object') continue;
+            if (config.enabled === false) {
+                appSettings.features.enabled = appSettings.features.enabled.filter(id => id !== featureId);
+                appSettings.features[featureId] = { enabled: false };
+            } else if (config.enabled === true) {
+                if (!appSettings.features.enabled.includes(featureId)) {
+                    appSettings.features.enabled.push(featureId);
+                }
+                appSettings.features[featureId] = { enabled: true };
+            }
+        }
+        delete appSettings.plugins;
     }
     
     // Backward compatibility: migrate old recentFiles to new structure

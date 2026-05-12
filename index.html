@@ -32,6 +32,7 @@
     <link rel="stylesheet" href="css/gamification.css">
 		    <link rel="stylesheet" href="css/latex-style.css">
 		    <link rel="stylesheet" href="css/techne-theme.css">
+		    <link rel="stylesheet" href="plugins/techne-theme-manager/techne-tokens.css">
 		    <link rel="stylesheet" href="css/techne-theme-adapter.css">
 		    <link rel="stylesheet" href="css/babel-maze.css">
 	    
@@ -5031,10 +5032,13 @@
 	    <!-- Debug logger (load first) - set window.DEBUG_LEVEL before this to control verbosity -->
 	    <script src="js/debug-logger.js"></script>
 
-	    <!-- Techne plugin system -->
-	    <script>window.TECHNE_PLUGIN_AUTOSTART = false;</script>
-	    <script src="plugins/techne-plugin-system.js"></script>
-	    <script src="plugins/manifest.js"></script>
+	    <!-- Bundled app feature loader -->
+	    <script src="orchestrator/modules/feature-loader.js"></script>
+	    <script src="plugins/techne-theme-manager/themes.js"></script>
+	    <script src="plugins/techne-theme-manager/theme-manager.js"></script>
+	    <script src="plugins/techne-theme-manager/theme-editor.js"></script>
+	    <script src="plugins/techne-theme-manager/theme-editor-ui.js"></script>
+	    <script src="plugins/techne-theme-manager/bridges/nightowl-bridge.js"></script>
 	    
 	    <!-- Startup timing + lazy loader (load first) -->
 	    <script src="orchestrator/modules/lazy-loader.js"></script>
@@ -5138,10 +5142,10 @@
     <!-- File tree keyboard navigation (monkey-patches renderFileTree, must load after renderer.js) -->
     <script src="orchestrator/modules/file-tree-nav.js" defer></script>
 
-    <!-- Presentation UI is provided by the Techne presentations plugin -->
+    <!-- Presentation UI is provided by the bundled presentations feature -->
 
     <!-- Load JavaScript modules -->
-    <!-- Presentation services are provided by the Techne presentations plugin -->
+    <!-- Presentation services are provided by the bundled presentations feature -->
     <script src="orchestrator/modules/git-panel.js" defer></script>
     <script src="orchestrator/modules/split-editor.js" defer></script>
     <script src="orchestrator/modules/terminal-panel.js" defer></script>
@@ -5163,7 +5167,7 @@
     <script src="orchestrator/modules/smart-autocomplete.js" defer></script>
     <script src="orchestrator/modules/large-file.js" defer></script>
     <script src="orchestrator/modules/citationManager.js" defer></script>
-    <!-- Speaker notes (presenting mode) is provided by the Techne presentations plugin -->
+    <!-- Speaker notes (presenting mode) is provided by the bundled presentations feature -->
     <script src="js/mode-switcher.js" defer></script>  
     <script src="js/network-visualization.js" defer></script>
     <script src="orchestrator/modules/unifiedNetwork.js" defer></script>

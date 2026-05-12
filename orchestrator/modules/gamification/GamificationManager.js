@@ -152,22 +152,22 @@ class GamificationManager {
         this.initialized = true;
     }
 
-    // Setup listener for the maze plugin to connect when it loads
+    // Setup listener for the maze feature to connect when it loads
     _setupMazePluginListener() {
-        if (!window.TechnePlugins?.on) {
+        if (!window.NightOwlFeatures?.on) {
             return;
         }
 
         // Listen for the maze mode becoming available
-        window.TechnePlugins.on('mode:available', (mode) => {
+        window.NightOwlFeatures.on('mode:available', (mode) => {
             if (mode?.id === 'maze' || mode?.id === 'library') {
                 this._mazeMode = mode;
             }
         });
 
         // Check if maze is already loaded
-        const mazePlugin = window.TechnePlugins.getPlugin?.('techne-maze');
-        if (mazePlugin) {
+        const mazeFeature = window.NightOwlFeatures.getFeature?.('techne-maze');
+        if (mazeFeature) {
             if (typeof BabelMazeView !== 'undefined') {
                 this.explorerView = new BabelMazeView(this);
                 this.explorerView.ensureContainer();

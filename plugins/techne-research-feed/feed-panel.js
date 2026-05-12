@@ -1,4 +1,4 @@
-/* Research Feed Panel — UI for the techne-research-feed plugin.
+/* Research Feed Panel - UI for the techne-research-feed feature.
    Owns the sidebar pane DOM, the floating toggle button, and the settings
    modal. All networking is delegated to /ipc/feedHandlers via electronAPI.
 */

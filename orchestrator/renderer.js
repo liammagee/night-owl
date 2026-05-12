@@ -8326,23 +8326,71 @@ async function invokeAshExplicitly() {
     }
 }
 
+function initializeNativeThemeManager() {
+    if (!window.techneThemeManager?._init || window.__nightOwlThemeManagerInitialized) {
+        return;
+    }
+
+    const getStore = () => {
+        if (!window.appSettings) window.appSettings = {};
+        if (!window.appSettings.themeManager || typeof window.appSettings.themeManager !== 'object') {
+            window.appSettings.themeManager = {};
+        }
+        return window.appSettings.themeManager;
+    };
+
+    const persistSettings = () => {
+        try {
+            window.electronAPI?.invoke?.('set-settings', window.appSettings);
+        } catch (error) {
+            console.warn('[Theme] Failed to persist theme manager settings:', error);
+        }
+    };
+
+    const host = {
+        appId: 'nightowl',
+        getAppId: () => 'nightowl',
+        isElectron: typeof window.electronAPI !== 'undefined',
+        electronAPI: window.electronAPI || null,
+        log: (...args) => {
+            if (window.appSettings?.advanced?.enableDebugMode) {
+                console.log('[Theme]', ...args);
+            }
+        },
+        warn: (...args) => console.warn('[Theme]', ...args),
+        error: (...args) => console.error('[Theme]', ...args),
+        emit: (eventName, payload) => {
+            window.dispatchEvent(new CustomEvent(eventName, { detail: payload }));
+        },
+        getSetting: (key) => getStore()[key],
+        setSetting: (key, value) => {
+            getStore()[key] = value;
+            persistSettings();
+        }
+    };
+
+    window.__nightOwlThemeManagerInitialized = true;
+    window.techneThemeManager._init(host);
+}
+
 // Initialize the application 
 async function performAppInitialization() {
     // Load settings before initializing the rest of the app
     await loadAppSettings();
     initializePerformanceDiagnostics();
+    initializeNativeThemeManager();
 
-    // Start Techne plugin system (shared feature bundles for Electron + web)
+    // Start bundled NightOwl features.
     try {
-        if (window.TechnePlugins?.start) {
-            await window.TechnePlugins.start({
+        if (window.NightOwlFeatures?.start) {
+            await window.NightOwlFeatures.start({
                 appId: 'nightowl',
-                enabled: window.appSettings?.plugins || null,
-                settings: window.appSettings?.plugins || null
+                enabled: window.appSettings?.features || null,
+                settings: window.appSettings?.features || null
             });
         }
-    } catch (pluginError) {
-        console.warn('[renderer.js] Failed to start TechnePlugins:', pluginError);
+    } catch (featureError) {
+        console.warn('[renderer.js] Failed to start NightOwl features:', featureError);
     }
     
     // Load citation data early for autocomplete

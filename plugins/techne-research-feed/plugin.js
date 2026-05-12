@@ -1,9 +1,9 @@
-/* Techne Research Feed plugin
+/* NightOwl Research Feed feature
    Sidebar panel that polls arxiv / reddit / bluesky / mastodon / google /
    x.com (logged-in session) for new posts and ranks them by relevance to
    what the user is currently writing.
 
-   The plugin runs in the renderer; all networking goes through IPC handlers
+   The feature runs in the renderer; all networking goes through IPC handlers
    in /ipc/feedHandlers.js so we never touch external origins from the page
    context. Polling state and the SQLite cache are owned by the main process.
 */
@@ -13,7 +13,7 @@
 
     const PLUGIN_ID = 'techne-research-feed';
 
-    window.TechnePlugins.register({
+    window.NightOwlFeatures.register({
         id: PLUGIN_ID,
 
         async init(host) {

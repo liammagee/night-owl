@@ -83,14 +83,14 @@ describe('techne-markdown-renderer plugin', () => {
       }
     };
 
-    window.TechnePlugins = {
+    window.NightOwlFeatures = {
       register: (plugin) => {
         registered = plugin;
       }
     };
   });
 
-  test('registers with TechnePlugins', () => {
+  test('registers with NightOwlFeatures', () => {
     require(pluginEntryPath);
     expect(registered).toBeTruthy();
     expect(registered.id).toBe('techne-markdown-renderer');

@@ -37,6 +37,11 @@ test.describe('Primary workflow smoke', () => {
       ]);
 
       const originalInvoke = window.electronAPI.invoke.bind(window.electronAPI);
+      window.appSettings = {
+        ...(window.appSettings || {}),
+        workingDirectory: '/workspace'
+      };
+      window.__terminalInvocations = [];
       window.electronAPI.invoke = async (channel, payload) => {
         if (channel === 'request-file-tree') {
           return {
@@ -69,6 +74,19 @@ test.describe('Primary workflow smoke', () => {
         }
         if (channel === 'save-file') {
           return { success: true, filePath: payload?.filePath || '/workspace/paper.md' };
+        }
+        if (channel === 'terminal-kill') {
+          window.__terminalInvocations.push({ channel, payload });
+          return { success: true, sessionId: payload?.sessionId || 'assistant' };
+        }
+        if (channel === 'terminal-spawn') {
+          window.__terminalInvocations.push({ channel, payload });
+          return {
+            success: true,
+            pid: 4242,
+            sessionId: payload?.sessionId || 'assistant',
+            backend: 'pty'
+          };
         }
         if (channel === 'set-current-file' || channel === 'get-working-directory') {
           return channel === 'get-working-directory' ? '/workspace' : { success: true };
@@ -104,5 +122,22 @@ test.describe('Primary workflow smoke', () => {
 
     await window.keyboard.press(process.platform === 'darwin' ? 'Meta+S' : 'Control+S');
     await expect.poll(() => window.evaluate(() => window.currentFilePath)).toBe('/workspace/paper.md');
+  });
+
+  test('launches a workspace shell from the Assistant Terminal pane', async () => {
+    await window.click('#show-chat-btn');
+    await expect(window.locator('#chat-pane')).toBeVisible();
+
+    await window.click('#assistant-launch-shell');
+
+    await expect.poll(() => window.evaluate(() => {
+      return window.__terminalInvocations?.find(entry => entry.channel === 'terminal-spawn') || null;
+    })).toMatchObject({
+      channel: 'terminal-spawn',
+      payload: {
+        sessionId: 'assistant',
+        cwd: '/workspace'
+      }
+    });
   });
 });

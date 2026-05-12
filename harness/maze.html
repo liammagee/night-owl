@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Techne Maze Plugin - Test Harness</title>
+    <title>Babel Maze Feature - Test Harness</title>
     <style>
         * {
             box-sizing: border-box;
@@ -108,7 +108,7 @@
 </head>
 <body>
     <header>
-        <h1>Techne Maze Plugin - Test Harness</h1>
+        <h1>Babel Maze Feature - Test Harness</h1>
         <p>Babel Maze - MUD-style knowledge base explorer inspired by Borges' Library of Babel</p>
     </header>
     <main>
@@ -125,10 +125,8 @@
         <div class="log-panel" id="log-panel"></div>
     </main>
 
-    <!-- Plugin system -->
-    <script>window.TECHNE_PLUGIN_AUTOSTART = false;</script>
-    <script src="/plugins/techne-plugin-system.js"></script>
-    <script src="/plugins/manifest.js"></script>
+    <!-- Bundled feature loader -->
+    <script src="/orchestrator/modules/feature-loader.js"></script>
 
     <script>
         // Mock data for testing - simulates a small knowledge base
@@ -242,7 +240,7 @@ It is essence that has become actual through its own movement.`
         };
 
         // Extend host with mock capabilities
-        TechnePlugins.extendHost({
+        NightOwlFeatures.extendHost({
             getFiles: async () => {
                 log('Mock: getFiles called');
                 return {
@@ -286,16 +284,16 @@ It is essence that has become actual through its own movement.`
             status.textContent = 'Initializing...';
 
             try {
-                // Start the plugin system with only the maze plugin
-                await TechnePlugins.start({
+                // Start the feature loader with only the maze feature
+                await NightOwlFeatures.start({
                     enabled: ['techne-maze'],
                     appId: 'harness'
                 });
 
-                log('Plugin system started');
+                log('Feature loader started');
 
                 // Listen for mode availability
-                TechnePlugins.on('mode:available', async (mode) => {
+                NightOwlFeatures.on('mode:available', async (mode) => {
                     log(`Mode available: ${mode.id} - ${mode.title}`);
 
                     if (mode.id === 'maze') {

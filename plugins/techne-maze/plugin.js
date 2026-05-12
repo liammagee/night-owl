@@ -1,4 +1,4 @@
-/* Techne Maze Plugin
+/* NightOwl Babel Maze feature
    Babel Maze - MUD-style knowledge base explorer inspired by Borges' Library of Babel.
    Transforms Markdown files into explorable rooms with wiki-style links as corridors.
 */
@@ -6,7 +6,7 @@
 (function () {
     const PLUGIN_ID = 'techne-maze';
 
-    window.TechnePlugins.register({
+    window.NightOwlFeatures.register({
         id: PLUGIN_ID,
 
         async init(host) {

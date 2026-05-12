@@ -1,4 +1,4 @@
-/* Techne Backdrop Plugin
+/* NightOwl Backdrop feature
    - Shapes + rotating shapes + fauna overlay layers for Techne theme.
    - Self-contained so it can be extracted to its own repo.
 */
@@ -12,7 +12,7 @@
 
     const resolve = (rel) => new URL(rel, baseUrl).toString();
 
-    window.TechnePlugins?.register?.({
+    window.NightOwlFeatures?.register?.({
         id: 'techne-backdrop',
         name: 'Techne Backdrop',
         version: '0.1.0',
