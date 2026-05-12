@@ -12267,10 +12267,63 @@ window.updateBreadcrumb = updateBreadcrumb;
 window.updateUnsavedIndicator = updateUnsavedIndicator;
 window.updatePreviewAndStructure = updatePreviewAndStructure;
 
+const MANAGED_THEME_FALLBACKS = {
+    'solarized-light': {
+        isDark: false,
+        tokens: {
+            '--techne-accent': '#268bd2',
+            '--techne-accent-hover': '#1a6da0',
+            '--techne-accent-active': '#155a85',
+            '--techne-bg': '#fdf6e3',
+            '--techne-surface': '#eee8d5',
+            '--techne-surface-elevated': '#fdf6e3',
+            '--techne-text': '#657b83',
+            '--techne-text-muted': '#93a1a1',
+            '--techne-text-inverted': '#fdf6e3',
+            '--techne-border': 'rgba(101, 123, 131, 0.25)',
+            '--techne-border-subtle': 'rgba(101, 123, 131, 0.12)',
+            '--techne-glass-bg': 'rgba(253, 246, 227, 0.85)',
+            '--techne-glass-border': 'rgba(238, 232, 213, 0.40)'
+        }
+    },
+    'solarized-dark': {
+        isDark: true,
+        tokens: {
+            '--techne-accent': '#268bd2',
+            '--techne-accent-hover': '#2aa0f0',
+            '--techne-accent-active': '#1a6da0',
+            '--techne-bg': '#002b36',
+            '--techne-surface': '#073642',
+            '--techne-surface-elevated': '#0a4050',
+            '--techne-text': '#839496',
+            '--techne-text-muted': '#586e75',
+            '--techne-text-inverted': '#002b36',
+            '--techne-border': 'rgba(131, 148, 150, 0.25)',
+            '--techne-border-subtle': 'rgba(131, 148, 150, 0.12)',
+            '--techne-glass-bg': 'rgba(0, 43, 54, 0.85)',
+            '--techne-glass-border': 'rgba(7, 54, 66, 0.40)'
+        }
+    }
+};
+
+function applyManagedThemeFallbackTokens(tokens = {}) {
+    const root = document.documentElement;
+    Object.entries(tokens).forEach(([prop, value]) => {
+        root.style.setProperty(prop, value);
+    });
+}
+
+function clearManagedThemeFallbackTokens() {
+    const root = document.documentElement;
+    Object.keys(MANAGED_THEME_FALLBACKS['solarized-light'].tokens).forEach((prop) => {
+        root.style.removeProperty(prop);
+    });
+}
+
 // Canonical theme applicator used across the renderer.
 // Accepts either:
 // - a boolean `true|false` (apply actual dark state without changing user preference), or
-// - a string theme preference: 'auto' | 'light' | 'dark' | 'techne'
+// - a string theme preference: 'auto' | 'light' | 'dark' | 'techne' | managed theme id
 function applyTheme(themeOrIsDark) {
     const body = document.body;
     if (!body) return;
@@ -12286,6 +12339,42 @@ function applyTheme(themeOrIsDark) {
     if (managedTheme && typeof window.techneThemeManager?.applyTheme === 'function') {
         window.currentTheme = preference;
         window.techneThemeManager.applyTheme(preference);
+        return;
+    }
+
+    const fallbackManagedTheme = MANAGED_THEME_FALLBACKS[preference];
+    if (fallbackManagedTheme) {
+        body.classList.remove(
+            'dark-mode',
+            'light-mode',
+            'techne-theme',
+            'techne-dark',
+            'techne-accent-orange',
+            'techne-grid-off',
+            'techne-noise-off'
+        );
+        body.classList.add(fallbackManagedTheme.isDark ? 'dark-mode' : 'light-mode');
+        body.setAttribute('data-techne-theme', preference);
+        applyManagedThemeFallbackTokens(fallbackManagedTheme.tokens);
+        window.currentTheme = preference;
+
+        if (window.monaco && monaco.editor) {
+            initializeMonacoThemeInheritanceObserver();
+            requestAnimationFrame(() => scheduleMonacoThemeSync());
+        }
+
+        try {
+            window.dispatchEvent(new CustomEvent('app-theme-changed', {
+                detail: {
+                    preference,
+                    applied: preference,
+                    isDark: fallbackManagedTheme.isDark
+                }
+            }));
+        } catch (error) {
+            console.warn('[Theme] Failed to dispatch fallback theme change:', error);
+        }
+
         return;
     }
 
@@ -12331,10 +12420,13 @@ function applyTheme(themeOrIsDark) {
         'dark-mode',
         'light-mode',
         'techne-theme',
+        'techne-dark',
         'techne-accent-orange',
         'techne-grid-off',
         'techne-noise-off'
     );
+    body.removeAttribute('data-techne-theme');
+    clearManagedThemeFallbackTokens();
 
     body.classList.add(appliedDark ? 'dark-mode' : 'light-mode');
 

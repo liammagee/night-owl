@@ -531,8 +531,14 @@ describe('Code quality guardrails', () => {
   });
 
   test('managed Techne themes cover legacy NightOwl chrome', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const adapterSource = fs.readFileSync(path.join(__dirname, '../../../css/techne-theme-adapter.css'), 'utf8');
 
+    expect(indexSource).toContain('css/techne-theme-adapter.css');
+    expect(rendererSource).toContain('const MANAGED_THEME_FALLBACKS');
+    expect(rendererSource).toContain("'solarized-light'");
+    expect(rendererSource).toContain("body.setAttribute('data-techne-theme', preference)");
     expect(adapterSource).toContain('--primary-wcag: var(--techne-accent-active)');
     expect(adapterSource).toContain('--primary-500: var(--techne-accent)');
     expect(adapterSource).toContain('--neutral-0: var(--techne-bg)');
@@ -541,9 +547,12 @@ describe('Code quality guardrails', () => {
     expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity');
     expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity .pane-toggle-button.active');
     expect(adapterSource).toContain('body[data-techne-theme] #editor-status-bar');
+    expect(adapterSource).toContain('body[data-techne-theme] #editor-mode-btn.active');
+    expect(adapterSource).toContain('body[data-techne-theme] #show-preview-btn.active');
     expect(adapterSource).toContain('body[data-techne-theme] .mode-btn.active');
     expect(adapterSource).toContain('body[data-techne-theme] .pane-visibility-btn');
     expect(adapterSource).toContain('body[data-techne-theme] .file-tree-item.current-file');
+    expect(adapterSource).toContain('body[data-techne-theme] #flow-indicator.flow-struggling');
     expect(adapterSource).toContain('body[data-techne-theme] .flow-indicator.flow-struggling');
     expect(adapterSource).toContain('body[data-techne-theme] .ai-flow-indicator.flow-struggling');
   });

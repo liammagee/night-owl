@@ -46,10 +46,14 @@ Focused checks for each slice:
 
 This pass performs steps 1-6 of the AI terminal migration and steps 1-3 of the plugin migration. Remaining feature ports are intentionally left as explicit follow-up work so the active presentation, theme, renderer, and graph surfaces do not regress in one large rewrite.
 
+## Theme Consistency Slice
+
+The first Solarized Light hardening pass loads the theme adapter as base app CSS, applies Solarized fallback tokens when the theme manager is not yet available, and overrides the high-specificity active tab/button and flow indicator styles that were leaking green/orange chrome into managed themes.
+
 ## Remaining Follow-up
 
 - Upgrade the assistant terminal backend to a real PTY (`node-pty` or equivalent) if Codex, Claude, or Gemini need full terminal control instead of stdin/stdout pipes.
 - Add an Electron smoke test for launching a workspace shell from the Assistant Terminal pane.
-- Finish the theme consistency sweep. The prior selector guard is not enough: verify Solarized Light and at least one dark theme visually, remove hard-coded green/gradient/accent escapes from buttons, tabs, flow/toast UI, and preview controls, and add screenshot or CSS guards that fail when unthemed chrome returns.
+- Finish the broader theme consistency sweep. The first pass covers the screenshot's active button and flow-chip leaks, but the remaining pass should still verify Solarized Light and at least one dark theme visually across settings, preview controls, plugin panels, proofreader, research feed, and presentation surfaces.
 - Port bundled `plugins/techne-*` features into app-native modules one at a time, then remove `window.TechnePlugins`.
 - Decide whether the retained lower-level AI IPC remains for writing tools or gets renamed and narrowed further.

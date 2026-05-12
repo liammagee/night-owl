@@ -280,16 +280,39 @@ body[data-techne-theme] #structure-pane-header .pane-header-actions .btn:hover {
 }
 
 body[data-techne-theme] .mode-btn.active,
+body[data-techne-theme] #editor-mode-btn.active,
+body[data-techne-theme] #presentation-mode-btn.active,
+body[data-techne-theme] #network-mode-btn.active,
+body[data-techne-theme] #library-mode-btn.active,
+body[data-techne-theme] #circle-mode-btn.active,
 body[data-techne-theme] #right-pane > .toggle-buttons .pane-toggle-button.active,
+body[data-techne-theme] #show-preview-btn.active,
+body[data-techne-theme] #show-chat-btn.active,
+body[data-techne-theme] #show-speaker-notes-btn.active,
+body[data-techne-theme] #show-wholepart-btn.active,
 body[data-techne-theme] .preview-source-toolbar-btn.active,
 body[data-techne-theme] .btn-primary:not(.pane-visibility-btn) {
-    background: var(--primary-wcag) !important;
-    border-color: var(--primary-wcag) !important;
+    background: var(--techne-accent-active) !important;
+    border-color: var(--techne-accent-active) !important;
     color: var(--text-on-primary) !important;
 }
 
 body[data-techne-theme] .btn-warning.pane-visibility-btn,
 body[data-techne-theme] .pane-visibility-btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body[data-techne-theme] .btn-success,
+body[data-techne-theme] .btn-warning,
+body[data-techne-theme] .btn-info,
+body[data-techne-theme] .toolbar-btn.btn-success,
+body[data-techne-theme] .toolbar-btn.btn-warning,
+body[data-techne-theme] .toolbar-btn.btn-info,
+body[data-techne-theme] .preview-toolbar-btn.btn-success,
+body[data-techne-theme] .preview-toolbar-btn.btn-warning,
+body[data-techne-theme] .preview-toolbar-btn.btn-info {
     background: var(--button-bg) !important;
     border-color: var(--button-border) !important;
     color: var(--button-text) !important;
@@ -411,7 +434,9 @@ body[data-techne-theme] .internal-link {
    inline gradients, so the theme adapter has to win with explicit chrome
    selectors. */
 body[data-techne-theme] .flow-indicator,
-body[data-techne-theme] .ai-flow-indicator {
+body[data-techne-theme] .ai-flow-indicator,
+body[data-techne-theme] #flow-indicator,
+body[data-techne-theme] #ai-flow-indicator {
     background: var(--techne-surface-elevated) !important;
     border: 1px solid var(--techne-border) !important;
     color: var(--techne-text) !important;
@@ -425,8 +450,20 @@ body[data-techne-theme] .flow-indicator.flow-struggling,
 body[data-techne-theme] .flow-indicator.flow-blocked,
 body[data-techne-theme] .ai-flow-indicator.flow-deep,
 body[data-techne-theme] .ai-flow-indicator.flow-light,
-body[data-techne-theme] .ai-flow-indicator.flow-struggling {
-    background: linear-gradient(135deg, var(--primary-100) 0%, var(--techne-surface-elevated) 100%) !important;
+body[data-techne-theme] .ai-flow-indicator.flow-focused,
+body[data-techne-theme] .ai-flow-indicator.flow-struggling,
+body[data-techne-theme] .ai-flow-indicator.flow-blocked,
+body[data-techne-theme] #flow-indicator.flow-deep,
+body[data-techne-theme] #flow-indicator.flow-light,
+body[data-techne-theme] #flow-indicator.flow-focused,
+body[data-techne-theme] #flow-indicator.flow-struggling,
+body[data-techne-theme] #flow-indicator.flow-blocked,
+body[data-techne-theme] #ai-flow-indicator.flow-deep,
+body[data-techne-theme] #ai-flow-indicator.flow-light,
+body[data-techne-theme] #ai-flow-indicator.flow-focused,
+body[data-techne-theme] #ai-flow-indicator.flow-struggling,
+body[data-techne-theme] #ai-flow-indicator.flow-blocked {
+    background: var(--techne-surface-elevated) !important;
     border-color: var(--primary-300) !important;
     color: var(--primary-700) !important;
 }
