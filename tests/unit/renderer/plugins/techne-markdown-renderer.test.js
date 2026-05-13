@@ -9,7 +9,7 @@ const pluginCorePath = path.resolve(
 const previewMarkdownPath = path.resolve(__dirname, '../../../../orchestrator/modules/preview-markdown.js');
 const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind(document);
 
-describe('techne-markdown-renderer plugin', () => {
+describe('nightowl-markdown-renderer plugin', () => {
   let registered = null;
 
   beforeEach(() => {
@@ -93,7 +93,7 @@ describe('techne-markdown-renderer plugin', () => {
   test('registers with NightOwlFeatures', () => {
     require(pluginEntryPath);
     expect(registered).toBeTruthy();
-    expect(registered.id).toBe('techne-markdown-renderer');
+    expect(registered.id).toBe('nightowl-markdown-renderer');
     expect(typeof registered.init).toBe('function');
   });
 

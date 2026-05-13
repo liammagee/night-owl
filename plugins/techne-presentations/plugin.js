@@ -1,5 +1,5 @@
 (function () {
-    const PLUGIN_ID = 'techne-presentations';
+    const FEATURE_ID = 'nightowl-presentations';
     const BASE = 'plugins/techne-presentations';
     const VERSION = '20251222g'; // Bump this to bust cache
     const reactRoots = new WeakMap();
@@ -74,12 +74,12 @@
         if (!window.NightOwlFeatures?.register) return;
 
         window.NightOwlFeatures.register({
-            id: PLUGIN_ID,
+            id: FEATURE_ID,
             init: async (host) => {
                 ensureSpeakerNotesPanel();
 
-                await host.loadCSS(cacheBust(`${BASE}/preview-presentation.css`), { id: `${PLUGIN_ID}-preview-css` });
-                await host.loadCSS(cacheBust(`${BASE}/speaker-notes.css`), { id: `${PLUGIN_ID}-notes-css` });
+                await host.loadCSS(cacheBust(`${BASE}/preview-presentation.css`), { id: `${FEATURE_ID}-preview-css` });
+                await host.loadCSS(cacheBust(`${BASE}/speaker-notes.css`), { id: `${FEATURE_ID}-notes-css` });
 
                 const scripts = [
                     cacheBust(`${BASE}/ttsService.js`),
@@ -104,7 +104,7 @@
 
                 // Emit mode:available if MarkdownPreziApp is loaded
                 if (window.MarkdownPreziApp) {
-                    host.log?.(`[${PLUGIN_ID}] MarkdownPreziApp loaded, registering mode`);
+                    host.log?.(`[${FEATURE_ID}] MarkdownPreziApp loaded, registering mode`);
                     host.emit('mode:available', {
                         id: 'presentations',
                         title: 'Presentations',
@@ -125,7 +125,7 @@
                     });
                 }
 
-                host.emit('presentations:ready', { id: PLUGIN_ID });
+                host.emit('presentations:ready', { id: FEATURE_ID });
             }
         });
     };

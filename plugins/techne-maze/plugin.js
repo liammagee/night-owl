@@ -4,23 +4,24 @@
 */
 
 (function () {
-    const PLUGIN_ID = 'techne-maze';
+    const FEATURE_ID = 'nightowl-maze';
+    const BASE = 'plugins/techne-maze';
 
     window.NightOwlFeatures.register({
-        id: PLUGIN_ID,
+        id: FEATURE_ID,
 
         async init(host) {
-            host.log(`[${PLUGIN_ID}] Initializing...`);
+            host.log(`[${FEATURE_ID}] Initializing...`);
 
             // Load maze styles
-            await host.loadCSS(`plugins/${PLUGIN_ID}/babel-maze.css`);
+            await host.loadCSS(`${BASE}/babel-maze.css`);
 
             // Load the BabelMazeView class
-            await host.loadScript(`plugins/${PLUGIN_ID}/BabelMazeView.js`);
+            await host.loadScript(`${BASE}/BabelMazeView.js`);
 
             // Expose the view class globally for mode registration
             if (window.BabelMazeView) {
-                host.log(`[${PLUGIN_ID}] BabelMazeView loaded successfully`);
+                host.log(`[${FEATURE_ID}] BabelMazeView loaded successfully`);
 
                 // Emit event so host can register the mode
                 host.emit('mode:available', {
@@ -40,10 +41,10 @@
                     }
                 });
             } else {
-                host.error(`[${PLUGIN_ID}] BabelMazeView not found after loading`);
+                host.error(`[${FEATURE_ID}] BabelMazeView not found after loading`);
             }
 
-            host.log(`[${PLUGIN_ID}] Initialized`);
+            host.log(`[${FEATURE_ID}] Initialized`);
         }
     });
 })();

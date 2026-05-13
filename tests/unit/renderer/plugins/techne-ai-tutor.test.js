@@ -54,7 +54,7 @@ describe('Techne AI Tutor - Plugin Registration', () => {
     expect(window.NightOwlFeatures.register).toHaveBeenCalled();
 
     const plugin = window.NightOwlFeatures.register.mock.calls[0][0];
-    expect(plugin.id).toBe('techne-ai-tutor');
+    expect(plugin.id).toBe('nightowl-ai-tutor');
   });
 
   test('plugin has required methods', () => {

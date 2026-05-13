@@ -1,6 +1,6 @@
 /* NightOwl Backdrop feature
-   - Shapes + rotating shapes + fauna overlay layers for Techne theme.
-   - Self-contained so it can be extracted to its own repo.
+   - Shapes + rotating shapes + fauna overlay layers for the app theme.
+   - Self-contained so it can be maintained independently inside NightOwl.
 */
 
 (function () {
@@ -13,8 +13,8 @@
     const resolve = (rel) => new URL(rel, baseUrl).toString();
 
     window.NightOwlFeatures?.register?.({
-        id: 'techne-backdrop',
-        name: 'Techne Backdrop',
+        id: 'nightowl-backdrop',
+        name: 'Backdrop',
         version: '0.1.0',
         async init(host) {
             await host.loadCSS(resolve('techne-backdrop-layers.css'));

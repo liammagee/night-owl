@@ -529,7 +529,28 @@ describe('Code quality guardrails', () => {
     expect(fs.existsSync(path.join(__dirname, '../../../plugins/techne-plugin-system.js'))).toBe(false);
     expect(fs.existsSync(path.join(__dirname, '../../../plugins/manifest.js'))).toBe(false);
     expect(fs.existsSync(path.join(__dirname, '../../../docs/PLUGINS.md'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../plugins/techne-presentations/sync.sh'))).toBe(false);
     expect(fs.existsSync(path.join(__dirname, '../../../docs/refactoring/assistant-terminal-and-feature-migration.md'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../docs/refactoring/AI_COMPANION_REFACTORING_SUMMARY.md'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../docs/samples/sample-todo.md'))).toBe(false);
+    expect(featureLoaderSource).toContain("'nightowl-presentations'");
+    expect(featureLoaderSource).toContain("'techne-presentations': 'nightowl-presentations'");
+    expect(modeSwitcherSource).toContain("'nightowl-maze'");
+  });
+
+  test('mac distribution build has hardened-runtime preflight checks', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
+    const distCheckSource = fs.readFileSync(path.join(__dirname, '../../../scripts/check-distribution-readiness.js'), 'utf8');
+
+    expect(packageJson.scripts['dist:check']).toBe('node scripts/check-distribution-readiness.js');
+    expect(packageJson.scripts.predist).toBe('npm run dist:check');
+    expect(packageJson.build.mac.hardenedRuntime).toBe(true);
+    expect(packageJson.build.mac.gatekeeperAssess).toBe(false);
+    expect(packageJson.build.mac.entitlements).toBe('build/entitlements.mac.plist');
+    expect(packageJson.build.mac.entitlementsInherit).toBe('build/entitlements.mac.plist');
+    expect(fs.existsSync(path.join(__dirname, '../../../build/entitlements.mac.plist'))).toBe(true);
+    expect(distCheckSource).toContain('NIGHTOWL_REQUIRE_SIGNING_IDENTITY');
+    expect(distCheckSource).toContain('NIGHTOWL_REQUIRE_NOTARIZATION_CREDS');
   });
 
   test('assistant terminal has a real PTY backend with pipe fallback', () => {
@@ -588,6 +609,10 @@ describe('Code quality guardrails', () => {
     expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity');
     expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity .pane-toggle-button.active');
     expect(adapterSource).toContain('body[data-techne-theme] #editor-status-bar');
+    expect(adapterSource).toContain('body[data-techne-theme] #chat-pane');
+    expect(adapterSource).toContain('body[data-techne-theme] #assistant-terminal-output.xterm-host');
+    expect(adapterSource).toContain('body[data-techne-theme] #integrated-terminal');
+    expect(adapterSource).toContain('body[data-techne-theme] #terminal-panel-header');
     expect(adapterSource).toContain('body[data-techne-theme] #editor-mode-btn.active');
     expect(adapterSource).toContain('body[data-techne-theme] #show-preview-btn.active');
     expect(adapterSource).toContain('body[data-techne-theme] .mode-btn.active');

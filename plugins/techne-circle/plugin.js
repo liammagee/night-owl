@@ -4,32 +4,33 @@
 */
 
 (function () {
-    const PLUGIN_ID = 'techne-circle';
+    const FEATURE_ID = 'nightowl-circle';
+    const BASE = 'plugins/techne-circle';
 
     window.NightOwlFeatures.register({
-        id: PLUGIN_ID,
+        id: FEATURE_ID,
 
         async init(host) {
-            host.log(`[${PLUGIN_ID}] Initializing...`);
+            host.log(`[${FEATURE_ID}] Initializing...`);
 
             // Load D3 if not already present
             if (typeof d3 === 'undefined') {
                 const d3Loaded = await host.loadScript('lib/d3.min.js');
                 if (!d3Loaded) {
-                    host.error(`[${PLUGIN_ID}] Failed to load D3.js`);
+                    host.error(`[${FEATURE_ID}] Failed to load D3.js`);
                     return;
                 }
             }
 
             // Load circle styles
-            await host.loadCSS(`plugins/${PLUGIN_ID}/circle.css`);
+            await host.loadCSS(`${BASE}/circle.css`);
 
             // Load the CircleView class
-            await host.loadScript(`plugins/${PLUGIN_ID}/circle-view.js`);
+            await host.loadScript(`${BASE}/circle-view.js`);
 
             // Expose the view class globally for mode registration
             if (window.CircleView) {
-                host.log(`[${PLUGIN_ID}] CircleView loaded successfully`);
+                host.log(`[${FEATURE_ID}] CircleView loaded successfully`);
 
                 // Emit event so host can register the mode
                 host.emit('mode:available', {
@@ -50,7 +51,7 @@
                 });
             }
 
-            host.log(`[${PLUGIN_ID}] Initialized`);
+            host.log(`[${FEATURE_ID}] Initialized`);
         }
     });
 })();

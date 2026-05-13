@@ -23,7 +23,7 @@
     }
 
     // Array of module files to load in order
-    // Note: BabelMazeView is now loaded via the techne-maze plugin
+    // Note: BabelMazeView is now loaded via the NightOwl maze feature
     const moduleFiles = [
         'gamification/data/DataPersistence.js',
         'gamification/core/WritingSession.js',

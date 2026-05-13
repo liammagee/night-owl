@@ -2,16 +2,17 @@
  * NightOwl AI Tutor feature
  *
  * An AI-powered guided tour system that provides interactive tutorials
- * for Techne-based applications. Supports pause/resume, AI explanations,
+ * for NightOwl. Supports pause/resume, AI explanations,
  * branching logic (quick vs detailed), and app-specific adaptations.
  *
- * @module techne-ai-tutor
+ * @module nightowl-ai-tutor
  */
 
 (function() {
     'use strict';
 
-    const PLUGIN_ID = 'techne-ai-tutor';
+    const FEATURE_ID = 'nightowl-ai-tutor';
+    const STORAGE_KEY_PREFIX = 'techne-ai-tutor';
 
     // ========================================================================
     // TUTOR CORE - Shared across all applications
@@ -383,7 +384,7 @@
             };
 
             try {
-                localStorage.setItem(`${PLUGIN_ID}-progress`, JSON.stringify(data));
+                localStorage.setItem(`${STORAGE_KEY_PREFIX}-progress`, JSON.stringify(data));
             } catch (e) {
                 console.warn('[AI Tutor] Could not save progress:', e);
             }
@@ -394,7 +395,7 @@
          */
         loadProgress() {
             try {
-                const data = localStorage.getItem(`${PLUGIN_ID}-progress`);
+                const data = localStorage.getItem(`${STORAGE_KEY_PREFIX}-progress`);
                 if (data) {
                     const parsed = JSON.parse(data);
                     if (!parsed.completed && Date.now() - parsed.timestamp < 86400000) {
@@ -412,7 +413,7 @@
 
         clearProgress() {
             try {
-                localStorage.removeItem(`${PLUGIN_ID}-progress`);
+                localStorage.removeItem(`${STORAGE_KEY_PREFIX}-progress`);
             } catch (e) {
                 console.warn('[AI Tutor] Could not clear progress:', e);
             }
@@ -1266,7 +1267,7 @@
     // ========================================================================
 
     const plugin = {
-        id: PLUGIN_ID,
+        id: FEATURE_ID,
 
         init(host) {
             console.log('[AI Tutor] Plugin initializing...');

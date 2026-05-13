@@ -310,10 +310,10 @@ const defaultSettings = {
     // === Bundled app features ===
     features: {
         enabled: [
-            'techne-backdrop',
-            'techne-presentations',
-            'techne-markdown-renderer',
-            'techne-network-diagram'
+            'nightowl-backdrop',
+            'nightowl-presentations',
+            'nightowl-markdown-renderer',
+            'nightowl-network-diagram'
         ]
     },
     
@@ -604,6 +604,62 @@ const retiredFeatureIds = new Set([
     'techne-theme-manager'
 ]);
 
+const featureIdAliases = Object.freeze({
+    'techne-backdrop': 'nightowl-backdrop',
+    'techne-presentations': 'nightowl-presentations',
+    'techne-markdown-renderer': 'nightowl-markdown-renderer',
+    'techne-network-diagram': 'nightowl-network-diagram',
+    'techne-circle': 'nightowl-circle',
+    'techne-maze': 'nightowl-maze',
+    'techne-ai-tutor': 'nightowl-ai-tutor',
+    'techne-research-feed': 'nightowl-research-feed'
+});
+
+function normalizeFeatureId(featureId) {
+    const id = String(featureId || '').trim();
+    return featureIdAliases[id] || id;
+}
+
+function normalizeFeatureIdList(featureIds) {
+    const normalized = [];
+    for (const featureId of Array.isArray(featureIds) ? featureIds : []) {
+        const id = normalizeFeatureId(featureId);
+        if (!id || retiredFeatureIds.has(id) || normalized.includes(id)) continue;
+        normalized.push(id);
+    }
+    return normalized;
+}
+
+function mergeFeatureConfig(current, incoming) {
+    if (
+        current && typeof current === 'object' && !Array.isArray(current) &&
+        incoming && typeof incoming === 'object' && !Array.isArray(incoming)
+    ) {
+        return { ...incoming, ...current };
+    }
+    return typeof current === 'undefined' ? incoming : current;
+}
+
+function migrateFeatureKeys(features) {
+    if (!features || typeof features !== 'object' || Array.isArray(features)) return {};
+
+    for (const [legacyId, canonicalId] of Object.entries(featureIdAliases)) {
+        if (!Object.prototype.hasOwnProperty.call(features, legacyId)) continue;
+        features[canonicalId] = mergeFeatureConfig(features[canonicalId], features[legacyId]);
+        delete features[legacyId];
+    }
+
+    for (const featureId of Object.keys(features)) {
+        if (featureId === 'enabled') continue;
+        const canonicalId = normalizeFeatureId(featureId);
+        if (canonicalId === featureId) continue;
+        features[canonicalId] = mergeFeatureConfig(features[canonicalId], features[featureId]);
+        delete features[featureId];
+    }
+
+    return features;
+}
+
 // Deep merge function for nested objects
 function deepMerge(target, source) {
     const result = { ...target };
@@ -701,6 +757,8 @@ function validateSettings() {
             ? appSettings.plugins.enabled.filter(Boolean)
             : [];
     }
+    appSettings.features = migrateFeatureKeys(appSettings.features);
+    appSettings.features.enabled = normalizeFeatureIdList(appSettings.features.enabled);
     if (!Array.isArray(appSettings.workspaceFolders)) {
         appSettings.workspaceFolders = [];
     }
@@ -730,13 +788,13 @@ function validateSettings() {
     // Ensure default bundled features are present (feature list is additive)
     const defaultFeatures = Array.isArray(defaultSettings?.features?.enabled) ? defaultSettings.features.enabled : [];
     for (const featureId of defaultFeatures) {
-        if (!featureId) continue;
-        if (!appSettings.features.enabled.includes(featureId)) {
-            appSettings.features.enabled.push(featureId);
+        const canonicalId = normalizeFeatureId(featureId);
+        if (!canonicalId) continue;
+        if (!appSettings.features.enabled.includes(canonicalId)) {
+            appSettings.features.enabled.push(canonicalId);
         }
     }
-    appSettings.features.enabled = appSettings.features.enabled
-        .filter(featureId => featureId && !retiredFeatureIds.has(featureId));
+    appSettings.features.enabled = normalizeFeatureIdList(appSettings.features.enabled);
     for (const featureId of retiredFeatureIds) {
         delete appSettings.features[featureId];
     }
@@ -744,20 +802,23 @@ function validateSettings() {
     // Migrate legacy per-plugin enable/disable overrides into feature settings.
     if (appSettings.plugins && typeof appSettings.plugins === 'object') {
         for (const [featureId, config] of Object.entries(appSettings.plugins)) {
-            if (retiredFeatureIds.has(featureId)) continue;
+            const canonicalId = normalizeFeatureId(featureId);
+            if (retiredFeatureIds.has(canonicalId)) continue;
             if (featureId === 'enabled' || !config || typeof config !== 'object') continue;
             if (config.enabled === false) {
-                appSettings.features.enabled = appSettings.features.enabled.filter(id => id !== featureId);
-                appSettings.features[featureId] = { enabled: false };
+                appSettings.features.enabled = appSettings.features.enabled.filter(id => id !== canonicalId);
+                appSettings.features[canonicalId] = { enabled: false };
             } else if (config.enabled === true) {
-                if (!appSettings.features.enabled.includes(featureId)) {
-                    appSettings.features.enabled.push(featureId);
+                if (!appSettings.features.enabled.includes(canonicalId)) {
+                    appSettings.features.enabled.push(canonicalId);
                 }
-                appSettings.features[featureId] = { enabled: true };
+                appSettings.features[canonicalId] = { enabled: true };
             }
         }
         delete appSettings.plugins;
     }
+    appSettings.features = migrateFeatureKeys(appSettings.features);
+    appSettings.features.enabled = normalizeFeatureIdList(appSettings.features.enabled);
     
     // Backward compatibility: migrate old recentFiles to new structure
     if (Array.isArray(appSettings.recentFiles)) {

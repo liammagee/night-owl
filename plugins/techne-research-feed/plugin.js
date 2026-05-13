@@ -11,24 +11,25 @@
 (function () {
     'use strict';
 
-    const PLUGIN_ID = 'techne-research-feed';
+    const FEATURE_ID = 'nightowl-research-feed';
+    const BASE = 'plugins/techne-research-feed';
 
     window.NightOwlFeatures.register({
-        id: PLUGIN_ID,
+        id: FEATURE_ID,
 
         async init(host) {
-            host.log(`[${PLUGIN_ID}] Initializing...`);
+            host.log(`[${FEATURE_ID}] Initializing...`);
 
             if (!host.isElectron || !host.electronAPI) {
-                host.warn(`[${PLUGIN_ID}] Requires Electron host; disabling.`);
+                host.warn(`[${FEATURE_ID}] Requires Electron host; disabling.`);
                 return;
             }
 
-            await host.loadCSS(`plugins/${PLUGIN_ID}/feed-panel.css`);
-            await host.loadScript(`plugins/${PLUGIN_ID}/feed-panel.js`);
+            await host.loadCSS(`${BASE}/feed-panel.css`);
+            await host.loadScript(`${BASE}/feed-panel.js`);
 
             if (!window.ResearchFeedPanel) {
-                host.error(`[${PLUGIN_ID}] feed-panel.js failed to expose ResearchFeedPanel`);
+                host.error(`[${FEATURE_ID}] feed-panel.js failed to expose ResearchFeedPanel`);
                 return;
             }
 
@@ -39,7 +40,7 @@
             window.toggleResearchFeedPanel = () => panel.toggle();
 
             host.emit('research-feed:ready', { panel });
-            host.log(`[${PLUGIN_ID}] Ready.`);
+            host.log(`[${FEATURE_ID}] Ready.`);
         }
     });
 })();

@@ -63,14 +63,47 @@ async function renderChrome(page, themeId) {
           }
           .file-tree-item.current-file { background: rgba(25, 135, 84, 0.35); }
           #editor-status-bar { background: #ffffff; color: #111111; }
+          body.light-mode .terminal-chat { background-color: #f6f8fa; color: #24292f; }
+          body.light-mode .terminal-output { background-color: #ffffff; border-color: #d0d7de; }
+          body.light-mode .terminal-input-area { background-color: #f6f8fa; border-color: #d0d7de; }
+          #assistant-terminal-output { background: #ffffff; color: #111111; }
+          #integrated-terminal {
+            background: #1e1e1e;
+            border-top: 2px solid #333333;
+            color: #d4d4d4;
+          }
+          #terminal-panel-header { background: #252526; color: #d4d4d4; }
+          #terminal-output { background: #1e1e1e; color: #d4d4d4; }
         </style>
         <style>${adapterCss}</style>
       </head>
-      <body data-techne-theme="${themeId}">
+      <body class="light-mode" data-techne-theme="${themeId}">
         <div id="mode-switcher">
           <button id="editor-mode-btn" class="mode-btn active">Editor</button>
         </div>
         <div id="right-pane">
+          <div id="chat-pane" class="content-pane">
+            <div class="terminal-chat">
+              <div class="assistant-terminal-pane">
+                <div class="assistant-terminal-header">Assistant terminal</div>
+                <div id="assistant-terminal-output" class="assistant-terminal-output xterm-host">
+                  <div class="xterm"><div class="xterm-viewport"><div class="xterm-screen">ready</div></div></div>
+                </div>
+                <div class="assistant-terminal-input-area">
+                  <input id="assistant-terminal-input" placeholder="Type a command">
+                </div>
+              </div>
+              <div class="terminal-output">legacy terminal output</div>
+              <div class="terminal-input-area">
+                <input id="terminal-input" class="terminal-input" placeholder="Type a command">
+              </div>
+            </div>
+            <div id="integrated-terminal">
+              <div id="terminal-panel-header">Terminal</div>
+              <div id="terminal-output">shell</div>
+              <div id="terminal-input-row"><span class="terminal-dollar">$</span></div>
+            </div>
+          </div>
           <div class="toggle-buttons">
             <button id="show-preview-btn" class="pane-toggle-button active">Preview</button>
             <button id="show-chat-btn" class="pane-toggle-button active">Terminal</button>
@@ -91,15 +124,19 @@ for (const [themeId, expected] of Object.entries({
   'solarized-light': {
     active: 'rgb(21, 90, 133)',
     flow: 'rgb(253, 246, 227)',
-    status: 'rgb(238, 232, 213)'
+    status: 'rgb(238, 232, 213)',
+    terminal: 'rgb(253, 246, 227)',
+    terminalInput: 'rgb(238, 232, 213)'
   },
   'solarized-dark': {
     active: 'rgb(26, 109, 160)',
     flow: 'rgb(10, 64, 80)',
-    status: 'rgb(7, 54, 66)'
+    status: 'rgb(7, 54, 66)',
+    terminal: 'rgb(0, 43, 54)',
+    terminalInput: 'rgb(7, 54, 66)'
   }
 })) {
-  test(`managed ${themeId} overrides legacy active, flow, tree, and status chrome`, async ({ page }) => {
+  test(`managed ${themeId} overrides legacy active, flow, tree, terminal, and status chrome`, async ({ page }) => {
     await renderChrome(page, themeId);
 
     const styles = await page.evaluate(() => {
@@ -117,7 +154,13 @@ for (const [themeId, expected] of Object.entries({
         flow: read('#flow-indicator'),
         aiFlow: read('.ai-flow-indicator'),
         fileTree: read('.file-tree-item.current-file'),
-        status: read('#editor-status-bar')
+        status: read('#editor-status-bar'),
+        terminalChat: read('.terminal-chat'),
+        terminalOutput: read('#assistant-terminal-output'),
+        terminalInput: read('.assistant-terminal-input-area'),
+        integratedTerminal: read('#integrated-terminal'),
+        integratedTerminalHeader: read('#terminal-panel-header'),
+        integratedTerminalOutput: read('#terminal-output')
       };
     });
 
@@ -128,5 +171,11 @@ for (const [themeId, expected] of Object.entries({
     expect(styles.aiFlow.backgroundImage).toBe('none');
     expect(styles.fileTree.backgroundColor).not.toBe('rgba(25, 135, 84, 0.35)');
     expect(styles.status.backgroundColor).toBe(expected.status);
+    expect(styles.terminalChat.backgroundColor).toBe(expected.terminal);
+    expect(styles.terminalOutput.backgroundColor).toBe(expected.terminal);
+    expect(styles.terminalInput.backgroundColor).toBe(expected.terminalInput);
+    expect(styles.integratedTerminal.backgroundColor).toBe(expected.terminal);
+    expect(styles.integratedTerminalHeader.backgroundColor).toBe(expected.terminalInput);
+    expect(styles.integratedTerminalOutput.backgroundColor).toBe(expected.terminal);
   });
 }

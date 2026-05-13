@@ -80,7 +80,7 @@ test.describe('AI Tutor Plugin', () => {
     // Enable the AI tutor plugin (it's disabled by default)
     await sharedWindow.evaluate(async () => {
       if (window.NightOwlFeatures?.enableFeature) {
-        await window.NightOwlFeatures.enableFeature('techne-ai-tutor');
+        await window.NightOwlFeatures.enableFeature('nightowl-ai-tutor');
       }
     });
     await sharedWindow.waitForTimeout(1500);
@@ -99,12 +99,12 @@ test.describe('AI Tutor Plugin', () => {
 
     // Ensure AI tutor plugin is enabled
     const isEnabled = await sharedWindow.evaluate(() => {
-      return window.NightOwlFeatures?.isEnabled?.('techne-ai-tutor') ?? false;
+      return window.NightOwlFeatures?.isEnabled?.('nightowl-ai-tutor') ?? false;
     });
 
     if (!isEnabled) {
       await sharedWindow.evaluate(async () => {
-        await window.NightOwlFeatures?.enableFeature?.('techne-ai-tutor');
+        await window.NightOwlFeatures?.enableFeature?.('nightowl-ai-tutor');
       });
       await sharedWindow.waitForTimeout(1000);
     }
@@ -124,7 +124,7 @@ test.describe('AI Tutor Plugin', () => {
 
     test('should load the AI tutor plugin', async () => {
       const isLoaded = await sharedWindow.evaluate(() => {
-        return window.NightOwlFeatures?.isEnabled?.('techne-ai-tutor') ?? false;
+        return window.NightOwlFeatures?.isEnabled?.('nightowl-ai-tutor') ?? false;
       });
       expect(isLoaded).toBe(true);
     });
@@ -368,7 +368,7 @@ test.describe('AI Tutor Plugin', () => {
       if (wasVisible) {
         // Disable plugin
         await sharedWindow.evaluate(async () => {
-          await window.NightOwlFeatures?.disableFeature?.('techne-ai-tutor');
+          await window.NightOwlFeatures?.disableFeature?.('nightowl-ai-tutor');
         });
         await sharedWindow.waitForTimeout(500);
 
@@ -378,7 +378,7 @@ test.describe('AI Tutor Plugin', () => {
 
         // Re-enable plugin
         await sharedWindow.evaluate(async () => {
-          await window.NightOwlFeatures?.enableFeature?.('techne-ai-tutor');
+          await window.NightOwlFeatures?.enableFeature?.('nightowl-ai-tutor');
         });
         await sharedWindow.waitForTimeout(500);
       } else {
@@ -389,13 +389,13 @@ test.describe('AI Tutor Plugin', () => {
     test('should show trigger when plugin is enabled', async () => {
       // Disable first
       await sharedWindow.evaluate(async () => {
-        await window.NightOwlFeatures?.disableFeature?.('techne-ai-tutor');
+        await window.NightOwlFeatures?.disableFeature?.('nightowl-ai-tutor');
       });
       await sharedWindow.waitForTimeout(300);
 
       // Enable
       await sharedWindow.evaluate(async () => {
-        await window.NightOwlFeatures?.enableFeature?.('techne-ai-tutor');
+        await window.NightOwlFeatures?.enableFeature?.('nightowl-ai-tutor');
       });
       await sharedWindow.waitForTimeout(1000);
 
@@ -406,7 +406,7 @@ test.describe('AI Tutor Plugin', () => {
       // Note: visibility depends on plugin implementation
       // Just ensure no crash occurred
       const pluginEnabled = await sharedWindow.evaluate(() =>
-        window.NightOwlFeatures?.isEnabled?.('techne-ai-tutor') ?? false
+        window.NightOwlFeatures?.isEnabled?.('nightowl-ai-tutor') ?? false
       );
       expect(pluginEnabled).toBe(true);
     });

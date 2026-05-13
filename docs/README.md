@@ -24,14 +24,6 @@ Development guides, fixes, and technical documentation:
 - **[Future Refactoring Plan](development/FUTURE_REFACTORING_PLAN.md)** - Planned code improvements
 - **[New Folder Fix](development/NEW_FOLDER_FIX.md)** - Folder creation bug resolution
 
-### ♻️ Refactoring (`refactoring/`)
-Code refactoring summaries and architectural improvements:
-
-- **[AI Companion Refactoring](refactoring/AI_COMPANION_REFACTORING_SUMMARY.md)** - Chat system improvements
-- **[AI Flow Detection Refactoring](refactoring/AI_FLOW_DETECTION_REFACTORING.md)** - Writing flow analysis
-- **[Gamification Refactoring](refactoring/GAMIFICATION_REFACTORING_SUMMARY.md)** - Motivation system code organization
-- **[General Refactoring Summary](refactoring/REFACTORING_SUMMARY.md)** - Overall code improvements
-
 ### ⚙️ Setup (`setup/`)
 Configuration guides and installation documentation:
 
@@ -39,13 +31,13 @@ Configuration guides and installation documentation:
 - **[App Customization Guide](setup/APP_CUSTOMIZATION_GUIDE.md)** - General customization options
 - **[App Name Configuration](setup/APP_NAME_CONFIGURATION.md)** - Application naming setup
 - **[Icon Setup](setup/ICON_SETUP.md)** - Icon generation and configuration
+- **[macOS Distribution](setup/MAC_DISTRIBUTION.md)** - Hardened-runtime packaging checks
 
 ### 📝 Samples (`samples/`)
 Example files and templates:
 
 - **[Lecture Summary](samples/lecture_summary.md)** - Sample lecture notes format
 - **[Sample Presentation](samples/sample-presentation.md)** - Presentation template
-- **[Sample Todo](samples/sample-todo.md)** - Task management template
 
 ## Quick Start
 
@@ -68,6 +60,5 @@ When adding new documentation:
 - Place feature docs in `features/`
 - Place technical fixes in `development/`
 - Place setup guides in `setup/`
-- Place refactoring notes in `refactoring/`
 - Place examples in `samples/`
 - Update this README.md index

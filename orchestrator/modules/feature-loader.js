@@ -8,58 +8,69 @@
 
     if (window.NightOwlFeatures) return;
 
+    const FEATURE_ID_ALIASES = Object.freeze({
+        'techne-backdrop': 'nightowl-backdrop',
+        'techne-presentations': 'nightowl-presentations',
+        'techne-markdown-renderer': 'nightowl-markdown-renderer',
+        'techne-network-diagram': 'nightowl-network-diagram',
+        'techne-circle': 'nightowl-circle',
+        'techne-maze': 'nightowl-maze',
+        'techne-ai-tutor': 'nightowl-ai-tutor',
+        'techne-research-feed': 'nightowl-research-feed'
+    });
+
     const FEATURE_MANIFEST = Object.freeze([
         {
-            id: 'techne-backdrop',
+            id: 'nightowl-backdrop',
             name: 'Backdrop',
             description: 'Animated theme backdrop layers.',
             entry: 'plugins/techne-backdrop/plugin.js',
             enabledByDefault: true
         },
         {
-            id: 'techne-presentations',
+            id: 'nightowl-presentations',
             name: 'Presentations',
             description: 'Slide-based presentation mode with speaker notes support.',
             entry: 'plugins/techne-presentations/plugin.js',
             enabledByDefault: true
         },
         {
-            id: 'techne-markdown-renderer',
+            id: 'nightowl-markdown-renderer',
             name: 'Markdown Renderer',
             description: 'Enhanced preview rendering and citation support.',
             entry: 'plugins/techne-markdown-renderer/plugin.js',
             enabledByDefault: true
         },
         {
-            id: 'techne-network-diagram',
+            id: 'nightowl-network-diagram',
             name: 'Network Diagram',
             description: 'Interactive graph visualization for linked documents.',
             entry: 'plugins/techne-network-diagram/plugin.js',
             enabledByDefault: true
         },
         {
-            id: 'techne-circle',
+            id: 'nightowl-circle',
             name: 'Hermeneutic Circle',
             description: 'Circular visualization for interpretive movement through a text.',
             entry: 'plugins/techne-circle/plugin.js',
             enabledByDefault: false
         },
         {
-            id: 'techne-maze',
+            id: 'nightowl-maze',
             name: 'Babel Maze',
             description: 'Library of Babel-inspired navigation through your documents.',
             entry: 'plugins/techne-maze/plugin.js',
             enabledByDefault: true
         },
         {
-            id: 'techne-ai-tutor',
+            id: 'nightowl-ai-tutor',
             name: 'AI Tutor',
             description: 'Guided onboarding and tutorial overlays.',
             entry: 'plugins/techne-ai-tutor/plugin.js',
             enabledByDefault: false
         },
         {
-            id: 'techne-research-feed',
+            id: 'nightowl-research-feed',
             name: 'Research Feed',
             description: 'Optional research feed panel ranked against current writing context.',
             entry: 'plugins/techne-research-feed/plugin.js',
@@ -97,8 +108,41 @@
     const warn = (...args) => console.warn('[NightOwlFeatures]', ...args);
     const error = (...args) => console.error('[NightOwlFeatures]', ...args);
 
-    const normalizeId = (value) => String(value || '').trim();
+    const normalizeId = (value) => {
+        const id = String(value || '').trim();
+        return FEATURE_ID_ALIASES[id] || id;
+    };
     const isElectron = () => typeof window.electronAPI !== 'undefined';
+
+    function mergeSettingsValue(current, next) {
+        if (
+            current && typeof current === 'object' && !Array.isArray(current) &&
+            next && typeof next === 'object' && !Array.isArray(next)
+        ) {
+            return { ...next, ...current };
+        }
+        return typeof current === 'undefined' ? next : current;
+    }
+
+    function migrateFeatureSettings(settings) {
+        if (Array.isArray(settings)) {
+            return Array.from(new Set(settings.map(normalizeId).filter(Boolean)));
+        }
+        if (!settings || typeof settings !== 'object') return {};
+
+        const migrated = { ...settings };
+        for (const [legacyId, canonicalId] of Object.entries(FEATURE_ID_ALIASES)) {
+            if (!Object.prototype.hasOwnProperty.call(migrated, legacyId)) continue;
+            migrated[canonicalId] = mergeSettingsValue(migrated[canonicalId], migrated[legacyId]);
+            delete migrated[legacyId];
+        }
+
+        if (Array.isArray(migrated.enabled)) {
+            migrated.enabled = Array.from(new Set(migrated.enabled.map(normalizeId).filter(Boolean)));
+        }
+
+        return migrated;
+    }
 
     function normalizePath(src) {
         const value = String(src || '').trim();
@@ -330,20 +374,21 @@
             return null;
         }
 
-        state.features.set(id, feature);
+        const registeredFeature = { ...feature, id };
+        state.features.set(id, registeredFeature);
         emit('feature:registered', { id });
 
         const pending = state.pending.get(id);
         if (pending) {
             clearTimeout(pending.timeoutId);
-            pending.resolve(feature);
+            pending.resolve(registeredFeature);
             state.pending.delete(id);
         }
 
         if (state.started) {
-            queueMicrotask(() => initFeature(feature));
+            queueMicrotask(() => initFeature(registeredFeature));
         }
-        return feature;
+        return registeredFeature;
     }
 
     function getDefaultEnabled() {
@@ -420,9 +465,14 @@
     async function start({ manifest = null, enabled = null, settings = null, appId = 'nightowl' } = {}) {
         state.startPromise = Promise.resolve(state.startPromise).then(async () => {
             state.appId = String(appId || 'nightowl');
-            if (Array.isArray(manifest)) state.manifest = manifest;
-            if (settings && typeof settings === 'object') state.settings = settings;
-            updateEnabled(enabled);
+            if (Array.isArray(manifest)) {
+                state.manifest = manifest.map((entry) => ({
+                    ...entry,
+                    id: normalizeId(entry?.id)
+                }));
+            }
+            if (settings && typeof settings === 'object') state.settings = migrateFeatureSettings(settings);
+            updateEnabled(enabled ? migrateFeatureSettings(enabled) : enabled);
 
             const firstStart = !state.started;
             state.started = true;

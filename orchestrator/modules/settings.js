@@ -598,31 +598,31 @@ function generateFeaturesSettings() {
     const enabledFeatures = window.NightOwlFeatures?.getEnabled?.() || [];
 
     const featureInfo = {
-        'techne-backdrop': {
+        'nightowl-backdrop': {
             name: 'Backdrop',
             description: 'Animated background effects with grid patterns and visual flourishes.'
         },
-        'techne-presentations': {
+        'nightowl-presentations': {
             name: 'Presentations',
             description: 'Slide-based presentation mode for lectures with speaker notes support.'
         },
-        'techne-markdown-renderer': {
+        'nightowl-markdown-renderer': {
             name: 'Markdown Renderer',
             description: 'Enhanced markdown rendering with custom syntax extensions.'
         },
-        'techne-network-diagram': {
+        'nightowl-network-diagram': {
             name: 'Network Diagram',
             description: 'Interactive network/graph visualization for linked documents.'
         },
-        'techne-circle': {
+        'nightowl-circle': {
             name: 'Hermeneutic Circle',
             description: 'Visual representation of the hermeneutic circle for philosophical exploration.'
         },
-        'techne-maze': {
+        'nightowl-maze': {
             name: 'Babel Maze',
             description: 'Library of Babel-inspired maze navigation through your documents.'
         },
-        'techne-research-feed': {
+        'nightowl-research-feed': {
             name: 'Research Feed',
             description: 'Sidebar that polls arxiv, reddit, Bluesky, Mastodon, Google, and (optionally) x.com for new posts related to what you are writing, ranked by AI relevance.'
         }

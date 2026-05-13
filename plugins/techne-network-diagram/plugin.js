@@ -1,12 +1,12 @@
 (function () {
-    const PLUGIN_ID = 'techne-network-diagram';
+    const FEATURE_ID = 'nightowl-network-diagram';
     const BASE = 'plugins/techne-network-diagram';
 
     const register = () => {
         if (!window.NightOwlFeatures?.register) return;
 
         window.NightOwlFeatures.register({
-            id: PLUGIN_ID,
+            id: FEATURE_ID,
             init: async (host) => {
                 const scripts = [];
                 if (!window.d3) scripts.push('lib/d3.min.js');
@@ -18,7 +18,7 @@
 
                 // Emit mode:available if UnifiedNetworkVisualization is loaded
                 if (window.UnifiedNetworkVisualization) {
-                    host.log(`[${PLUGIN_ID}] UnifiedNetworkVisualization loaded, registering mode`);
+                    host.log(`[${FEATURE_ID}] UnifiedNetworkVisualization loaded, registering mode`);
                     host.emit('mode:available', {
                         id: 'network-diagram',
                         title: 'Network Diagram',
@@ -72,7 +72,7 @@
                     });
                 }
 
-                host.emit('network-diagram:ready', { id: PLUGIN_ID });
+                host.emit('network-diagram:ready', { id: FEATURE_ID });
             }
         });
     };

@@ -1,5 +1,5 @@
 (function () {
-    const PLUGIN_ID = 'techne-markdown-renderer';
+    const FEATURE_ID = 'nightowl-markdown-renderer';
     const BASE = 'plugins/techne-markdown-renderer';
     const VERSION = '20260124a'; // Cache bust version
 
@@ -7,9 +7,9 @@
         if (!window.NightOwlFeatures?.register) return;
 
         window.NightOwlFeatures.register({
-            id: PLUGIN_ID,
+            id: FEATURE_ID,
             init: async (host) => {
-                await host.loadCSS(`${BASE}/techne-markdown-renderer.css?v=${VERSION}`, { id: `${PLUGIN_ID}-css` });
+                await host.loadCSS(`${BASE}/techne-markdown-renderer.css?v=${VERSION}`, { id: `${FEATURE_ID}-css` });
 
                 const scripts = [];
                 if (!window.previewZoom) scripts.push(`${BASE}/previewZoom.js?v=${VERSION}`);
@@ -24,7 +24,7 @@
                 // Inject citation renderer CSS
                 if (window.TechneCitationRenderer?.getCSS) {
                     const style = document.createElement('style');
-                    style.id = `${PLUGIN_ID}-citation-css`;
+                    style.id = `${FEATURE_ID}-citation-css`;
                     style.textContent = window.TechneCitationRenderer.getCSS();
                     document.head.appendChild(style);
                 }
@@ -65,7 +65,7 @@
                         const referencesPath = await resolveBibPath('references.bib');
                         if (referencesPath) {
                             await window.TechneBibtexParser.loadAndSetGlobal(referencesPath, { optional: true });
-                            console.log(`[${PLUGIN_ID}] Loaded ${referencesPath}`);
+                            console.log(`[${FEATURE_ID}] Loaded ${referencesPath}`);
                         }
 
                         const exportedPath = await resolveBibPath('exported_items.bib');
@@ -73,20 +73,20 @@
                             const exported = await window.TechneBibtexParser.loadFromFile(exportedPath, { optional: true });
                             if (exported?.length) {
                                 window.TechneBibtexParser.addEntries(exported);
-                                console.log(`[${PLUGIN_ID}] Added ${exported.length} entries from ${exportedPath}`);
+                                console.log(`[${FEATURE_ID}] Added ${exported.length} entries from ${exportedPath}`);
                             }
                         }
 
                         if (window.bibEntries?.length) {
-                            console.log(`[${PLUGIN_ID}] Bibliography loaded: ${window.bibEntries.length} entries`);
+                            console.log(`[${FEATURE_ID}] Bibliography loaded: ${window.bibEntries.length} entries`);
                             host.emit('bibliography:loaded', { count: window.bibEntries.length });
                         }
                     } catch (err) {
-                        console.warn(`[${PLUGIN_ID}] Failed to load bibliography:`, err);
+                        console.warn(`[${FEATURE_ID}] Failed to load bibliography:`, err);
                     }
                 }
 
-                host.emit('markdown-renderer:ready', { id: PLUGIN_ID });
+                host.emit('markdown-renderer:ready', { id: FEATURE_ID });
             }
         });
     };

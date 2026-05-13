@@ -18,7 +18,7 @@ This skill drives the `research-feed` MCP server (configured in `.mcp.json`). It
 | "Not interested", "hide this" | `feed_dismiss_item` |
 | "Clean up old noise" | `feed_prune` |
 
-If the user wants the rich panel UI (drag, click, AI relevance gating against current draft), tell them to open the IDE — `npm run dev`, then `Cmd+,` → 🧩 Plugins → toggle `techne-research-feed` → click the floating ⚲ button. The MCP tools cover the same data but without the AI gate.
+If the user wants the rich panel UI (drag, click, AI relevance gating against current draft), tell them to open the IDE — `npm run dev`, then `Cmd+,` → 🧩 Plugins → toggle `nightowl-research-feed` → click the floating ⚲ button. The MCP tools cover the same data but without the AI gate.
 
 ## Storage
 

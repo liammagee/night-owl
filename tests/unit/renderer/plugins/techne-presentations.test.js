@@ -2,7 +2,7 @@ const path = require('path');
 
 const pluginPath = path.resolve(__dirname, '../../../../plugins/techne-presentations/plugin.js');
 
-describe('techne-presentations plugin', () => {
+describe('nightowl-presentations plugin', () => {
   let registered = null;
   let nativeGetElementById = null;
 
@@ -30,7 +30,7 @@ describe('techne-presentations plugin', () => {
   test('registers itself with NightOwlFeatures', () => {
     require(pluginPath);
     expect(registered).toBeTruthy();
-    expect(registered.id).toBe('techne-presentations');
+    expect(registered.id).toBe('nightowl-presentations');
     expect(typeof registered.init).toBe('function');
   });
 
@@ -58,7 +58,7 @@ describe('techne-presentations plugin', () => {
     expect(scriptsArg.some(url => url.includes('touch-gestures.js'))).toBe(true);
 
     expect(document.body.querySelector('#speaker-notes-panel')).toBeTruthy();
-    expect(host.emit).toHaveBeenCalledWith('presentations:ready', { id: 'techne-presentations' });
+    expect(host.emit).toHaveBeenCalledWith('presentations:ready', { id: 'nightowl-presentations' });
   });
 
   test('includes presenter bundle when React globals exist', async () => {

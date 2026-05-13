@@ -46,12 +46,13 @@ describe('NightOwl feature loader', () => {
 
     await window.NightOwlFeatures.start({
       appId: 'nightowl-test',
-      enabled: ['techne-backdrop'],
+      enabled: ['nightowl-backdrop'],
       settings: { 'techne-backdrop': { active: true } }
     });
 
     expect(init).toHaveBeenCalledTimes(1);
     expect(eventHandler).toHaveBeenCalledWith({ ok: true });
+    expect(window.NightOwlFeatures.getFeature('nightowl-backdrop')?.id).toBe('nightowl-backdrop');
     expect(window.NightOwlFeatures.getFeatureSettings('techne-backdrop')).toEqual({
       active: true,
       seen: true
@@ -63,8 +64,8 @@ describe('NightOwl feature loader', () => {
 
     await window.NightOwlFeatures.start({
       manifest: [
-        { id: 'techne-backdrop', enabledByDefault: true },
-        { id: 'techne-circle', enabledByDefault: false }
+        { id: 'nightowl-backdrop', enabledByDefault: true },
+        { id: 'nightowl-circle', enabledByDefault: false }
       ],
       enabled: {
         'techne-backdrop': { enabled: false },
@@ -74,6 +75,7 @@ describe('NightOwl feature loader', () => {
 
     expect(window.NightOwlFeatures.isEnabled('techne-backdrop')).toBe(false);
     expect(window.NightOwlFeatures.isEnabled('techne-circle')).toBe(true);
+    expect(window.NightOwlFeatures.getEnabled()).toEqual(['nightowl-circle']);
   });
 
   test('deduplicates dynamically loaded CSS and scripts', async () => {

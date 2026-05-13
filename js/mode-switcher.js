@@ -644,10 +644,10 @@ function setupModeSwitching() {
 
 // Map bundled feature IDs to mode button IDs
 const featureToModeButton = {
-  'techne-presentations': 'presentation-mode-btn',
-  'techne-network-diagram': 'network-mode-btn',
-  'techne-maze': 'library-mode-btn',
-  'techne-circle': 'circle-mode-btn'
+  'nightowl-presentations': 'presentation-mode-btn',
+  'nightowl-network-diagram': 'network-mode-btn',
+  'nightowl-maze': 'library-mode-btn',
+  'nightowl-circle': 'circle-mode-btn'
 };
 
 // Update mode button visibility based on feature state

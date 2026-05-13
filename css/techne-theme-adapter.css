@@ -224,6 +224,101 @@ body[data-techne-theme] #preview-content hr {
     border-color: var(--techne-border);
 }
 
+/* Assistant and integrated terminal surfaces */
+body[data-techne-theme] #chat-pane,
+body[data-techne-theme] .assistant-terminal-pane,
+body[data-techne-theme] .terminal-chat {
+    background: var(--techne-bg) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] .assistant-terminal-header,
+body[data-techne-theme] .terminal-header {
+    border-color: var(--techne-border) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #assistant-terminal-output,
+body[data-techne-theme] .assistant-terminal-output,
+body[data-techne-theme] .terminal-output,
+body[data-techne-theme] #terminal-output {
+    background: var(--techne-bg) !important;
+    border-color: var(--techne-border) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #integrated-terminal {
+    background: var(--techne-bg) !important;
+    border-top-color: var(--techne-border) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #terminal-panel-header {
+    background: var(--techne-surface) !important;
+    border-color: var(--techne-border) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #terminal-clear-btn,
+body[data-techne-theme] #terminal-kill-btn,
+body[data-techne-theme] #terminal-close-btn {
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #assistant-terminal-output.xterm-host,
+body[data-techne-theme] .assistant-terminal-output.xterm-host,
+body[data-techne-theme] #assistant-terminal-output.xterm-host .xterm,
+body[data-techne-theme] .assistant-terminal-output.xterm-host .xterm,
+body[data-techne-theme] #assistant-terminal-output.xterm-host .xterm-viewport,
+body[data-techne-theme] .assistant-terminal-output.xterm-host .xterm-viewport,
+body[data-techne-theme] #assistant-terminal-output.xterm-host .xterm-screen,
+body[data-techne-theme] .assistant-terminal-output.xterm-host .xterm-screen {
+    background: var(--techne-bg) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] .assistant-terminal-input-area,
+body[data-techne-theme] .terminal-input-area,
+body[data-techne-theme] #terminal-input-row {
+    background: var(--techne-surface) !important;
+    border-color: var(--techne-border) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #assistant-terminal-input,
+body[data-techne-theme] #terminal-input,
+body[data-techne-theme] .terminal-input {
+    background: transparent !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] #assistant-terminal-input::placeholder,
+body[data-techne-theme] #terminal-input::placeholder,
+body[data-techne-theme] .terminal-input::placeholder {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme] .assistant-terminal-command,
+body[data-techne-theme] .terminal-user,
+body[data-techne-theme] .terminal-assistant,
+body[data-techne-theme] .terminal-path,
+body[data-techne-theme] .terminal-dollar,
+body[data-techne-theme] .terminal-ai-info {
+    color: var(--techne-accent) !important;
+}
+
+body[data-techne-theme] .assistant-terminal-info,
+body[data-techne-theme] .assistant-terminal-exit,
+body[data-techne-theme] .assistant-terminal-stdin,
+body[data-techne-theme] .terminal-subtitle {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme] .assistant-terminal-stderr,
+body[data-techne-theme] .assistant-terminal-error {
+    color: var(--error) !important;
+}
+
 /* Slide filmstrip */
 body[data-techne-theme] #slide-thumbnails-strip {
     background: var(--techne-surface) !important;

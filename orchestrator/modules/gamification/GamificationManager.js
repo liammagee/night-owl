@@ -39,7 +39,7 @@ class GamificationManager {
             this.architectBridge = null;
         }
 
-        // BabelMazeView is now provided by the techne-maze plugin
+        // BabelMazeView is now provided by the NightOwl maze feature
         // We'll connect to it via plugin events when the plugin loads
         this.explorerView = null;
         this._setupMazePluginListener();
@@ -166,7 +166,7 @@ class GamificationManager {
         });
 
         // Check if maze is already loaded
-        const mazeFeature = window.NightOwlFeatures.getFeature?.('techne-maze');
+        const mazeFeature = window.NightOwlFeatures.getFeature?.('nightowl-maze');
         if (mazeFeature) {
             if (typeof BabelMazeView !== 'undefined') {
                 this.explorerView = new BabelMazeView(this);

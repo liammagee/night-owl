@@ -29,8 +29,11 @@
     "native:rebuild": "electron-rebuild -f -w sqlite3,better-sqlite3,node-pty",
     "native:sign": "node scripts/repair-native-signatures.js",
     "native:repair": "npm run native:rebuild && npm run native:sign",
+    "prebuild": "npm run dist:check",
     "build": "electron-builder",
+    "predist": "npm run dist:check",
     "dist": "electron-builder --publish=never",
+    "dist:check": "node scripts/check-distribution-readiness.js",
     "harness": "node scripts/serve-harness.js",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:basic": "jest --testPathPattern=tests/unit --testNamePattern=basic",
@@ -126,6 +129,10 @@
     "mac": {
       "category": "public.app-category.education",
       "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
         {
           "target": "dmg",

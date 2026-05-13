@@ -30,7 +30,7 @@ Download the latest release for your platform:
 - **AI Integration** - Chat, summarization, and note extraction with multiple AI providers
 - **Citation Management** - SQLite-backed citation database with BibTeX support
 - **Graph Visualization** - Force-directed graph of document relationships
-- **Plugin System** - Extensible via Techne plugins
+- **Bundled Features** - App-native feature modules for presentation, preview, graph, maze, and feed workflows
 
 ## Quick Start
 
@@ -138,7 +138,6 @@ npm run test:e2e
 ## Related Projects
 
 - [Machine Spirits](https://machinespirits.org) - AI-augmented Learning Management System
-- [Techne Plugins](https://github.com/liammagee/techne-plugins) - Shared plugin ecosystem
 
 ## License
 

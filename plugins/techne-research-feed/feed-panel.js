@@ -1,4 +1,4 @@
-/* Research Feed Panel - UI for the techne-research-feed feature.
+/* Research Feed Panel - UI for the NightOwl research feed feature.
    Owns the sidebar pane DOM, the floating toggle button, and the settings
    modal. All networking is delegated to /ipc/feedHandlers via electronAPI.
 */
@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const SETTINGS_KEY = 'techne-research-feed';
+    const SETTINGS_KEY = 'nightowl-research-feed';
     const DEFAULT_SOURCES_HINT = [
         { id: 'arxiv-cs-AI', type: 'arxiv', config: { category: 'cs.AI', maxResults: 20 } },
         { id: 'reddit-ml', type: 'reddit', config: { subreddits: ['MachineLearning'], sort: 'new', limit: 20 } }
