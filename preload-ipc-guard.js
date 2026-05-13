@@ -99,6 +99,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'get-current-file-content',
   'get-default-ai-provider',
   'get-file-context',
+  'get-file-tree-signature',
   'get-folder-contents',
   'get-initial-theme',
   'get-markdown-files',

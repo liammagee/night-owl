@@ -2,6 +2,7 @@
 // Handles all file system operations, directory management, and file I/O
 
 const { ipcMain, dialog, BrowserWindow } = require('electron');
+const crypto = require('crypto');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
@@ -593,17 +594,21 @@ function register(deps) {
 
       // If only one folder, return it directly for backward compatibility
       if (trees.length === 1) {
-        return trees[0];
+        const tree = trees[0];
+        tree.signature = getWorkspaceTreeSignatureFromTrees(trees);
+        return tree;
       }
 
       // Multiple folders - return a virtual root
-      return {
+      const tree = {
         name: 'Workspace',
         type: 'workspace-root',
         path: null,
         children: trees,
         isMultiFolder: true
       };
+      tree.signature = getWorkspaceTreeSignatureFromTrees(trees);
+      return tree;
     } catch (error) {
       console.error('[FileHandlers] Error building file tree:', error);
       return {
@@ -611,6 +616,18 @@ function register(deps) {
         type: 'error',
         error: error.message
       };
+    }
+  });
+
+  ipcMain.handle('get-file-tree-signature', async () => {
+    try {
+      return {
+        success: true,
+        signature: await getWorkspaceTreeSignature()
+      };
+    } catch (error) {
+      console.error('[FileHandlers] Error getting file tree signature:', error);
+      return { success: false, error: error.message };
     }
   });
 
@@ -1898,6 +1915,99 @@ function register(deps) {
     if (IGNORED_DIR_NAMES.has(entryName)) return true;
     if (shouldDeclutterGeneratedArtifacts() && isGeneratedFileTreeArtifact(entryName)) return true;
     return false;
+  }
+
+  function isDirectoryTreeNode(node) {
+    return node?.type === 'directory' || node?.type === 'folder';
+  }
+
+  function updateTreeSignatureFromTreeNode(hash, node, relativePath = '') {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'file') {
+      hash.update(`f:${relativePath || node.name || ''}\n`);
+      return;
+    }
+
+    hash.update(`dir:${relativePath || '.'}\n`);
+    for (const child of Array.isArray(node.children) ? node.children : []) {
+      const childRelativePath = relativePath ? `${relativePath}/${child.name}` : child.name;
+      if (isDirectoryTreeNode(child)) {
+        hash.update(`d:${childRelativePath}\n`);
+        updateTreeSignatureFromTreeNode(hash, child, childRelativePath);
+      } else {
+        hash.update(`f:${childRelativePath}\n`);
+      }
+    }
+  }
+
+  function getWorkspaceTreeSignatureFromTrees(trees) {
+    const hash = crypto.createHash('sha1');
+    hash.update(`declutter:${shouldDeclutterGeneratedArtifacts() ? '1' : '0'}\n`);
+    for (const tree of Array.isArray(trees) ? trees : []) {
+      hash.update(`root:${tree?.path || ''}\n`);
+      updateTreeSignatureFromTreeNode(hash, tree);
+    }
+    return hash.digest('hex');
+  }
+
+  async function updateDirectorySignatureFromDisk(hash, dirPath, relativePath = '') {
+    hash.update(`dir:${relativePath || '.'}\n`);
+
+    let entries = [];
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch (error) {
+      hash.update(`unreadable:${relativePath}:${error.code || error.message}\n`);
+      return;
+    }
+
+    entries = entries
+      .filter((entry) => !shouldHideFileTreeEntry(entry.name))
+      .sort((a, b) => {
+        if (a.isDirectory() && !b.isDirectory()) return -1;
+        if (b.isDirectory() && !a.isDirectory()) return 1;
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      });
+
+    for (const entry of entries) {
+      const childRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        hash.update(`d:${childRelativePath}\n`);
+        await updateDirectorySignatureFromDisk(hash, path.join(dirPath, entry.name), childRelativePath);
+      } else {
+        hash.update(`f:${childRelativePath}\n`);
+      }
+    }
+  }
+
+  async function updateTreeSignatureFromDisk(hash, rootPath) {
+    const rootStat = await fs.stat(rootPath);
+    if (rootStat.isFile()) {
+      hash.update(`f:${path.basename(rootPath)}\n`);
+      return;
+    }
+    if (rootStat.isDirectory()) {
+      await updateDirectorySignatureFromDisk(hash, rootPath);
+    }
+  }
+
+  async function getWorkspaceTreeSignature() {
+    const workingDir = getWorkingDirectory();
+    const workspaceFolders = syncWorkspaceFolders(workingDir);
+    const roots = [workingDir, ...workspaceFolders];
+    const hash = crypto.createHash('sha1');
+    hash.update(`declutter:${shouldDeclutterGeneratedArtifacts() ? '1' : '0'}\n`);
+
+    for (const rootPath of roots) {
+      hash.update(`root:${rootPath}\n`);
+      try {
+        await updateTreeSignatureFromDisk(hash, rootPath);
+      } catch (error) {
+        hash.update(`missing:${rootPath}:${error.code || error.message}\n`);
+      }
+    }
+
+    return hash.digest('hex');
   }
 
   async function buildFileTree(dirPath) {

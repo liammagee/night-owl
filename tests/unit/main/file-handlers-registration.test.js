@@ -255,4 +255,40 @@ describe('fileHandlers registration', () => {
 
     fsSync.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  test('get-file-tree-signature changes for disk additions and removals', async () => {
+    const tempDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-tree-signature-'));
+    const firstFile = path.join(tempDir, 'a.md');
+    const secondFile = path.join(tempDir, 'b.md');
+    fsSync.writeFileSync(firstFile, '# A\n', 'utf8');
+
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => tempDir),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: tempDir,
+      userDataPath: '/mock/user-data'
+    });
+
+    const getSignature = getRegisteredHandler('get-file-tree-signature');
+    const requestFileTree = getRegisteredHandler('request-file-tree');
+    const tree = await requestFileTree();
+    const initial = await getSignature();
+    expect(initial.success).toBe(true);
+    expect(tree.signature).toBe(initial.signature);
+
+    fsSync.writeFileSync(secondFile, '# B\n', 'utf8');
+    const afterAdd = await getSignature();
+    expect(afterAdd.signature).not.toBe(initial.signature);
+
+    fsSync.unlinkSync(secondFile);
+    const afterRemove = await getSignature();
+    expect(afterRemove.signature).toBe(initial.signature);
+
+    fsSync.rmSync(tempDir, { recursive: true, force: true });
+  });
 });

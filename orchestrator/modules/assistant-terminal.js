@@ -28,6 +28,9 @@
   let activeProcess = false;
   let activePid = null;
   let autoShellStarted = false;
+  let terminalOutputQueue = [];
+  let terminalOutputFlushHandle = null;
+  let terminalPreloadScheduled = false;
   const commandHistory = [];
   let historyIndex = -1;
 
@@ -106,7 +109,40 @@
     writeOutput(terminalText, type);
   }
 
+  function flushQueuedTerminalOutput() {
+    terminalOutputFlushHandle = null;
+    if (!terminalOutputQueue.length) return;
+
+    const queued = terminalOutputQueue;
+    terminalOutputQueue = [];
+
+    if (terminal) {
+      terminal.write(queued.map((entry) => entry.text).join(''));
+      return;
+    }
+
+    for (const entry of queued) {
+      appendFallbackOutput(entry.text, entry.type);
+    }
+  }
+
+  function queueTerminalOutput(text, type = 'stdout') {
+    if (typeof text !== 'string' || text.length === 0) return;
+    if (!terminal) {
+      appendFallbackOutput(text, type);
+      return;
+    }
+    terminalOutputQueue.push({ text, type });
+
+    if (terminalOutputFlushHandle) return;
+    const schedule = typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : (callback) => setTimeout(callback, 16);
+    terminalOutputFlushHandle = schedule(flushQueuedTerminalOutput);
+  }
+
   function clearOutput() {
+    terminalOutputQueue = [];
     if (terminal) {
       terminal.clear();
       return;
@@ -138,9 +174,10 @@
       if (message.pid && activePid && message.pid !== activePid) return;
 
       if (message.data) {
-        writeOutput(message.data, message.stream || 'stdout');
+        queueTerminalOutput(message.data, message.stream || 'stdout');
       }
       if (message.stream === 'exit' || message.stream === 'error') {
+        flushQueuedTerminalOutput();
         activeProcess = false;
         activePid = null;
       }
@@ -343,6 +380,22 @@
     })();
 
     return emulatorLoadPromise;
+  }
+
+  function scheduleTerminalPreload() {
+    if (terminalPreloadScheduled || isJsdomHost()) return;
+    terminalPreloadScheduled = true;
+
+    const preload = () => {
+      if (!outputEl || terminal || emulatorLoadPromise) return;
+      prepareTerminalEmulator();
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(preload, { timeout: 2000 });
+    } else {
+      setTimeout(preload, 1200);
+    }
   }
 
   async function killProcess({ quiet = false } = {}) {
@@ -561,6 +614,7 @@
     wireInput();
     updateContext();
     appendFallbackOutput('Assistant terminal ready. Launch codex, claude, gemini, or type a shell command.\n', 'info');
+    scheduleTerminalPreload();
 
     observePaneVisibility(paneEl);
     if (paneEl && paneEl.style.display !== 'none') {

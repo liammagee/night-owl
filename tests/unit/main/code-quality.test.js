@@ -226,12 +226,13 @@ describe('Code quality guardrails', () => {
     expect(indexSource).not.toContain('return undefined; // Disable web workers');
   });
 
-  test('HTML preview iframe is script-disabled and assigned through srcdoc property', () => {
+  test('HTML preview iframe supports scripts inside an isolated sandbox', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
 
-    expect(source).toContain("iframe.setAttribute('sandbox', 'allow-same-origin')");
+    expect(source).toContain("iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms allow-modals')");
     expect(source).toContain('iframe.srcdoc = fixedHtmlContent');
+    expect(source).not.toContain("iframe.setAttribute('sandbox', 'allow-same-origin')");
     expect(source).not.toContain('sandbox="allow-scripts allow-same-origin"');
     expect(source).not.toContain('<iframe srcdoc="${');
   });
@@ -496,6 +497,8 @@ describe('Code quality guardrails', () => {
     expect(assistantTerminalSource).toContain('window.define = undefined');
     expect(assistantTerminalSource).toContain('defineFn.amd = undefined');
     expect(assistantTerminalSource).toContain('getTerminalConstructor');
+    expect(assistantTerminalSource).toContain('flushQueuedTerminalOutput');
+    expect(assistantTerminalSource).toContain('scheduleTerminalPreload');
     expect(assistantTerminalSource).toContain("codex: { command: 'codex'");
     expect(assistantTerminalSource).toContain("claude: { command: 'claude'");
     expect(assistantTerminalSource).toContain("gemini: { command: 'gemini'");
@@ -569,6 +572,20 @@ describe('Code quality guardrails', () => {
     expect(terminalHandlersSource).toContain('createPipeSession');
     expect(terminalHandlersSource).toContain("backend: 'pty'");
     expect(terminalHandlersSource).toContain("backend: 'pipe'");
+  });
+
+  test('file tree has lightweight disk polling before expensive refreshes', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const fileHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/fileHandlers.js'), 'utf8');
+    const preloadGuardSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
+
+    expect(rendererSource).toContain('FILE_TREE_SIGNATURE_POLL_MS');
+    expect(rendererSource).toContain('pollFileTreeSignatureOnce');
+    expect(rendererSource).toContain("window.currentStructureView === 'file'");
+    expect(rendererSource).toContain("document.visibilityState !== 'hidden'");
+    expect(fileHandlersSource).toContain("ipcMain.handle('get-file-tree-signature'");
+    expect(fileHandlersSource).toContain('getWorkspaceTreeSignature');
+    expect(preloadGuardSource).toContain("'get-file-tree-signature'");
   });
 
   test('startup chrome keeps basic accessibility affordances', () => {

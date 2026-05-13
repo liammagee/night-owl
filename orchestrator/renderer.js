@@ -175,6 +175,11 @@ let fileTreeRendered = false;
 let isRenderingFileTree = false; // Prevent concurrent renders
 let pendingFileTreeRender = false;
 let fileTreeTagHydrationHandle = null;
+let fileTreeSignature = null;
+let fileTreeSignaturePollTimer = null;
+let fileTreeSignaturePollInFlight = false;
+let fileTreeSignaturePollActive = false;
+const FILE_TREE_SIGNATURE_POLL_MS = 4000;
 
 // Multi-select state for file tree
 let selectedFiles = new Set();        // Currently selected file paths
@@ -7026,7 +7031,7 @@ function displayHTMLInPreview(htmlContent, filePath) {
     iframe.style.cssText = 'width: 100%; height: 100%; border: 1px solid var(--border-color, #e1e4e8); border-radius: 4px; display: block;';
     iframe.title = `Preview of ${filePath.split('/').pop()}`;
     iframe.loading = 'lazy';
-    iframe.setAttribute('sandbox', 'allow-same-origin');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms allow-modals');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
     iframe.srcdoc = fixedHtmlContent;
 
@@ -9463,6 +9468,7 @@ function switchStructureView(view) {
     newFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
     if (addWorkspaceFolderBtn) addWorkspaceFolderBtn.style.display = 'none';
+    if (view !== 'file') stopFileTreeAutoRefreshPolling();
 
     if (view === 'structure') {
         structurePaneTitle.textContent = 'Structure';
@@ -9487,6 +9493,7 @@ function switchStructureView(view) {
             renderFileTree(); // Populate the file tree view
             // Note: fileTreeRendered is set to true inside renderFileTree after successful render
         }
+        startFileTreeAutoRefreshPolling();
     } else if (view === 'search') {
         structurePaneTitle.textContent = 'Search';
         if (searchBtn) searchBtn.classList.add('active');
@@ -9644,6 +9651,9 @@ async function renderFileTree() {
         
         const fileTree = await window.electronAPI.invoke('request-file-tree');
         window.fileTreeData = fileTree;
+        if (fileTree?.signature) {
+            fileTreeSignature = fileTree.signature;
+        }
         
         if (!fileTreeView) {
             console.warn('[renderFileTree] fileTreeView element not found');
@@ -10088,6 +10098,67 @@ function debounce(func, wait) {
 
 // Debounced version of renderFileTree
 const debouncedRenderFileTree = debounce(renderFileTree, 100);
+
+function shouldPollFileTreeSignature() {
+    const fileTreeView = document.getElementById('file-tree-view');
+    return Boolean(
+        window.electronAPI?.invoke &&
+        window.currentStructureView === 'file' &&
+        fileTreeRendered &&
+        !isRenderingFileTree &&
+        document.visibilityState !== 'hidden' &&
+        fileTreeView &&
+        fileTreeView.style.display !== 'none'
+    );
+}
+
+async function pollFileTreeSignatureOnce() {
+    if (!shouldPollFileTreeSignature() || fileTreeSignaturePollInFlight) return;
+
+    fileTreeSignaturePollInFlight = true;
+    try {
+        const result = await window.electronAPI.invoke('get-file-tree-signature');
+        if (!result?.success || !result.signature) return;
+
+        if (!fileTreeSignature) {
+            fileTreeSignature = result.signature;
+            return;
+        }
+
+        if (result.signature !== fileTreeSignature) {
+            fileTreeSignature = result.signature;
+            fileTreeRendered = false;
+            debouncedRenderFileTree();
+        }
+    } catch (error) {
+        if (window.DEBUG_VERBOSE) {
+            console.warn('[FileTree] Signature poll failed:', error);
+        }
+    } finally {
+        fileTreeSignaturePollInFlight = false;
+    }
+}
+
+function startFileTreeAutoRefreshPolling() {
+    if (fileTreeSignaturePollActive || !window.electronAPI?.invoke) return;
+    fileTreeSignaturePollActive = true;
+    fileTreeSignaturePollTimer = setInterval(() => {
+        pollFileTreeSignatureOnce();
+    }, FILE_TREE_SIGNATURE_POLL_MS);
+    setTimeout(() => pollFileTreeSignatureOnce(), 0);
+}
+
+function stopFileTreeAutoRefreshPolling() {
+    fileTreeSignaturePollActive = false;
+    if (fileTreeSignaturePollTimer) {
+        clearInterval(fileTreeSignaturePollTimer);
+        fileTreeSignaturePollTimer = null;
+    }
+}
+
+function resetFileTreeSignature() {
+    fileTreeSignature = null;
+}
 
 // Initialize tag filtering system
 function initializeTagFiltering() {
@@ -12584,20 +12655,28 @@ if (window.electronAPI) {
 }
 
 // Listen for signal to refresh the file tree (e.g., after Open Folder)
-if (window.electronAPI) {
+    if (window.electronAPI) {
     window.electronAPI.on('refresh-file-tree', () => {
 
         // Reset the rendered flag to force a refresh
         fileTreeRendered = false;
+        resetFileTreeSignature();
 
         // Switch to file view (which will trigger renderFileTree if needed)
-        if (window.currentStructureView !== 'files') {
+        if (window.currentStructureView !== 'file') {
             switchStructureView('file');
         } else {
             // If already in file view, manually refresh
             fileTreeRendered = false;  // Reset flag to force refresh
             debouncedRenderFileTree();
         }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            return;
+        }
+        pollFileTreeSignatureOnce();
     });
 
     // Listen for settings changes from main process (e.g., working directory change)
@@ -15572,6 +15651,9 @@ function setupSmartMinimap(editor) {
 // --- Global exports for modules ---
 window.renderFileTree = renderFileTree;
 window.debouncedRenderFileTree = debouncedRenderFileTree;
+window.pollFileTreeSignatureOnce = pollFileTreeSignatureOnce;
+window.startFileTreeAutoRefreshPolling = startFileTreeAutoRefreshPolling;
+window.stopFileTreeAutoRefreshPolling = stopFileTreeAutoRefreshPolling;
 window.addTagFilter = addTagFilter; // Expose tag filter function
 window.showFilesView = function() {
     // Switch to files view in the left sidebar
