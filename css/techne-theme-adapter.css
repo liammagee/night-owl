@@ -33,7 +33,7 @@ body[data-techne-theme] {
        light-mode class even when techne tokens are dark */
     --text: var(--techne-text);
     --text-color: var(--techne-text);
-    --text-secondary: var(--techne-text-muted);
+    --text-secondary: color-mix(in srgb, var(--techne-text) 78%, var(--techne-bg));
     --text-muted: var(--techne-text-muted);
     --text-disabled: var(--techne-text-muted);
     --preview-text: var(--techne-text);
@@ -349,7 +349,7 @@ body[data-techne-theme] #editor-toolbar {
 body[data-techne-theme] #editor-toolbar > span,
 body[data-techne-theme] #mode-switcher span,
 body[data-techne-theme] #right-pane .toggle-buttons span {
-    color: var(--techne-text-muted) !important;
+    color: var(--text-secondary) !important;
 }
 
 body[data-techne-theme] .toolbar-separator {
@@ -429,7 +429,7 @@ body[data-techne-theme] #status-bar,
 body[data-techne-theme] #editor-status-bar {
     background: var(--techne-surface);
     border-top-color: var(--techne-border);
-    color: var(--techne-text-muted);
+    color: var(--text-secondary);
 }
 
 /* Statistics pane */
@@ -544,7 +544,7 @@ body[data-techne-theme] #structure-pane-title,
 body[data-techne-theme] .file-tree-item.file .file-name,
 body[data-techne-theme] .file-tree-item .expand-arrow,
 body[data-techne-theme] .file-tree-item .expand-spacer {
-    color: var(--techne-text-muted) !important;
+    color: var(--text-secondary) !important;
 }
 
 body[data-techne-theme] .file-tree-item,
