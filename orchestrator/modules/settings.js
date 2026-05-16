@@ -420,6 +420,7 @@ function generateAppearanceSettings() {
     const techneAccent = techneSettings.accent || 'red';
     const techneGrid = techneSettings.grid !== false;
     const techneNoise = techneSettings.noise !== false;
+    const techneBlurBloom = techneSettings.blurBloom === true;
 
     return `
         <div class="settings-section">
@@ -458,6 +459,11 @@ function generateAppearanceSettings() {
                 <label>
                     <input type="checkbox" id="techne-noise-enabled" ${techneNoise ? 'checked' : ''}>
                     <span>Show Noise Texture</span>
+                </label>
+
+                <label>
+                    <input type="checkbox" id="techne-blur-bloom-enabled" ${techneBlurBloom ? 'checked' : ''}>
+                    <span>Blur / Bloom Tweak</span>
                 </label>
 
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
@@ -1971,6 +1977,31 @@ function addSettingsEventListeners(category) {
         });
     }
 
+    // Techne blur/bloom tweak
+    const techneBlurBloomEnabled = document.getElementById('techne-blur-bloom-enabled');
+    if (techneBlurBloomEnabled) {
+        techneBlurBloomEnabled.addEventListener('change', async (e) => {
+            const blurBloom = Boolean(e.target.checked);
+            try {
+                if (!window.appSettings) window.appSettings = {};
+                if (!window.appSettings.techne) window.appSettings.techne = {};
+                window.appSettings.techne.blurBloom = blurBloom;
+
+                await window.electronAPI.invoke('set-settings', window.appSettings);
+                currentSettings.techne = { ...(currentSettings.techne || {}), blurBloom };
+
+                if (window.appSettings.theme === 'techne') {
+                    if (typeof window.applyTheme === 'function') {
+                        window.applyTheme('techne');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to apply Techne blur/bloom toggle:', error);
+                window.showNotification('Failed to update Techne blur/bloom', 'error');
+            }
+        });
+    }
+
     // Presentation template selection
     const presentationTemplateSelect = document.getElementById('presentation-template-select');
     if (presentationTemplateSelect) {
@@ -2440,6 +2471,25 @@ function collectSettingsFromForm() {
     // Theme settings
     const theme = document.getElementById('theme-select')?.value;
     if (theme) updatedSettings.theme = theme;
+
+    const techneAccent = document.getElementById('techne-accent-select')?.value;
+    const techneGrid = document.getElementById('techne-grid-enabled')?.checked;
+    const techneNoise = document.getElementById('techne-noise-enabled')?.checked;
+    const techneBlurBloom = document.getElementById('techne-blur-bloom-enabled')?.checked;
+    if (
+        techneAccent !== undefined ||
+        techneGrid !== undefined ||
+        techneNoise !== undefined ||
+        techneBlurBloom !== undefined
+    ) {
+        if (!updatedSettings.techne) updatedSettings.techne = {};
+        if (techneAccent !== undefined) {
+            updatedSettings.techne.accent = techneAccent === 'orange' ? 'orange' : 'red';
+        }
+        if (techneGrid !== undefined) updatedSettings.techne.grid = techneGrid;
+        if (techneNoise !== undefined) updatedSettings.techne.noise = techneNoise;
+        if (techneBlurBloom !== undefined) updatedSettings.techne.blurBloom = techneBlurBloom;
+    }
 
     // Presentation template settings
     const presentationTemplate = document.getElementById('presentation-template-select')?.value;

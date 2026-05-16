@@ -646,4 +646,25 @@ describe('Code quality guardrails', () => {
     expect(adapterSource).toContain('body[data-techne-theme] .flow-indicator.flow-struggling');
     expect(adapterSource).toContain('body[data-techne-theme] .ai-flow-indicator.flow-struggling');
   });
+
+  test('Techne blur and bloom effects are opt-in', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const settingsSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/settings.js'), 'utf8');
+    const techneCss = fs.readFileSync(path.join(__dirname, '../../../css/techne-theme.css'), 'utf8');
+    const backdropCss = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-backdrop/techne-backdrop-layers.css'), 'utf8');
+    const backdropMarkup = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-backdrop/techne-backdrop-markup.js'), 'utf8');
+
+    expect(mainSource).toContain('blurBloom: false');
+    expect(mainSource).toContain('const blurBloom = appSettings.techne.blurBloom === true');
+    expect(rendererSource).toContain("'techne-bloom-on'");
+    expect(rendererSource).toContain('const blurBloomOn = techne.blurBloom === true');
+    expect(settingsSource).toContain('id="techne-blur-bloom-enabled"');
+    expect(settingsSource).toContain('window.appSettings.techne.blurBloom = blurBloom');
+    expect(techneCss).toContain('body.techne-theme.techne-bloom-on #mode-switcher');
+    expect(techneCss).toContain('backdrop-filter: none;');
+    expect(backdropCss).toContain('body.techne-theme.techne-bloom-on #techne-background .glass');
+    expect(backdropCss).toContain('backdrop-filter: blur(var(--glass-blur-lg));');
+    expect(backdropMarkup).not.toContain('id="mobileMenu"');
+  });
 });

@@ -1,6 +1,6 @@
 /* Techne Theme (Swiss grid / trash-polka inspired)
    - Activated by adding `techne-theme` class to <body>
-   - Optional: `techne-accent-orange`, `techne-grid-off`, `techne-noise-off`
+   - Optional: `techne-accent-orange`, `techne-grid-off`, `techne-noise-off`, `techne-bloom-on`
 */
 
 body.techne-theme {
@@ -174,15 +174,22 @@ body.techne-theme {
 }
 
 body.techne-theme #mode-switcher {
-    background: rgba(255, 255, 255, 0.85) !important;
+    background: rgba(255, 255, 255, 0.97) !important;
     border-bottom: 2px solid var(--techne-black) !important;
-    backdrop-filter: blur(22px) saturate(180%);
-    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 body.techne-theme #left-sidebar {
-    background: rgba(255, 255, 255, 0.85) !important;
+    background: rgba(255, 255, 255, 0.97) !important;
     border-right: 2px solid var(--techne-black) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+body.techne-theme.techne-bloom-on #mode-switcher,
+body.techne-theme.techne-bloom-on #left-sidebar {
+    background: rgba(255, 255, 255, 0.85) !important;
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
 }

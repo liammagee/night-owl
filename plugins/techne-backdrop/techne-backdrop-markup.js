@@ -49,17 +49,4 @@ window.TECHNE_BACKDROP_LAYERS_HTML = `
     <canvas id="fauna-canvas"></canvas>
   </div>
 
-  <!-- Mobile Menu (outside nav for proper z-index stacking) -->
-  <div class="mobile-menu" id="mobileMenu">
-    <a href="#about" onclick="closeMobileMenu()">About</a>
-    <a href="#courses" onclick="closeMobileMenu()">Study</a>
-    <a href="#articles" onclick="closeMobileMenu()">Read</a>
-    <a href="#research" onclick="closeMobileMenu()">Research</a>
-    <!-- <a href="#simulation" onclick="closeMobileMenu()">Simulate</a>
-    <a href="#chat" onclick="closeMobileMenu()">Converse</a> -->
-    <a href="#nightowl" onclick="closeMobileMenu()">NightOwl</a>
-    <a href="#links" onclick="closeMobileMenu()">Links</a>
-    <a href="#roadmap" onclick="closeMobileMenu()">Roadmap</a>
-  </div>
-
 `;

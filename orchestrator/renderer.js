@@ -12466,6 +12466,16 @@ function applyTheme(themeOrIsDark) {
         && window.techneThemeManager.getThemes()[preference];
 
     if (managedTheme && typeof window.techneThemeManager?.applyTheme === 'function') {
+        body.classList.remove(
+            'dark-mode',
+            'light-mode',
+            'techne-theme',
+            'techne-dark',
+            'techne-accent-orange',
+            'techne-grid-off',
+            'techne-noise-off',
+            'techne-bloom-on'
+        );
         window.currentTheme = preference;
         window.techneThemeManager.applyTheme(preference);
         return;
@@ -12480,7 +12490,8 @@ function applyTheme(themeOrIsDark) {
             'techne-dark',
             'techne-accent-orange',
             'techne-grid-off',
-            'techne-noise-off'
+            'techne-noise-off',
+            'techne-bloom-on'
         );
         body.classList.add(fallbackManagedTheme.isDark ? 'dark-mode' : 'light-mode');
         body.setAttribute('data-techne-theme', preference);
@@ -12552,7 +12563,8 @@ function applyTheme(themeOrIsDark) {
         'techne-dark',
         'techne-accent-orange',
         'techne-grid-off',
-        'techne-noise-off'
+        'techne-noise-off',
+        'techne-bloom-on'
     );
     body.removeAttribute('data-techne-theme');
     clearManagedThemeFallbackTokens();
@@ -12569,10 +12581,12 @@ function applyTheme(themeOrIsDark) {
         const accent = techne.accent === 'orange' ? 'orange' : 'red';
         const gridOn = techne.grid !== false;
         const noiseOn = techne.noise !== false;
+        const blurBloomOn = techne.blurBloom === true;
 
         body.classList.toggle('techne-accent-orange', accent === 'orange');
         body.classList.toggle('techne-grid-off', !gridOn);
         body.classList.toggle('techne-noise-off', !noiseOn);
+        body.classList.toggle('techne-bloom-on', blurBloomOn);
 
         // Prefer matching Techne presentation templates when available
         if (window.styleManager && typeof window.styleManager.getPresentationTemplates === 'function') {

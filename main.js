@@ -337,7 +337,8 @@ const defaultSettings = {
     techne: {
         accent: 'red', // 'red' | 'orange'
         grid: true,
-        noise: true
+        noise: true,
+        blurBloom: false
     },
 
     // === Bundled app features ===
@@ -917,12 +918,14 @@ function validateSettings() {
         const accent = appSettings.techne.accent === 'orange' ? 'orange' : 'red';
         const grid = appSettings.techne.grid !== false;
         const noise = appSettings.techne.noise !== false;
+        const blurBloom = appSettings.techne.blurBloom === true;
         appSettings.techne = {
             ...defaultSettings.techne,
             ...appSettings.techne,
             accent,
             grid,
-            noise
+            noise,
+            blurBloom
         };
     }
     
