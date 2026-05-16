@@ -64,8 +64,8 @@ describe('Code quality guardrails', () => {
     expect(source).toContain('function renderFileTreeNodes');
     expect(source).toContain('document.createDocumentFragment');
     expect(source).toContain('fileTreeView.replaceChildren(fragment)');
-    expect(source).toContain('scheduleFileTreeTagHydration(fileTree)');
-    expect(source).not.toContain('await preProcessMarkdownTags(fileTree)');
+    expect(source).toContain('scheduleFileTreeTagHydration(displayTree)');
+    expect(source).not.toContain('await preProcessMarkdownTags(displayTree)');
   });
 
   test('file tree multi-selection can be moved through drag/drop and paste', () => {
@@ -499,6 +499,9 @@ describe('Code quality guardrails', () => {
     expect(assistantTerminalSource).toContain('getTerminalConstructor');
     expect(assistantTerminalSource).toContain('flushQueuedTerminalOutput');
     expect(assistantTerminalSource).toContain('scheduleTerminalPreload');
+    expect(assistantTerminalSource).toContain('scheduleTerminalFit');
+    expect(assistantTerminalSource).toContain('observeThemeChanges');
+    expect(assistantTerminalSource).toContain('restartShellForTerminalInput');
     expect(assistantTerminalSource).toContain("codex: { command: 'codex'");
     expect(assistantTerminalSource).toContain("claude: { command: 'claude'");
     expect(assistantTerminalSource).toContain("gemini: { command: 'gemini'");
@@ -626,6 +629,10 @@ describe('Code quality guardrails', () => {
     expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity');
     expect(adapterSource).toContain('body[data-techne-theme] #left-sidebar-activity .pane-toggle-button.active');
     expect(adapterSource).toContain('body[data-techne-theme] #editor-status-bar');
+    expect(adapterSource).toContain('body[data-techne-theme] .toolbar-separator');
+    expect(adapterSource).toContain('body[data-techne-theme] #statistics-pane');
+    expect(adapterSource).toContain('body[data-techne-theme] .statistics-card');
+    expect(adapterSource).toContain('body[data-techne-theme] .stats-scope-btn.active');
     expect(adapterSource).toContain('body[data-techne-theme] #chat-pane');
     expect(adapterSource).toContain('body[data-techne-theme] #assistant-terminal-output.xterm-host');
     expect(adapterSource).toContain('body[data-techne-theme] #integrated-terminal');

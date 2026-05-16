@@ -56,7 +56,7 @@ async function updateStatisticsPane() {
 
         if (currentStatsScope === 'project') {
             // Calculate project-wide statistics
-            statisticsContent.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Analyzing project files...</p>';
+            statisticsContent.innerHTML = '<p class="statistics-empty-state" style="text-align: center; padding: 20px;">Analyzing project files...</p>';
             stats = await calculateProjectStatistics();
         } else {
             // Calculate current document statistics
@@ -69,7 +69,7 @@ async function updateStatisticsPane() {
 
             if (!content.trim()) {
                 statisticsContent.innerHTML = `
-                    <p style="color: #666; text-align: center; padding: 20px;">
+                    <p class="statistics-empty-state" style="text-align: center; padding: 20px;">
                         No document content to analyze.<br>
                         <small>Open or create a markdown file to see statistics.</small>
                     </p>
@@ -85,12 +85,17 @@ async function updateStatisticsPane() {
             console.error('[Statistics] Stats calculation returned undefined');
             stats = {
                 wordCount: 0,
+                uniqueWordCount: 0,
                 charCount: 0,
                 paragraphCount: 0,
                 headingCount: 0,
                 sentenceCount: 0,
                 averageSentenceLength: 0,
                 averageWordLength: 0,
+                readingEase: 0,
+                gradeLevel: 0,
+                syllableCount: 0,
+                longSentenceCount: 0,
                 readingTime: 0,
                 presentationTime: 0,
                 slideCount: 0,
@@ -109,101 +114,113 @@ async function updateStatisticsPane() {
             return `${hours}h ${remainingMinutes}m`;
         };
 
+        const formatScore = (value) => Number.isFinite(value) ? value.toFixed(1) : '0.0';
         const scopeTitle = currentStatsScope === 'project' ? 'Project Overview' : 'Document Overview';
-        const scopeIcon = currentStatsScope === 'project' ? '' : '';
 
         statisticsContent.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <!-- Overview -->
-                <div style="background: #f8f9ff; border-radius: 8px; padding: 12px; border-left: 4px solid #007bff;">
-                    <h4 style="margin: 0 0 8px 0; color: #007bff; font-size: 14px;">${scopeIcon} ${scopeTitle}</h4>
-                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+            <div class="statistics-stack">
+                <div class="statistics-card statistics-card-overview">
+                    <h4>${scopeTitle}</h4>
+                    <div class="statistics-rows">
                         ${currentStatsScope === 'project' ? `
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Markdown Files:</span>
-                            <span style="font-weight: bold;">${stats.fileCount}</span>
+                            <strong>${stats.fileCount}</strong>
                         </div>
                         ` : ''}
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Total Words:</span>
-                            <span style="font-weight: bold;">${(stats.wordCount || 0).toLocaleString()}</span>
+                            <strong>${(stats.wordCount || 0).toLocaleString()}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
+                            <span>Unique Words:</span>
+                            <strong>${(stats.uniqueWordCount || 0).toLocaleString()}</strong>
+                        </div>
+                        <div class="statistics-row">
                             <span>Characters:</span>
-                            <span style="font-weight: bold;">${(stats.charCount || 0).toLocaleString()}</span>
+                            <strong>${(stats.charCount || 0).toLocaleString()}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Paragraphs:</span>
-                            <span style="font-weight: bold;">${stats.paragraphCount || 0}</span>
+                            <strong>${stats.paragraphCount || 0}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Headings:</span>
-                            <span style="font-weight: bold;">${stats.headingCount || 0}</span>
+                            <strong>${stats.headingCount || 0}</strong>
                         </div>
                     </div>
                 </div>
 
-                <!-- Presentation Stats -->
-                <div style="background: #f8fff8; border-radius: 8px; padding: 12px; border-left: 4px solid #28a745;">
-                    <h4 style="margin: 0 0 8px 0; color: #28a745; font-size: 14px;">${currentStatsScope === 'project' ? 'Project' : 'Presentation'} Analysis</h4>
-                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; justify-content: space-between;">
+                <div class="statistics-card statistics-card-presentation">
+                    <h4>${currentStatsScope === 'project' ? 'Project' : 'Presentation'} Analysis</h4>
+                    <div class="statistics-rows">
+                        <div class="statistics-row">
                             <span>Slide Markers:</span>
-                            <span style="font-weight: bold;">${stats.slideCount || 0}</span>
+                            <strong>${stats.slideCount || 0}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Speaker Notes:</span>
-                            <span style="font-weight: bold;">${stats.notesCount || 0}</span>
+                            <strong>${stats.notesCount || 0}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Est. Reading Time:</span>
-                            <span style="font-weight: bold;">${formatTime(stats.readingTime || 0)}</span>
+                            <strong>${formatTime(stats.readingTime || 0)}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Est. Presentation:</span>
-                            <span style="font-weight: bold;">${formatTime(stats.presentationTime || 0)}</span>
+                            <strong>${formatTime(stats.presentationTime || 0)}</strong>
                         </div>
                     </div>
                 </div>
 
-                <!-- Readability Analysis -->
-                <div style="background: #fff0f5; border-radius: 8px; padding: 12px; border-left: 4px solid #e91e63;">
-                    <h4 style="margin: 0 0 8px 0; color: #e91e63; font-size: 14px;">Readability</h4>
-                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; justify-content: space-between;">
+                <div class="statistics-card statistics-card-readability">
+                    <h4>Readability</h4>
+                    <div class="statistics-rows">
+                        <div class="statistics-row">
+                            <span>Flesch Ease:</span>
+                            <strong>${formatScore(stats.readingEase)}</strong>
+                        </div>
+                        <div class="statistics-row">
+                            <span>Grade Level:</span>
+                            <strong>${formatScore(stats.gradeLevel)}</strong>
+                        </div>
+                        <div class="statistics-row">
                             <span>Sentences:</span>
-                            <span style="font-weight: bold;">${stats.sentenceCount || 0}</span>
+                            <strong>${stats.sentenceCount || 0}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Avg Sentence Length:</span>
-                            <span style="font-weight: bold;">${stats.averageSentenceLength || 0} words</span>
+                            <strong>${stats.averageSentenceLength || 0} words</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Avg Word Length:</span>
-                            <span style="font-weight: bold;">${stats.averageWordLength || 0} chars</span>
+                            <strong>${stats.averageWordLength || 0} chars</strong>
+                        </div>
+                        <div class="statistics-row">
+                            <span>Long Sentences:</span>
+                            <strong>${stats.longSentenceCount || 0}</strong>
                         </div>
                     </div>
                 </div>
 
-                <!-- Content Analysis -->
-                <div style="background: #fffaf0; border-radius: 8px; padding: 12px; border-left: 4px solid #ffc107;">
-                    <h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">Content Breakdown</h4>
-                    <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; justify-content: space-between;">
+                <div class="statistics-card statistics-card-content">
+                    <h4>Content Breakdown</h4>
+                    <div class="statistics-rows">
+                        <div class="statistics-row">
                             <span>Lists:</span>
-                            <span style="font-weight: bold;">${stats.listCount || 0}</span>
+                            <strong>${stats.listCount || 0}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Links:</span>
-                            <span style="font-weight: bold;">${stats.linkCount || 0}</span>
+                            <strong>${stats.linkCount || 0}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Code Blocks:</span>
-                            <span style="font-weight: bold;">${stats.codeBlockCount || 0}</span>
+                            <strong>${stats.codeBlockCount || 0}</strong>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div class="statistics-row">
                             <span>Images:</span>
-                            <span style="font-weight: bold;">${stats.imageCount || 0}</span>
+                            <strong>${stats.imageCount || 0}</strong>
                         </div>
                     </div>
                 </div>
@@ -214,11 +231,57 @@ async function updateStatisticsPane() {
     } catch (error) {
         console.error('Error calculating statistics:', error);
         statisticsContent.innerHTML = `
-            <p style="color: #dc3545; text-align: center; padding: 20px;">
+            <p class="statistics-error-state" style="text-align: center; padding: 20px;">
                 Error calculating statistics: ${error.message}
             </p>
         `;
     }
+}
+
+function countSyllables(word) {
+    const normalized = String(word || '')
+        .toLowerCase()
+        .replace(/[^a-z]/g, '');
+    if (!normalized) return 0;
+    if (normalized.length <= 3) return 1;
+
+    const withoutSilentE = normalized.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
+    const syllableGroups = withoutSilentE.match(/[aeiouy]{1,2}/g);
+    return Math.max(1, syllableGroups ? syllableGroups.length : 1);
+}
+
+function calculateReadabilityMetrics(words, sentences) {
+    const wordCount = words.length;
+    const sentenceCount = sentences.length;
+    if (wordCount === 0 || sentenceCount === 0) {
+        return {
+            syllableCount: 0,
+            readingEase: 0,
+            gradeLevel: 0,
+            longSentenceCount: 0
+        };
+    }
+
+    const syllableCount = words.reduce((sum, word) => sum + countSyllables(word), 0);
+    const wordsPerSentence = wordCount / sentenceCount;
+    const syllablesPerWord = syllableCount / wordCount;
+    const readingEase = Math.max(0, Math.min(100,
+        206.835 - (1.015 * wordsPerSentence) - (84.6 * syllablesPerWord)
+    ));
+    const gradeLevel = Math.max(0,
+        (0.39 * wordsPerSentence) + (11.8 * syllablesPerWord) - 15.59
+    );
+    const longSentenceCount = sentences.filter(sentence => {
+        const sentenceWords = sentence.trim().split(/\s+/).filter(Boolean);
+        return sentenceWords.length > 30;
+    }).length;
+
+    return {
+        syllableCount,
+        readingEase: Math.round(readingEase * 10) / 10,
+        gradeLevel: Math.round(gradeLevel * 10) / 10,
+        longSentenceCount
+    };
 }
 
 /**
@@ -240,8 +303,14 @@ function calculateBasicStatistics(content) {
         .replace(/\s+/g, ' ') // Normalize whitespace
         .trim();
 
+    const words = cleanText ? cleanText.split(' ').filter(Boolean) : [];
+    const normalizedWords = words
+        .map(word => word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, ''))
+        .filter(Boolean);
+
     // Word count
-    const wordCount = cleanText ? cleanText.split(' ').length : 0;
+    const wordCount = words.length;
+    const uniqueWordCount = new Set(normalizedWords).size;
 
     // Character count
     const charCount = content.length;
@@ -250,6 +319,7 @@ function calculateBasicStatistics(content) {
     const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const sentenceCount = sentences.length;
     const averageSentenceLength = sentenceCount > 0 ? Math.round(wordCount / sentenceCount) : 0;
+    const readability = calculateReadabilityMetrics(words, sentences);
 
     // Paragraph count (non-empty lines that aren't headings or list items)
     const paragraphCount = lines.filter(line =>
@@ -296,10 +366,12 @@ function calculateBasicStatistics(content) {
 
     return {
         wordCount,
+        uniqueWordCount,
         charCount,
         sentenceCount,
         averageSentenceLength,
         averageWordLength,
+        ...readability,
         paragraphCount,
         headingCount,
         slideCount: slideCount || Math.ceil(headingCount / 2), // Fallback estimate
@@ -337,10 +409,15 @@ async function calculateProjectStatistics() {
         let aggregatedStats = {
             fileCount: markdownFiles.length,
             wordCount: 0,
+            uniqueWordCount: 0,
             charCount: 0,
             sentenceCount: 0,
             paragraphCount: 0,
             headingCount: 0,
+            syllableCount: 0,
+            readingEase: 0,
+            gradeLevel: 0,
+            longSentenceCount: 0,
             slideCount: 0,
             notesCount: 0,
             listCount: 0,
@@ -350,6 +427,7 @@ async function calculateProjectStatistics() {
             totalCharacters: 0,
             totalWords: 0
         };
+        const projectUniqueWords = new Set();
 
         // Process each markdown file
         for (const filePath of markdownFiles) {
@@ -364,12 +442,21 @@ async function calculateProjectStatistics() {
                     aggregatedStats.sentenceCount += fileStats.sentenceCount;
                     aggregatedStats.paragraphCount += fileStats.paragraphCount;
                     aggregatedStats.headingCount += fileStats.headingCount;
+                    aggregatedStats.syllableCount += fileStats.syllableCount || 0;
+                    aggregatedStats.longSentenceCount += fileStats.longSentenceCount || 0;
                     aggregatedStats.slideCount += fileStats.slideCount;
                     aggregatedStats.notesCount += fileStats.notesCount;
                     aggregatedStats.listCount += fileStats.listCount;
                     aggregatedStats.linkCount += fileStats.linkCount;
                     aggregatedStats.codeBlockCount += fileStats.codeBlockCount;
                     aggregatedStats.imageCount += fileStats.imageCount;
+                    if (fileStats.cleanText) {
+                        fileStats.cleanText
+                            .split(/\s+/)
+                            .map(word => word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, ''))
+                            .filter(Boolean)
+                            .forEach(word => projectUniqueWords.add(word));
+                    }
 
                     // For averaging calculations
                     aggregatedStats.totalCharacters += contentResponse.content.replace(/\s/g, '').length;
@@ -388,6 +475,17 @@ async function calculateProjectStatistics() {
         aggregatedStats.averageWordLength = aggregatedStats.totalWords > 0
             ? Math.round((aggregatedStats.totalCharacters / aggregatedStats.totalWords) * 10) / 10
             : 0;
+        aggregatedStats.uniqueWordCount = projectUniqueWords.size;
+        if (aggregatedStats.totalWords > 0 && aggregatedStats.sentenceCount > 0) {
+            const wordsPerSentence = aggregatedStats.totalWords / aggregatedStats.sentenceCount;
+            const syllablesPerWord = aggregatedStats.syllableCount / aggregatedStats.totalWords;
+            aggregatedStats.readingEase = Math.round(Math.max(0, Math.min(100,
+                206.835 - (1.015 * wordsPerSentence) - (84.6 * syllablesPerWord)
+            )) * 10) / 10;
+            aggregatedStats.gradeLevel = Math.round(Math.max(0,
+                (0.39 * wordsPerSentence) + (11.8 * syllablesPerWord) - 15.59
+            ) * 10) / 10;
+        }
 
         // Estimated reading/presentation times
         aggregatedStats.readingTime = Math.ceil(aggregatedStats.wordCount / 200);

@@ -11,6 +11,8 @@
   const XTERM_CSS = 'node_modules/@xterm/xterm/css/xterm.css';
   const XTERM_SCRIPT = 'node_modules/@xterm/xterm/lib/xterm.js';
   const FIT_SCRIPT = 'node_modules/@xterm/addon-fit/lib/addon-fit.js';
+  const DEFAULT_SCROLLBACK = 4000;
+  const MAX_SCROLLBACK = 10000;
   const ASSISTANTS = {
     codex: { command: 'codex', label: 'Codex' },
     claude: { command: 'claude', label: 'Claude' },
@@ -23,6 +25,8 @@
   let terminal = null;
   let fitAddon = null;
   let resizeObserver = null;
+  let themeObserver = null;
+  let paneVisibilityObserver = null;
   let cleanupListener = null;
   let emulatorLoadPromise = null;
   let activeProcess = false;
@@ -31,11 +35,27 @@
   let terminalOutputQueue = [];
   let terminalOutputFlushHandle = null;
   let terminalPreloadScheduled = false;
+  let terminalFitHandle = null;
+  let terminalRestartInFlight = false;
+  let pendingTerminalInput = '';
   const commandHistory = [];
   let historyIndex = -1;
 
   function getWorkspaceCwd() {
     return window.appSettings?.workingDirectory || undefined;
+  }
+
+  function getScrollbackLimit() {
+    const configured = Number(window.appSettings?.terminal?.scrollback);
+    if (!Number.isFinite(configured)) return DEFAULT_SCROLLBACK;
+    return Math.max(500, Math.min(MAX_SCROLLBACK, Math.floor(configured)));
+  }
+
+  function isPaneVisible() {
+    if (!paneEl) return false;
+    if (paneEl.style.display === 'none') return false;
+    if (paneEl.classList?.contains('pane-hidden')) return false;
+    return true;
   }
 
   function isJsdomHost() {
@@ -165,6 +185,15 @@
     }
   }
 
+  function applyTerminalTheme() {
+    if (!terminal) return;
+    try {
+      terminal.options.theme = getTerminalTheme();
+    } catch (error) {
+      // Older xterm builds may not support live option assignment.
+    }
+  }
+
   function ensureTerminalListener() {
     if (!window.electronAPI?.on || cleanupListener) return;
 
@@ -180,6 +209,9 @@
         flushQueuedTerminalOutput();
         activeProcess = false;
         activePid = null;
+        if (terminal) {
+          writeStatus('\n[press any key to start a new shell]\n', 'info');
+        }
       }
     });
   }
@@ -284,6 +316,7 @@
   }
 
   function fitTerminal() {
+    terminalFitHandle = null;
     if (!terminal || !outputEl) return;
     try {
       fitAddon?.fit();
@@ -291,6 +324,14 @@
     } catch (error) {
       // Fit can fail while the pane is hidden; the next visibility/resize pass retries.
     }
+  }
+
+  function scheduleTerminalFit() {
+    if (terminalFitHandle) return;
+    const schedule = typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : (callback) => setTimeout(callback, 16);
+    terminalFitHandle = schedule(fitTerminal);
   }
 
   function getTerminalDimensions() {
@@ -314,10 +355,47 @@
     if (!outputEl) return;
 
     if (typeof ResizeObserver === 'function') {
-      resizeObserver = new ResizeObserver(() => fitTerminal());
+      resizeObserver = new ResizeObserver(() => scheduleTerminalFit());
       resizeObserver.observe(outputEl);
     } else {
-      window.addEventListener('resize', fitTerminal);
+      window.addEventListener('resize', scheduleTerminalFit);
+    }
+  }
+
+  function observeThemeChanges() {
+    if (themeObserver || typeof MutationObserver !== 'function' || !document.body) return;
+    try {
+      themeObserver = new MutationObserver(() => {
+        applyTerminalTheme();
+        scheduleTerminalFit();
+      });
+      themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'data-techne-theme', 'style']
+      });
+    } catch (error) {
+      // Theme updates will still apply on the next terminal creation.
+    }
+  }
+
+  async function restartShellForTerminalInput(data) {
+    pendingTerminalInput += data;
+    if (terminalRestartInFlight) return;
+
+    terminalRestartInFlight = true;
+    try {
+      writeStatus('\n[starting a new shell]\n', 'info');
+      const result = await spawnTerminal();
+      const bufferedInput = pendingTerminalInput;
+      pendingTerminalInput = '';
+      if (result?.success && bufferedInput && window.electronAPI?.invoke) {
+        await window.electronAPI.invoke('terminal-write', {
+          sessionId: SESSION_ID,
+          data: bufferedInput
+        });
+      }
+    } finally {
+      terminalRestartInFlight = false;
     }
   }
 
@@ -348,7 +426,7 @@
           letterSpacing: 0,
           lineHeight: 1.22,
           macOptionIsMeta: true,
-          scrollback: 10000,
+          scrollback: getScrollbackLimit(),
           tabStopWidth: 4,
           theme: getTerminalTheme()
         });
@@ -361,7 +439,11 @@
         paneEl?.classList?.add('terminal-emulator-ready');
         terminal.open(outputEl);
         terminal.onData(async (data) => {
-          if (!activeProcess || !window.electronAPI?.invoke) return;
+          if (!window.electronAPI?.invoke) return;
+          if (!activeProcess) {
+            await restartShellForTerminalInput(data);
+            return;
+          }
           await window.electronAPI.invoke('terminal-write', {
             sessionId: SESSION_ID,
             data
@@ -369,7 +451,9 @@
         });
         terminal.onResize(() => resizeActiveTerminal());
         observeTerminalSize();
-        setTimeout(fitTerminal, 0);
+        observeThemeChanges();
+        outputEl.addEventListener('mousedown', focusInput);
+        setTimeout(scheduleTerminalFit, 0);
         return true;
       } catch (error) {
         terminal = null;
@@ -382,8 +466,11 @@
     return emulatorLoadPromise;
   }
 
-  function scheduleTerminalPreload() {
+  function scheduleTerminalPreload({ force = false } = {}) {
     if (terminalPreloadScheduled || isJsdomHost()) return;
+    if (!force && !isPaneVisible() && !window.appSettings?.advanced?.preloadTerminalEmulator) {
+      return;
+    }
     terminalPreloadScheduled = true;
 
     const preload = () => {
@@ -416,7 +503,7 @@
 
     ensureTerminalListener();
     await prepareTerminalEmulator();
-    fitTerminal();
+    scheduleTerminalFit();
 
     const { cols, rows } = getTerminalDimensions();
     const result = await window.electronAPI.invoke('terminal-spawn', {
@@ -575,7 +662,8 @@
   async function activatePane() {
     updateContext();
     await prepareTerminalEmulator();
-    fitTerminal();
+    applyTerminalTheme();
+    scheduleTerminalFit();
     focusInput();
     await ensureShellForVisibleTerminal();
   }
@@ -585,11 +673,12 @@
     if (!pane || typeof Observer !== 'function') return;
 
     try {
-      new Observer(() => {
-        if (pane.style.display !== 'none') {
+      paneVisibilityObserver = new Observer(() => {
+        if (isPaneVisible()) {
           activatePane();
         }
-      }).observe(pane, { attributes: true, attributeFilter: ['style', 'class'] });
+      });
+      paneVisibilityObserver.observe(pane, { attributes: true, attributeFilter: ['style', 'class'] });
     } catch (error) {
       // Some test/embedded hosts expose a partial DOM without observable nodes.
     }
@@ -617,7 +706,7 @@
     scheduleTerminalPreload();
 
     observePaneVisibility(paneEl);
-    if (paneEl && paneEl.style.display !== 'none') {
+    if (isPaneVisible()) {
       activatePane();
     }
   }
@@ -634,6 +723,8 @@
   window.addEventListener('beforeunload', () => {
     disposeTerminalListener();
     resizeObserver?.disconnect?.();
+    themeObserver?.disconnect?.();
+    paneVisibilityObserver?.disconnect?.();
     terminal?.dispose?.();
   });
 

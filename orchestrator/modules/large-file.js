@@ -19,15 +19,34 @@
   let largeModeActive = false;
   let originalOptions = {};
 
-  /**
-   * Check file size and apply optimizations when a file is opened.
-   */
-  function onFileOpened(content, filePath) {
-    if (!window.editor) return;
+  function estimateUtf8ByteLength(text) {
+    if (typeof text !== 'string') return 0;
+    let bytes = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      const code = text.charCodeAt(i);
+      if (code < 0x80) bytes += 1;
+      else if (code < 0x800) bytes += 2;
+      else if (code >= 0xd800 && code <= 0xdbff) {
+        bytes += 4;
+        i += 1;
+      } else {
+        bytes += 3;
+      }
+    }
+    return bytes;
+  }
 
-    currentFileSize = new Blob([content]).size;
-    const lineCount = (content.match(/\n/g) || []).length + 1;
+  function countLines(text) {
+    if (typeof text !== 'string' || text.length === 0) return 1;
+    let lines = 1;
+    for (let i = 0; i < text.length; i += 1) {
+      if (text.charCodeAt(i) === 10) lines += 1;
+    }
+    return lines;
+  }
 
+  function applyLargeFileState(filePath, size, lineCount) {
+    currentFileSize = size;
     updateStatusBar(currentFileSize, lineCount);
 
     if (currentFileSize > READONLY_SIZE) {
@@ -41,6 +60,26 @@
     } else if (largeModeActive) {
       disableLargeFileMode();
     }
+  }
+
+  /**
+   * Check file size and apply optimizations when a file is opened.
+   */
+  function onFileOpened(content, filePath) {
+    if (!window.editor) return;
+
+    applyLargeFileState(filePath, estimateUtf8ByteLength(content), countLines(content));
+  }
+
+  function onModelOpened(model, filePath) {
+    if (!model) return;
+    if (typeof model.getValueLength === 'function' && typeof model.getLineCount === 'function') {
+      applyLargeFileState(filePath, model.getValueLength(), model.getLineCount());
+      return;
+    }
+
+    const content = typeof model.getValue === 'function' ? model.getValue() : '';
+    onFileOpened(content, filePath);
   }
 
   function enableLargeFileMode() {
@@ -146,16 +185,14 @@
         window.editor.onDidChangeModel(() => {
           const model = window.editor.getModel();
           if (model) {
-            const content = model.getValue();
-            onFileOpened(content, window.currentFilePath || '');
+            onModelOpened(model, window.currentFilePath || '');
           }
         });
 
         // Initial check
         const model = window.editor.getModel();
         if (model) {
-          const content = model.getValue();
-          onFileOpened(content, window.currentFilePath || '');
+          onModelOpened(model, window.currentFilePath || '');
         }
       }
     }, 500);
@@ -179,6 +216,7 @@
 
   window.largeFile = {
     onFileOpened,
+    onModelOpened,
     isLargeModeActive: () => largeModeActive,
     enable: enableLargeFileMode,
     disable: disableLargeFileMode

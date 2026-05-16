@@ -12,6 +12,7 @@
     window._tabManagerWillRestore = true;
 
     const MAX_TABS = 30;
+    const MAX_TOTAL_MODEL_CHARS = 2_000_000;
 
     // Language map: file extension → Monaco language ID
     const LANG_MAP = {
@@ -71,6 +72,12 @@
         return candidatePath === rootPath || candidatePath.startsWith(`${rootPath.replace(/\/+$/, '')}/`);
     }
 
+    function getConfiguredModelCharBudget() {
+        const configured = Number(window.appSettings?.editor?.maxOpenModelChars);
+        if (!Number.isFinite(configured)) return MAX_TOTAL_MODEL_CHARS;
+        return Math.max(250_000, Math.min(10_000_000, Math.floor(configured)));
+    }
+
     function setCurrentFileMirror(filePath, options = {}) {
         if (window.NightOwlCurrentFile && typeof window.NightOwlCurrentFile.set === 'function') {
             return window.NightOwlCurrentFile.set(filePath, options);
@@ -85,6 +92,8 @@
             this.tabOrder = [];          // filePaths in visual order
             this.activeTabPath = null;
             this.maxTabs = MAX_TABS;
+            this.maxModelChars = getConfiguredModelCharBudget();
+            this.emptyModel = null;
             this._initialized = false;
         }
 
@@ -95,6 +104,7 @@
         async init() {
             if (this._initialized) return;
             this._initialized = true;
+            this.maxModelChars = getConfiguredModelCharBudget();
             this._installMonacoCancelGuard();
             this._renderTabBar();
             await this._restoreTabs();
@@ -149,6 +159,7 @@
 
             this.tabs.set(filePath, tab);
             this.tabOrder.push(filePath);
+            this._enforceModelMemoryBudget(filePath);
             this._renderTabBar();
             this._persistTabs();
             return tab;
@@ -168,21 +179,11 @@
          * The active tab is never evicted — the user is looking at it.
          */
         evictLRUCleanTab() {
-            let oldestPath = null;
-            let oldestTime = Infinity;
-            for (const [filePath, tab] of this.tabs) {
-                if (filePath === this.activeTabPath) continue;
-                if (tab.isDirty) continue;
-                const t = tab.lastActivatedAt || tab.openedAt || 0;
-                if (t < oldestTime) {
-                    oldestTime = t;
-                    oldestPath = filePath;
-                }
-            }
+            const oldestPath = this._findCleanEvictionCandidate();
             if (!oldestPath) return false;
-            // closeTab is async but resolves synchronously for clean non-active
-            // tabs (no confirm prompt, no active-tab reactivation). Fire-and-forget.
-            this.closeTab(oldestPath);
+            this._dropCleanTab(oldestPath);
+            this._renderTabBar();
+            this._persistTabs();
             return true;
         }
 
@@ -209,9 +210,78 @@
 
             this.tabs.set(syntheticPath, tab);
             this.tabOrder.push(syntheticPath);
+            this._enforceModelMemoryBudget(syntheticPath);
             this._renderTabBar();
             this._persistTabs();
             return syntheticPath;
+        }
+
+        _estimateTabModelChars(tab) {
+            if (!tab) return 0;
+            if (tab.model && typeof tab.model.getValueLength === 'function') {
+                return tab.model.getValueLength();
+            }
+            if (typeof tab.lastSavedContent === 'string') {
+                return tab.lastSavedContent.length;
+            }
+            if (tab.model && typeof tab.model.getValue === 'function' && !tab.model.isDisposed?.()) {
+                try {
+                    return tab.model.getValue().length;
+                } catch (_) {
+                    return 0;
+                }
+            }
+            return 0;
+        }
+
+        _getTotalModelChars() {
+            let total = 0;
+            for (const tab of this.tabs.values()) {
+                total += this._estimateTabModelChars(tab);
+            }
+            return total;
+        }
+
+        _findCleanEvictionCandidate(protectedPath = null) {
+            let oldestPath = null;
+            let oldestTime = Infinity;
+            for (const [filePath, tab] of this.tabs) {
+                if (filePath === protectedPath) continue;
+                if (filePath === this.activeTabPath) continue;
+                if (tab.isDirty || isUntitledPath(filePath)) continue;
+                const t = tab.lastActivatedAt || tab.openedAt || 0;
+                if (t < oldestTime) {
+                    oldestTime = t;
+                    oldestPath = filePath;
+                }
+            }
+            return oldestPath;
+        }
+
+        _dropCleanTab(filePath) {
+            const tab = this.tabs.get(filePath);
+            if (!tab || tab.isDirty || isUntitledPath(filePath)) return false;
+            if (tab.model && (typeof tab.model.isDisposed !== 'function' || !tab.model.isDisposed())) {
+                tab.model.dispose();
+            }
+            this.tabs.delete(filePath);
+            const idx = this.tabOrder.indexOf(filePath);
+            if (idx >= 0) this.tabOrder.splice(idx, 1);
+            return true;
+        }
+
+        _enforceModelMemoryBudget(protectedPath = null) {
+            const budget = Number.isFinite(this.maxModelChars) ? this.maxModelChars : MAX_TOTAL_MODEL_CHARS;
+            const evicted = [];
+
+            while (this._getTotalModelChars() > budget) {
+                const candidate = this._findCleanEvictionCandidate(protectedPath);
+                if (!candidate) break;
+                if (!this._dropCleanTab(candidate)) break;
+                evicted.push(candidate);
+            }
+
+            return evicted;
         }
 
         /**
@@ -304,6 +374,13 @@
             window.suppressAutoSave = true;
             try {
                 editor.setModel(tab.model);
+                if (this.emptyModel && this.emptyModel !== tab.model) {
+                    const modelToDispose = this.emptyModel;
+                    this.emptyModel = null;
+                    if (typeof modelToDispose.isDisposed !== 'function' || !modelToDispose.isDisposed()) {
+                        modelToDispose.dispose();
+                    }
+                }
             } finally {
                 window.suppressAutoSave = false;
             }
@@ -482,7 +559,11 @@
             this.activeTabPath = null;
             const editor = window.editor;
             if (editor) {
+                if (this.emptyModel && (typeof this.emptyModel.isDisposed !== 'function' || !this.emptyModel.isDisposed())) {
+                    this.emptyModel.dispose();
+                }
                 const emptyModel = monaco.editor.createModel('', 'markdown');
+                this.emptyModel = emptyModel;
                 editor.setModel(emptyModel);
             }
             setCurrentFileMirror(null, { syncMain: true, clearDirectory: true });

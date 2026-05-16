@@ -290,6 +290,54 @@ function register(deps) {
     );
   }
 
+  function isUsableWindow(win) {
+    return Boolean(
+      win &&
+      (typeof win.isDestroyed !== 'function' || !win.isDestroyed()) &&
+      win.webContents &&
+      (typeof win.webContents.isDestroyed !== 'function' || !win.webContents.isDestroyed())
+    );
+  }
+
+  function resolveWindowFromEvent(event) {
+    if (event?.sender && typeof BrowserWindow.fromWebContents === 'function') {
+      const eventWindow = BrowserWindow.fromWebContents(event.sender);
+      if (isUsableWindow(eventWindow)) return eventWindow;
+    }
+    return resolveMainWindow();
+  }
+
+  function getLiveRendererWindows() {
+    const allWindows = typeof BrowserWindow.getAllWindows === 'function'
+      ? BrowserWindow.getAllWindows().filter(isUsableWindow)
+      : [];
+    if (allWindows.length > 0) return allWindows;
+
+    const fallbackWindow = resolveMainWindow();
+    return isUsableWindow(fallbackWindow) ? [fallbackWindow] : [];
+  }
+
+  function sendToRenderer(win, channel, ...args) {
+    if (!isUsableWindow(win)) return false;
+    win.webContents.send(channel, ...args);
+    return true;
+  }
+
+  function broadcastToRenderers(channel, ...args) {
+    for (const win of getLiveRendererWindows()) {
+      sendToRenderer(win, channel, ...args);
+    }
+  }
+
+  function broadcastWorkspaceSettings(payload, options = {}) {
+    broadcastToRenderers('settings-changed', payload);
+    if (options.refreshFileTree) {
+      for (const win of getLiveRendererWindows()) {
+        sendToRenderer(win, 'refresh-file-tree');
+      }
+    }
+  }
+
   function updateCurrentWorkingDirectory(nextDirectory) {
     if (typeof setCurrentWorkingDirectory === 'function') {
       setCurrentWorkingDirectory(nextDirectory);
@@ -738,8 +786,8 @@ function register(deps) {
     }
   });
 
-  ipcMain.handle('change-working-directory', async () => {
-    const currentMainWindow = resolveMainWindow();
+  ipcMain.handle('change-working-directory', async (event) => {
+    const currentMainWindow = resolveWindowFromEvent(event);
 
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for directory dialog');
@@ -762,14 +810,10 @@ function register(deps) {
 
         debug(`[FileHandlers] Working directory changed to: ${appSettings.workingDirectory}`);
 
-        // Notify renderer about the settings change
-        const win = resolveMainWindow();
-        if (win) {
-          win.webContents.send('settings-changed', {
-            workingDirectory: appSettings.workingDirectory,
-            workspaceFolders: appSettings.workspaceFolders
-          });
-        }
+        broadcastWorkspaceSettings({
+          workingDirectory: appSettings.workingDirectory,
+          workspaceFolders: appSettings.workspaceFolders
+        });
 
         return {
           success: true,
@@ -785,8 +829,8 @@ function register(deps) {
   });
 
   // Add a folder to workspace (multi-folder support)
-  ipcMain.handle('add-workspace-folder', async () => {
-    const currentMainWindow = resolveMainWindow();
+  ipcMain.handle('add-workspace-folder', async (event) => {
+    const currentMainWindow = resolveWindowFromEvent(event);
 
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for directory dialog');
@@ -820,14 +864,9 @@ function register(deps) {
         debug(`[FileHandlers] Added workspace folder: ${folderPath}`);
         debug(`[FileHandlers] Total workspace folders: ${appSettings.workspaceFolders.length}`);
 
-        // Notify renderer about the settings change
-        const win = resolveMainWindow();
-        if (win) {
-          win.webContents.send('settings-changed', {
-            workspaceFolders: appSettings.workspaceFolders
-          });
-          win.webContents.send('refresh-file-tree');
-        }
+        broadcastWorkspaceSettings({
+          workspaceFolders: appSettings.workspaceFolders
+        }, { refreshFileTree: true });
 
         return {
           success: true,
@@ -867,14 +906,9 @@ function register(deps) {
       debug(`[FileHandlers] Removed workspace folder: ${folderPath}`);
       debug(`[FileHandlers] Remaining workspace folders: ${appSettings.workspaceFolders.length}`);
 
-      // Notify renderer about the settings change
-      const win = resolveMainWindow();
-      if (win) {
-        win.webContents.send('settings-changed', {
-          workspaceFolders: appSettings.workspaceFolders
-        });
-        win.webContents.send('refresh-file-tree');
-      }
+      broadcastWorkspaceSettings({
+        workspaceFolders: appSettings.workspaceFolders
+      }, { refreshFileTree: true });
 
       return {
         success: true,
@@ -901,10 +935,7 @@ function register(deps) {
       clearFileScanCaches();
       debug(`[FileHandlers] Reordered workspace folders: ${appSettings.workspaceFolders.length} folders`);
 
-      const win = resolveMainWindow();
-      if (win) {
-        win.webContents.send('settings-changed', { workspaceFolders: appSettings.workspaceFolders });
-      }
+      broadcastWorkspaceSettings({ workspaceFolders: appSettings.workspaceFolders });
       return { success: true, workspaceFolders: appSettings.workspaceFolders };
     } catch (error) {
       console.error('[FileHandlers] Error reordering workspace folders:', error);
@@ -2654,9 +2685,9 @@ function register(deps) {
     try {
       clearFileScanCaches();
       
-      const win = resolveMainWindow();
-      if (win) {
-        win.webContents.send('refresh-file-tree');
+      const windows = getLiveRendererWindows();
+      if (windows.length > 0) {
+        windows.forEach(win => sendToRenderer(win, 'refresh-file-tree'));
         return { success: true };
       } else {
         console.error('[FileHandlers] No main window available for file tree refresh');

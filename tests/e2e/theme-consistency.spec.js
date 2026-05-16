@@ -80,6 +80,12 @@ async function renderChrome(page, themeId) {
       <body class="light-mode" data-techne-theme="${themeId}">
         <div id="mode-switcher">
           <button id="editor-mode-btn" class="mode-btn active">Editor</button>
+          <span id="pane-label">Panes:</span>
+        </div>
+        <div id="editor-toolbar">
+          <button class="toolbar-btn">B</button>
+          <div class="toolbar-separator"></div>
+          <span>Format</span>
         </div>
         <div id="right-pane">
           <div id="chat-pane" class="content-pane">
@@ -96,6 +102,21 @@ async function renderChrome(page, themeId) {
               <div class="terminal-output">legacy terminal output</div>
               <div class="terminal-input-area">
                 <input id="terminal-input" class="terminal-input" placeholder="Type a command">
+              </div>
+            </div>
+            <div id="statistics-pane" class="content-pane">
+              <div class="statistics-header">
+                <h3>Statistics</h3>
+                <div class="statistics-scope-toggle">
+                  <button class="stats-scope-btn active">Document</button>
+                </div>
+              </div>
+              <div id="statistics-content">
+                <p class="statistics-empty-state">No document content to analyze.</p>
+                <div class="statistics-card statistics-card-readability">
+                  <h4>Readability</h4>
+                  <div class="statistics-row"><span>Flesch Ease:</span><strong>72.4</strong></div>
+                </div>
               </div>
             </div>
             <div id="integrated-terminal">
@@ -126,14 +147,16 @@ for (const [themeId, expected] of Object.entries({
     flow: 'rgb(253, 246, 227)',
     status: 'rgb(238, 232, 213)',
     terminal: 'rgb(253, 246, 227)',
-    terminalInput: 'rgb(238, 232, 213)'
+    terminalInput: 'rgb(238, 232, 213)',
+    separator: 'rgba(101, 123, 131, 0.25)'
   },
   'solarized-dark': {
     active: 'rgb(26, 109, 160)',
     flow: 'rgb(10, 64, 80)',
     status: 'rgb(7, 54, 66)',
     terminal: 'rgb(0, 43, 54)',
-    terminalInput: 'rgb(7, 54, 66)'
+    terminalInput: 'rgb(7, 54, 66)',
+    separator: 'rgba(131, 148, 150, 0.25)'
   }
 })) {
   test(`managed ${themeId} overrides legacy active, flow, tree, terminal, and status chrome`, async ({ page }) => {
@@ -160,7 +183,12 @@ for (const [themeId, expected] of Object.entries({
         terminalInput: read('.assistant-terminal-input-area'),
         integratedTerminal: read('#integrated-terminal'),
         integratedTerminalHeader: read('#terminal-panel-header'),
-        integratedTerminalOutput: read('#terminal-output')
+        integratedTerminalOutput: read('#terminal-output'),
+        toolbarSeparator: read('.toolbar-separator'),
+        toolbarLabel: read('#editor-toolbar span'),
+        statisticsPane: read('#statistics-pane'),
+        statisticsCard: read('.statistics-card-readability'),
+        statisticsActive: read('.stats-scope-btn.active')
       };
     });
 
@@ -177,5 +205,10 @@ for (const [themeId, expected] of Object.entries({
     expect(styles.integratedTerminal.backgroundColor).toBe(expected.terminal);
     expect(styles.integratedTerminalHeader.backgroundColor).toBe(expected.terminalInput);
     expect(styles.integratedTerminalOutput.backgroundColor).toBe(expected.terminal);
+    expect(styles.toolbarSeparator.backgroundColor).toBe(expected.separator);
+    expect(styles.toolbarLabel.color).not.toBe('rgb(17, 17, 17)');
+    expect(styles.statisticsPane.backgroundColor).toBe(expected.terminalInput);
+    expect(styles.statisticsCard.backgroundColor).toBe(expected.terminal);
+    expect(styles.statisticsActive.backgroundColor).toBe(expected.active);
   });
 }

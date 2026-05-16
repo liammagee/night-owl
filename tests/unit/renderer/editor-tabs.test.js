@@ -44,6 +44,8 @@ function resetTabManager() {
     tm.tabs.clear();
     tm.tabOrder.length = 0;
     tm.activeTabPath = null;
+    tm.maxModelChars = 2_000_000;
+    tm.emptyModel = null;
 }
 
 beforeEach(() => {
@@ -119,6 +121,30 @@ describe('TabManager', () => {
         tm.createTab('/home/user/doc.md', 'v1');
         tm.createTab('/home/user/doc.md', 'v2');
         expect(tm.tabs.size).toBe(1);
+    });
+
+    test('evicts least-recently-opened clean tabs when model memory budget is exceeded', () => {
+        const tm = window.tabManager;
+        const first = tm.createTab('/home/user/a.md', 'aaaaaa');
+        tm.maxModelChars = 10;
+
+        tm.createTab('/home/user/b.md', 'bbbbbb');
+
+        expect(tm.hasTab('/home/user/a.md')).toBe(false);
+        expect(tm.hasTab('/home/user/b.md')).toBe(true);
+        expect(first.model.dispose).toHaveBeenCalled();
+    });
+
+    test('does not evict dirty tabs to satisfy the model memory budget', () => {
+        const tm = window.tabManager;
+        tm.maxModelChars = 10;
+
+        tm.createTab('/home/user/dirty.md', 'aaaaaa');
+        tm.tabs.get('/home/user/dirty.md').isDirty = true;
+        tm.createTab('/home/user/new.md', 'bbbbbb');
+
+        expect(tm.hasTab('/home/user/dirty.md')).toBe(true);
+        expect(tm.hasTab('/home/user/new.md')).toBe(true);
     });
 
     test('activateTab routes HTML tabs to the HTML source preview renderer', () => {

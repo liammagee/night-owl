@@ -184,6 +184,39 @@ let citationCaptureBridgeConfig = {
 let rendererCitationCaptureReady = false;
 let pendingCitationCaptures = [];
 
+function isUsableBrowserWindow(win) {
+  return Boolean(
+    win &&
+    (typeof win.isDestroyed !== 'function' || !win.isDestroyed()) &&
+    win.webContents &&
+    (typeof win.webContents.isDestroyed !== 'function' || !win.webContents.isDestroyed())
+  );
+}
+
+function getLiveAppWindows() {
+  const windows = typeof BrowserWindow.getAllWindows === 'function'
+    ? BrowserWindow.getAllWindows()
+    : [];
+
+  if (windows.length > 0) {
+    return windows.filter(isUsableBrowserWindow);
+  }
+
+  return isUsableBrowserWindow(mainWindow) ? [mainWindow] : [];
+}
+
+function sendToWindow(win, channel, ...args) {
+  if (!isUsableBrowserWindow(win)) return false;
+  win.webContents.send(channel, ...args);
+  return true;
+}
+
+function broadcastToAppWindows(channel, ...args) {
+  for (const win of getLiveAppWindows()) {
+    sendToWindow(win, channel, ...args);
+  }
+}
+
 function enqueueCitationCapture(payload) {
   if (!payload || typeof payload !== 'object' || !payload.rawText) {
     return;
@@ -1343,11 +1376,7 @@ app.on('before-quit', () => {
 // --- Theme Handling ---
 nativeTheme.on('updated', () => {
     debugMain(`nativeTheme updated. Should use dark colors: ${nativeTheme.shouldUseDarkColors}`);
-    // Guard against firing into a destroyed/closing webContents — produces the same
-    // "webFrameMain was disposed" error class as the close-handler bug otherwise.
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('theme-updated', nativeTheme.shouldUseDarkColors);
-    }
+    broadcastToAppWindows('theme-updated', nativeTheme.shouldUseDarkColors);
 });
 
 // --- Window Creation ---
@@ -1356,7 +1385,7 @@ let speakerNotesWindow = null;
 function createWindow() {
   debugMain('Creating main window...');
   rendererCitationCaptureReady = false;
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
@@ -1365,6 +1394,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: true,
       // The preload imports local app modules; Electron sandbox preloads cannot require them.
       sandbox: false,
       enableRemoteModule: false,
@@ -1375,22 +1405,23 @@ function createWindow() {
     icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     show: false
   });
+  mainWindow = win;
 
   // Enable @electron/remote for this window
-  require("@electron/remote/main").enable(mainWindow.webContents);
+  require("@electron/remote/main").enable(win.webContents);
 
   // Load the index.html of the app.
   const indexPath = path.join(__dirname, 'index.html');
   debugMain(`Loading URL: ${indexPath}`);
-  mainWindow.loadFile(indexPath);
+  win.loadFile(indexPath);
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+  win.once('ready-to-show', () => {
+    win.show();
     
     const shouldOpenDevTools = process.argv.includes('--open-devtools') ||
       process.env.NIGHTOWL_OPEN_DEVTOOLS === '1';
     if (shouldOpenDevTools) {
-      mainWindow.webContents.openDevTools();
+      win.webContents.openDevTools();
     }
     debugMain(`App name in ready-to-show: ${app.getName()}`);
     debugMain(`Process title: ${process.title}`);
@@ -1401,41 +1432,44 @@ function createWindow() {
   Menu.setApplicationMenu(menu);
 
   // Suppress common Chrome DevTools console errors
-  mainWindow.webContents.on('console-message', (_, level, message) => {
+  win.webContents.on('console-message', (_, level, message) => {
     if (message.includes('Autofill.enable') || message.includes('Autofill.setAddresses')) {
       return;
     }
   });
 
   // Handle external links
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     require('electron').shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  mainWindow.on('closed', () => {
+  win.on('closed', () => {
     debugMain('Main window closed.');
     rendererCitationCaptureReady = false;
-    mainWindow = null;
+    if (mainWindow === win) {
+      mainWindow = null;
+    }
   });
 
   // Send initial theme to renderer once DOM is ready
-  mainWindow.webContents.on('did-finish-load', () => {
+  win.webContents.on('did-finish-load', () => {
       const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
       debugMain(`Window finished loading. Sending initial theme: ${theme}`);
-      mainWindow.webContents.send('theme-changed', theme);
+      sendToWindow(win, 'theme-changed', theme);
       rendererCitationCaptureReady = false;
       
       // Send refresh signal with a slight delay to ensure renderer is ready
       setTimeout(() => {
+        if (!isUsableBrowserWindow(win)) return;
         debugMain('Sending refresh-file-tree signal to renderer.');
-        mainWindow.webContents.send('refresh-file-tree');
+        sendToWindow(win, 'refresh-file-tree');
       }, 100);
   });
 
   // Prompt to save unsaved changes before closing the window
   let isForceClosing = false;
-  mainWindow.on('close', async (e) => {
+  win.on('close', async (e) => {
     if (isForceClosing) {
       saveSettings();
       return; // Allow close to proceed
@@ -1445,11 +1479,11 @@ function createWindow() {
 
     // If the renderer is already gone (crashed, navigated, or being torn down),
     // don't try to talk to it — just save settings and tear the window down.
-    const wc = mainWindow.webContents;
+    const wc = win.webContents;
     if (!wc || wc.isDestroyed() || wc.isCrashed?.()) {
       saveSettings();
       isForceClosing = true;
-      if (!mainWindow.isDestroyed()) mainWindow.destroy();
+      if (!win.isDestroyed()) win.destroy();
       return;
     }
 
@@ -1502,7 +1536,7 @@ function createWindow() {
       if (dirtyFiles.length === 0) {
         // No unsaved changes — close immediately
         isForceClosing = true;
-        mainWindow.close();
+        win.close();
         return;
       }
 
@@ -1510,7 +1544,7 @@ function createWindow() {
         ? `"${dirtyFiles[0]}" has unsaved changes.`
         : `${dirtyFiles.length} files have unsaved changes.`;
 
-      const { response } = await dialog.showMessageBox(mainWindow, {
+      const { response } = await dialog.showMessageBox(win, {
         type: 'warning',
         buttons: ['Save', "Don't Save", 'Cancel'],
         defaultId: 0,
@@ -1526,7 +1560,7 @@ function createWindow() {
       } else if (response === 1) {
         // Don't Save — close without saving
         isForceClosing = true;
-        mainWindow.close();
+        win.close();
       }
       // response === 2 (Cancel) — do nothing, window stays open
     } catch (err) {
@@ -1535,16 +1569,22 @@ function createWindow() {
       // persist settings, then destroy() to bypass the close-event re-entry that close() triggers.
       saveSettings();
       isForceClosing = true;
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.destroy();
+      if (!win.isDestroyed()) {
+        win.destroy();
       }
     }
   });
 
   // Renderer signals that all saves completed — now close the window
-  ipcMain.once('saves-completed-close', () => {
+  const handleSavesCompletedClose = (event) => {
+    if (!event?.sender || event.sender !== win.webContents) return;
+    ipcMain.removeListener('saves-completed-close', handleSavesCompletedClose);
     isForceClosing = true;
-    if (mainWindow) mainWindow.close();
+    if (!win.isDestroyed()) win.close();
+  };
+  ipcMain.on('saves-completed-close', handleSavesCompletedClose);
+  win.on('closed', () => {
+    ipcMain.removeListener('saves-completed-close', handleSavesCompletedClose);
   });
 }
 
@@ -3784,16 +3824,8 @@ app.whenReady().then(async () => {
   });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (getLiveAppWindows().length === 0) {
       createWindow();
-    }
-  });
-
-  nativeTheme.on('updated', () => {
-    const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-    debugMain('Native theme updated. Sending to renderer.');
-    if (mainWindow) {
-      mainWindow.webContents.send('theme-changed', theme);
     }
   });
 });

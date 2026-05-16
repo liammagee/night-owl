@@ -120,6 +120,26 @@ describe('Assistant terminal', () => {
     });
   });
 
+  test('falls back to one-shot commands after the assistant terminal process exits', async () => {
+    document.getElementById('assistant-launch-shell').click();
+    await flushAsync();
+    window.electronAPI.invoke.mockClear();
+
+    listeners['terminal-output']({
+      sessionId: 'assistant',
+      pid: 42,
+      data: '\n[Process exited with code 0]\n',
+      stream: 'exit'
+    });
+    await window.assistantTerminal.runCommand('echo after-exit');
+    await flushAsync();
+
+    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-exec', {
+      command: 'echo after-exit',
+      cwd: '/tmp/nightowl-workspace'
+    });
+  });
+
   test('loads xterm UMD globals without Monaco AMD capture', async () => {
     const previousDefine = window.define;
     const appendChild = document.head.appendChild.bind(document.head);

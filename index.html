@@ -4274,7 +4274,7 @@
                     <div class="statistics-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--primary, #007bff);">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <h3 style="margin: 0; color: var(--primary, #007bff); font-size: 16px;">📊 Statistics</h3>
-                            <div style="display: flex; gap: 4px; background: var(--surface-variant, #f8f9fa); border: 1px solid var(--border, #ddd); border-radius: 6px; padding: 2px;">
+                            <div class="statistics-scope-toggle" style="display: flex; gap: 4px; background: var(--surface-variant, #f8f9fa); border: 1px solid var(--border, #ddd); border-radius: 6px; padding: 2px;">
                                 <button id="stats-scope-document" class="btn btn-sm btn-ghost stats-scope-btn active" title="Statistics for Current Document">Document</button>
                                 <button id="stats-scope-project" class="btn btn-sm btn-ghost stats-scope-btn" title="Statistics for Entire Project">Project</button>
                             </div>
@@ -4285,7 +4285,7 @@
                     </div>
                     <div id="statistics-content" style="flex: 1; overflow-y: auto;">
                         <!-- Statistics will be populated here -->
-                        <p style="color: #666; text-align: center; padding: 20px;">
+                        <p class="statistics-empty-state" style="text-align: center; padding: 20px;">
                             Load a presentation to see statistics.
                         </p>
                     </div>
@@ -5046,6 +5046,7 @@
 	    <!-- Critical modules (needed for basic editor interaction) -->
 	    <script src="orchestrator/modules/current-file-state.js"></script>
 	    <script src="orchestrator/modules/file-tree-state.js"></script>
+	    <script src="orchestrator/modules/file-tree-filter.js"></script>
 	    <script src="orchestrator/modules/internalLinks.js" defer></script>
     <script src="orchestrator/modules/formatting.js" defer></script>
     <script src="orchestrator/modules/findReplace.js" defer></script>

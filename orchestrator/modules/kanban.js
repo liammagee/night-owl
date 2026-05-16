@@ -1,6 +1,446 @@
 
 // === Kanban Settings Helper Functions ===
 
+const DEFAULT_KANBAN_COLUMNS = [
+    { id: 'todo', name: 'To Do', color: '#e3f2fd' },
+    { id: 'inprogress', name: 'In Progress', color: '#fff3e0' },
+    { id: 'done', name: 'Done', color: '#e8f5e8' }
+];
+const DEFAULT_DONE_MARKERS = ['DONE', 'COMPLETED', '✓', '✔', '[x]', '[X]'];
+const DEFAULT_IN_PROGRESS_MARKERS = ['IN PROGRESS', 'DOING', '⏳', '[~]'];
+const DEFAULT_KANBAN_GROUP_SIZE = 12;
+const KANBAN_AUTO_COLLAPSE_TASK_THRESHOLD = 40;
+
+function cloneDefaultColumns() {
+    return DEFAULT_KANBAN_COLUMNS.map(column => ({ ...column }));
+}
+
+function getKanbanSettings(settings) {
+    return settings?.kanban || {};
+}
+
+function getKanbanColumns(settings) {
+    const configuredColumns = getKanbanSettings(settings).columns;
+    return Array.isArray(configuredColumns) && configuredColumns.length
+        ? configuredColumns
+        : cloneDefaultColumns();
+}
+
+function getKanbanGroupSize(settings) {
+    const configuredSize = Number(getKanbanSettings(settings).groupSize);
+    return Number.isFinite(configuredSize) && configuredSize > 0
+        ? Math.floor(configuredSize)
+        : DEFAULT_KANBAN_GROUP_SIZE;
+}
+
+function isKanbanGroupingEnabled(settings) {
+    return getKanbanSettings(settings).enableGrouping !== false;
+}
+
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(value) {
+    return escapeHtml(value).replace(/\n/g, '&#10;');
+}
+
+function escapeRegExp(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getMarked() {
+    if (typeof window !== 'undefined' && window.marked) return window.marked;
+    if (typeof marked !== 'undefined') return marked;
+    return null;
+}
+
+function getPreviewSanitizer() {
+    return typeof window !== 'undefined'
+        ? window.NightOwlPreviewMarkdown?.sanitizePreviewHTML
+        : null;
+}
+
+function renderKanbanMarkdown(markdown) {
+    const source = String(markdown == null ? '' : markdown).trim();
+    if (!source) return '';
+
+    const sanitizer = getPreviewSanitizer();
+    const markedLib = getMarked();
+    if (sanitizer && markedLib?.parse) {
+        try {
+            return sanitizer(markedLib.parse(source, { gfm: true, breaks: true }));
+        } catch (error) {
+            console.warn('[Kanban] Markdown rendering failed, using escaped text:', error);
+        }
+    }
+
+    return `<p>${escapeHtml(source).replace(/\n/g, '<br>')}</p>`;
+}
+
+function getIndent(line) {
+    return (String(line || '').match(/^\s*/) || [''])[0].length;
+}
+
+function isThematicBreak(line) {
+    const trimmed = String(line || '').trim();
+    return /^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed);
+}
+
+function stripInlineMarkdown(value) {
+    return String(value || '')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[*_~]+/g, '')
+        .trim();
+}
+
+function slugifyKanbanGroup(value) {
+    return stripInlineMarkdown(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'tasks';
+}
+
+function matchMarkdownHeading(line) {
+    const match = String(line || '').match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (!match) return null;
+
+    return {
+        level: match[1].length,
+        text: stripInlineMarkdown(match[2]),
+        rawText: match[2]
+    };
+}
+
+function updateHeadingStack(headingStack, heading, lineNumber) {
+    while (headingStack.length && headingStack[headingStack.length - 1].level >= heading.level) {
+        headingStack.pop();
+    }
+
+    headingStack.push({
+        ...heading,
+        lineNumber,
+        id: `heading-${lineNumber}-${slugifyKanbanGroup(heading.text)}`
+    });
+}
+
+function getCurrentTaskGroup(headingStack) {
+    const heading = headingStack[headingStack.length - 1];
+    if (!heading) {
+        return {
+            id: 'group-ungrouped',
+            name: 'Tasks',
+            lineNumber: -1,
+            depth: 0
+        };
+    }
+
+    return {
+        id: heading.id,
+        name: heading.text || 'Tasks',
+        lineNumber: heading.lineNumber,
+        depth: heading.level
+    };
+}
+
+function matchKanbanListItem(line) {
+    const raw = String(line || '');
+    const prefixMatch = raw.match(/^(\s*(?:\d+\.|[*+-])(?:\s+|$))/);
+    if (!prefixMatch) return null;
+
+    const marker = prefixMatch[0].trim();
+    return {
+        indent: getIndent(raw),
+        prefix: prefixMatch[0],
+        marker,
+        isOrdered: /^\d+\.$/.test(marker),
+        text: raw.slice(prefixMatch[0].length)
+    };
+}
+
+function isKanbanBlockBoundary(line, baseIndent) {
+    const trimmed = String(line || '').trim();
+    if (!trimmed) return false;
+
+    const indent = getIndent(line);
+    if (indent > baseIndent) return false;
+
+    return Boolean(matchKanbanListItem(line)) ||
+        /^#{1,6}\s+/.test(trimmed) ||
+        isThematicBreak(line);
+}
+
+function findNextNonBlankLine(lines, startIndex) {
+    for (let i = startIndex; i < lines.length; i++) {
+        if (String(lines[i] || '').trim()) {
+            return { index: i, line: lines[i] };
+        }
+    }
+    return null;
+}
+
+function normalizeContinuationLine(line, taskMatch) {
+    const raw = String(line || '');
+    if (!raw.trim()) return '';
+
+    const removableIndent = taskMatch.prefix.length;
+    const leadingWhitespace = getIndent(raw);
+    const removeCount = Math.min(removableIndent, leadingWhitespace);
+    return raw.slice(removeCount);
+}
+
+function stripStatusMarker(text, markers) {
+    let cleanText = String(text || '');
+    let matched = false;
+
+    for (const marker of markers) {
+        if (cleanText.toUpperCase().includes(String(marker).toUpperCase())) {
+            cleanText = cleanText
+                .replace(new RegExp(escapeRegExp(marker), 'gi'), '')
+                .replace(/^[-\s]*|[-\s]*$/g, '')
+                .trim();
+            matched = true;
+            break;
+        }
+    }
+
+    return { cleanText, matched };
+}
+
+function extractKanbanTaskStatus(firstLineText, kanbanSettings) {
+    const doneMarkers = kanbanSettings.doneMarkers || DEFAULT_DONE_MARKERS;
+    const inProgressMarkers = kanbanSettings.inProgressMarkers || DEFAULT_IN_PROGRESS_MARKERS;
+
+    const doneResult = stripStatusMarker(firstLineText, doneMarkers);
+    if (doneResult.matched) {
+        return { status: 'done', cleanText: doneResult.cleanText };
+    }
+
+    const inProgressResult = stripStatusMarker(firstLineText, inProgressMarkers);
+    if (inProgressResult.matched) {
+        return { status: 'inprogress', cleanText: inProgressResult.cleanText };
+    }
+
+    return { status: 'todo', cleanText: String(firstLineText || '').trim() };
+}
+
+function extractTaskListCheckbox(firstLineText) {
+    const match = String(firstLineText || '').match(/^\s*\[([ xX~\-])\]\s*/);
+    if (!match) {
+        return {
+            status: null,
+            cleanText: String(firstLineText || '').trim()
+        };
+    }
+
+    const marker = match[1];
+    let status = 'todo';
+    if (marker === 'x' || marker === 'X') {
+        status = 'done';
+    } else if (marker === '~' || marker === '-') {
+        status = 'inprogress';
+    }
+
+    return {
+        status,
+        cleanText: String(firstLineText || '').slice(match[0].length).trim()
+    };
+}
+
+function collectKanbanTaskBlock(lines, startIndex, taskMatch) {
+    const textLines = [taskMatch.text.trim()];
+    let endLineNumber = startIndex;
+
+    for (let i = startIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = String(line || '').trim();
+
+        if (!trimmed) {
+            const next = findNextNonBlankLine(lines, i + 1);
+            if (!next || isKanbanBlockBoundary(next.line, taskMatch.indent) || getIndent(next.line) <= taskMatch.indent) {
+                break;
+            }
+            textLines.push('');
+            endLineNumber = i;
+            continue;
+        }
+
+        if (isKanbanBlockBoundary(line, taskMatch.indent)) {
+            break;
+        }
+
+        textLines.push(normalizeContinuationLine(line, taskMatch));
+        endLineNumber = i;
+    }
+
+    return { textLines, endLineNumber };
+}
+
+function renderKanbanTaskText(textElement, task) {
+    if (!textElement) return;
+    textElement.dataset.markdown = task.text || '';
+    textElement.innerHTML = renderKanbanMarkdown(task.text);
+}
+
+function renderKanbanTaskNumber(task) {
+    return task.number
+        ? `<div class="kanban-task-number">${escapeHtml(task.number)}</div>`
+        : '';
+}
+
+function renderKanbanTaskMarkup(task) {
+    return `
+        <div class="kanban-task"
+             data-task-id="${escapeAttr(task.id)}"
+             data-line-number="${escapeAttr(task.lineNumber)}"
+             data-end-line-number="${escapeAttr(task.endLineNumber)}"
+             data-original-status="${escapeAttr(task.status)}"
+             draggable="true">
+            <div class="kanban-task-content">
+                ${renderKanbanTaskNumber(task)}
+                <div class="kanban-task-text" data-editable="true" data-markdown="${escapeAttr(task.text)}">${renderKanbanMarkdown(task.text)}</div>
+            </div>
+            <div class="kanban-task-actions">
+                <button class="task-edit-btn" title="Edit task">✎</button>
+                <button class="task-delete-btn" title="Delete task">×</button>
+            </div>
+        </div>
+    `;
+}
+
+function createKanbanRenderGroup(group, tasks, chunkIndex = 0, chunkStart = 0, chunkEnd = tasks.length) {
+    const baseName = group.name || 'Tasks';
+    const chunkedName = group.chunked
+        ? (baseName === 'Tasks'
+            ? `Tasks ${chunkStart + 1}-${chunkEnd}`
+            : `${baseName} (${chunkStart + 1}-${chunkEnd})`)
+        : baseName;
+
+    return {
+        id: chunkIndex
+            ? `${group.id}-chunk-${chunkIndex}`
+            : group.id,
+        name: chunkedName,
+        sourceName: baseName,
+        lineNumber: group.lineNumber,
+        depth: group.depth,
+        tasks
+    };
+}
+
+function groupTasksForColumn(tasks, maxGroupSize) {
+    const sourceGroups = [];
+    let currentGroup = null;
+
+    tasks.forEach(task => {
+        if (!currentGroup || currentGroup.id !== task.groupId) {
+            currentGroup = {
+                id: task.groupId || 'group-ungrouped',
+                name: task.groupName || 'Tasks',
+                lineNumber: task.groupLineNumber ?? -1,
+                depth: task.groupDepth ?? 0,
+                tasks: []
+            };
+            sourceGroups.push(currentGroup);
+        }
+
+        currentGroup.tasks.push(task);
+    });
+
+    const renderGroups = [];
+    sourceGroups.forEach(sourceGroup => {
+        if (sourceGroup.tasks.length > maxGroupSize) {
+            for (let start = 0; start < sourceGroup.tasks.length; start += maxGroupSize) {
+                const chunk = sourceGroup.tasks.slice(start, start + maxGroupSize);
+                renderGroups.push(createKanbanRenderGroup(
+                    { ...sourceGroup, chunked: true },
+                    chunk,
+                    Math.floor(start / maxGroupSize) + 1,
+                    start,
+                    start + chunk.length
+                ));
+            }
+            return;
+        }
+
+        renderGroups.push(createKanbanRenderGroup(sourceGroup, sourceGroup.tasks));
+    });
+
+    return renderGroups;
+}
+
+function shouldOpenKanbanTaskGroup(totalTasks, groupCount) {
+    return totalTasks <= KANBAN_AUTO_COLLAPSE_TASK_THRESHOLD && groupCount <= 6;
+}
+
+function renderKanbanTaskGroup(group, totalTasks, groupCount) {
+    const openAttr = shouldOpenKanbanTaskGroup(totalTasks, groupCount) ? ' open' : '';
+    const taskHtml = group.tasks.map(renderKanbanTaskMarkup).join('');
+
+    return `
+        <details class="kanban-task-group" data-group-id="${escapeAttr(group.id)}"${openAttr}>
+            <summary class="kanban-task-group-summary">
+                <span class="kanban-task-group-title">${escapeHtml(group.name)}</span>
+                <span class="kanban-task-group-count">${group.tasks.length}</span>
+            </summary>
+            <div class="kanban-task-group-body">
+                ${taskHtml}
+            </div>
+        </details>
+    `;
+}
+
+function buildKanbanGroupsByColumn(columns, tasksByColumn, maxGroupSize) {
+    const groupsByColumn = {};
+    columns.forEach(column => {
+        groupsByColumn[column.id] = groupTasksForColumn(tasksByColumn[column.id] || [], maxGroupSize);
+    });
+    return groupsByColumn;
+}
+
+function createKanbanTaskElement(task) {
+    const template = document.createElement('template');
+    template.innerHTML = renderKanbanTaskMarkup(task).trim();
+    return template.content.firstElementChild;
+}
+
+function updateKanbanTaskNumber(numberElement, taskElement, task) {
+    if (!taskElement) return;
+
+    let currentNumberElement = numberElement;
+    if (task.number) {
+        if (!currentNumberElement) {
+            currentNumberElement = document.createElement('div');
+            currentNumberElement.className = 'kanban-task-number';
+            const contentElement = taskElement.querySelector('.kanban-task-content');
+            contentElement?.insertBefore(currentNumberElement, contentElement.firstChild);
+        }
+        if (currentNumberElement.textContent !== task.number) {
+            currentNumberElement.textContent = task.number;
+        }
+    } else if (currentNumberElement) {
+        currentNumberElement.remove();
+    }
+}
+
+function setTaskLineAttributes(taskElement, task) {
+    taskElement.setAttribute('data-line-number', task.lineNumber);
+    taskElement.setAttribute('data-end-line-number', task.endLineNumber);
+    taskElement.setAttribute('data-original-status', task.status);
+}
+
+function getTaskMarkdownFromElement(taskElement) {
+    const textElement = taskElement?.querySelector('.kanban-task-text');
+    return textElement?.dataset.markdown || textElement?.textContent || '';
+}
+
 function addKanbanColumn() {
     const editor = document.getElementById('kanban-columns-editor');
     if (!editor) return;
@@ -62,81 +502,62 @@ function parseKanbanFromMarkdown(content, settings) {
     if (!content || typeof content !== 'string') {
         console.warn('[Kanban] Content is undefined or not a string:', content);
         return {
-            columns: settings?.kanban?.columns || [
-                { id: 'todo', name: 'To Do', color: '#e3f2fd' },
-                { id: 'inprogress', name: 'In Progress', color: '#fff3e0' },
-                { id: 'done', name: 'Done', color: '#e8f5e8' }
-            ],
+            columns: getKanbanColumns(settings),
             tasks: [],
             tasksByColumn: {}
         };
     }
     
-    const kanbanSettings = settings?.kanban || {};
-    const doneMarkers = kanbanSettings.doneMarkers || ['DONE', 'COMPLETED', '✓', '✔', '[x]', '[X]'];
-    const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS', 'DOING', '⏳', '[~]'];
-    const columns = kanbanSettings.columns || [
-        { id: 'todo', name: 'To Do', color: '#e3f2fd' },
-        { id: 'inprogress', name: 'In Progress', color: '#fff3e0' },
-        { id: 'done', name: 'Done', color: '#e8f5e8' }
-    ];
-    
+    const kanbanSettings = getKanbanSettings(settings);
+    const columns = getKanbanColumns(settings);
+    const groupingEnabled = isKanbanGroupingEnabled(settings);
+    const groupSize = getKanbanGroupSize(settings);
     const tasks = [];
     const lines = content.split('\n');
+    const headingStack = [];
     
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        // Match numbered lists (1. 2. etc.) or bullet points (- * +)
-        const listMatch = line.match(/^(\d+\.\s*|\*\s*|\-\s*|\+\s*)(.*)/);
-        if (listMatch) {
-            const taskText = listMatch[2].trim();
-            if (!taskText) continue;
-            
-            let status = 'todo';
-            let cleanText = taskText;
-            
-            // Check for done markers
-            const hasDoneMarker = doneMarkers.some(marker => {
-                if (taskText.toUpperCase().includes(marker.toUpperCase())) {
-                    const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    cleanText = taskText.replace(new RegExp(escapedMarker, 'gi'), '').trim();
-                    // Remove common separators left behind
-                    cleanText = cleanText.replace(/^[-\s]*|[-\s]*$/g, '').trim();
-                    return true;
-                }
-                return false;
-            });
-            
-            if (hasDoneMarker) {
-                status = 'done';
-            } else {
-                // Check for in-progress markers
-                const hasInProgressMarker = inProgressMarkers.some(marker => {
-                    if (taskText.toUpperCase().includes(marker.toUpperCase())) {
-                        const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        cleanText = taskText.replace(new RegExp(escapedMarker, 'gi'), '').trim();
-                        cleanText = cleanText.replace(/^[-\s]*|[-\s]*$/g, '').trim();
-                        return true;
-                    }
-                    return false;
-                });
-                
-                if (hasInProgressMarker) {
-                    status = 'inprogress';
-                }
-            }
-            
-            tasks.push({
-                id: `task-${i}`,
-                number: listMatch[1].trim(),
-                text: cleanText,
-                originalText: taskText,
-                status: status,
-                lineNumber: i
-            });
+        const heading = matchMarkdownHeading(lines[i]);
+        if (heading) {
+            updateHeadingStack(headingStack, heading, i);
+            continue;
         }
+
+        const taskMatch = matchKanbanListItem(lines[i]);
+        if (!taskMatch) continue;
+
+        const { textLines, endLineNumber } = collectKanbanTaskBlock(lines, i, taskMatch);
+        const taskText = textLines.join('\n').trim();
+        if (!taskText) continue;
+
+        const checkboxStatus = extractTaskListCheckbox(textLines[0]);
+        let taskStatus = checkboxStatus.status;
+        if (taskStatus) {
+            textLines[0] = checkboxStatus.cleanText;
+        } else {
+            const markerStatus = extractKanbanTaskStatus(checkboxStatus.cleanText, kanbanSettings);
+            taskStatus = markerStatus.status;
+            textLines[0] = markerStatus.cleanText;
+        }
+        const cleanText = textLines.join('\n').trim();
+        const group = getCurrentTaskGroup(headingStack);
+
+        tasks.push({
+            id: `task-${i}`,
+            number: taskMatch.isOrdered ? taskMatch.marker : '',
+            marker: taskMatch.marker,
+            text: cleanText,
+            originalText: taskText,
+            status: taskStatus,
+            lineNumber: i,
+            endLineNumber,
+            groupId: group.id,
+            groupName: group.name,
+            groupLineNumber: group.lineNumber,
+            groupDepth: group.depth
+        });
+
+        i = endLineNumber;
     }
     
     // Group tasks by status
@@ -144,46 +565,40 @@ function parseKanbanFromMarkdown(content, settings) {
     columns.forEach(column => {
         tasksByColumn[column.id] = tasks.filter(task => task.status === column.id);
     });
+    const groupsByColumn = groupingEnabled
+        ? buildKanbanGroupsByColumn(columns, tasksByColumn, groupSize)
+        : {};
     
-    return { columns, tasks, tasksByColumn };
+    return { columns, tasks, tasksByColumn, groupsByColumn, groupingEnabled, groupSize };
 }
 
 function renderKanbanBoard(parsedKanban, filePath) {
-    const { columns, tasksByColumn } = parsedKanban;
+    const { columns, tasksByColumn, groupsByColumn, groupingEnabled } = parsedKanban;
+    const totalTasks = parsedKanban.tasks?.length || 0;
     
-    let boardHtml = '<div class="kanban-board" data-file-path="' + filePath + '">';
+    let boardHtml = '<div class="kanban-board" data-file-path="' + escapeAttr(filePath) + '">';
     
     columns.forEach(column => {
         const tasks = tasksByColumn[column.id] || [];
         
         boardHtml += `
-            <div class="kanban-column" data-column-id="${column.id}" style="background-color: ${column.color}">
-                <div class="kanban-column-header">${column.name} (${tasks.length})</div>
-                <div class="kanban-tasks" data-column="${column.id}">
+            <div class="kanban-column" data-column-id="${escapeAttr(column.id)}" style="--kanban-column-accent: ${escapeAttr(column.color)}">
+                <div class="kanban-column-header">${escapeHtml(column.name)} (${tasks.length})</div>
+                <div class="kanban-tasks" data-column="${escapeAttr(column.id)}">
         `;
         
-        tasks.forEach(task => {
-            boardHtml += `
-                <div class="kanban-task" 
-                     data-task-id="${task.id}"
-                     data-line-number="${task.lineNumber}"
-                     data-original-status="${task.status}"
-                     draggable="true">
-                    <div class="kanban-task-content">
-                        <div class="kanban-task-number">${task.number}</div>
-                        <div class="kanban-task-text" data-editable="true">${task.text}</div>
-                    </div>
-                    <div class="kanban-task-actions">
-                        <button class="task-edit-btn" title="Edit task">✎</button>
-                        <button class="task-delete-btn" title="Delete task">×</button>
-                    </div>
-                </div>
-            `;
-        });
+        if (groupingEnabled) {
+            const groups = groupsByColumn?.[column.id] || groupTasksForColumn(tasks, parsedKanban.groupSize || DEFAULT_KANBAN_GROUP_SIZE);
+            boardHtml += groups.map(group => renderKanbanTaskGroup(group, totalTasks, groups.length)).join('');
+        } else {
+            tasks.forEach(task => {
+                boardHtml += renderKanbanTaskMarkup(task);
+            });
+        }
         
         boardHtml += `
                     <div class="kanban-add-task">
-                        <button class="add-task-btn" data-column="${column.id}">+ Add Task</button>
+                        <button class="add-task-btn" data-column="${escapeAttr(column.id)}">+ Add Task</button>
                     </div>
                 </div>
             </div>
@@ -213,7 +628,16 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
     const { columns, tasks, tasksByColumn } = parsedKanban;
     
     // Store current state for comparison
-    const newState = JSON.stringify({ tasks: tasks.map(t => ({ id: t.id, text: t.text, status: t.status })) });
+    const newState = JSON.stringify({
+        tasks: tasks.map(t => ({
+            id: t.id,
+            text: t.text,
+            status: t.status,
+            endLineNumber: t.endLineNumber,
+            groupId: t.groupId,
+            groupName: t.groupName
+        }))
+    });
     
     // If file has changed, force refresh regardless of content
     const fileChanged = currentKanbanFilePath !== filePath;
@@ -235,6 +659,12 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
     
     if (!kanbanBoard) {
         // First render - use full render
+        const kanbanHtml = renderKanbanBoard(parsedKanban, filePath);
+        container.innerHTML = kanbanHtml;
+        return true;
+    }
+
+    if (parsedKanban.groupingEnabled) {
         const kanbanHtml = renderKanbanBoard(parsedKanban, filePath);
         container.innerHTML = kanbanHtml;
         return true;
@@ -276,23 +706,7 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
             
             if (!taskElement) {
                 // Create new task element
-                taskElement = document.createElement('div');
-                taskElement.className = 'kanban-task';
-                taskElement.setAttribute('data-task-id', task.id);
-                taskElement.setAttribute('data-line-number', task.lineNumber);
-                taskElement.setAttribute('data-original-status', task.status);
-                taskElement.setAttribute('draggable', 'true');
-                
-                taskElement.innerHTML = `
-                    <div class="kanban-task-content">
-                        <div class="kanban-task-number">${task.number}</div>
-                        <div class="kanban-task-text" data-editable="true">${task.text}</div>
-                    </div>
-                    <div class="kanban-task-actions">
-                        <button class="task-edit-btn" title="Edit task">✎</button>
-                        <button class="task-delete-btn" title="Delete task">×</button>
-                    </div>
-                `;
+                taskElement = createKanbanTaskElement(task);
                 
                 // Add drag event listeners for new tasks
                 taskElement.addEventListener('dragstart', (e) => {
@@ -335,16 +749,13 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
                 const numberEl = taskElement.querySelector('.kanban-task-number');
                 const textEl = taskElement.querySelector('.kanban-task-text');
                 
-                if (numberEl.textContent !== task.number) {
-                    numberEl.textContent = task.number;
-                }
-                if (textEl.textContent !== task.text) {
-                    textEl.textContent = task.text;
+                updateKanbanTaskNumber(numberEl, taskElement, task);
+                if (textEl && textEl.dataset.markdown !== task.text) {
+                    renderKanbanTaskText(textEl, task);
                 }
                 
                 // Update attributes
-                taskElement.setAttribute('data-line-number', task.lineNumber);
-                taskElement.setAttribute('data-original-status', task.status);
+                setTaskLineAttributes(taskElement, task);
                 
                 // Ensure correct position
                 const currentIndex = Array.from(tasksContainer.children).indexOf(taskElement);
@@ -363,7 +774,7 @@ function updateKanbanBoard(container, parsedKanban, filePath) {
         if (!addTaskContainer) {
             addTaskContainer = document.createElement('div');
             addTaskContainer.className = 'kanban-add-task';
-            addTaskContainer.innerHTML = `<button class="add-task-btn" data-column="${column.id}">+ Add Task</button>`;
+            addTaskContainer.innerHTML = `<button class="add-task-btn" data-column="${escapeAttr(column.id)}">+ Add Task</button>`;
             columnElement.appendChild(addTaskContainer);
             
             // Set up event handler for new add button
@@ -456,7 +867,7 @@ function setupKanbanDragAndDrop(container, filePath) {
                     
                     // Dispatch task moved event for gamification
                     const taskData = {
-                        text: task.querySelector('.kanban-task-text')?.textContent || '',
+                        text: getTaskMarkdownFromElement(task),
                         id: taskId,
                         from: oldColumnId,
                         to: newColumnId,
@@ -524,13 +935,12 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
         
         if (lineNumber >= 0 && lineNumber < lines.length) {
             const originalLine = lines[lineNumber];
-            const taskText = taskElement.querySelector('.kanban-task-text').textContent;
             
             // Get current settings to determine markers
             const settings = await window.electronAPI.invoke('get-settings');
             const kanbanSettings = settings.kanban || {};
-            const doneMarkers = kanbanSettings.doneMarkers || ['DONE'];
-            const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS'];
+            const doneMarkers = kanbanSettings.doneMarkers || DEFAULT_DONE_MARKERS;
+            const inProgressMarkers = kanbanSettings.inProgressMarkers || DEFAULT_IN_PROGRESS_MARKERS;
             
             // Remove existing status markers
             let newLine = originalLine;
@@ -546,9 +956,9 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
             
             // Add new status marker
             if (newStatus === 'done') {
-                newLine = newLine.trim() + ' - ' + doneMarkers[0];
+                newLine = newLine.replace(/\s+$/g, '') + ' - ' + doneMarkers[0];
             } else if (newStatus === 'inprogress') {
-                newLine = newLine.trim() + ' - ' + inProgressMarkers[0];
+                newLine = newLine.replace(/\s+$/g, '') + ' - ' + inProgressMarkers[0];
             }
             
             // Update the line
@@ -614,14 +1024,14 @@ function setupKanbanTaskActions(container, filePath) {
 
 async function handleTaskEdit(taskElement, filePath) {
     const textElement = taskElement.querySelector('.kanban-task-text');
-    const originalText = textElement.textContent.trim();
+    const originalText = getTaskMarkdownFromElement(taskElement).trim();
     
-    // Create input field
-    const input = document.createElement('input');
-    input.type = 'text';
+    // Create textarea so multiline task bodies can be edited without flattening them.
+    const input = document.createElement('textarea');
     input.value = originalText;
     input.className = 'kanban-task-edit-input';
-    input.style.cssText = 'width: 100%; padding: 4px; border: 1px solid #ccc; border-radius: 3px;';
+    input.rows = Math.min(8, Math.max(3, originalText.split(/\r?\n/).length));
+    input.style.cssText = 'width: 100%; min-height: 96px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; resize: vertical;';
     
     // Replace text with input
     textElement.style.display = 'none';
@@ -634,7 +1044,7 @@ async function handleTaskEdit(taskElement, filePath) {
         if (newText && newText !== originalText) {
             try {
                 await updateTaskTextInFile(filePath, taskElement, newText);
-                textElement.textContent = newText;
+                renderKanbanTaskText(textElement, { text: newText });
                 showNotification('Task updated successfully', 'success');
                 
                 // Refresh editor if this file is open
@@ -662,9 +1072,9 @@ async function handleTaskEdit(taskElement, filePath) {
         input.remove();
     };
     
-    // Save on Enter, cancel on Escape
+    // Save on Cmd/Ctrl+Enter, cancel on Escape. Plain Enter inserts a newline.
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             saveEdit();
         } else if (e.key === 'Escape') {
@@ -678,7 +1088,7 @@ async function handleTaskEdit(taskElement, filePath) {
 }
 
 async function handleTaskDelete(taskElement, filePath) {
-    const taskText = taskElement.querySelector('.kanban-task-text').textContent.trim();
+    const taskText = getTaskMarkdownFromElement(taskElement).replace(/\s+/g, ' ').trim();
     
     if (!(await window.showAppConfirm({
         title: 'Delete Task',
@@ -831,20 +1241,21 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
         const content = result.content || '';
         const lines = content.split('\n');
         const lineNumber = parseInt(taskElement.dataset.lineNumber);
+        const endLineNumber = parseInt(taskElement.dataset.endLineNumber || taskElement.dataset.lineNumber);
         
         if (lineNumber >= 0 && lineNumber < lines.length) {
             const originalLine = lines[lineNumber];
             
             // Extract the list marker (1. or - or * etc.)
-            const listMatch = originalLine.match(/^(\s*(?:\d+\.\s*|\*\s*|\-\s*|\+\s*))/);
+            const listMatch = matchKanbanListItem(originalLine);
             if (listMatch) {
-                const prefix = listMatch[1];
+                const prefix = listMatch.prefix;
                 
                 // Get current settings to preserve status markers
                 const settings = await window.electronAPI.invoke('get-settings');
                 const kanbanSettings = settings.kanban || {};
-                const doneMarkers = kanbanSettings.doneMarkers || ['DONE'];
-                const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS'];
+                const doneMarkers = kanbanSettings.doneMarkers || DEFAULT_DONE_MARKERS;
+                const inProgressMarkers = kanbanSettings.inProgressMarkers || DEFAULT_IN_PROGRESS_MARKERS;
                 
                 // Find existing status marker in original line
                 let statusMarker = '';
@@ -867,9 +1278,19 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
                     }
                 }
                 
-                // Reconstruct the line with new text but preserved status
-                lines[lineNumber] = prefix + newText + statusMarker;
+                const newTextLines = String(newText || '').replace(/\r\n/g, '\n').split('\n');
+                const continuationPrefix = ' '.repeat(prefix.length);
+                const replacementLines = [
+                    prefix + (newTextLines[0] || '') + statusMarker,
+                    ...newTextLines.slice(1).map(line => line ? continuationPrefix + line : '')
+                ];
                 
+                const boundedEndLineNumber = Number.isFinite(endLineNumber)
+                    ? Math.min(Math.max(endLineNumber, lineNumber), lines.length - 1)
+                    : lineNumber;
+                lines.splice(lineNumber, boundedEndLineNumber - lineNumber + 1, ...replacementLines);
+                taskElement.dataset.endLineNumber = String(lineNumber + replacementLines.length - 1);
+
                 await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
             }
         }
@@ -892,10 +1313,13 @@ async function deleteTaskFromFile(filePath, taskElement) {
         const content = result.content || '';
         const lines = content.split('\n');
         const lineNumber = parseInt(taskElement.dataset.lineNumber);
+        const endLineNumber = parseInt(taskElement.dataset.endLineNumber || taskElement.dataset.lineNumber);
         
         if (lineNumber >= 0 && lineNumber < lines.length) {
-            // Remove the line
-            lines.splice(lineNumber, 1);
+            const boundedEndLineNumber = Number.isFinite(endLineNumber)
+                ? Math.min(Math.max(endLineNumber, lineNumber), lines.length - 1)
+                : lineNumber;
+            lines.splice(lineNumber, boundedEndLineNumber - lineNumber + 1);
             
             await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
         }
@@ -921,8 +1345,8 @@ async function addTaskToFile(filePath, taskText, columnId) {
         // Get settings to determine status markers
         const settings = await window.electronAPI.invoke('get-settings');
         const kanbanSettings = settings.kanban || {};
-        const doneMarkers = kanbanSettings.doneMarkers || ['DONE'];
-        const inProgressMarkers = kanbanSettings.inProgressMarkers || ['IN PROGRESS'];
+        const doneMarkers = kanbanSettings.doneMarkers || DEFAULT_DONE_MARKERS;
+        const inProgressMarkers = kanbanSettings.inProgressMarkers || DEFAULT_IN_PROGRESS_MARKERS;
         
         // Find the highest numbered item to continue the sequence
         let maxNumber = 0;
@@ -953,8 +1377,26 @@ async function addTaskToFile(filePath, taskText, columnId) {
     }
 }
 
+const kanbanApi = {
+    shouldRenderAsKanban,
+    parseKanbanFromMarkdown,
+    renderKanbanBoard,
+    updateKanbanBoard,
+    setupKanbanDragAndDrop,
+    setupKanbanTaskActions,
+    resetKanbanState,
+    addTaskToFile,
+    updateTaskTextInFile,
+    deleteTaskFromFile,
+    renderKanbanMarkdown,
+    matchKanbanListItem
+};
+
 // Make functions available globally
-window.updateKanbanBoard = updateKanbanBoard;
-window.setupKanbanTaskActions = setupKanbanTaskActions;
-window.resetKanbanState = resetKanbanState;
-window.addTaskToFile = addTaskToFile;
+if (typeof window !== 'undefined') {
+    Object.assign(window, kanbanApi);
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = kanbanApi;
+}

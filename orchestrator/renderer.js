@@ -169,6 +169,7 @@ window._setLastSavedContent = function(val) { lastSavedContent = val; };
 // Tag filtering variables
 let activeTagFilters = new Set();
 let tagFilteringInitialized = false;
+let fileTreeSearchQuery = '';
 
 // File tree rendering state
 let fileTreeRendered = false;
@@ -9660,73 +9661,11 @@ async function renderFileTree() {
             isRenderingFileTree = false;
             return;
         }
-        
-        // Reset visible files list for multi-select range selection
-        allVisibleFiles = [];
 
-        // Mark tree as rendered
-        fileTreeRendered = true;
-
-        const fragment = document.createDocumentFragment();
-        
-        if (fileTree && fileTree.type === 'error') {
-            fileTreeView.replaceChildren(createFileTreeMessage(
-                'stale-workspace',
-                'Workspace folder unavailable',
-                fileTree.path
-                    ? `${fileTree.path}\n${fileTree.error || 'The folder could not be read.'}`
-                    : (fileTree.error || 'The folder could not be read.')
-            ));
-            return;
-        }
-
-        // Render the file tree
-        if (fileTree && fileTree.children && fileTree.children.length > 0) {
-            // Check if this is a multi-folder workspace
-            if (fileTree.isMultiFolder) {
-                // Render each folder as a separate root
-                for (const folderTree of fileTree.children) {
-                    // Auto-expand the folder on first load
-                    if (window.expandedFolders.size === 0) {
-                        expandCommonFolders(folderTree);
-                    }
-                    // Render as a workspace folder root (depth 0)
-                    // Pass both isWorkspaceFolder and isPrimary flags
-                    renderFileTreeNode(folderTree, fragment, 0, folderTree.isWorkspaceFolder, folderTree.isPrimary);
-                }
-            } else {
-                // Single folder mode (backward compatible)
-                // Auto-expand the root directory and common folders on first load
-                if (window.expandedFolders.size === 0) {
-                    expandCommonFolders(fileTree);
-                }
-
-                renderFileTreeNode(fileTree, fragment, 0);
-            }
-            fileTreeView.replaceChildren(fragment);
-            scheduleFileTreeTagHydration(fileTree);
-        } else if (fileTree && fileTree.children) {
-            fileTreeView.replaceChildren(createFileTreeMessage(
-                'no-files',
-                'No files in this workspace',
-                fileTree.path || ''
-            ));
-        } else {
-            fileTreeView.replaceChildren(createFileTreeMessage(
-                'no-files',
-                'No workspace files available',
-                'Open or switch to a folder to populate the file tree.'
-            ));
-        }
-        
+        renderFileTreeData(fileTree);
         
         // Update available files for autocomplete
         updateAvailableFiles(fileTree);
-
-        // Apply git status decorations to file tree
-        if (window.gitPanel && window.gitPanel.applyFileTreeGitStatus) {
-            window.gitPanel.applyFileTreeGitStatus();
-        }
     } catch (error) {
         console.error('[renderFileTree] Error loading file tree:', error);
         if (fileTreeView) {
@@ -9761,15 +9700,151 @@ function createFileTreeMessage(className, text, detail = '') {
     return message;
 }
 
-function renderFileTreeNodes(nodes, container, depth) {
+function getFileTreeFilterDescription() {
+    const parts = [];
+    if (fileTreeSearchQuery) {
+        parts.push(`query "${fileTreeSearchQuery}"`);
+    }
+    if (activeTagFilters.size > 0) {
+        parts.push(`tag${activeTagFilters.size === 1 ? '' : 's'} ${Array.from(activeTagFilters).join(', ')}`);
+    }
+    return parts.length > 0
+        ? `No files matched ${parts.join(' and ')}.`
+        : 'No files matched the current filter.';
+}
+
+function getFilteredFileTreeForDisplay(fileTree) {
+    const filterApi = window.NightOwlFileTreeFilter;
+    if (!filterApi || typeof filterApi.filterTree !== 'function') {
+        return {
+            tree: fileTree,
+            hasFilter: Boolean(fileTreeSearchQuery || activeTagFilters.size > 0),
+            matchCount: null
+        };
+    }
+
+    return filterApi.filterTree(fileTree, {
+        query: fileTreeSearchQuery,
+        activeTags: Array.from(activeTagFilters),
+        tagManager: window.tagManager
+    });
+}
+
+function fileTreeHasRenderableContent(fileTree) {
+    if (!fileTree) return false;
+    if (fileTree.type === 'file') return true;
+    return Array.isArray(fileTree.children) && fileTree.children.length > 0;
+}
+
+function applyFileTreePostRenderDecorations() {
+    if (window.gitPanel && window.gitPanel.applyFileTreeGitStatus) {
+        window.gitPanel.applyFileTreeGitStatus();
+    }
+    if (typeof window.updateFileTreeItems === 'function') {
+        window.updateFileTreeItems();
+    }
+}
+
+function renderFileTreeData(fileTree) {
+    const fileTreeView = document.getElementById('file-tree-view');
+    if (!fileTreeView) {
+        console.warn('[renderFileTree] fileTreeView element not found');
+        return;
+    }
+
+    const filterResult = getFilteredFileTreeForDisplay(fileTree);
+    const displayTree = filterResult.tree;
+    const isFiltering = filterResult.hasFilter;
+    const forceExpanded = isFiltering;
+
+    // Reset visible files list for multi-select range selection
+    allVisibleFiles = [];
+
+    // Mark tree as rendered
+    fileTreeRendered = true;
+
+    const fragment = document.createDocumentFragment();
+
+    if (displayTree && displayTree.type === 'error') {
+        fileTreeView.replaceChildren(createFileTreeMessage(
+            'stale-workspace',
+            'Workspace folder unavailable',
+            displayTree.path
+                ? `${displayTree.path}\n${displayTree.error || 'The folder could not be read.'}`
+                : (displayTree.error || 'The folder could not be read.')
+        ));
+        return;
+    }
+
+    if (isFiltering && !fileTreeHasRenderableContent(displayTree)) {
+        fileTreeView.replaceChildren(createFileTreeMessage(
+            'no-results',
+            'No matching files',
+            getFileTreeFilterDescription()
+        ));
+        applyFileTreePostRenderDecorations();
+        return;
+    }
+
+    // Render the file tree
+    if (displayTree && displayTree.children && displayTree.children.length > 0) {
+        // Check if this is a multi-folder workspace
+        if (displayTree.isMultiFolder) {
+            // Render each folder as a separate root
+            for (const folderTree of displayTree.children) {
+                // Auto-expand the folder on first load
+                if (!isFiltering && window.expandedFolders.size === 0) {
+                    expandCommonFolders(folderTree);
+                }
+                // Render as a workspace folder root (depth 0)
+                // Pass both isWorkspaceFolder and isPrimary flags
+                renderFileTreeNode(folderTree, fragment, 0, folderTree.isWorkspaceFolder, folderTree.isPrimary, forceExpanded);
+            }
+        } else {
+            // Single folder mode (backward compatible)
+            // Auto-expand the root directory and common folders on first load
+            if (!isFiltering && window.expandedFolders.size === 0) {
+                expandCommonFolders(displayTree);
+            }
+
+            renderFileTreeNode(displayTree, fragment, 0, false, false, forceExpanded);
+        }
+        fileTreeView.replaceChildren(fragment);
+        scheduleFileTreeTagHydration(displayTree);
+    } else if (displayTree && displayTree.type === 'file') {
+        renderFileTreeNode(displayTree, fragment, 0, false, false, forceExpanded);
+        fileTreeView.replaceChildren(fragment);
+    } else if (displayTree && displayTree.children) {
+        fileTreeView.replaceChildren(createFileTreeMessage(
+            'no-files',
+            'No files in this workspace',
+            displayTree.path || ''
+        ));
+    } else {
+        fileTreeView.replaceChildren(createFileTreeMessage(
+            'no-files',
+            'No workspace files available',
+            'Open or switch to a folder to populate the file tree.'
+        ));
+    }
+
+    applyFileTreePostRenderDecorations();
+}
+
+function rerenderFileTreeFromCache() {
+    if (!window.fileTreeData) return;
+    renderFileTreeData(window.fileTreeData);
+}
+
+function renderFileTreeNodes(nodes, container, depth, forceExpanded = false) {
     const fragment = document.createDocumentFragment();
     for (const child of nodes || []) {
-        renderFileTreeNode(child, fragment, depth);
+        renderFileTreeNode(child, fragment, depth, false, false, forceExpanded);
     }
     container.replaceChildren(fragment);
 }
 
-function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, isPrimary = false) {
+function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, isPrimary = false, forceExpanded = false) {
     const nodeElement = document.createElement('div');
     nodeElement.className = 'file-tree-item';
     nodeElement.style.setProperty('--tree-depth', depth);
@@ -9780,7 +9855,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
 
     const isFolder = node.type === 'folder' || node.type === 'directory';
     const hasChildren = isFolder && node.children && node.children.length > 0;
-    const isExpanded = window.expandedFolders.has(node.path);
+    const isExpanded = forceExpanded || window.expandedFolders.has(node.path);
 
     
     // Reserve the disclosure column for every row so file and folder icons
@@ -9835,6 +9910,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
             event.preventDefault();
             // Mark this folder as active for the next save / new-file dialog.
             setActiveTreeFolder(node.path);
+            if (forceExpanded) return;
             if (hasChildren || isFolder) {
                 const wasExpanded = window.expandedFolders.has(node.path);
                 toggleFolderExpansion(node.path);
@@ -9864,7 +9940,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                     try {
                         const result = await window.electronAPI.invoke('get-folder-contents', node.path);
                         if (result.success && result.children) {
-                            renderFileTreeNodes(result.children, childrenContainer, depth + 1);
+                            renderFileTreeNodes(result.children, childrenContainer, depth + 1, forceExpanded);
                             scheduleFileTreeTagHydration({
                                 type: 'folder',
                                 path: node.path,
@@ -10016,7 +10092,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
         childrenContainer.style.setProperty('--tree-depth', depth + 1);
         childrenContainer.style.display = 'block';
 
-        renderFileTreeNodes(node.children, childrenContainer, depth + 1);
+        renderFileTreeNodes(node.children, childrenContainer, depth + 1, forceExpanded);
 
         container.appendChild(childrenContainer);
     }
@@ -10141,6 +10217,7 @@ async function pollFileTreeSignatureOnce() {
 
 function startFileTreeAutoRefreshPolling() {
     if (fileTreeSignaturePollActive || !window.electronAPI?.invoke) return;
+    if (document.visibilityState === 'hidden') return;
     fileTreeSignaturePollActive = true;
     fileTreeSignaturePollTimer = setInterval(() => {
         pollFileTreeSignatureOnce();
@@ -10163,9 +10240,8 @@ function resetFileTreeSignature() {
 // Initialize tag filtering system
 function initializeTagFiltering() {
     if (tagFilteringInitialized) return;
-    tagFilteringInitialized = true;
-    
     if (!tagSearchInput || !tagFilterChips) return;
+    tagFilteringInitialized = true;
     
     // Set up search input with autocomplete
     tagSearchInput.addEventListener('input', handleTagSearchInput);
@@ -10200,9 +10276,11 @@ function handleTagSearchKeydown(event) {
         const query = event.target.value.trim();
         if (query) {
             // Try to add as a tag filter if it matches existing tags
-            if (window.tagManager && window.tagManager.searchTags(query).includes(query)) {
-                addTagFilter(query);
+            const tagMatch = getExactTagSearchMatch(query);
+            if (tagMatch) {
+                fileTreeSearchQuery = '';
                 event.target.value = '';
+                addTagFilter(tagMatch);
                 clearTagSuggestions();
             }
             // If not a tag, just keep the current name/tag filtering active
@@ -10219,7 +10297,7 @@ function handleTagSearchKeydown(event) {
 function showTagSuggestions(query) {
     if (!window.tagManager) return;
     
-    const suggestions = window.tagManager.searchTags(query);
+    const suggestions = window.tagManager.searchTags(query) || [];
     
     // Remove any existing suggestions
     clearTagSuggestions();
@@ -10260,8 +10338,9 @@ function showTagSuggestions(query) {
         `;
         
         item.addEventListener('click', () => {
-            addTagFilter(tag);
+            fileTreeSearchQuery = '';
             tagSearchInput.value = '';
+            addTagFilter(tag);
             clearTagSuggestions();
         });
         
@@ -10280,6 +10359,21 @@ function showTagSuggestions(query) {
     tagSearchInput.style.position = 'relative';
     tagSearchInput.parentNode.style.position = 'relative';
     tagSearchInput.parentNode.appendChild(dropdown);
+}
+
+function getExactTagSearchMatch(query) {
+    if (!window.tagManager || typeof window.tagManager.searchTags !== 'function') {
+        return null;
+    }
+
+    const normalizedQuery = query.toLowerCase();
+    const matches = window.tagManager.searchTags(query) || [];
+    const match = matches.find(result => {
+        const tag = typeof result === 'string' ? result : result?.tag;
+        return typeof tag === 'string' && tag.toLowerCase() === normalizedQuery;
+    });
+
+    return typeof match === 'string' ? match : match?.tag || null;
 }
 
 // Clear tag suggestions
@@ -10332,97 +10426,13 @@ function updateTagFilterChips() {
 
 // Apply tag filters to file tree
 function applyTagFilters() {
-    if (!fileTreeView || !window.tagManager) return;
-    
-    const fileItems = fileTreeView.querySelectorAll('.file-tree-item');
-    
-    fileItems.forEach(item => {
-        const filePath = item.dataset.path;
-        const isFolder = item.classList.contains('folder');
-        
-        if (isFolder) {
-            // Always show folders
-            item.style.display = '';
-            return;
-        }
-        
-        if (!filePath || !filePath.endsWith('.md')) {
-            // Show non-markdown files if no filters are active
-            item.style.display = activeTagFilters.size === 0 ? '' : 'none';
-            return;
-        }
-        
-        if (activeTagFilters.size === 0) {
-            // No filters, show all files
-            item.style.display = '';
-            return;
-        }
-        
-        // Check if file matches any of the active tag filters
-        const fileTags = window.tagManager.getFileTags(filePath);
-        const matches = Array.from(activeTagFilters).some(filterTag => 
-            fileTags.includes(filterTag)
-        );
-        
-        item.style.display = matches ? '' : 'none';
-    });
+    rerenderFileTreeFromCache();
 }
 
 // Apply name and tag filters to file tree (real-time filtering)
 function applyNameAndTagFilters(query) {
-    if (!fileTreeView) return;
-    
-    const fileItems = fileTreeView.querySelectorAll('.file-tree-item');
-    
-    fileItems.forEach(item => {
-        const filePath = item.dataset.path;
-        const isFolder = item.classList.contains('folder');
-        
-        if (isFolder) {
-            // Always show folders
-            item.style.display = '';
-            return;
-        }
-        
-        if (!filePath) {
-            item.style.display = query.length === 0 ? '' : 'none';
-            return;
-        }
-        
-        // Extract filename from path
-        const fileName = filePath.split('/').pop() || '';
-        const fileNameNoExt = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
-        
-        let matches = false;
-        
-        if (query.length === 0) {
-            // No query, show all files (unless tag filters are active)
-            matches = activeTagFilters.size === 0;
-            if (activeTagFilters.size > 0 && filePath.endsWith('.md') && window.tagManager) {
-                const fileTags = window.tagManager.getFileTags(filePath);
-                matches = Array.from(activeTagFilters).some(filterTag => 
-                    fileTags.includes(filterTag)
-                );
-            }
-        } else {
-            // Check filename match (case-insensitive)
-            const nameMatch = fileNameNoExt.toLowerCase().includes(query.toLowerCase()) ||
-                              fileName.toLowerCase().includes(query.toLowerCase());
-            
-            // Check tag match for markdown files
-            let tagMatch = false;
-            if (filePath.endsWith('.md') && window.tagManager) {
-                const fileTags = window.tagManager.getFileTags(filePath);
-                tagMatch = fileTags.some(tag => 
-                    tag.toLowerCase().includes(query.toLowerCase())
-                );
-            }
-            
-            matches = nameMatch || tagMatch;
-        }
-        
-        item.style.display = matches ? '' : 'none';
-    });
+    fileTreeSearchQuery = String(query || '').trim();
+    rerenderFileTreeFromCache();
 }
 
 // Show tag edit dialog for a markdown file
@@ -12674,7 +12684,11 @@ if (window.electronAPI) {
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
+            stopFileTreeAutoRefreshPolling();
             return;
+        }
+        if (window.currentStructureView === 'file') {
+            startFileTreeAutoRefreshPolling();
         }
         pollFileTreeSignatureOnce();
     });

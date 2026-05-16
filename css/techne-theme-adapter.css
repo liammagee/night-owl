@@ -346,6 +346,17 @@ body[data-techne-theme] #editor-toolbar {
     border-bottom-color: var(--techne-border);
 }
 
+body[data-techne-theme] #editor-toolbar > span,
+body[data-techne-theme] #mode-switcher span,
+body[data-techne-theme] #right-pane .toggle-buttons span {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme] .toolbar-separator {
+    background: var(--techne-border) !important;
+    border-color: var(--techne-border) !important;
+}
+
 body[data-techne-theme] .mode-btn:not(.active),
 body[data-techne-theme] .nav-btn,
 body[data-techne-theme] .pane-visibility-btn,
@@ -419,6 +430,63 @@ body[data-techne-theme] #editor-status-bar {
     background: var(--techne-surface);
     border-top-color: var(--techne-border);
     color: var(--techne-text-muted);
+}
+
+/* Statistics pane */
+body[data-techne-theme] #statistics-pane,
+body[data-techne-theme] #statistics-content {
+    background: var(--techne-surface) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] .statistics-header {
+    border-bottom-color: var(--techne-accent) !important;
+}
+
+body[data-techne-theme] .statistics-header h3 {
+    color: var(--techne-accent-active) !important;
+}
+
+body[data-techne-theme] .statistics-scope-toggle {
+    background: var(--techne-surface-elevated) !important;
+    border-color: var(--techne-border) !important;
+}
+
+body[data-techne-theme] .statistics-empty-state {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme] .statistics-error-state {
+    color: var(--error) !important;
+}
+
+body[data-techne-theme] .statistics-header .btn,
+body[data-techne-theme] .stats-scope-btn,
+body[data-techne-theme] #refresh-statistics-btn {
+    background: var(--button-bg) !important;
+    border-color: var(--button-border) !important;
+    color: var(--button-text) !important;
+}
+
+body[data-techne-theme] .stats-scope-btn.active {
+    background: var(--techne-accent-active) !important;
+    border-color: var(--techne-accent-active) !important;
+    color: var(--text-on-primary) !important;
+}
+
+body[data-techne-theme] .statistics-card {
+    background: var(--techne-bg) !important;
+    border-color: var(--techne-border) !important;
+    border-left-color: var(--statistics-accent, var(--techne-accent)) !important;
+    color: var(--techne-text) !important;
+}
+
+body[data-techne-theme] .statistics-row span {
+    color: var(--techne-text-muted) !important;
+}
+
+body[data-techne-theme] .statistics-row strong {
+    color: var(--techne-text) !important;
 }
 
 /* Left sidebar / file tree */

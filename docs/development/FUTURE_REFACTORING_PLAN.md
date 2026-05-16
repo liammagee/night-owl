@@ -1,158 +1,84 @@
 # Future Refactoring Plan
 
-This document outlines additional refactoring opportunities identified for the codebase to improve maintainability, reduce complexity, and enhance code organization.
+This plan tracks refactors that still matter after the AI chat and external
+Techne plugin sync work were retired. The app direction is now local-first
+NightOwl features, a terminal-first assistant pane, and small native modules
+that can be ported elsewhere later if they prove durable.
 
-## 🔧 Refactoring Priorities
+## Current Priorities
 
-### **Phase 1: High-Impact Files (Immediate)**
+### 1. Renderer Surface Decomposition
 
-#### 1. Large File Decomposition
-- **`gamification.js` (4,166 lines)** → Split into:
-  - `core/WritingSession.js` - Session management and tracking
-  - `core/FlowState.js` - Flow state detection and analysis
-  - `core/Achievements.js` - Achievement system and rewards
-  - `core/Streaks.js` - Streak tracking and statistics
-  - `ui/GamificationUI.js` - UI components and interactions
-  - `timers/FocusTimer.js` - Pomodoro/focus timer functionality
+`orchestrator/renderer.js` is still the highest-risk file because it owns file
+opening, preview routing, pane state, mode switching, and several shared
+globals. Continue extracting behavior behind narrow modules before adding major
+new features.
 
-- **`ai-writing-companion.js` (2,906 lines)** → Split into:
-  - `ai/AnalysisEngine.js` - Text analysis and processing
-  - `ai/FeedbackSystem.js` - Feedback generation and delivery
-  - `ai/ContextManager.js` - Context tracking and management
-  - `ai/CompanionUI.js` - UI components for AI companion
+Immediate candidates:
 
-- **`ai-flow-detection.js` (1,699 lines)** → Split into:
-  - `ai/FlowDetection.js` - Core flow detection algorithms
-  - `ai/FlowAnalytics.js` - Flow state analytics and metrics
-  - `ai/FlowUI.js` - Flow state UI components
+- File tree orchestration and polling state.
+- Preview routing for markdown, HTML, PDF, and source-reference views.
+- Pane visibility and mode-switching state.
+- Command registration and toolbar wiring.
 
-- **`todo-gamification.js` (1,226 lines)** → Split into:
-  - `todo/TodoTracker.js` - Todo tracking logic
-  - `todo/TodoGamification.js` - Gamification for todos
-  - `todo/TodoUI.js` - Todo UI components
+### 2. Terminal Reliability
 
-#### 2. Create Common Utilities
-- **Storage Utility** (62 localStorage operations across 6 files)
-  - Standardized get/set/remove operations
-  - JSON serialization/deserialization
-  - Error handling and validation
-  
-- **Event Handling Utility** (140 addEventListener calls across 21 files)
-  - Event delegation patterns
-  - Event cleanup management
-  - Standardized event handler patterns
+The assistant surface is now `orchestrator/modules/assistant-terminal.js`, backed
+by `ipc/terminalHandlers.js`. Keep this path focused on launching `codex`,
+`claude`, `gemini`, and the user's login shell.
 
-### **Phase 2: Architecture Improvements (Next)**
+Open refactors:
 
-#### 3. Extract Common Patterns
-- **Timer/Interval Utility**
-  - setTimeout/setInterval management
-  - Timer cleanup and cancellation
-  - Recurring timer patterns
+- Keep xterm sizing and theme changes isolated from pane state.
+- Prefer PTY behavior; pipe fallback should remain a degraded path only.
+- Add packaged-app smoke coverage for terminal spawn, resize, input, and shell
+restart after exit.
 
-- **UI State Management Utility**
-  - Modal, panel, dialog management
-  - State persistence
-  - Animation and transitions
+### 3. Theme Coverage
 
-#### 4. Module Organization
-Files with classes needing organization:
-- `ai-flow-detection.js`
-- `ai-writing-companion.js`
-- `challenges-ui.js`
-- `circle.js`
-- `collaborative-challenges.js`
-- `gamification.js`
-- `graph.js`
-- `previewZoom.js`
-- `tagManager.js`
-- `todo-gamification.js`
-- `wholepart.js`
+Managed themes should cover legacy inline NightOwl chrome without each feature
+inventing its own palette. Continue moving hardcoded panel/card colors into
+classes and CSS variables, then cover those classes in
+`css/techne-theme-adapter.css` and `tests/e2e/theme-consistency.spec.js`.
 
-**Improvements needed:**
-- Dependency injection instead of tight coupling
-- Interface standardization for similar classes
-- Factory patterns for class instantiation
+Immediate candidates:
 
-### **Phase 3: Advanced Refactoring (Future)**
+- Statistics, settings, search, citation, and footnote panes.
+- Toolbar separators, labels, tab bars, and modal empty/error states.
+- Monaco-adjacent surfaces where CSS can cover the surrounding chrome.
 
-#### 5. Communication Patterns
-- **Observer Pattern Implementation**
-  - Cross-module communication
-  - Event-driven architecture
-  - Reduced coupling between modules
+### 4. Feature Modules Before New Abstractions
 
-- **Module Registry System**
-  - Dynamic module loading
-  - Dependency resolution
-  - Plugin architecture
+Avoid rebuilding a plugin marketplace for local app features. Use
+`orchestrator/modules/feature-loader.js` for native optional features, and only
+extract portable packages after a feature has stabilized in NightOwl.
 
-#### 6. Development Experience
-- **TypeScript/JSDoc Types**
-  - Better IDE support
-  - Runtime type checking
-  - Documentation generation
+Keep module boundaries practical:
 
-- **Testing Infrastructure**
-  - Unit test setup for refactored modules
-  - Integration test patterns
-  - Mock utilities
+- One module should own one user-facing workflow.
+- Shared utilities should appear only after repeated behavior is real.
+- Test the behavioral contract before moving code.
 
-## 📊 Current State Analysis
+## Large Files To Watch
 
-### Large Files by Line Count:
-1. `gamification.js` - 4,166 lines
-2. `ai-writing-companion.js` - 2,906 lines  
-3. `ai-flow-detection.js` - 1,699 lines
-4. `settings.js` - 1,663 lines (recently refactored)
-5. `todo-gamification.js` - 1,226 lines
-6. `previewZoom.js` - 1,157 lines
-7. `formatting.js` - 981 lines
-8. `assistant-terminal.js` - terminal-first assistant launcher replacing the retired `aiChat.js`
-9. `kanban.js` - 924 lines
-10. `listManagement.js` - 902 lines
+These files are still worth decomposing, but only when active work touches them:
 
-### Pattern Analysis:
-- **localStorage operations**: 62 across 6 files
-- **addEventListener calls**: 140 across 21 files
-- **Class definitions**: 11 files using classes
-- **Function definitions**: 141 functions across 16 files
+- `orchestrator/renderer.js`
+- `orchestrator/modules/gamification.js`
+- `orchestrator/modules/gamification/world/LibraryExplorerView.js`
+- `orchestrator/modules/settings.js`
+- `orchestrator/modules/previewZoom.js`
+- `orchestrator/modules/formatting.js`
+- `orchestrator/modules/todo-gamification.js`
+- `orchestrator/modules/assistant-terminal.js`
 
-## 🎯 Success Metrics
+## Success Criteria
 
-### Maintainability
-- [ ] Reduce average file size to under 500 lines
-- [ ] Maximum function length under 50 lines
-- [ ] Clear separation of concerns
-- [ ] Standardized error handling
-
-### Code Quality
-- [ ] Eliminate code duplication
-- [ ] Consistent coding patterns
-- [ ] Comprehensive documentation
-- [ ] Type safety improvements
-
-### Developer Experience
-- [ ] Faster development cycles
-- [ ] Easier debugging
-- [ ] Better IDE support
-- [ ] Simplified testing
-
-## 📋 Implementation Strategy
-
-### Week 1-2: Foundation
-1. Break down `gamification.js` into core modules
-2. Create storage and event utilities
-3. Update documentation
-
-### Week 3-4: Architecture
-1. Implement module communication patterns
-2. Standardize class interfaces
-3. Create factory patterns
-
-### Week 5-6: Polish
-1. Add comprehensive testing
-2. Improve type definitions
-3. Optimize performance
-
-This plan provides a roadmap for systematic improvement of the codebase while maintaining functionality and improving developer productivity.
+- Startup and packaged-app smoke tests catch regressions before manual use.
+- Theme changes do not leave obvious off-palette legacy panels.
+- Terminal input remains live after resize, theme change, process exit, and pane
+  toggles.
+- File tree changes are incremental and avoid full rescans unless structure
+  actually changed.
+- Roadmap items are represented as working native modules, not stale planning
+  artifacts.

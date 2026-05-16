@@ -1537,6 +1537,7 @@ function generateKanbanSettings() {
     const columns = kanbanSettings.columns || [];
     const doneMarkers = kanbanSettings.doneMarkers || [];
     const inProgressMarkers = kanbanSettings.inProgressMarkers || [];
+    const groupSize = kanbanSettings.groupSize || 12;
     
     return `
         <div class="settings-section">
@@ -1573,6 +1574,14 @@ function generateKanbanSettings() {
                 <label>
                     <input type="checkbox" id="kanban-auto-save" ${kanbanSettings.autoSave ? 'checked' : ''}>
                     <span>Auto-save changes when tasks are moved</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="kanban-grouping" ${kanbanSettings.enableGrouping !== false ? 'checked' : ''}>
+                    <span>Group tasks by Markdown headings</span>
+                </label>
+                <label>
+                    <input type="number" id="kanban-group-size" value="${groupSize}" min="4" max="50" step="1">
+                    <span>Maximum tasks per group before splitting</span>
                 </label>
             </div>
         </div>
@@ -2761,6 +2770,18 @@ function collectSettingsFromForm() {
     if (kanbanAutoSave !== undefined) {
         if (!updatedSettings.kanban) updatedSettings.kanban = {};
         updatedSettings.kanban.autoSave = kanbanAutoSave;
+    }
+
+    const kanbanGrouping = document.getElementById('kanban-grouping')?.checked;
+    if (kanbanGrouping !== undefined) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.enableGrouping = kanbanGrouping;
+    }
+
+    const kanbanGroupSize = document.getElementById('kanban-group-size')?.value;
+    if (kanbanGroupSize) {
+        if (!updatedSettings.kanban) updatedSettings.kanban = {};
+        updatedSettings.kanban.groupSize = parseInt(kanbanGroupSize, 10);
     }
     
     // Kanban columns

@@ -7,6 +7,7 @@ describe('fileHandlers registration', () => {
   let ipcMain;
   let dialog;
   let shell;
+  let BrowserWindow;
 
   function getRegisteredHandler(channel) {
     const entry = ipcMain.handle.mock.calls.find(([name]) => name === channel);
@@ -18,8 +19,10 @@ describe('fileHandlers registration', () => {
 
   beforeEach(() => {
     jest.resetModules();
-    ({ ipcMain, dialog, shell } = require('electron'));
+    ({ ipcMain, dialog, shell, BrowserWindow } = require('electron'));
     ipcMain.handle.mockClear();
+    BrowserWindow.getAllWindows = jest.fn(() => []);
+    BrowserWindow.fromWebContents = jest.fn(() => null);
     dialog.showOpenDialog.mockReset();
     shell.openPath.mockClear();
     shell.openExternal.mockClear();
@@ -88,6 +91,39 @@ describe('fileHandlers registration', () => {
       workingDirectory: '/workspace/next',
       workspaceFolders: []
     });
+  });
+
+  test('refresh-file-tree broadcasts to every live renderer window', async () => {
+    const sendA = jest.fn();
+    const sendB = jest.fn();
+    BrowserWindow.getAllWindows.mockReturnValue([
+      {
+        isDestroyed: () => false,
+        webContents: { isDestroyed: () => false, send: sendA }
+      },
+      {
+        isDestroyed: () => false,
+        webContents: { isDestroyed: () => false, send: sendB }
+      }
+    ]);
+
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => null),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => '/workspace/current'),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: '/workspace/current',
+      userDataPath: '/mock/user-data'
+    });
+
+    const handler = getRegisteredHandler('refresh-file-tree');
+    await expect(handler({})).resolves.toEqual({ success: true });
+
+    expect(sendA).toHaveBeenCalledWith('refresh-file-tree');
+    expect(sendB).toHaveBeenCalledWith('refresh-file-tree');
   });
 
   test('show-confirm-dialog renders exact paths and cancel-default buttons', async () => {
