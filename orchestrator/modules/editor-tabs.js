@@ -19,7 +19,7 @@
         '.md': 'markdown', '.markdown': 'markdown',
         '.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
         '.ts': 'typescript', '.tsx': 'typescriptreact', '.jsx': 'javascriptreact',
-        '.json': 'json', '.jsonc': 'json',
+        '.json': 'json', '.jsonc': 'json', '.jsonl': 'json',
         '.html': 'html', '.htm': 'html',
         '.css': 'css', '.scss': 'scss', '.less': 'less',
         '.py': 'python',

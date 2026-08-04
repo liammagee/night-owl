@@ -123,6 +123,20 @@ describe('TabManager', () => {
         expect(tm.tabs.size).toBe(1);
     });
 
+    test('creates JSONL tabs with JSON syntax support', () => {
+        const tab = window.tabManager.createTab('/home/user/labels.jsonl', '{"id":"a"}\n');
+
+        expect(tab.language).toBe('json');
+        expect(window.monaco.editor.createModel).toHaveBeenCalledWith('{"id":"a"}\n', 'json');
+    });
+
+    test('creates CSV tabs as editable plain text models', () => {
+        const tab = window.tabManager.createTab('/home/user/labels.csv', 'id,score\na,5\n');
+
+        expect(tab.language).toBe('plaintext');
+        expect(window.monaco.editor.createModel).toHaveBeenCalledWith('id,score\na,5\n', 'plaintext');
+    });
+
     test('evicts least-recently-opened clean tabs when model memory budget is exceeded', () => {
         const tm = window.tabManager;
         const first = tm.createTab('/home/user/a.md', 'aaaaaa');
