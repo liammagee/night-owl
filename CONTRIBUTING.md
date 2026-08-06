@@ -19,11 +19,17 @@ npm run electron-dev
 npm run test:unit        # Unit tests
 npm run test:e2e         # E2E tests (requires display)
 npm run test:all         # All tests
+
+# Run the repository-owned pre-push gate
+npm run ci:local
 ```
+
+See [Local CI](docs/development/LOCAL_CI.md) for worktree dependency reuse,
+release checks, capability skips, and the optional pre-push hook.
 
 ## Pull Request Process
 
-1. Ensure tests pass: `npm run test:all`
+1. Ensure local CI passes: `npm run ci:local`
 2. Update documentation if needed
 3. Use clear, descriptive commit messages
 4. Reference any related issues

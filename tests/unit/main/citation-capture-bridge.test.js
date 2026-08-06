@@ -6,6 +6,8 @@ const {
   createCitationCaptureServer
 } = require('../../../services/citationCaptureBridge');
 
+const loopbackTest = process.env.NIGHTOWL_TEST_LOOPBACK === '0' ? test.skip : test;
+
 function requestJson({ method = 'GET', url, headers = {}, body = '' }) {
   return new Promise((resolve, reject) => {
     const target = new URL(url);
@@ -65,7 +67,7 @@ describe('Citation Capture Bridge', () => {
     expect(normalized.source).toBe('bookmarklet');
   });
 
-  test('capture server accepts GET and POST capture requests', async () => {
+  loopbackTest('capture server accepts GET and POST capture requests', async () => {
     const captures = [];
     const server = createCitationCaptureServer({
       host: '127.0.0.1',
@@ -74,38 +76,40 @@ describe('Citation Capture Bridge', () => {
       logger: console
     });
 
-    const address = await server.start();
-    const baseUrl = `http://${address.host}:${address.port}`;
+    try {
+      const address = await server.start();
+      const baseUrl = `http://${address.host}:${address.port}`;
 
-    const health = await requestJson({ url: `${baseUrl}/health` });
-    expect(health.statusCode).toBe(200);
-    expect(health.payload.success).toBe(true);
+      const health = await requestJson({ url: `${baseUrl}/health` });
+      expect(health.statusCode).toBe(200);
+      expect(health.payload.success).toBe(true);
 
-    const getCapture = await requestJson({
-      url: `${baseUrl}/capture?text=10.1000%2Fabc123&source=bookmarklet`
-    });
-    expect(getCapture.statusCode).toBe(200);
-    expect(getCapture.payload.success).toBe(true);
+      const getCapture = await requestJson({
+        url: `${baseUrl}/capture?text=10.1000%2Fabc123&source=bookmarklet`
+      });
+      expect(getCapture.statusCode).toBe(200);
+      expect(getCapture.payload.success).toBe(true);
 
-    const postCapture = await requestJson({
-      method: 'POST',
-      url: `${baseUrl}/capture`,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: '@article{test2026,title={Test}}',
-        title: 'Test',
-        url: 'https://example.org/paper',
-        source: 'extension'
-      })
-    });
-    expect(postCapture.statusCode).toBe(200);
-    expect(postCapture.payload.success).toBe(true);
+      const postCapture = await requestJson({
+        method: 'POST',
+        url: `${baseUrl}/capture`,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: '@article{test2026,title={Test}}',
+          title: 'Test',
+          url: 'https://example.org/paper',
+          source: 'extension'
+        })
+      });
+      expect(postCapture.statusCode).toBe(200);
+      expect(postCapture.payload.success).toBe(true);
 
-    expect(captures).toHaveLength(2);
-    expect(captures[0].rawText).toContain('10.1000/abc123');
-    expect(captures[1].rawText).toContain('@article{test2026');
-    expect(captures[1].source).toBe('extension');
-
-    await server.stop();
+      expect(captures).toHaveLength(2);
+      expect(captures[0].rawText).toContain('10.1000/abc123');
+      expect(captures[1].rawText).toContain('@article{test2026');
+      expect(captures[1].source).toBe('extension');
+    } finally {
+      await server.stop();
+    }
   });
 });

@@ -37,4 +37,15 @@ describe('npm scripts sanity checks', () => {
 
     throw new Error(`Unsupported dev script format: "${devScript}"`);
   });
+
+  test('local CI scripts point to tracked repository entry points', () => {
+    const packageJson = readPackageJson();
+
+    expect(packageJson.scripts['ci:local']).toBe('node scripts/local-ci.js');
+    expect(packageJson.scripts['ci:local:release']).toBe('node scripts/local-ci.js --release');
+    expect(packageJson.scripts['ci:hook:install']).toBe('node scripts/install-local-ci-hook.js');
+    expect(packageJson.scripts['ci:hook:uninstall']).toBe('node scripts/install-local-ci-hook.js --uninstall');
+    expect(fs.existsSync(path.join(repoRoot, 'scripts/local-ci.js'))).toBe(true);
+    expect(fs.existsSync(path.join(repoRoot, '.githooks/pre-push'))).toBe(true);
+  });
 });

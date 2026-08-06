@@ -172,38 +172,55 @@ describe('fileHandlers registration', () => {
     const tempDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-watch-'));
     const filePath = path.join(tempDir, 'watched.md');
     fsSync.writeFileSync(filePath, 'initial\n', 'utf8');
-
-    const send = jest.fn();
-    fileHandlers.register({
-      appSettings: {},
-      saveSettings: jest.fn(),
-      getMainWindow: jest.fn(() => ({ webContents: { send } })),
-      getCurrentFilePath: jest.fn(),
-      setCurrentFilePath: jest.fn(),
-      getCurrentWorkingDirectory: jest.fn(() => tempDir),
-      setCurrentWorkingDirectory: jest.fn(),
-      currentWorkingDirectory: tempDir,
-      userDataPath: '/mock/user-data'
+    let watchCallback;
+    const watcher = {
+      close: jest.fn(),
+      on: jest.fn()
+    };
+    watcher.on.mockReturnValue(watcher);
+    const watchSpy = jest.spyOn(fsSync, 'watch').mockImplementation((_directory, _options, callback) => {
+      watchCallback = callback;
+      return watcher;
     });
+    const send = jest.fn();
+    let setCurrentFile;
 
-    const setCurrentFile = getRegisteredHandler('set-current-file');
-    setCurrentFile(null, filePath);
+    jest.useFakeTimers();
+    try {
+      fileHandlers.register({
+        appSettings: {},
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => tempDir),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: tempDir,
+        userDataPath: '/mock/user-data'
+      });
 
-    await new Promise(resolve => setTimeout(resolve, 50));
-    fsSync.writeFileSync(filePath, 'changed on disk\n', 'utf8');
+      setCurrentFile = getRegisteredHandler('set-current-file');
+      setCurrentFile(null, filePath);
+      expect(watchSpy).toHaveBeenCalledWith(tempDir, { persistent: false }, expect.any(Function));
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+      fsSync.writeFileSync(filePath, 'changed on disk\n', 'utf8');
+      watchCallback('change', Buffer.from(path.basename(filePath)));
+      jest.advanceTimersByTime(151);
 
-    expect(send).toHaveBeenCalledWith(
-      'current-file-changed-on-disk',
-      expect.objectContaining({
-        filePath,
-        size: Buffer.byteLength('changed on disk\n')
-      })
-    );
-
-    setCurrentFile(null, null);
-    fsSync.rmSync(tempDir, { recursive: true, force: true });
+      expect(send).toHaveBeenCalledWith(
+        'current-file-changed-on-disk',
+        expect.objectContaining({
+          filePath,
+          size: Buffer.byteLength('changed on disk\n')
+        })
+      );
+    } finally {
+      if (setCurrentFile) setCurrentFile(null, null);
+      expect(watcher.close).toHaveBeenCalled();
+      watchSpy.mockRestore();
+      jest.useRealTimers();
+      fsSync.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   test('open-external opens web URLs in the browser instead of treating them as file paths', async () => {

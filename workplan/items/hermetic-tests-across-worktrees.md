@@ -1,11 +1,11 @@
 ---
 id: "hermetic-tests-across-worktrees"
 title: "Make unit and integration tests portable across worktrees"
-status: "triaged"
+status: "done"
 type: "testing"
 priority: "P2"
 area: "testing"
-owner: "unassigned"
+owner: "codex"
 source: "test-failure"
 evidence: "test-failure"
 created: "2026-08-07"
@@ -23,16 +23,17 @@ the package. The citation capture bridge test could not bind localhost in the
 restricted environment, and a watcher test hit `EMFILE`. The missing entitlement
 failure is a real release defect tracked separately.
 
-## Proposed change
+## Implemented change
 
-Resolve fixtures through Node package resolution, make network tests injectable
-or explicitly capability-gated, and ensure watcher tests close resources even
-on failure. Document the supported worktree dependency model or provide a
-bootstrap command.
+Dictionary fixtures now use Node package resolution. The local CI runner probes
+loopback support and explicitly skips only the server-binding test when that
+capability is unavailable. The watcher test injects its watcher, uses fake
+timers, and asserts cleanup. Shared worktree dependencies are discovered through
+Git's common directory and rejected when lockfiles differ.
 
 ## Acceptance criteria
 
-- [ ] Tests do not infer dependency paths from the repository directory.
-- [ ] Loopback-dependent tests distinguish unavailable capability from assertion failure.
-- [ ] Watcher tests prove cleanup and avoid fixed timing where possible.
-- [ ] Test summaries clearly separate environment skips from application failures.
+- [x] Tests do not infer dependency paths from the repository directory.
+- [x] Loopback-dependent tests distinguish unavailable capability from assertion failure.
+- [x] Watcher tests prove cleanup and avoid fixed timing where possible.
+- [x] Test summaries clearly separate environment skips from application failures.
