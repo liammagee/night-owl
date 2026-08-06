@@ -1,0 +1,405 @@
+{
+  "generated": "2026-08-07T00:00:00.000Z",
+  "counts": {
+    "total": 18,
+    "byStatus": {
+      "triaged": 18
+    },
+    "byPriority": {
+      "P0": 2,
+      "P1": 6,
+      "P2": 10
+    },
+    "byArea": {
+      "presentation": 3,
+      "preview": 1,
+      "testing": 2,
+      "packaging": 2,
+      "security": 2,
+      "architecture": 3,
+      "accessibility": 1,
+      "performance": 1,
+      "platform": 2,
+      "editor": 1
+    }
+  },
+  "items": [
+    {
+      "id": "fit-presentation-slides-to-viewport",
+      "title": "Fit complete presentation slides inside the viewport",
+      "status": "triaged",
+      "type": "bug",
+      "priority": "P0",
+      "area": "presentation",
+      "owner": "unassigned",
+      "source": "computer-use",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "At the minimum supported window and in Present mode, every edge of a 16:9 slide is visible without internal slide scrolling or adjacent-slide overlap.",
+      "tags": [
+        "layout",
+        "slides",
+        "viewport"
+      ]
+    },
+    {
+      "id": "reliable-editor-preview-transitions",
+      "title": "Make file opening and preview rendering latest-wins",
+      "status": "triaged",
+      "type": "bug",
+      "priority": "P0",
+      "area": "preview",
+      "owner": "unassigned",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A rapid A-B-A file-switch test with delayed settings and markdown rendering always leaves the editor, preview, tab, status, and current path on the final A request.",
+      "tags": [
+        "async",
+        "editor",
+        "preview",
+        "reliability"
+      ]
+    },
+    {
+      "id": "modernize-electron-e2e-harness",
+      "title": "Replace stale browser-style E2E tests with reliable Electron workflows",
+      "status": "triaged",
+      "type": "testing",
+      "priority": "P1",
+      "area": "testing",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "The default E2E command runs a small deterministic Electron matrix on macOS and CI, reports real executions versus skips, and covers editor-preview and full-slide geometry.",
+      "tags": [
+        "electron",
+        "playwright",
+        "regression"
+      ]
+    },
+    {
+      "id": "package-tutor-core-writable-data-path",
+      "title": "Keep tutor-core runtime data outside app.asar",
+      "status": "triaged",
+      "type": "bug",
+      "priority": "P1",
+      "area": "packaging",
+      "owner": "unassigned",
+      "source": "computer-use",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A clean packaged launch initializes tutor-core using only app userData paths and emits no app.asar write or ENOTDIR error.",
+      "tags": [
+        "asar",
+        "packaged-app",
+        "tutor-core"
+      ]
+    },
+    {
+      "id": "recover-presentation-load-failures",
+      "title": "Make presentation loading fail visibly and recoverably",
+      "status": "triaged",
+      "type": "bug",
+      "priority": "P1",
+      "area": "presentation",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "Injected feature-loader, React-render, and content-parse failures each show an actionable error and Retry returns to a rendered deck without restarting NightOwl.",
+      "tags": [
+        "error-boundary",
+        "loading",
+        "recovery"
+      ]
+    },
+    {
+      "id": "restore-release-entitlements",
+      "title": "Restore tracked macOS entitlements and clean-build preflight",
+      "status": "triaged",
+      "type": "release",
+      "priority": "P1",
+      "area": "packaging",
+      "owner": "unassigned",
+      "source": "test-failure",
+      "evidence": "test-failure",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "npm run dist:check and the hardened-runtime code-quality guard pass from a fresh clone before electron-builder starts.",
+      "tags": [
+        "build",
+        "macos",
+        "release"
+      ]
+    },
+    {
+      "id": "sanitize-rendered-markdown-and-navigation",
+      "title": "Sanitize rendered Markdown and restrict external navigation",
+      "status": "triaged",
+      "type": "security",
+      "priority": "P1",
+      "area": "security",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A malicious Markdown fixture cannot execute handlers, load disallowed iframe origins, or open a non-allowlisted URI scheme in development or packaged builds.",
+      "tags": [
+        "html",
+        "markdown",
+        "navigation",
+        "xss"
+      ]
+    },
+    {
+      "id": "single-source-mode-and-pane-state",
+      "title": "Use one state model for modes and pane visibility",
+      "status": "triaged",
+      "type": "refactor",
+      "priority": "P1",
+      "area": "architecture",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "Mode and pane transitions pass invariant tests without direct style cleanup, and every consumer observes the same current mode.",
+      "tags": [
+        "mode-switching",
+        "state",
+        "ui"
+      ],
+      "depends_on": [
+        "reliable-editor-preview-transitions",
+        "recover-presentation-load-failures"
+      ]
+    },
+    {
+      "id": "accessible-names-and-presentation-semantics",
+      "title": "Add accessible names and preserve presentation semantics",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "accessibility",
+      "owner": "unassigned",
+      "source": "computer-use",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "Axe and keyboard tests pass for editor and presentation controls, and every visible icon-only control has a stable accessible name.",
+      "tags": [
+        "a11y",
+        "keyboard",
+        "presentation"
+      ],
+      "depends_on": [
+        "modernize-electron-e2e-harness"
+      ]
+    },
+    {
+      "id": "consolidate-presentation-source-and-styles",
+      "title": "Make presentation source, build output, and CSS ownership explicit",
+      "status": "triaged",
+      "type": "refactor",
+      "priority": "P2",
+      "area": "presentation",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "One documented build command deterministically produces the shipped presentation asset, one canonical stylesheet owns slide layout, and CI rejects stale generated output.",
+      "tags": [
+        "build",
+        "css",
+        "presentation"
+      ],
+      "depends_on": [
+        "fit-presentation-slides-to-viewport",
+        "recover-presentation-load-failures"
+      ]
+    },
+    {
+      "id": "decompose-renderer-orchestrator",
+      "title": "Decompose renderer.js around workflow coordinators",
+      "status": "triaged",
+      "type": "refactor",
+      "priority": "P2",
+      "area": "architecture",
+      "owner": "unassigned",
+      "source": "existing-plan",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "File opening, preview routing, file-tree orchestration, and pane transitions have independent modules with contract tests, while renderer.js no longer owns their mutable state.",
+      "tags": [
+        "architecture",
+        "renderer",
+        "technical-debt"
+      ],
+      "depends_on": [
+        "reliable-editor-preview-transitions",
+        "single-source-mode-and-pane-state"
+      ]
+    },
+    {
+      "id": "hermetic-tests-across-worktrees",
+      "title": "Make unit and integration tests portable across worktrees",
+      "status": "triaged",
+      "type": "testing",
+      "priority": "P2",
+      "area": "testing",
+      "owner": "unassigned",
+      "source": "test-failure",
+      "evidence": "test-failure",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A fresh worktree with the documented dependency setup runs all unit and integration projects without hard-coded node_modules paths, port-policy failures, or leaked file watchers.",
+      "tags": [
+        "hermetic",
+        "jest",
+        "worktrees"
+      ]
+    },
+    {
+      "id": "minimize-electron-privilege-surface",
+      "title": "Minimize Electron preload and remote privilege surface",
+      "status": "triaged",
+      "type": "security",
+      "priority": "P2",
+      "area": "security",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "NightOwl runs with no unused @electron/remote enablement, a smaller typed preload API, sender validation for privileged IPC, and an explicit documented reason for every sandbox exception.",
+      "tags": [
+        "electron",
+        "ipc",
+        "preload"
+      ],
+      "depends_on": [
+        "sanitize-rendered-markdown-and-navigation"
+      ]
+    },
+    {
+      "id": "performance-and-large-document-budgets",
+      "title": "Add budgets for startup, file switching, preview, and large documents",
+      "status": "triaged",
+      "type": "testing",
+      "priority": "P2",
+      "area": "performance",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "CI or a documented benchmark job records p50 and p95 startup, file-switch, preview-ready, and presentation-ready timings against fixed small and large fixtures with regression thresholds.",
+      "tags": [
+        "benchmark",
+        "large-files",
+        "performance"
+      ],
+      "depends_on": [
+        "modernize-electron-e2e-harness",
+        "reliable-editor-preview-transitions"
+      ]
+    },
+    {
+      "id": "refresh-architecture-and-build-docs",
+      "title": "Refresh architecture, ownership, and build documentation",
+      "status": "triaged",
+      "type": "docs",
+      "priority": "P2",
+      "area": "architecture",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "Architecture and contributor docs match the current NightOwl directories, IPC names, feature loader, generated assets, workplan flow, and clean build procedure.",
+      "tags": [
+        "architecture",
+        "documentation",
+        "onboarding"
+      ],
+      "depends_on": [
+        "consolidate-presentation-source-and-styles"
+      ]
+    },
+    {
+      "id": "renderer-error-telemetry-and-recovery",
+      "title": "Provide structured diagnostics and recoverable view errors",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "platform",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A user can copy a redacted diagnostic report for a failed view and retry or reset that view without restarting the app.",
+      "tags": [
+        "diagnostics",
+        "errors",
+        "logging"
+      ],
+      "depends_on": [
+        "reliable-editor-preview-transitions",
+        "recover-presentation-load-failures"
+      ]
+    },
+    {
+      "id": "resource-lifecycle-ownership",
+      "title": "Give timers, listeners, observers, and watchers explicit owners",
+      "status": "triaged",
+      "type": "maintenance",
+      "priority": "P2",
+      "area": "platform",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "Repeatedly opening and closing each feature leaves timer, listener, observer, filesystem watcher, and open-file counts at baseline.",
+      "tags": [
+        "lifecycle",
+        "resources",
+        "watchers"
+      ]
+    },
+    {
+      "id": "schema-driven-record-workflows",
+      "title": "Make structured record editing schema-driven",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "editor",
+      "owner": "unassigned",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A workspace can attach a declarative schema to JSONL or CSV files and receive typed controls, required-field validation, completion progress, and export validation without changing NightOwl source.",
+      "tags": [
+        "csv",
+        "jsonl",
+        "labelling",
+        "schema"
+      ],
+      "depends_on": [
+        "reliable-editor-preview-transitions"
+      ]
+    }
+  ]
+}

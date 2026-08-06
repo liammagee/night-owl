@@ -4691,3 +4691,426 @@ body.dark-mode .app-confirm-path-list {
     background: #1e1e1e;
     border-color: #3c3c3c;
 }
+
+/* Structured JSONL/CSV record mode --------------------------------------- */
+
+.jsonl-record-mode {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface, #fefdfb);
+    color: var(--text-color, #24292f);
+}
+
+.jsonl-mode-header,
+.jsonl-mode-footer {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-color: var(--border-color, #d8dee4);
+    background: var(--toolbar-bg, #f7f8fa);
+}
+
+.jsonl-mode-header {
+    min-height: 66px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color, #d8dee4);
+}
+
+.jsonl-mode-eyebrow,
+.jsonl-record-detail-kicker,
+.jsonl-search-label,
+.jsonl-field-type {
+    color: var(--text-muted, #667085);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.jsonl-mode-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.jsonl-mode-title-row h2 {
+    overflow: hidden;
+    max-width: min(56vw, 720px);
+    margin: 2px 0 0;
+    padding: 0;
+    border: 0;
+    font-size: 17px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jsonl-mode-status {
+    color: var(--text-muted, #667085);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.jsonl-mode-status[data-tone="valid"],
+.jsonl-mode-status[data-tone="saved"] {
+    color: #18794e;
+}
+
+.jsonl-mode-status[data-tone="error"] {
+    color: #c62828;
+}
+
+.jsonl-mode-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jsonl-mode-button {
+    min-height: 30px;
+    padding: 5px 11px;
+    border: 1px solid var(--border-color, #cfd6dd);
+    border-radius: 6px;
+    background: var(--surface, #fff);
+    color: var(--text-color, #24292f);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.jsonl-mode-button:hover:not(:disabled) {
+    border-color: var(--accent-color, #2f6feb);
+    color: var(--accent-color, #2f6feb);
+}
+
+.jsonl-mode-button:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+
+.jsonl-mode-body {
+    display: grid;
+    flex: 1;
+    grid-template-columns: minmax(220px, 290px) minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+}
+
+.jsonl-record-sidebar {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 7px;
+    padding: 13px 10px 10px;
+    overflow: hidden;
+    border-right: 1px solid var(--border-color, #d8dee4);
+    background: var(--surface-variant, #f7f8fa);
+}
+
+.jsonl-record-search,
+.jsonl-field-control {
+    box-sizing: border-box;
+    width: 100%;
+    border: 1px solid var(--border-color, #cfd6dd);
+    border-radius: 6px;
+    outline: none;
+    background: var(--surface, #fff);
+    color: var(--text-color, #24292f);
+    font: inherit;
+}
+
+.jsonl-record-search {
+    height: 34px;
+    padding: 6px 9px;
+    font-size: 12px;
+}
+
+.jsonl-record-search:focus,
+.jsonl-field-control:focus {
+    border-color: var(--accent-color, #2f6feb);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color, #2f6feb) 18%, transparent);
+}
+
+.jsonl-record-list-summary {
+    color: var(--text-muted, #667085);
+    font-size: 10px;
+}
+
+.jsonl-record-list {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.jsonl-record-list-item {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px;
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.jsonl-record-list-item:hover {
+    background: var(--surface, #fff);
+}
+
+.jsonl-record-list-item.active {
+    border-color: color-mix(in srgb, var(--accent-color, #2f6feb) 34%, transparent);
+    background: color-mix(in srgb, var(--accent-color, #2f6feb) 9%, var(--surface, #fff));
+}
+
+.jsonl-record-list-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.jsonl-record-list-item-top strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jsonl-record-badge,
+.jsonl-record-detail-badge {
+    max-width: 140px;
+    padding: 2px 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-color, #2f6feb) 11%, transparent);
+    color: var(--accent-color, #2f6feb);
+    font-size: 9px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.jsonl-record-list-snippet {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--text-secondary, #475467);
+    font-size: 10px;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.jsonl-record-line-number {
+    color: var(--text-muted, #98a2b3);
+    font-size: 9px;
+}
+
+.jsonl-record-detail {
+    min-width: 0;
+    overflow-y: auto;
+    padding: clamp(16px, 3vw, 34px);
+}
+
+.jsonl-record-detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    max-width: 980px;
+    margin: 0 auto;
+}
+
+.jsonl-record-detail-header h3 {
+    margin: 4px 0 0;
+    font-size: 24px;
+    line-height: 1.25;
+}
+
+.jsonl-record-detail-badge {
+    max-width: 240px;
+    margin-top: 4px;
+    padding: 4px 9px;
+    font-size: 10px;
+}
+
+.jsonl-record-hint {
+    max-width: 980px;
+    margin: 12px auto 22px;
+    color: var(--text-muted, #667085);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.jsonl-record-form {
+    display: grid;
+    max-width: 980px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin: 0 auto;
+}
+
+.jsonl-field {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border-color, #d8dee4);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+}
+
+.jsonl-field-wide {
+    grid-column: 1 / -1;
+}
+
+.jsonl-field.invalid {
+    border-color: #d92d20;
+}
+
+.jsonl-field-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 7px;
+}
+
+.jsonl-field-label-row label {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.jsonl-field-control {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+textarea.jsonl-field-control {
+    min-height: 76px;
+    resize: vertical;
+}
+
+.jsonl-code-value {
+    font-family: var(--monospace-font, "SFMono-Regular", Consolas, monospace);
+    font-size: 11px;
+}
+
+.jsonl-field-error {
+    margin-top: 6px;
+    color: #c62828;
+    font-size: 11px;
+}
+
+.jsonl-mode-footer {
+    justify-content: center;
+    min-height: 48px;
+    padding: 7px 14px;
+    border-top: 1px solid var(--border-color, #d8dee4);
+}
+
+.jsonl-position {
+    min-width: 70px;
+    color: var(--text-muted, #667085);
+    font-size: 11px;
+    text-align: center;
+}
+
+.jsonl-error-panel,
+.jsonl-empty-state {
+    max-width: 720px;
+    margin: 32px auto;
+    padding: 20px;
+    border: 1px solid #f2b8b5;
+    border-radius: 8px;
+    background: #fff6f5;
+    color: #7a271a;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.jsonl-error-panel h3 {
+    margin: 0 0 8px;
+}
+
+.jsonl-empty-state {
+    border-color: var(--border-color, #d8dee4);
+    background: var(--surface-variant, #f7f8fa);
+    color: var(--text-muted, #667085);
+    text-align: center;
+}
+
+body.dark-mode .jsonl-record-mode,
+body.dark-theme .jsonl-record-mode {
+    background: #1e1e1e;
+    color: #e5e7eb;
+}
+
+body.dark-mode .jsonl-mode-header,
+body.dark-mode .jsonl-mode-footer,
+body.dark-mode .jsonl-record-sidebar,
+body.dark-theme .jsonl-mode-header,
+body.dark-theme .jsonl-mode-footer,
+body.dark-theme .jsonl-record-sidebar {
+    border-color: #3c3c3c;
+    background: #252526;
+}
+
+body.dark-mode .jsonl-mode-button,
+body.dark-mode .jsonl-record-search,
+body.dark-mode .jsonl-field,
+body.dark-mode .jsonl-field-control,
+body.dark-theme .jsonl-mode-button,
+body.dark-theme .jsonl-record-search,
+body.dark-theme .jsonl-field,
+body.dark-theme .jsonl-field-control {
+    border-color: #454545;
+    background: #2d2d2d;
+    color: #e5e7eb;
+}
+
+body.dark-mode .jsonl-record-list-item:hover,
+body.dark-theme .jsonl-record-list-item:hover {
+    background: #2d2d2d;
+}
+
+body.dark-mode .jsonl-record-list-item.active,
+body.dark-theme .jsonl-record-list-item.active {
+    background: #26364d;
+}
+
+body.dark-mode .jsonl-error-panel,
+body.dark-theme .jsonl-error-panel {
+    border-color: #7f1d1d;
+    background: #3b1f1f;
+    color: #fecaca;
+}
+
+@media (max-width: 860px) {
+    .jsonl-mode-body {
+        grid-template-columns: minmax(180px, 34%) minmax(0, 1fr);
+    }
+
+    .jsonl-record-form {
+        grid-template-columns: 1fr;
+    }
+
+    .jsonl-field-wide {
+        grid-column: auto;
+    }
+}

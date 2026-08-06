@@ -182,7 +182,7 @@
   function detectLanguage(filePath) {
     if (filePath.endsWith('.js')) return 'javascript';
     if (filePath.endsWith('.ts')) return 'typescript';
-    if (filePath.endsWith('.json')) return 'json';
+    if (filePath.endsWith('.json') || filePath.endsWith('.jsonl')) return 'json';
     if (filePath.endsWith('.html') || filePath.endsWith('.htm')) return 'html';
     if (filePath.endsWith('.css')) return 'css';
     if (filePath.endsWith('.md')) return 'markdown';

@@ -808,6 +808,16 @@ async function updatePreviewAndStructure(markdownContent) {
         }
         return;
     }
+
+    // JSONL and CSV use a record-oriented preview/editor while Monaco remains
+    // the source of truth. The mode handles activation and restoration itself.
+    const recordMode = window.recordMode || window.jsonlMode;
+    if (recordMode?.handlePreviewUpdate?.(window.currentFilePath, markdownContent)) {
+        if (activeFileLoadToken) {
+            finishLargeFileIndicator(activeFileLoadToken);
+        }
+        return;
+    }
     
     if (!previewContent) {
         console.error('[renderer.js] previewContent element not found!');
@@ -4087,6 +4097,7 @@ async function initializeMonacoEditor() {
             
             // Make editor available globally for formatting functions
             window.editor = editor;
+            (window.recordMode || window.jsonlMode)?.syncToCurrentFile?.();
 
             // If we loaded a restored file directly into Monaco, update the navigation/filename display
             if (window.restoredFileContent && window.currentFilePath) {
@@ -6208,6 +6219,8 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     const isImageFile = /\.(png|jpg|jpeg|gif|bmp|svg|webp|ico)$/i.test(filePath);
     const isHTML = isHTMLFilePath(filePath);
     const isBibTeX = filePath.endsWith('.bib');
+    const isJSONL = filePath.toLowerCase().endsWith('.jsonl');
+    const isCSV = filePath.toLowerCase().endsWith('.csv');
     const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
     const isLargeMarkdown = isMarkdown && content && content.length >= LARGE_MARKDOWN_CHAR_THRESHOLD;
     const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile;
@@ -6335,9 +6348,10 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         }
     }
 
-    // Handle editable files (Markdown, BibTeX)
-    await handleEditableFile(filePath, content, { isBibTeX, isMarkdown }, {
-        syncCurrentFileAfterModel: shouldDeferCurrentFileSync
+    // Handle editable text files, including structured JSONL and CSV records.
+    await handleEditableFile(filePath, content, { isBibTeX, isMarkdown, isJSONL, isCSV }, {
+        syncCurrentFileAfterModel: shouldDeferCurrentFileSync,
+        skipPresentationSync: isJSONL || isCSV
     });
     
     // Update AI chat context when file changes
@@ -6676,6 +6690,14 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
             } else if (fileTypes.isHTML) {
                 monaco.editor.setModelLanguage(currentModel, 'html');
                 const t = getMonacoTheme('html');
+                if (t) monaco.editor.setTheme(t);
+            } else if (fileTypes.isJSONL) {
+                monaco.editor.setModelLanguage(currentModel, 'json');
+                const t = getMonacoTheme('json');
+                if (t) monaco.editor.setTheme(t);
+            } else if (fileTypes.isCSV) {
+                monaco.editor.setModelLanguage(currentModel, 'plaintext');
+                const t = getMonacoTheme('plaintext');
                 if (t) monaco.editor.setTheme(t);
             } else {
                 monaco.editor.setModelLanguage(currentModel, 'markdown');

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://machinespirits.org/nightowl/workplan/item.schema.json",
+  "title": "NightOwl engineering work item",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "status",
+    "type",
+    "priority",
+    "area",
+    "owner",
+    "source",
+    "evidence",
+    "created",
+    "updated",
+    "verification"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": ["inbox", "triaged", "active", "blocked", "review", "done", "archived", "dropped"]
+    },
+    "type": {
+      "enum": ["bug", "refactor", "enhancement", "maintenance", "security", "testing", "docs", "release"]
+    },
+    "priority": { "enum": ["P0", "P1", "P2", "P3"] },
+    "area": {
+      "enum": ["editor", "preview", "presentation", "files", "packaging", "platform", "testing", "security", "accessibility", "architecture", "performance"]
+    },
+    "owner": { "enum": ["human", "codex", "unassigned"] },
+    "source": {
+      "enum": ["user-report", "systematic-review", "test-failure", "computer-use", "existing-plan", "manual"]
+    },
+    "evidence": {
+      "enum": ["reproduced", "test-failure", "source-analysis", "opportunity"]
+    },
+    "created": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "updated": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "verification": { "type": "string", "minLength": 1 },
+    "blocked_by": { "type": "string", "minLength": 1 },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+    }
+  }
+}

@@ -33,6 +33,7 @@
 
     function setCurrentFilePath(filePath, options = {}) {
         const nextPath = normalizeFilePath(filePath);
+        const previousPath = normalizeFilePath(window.currentFilePath);
         window.currentFilePath = nextPath;
         window.editorFileName = nextPath;
 
@@ -40,6 +41,12 @@
             window.currentFileDirectory = getDirectoryName(nextPath);
         } else if (options.clearDirectory) {
             window.currentFileDirectory = '';
+        }
+
+        if (previousPath !== nextPath && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('nightowl-current-file-changed', {
+                detail: { filePath: nextPath, previousFilePath: previousPath }
+            }));
         }
 
         if (options.syncMain) {
