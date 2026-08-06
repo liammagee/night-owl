@@ -460,6 +460,35 @@ describe('Code quality guardrails', () => {
     expect(presentationPackage.peerDependencies['react-dom']).toBe('>=18 <20');
   });
 
+  test('presentation delivery runtime fits one complete slide without canvas leakage', () => {
+    const presentationPlugin = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/plugin.js'), 'utf8');
+    const presentationSource = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/src/MarkdownPreziApp.jsx'), 'utf8');
+    const presentationRuntime = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/MarkdownPreziApp.js'), 'utf8');
+    const presentationCss = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/preview-presentation.css'), 'utf8');
+
+    expect(presentationPlugin).toContain('`${BASE}/presentation-viewport.js`');
+    expect(presentationPlugin.indexOf('`${BASE}/presentation-viewport.js`'))
+      .toBeLessThan(presentationPlugin.indexOf('`${BASE}/touch-gestures.js`'));
+
+    for (const componentSource of [presentationSource, presentationRuntime]) {
+      expect(componentSource).toContain('NightOwlPresentationViewport');
+      expect(componentSource).toContain('presentation-current-slide');
+      expect(componentSource).toContain('presentation-stage');
+      expect(componentSource).toContain('slide-content-frame');
+      expect(componentSource).toContain('slide-content-delivery');
+    }
+
+    expect(presentationSource).toContain('if (isPresenting && !isCurrent) return null');
+    expect(presentationSource).toContain('{!isPresenting && (');
+    expect(presentationSource).toContain("data-fit-mode={isPresenting ? 'contain' : 'canvas'}");
+    expect(presentationSource).toContain('Math.min(frame.clientWidth, element.clientWidth)');
+    expect(presentationSource).toContain("transformOrigin: 'top left'");
+    expect(presentationSource).not.toContain('presentation-shell w-full h-screen');
+    expect(presentationCss).toContain('body.is-presenting #presentation-root .presentation-canvas');
+    expect(presentationCss).toContain('body.is-presenting #presentation-root .presentation-stage .presentation-current-slide');
+    expect(presentationCss).toContain('body.is-presenting #presentation-root .slide-content-delivery');
+  });
+
   test('file pane toolbar remains compact inside the activity sidebar', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
 

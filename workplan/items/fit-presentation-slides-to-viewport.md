@@ -1,11 +1,11 @@
 ---
 id: "fit-presentation-slides-to-viewport"
 title: "Fit complete presentation slides inside the viewport"
-status: "triaged"
+status: "review"
 type: "bug"
 priority: "P0"
 area: "presentation"
-owner: "unassigned"
+owner: "codex"
 source: "computer-use"
 evidence: "reproduced"
 created: "2026-08-07"
@@ -34,10 +34,31 @@ center exactly one current slide above the controls. Define explicit content
 overflow policy: warn during authoring, but never silently require scrolling
 during delivery.
 
+## Implemented change
+
+Present mode now derives its canvas scale and pan from the measured stage after
+toolbar, navigation, and inline speaker-notes insets. It renders only the
+current slide, suppresses connection lines, and keeps authoring zoom/pan
+separate from delivery fitting. A dedicated fixed-size clip frame scales
+overflowing content from its authored top-left without introducing nested
+delivery scrollbars; authoring mode instead marks overflowing slides.
+
+The checked-in presentation runtime loads a dependency-free viewport helper
+before the component. Geometry tests cover four viewport sizes, reduced stages,
+and tall, wide, image, and code dimensions. A Markdown fixture exercises the
+same cases in Electron. Live isolated-app verification confirmed complete slide
+edges, all 18 tall-text rows, the table's Status column, the oversized image,
+the long code line, one-slide-only delivery, and refitting above the inline
+speaker-notes panel.
+
+The full local CI gate passed all four stages: 84 suites and 1,160 tests passed;
+one loopback-dependent test was explicitly skipped because this worktree cannot
+bind loopback sockets.
+
 ## Acceptance criteria
 
-- [ ] Fit-to-slide updates on window, toolbar, and speaker-notes resize.
-- [ ] Preview mode keeps canvas zoom/pan while Present mode fits one complete slide.
-- [ ] Tall text, wide tables, images, code, and notes controls have regression fixtures.
-- [ ] No adjacent slide or connection line is visible in Present mode.
-- [ ] A visual or geometry test checks the slide bounding box against the viewport.
+- [x] Fit-to-slide updates on window, toolbar, and speaker-notes resize.
+- [x] Preview mode keeps canvas zoom/pan while Present mode fits one complete slide.
+- [x] Tall text, wide tables, images, code, and notes controls have regression fixtures.
+- [x] No adjacent slide or connection line is visible in Present mode.
+- [x] A visual or geometry test checks the slide bounding box against the viewport.

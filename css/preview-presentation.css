@@ -95,7 +95,8 @@
 
 /* Presentation-specific adjustments for speaker notes */
 body.is-presenting #presentation-root {
-    height: calc(100vh - 200px) !important; /* Default height adjustment */
+    height: 100% !important;
+    min-height: 0 !important;
     overflow: hidden !important;
 }
 
@@ -481,4 +482,81 @@ body.is-presenting ol ol ol,
     list-style-type: lower-roman !important;
     margin: 0.2em 0 !important;
     padding-left: 1.8em !important;
+}
+
+/* Complete-slide viewport fitting */
+.presentation-shell,
+.presentation-stage,
+.presentation-canvas {
+    min-width: 0 !important;
+    min-height: 0 !important;
+}
+
+.presentation-stage {
+    contain: layout paint;
+}
+
+body.is-presenting #presentation-root .presentation-canvas {
+    overflow: visible !important;
+}
+
+body.is-presenting #presentation-root .presentation-stage .presentation-current-slide {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: absolute !important;
+    left: var(--slide-x) !important;
+    top: var(--slide-y) !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 864px !important;
+    max-width: none !important;
+    height: 486px !important;
+    min-height: 486px !important;
+    max-height: none !important;
+    padding: 0 !important;
+    transform: translate(-50%, -50%) !important;
+    overflow: hidden !important;
+}
+
+body.is-presenting #presentation-root .slide-content-frame {
+    overflow: hidden !important;
+}
+
+body.is-presenting #presentation-root .slide-content-delivery {
+    overflow: visible !important;
+}
+
+body.is-presenting #presentation-root .slide-content-delivery table,
+body.is-presenting #presentation-root .slide-content-delivery .presentation-table {
+    display: table !important;
+    width: max-content !important;
+    max-width: none !important;
+    overflow: visible !important;
+}
+
+body.is-presenting #presentation-root .slide-content-delivery pre {
+    width: max-content !important;
+    max-width: none !important;
+    overflow: visible !important;
+}
+
+.slide[data-content-overflow="true"]::after {
+    content: "Content exceeds the 16:9 slide";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 20;
+    padding: 5px 8px;
+    border: 1px solid #b45309;
+    border-radius: 4px;
+    background: #fffbeb;
+    color: #92400e;
+    font: 600 11px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+}
+
+body.is-presenting .slide[data-content-overflow]::after {
+    display: none !important;
 }
