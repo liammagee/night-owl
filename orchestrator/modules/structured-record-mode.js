@@ -361,7 +361,8 @@
         sourceVisible: false,
         container: null,
         savedLayout: null,
-        fieldTimers: new WeakMap(),
+        fieldTimers: new Map(),
+        generation: 0,
         initialized: false
     };
 
@@ -529,12 +530,21 @@
         requestAnimationFrame(() => window.editor?.layout?.());
     }
 
+    function cancelPendingEdits() {
+        for (const timer of state.fieldTimers.values()) {
+            clearTimeout(timer);
+        }
+        state.fieldTimers.clear();
+        state.generation += 1;
+    }
+
     function activate(filePath) {
         const container = createContainer();
         if (!container) return false;
 
         if (state.filePath && state.filePath !== filePath) {
             state.selectedByFile.set(state.filePath, state.selectedIndex);
+            cancelPendingEdits();
         }
         if (state.filePath !== filePath) {
             state.filePath = filePath;
@@ -554,6 +564,7 @@
     }
 
     function deactivate() {
+        cancelPendingEdits();
         if (!state.active) return;
         if (state.filePath) state.selectedByFile.set(state.filePath, state.selectedIndex);
         state.active = false;
@@ -773,8 +784,20 @@
     function scheduleStringCommit(control, recordIndex, key, wrapper) {
         const existing = state.fieldTimers.get(control);
         if (existing) clearTimeout(existing);
+        const editContext = {
+            filePath: state.filePath,
+            generation: state.generation,
+            model: window.editor?.getModel?.()
+        };
         const timer = setTimeout(() => {
             state.fieldTimers.delete(control);
+            if (
+                editContext.generation !== state.generation ||
+                editContext.filePath !== state.filePath ||
+                editContext.model !== window.editor?.getModel?.()
+            ) {
+                return;
+            }
             commitField(recordIndex, key, control.value, wrapper);
         }, 300);
         state.fieldTimers.set(control, timer);
@@ -1032,6 +1055,7 @@
         render,
         handlePreviewUpdate,
         syncToCurrentFile,
+        cancelPendingEdits,
         isActive: () => state.active,
         getState: () => state
     };

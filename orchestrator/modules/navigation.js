@@ -82,6 +82,14 @@ function navigateForward() {
 
 async function openFileFromHistory(historyItem) {
     try {
+        if (typeof window.openFilePathInEditor === 'function') {
+            const outcome = await window.openFilePathInEditor(historyItem.filePath, { source: 'history' });
+            if (outcome?.status === 'committed') {
+                updateNavigationButtons();
+                updateCurrentFileName(historyItem.fileName);
+            }
+            return;
+        }
         const result = await window.electronAPI.invoke('open-file-path', historyItem.filePath);
         if (result.success) {
             await window.openFileInEditor(result.filePath, result.content);

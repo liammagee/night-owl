@@ -28,6 +28,94 @@ function clearCurrentFilePathState(options = {}) {
     return setCurrentFilePathState(null, { ...options, clearDirectory: options.clearDirectory !== false });
 }
 
+const fileTransitionCoordinator = window.NightOwlFileTransitions?.createCoordinator?.();
+if (!fileTransitionCoordinator) {
+    throw new Error('File transition coordinator is not loaded');
+}
+
+let fileTransitionStatusTimer = null;
+
+function getFileTransitionStatusElement() {
+    let element = document.getElementById('file-transition-status');
+    if (element) return element;
+
+    element = document.createElement('div');
+    element.id = 'file-transition-status';
+    element.className = 'file-transition-status';
+    element.setAttribute('role', 'status');
+    element.setAttribute('aria-live', 'polite');
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    return element;
+}
+
+function clearFileTransitionStatus(transition = null) {
+    if (fileTransitionStatusTimer) {
+        clearTimeout(fileTransitionStatusTimer);
+        fileTransitionStatusTimer = null;
+    }
+    const element = document.getElementById('file-transition-status');
+    if (!element) return;
+    if (transition && element.dataset.transitionId && element.dataset.transitionId !== String(transition.id)) {
+        return;
+    }
+    element.replaceChildren();
+    element.style.display = 'none';
+    element.classList.remove('is-error');
+    element.setAttribute('role', 'status');
+    delete element.dataset.transitionId;
+}
+
+function scheduleFileTransitionStatus(transition) {
+    clearFileTransitionStatus();
+    fileTransitionStatusTimer = setTimeout(() => {
+        fileTransitionStatusTimer = null;
+        if (!transition?.isCurrent?.()) return;
+        const element = getFileTransitionStatusElement();
+        element.dataset.transitionId = String(transition.id);
+        element.textContent = `Opening ${transition.key?.split('/').pop() || 'file'}…`;
+        element.style.display = '';
+    }, 120);
+}
+
+function restoreUsableEditorShell() {
+    document.getElementById('image-viewer-container')?.remove();
+    const panesContainer = document.getElementById('panes-container');
+    const modeSwitcher = document.getElementById('mode-switcher');
+    if (panesContainer) panesContainer.style.display = '';
+    if (modeSwitcher) modeSwitcher.style.display = '';
+    exitPDFOnlyMode();
+    window.editor?.layout?.();
+}
+
+function showFileTransitionFailure(transition, error, retry) {
+    if (!transition?.isCurrent?.()) return;
+    if (fileTransitionStatusTimer) {
+        clearTimeout(fileTransitionStatusTimer);
+        fileTransitionStatusTimer = null;
+    }
+    restoreUsableEditorShell();
+    const element = getFileTransitionStatusElement();
+    const message = document.createElement('span');
+    message.textContent = `Could not open ${transition.key?.split('/').pop() || 'file'}: ${error?.message || error}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Retry';
+    button.addEventListener('click', () => {
+        clearFileTransitionStatus();
+        retry?.();
+    });
+    element.replaceChildren(message, button);
+    element.dataset.transitionId = String(transition.id);
+    element.classList.add('is-error');
+    element.setAttribute('role', 'alert');
+    element.style.display = '';
+}
+
+function isTransitionCurrent(transition) {
+    return !transition || transition.isCurrent();
+}
+
 
 // --- Electron IPC (for theme) ---
 // Access IPC functions exposed by preload.js via window.electronAPI
@@ -319,14 +407,14 @@ function _typesetElement(el) {
     }
 }
 
-async function renderMathInContent(container) {
+async function renderMathInContent(container, options = {}) {
     if (!container) return;
     if (typeof window.MathJax === 'undefined' || !window.MathJax) return;
 
     // For small documents or non-preview contexts, typeset everything at once
     const mathElements = container.querySelectorAll('mjx-container, .MathJax, script[type="math/tex"], [class*="math"]');
     const sectionCount = container.querySelectorAll('h1, h2, hr').length;
-    if (sectionCount <= 10) {
+    if (options.eager || sectionCount <= 10) {
         try {
             if (window.MathJax.typesetPromise) {
                 await window.MathJax.typesetPromise([container]);
@@ -399,7 +487,7 @@ async function _renderSingleMermaidBlock(codeBlock) {
 
 // Helper function to render Mermaid diagrams
 // For large documents, defers rendering of offscreen diagrams via IntersectionObserver.
-async function renderMermaidDiagrams(container) {
+async function renderMermaidDiagrams(container, options = {}) {
     if (!window.mermaid) {
         return;
     }
@@ -414,7 +502,7 @@ async function renderMermaidDiagrams(container) {
 
         // For large documents with many mermaid blocks, render lazily
         const sectionCount = container.querySelectorAll('h1, h2, hr').length;
-        if (sectionCount > 10 && mermaidBlocks.length > 2) {
+        if (!options.eager && sectionCount > 10 && mermaidBlocks.length > 2) {
             if (_mermaidObserver) _mermaidObserver.disconnect();
             _mermaidObserver = new IntersectionObserver((entries) => {
                 for (const entry of entries) {
@@ -785,155 +873,127 @@ async function renderMermaidDiagrams(container) {
 // --- Internal Links Functionality ---
 // All internal links functionality has been moved to modules/internalLinks.js
 // --- Update Function Definition ---
-async function updatePreviewAndStructure(markdownContent) {
-    // Ensure markdownContent is a string
+async function updatePreviewAndStructure(markdownContent, options = {}) {
     if (typeof markdownContent !== 'string') {
         markdownContent = markdownContent ? String(markdownContent) : '';
     }
-    
-    // Keep source view in sync when active (only if mirroring editor, not showing independent file)
-    if (previewSourceMode && previewSourceEl && !sourceViewFilePath) {
-        previewSourceEl.textContent = markdownContent;
+    if ((markdownContent === '' || markdownContent == null) && window.editor?.getValue && options.useEditorFallback) {
+        markdownContent = window.editor.getValue();
     }
 
-    // Check if we should suppress this preview update (for PDF/non-markdown files)
-    if (window.suppressNextPreviewUpdate || window.suppressPreviewUpdateCount > 0) {
-        // Suppressing preview update as requested
-        window.suppressNextPreviewUpdate = false;
-        if (window.suppressPreviewUpdateCount > 0) {
-            window.suppressPreviewUpdateCount--;
-        }
-        if (activeFileLoadToken) {
-            finishLargeFileIndicator(activeFileLoadToken);
-        }
-        return;
-    }
+    const currentFilePath = options.filePath ?? window.currentFilePath ?? '';
+    const previewTransition = options.previewTransition || fileTransitionCoordinator.begin(
+        'preview',
+        currentFilePath,
+        { fileTransitionId: options.fileTransition?.id || null }
+    );
+    const isCurrent = () => (
+        previewTransition.isCurrent() &&
+        isTransitionCurrent(options.fileTransition) &&
+        (options.allowPathMismatch || currentFilePath === (window.currentFilePath || ''))
+    );
 
-    // JSONL and CSV use a record-oriented preview/editor while Monaco remains
-    // the source of truth. The mode handles activation and restoration itself.
-    const recordMode = window.recordMode || window.jsonlMode;
-    if (recordMode?.handlePreviewUpdate?.(window.currentFilePath, markdownContent)) {
-        if (activeFileLoadToken) {
-            finishLargeFileIndicator(activeFileLoadToken);
-        }
-        return;
-    }
-    
-    if (!previewContent) {
-        console.error('[renderer.js] previewContent element not found!');
-        if (activeFileLoadToken) {
-            finishLargeFileIndicator(activeFileLoadToken);
-        }
-        return; // Don't proceed if the element is missing
-    }
-    
-    // Ensure markdownContent is defined
-    if (typeof markdownContent === 'undefined' || markdownContent === null) {
-        // Try to get content from editor if available
-        if (window.editor && typeof window.editor.getValue === 'function') {
-            markdownContent = window.editor.getValue();
-        } else {
-            // Only warn if we truly have no content source
-            markdownContent = '';
-            // This is normal on initial load or when called without arguments
-            // console.debug('[renderer.js] No markdown content provided, using empty string');
-        }
-    }
-    
-    // Check if this should be rendered as a Kanban board (async)
-    const currentFilePath = window.currentFilePath;
-    // Check for Kanban rendering
+    try {
+        if (!isCurrent()) return previewTransition.done;
 
-    if (currentFilePath) {
-        // Use cached settings to avoid IPC overhead on every preview update
-        // Settings are cached in window.appSettings and refreshed when changed
-        const settings = window.appSettings || {};
-
-        // Only fetch settings if not cached (first load)
-        const settingsPromise = window.appSettings
-            ? Promise.resolve(settings)
-            : window.electronAPI.invoke('get-settings');
-
-        settingsPromise.then(async settings => {
-            // Cache for future use
-            if (!window.appSettings) window.appSettings = settings;
-                if (typeof shouldRenderAsKanban === 'function' && shouldRenderAsKanban(currentFilePath, settings)) {
-                    const loadToken = activeFileLoadToken;
-                    if (loadToken) {
-                        updateLargeFileIndicator(loadToken, 'Rendering board…');
-                    }
-                    // Title remains consistent - don't change document title for Kanban files
-                    
-                    // Parse Kanban data
-                    const parsedKanban = parseKanbanFromMarkdown(markdownContent, settings);
-                    
-                    // Use intelligent update instead of full re-render
-                    const wasUpdated = updateKanbanBoard(previewContent, parsedKanban, currentFilePath);
-                    
-                    // Always ensure drag-and-drop is set up, regardless of updates
-                    if (settings.kanban?.enableDragDrop) {
-                        const kanbanBoard = previewContent.querySelector('.kanban-board');
-                        if (kanbanBoard) {
-                            setupKanbanDragAndDrop(previewContent, currentFilePath);
-                        }
-                    }
-                    
-                    // Set up task action buttons (edit, delete, add)
-                    const kanbanBoard = previewContent.querySelector('.kanban-board');
-                    if (kanbanBoard) {
-                        setupKanbanTaskActions(previewContent, currentFilePath);
-                    }
-                    
-                    // Only run other setup operations if the board was actually updated
-                    if (wasUpdated) {
-                        // Running additional setup operations
-                        
-                        // Force horizontal scrolling after Kanban renders
-                        setTimeout(() => {
-                            forceKanbanHorizontalScroll();
-                        }, 100);
-                    }
-                    
-                    // Update status bar with Kanban stats
-                    const totalTasks = parsedKanban.tasks.length;
-                    const doneTasks = parsedKanban.tasksByColumn.done?.length || 0;
-                    updateStatusBarWithKanban(totalTasks, doneTasks);
-                    
-                    // Clear structure pane for Kanban view
-                    const structureList = document.getElementById('structure-list');
-                    if (structureList) {
-                        structureList.innerHTML = '<li>📋 Kanban Board View</li>';
-                    }
-                    
-                    // Adjust layout for Kanban view - minimize editor pane
-                    const editorPane = document.getElementById('editor-pane');
-                    const previewPane = document.getElementById('preview-pane');
-                    if (editorPane && previewPane) {
-                        editorPane.style.flex = '0 0 300px'; // Minimize editor to 300px
-                        previewPane.style.flex = '1'; // Preview takes remaining space
-                    }
-                    
-                    if (loadToken) {
-                        finishLargeFileIndicator(loadToken);
-                    }
-                    return; // Exit early for Kanban rendering
-                }
-                
-                // Not a Kanban file - render as regular markdown
-                // Title remains consistent - don't change document title for markdown files
-                await renderRegularMarkdown(markdownContent);
-            })
-            .catch(async error => {
-                console.error('[renderer.js] Error checking Kanban rendering:', error);
-                // Fall back to regular markdown rendering
-                await renderRegularMarkdown(markdownContent);
+        if (previewSourceMode && previewSourceEl && !sourceViewFilePath) {
+            previewTransition.commit(() => {
+                previewSourceEl.textContent = markdownContent;
             });
-        
-        return; // Exit to avoid double rendering
+        }
+
+        const scopedPreviewBlocked = /\.(?:pdf|png|jpe?g|gif|bmp|svg|webp|ico)$/i.test(currentFilePath);
+        if (scopedPreviewBlocked && !options.force) {
+            fileTransitionCoordinator.supersede('preview', 'file-scoped-preview-policy');
+            if (activeFileLoadToken) finishLargeFileIndicator(activeFileLoadToken);
+            return previewTransition.done;
+        }
+
+        const recordMode = window.recordMode || window.jsonlMode;
+        if (/\.(?:jsonl|csv)$/i.test(currentFilePath)) {
+            if (!isCurrent()) return previewTransition.done;
+            const handled = previewTransition.commit(() => (
+                recordMode?.handlePreviewUpdate?.(currentFilePath, markdownContent)
+            ));
+            if (handled.committed && handled.value) {
+                if (activeFileLoadToken) finishLargeFileIndicator(activeFileLoadToken);
+                return fileTransitionCoordinator.complete(previewTransition, { renderer: 'records' });
+            }
+        } else {
+            recordMode?.deactivate?.();
+        }
+
+        if (!previewContent) {
+            throw new Error('Preview container is unavailable');
+        }
+
+        if (/\.html?$/i.test(currentFilePath)) {
+            if (!isCurrent()) return previewTransition.done;
+            previewTransition.commit(() => renderHTMLSourcePreview(currentFilePath, markdownContent));
+            return fileTransitionCoordinator.complete(previewTransition, { renderer: 'html' });
+        }
+
+        let settings = window.appSettings || null;
+        if (!settings && currentFilePath) {
+            settings = await window.electronAPI.invoke('get-settings');
+            if (!isCurrent()) return previewTransition.done;
+            window.appSettings = settings;
+        }
+        settings = settings || {};
+
+        if (currentFilePath && typeof shouldRenderAsKanban === 'function' && shouldRenderAsKanban(currentFilePath, settings)) {
+            if (!isCurrent()) return previewTransition.done;
+            const loadToken = activeFileLoadToken;
+            if (loadToken) updateLargeFileIndicator(loadToken, 'Rendering board…');
+            const parsedKanban = parseKanbanFromMarkdown(markdownContent, settings);
+
+            previewTransition.commit(() => {
+                const wasUpdated = updateKanbanBoard(previewContent, parsedKanban, currentFilePath);
+                const kanbanBoard = previewContent.querySelector('.kanban-board');
+                if (settings.kanban?.enableDragDrop && kanbanBoard) {
+                    setupKanbanDragAndDrop(previewContent, currentFilePath);
+                }
+                if (kanbanBoard) setupKanbanTaskActions(previewContent, currentFilePath);
+                if (wasUpdated) {
+                    setTimeout(() => {
+                    if (previewTransition.isLatest() && window.currentFilePath === currentFilePath) {
+                        forceKanbanHorizontalScroll();
+                    }
+                    }, 100);
+                }
+                const totalTasks = parsedKanban.tasks.length;
+                const doneTasks = parsedKanban.tasksByColumn.done?.length || 0;
+                updateStatusBarWithKanban(totalTasks, doneTasks);
+                const structureList = document.getElementById('structure-list');
+                if (structureList) structureList.innerHTML = '<li>📋 Kanban Board View</li>';
+                const editorPane = document.getElementById('editor-pane');
+                const previewPane = document.getElementById('preview-pane');
+                if (editorPane && previewPane) {
+                    editorPane.style.flex = '0 0 300px';
+                    previewPane.style.flex = '1';
+                }
+                if (loadToken) finishLargeFileIndicator(loadToken);
+            });
+            return fileTransitionCoordinator.complete(previewTransition, { renderer: 'kanban' });
+        }
+
+        const renderResult = await renderRegularMarkdown(markdownContent, {
+            currentFilePath,
+            isCurrent,
+            isLatest: () => previewTransition.isLatest(),
+            previewTransition
+        });
+        if (!isCurrent() || renderResult?.status === 'superseded') return previewTransition.done;
+        return fileTransitionCoordinator.complete(previewTransition, { renderer: 'markdown' });
+    } catch (error) {
+        if (!isCurrent()) return previewTransition.done;
+        console.error('[renderer.js] Preview transition failed:', error);
+        renderPreviewFailure(error, () => updatePreviewAndStructure(markdownContent, {
+            filePath: currentFilePath,
+            force: options.force
+        }));
+        return fileTransitionCoordinator.fail(previewTransition, error);
     }
-    
-    // If no currentFilePath, render regular markdown
-    await renderRegularMarkdown(markdownContent);
 }
 
 // Helper functions for markdown rendering
@@ -944,7 +1004,7 @@ function resetKanbanStateAndLayout() {
     }
 }
 
-function restoreNormalLayout() {
+function restoreNormalLayout(isLatest = () => true) {
     const editorPane = document.getElementById('editor-pane');
     const previewPane = document.getElementById('preview-pane');
     
@@ -959,6 +1019,7 @@ function restoreNormalLayout() {
         
         // Then remove the properties entirely to let CSS defaults take over
         setTimeout(() => {
+            if (!isLatest()) return;
             previewPane.style.removeProperty('max-width');
             previewPane.style.removeProperty('overflow-x');
             previewPane.style.removeProperty('overflow-y');
@@ -1008,12 +1069,13 @@ function checkAndFixCorruptedLayout(editorPane, previewPane) {
     }
 }
 
-function removePreviewOverflowConstraints() {
+function removePreviewOverflowConstraints(isLatest = () => true) {
     if (previewContent) {
         previewContent.style.setProperty('overflow-x', 'visible', 'important');
         previewContent.style.setProperty('overflow-y', 'visible', 'important');
         
         setTimeout(() => {
+            if (!isLatest()) return;
             previewContent.style.removeProperty('overflow-x');
             previewContent.style.removeProperty('overflow-y');
         }, 10);
@@ -1025,6 +1087,7 @@ function removePreviewOverflowConstraints() {
 // Delay scales with document complexity to keep large documents responsive.
 let previewUpdateTimeout = null;
 function debouncedUpdatePreviewAndStructure(markdownContent, delay) {
+    fileTransitionCoordinator.supersede('preview', 'debounced-editor-update');
     if (delay === undefined) {
         // Adaptive delay: count slide separators as a complexity proxy
         const slideCount = (markdownContent.match(/\n---[ \t]*\n/g) || []).length + 1;
@@ -1040,28 +1103,54 @@ function debouncedUpdatePreviewAndStructure(markdownContent, delay) {
         clearTimeout(previewUpdateTimeout);
     }
     previewUpdateTimeout = setTimeout(() => {
-        updatePreviewAndStructure(markdownContent);
+        void updatePreviewAndStructure(markdownContent, { filePath: window.currentFilePath || '' });
         previewUpdateTimeout = null;
     }, delay);
 }
 
-async function renderMarkdownContent(markdownContent) {
+function extractSpeakerNotesForPreview(content, speakerNotesSink) {
+    const notes = [];
+    let noteIndex = 0;
+    const processed = String(content || '').replace(/```notes\n([\s\S]*?)\n```/g, (_match, notesContent) => {
+        const noteId = `speaker-note-${noteIndex}`;
+        notes.push({ id: noteId, content: String(notesContent || '').trim(), index: noteIndex });
+        noteIndex += 1;
+        return `<div class="speaker-notes-placeholder" data-note-id="${noteId}" style="display: none;"></div>`;
+    });
+    speakerNotesSink(notes);
+    return processed;
+}
+
+async function renderMarkdownContent(markdownContent, options = {}) {
+    const targetElement = options.previewElement || previewContent;
+    const filePath = options.filePath ?? window.currentFilePath ?? '';
+    const baseDir = options.baseDir ?? getDirectoryName(filePath) ?? window.appSettings?.workingDirectory ?? '';
+    let speakerNotes = [];
+    const speakerNotesSink = notes => {
+        speakerNotes = Array.isArray(notes) ? notes : [];
+    };
+
     // Prefer the shared Techne markdown renderer plugin when available
     if (window.TechneMarkdownRenderer?.renderPreview) {
         try {
             await window.TechneMarkdownRenderer.renderPreview({
                 markdownContent,
-                previewElement: previewContent,
-                filePath: window.currentFilePath || '',
-                baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory || '',
+                previewElement: targetElement,
+                filePath,
+                baseDir,
                 processAnnotations: typeof processAnnotations === 'function' ? processAnnotations : null,
                 processInternalLinksHTML: typeof processInternalLinksHTML === 'function' ? processInternalLinksHTML : null,
+                speakerNotesSink,
                 previewZoom: window.previewZoom || null,
-                renderMathInContent: typeof renderMathInContent === 'function' ? renderMathInContent : null,
-                renderMermaidDiagrams: typeof renderMermaidDiagrams === 'function' ? renderMermaidDiagrams : null,
-                updateSpeakerNotesDisplay: typeof updateSpeakerNotesDisplay === 'function' ? updateSpeakerNotesDisplay : null
+                renderMathInContent: typeof renderMathInContent === 'function'
+                    ? element => renderMathInContent(element, { eager: true })
+                    : null,
+                renderMermaidDiagrams: typeof renderMermaidDiagrams === 'function'
+                    ? element => renderMermaidDiagrams(element, { eager: true })
+                    : null,
+                updateSpeakerNotesDisplay: null
             });
-            return;
+            return { speakerNotes };
         } catch (pluginError) {
             console.warn('[renderer.js] TechneMarkdownRenderer failed, falling back:', pluginError);
         }
@@ -1072,15 +1161,15 @@ async function renderMarkdownContent(markdownContent) {
         console.error('[renderer.js] Marked library not loaded, using fallback');
         const pre = document.createElement('pre');
         pre.textContent = markdownContent;
-        previewContent.replaceChildren(pre);
-        return;
+        targetElement.replaceChildren(pre);
+        return { speakerNotes };
     }
 
     if (!window.marked) {
         const loading = document.createElement('p');
         loading.textContent = 'Markdown preview loading...';
-        previewContent.replaceChildren(loading);
-        return;
+        targetElement.replaceChildren(loading);
+        return { speakerNotes };
     }
 
     const previewMarkdown = window.NightOwlPreviewMarkdown;
@@ -1101,7 +1190,7 @@ async function renderMarkdownContent(markdownContent) {
 
     const processedContent = previewMarkdown.processMarkdownContent(bodyContent, {
         processAnnotations: typeof processAnnotations === 'function' ? processAnnotations : null,
-        processSpeakerNotes: typeof window.processSpeakerNotes === 'function' ? window.processSpeakerNotes : null
+        processSpeakerNotes: content => extractSpeakerNotesForPreview(content, speakerNotesSink)
     });
 
     // Extract footnote definitions before marked parsing
@@ -1127,43 +1216,64 @@ async function renderMarkdownContent(markdownContent) {
     }
 
     // Apply preview zoom if available (but not for PDFs)
-    const isPDF = window.currentFilePath && window.currentFilePath.endsWith('.pdf');
+    const isPDF = filePath.endsWith('.pdf');
     if (window.previewZoom && !isPDF) {
-        htmlContent = await window.previewZoom.onPreviewUpdate(window.currentFilePath, htmlContent);
+        htmlContent = await window.previewZoom.onPreviewUpdate(filePath, htmlContent);
     }
 
-    previewMarkdown.setSanitizedHTML(previewContent, headerHtml + htmlContent);
+    previewMarkdown.setSanitizedHTML(targetElement, headerHtml + htmlContent);
 
     // Render math equations with MathJax
-    await renderMathInContent(previewContent);
+    await renderMathInContent(targetElement, { eager: true });
 
     // Render Mermaid diagrams
-    await renderMermaidDiagrams(previewContent);
-
-    // Update speaker notes display if visible
-    updateSpeakerNotesDisplay();
+    await renderMermaidDiagrams(targetElement, { eager: true });
+    return { speakerNotes };
 }
 
-async function renderRegularMarkdown(markdownContent) {
-    resetKanbanStateAndLayout();
-    const { editorPane, previewPane } = restoreNormalLayout();
-    checkAndFixCorruptedLayout(editorPane, previewPane);
-    removePreviewOverflowConstraints();
-    
-    // Update status bar with current content
-    updateStatusBar(markdownContent);
+function renderPreviewFailure(error, retry) {
+    if (!previewContent) return;
+    const container = document.createElement('div');
+    container.className = 'preview-transition-error';
+    container.setAttribute('role', 'alert');
+    const title = document.createElement('strong');
+    title.textContent = 'Preview could not be rendered.';
+    const detail = document.createElement('span');
+    detail.textContent = error?.message || String(error || 'Unknown preview error');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Retry preview';
+    button.addEventListener('click', () => retry?.());
+    container.append(title, detail, button);
+    previewContent.replaceChildren(container);
+}
 
+async function renderRegularMarkdown(markdownContent, options = {}) {
+    const isCurrent = options.isCurrent || (() => true);
+    const isLatest = options.isLatest || isCurrent;
+    if (!isCurrent()) return { status: 'superseded' };
     const loadToken = activeFileLoadToken;
     if (loadToken) {
         updateLargeFileIndicator(loadToken, 'Rendering preview…');
         await waitForNextPaint();
+        if (!isCurrent()) return { status: 'superseded' };
     }
 
-    try {
-        if (isMarkdownFilePath(window.currentFilePath) && !isBibliographyConfigCurrent(window.currentFilePath, markdownContent)) {
-            scheduleBibliographyRefresh(window.currentFilePath, markdownContent);
-        }
-        await renderMarkdownContent(markdownContent);
+    const staging = document.createElement('div');
+    const renderResult = await renderMarkdownContent(markdownContent, {
+        previewElement: staging,
+        filePath: options.currentFilePath
+    });
+    if (!isCurrent()) return { status: 'superseded' };
+
+    options.previewTransition?.commit(() => {
+        resetKanbanStateAndLayout();
+        const { editorPane, previewPane } = restoreNormalLayout(isLatest);
+        checkAndFixCorruptedLayout(editorPane, previewPane);
+        removePreviewOverflowConstraints(isLatest);
+        updateStatusBar(markdownContent);
+        previewContent.replaceChildren(...Array.from(staging.childNodes));
+        window.currentSpeakerNotes = renderResult?.speakerNotes || [];
         // Inject source line markers for scroll sync
         _injectSourceLineAttributes(previewContent, markdownContent);
         // Bind click handlers for inline citation keys
@@ -1173,26 +1283,14 @@ async function renderRegularMarkdown(markdownContent) {
         if (typeof window.updatePreviewWordCount === 'function') {
             window.updatePreviewWordCount(previewContent);
         }
-    } catch (error) {
-        console.error('[renderer.js] Error parsing Markdown for preview:', error);
-        previewContent.innerHTML = '<p>Error rendering Markdown preview.</p>';
-        if (typeof window.updatePreviewWordCount === 'function') {
-            window.updatePreviewWordCount(previewContent);
-        }
-    }
-
-    const finalizeStructure = () => {
+        updateSpeakerNotesDisplay();
         updateStructurePane(markdownContent);
-        if (loadToken) {
-            finishLargeFileIndicator(loadToken);
+        if (loadToken) finishLargeFileIndicator(loadToken);
+        if (isMarkdownFilePath(options.currentFilePath) && !isBibliographyConfigCurrent(options.currentFilePath, markdownContent)) {
+            scheduleBibliographyRefresh(options.currentFilePath, markdownContent);
         }
-    };
-
-    if (loadToken) {
-        setTimeout(finalizeStructure, 0);
-    } else {
-        finalizeStructure();
-    }
+    });
+    return { status: 'committed' };
 }
 
 // --- Structure Pane Logic ---
@@ -3375,17 +3473,18 @@ function resolveBibliographyPath(bibPath, baseDir) {
     return `${normalizedBase}/${cleaned}`;
 }
 
-async function loadBibliographyForMarkdownFile(filePath, content) {
+async function loadBibliographyForMarkdownFile(filePath, content, options = {}) {
+    const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
     const frontmatter = extractFrontmatter(content);
     const bibliographyFiles = parseBibliographyFromFrontmatter(frontmatter);
     const signature = getBibliographySignature(filePath, bibliographyFiles);
-    updateLastBibliographyConfig(filePath, signature);
 
     if (!bibliographyFiles.length) {
+        if (isCurrent()) updateLastBibliographyConfig(filePath, signature);
         return false;
     }
 
-    const baseDir = window.currentFileDirectory || filePath?.substring(0, filePath.lastIndexOf('/')) || '';
+    const baseDir = filePath?.substring(0, filePath.lastIndexOf('/')) || window.currentFileDirectory || '';
     const token = ++currentBibLoadToken;
     const entries = [];
 
@@ -3397,6 +3496,7 @@ async function loadBibliographyForMarkdownFile(filePath, content) {
 
         try {
             const response = await window.electronAPI.invoke('read-file', resolvedPath);
+            if (token !== currentBibLoadToken || !isCurrent()) return true;
             if (!response.success) {
                 console.warn(`[renderer.js] Failed to read bibliography file: ${resolvedPath}`, response.error);
                 continue;
@@ -3411,7 +3511,7 @@ async function loadBibliographyForMarkdownFile(filePath, content) {
         }
     }
 
-    if (token !== currentBibLoadToken) {
+    if (token !== currentBibLoadToken || !isCurrent()) {
         return true;
     }
 
@@ -3422,22 +3522,24 @@ async function loadBibliographyForMarkdownFile(filePath, content) {
         );
     }
 
-    bibEntries.length = 0;
-    bibEntries.push(...entries);
-
     const dbEntries = await loadDatabaseCitations();
-    bibEntries.push(...dbEntries);
+    if (token !== currentBibLoadToken || !isCurrent()) return true;
+
+    bibEntries.length = 0;
+    bibEntries.push(...entries, ...dbEntries);
 
     window.bibEntries = bibEntries;
     if (window.TechneCitationRenderer?.invalidateCache) {
         window.TechneCitationRenderer.invalidateCache();
     }
 
+    updateLastBibliographyConfig(filePath, signature);
     showBibliographyStatus(formatBibliographyStatus(bibliographyFiles));
     return true;
 }
 
-async function refreshBibliographyFromContent(filePath, content) {
+async function refreshBibliographyFromContent(filePath, content, options = {}) {
+    const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
     const { bibliographyFiles, signature } = getBibliographyConfigForContent(filePath, content);
     const sameFile = lastBibliographyConfig.filePath === filePath;
 
@@ -3445,13 +3547,14 @@ async function refreshBibliographyFromContent(filePath, content) {
         return false;
     }
 
+    if (!isCurrent()) return false;
     updateLastBibliographyConfig(filePath, signature);
 
     if (bibliographyFiles.length > 0) {
-        await loadBibliographyForMarkdownFile(filePath, content);
+        await loadBibliographyForMarkdownFile(filePath, content, { isCurrent });
     } else {
-        await loadBibTeXFiles();
-        showBibliographyStatus(formatBibliographyStatus([]));
+        await loadBibTeXFiles({ isCurrent });
+        if (isCurrent()) showBibliographyStatus(formatBibliographyStatus([]));
     }
 
     return true;
@@ -3468,13 +3571,14 @@ function scheduleBibliographyRefresh(filePath, content) {
 
     bibliographyRefreshTimer = setTimeout(() => {
         bibliographyRefreshTimer = null;
-        refreshBibliographyFromContent(filePath, content)
+        const isCurrent = () => (
+            window.currentFilePath === filePath &&
+            window.editor?.getValue?.() === content
+        );
+        if (!isCurrent()) return;
+        refreshBibliographyFromContent(filePath, content, { isCurrent })
             .then((changed) => {
-                if (!changed || window.currentFilePath !== filePath) {
-                    return;
-                }
-                const currentContent = window.editor?.getValue?.();
-                if (currentContent !== content) {
+                if (!changed || !isCurrent()) {
                     return;
                 }
                 if (typeof updatePreviewAndStructure === 'function') {
@@ -3561,9 +3665,10 @@ async function syncBibEntriesToDatabase(entries) {
 }
 
 // Load BibTeX files from the lectures directory
-async function loadBibTeXFiles() {
-    // Clear existing entries to prevent duplicates
-    bibEntries.length = 0;
+async function loadBibTeXFiles(options = {}) {
+    const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
+    const token = ++currentBibLoadToken;
+    const loadedEntries = [];
 
     try {
         // Look for .bib files specifically in the lectures subdirectory
@@ -3572,6 +3677,7 @@ async function loadBibTeXFiles() {
         try {
             // First, get the current working directory to understand the context
             const workingDir = await window.electronAPI.invoke('get-working-directory');
+            if (token !== currentBibLoadToken || !isCurrent()) return [];
             // Try multiple possible locations for BibTeX files
             const possiblePaths = [
                 '.',                  // current working directory
@@ -3581,6 +3687,7 @@ async function loadBibTeXFiles() {
             for (const relativePath of possiblePaths) {
                 try {
                     const lecturesFiles = await window.electronAPI.invoke('list-directory-files', relativePath);
+                    if (token !== currentBibLoadToken || !isCurrent()) return [];
                     
                     if (lecturesFiles && Array.isArray(lecturesFiles)) {
                         // Filter for .bib files
@@ -3594,6 +3701,7 @@ async function loadBibTeXFiles() {
                                 // Try to read the file directly
                                 try {
                                     const response = await window.electronAPI.invoke('read-file', fullBibPath);
+                                    if (token !== currentBibLoadToken || !isCurrent()) return [];
                                     
                                     if (!response.success) {
                                         console.error(`[loadBibTeX] Failed to read ${fullBibPath}:`, response.error);
@@ -3606,7 +3714,7 @@ async function loadBibTeXFiles() {
                                         : file.name;
                                     const entries = parseBibTeX(content, sourceLabel);
                                     if (entries.length > 0) {
-                                        bibEntries.push(...entries);
+                                        loadedEntries.push(...entries);
                                         
                                     }
                                 } catch (readError) {
@@ -3615,6 +3723,7 @@ async function loadBibTeXFiles() {
                                         // If relative path failed, try with just the filename in lectures
                                         const altPath = `lectures/${file.name}`;
                                         const response = await window.electronAPI.invoke('read-file', altPath);
+                                        if (token !== currentBibLoadToken || !isCurrent()) return [];
                                         
                                         if (!response.success) {
                                             console.error(`[loadBibTeX] Alternative path failed ${altPath}:`, response.error);
@@ -3627,7 +3736,7 @@ async function loadBibTeXFiles() {
                                             : file.name;
                                         const entries = parseBibTeX(content, sourceLabel);
                                         if (entries.length > 0) {
-                                            bibEntries.push(...entries);
+                                            loadedEntries.push(...entries);
                                         }
                                     } catch (altError) {
                                     }
@@ -3635,7 +3744,7 @@ async function loadBibTeXFiles() {
                             }
                         }
                         
-                        if (bibEntries.length > 0) {
+                        if (loadedEntries.length > 0) {
                             break; // Stop after successfully loading entries
                         }
                     }
@@ -3648,17 +3757,19 @@ async function loadBibTeXFiles() {
         }
         
         // Sync .bib file entries into the citation database
-        if (bibEntries.length > 0) {
-            syncBibEntriesToDatabase(bibEntries).catch(err =>
+        if (loadedEntries.length > 0) {
+            syncBibEntriesToDatabase(loadedEntries).catch(err =>
                 console.warn('[loadBibTeX] Background bib→DB sync failed:', err)
             );
         }
 
         // Also load database citations
         const dbEntries = await loadDatabaseCitations();
+        if (token !== currentBibLoadToken || !isCurrent()) return [];
 
         // Combine BibTeX and database entries into the global bibEntries array
-        bibEntries.push(...dbEntries);
+        bibEntries.length = 0;
+        bibEntries.push(...loadedEntries, ...dbEntries);
 
         // Update window reference for citation renderer plugin
         window.bibEntries = bibEntries;
@@ -5125,91 +5236,12 @@ if (window.electronAPI) {
     window.electronAPI.on('file-opened', async (data) => {
         if (data && typeof data.content === 'string' && typeof data.filePath === 'string') {
             await openFileInEditor(data.filePath, data.content);
-            // Save current file to settings
-            window.electronAPI.invoke('set-current-file', data.filePath);
         }
     });
 }
 
 let diskReloadInProgress = false;
 let lastDiskConflictNotificationKey = null;
-
-async function applyDiskReloadToCurrentEditor(filePath, content) {
-    const activeTab = window.tabManager?.tabs?.get(filePath);
-    const viewState = editor?.saveViewState ? editor.saveViewState() : null;
-
-    suppressAutoSave = true;
-    try {
-        if (activeTab?.model && !activeTab.model.isDisposed?.()) {
-            activeTab.model.setValue(content);
-            activeTab.lastSavedContent = content;
-            activeTab.isDirty = false;
-            if (window.tabManager.activeTabPath === filePath && editor && editor.getModel() !== activeTab.model) {
-                editor.setModel(activeTab.model);
-            }
-        } else if (editor?.getModel()) {
-            editor.getModel().setValue(content);
-        } else if (editor?.setValue) {
-            editor.setValue(content);
-        } else if (fallbackEditor) {
-            fallbackEditor.value = content;
-        }
-    } finally {
-        suppressAutoSave = false;
-    }
-
-    if (viewState && editor?.restoreViewState) {
-        try {
-            editor.restoreViewState(viewState);
-        } catch (error) {
-            console.warn('[disk-reload] Could not restore editor view state:', error);
-        }
-    }
-
-    lastSavedContent = content;
-    if (typeof window._setLastSavedContent === 'function') {
-        window._setLastSavedContent(content);
-    }
-    window.hasUnsavedChanges = false;
-    updateUnsavedIndicator(false);
-
-    if (window.tabManager) {
-        window.tabManager.syncActiveTabDirty(false, content);
-    }
-
-    if (isMarkdownFilePath(filePath)) {
-        try {
-            const loaded = await loadBibliographyForMarkdownFile(filePath, content);
-            if (!loaded) {
-                await loadBibTeXFiles();
-            }
-        } catch (error) {
-            console.warn('[disk-reload] Could not refresh bibliography after disk reload:', error);
-        }
-
-        if (window.tagManager) {
-            try {
-                window.currentFileData = window.tagManager.processFile(filePath, content);
-                if (window.updateFileTreeWithTags) window.updateFileTreeWithTags();
-            } catch (error) {
-                console.warn('[disk-reload] Could not refresh tags after disk reload:', error);
-            }
-        }
-
-        updateSlideThumbnails(content);
-    }
-
-    if (isHTMLFilePath(filePath)) {
-        renderHTMLSourcePreview(filePath, content);
-    } else {
-        await updatePreviewAndStructure(content);
-    }
-
-    if (!isHTMLFilePath(filePath) && window.syncContentToPresentation) {
-        window.syncContentToPresentation(content);
-    }
-    updateAIChatContext(filePath);
-}
 
 async function reloadCurrentFileFromDisk(payload = {}) {
     const filePath = payload.filePath;
@@ -5228,13 +5260,12 @@ async function reloadCurrentFileFromDisk(payload = {}) {
 
     diskReloadInProgress = true;
     try {
-        const result = await window.electronAPI.invoke('read-file', filePath);
-        if (!result?.success) {
-            showNotification(result?.error || 'Failed to reload changed file from disk', 'error');
-            return;
-        }
-
-        await applyDiskReloadToCurrentEditor(filePath, result.content || '');
+        const outcome = await openFilePathInEditor(filePath, {
+            source: 'disk-reload',
+            ipcChannel: 'read-file',
+            refreshExistingTabContent: true
+        });
+        if (outcome?.status !== 'committed') return;
         lastDiskConflictNotificationKey = null;
         showNotification(`Reloaded ${filePath.split('/').pop()} from disk`, 'info', 1800);
     } catch (error) {
@@ -5263,34 +5294,26 @@ if (window.electronAPI) {
 
 // Helper to open file in editor
 async function refreshCurrentFile() {
-    if (!currentFilePath) {
+    const filePath = window.currentFilePath;
+    if (!filePath) {
         return;
     }
     
     try {
         
-        const result = await window.electronAPI.invoke('open-file-path', currentFilePath);
-        
-        if (result.success) {
-            
-            // Preserve the current cursor position if possible
-            const editor = document.querySelector('.editor textarea');
-            const cursorPos = editor ? editor.selectionStart : 0;
-            
-            await openFileInEditor(result.filePath, result.content);
-            
-            // Restore cursor position
-            if (editor && cursorPos) {
-                setTimeout(() => {
-                    const newEditor = document.querySelector('.editor textarea');
-                    if (newEditor) {
-                        newEditor.setSelectionRange(cursorPos, cursorPos);
-                    }
-                }, 100);
-            }
-            
-        } else {
-            console.error('[Renderer] Failed to refresh file:', result.error);
+        const fallbackEditorElement = document.querySelector('.editor textarea');
+        const cursorPos = fallbackEditorElement ? fallbackEditorElement.selectionStart : 0;
+        const outcome = await openFilePathInEditor(filePath, {
+            source: 'manual-refresh',
+            refreshExistingTabContent: true
+        });
+        if (outcome?.status !== 'committed') return;
+        if (fallbackEditorElement && cursorPos) {
+            setTimeout(() => {
+                if (window.currentFilePath !== filePath) return;
+                const newEditor = document.querySelector('.editor textarea');
+                if (newEditor) newEditor.setSelectionRange(cursorPos, cursorPos);
+            }, 100);
         }
     } catch (error) {
         console.error('[Renderer] Error refreshing current file:', error);
@@ -6152,42 +6175,66 @@ async function generateThumbnailForMultipleFiles(filePaths) {
     });
 }
 
-// Guard against concurrent openFileInEditor calls for the same file
-let _openingFilePath = null;
-const _queuedOpenFileRequests = new Map();
+function beginFileOpenTransition(filePath, metadata = {}) {
+    fileTransitionCoordinator.supersede('preview', 'file-transition');
+    const transition = fileTransitionCoordinator.begin('file', filePath, metadata);
+    (window.recordMode || window.jsonlMode)?.deactivate?.();
+    scheduleFileTransitionStatus(transition);
+    return transition;
+}
 
-async function openFileInEditor(filePath, content, options = {}) {
-    // If the same file is requested again while its first open is still
-    // swapping models, keep the latest request instead of dropping it. The
-    // newer content may reflect a disk reload or search/open race.
-    if (_openingFilePath === filePath) {
-        _queuedOpenFileRequests.set(filePath, {
-            filePath,
-            content,
-            options: { ...options, refreshExistingTabContent: true }
-        });
-        return;
-    }
+function failFileOpenTransition(transition, error, retry) {
+    if (!transition?.isCurrent?.()) return transition?.done;
+    showFileTransitionFailure(transition, error, retry);
+    return fileTransitionCoordinator.fail(transition, error);
+}
 
-    _openingFilePath = filePath;
+async function openFilePathInEditor(filePath, options = {}) {
+    const transition = beginFileOpenTransition(filePath, { source: options.source || 'path-request' });
     try {
-        await _openFileInEditorImpl(filePath, content, options);
-    } finally {
-        if (_openingFilePath === filePath) _openingFilePath = null;
-
-        const queuedRequest = _queuedOpenFileRequests.get(filePath);
-        if (queuedRequest) {
-            _queuedOpenFileRequests.delete(filePath);
-            await openFileInEditor(
-                queuedRequest.filePath,
-                queuedRequest.content,
-                queuedRequest.options
-            );
-        }
+        const result = await window.electronAPI.invoke(options.ipcChannel || 'open-file-path', filePath);
+        if (!transition.isCurrent()) return transition.done;
+        if (!result?.success) throw new Error(result?.error || `Could not read ${filePath}`);
+        return openFileInEditor(result.filePath || filePath, result.content, {
+            refreshExistingTabContent: options.refreshExistingTabContent !== false,
+            ...options,
+            transition
+        });
+    } catch (error) {
+        return failFileOpenTransition(
+            transition,
+            error,
+            () => openFilePathInEditor(filePath, options)
+        );
     }
 }
 
+async function openFileInEditor(filePath, content, options = {}) {
+    const transition = options.transition || beginFileOpenTransition(filePath, {
+        source: options.source || 'content-ready'
+    });
+    try {
+        if (!transition.isCurrent()) return transition.done;
+        await _openFileInEditorImpl(filePath, content, { ...options, transition });
+        if (!transition.isCurrent()) return transition.done;
+        clearFileTransitionStatus(transition);
+        return fileTransitionCoordinator.complete(transition, { filePath });
+    } catch (error) {
+        console.error(`[openFileInEditor] Failed to open ${filePath}:`, error);
+        return failFileOpenTransition(
+            transition,
+            error,
+            () => openFileInEditor(filePath, content, { ...options, transition: null })
+        );
+    }
+}
+
+window.openFilePathInEditor = openFilePathInEditor;
+
 async function _openFileInEditorImpl(filePath, content, options = {}) {
+    const transition = options.transition;
+    if (!isTransitionCurrent(transition)) return;
+
     // Trigger autosave before switching files (unless this is an internal link preview)
     if (!options.isInternalLinkPreview && window.performAutoSave && window.currentFilePath && window.hasUnsavedChanges) {
         try {
@@ -6195,6 +6242,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         } catch (error) {
             console.warn('[openFileInEditor] Autosave failed during file switch:', error);
         }
+        if (!isTransitionCurrent(transition)) return;
     }
     
     // Close image viewer if it's currently open
@@ -6233,7 +6281,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
             if (window.tabManager.hasTab(filePath)) {
                 if (options.refreshExistingTabContent && typeof content === 'string') {
                     const tab = window.tabManager.tabs.get(filePath);
-                    if (tab?.model && typeof tab.model.setValue === 'function') {
+                    if (!tab?.isDirty && tab?.model && typeof tab.model.setValue === 'function') {
                         const currentTabContent = typeof tab.model.getValue === 'function'
                             ? tab.model.getValue()
                             : null;
@@ -6249,7 +6297,12 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
                         }
                     }
                 }
-                window.tabManager.activateTab(filePath);
+                if (!isTransitionCurrent(transition)) return;
+                window.tabManager.activateTab(filePath, {
+                    coordinated: true,
+                    syncCurrentFile: false,
+                    suppressPreviewUpdate: true
+                });
                 // Still run tag processing for markdown files
                 const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
                 if (isMarkdown && window.tagManager) {
@@ -6260,32 +6313,29 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
                         if (window.updateFileTreeWithTags) window.updateFileTreeWithTags();
                     } catch (e) { /* silent */ }
                 }
-                updateAIChatContext(filePath);
-                return;
-            }
-
-            // At the cap, try to drain an LRU clean tab before giving up.
-            // Silent fallback behaviour — the user clicked a file in the tree
-            // expecting it to open; a warning toast they don't notice feels
-            // like the app is broken. Only warn if every tab is dirty.
-            if (window.tabManager.tabs.size >= window.tabManager.maxTabs) {
-                const evicted = window.tabManager.evictLRUCleanTab();
-                if (!evicted) {
-                    if (typeof showNotification === 'function') {
-                        showNotification(`All ${window.tabManager.maxTabs} tabs have unsaved changes. Save or close one to open a new file.`, 'warning');
+            } else {
+                // At the cap, try to drain an LRU clean tab before giving up.
+                // Silent fallback behaviour — the user clicked a file in the tree
+                // expecting it to open; a warning toast they don't notice feels
+                // like the app is broken. Only warn if every tab is dirty.
+                if (window.tabManager.tabs.size >= window.tabManager.maxTabs) {
+                    const evicted = window.tabManager.evictLRUCleanTab();
+                    if (!evicted) {
+                        if (typeof showNotification === 'function') {
+                            showNotification(`All ${window.tabManager.maxTabs} tabs have unsaved changes. Save or close one to open a new file.`, 'warning');
+                        }
+                        throw new Error(`All ${window.tabManager.maxTabs} tabs have unsaved changes`);
                     }
-                    return;
                 }
-            }
 
-            // Create a new tab (model created here, handleEditableFile will skip model setup)
-            window.tabManager.createTab(filePath, content);
-            const previousSuppressTabPreviewUpdate = window.__suppressTabPreviewUpdate;
-            window.__suppressTabPreviewUpdate = true;
-            try {
-                window.tabManager.activateTab(filePath);
-            } finally {
-                window.__suppressTabPreviewUpdate = previousSuppressTabPreviewUpdate;
+                if (!isTransitionCurrent(transition)) return;
+                // Create a new tab (model created here, handleEditableFile will skip model setup)
+                window.tabManager.createTab(filePath, content);
+                window.tabManager.activateTab(filePath, {
+                    coordinated: true,
+                    syncCurrentFile: false,
+                    suppressPreviewUpdate: true
+                });
             }
         }
     }
@@ -6298,7 +6348,9 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     // Non-editable files have no model swap, so sync immediately. Editable
     // paths sync inside handleEditableFile() after the model content changes.
     if (!options.isInternalLinkPreview && !shouldDeferCurrentFileSync) {
+        if (!isTransitionCurrent(transition)) return;
         await setCurrentFilePathState(filePath, { syncMain: true });
+        if (!isTransitionCurrent(transition)) return;
     }
     
     // Only update UI state if this is NOT an internal link preview
@@ -6318,17 +6370,29 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         const fileName = filePath.split('/').pop();
         addToNavigationHistory(filePath, fileName);
     }
+
+    if (isImageFile) {
+        if (!isTransitionCurrent(transition)) return;
+        showImageViewer(filePath);
+        updateAIChatContext(filePath);
+        return;
+    }
     
     // Handle PDF files
     if (isPDF) {
-        handlePDFFile(filePath);
+        await handlePDFFile(filePath, transition);
         // Note: PDF files don't trigger AI chat context updates since they're not editable
         return;
     }
     
     // Handle HTML files
     if (isHTML) {
-        await handleHTMLFile(filePath, content, { syncCurrentFileAfterModel: shouldDeferCurrentFileSync });
+        await handleHTMLFile(filePath, content, {
+            syncCurrentFileAfterModel: shouldDeferCurrentFileSync,
+            isInternalLinkPreview: options.isInternalLinkPreview,
+            transition
+        });
+        if (!isTransitionCurrent(transition)) return;
         updateAIChatContext(filePath);
         return;
     }
@@ -6338,21 +6402,30 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         loadToken = startLargeFileIndicator(filePath, content.length);
         if (loadToken) {
             await waitForNextPaint();
+            if (!isTransitionCurrent(transition)) return;
         }
     }
 
     if (isMarkdown && !options.isInternalLinkPreview) {
-        const loaded = await loadBibliographyForMarkdownFile(filePath, content);
+        const loaded = await loadBibliographyForMarkdownFile(filePath, content, {
+            isCurrent: () => isTransitionCurrent(transition)
+        });
+        if (!isTransitionCurrent(transition)) return;
         if (!loaded) {
-            await loadBibTeXFiles();
+            await loadBibTeXFiles({ isCurrent: () => isTransitionCurrent(transition) });
+            if (!isTransitionCurrent(transition)) return;
         }
     }
 
     // Handle editable text files, including structured JSONL and CSV records.
     await handleEditableFile(filePath, content, { isBibTeX, isMarkdown, isJSONL, isCSV }, {
         syncCurrentFileAfterModel: shouldDeferCurrentFileSync,
-        skipPresentationSync: isJSONL || isCSV
+        skipPresentationSync: isJSONL || isCSV,
+        isInternalLinkPreview: options.isInternalLinkPreview,
+        preserveCurrentFile: options.isInternalLinkPreview,
+        transition
     });
+    if (!isTransitionCurrent(transition)) return;
     
     // Update AI chat context when file changes
     updateAIChatContext(filePath);
@@ -6466,8 +6539,8 @@ function exitPDFOnlyMode() {
 }
 
 // Handle PDF file opening
-function handlePDFFile(filePath) {
-    
+async function handlePDFFile(filePath, transition = null) {
+    if (!isTransitionCurrent(transition)) return;
     // Clear any existing highlights from previous PDF
     clearAllHighlights();
     
@@ -6478,40 +6551,37 @@ function handlePDFFile(filePath) {
     const baseName = filePath.replace(/\.pdf$/i, '');
     const associatedMdFile = baseName + '.md';
     
-    // Check if associated markdown file exists
-    window.electronAPI.invoke('check-file-exists', associatedMdFile)
-        .then(result => {
-            const exists = typeof result === 'object' ? result?.exists : result;
-            if (exists) {
-                // Exit PDF-only mode and restore normal layout
-                exitPDFOnlyMode();
-                // Load the markdown file in the editor
-                return window.electronAPI.invoke('open-file-path', associatedMdFile);
-            } else {
-                // PDF-only mode already entered above
-                return null;
-            }
-        })
-        .then(async markdownResult => {
-            if (markdownResult && markdownResult.success) {
-                // Set a counter for multiple suppression calls
-                window.suppressPreviewUpdateCount = 2; // For both Monaco event and handleEditableFile call
-                await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
-            } else {
-                // No associated markdown, clear editor without updating preview
-                clearEditor(true);
-            }
-            
-            // Display PDF in preview panel (this should not be overridden)
-            displayPDFInPreview(filePath);
-        })
-        .catch(error => {
-            console.error('[Renderer] Error checking for associated markdown:', error);
-            // Assume no associated markdown and enter PDF-only mode
-            enterPDFOnlyMode();
-            clearEditor(true);
-            displayPDFInPreview(filePath);
-        });
+    try {
+        const result = await window.electronAPI.invoke('check-file-exists', associatedMdFile);
+        if (!isTransitionCurrent(transition)) return;
+        const exists = typeof result === 'object' ? result?.exists : result;
+        let markdownResult = null;
+        if (exists) {
+            exitPDFOnlyMode();
+            markdownResult = await window.electronAPI.invoke('open-file-path', associatedMdFile);
+            if (!isTransitionCurrent(transition)) return;
+        }
+
+        if (markdownResult?.success) {
+            await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true }, {
+                skipPreviewUpdate: true,
+                skipPresentationSync: true,
+                preserveCurrentFile: true,
+                transition
+            });
+            if (!isTransitionCurrent(transition)) return;
+        } else {
+            clearEditor();
+        }
+
+        await displayPDFInPreview(filePath, transition);
+    } catch (error) {
+        if (!isTransitionCurrent(transition)) return;
+        console.error('[Renderer] Error checking for associated markdown:', error);
+        enterPDFOnlyMode();
+        clearEditor();
+        await displayPDFInPreview(filePath, transition);
+    }
 }
 
 function getHTMLPreviewText(htmlContent) {
@@ -6595,13 +6665,27 @@ async function handleHTMLFile(filePath, content, options = {}) {
     await handleEditableFile(filePath, content, { isHTML: true }, {
         skipPreviewUpdate: true,
         skipPresentationSync: true,
-        syncCurrentFileAfterModel: options.syncCurrentFileAfterModel === true
+        syncCurrentFileAfterModel: options.syncCurrentFileAfterModel === true,
+        isInternalLinkPreview: options.isInternalLinkPreview,
+        preserveCurrentFile: options.isInternalLinkPreview,
+        transition: options.transition
     });
-    renderHTMLSourcePreview(filePath, content);
+    if (!isTransitionCurrent(options.transition)) return;
+    const previewResult = await updatePreviewAndStructure(content, {
+        filePath,
+        allowPathMismatch: options.isInternalLinkPreview,
+        fileTransition: options.transition
+    });
+    if (previewResult?.status === 'failed') {
+        throw new Error(previewResult.error || 'HTML preview failed');
+    }
 }
 
 // Handle editable files (Markdown, BibTeX, HTML)
 async function handleEditableFile(filePath, content, fileTypes, options = {}) {
+    const transition = options.transition;
+    if (!isTransitionCurrent(transition)) return;
+
     // Exit PDF-only mode when opening editable files
     exitPDFOnlyMode();
 
@@ -6712,7 +6796,9 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
     }
 
     if (options.syncCurrentFileAfterModel) {
+        if (!isTransitionCurrent(transition)) return;
         await setCurrentFilePathState(filePath, { syncMain: true });
+        if (!isTransitionCurrent(transition)) return;
     }
 
     // Trigger slide thumbnail strip on file open (not just on content change)
@@ -6731,30 +6817,36 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
     }
 
     // Update preview and structure (unless suppressed)
-    if (!options.skipPreviewUpdate && !window.suppressNextPreviewUpdate && !window.suppressPreviewUpdateCount) {
-        await updatePreviewAndStructure(content);
+    if (!options.skipPreviewUpdate) {
+        const previewResult = await updatePreviewAndStructure(content, {
+            filePath,
+            allowPathMismatch: options.isInternalLinkPreview,
+            fileTransition: transition
+        });
+        if (!isTransitionCurrent(transition)) return;
+        if (previewResult?.status === 'failed') {
+            throw new Error(previewResult.error || 'Preview rendering failed');
+        }
     }
     
     // Sync content to presentation view (if available)
     if (!options.skipPresentationSync && window.syncContentToPresentation) {
-        window.syncContentToPresentation(content);
+        await Promise.resolve(window.syncContentToPresentation(content));
+        if (!isTransitionCurrent(transition)) return;
     }
     
     // Save current file to settings for direct handleEditableFile callers that
     // still bypass the main open-file pipeline.
-    if (!options.syncCurrentFileAfterModel) {
-        window.electronAPI.invoke('set-current-file', filePath);
+    if (!options.syncCurrentFileAfterModel && !options.preserveCurrentFile) {
+        if (!isTransitionCurrent(transition)) return;
+        await window.electronAPI.invoke('set-current-file', filePath);
     }
 }
 
 // Clear the editor
-function clearEditor(suppressPreviewUpdate = false) {
+function clearEditor() {
     
     if (editor && typeof editor.setValue === 'function') {
-        if (suppressPreviewUpdate) {
-            // Set a flag to prevent the next preview update
-            window.suppressNextPreviewUpdate = true;
-        }
         editor.setValue('# File Preview\n\nThis file is displayed in the preview panel.');
     } else if (fallbackEditor) {
         fallbackEditor.value = '# File Preview\n\nThis file is displayed in the preview panel.';
@@ -6766,7 +6858,8 @@ function clearEditor(suppressPreviewUpdate = false) {
 }
 
 // Display PDF in preview panel with search functionality
-function displayPDFInPreview(filePath) {
+async function displayPDFInPreview(filePath, transition = null) {
+    if (!isTransitionCurrent(transition)) return;
     const previewContent = document.getElementById('preview-content');
     
     if (previewContent) {
@@ -6812,7 +6905,7 @@ function displayPDFInPreview(filePath) {
         previewContent.innerHTML = pdfViewer;
         
         // Initialize PDF.js viewer
-        initializePDFViewer(filePath);
+        await initializePDFViewer(filePath, transition);
     }
 }
 
@@ -6837,14 +6930,14 @@ let pdfViewerState = {
 window.pdfViewerState = pdfViewerState;
 
 // Initialize PDF.js viewer
-async function initializePDFViewer(filePath) {
+async function initializePDFViewer(filePath, transition = null) {
     
     try {
         // Wait for PDF.js to be available from CDN
         if (typeof window.pdfjsLib === 'undefined') {
             await new Promise((resolve) => {
                 const checkPdfJs = () => {
-                    if (typeof window.pdfjsLib !== 'undefined') {
+                    if (!isTransitionCurrent(transition) || typeof window.pdfjsLib !== 'undefined') {
                         resolve();
                     } else {
                         setTimeout(checkPdfJs, 100);
@@ -6853,6 +6946,7 @@ async function initializePDFViewer(filePath) {
                 checkPdfJs();
             });
         }
+        if (!isTransitionCurrent(transition)) return;
         
         const pdfjsLib = window.pdfjsLib;
         
@@ -6874,6 +6968,7 @@ async function initializePDFViewer(filePath) {
         loadingElement.style.display = 'block';
         
         const pdf = await pdfjsLib.getDocument(`file://${filePath}`).promise;
+        if (!isTransitionCurrent(transition)) return;
         pdfViewerState.doc = pdf;
         pdfViewerState.totalPages = pdf.numPages;
         
@@ -6883,13 +6978,16 @@ async function initializePDFViewer(filePath) {
         canvas.style.display = 'block';
         
         // Render first page
-        await renderPage(1);
+        await renderPage(1, true, transition);
+        if (!isTransitionCurrent(transition)) return;
         
         // Extract text content for search
         await extractAllTextContent();
+        if (!isTransitionCurrent(transition)) return;
         
         // Load existing annotations for this PDF
         await loadPDFAnnotations();
+        if (!isTransitionCurrent(transition)) return;
         
         // Set up event handlers
         setupPDFEventHandlers();
@@ -6897,17 +6995,21 @@ async function initializePDFViewer(filePath) {
         updatePageInfo();
         
     } catch (error) {
+        if (!isTransitionCurrent(transition)) return;
         console.error('[PDF] Error initializing PDF viewer:', error);
         
         // Show fallback
-        document.querySelector('.pdf-loading').style.display = 'none';
-        document.querySelector('.pdf-fallback').style.display = 'block';
+        const loading = document.querySelector('.pdf-loading');
+        const fallback = document.querySelector('.pdf-fallback');
+        if (loading) loading.style.display = 'none';
+        if (fallback) fallback.style.display = 'block';
     }
 }
 
 // Render a specific page with smooth transition
-async function renderPage(pageNum, smooth = true) {
+async function renderPage(pageNum, smooth = true, transition = null) {
     if (!pdfViewerState.doc) return;
+    if (!isTransitionCurrent(transition)) return;
     
     try {
         // Cancel any existing render task
@@ -6921,6 +7023,7 @@ async function renderPage(pageNum, smooth = true) {
         }
         
         const page = await pdfViewerState.doc.getPage(pageNum);
+        if (!isTransitionCurrent(transition)) return;
         const viewport = page.getViewport({ scale: pdfViewerState.scale });
         
         const canvas = pdfViewerState.canvas;
@@ -6949,6 +7052,7 @@ async function renderPage(pageNum, smooth = true) {
         // Store the render task so we can cancel it if needed
         pdfViewerState.currentRenderTask = page.render(renderContext);
         await pdfViewerState.currentRenderTask.promise;
+        if (!isTransitionCurrent(transition)) return;
         pdfViewerState.currentRenderTask = null;
         
         // Update current page BEFORE initializing text selector
@@ -6956,6 +7060,7 @@ async function renderPage(pageNum, smooth = true) {
         
         // Get text content for canvas-based text selection
         const textContent = await page.getTextContent();
+        if (!isTransitionCurrent(transition)) return;
         
         // Use canvas-based text selection instead of problematic text layer
         if (!pdfViewerState.highlightMode) {
@@ -10059,27 +10164,9 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                 const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
 
                 if (imageExtensions.includes(fileExtension)) {
-                    showImageViewer(filePath);
+                    await openFileInEditor(filePath, '', { source: 'file-tree-image' });
                 } else {
-                    // Trigger autosave before switching files
-
-                    if (window.performAutoSave && window.currentFilePath && window.hasUnsavedChanges) {
-                        try {
-                            await window.performAutoSave();
-                        } catch (error) {
-                            console.warn('[renderFileTree] ❌ Autosave failed during file switch:', error);
-                            // Continue with file opening even if autosave fails
-                        }
-                    } else {
-                    }
-
-                    // Regular file opening logic
-                    const result = await window.electronAPI.invoke('open-file-path', filePath);
-                    if (result.success && window.openFileInEditor) {
-                        await window.openFileInEditor(result.filePath, result.content);
-                    } else {
-                        console.error(`[renderFileTree] Failed to open file:`, result.success ? 'openFileInEditor not available' : result.error);
-                    }
+                    await openFilePathInEditor(filePath, { source: 'file-tree' });
                 }
             } catch (error) {
                 console.error('[renderFileTree] Error opening file:', error);
@@ -11338,10 +11425,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'open':
             if (!isFolder) {
                 try {
-                    const result = await window.electronAPI.invoke('open-file-path', filePath);
-                    if (result.success && window.openFileInEditor) {
-                        await window.openFileInEditor(result.filePath, result.content);
-                    }
+                    await openFilePathInEditor(filePath, { source: 'context-menu' });
                 } catch (error) {
                     console.error('[handleFileContextMenuAction] Error opening file:', error);
                     showNotification('Error opening file', 'error');
@@ -12104,12 +12188,7 @@ async function handleCreateFile() {
 
             // Open the newly created file in the editor and bind current file context.
             try {
-                const openResult = await window.electronAPI.invoke('open-file-path', result.filePath);
-                if (openResult.success && window.openFileInEditor) {
-                    await window.openFileInEditor(openResult.filePath, openResult.content);
-                } else if (!openResult.success) {
-                    console.error('[Renderer] Failed to open newly created file:', openResult.error);
-                }
+                await openFilePathInEditor(result.filePath, { source: 'new-file' });
             } catch (error) {
                 console.error('[Renderer] Error opening newly created file:', error);
             }
@@ -13692,10 +13771,7 @@ async function showQuickOpen() {
     async function openQuickOpenFile(filePath) {
         hideQuickOpen();
         try {
-            const result = await window.electronAPI.invoke('read-file', filePath);
-            if (result.success) {
-                await openFileInEditor(filePath, result.content);
-            }
+            await openFilePathInEditor(filePath, { source: 'quick-open', ipcChannel: 'read-file' });
         } catch (error) {
             console.error('[QuickOpen] Error opening file:', error);
         }
@@ -15583,10 +15659,7 @@ async function extractTextToNewFile() {
                 variant: 'warning'
             });
             if (shouldOpen) {
-                const openResult = await window.electronAPI.invoke('open-file-path', newFilePath);
-                if (openResult.success) {
-                    await window.openFileInEditor(openResult.filePath, openResult.content);
-                }
+                await openFilePathInEditor(newFilePath, { source: 'extract-text' });
             }
         } else {
             console.error('[extractTextToNewFile] ❌ Backend extraction failed:', result.error);
@@ -16170,15 +16243,10 @@ function renderCommandPaletteResults() {
 async function openCommandPaletteFile(file) {
     hideCommandPalette();
     try {
-        // Read file content first
-        const result = await window.electronAPI.invoke('read-file', file.path);
-        if (result && result.success) {
-            await openFileInEditor(result.filePath, result.content);
-            // Save current file to settings
-            window.electronAPI.invoke('set-current-file', result.filePath);
-        } else {
-            throw new Error(result?.error || 'Failed to read file');
-        }
+        await openFilePathInEditor(file.path, {
+            source: 'command-palette',
+            ipcChannel: 'read-file'
+        });
     } catch (error) {
         console.error('[Command Palette] Error opening file:', error);
         showNotification('Error opening file: ' + file.name, 'error');

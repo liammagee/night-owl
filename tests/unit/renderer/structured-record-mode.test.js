@@ -252,4 +252,40 @@ describe('structured record mode helpers', () => {
       })
     ]);
   });
+
+  test('cancels a delayed field edit before another file and model become active', () => {
+    jest.useFakeTimers();
+    document.body.innerHTML = `
+      <div id="editor-pane"></div>
+      <div id="resizer"></div>
+      <div id="right-pane"><div id="preview-pane"><div id="preview-content"></div></div></div>
+      <span id="preview-word-count"></span>
+      <span id="file-status"></span>
+    `;
+    const sourceA = '{"item_id":"a","notes":"Before"}';
+    const modelA = { getLineMaxColumn: jest.fn(() => sourceA.length + 1) };
+    const modelB = { getLineMaxColumn: jest.fn(() => 10) };
+    let activeModel = modelA;
+    window.editor = {
+      getValue: jest.fn(() => sourceA),
+      getModel: jest.fn(() => activeModel),
+      executeEdits: jest.fn(),
+      layout: jest.fn()
+    };
+    window.currentFilePath = '/workspace/a.jsonl';
+
+    window.recordMode.handlePreviewUpdate(window.currentFilePath, sourceA);
+    const notes = document.querySelector('[data-field="notes"]');
+    notes.value = 'Pending edit';
+    notes.dispatchEvent(new Event('input'));
+
+    activeModel = modelB;
+    window.currentFilePath = '/workspace/b.md';
+    window.recordMode.handlePreviewUpdate(window.currentFilePath, '# B');
+    jest.advanceTimersByTime(500);
+
+    expect(window.editor.executeEdits).not.toHaveBeenCalled();
+    expect(window.recordMode.getState().fieldTimers.size).toBe(0);
+    jest.useRealTimers();
+  });
 });

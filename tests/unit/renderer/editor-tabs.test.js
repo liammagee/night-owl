@@ -66,6 +66,7 @@ beforeEach(() => {
     window.updatePreviewAndStructure = jest.fn();
     window.renderHTMLSourcePreview = jest.fn();
     window.syncContentToPresentation = jest.fn();
+    window.openFileInEditor = undefined;
     window.getMonacoTheme = jest.fn();
     window.electronAPI = { invoke: jest.fn().mockResolvedValue({}), on: jest.fn() };
 
@@ -187,6 +188,35 @@ describe('TabManager', () => {
         expect(window.renderHTMLSourcePreview).not.toHaveBeenCalled();
         expect(window.updatePreviewAndStructure).not.toHaveBeenCalled();
         expect(window.syncContentToPresentation).not.toHaveBeenCalled();
+    });
+
+    test('coordinated activation defers current-file sync and preview rendering', () => {
+        const tm = window.tabManager;
+        window.currentFilePath = '/home/user/original.md';
+        tm.createTab('/home/user/next.md', '# Next');
+
+        tm.activateTab('/home/user/next.md', {
+            syncCurrentFile: false,
+            suppressPreviewUpdate: true
+        });
+
+        expect(tm.activeTabPath).toBe('/home/user/next.md');
+        expect(window.currentFilePath).toBe('/home/user/original.md');
+        expect(window.updatePreviewAndStructure).not.toHaveBeenCalled();
+    });
+
+    test('tab clicks enter the coordinated file-open pipeline', () => {
+        const tm = window.tabManager;
+        const tab = tm.createTab('/home/user/doc.md', '# Current model');
+        window.openFileInEditor = jest.fn().mockResolvedValue({ status: 'committed' });
+
+        document.querySelector('.editor-tab').click();
+
+        expect(window.openFileInEditor).toHaveBeenCalledWith(
+            '/home/user/doc.md',
+            tab.model.getValue(),
+            { source: 'editor-tab' }
+        );
     });
 });
 

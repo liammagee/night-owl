@@ -113,7 +113,7 @@ describe('Code quality guardrails', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
 
-    expect(source).toContain('scheduleBibliographyRefresh(window.currentFilePath, markdownContent)');
+    expect(source).toContain('scheduleBibliographyRefresh(options.currentFilePath, markdownContent)');
     expect(source).not.toContain('await refreshBibliographyFromContent(window.currentFilePath, markdownContent)');
   });
 
@@ -145,7 +145,8 @@ describe('Code quality guardrails', () => {
     expect(indexSource).toContain('https://www.youtube-nocookie.com');
     expect(indexSource).toContain('https://player.vimeo.com');
     expect(indexSource).toContain('https://*.zoom.us');
-    expect(rendererSource).toContain('previewMarkdown.setSanitizedHTML(previewContent, headerHtml + htmlContent)');
+    expect(rendererSource).toContain('previewMarkdown.setSanitizedHTML(targetElement, headerHtml + htmlContent)');
+    expect(rendererSource).toContain('previewContent.replaceChildren(...Array.from(staging.childNodes))');
     expect(rendererSource).toContain('pre.textContent = markdownContent');
     expect(rendererSource).not.toContain("previewContent.innerHTML = '<pre>' + markdownContent + '</pre>'");
     expect(rendererSource).not.toContain('previewContent.innerHTML = headerHtml + htmlContent');
@@ -348,7 +349,7 @@ describe('Code quality guardrails', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const modelFallbackIndex = rendererSource.indexOf("currentModel.setValue(content)");
     const deferredSyncIndex = rendererSource.indexOf("await setCurrentFilePathState(filePath, { syncMain: true });", modelFallbackIndex);
-    const previewIndex = rendererSource.indexOf("await updatePreviewAndStructure(content);", deferredSyncIndex);
+    const previewIndex = rendererSource.indexOf("const previewResult = await updatePreviewAndStructure(content, {", deferredSyncIndex);
 
     expect(rendererSource).toContain('const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile');
     expect(rendererSource).toContain('syncCurrentFileAfterModel: shouldDeferCurrentFileSync');
@@ -357,16 +358,26 @@ describe('Code quality guardrails', () => {
     expect(previewIndex).toBeGreaterThan(deferredSyncIndex);
   });
 
-  test('same-path open requests are queued instead of dropped', () => {
+  test('file opens use a latest-wins transition before asynchronous reads', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const coordinatorSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-transition-coordinator.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const openPathIndex = rendererSource.indexOf('async function openFilePathInEditor(filePath, options = {})');
+    const beginIndex = rendererSource.indexOf('const transition = beginFileOpenTransition(filePath', openPathIndex);
+    const readIndex = rendererSource.indexOf("window.electronAPI.invoke(options.ipcChannel || 'open-file-path', filePath)", openPathIndex);
 
-    expect(rendererSource).toContain('const _queuedOpenFileRequests = new Map();');
-    expect(rendererSource).toContain('_queuedOpenFileRequests.set(filePath, {');
-    expect(rendererSource).toContain('refreshExistingTabContent: true');
-    expect(rendererSource).toContain('const queuedRequest = _queuedOpenFileRequests.get(filePath);');
+    expect(indexSource.indexOf('orchestrator/modules/file-transition-coordinator.js'))
+      .toBeLessThan(indexSource.indexOf('orchestrator/renderer.js'));
+    expect(beginIndex).toBeGreaterThan(openPathIndex);
+    expect(readIndex).toBeGreaterThan(beginIndex);
+    expect(coordinatorSource).toContain("supersede(channel, reason = 'newer-transition')");
+    expect(coordinatorSource).toContain('commit(callback)');
+    expect(rendererSource).toContain('refreshExistingTabContent: options.refreshExistingTabContent !== false');
+    expect(rendererSource).toContain("if (!tab?.isDirty && tab?.model && typeof tab.model.setValue === 'function')");
     expect(rendererSource).toContain('tab.model.setValue(content);');
     expect(rendererSource).toContain('tab.lastSavedContent = content;');
-    expect(rendererSource).toContain('await openFileInEditor(');
+    expect(rendererSource).toContain('window.openFilePathInEditor = openFilePathInEditor;');
+    expect(rendererSource).not.toContain('const _queuedOpenFileRequests = new Map();');
     expect(rendererSource).not.toContain('if (_openingFilePath === filePath) return;');
   });
 

@@ -58,7 +58,7 @@
         window.currentSpeakerNotes = notes;
     };
 
-    const processSpeakerNotes = (content) => {
+    const processSpeakerNotes = (content, speakerNotesSink = null) => {
         const speakerNotesRegex = /```notes\n([\s\S]*?)\n```/g;
         const extractedNotes = [];
         let noteIndex = 0;
@@ -74,7 +74,11 @@
             return `<div class="speaker-notes-placeholder" data-note-id="${noteId}" style="display: none;"></div>`;
         });
 
-        setSpeakerNotesGlobal(extractedNotes);
+        if (typeof speakerNotesSink === 'function') {
+            speakerNotesSink(extractedNotes);
+        } else {
+            setSpeakerNotesGlobal(extractedNotes);
+        }
         return processed;
     };
 
@@ -550,14 +554,14 @@ body.dark-mode .frontmatter-separator {
         return result.join('\n');
     };
 
-    const processMarkdownContent = (markdownContent, { processAnnotations } = {}) => {
+    const processMarkdownContent = (markdownContent, { processAnnotations, speakerNotesSink } = {}) => {
         let processed = typeof markdownContent === 'string' ? markdownContent : String(markdownContent || '');
 
         if (typeof processAnnotations === 'function') {
             processed = processAnnotations(processed);
         }
 
-        processed = processSpeakerNotes(processed);
+        processed = processSpeakerNotes(processed, speakerNotesSink);
         processed = processImageAttributes(processed);
         processed = fixHeaderlessTables(processed);
         return processed;
@@ -689,6 +693,7 @@ body.dark-mode .frontmatter-separator {
         baseDir = '',
         processAnnotations = null,
         processInternalLinksHTML = null,
+        speakerNotesSink = null,
         previewZoom = window.previewZoom || null,
         renderMathInContent = null,
         renderMermaidDiagrams = null,
@@ -702,6 +707,7 @@ body.dark-mode .frontmatter-separator {
             baseDir,
             processAnnotations,
             processInternalLinksHTML,
+            speakerNotesSink,
             previewZoom
         });
 
