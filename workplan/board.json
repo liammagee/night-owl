@@ -1,19 +1,21 @@
 {
-  "generated": "2026-08-07T00:00:00.000Z",
+  "generated": "2026-08-06T21:16:54.144Z",
   "counts": {
-    "total": 18,
+    "total": 19,
     "byStatus": {
-      "triaged": 18
+      "triaged": 16,
+      "review": 1,
+      "done": 2
     },
     "byPriority": {
       "P0": 2,
-      "P1": 6,
+      "P1": 7,
       "P2": 10
     },
     "byArea": {
       "presentation": 3,
       "preview": 1,
-      "testing": 2,
+      "testing": 3,
       "packaging": 2,
       "security": 2,
       "architecture": 3,
@@ -118,25 +120,6 @@
         "error-boundary",
         "loading",
         "recovery"
-      ]
-    },
-    {
-      "id": "restore-release-entitlements",
-      "title": "Restore tracked macOS entitlements and clean-build preflight",
-      "status": "triaged",
-      "type": "release",
-      "priority": "P1",
-      "area": "packaging",
-      "owner": "unassigned",
-      "source": "test-failure",
-      "evidence": "test-failure",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "npm run dist:check and the hardened-runtime code-quality guard pass from a fresh clone before electron-builder starts.",
-      "tags": [
-        "build",
-        "macos",
-        "release"
       ]
     },
     {
@@ -248,25 +231,6 @@
       "depends_on": [
         "reliable-editor-preview-transitions",
         "single-source-mode-and-pane-state"
-      ]
-    },
-    {
-      "id": "hermetic-tests-across-worktrees",
-      "title": "Make unit and integration tests portable across worktrees",
-      "status": "triaged",
-      "type": "testing",
-      "priority": "P2",
-      "area": "testing",
-      "owner": "unassigned",
-      "source": "test-failure",
-      "evidence": "test-failure",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "A fresh worktree with the documented dependency setup runs all unit and integration projects without hard-coded node_modules paths, port-policy failures, or leaked file watchers.",
-      "tags": [
-        "hermetic",
-        "jest",
-        "worktrees"
       ]
     },
     {
@@ -399,6 +363,66 @@
       ],
       "depends_on": [
         "reliable-editor-preview-transitions"
+      ]
+    },
+    {
+      "id": "restore-release-entitlements",
+      "title": "Restore tracked macOS entitlements and clean-build preflight",
+      "status": "review",
+      "type": "release",
+      "priority": "P1",
+      "area": "packaging",
+      "owner": "codex",
+      "source": "test-failure",
+      "evidence": "test-failure",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "npm run dist:check and the hardened-runtime code-quality guard pass from a fresh clone before electron-builder starts.",
+      "tags": [
+        "build",
+        "macos",
+        "release"
+      ]
+    },
+    {
+      "id": "repository-owned-local-ci",
+      "title": "Add a repository-owned local CI gate",
+      "status": "done",
+      "type": "testing",
+      "priority": "P1",
+      "area": "testing",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "npm run ci:local passes from this linked worktree, reports capability skips explicitly, and npm run ci:local:release validates packaging inputs.",
+      "tags": [
+        "ci",
+        "git-hooks",
+        "worktrees"
+      ],
+      "depends_on": [
+        "hermetic-tests-across-worktrees"
+      ]
+    },
+    {
+      "id": "hermetic-tests-across-worktrees",
+      "title": "Make unit and integration tests portable across worktrees",
+      "status": "done",
+      "type": "testing",
+      "priority": "P2",
+      "area": "testing",
+      "owner": "codex",
+      "source": "test-failure",
+      "evidence": "test-failure",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A fresh worktree with the documented dependency setup runs all unit and integration projects without hard-coded node_modules paths, port-policy failures, or leaked file watchers.",
+      "tags": [
+        "hermetic",
+        "jest",
+        "worktrees"
       ]
     }
   ]
