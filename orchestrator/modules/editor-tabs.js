@@ -352,7 +352,7 @@
          * Switch to a tab. Saves outgoing view state, swaps model, restores incoming state.
          * Syncs global variables so auto-save, preview, etc. continue to work.
          */
-        activateTab(filePath) {
+        activateTab(filePath, options = {}) {
             const tab = this.tabs.get(filePath);
             if (!tab) return;
 
@@ -401,10 +401,12 @@
             // Sync globals that auto-save and other systems depend on.
             // Untitled tabs must keep currentFilePath null so saveFile triggers save-as.
             const isUntitled = isUntitledPath(filePath);
-            setCurrentFileMirror(isUntitled ? null : filePath, {
-                syncMain: true,
-                clearDirectory: isUntitled
-            });
+            if (options.syncCurrentFile !== false) {
+                setCurrentFileMirror(isUntitled ? null : filePath, {
+                    syncMain: true,
+                    clearDirectory: isUntitled
+                });
+            }
             window.lastSavedContent = tab.lastSavedContent;
             window.hasUnsavedChanges = tab.isDirty;
 
@@ -430,7 +432,7 @@
             // pipeline can suppress this because it performs the file-type
             // specific render after the rest of the open state is synchronized.
             const content = editor.getValue();
-            if (!window.__suppressTabPreviewUpdate) {
+            if (!options.suppressPreviewUpdate && !window.__suppressTabPreviewUpdate) {
                 if (!isUntitled && tab.language === 'html' && typeof window.renderHTMLSourcePreview === 'function') {
                     window.renderHTMLSourcePreview(filePath, content);
                 } else if (typeof window.updatePreviewAndStructure === 'function') {
@@ -813,6 +815,13 @@
 
                 // Left click to activate
                 el.addEventListener('click', () => {
+                    const tab = this.tabs.get(filePath);
+                    if (tab && typeof window.openFileInEditor === 'function') {
+                        void window.openFileInEditor(filePath, tab.model.getValue(), {
+                            source: 'editor-tab'
+                        });
+                        return;
+                    }
                     this.activateTab(filePath);
                 });
 

@@ -120,6 +120,21 @@ describe('nightowl-markdown-renderer plugin', () => {
     expect(window.currentSpeakerNotes[0].content).toBe('secret');
   });
 
+  test('can stage speaker notes without mutating the active preview notes', async () => {
+    require(pluginCorePath);
+    window.currentSpeakerNotes = [{ content: 'active notes' }];
+    const stagedNotes = [];
+
+    await window.TechneMarkdownRenderer.renderToHtml('```notes\nstaged notes\n```', {
+      speakerNotesSink: notes => stagedNotes.push(...notes)
+    });
+
+    expect(stagedNotes).toEqual([
+      expect.objectContaining({ content: 'staged notes', index: 0 })
+    ]);
+    expect(window.currentSpeakerNotes).toEqual([{ content: 'active notes' }]);
+  });
+
   test('renderPreview writes to the preview element', async () => {
     require(previewMarkdownPath);
     require(pluginCorePath);

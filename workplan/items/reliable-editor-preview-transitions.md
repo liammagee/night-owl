@@ -1,11 +1,11 @@
 ---
 id: "reliable-editor-preview-transitions"
 title: "Make file opening and preview rendering latest-wins"
-status: "triaged"
+status: "review"
 type: "bug"
 priority: "P0"
 area: "preview"
-owner: "unassigned"
+owner: "codex"
 source: "user-report"
 evidence: "source-analysis"
 created: "2026-08-07"
@@ -42,11 +42,30 @@ cancellable or discard stale results before any DOM write.
 Replace global count-based suppression (`suppressPreviewUpdateCount`) with a
 request-scoped preview policy.
 
+## Implemented change
+
+Added a shared latest-wins coordinator for file opens and preview renders. File
+tree, tabs, history, search, command palette, network, disk reload, and the maze
+surface now enter that boundary before asynchronous file work. Markdown renders
+into a detached DOM tree and commits only while current; settings,
+bibliographies, internal links, MathJax, Mermaid, speaker notes, structure, and
+status updates use the same ownership check.
+
+Structured JSONL/CSV field timers are cancelled when the active file or Monaco
+model changes. Failed opens restore the editor shell and expose a Retry action;
+preview failures remain visible with their own retry control.
+
+Automated verification covers A-B-A and same-file interleavings, the six target
+file types, completed-preview invalidation, delayed structured edits, tab
+routing, staged speaker notes, and source-level integration guardrails. The full
+local CI gate passed with 83 suites and 1,148 tests; one loopback-dependent test
+was explicitly skipped because this worktree cannot bind loopback sockets.
+
 ## Acceptance criteria
 
-- [ ] Rapid switching between Markdown, JSONL, CSV, HTML, image, and PDF fixtures is latest-wins.
-- [ ] A pending JSONL/CSV field edit is safely flushed or cancelled before another file/model becomes active.
-- [ ] Awaiting preview update means rendering has either committed or been explicitly superseded.
-- [ ] Stale MathJax, Mermaid, bibliography, settings, and internal-link work cannot overwrite the active file.
-- [ ] Failed transitions restore a usable editor/preview state with a visible retry action.
-- [ ] Unit tests cover same-file reloads and different-file interleavings.
+- [x] Rapid switching between Markdown, JSONL, CSV, HTML, image, and PDF fixtures is latest-wins.
+- [x] A pending JSONL/CSV field edit is safely flushed or cancelled before another file/model becomes active.
+- [x] Awaiting preview update means rendering has either committed or been explicitly superseded.
+- [x] Stale MathJax, Mermaid, bibliography, settings, and internal-link work cannot overwrite the active file.
+- [x] Failed transitions restore a usable editor/preview state with a visible retry action.
+- [x] Unit tests cover same-file reloads and different-file interleavings.

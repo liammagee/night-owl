@@ -303,10 +303,7 @@ function displayFilePatternResults(fileMatches, query) {
 
             fileItem.onclick = async () => {
                 try {
-                    const result = await window.electronAPI.invoke('open-file-path', file.path);
-                    if (result.success && window.openFileInEditor) {
-                        await window.openFileInEditor(result.filePath, result.content);
-                    }
+                    await window.openFilePathInEditor?.(file.path, { source: 'search-file' });
                 } catch (error) {
                     console.error('[Search] Error opening file:', error);
                     if (window.showNotification) {
@@ -462,10 +459,7 @@ function displaySearchResultsWithTags(contentResults, tagResults, query) {
                 fileItem.innerHTML = `📄 ${title}`;
                 fileItem.onclick = async () => {
                     try {
-                        const result = await window.electronAPI.invoke('open-file-path', filePath);
-                        if (result.success && window.openFileInEditor) {
-                            await window.openFileInEditor(result.filePath, result.content);
-                        }
+                        await window.openFilePathInEditor?.(filePath, { source: 'tag-search' });
                     } catch (error) {
                         console.error('[Search] Error opening file:', error);
                     }
@@ -610,19 +604,13 @@ function highlightSearchTerm(text, searchTerm) {
 
 async function openSearchResult(result) {
     try {
-        // Open the file first
-        const openResult = await window.electronAPI.invoke('open-file-path', result.file);
-        
-        if (openResult.success) {
+        if (window.openFilePathInEditor) {
             // Switch to editor mode if needed
             if (window.switchToMode && typeof window.switchToMode === 'function') {
                 window.switchToMode('editor');
             }
-            
-            // Open file in editor
-            if (window.openFileInEditor) {
-                await window.openFileInEditor(openResult.filePath, openResult.content);
-            }
+            const outcome = await window.openFilePathInEditor(result.file, { source: 'search-result' });
+            if (outcome?.status !== 'committed') return;
             
             // Navigate to the specific line
             if (window.editor && result.line) {
@@ -703,10 +691,10 @@ async function performGlobalReplace(previewOnly = false) {
                         confirmText: 'Reload',
                         variant: 'warning'
                     })) {
-                        const reloadResult = await window.electronAPI.invoke('open-file-path', window.currentFilePath);
-                        if (reloadResult.success && window.openFileInEditor) {
-                            await window.openFileInEditor(reloadResult.filePath, reloadResult.content);
-                        }
+                        await window.openFilePathInEditor?.(window.currentFilePath, {
+                            source: 'global-replace-reload',
+                            refreshExistingTabContent: true
+                        });
                     }
                 }
             }

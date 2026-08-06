@@ -2703,6 +2703,15 @@ class BabelMazeView {
 
         try {
             this._switchToEditorMode();
+            if (!this.host?.openFile && typeof window.openFilePathInEditor === 'function') {
+                const outcome = await window.openFilePathInEditor(room.path, { source: 'babel-maze' });
+                if (outcome?.status === 'committed') {
+                    this.appendLog('system', 'The page opens. Ink lifts from the paper.');
+                } else if (outcome?.status === 'failed') {
+                    this.appendLog('system', outcome.error || 'Failed to open the file.');
+                }
+                return;
+            }
             const result = await this._openFile(room.path);
             if (!result?.success) {
                 this.appendLog('system', result?.error || 'Failed to open the file.');

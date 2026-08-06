@@ -5114,3 +5114,58 @@ body.dark-theme .jsonl-error-panel {
         grid-column: auto;
     }
 }
+
+/* Latest-wins file and preview transition feedback */
+.file-transition-status {
+    position: fixed;
+    top: var(--space-6, 24px);
+    right: var(--space-6, 24px);
+    z-index: 10002;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 12px);
+    max-width: min(440px, calc(100vw - 48px));
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    border: 1px solid var(--border-accent, #93c5fd);
+    border-radius: var(--radius-lg, 8px);
+    background: var(--surface, #fff);
+    color: var(--text, #111827);
+    box-shadow: var(--shadow-lg, 0 10px 25px rgb(0 0 0 / 0.16));
+    font-size: var(--text-sm, 14px);
+}
+
+.file-transition-status.is-error {
+    border-color: var(--error, #dc2626);
+    background: var(--error-subtle, #fef2f2);
+    color: var(--error, #dc2626);
+}
+
+.file-transition-status button,
+.preview-transition-error button {
+    flex: none;
+    padding: 5px 10px;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-md, 6px);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+}
+
+.file-transition-status button:hover,
+.preview-transition-error button:hover {
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.preview-transition-error {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-3, 12px);
+    max-width: 640px;
+    margin: var(--space-8, 32px) auto;
+    padding: var(--space-5, 20px);
+    border: 1px solid var(--error, #dc2626);
+    border-radius: var(--radius-lg, 8px);
+    background: var(--error-subtle, #fef2f2);
+    color: var(--error, #dc2626);
+}

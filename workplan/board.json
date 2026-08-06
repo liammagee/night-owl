@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-06T21:16:54.144Z",
+  "generated": "2026-08-06T21:52:49.667Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 16,
-      "review": 1,
+      "triaged": 15,
+      "review": 2,
       "done": 2
     },
     "byPriority": {
@@ -14,7 +14,6 @@
     },
     "byArea": {
       "presentation": 3,
-      "preview": 1,
       "testing": 3,
       "packaging": 2,
       "security": 2,
@@ -22,7 +21,8 @@
       "accessibility": 1,
       "performance": 1,
       "platform": 2,
-      "editor": 1
+      "editor": 1,
+      "preview": 1
     }
   },
   "items": [
@@ -43,26 +43,6 @@
         "layout",
         "slides",
         "viewport"
-      ]
-    },
-    {
-      "id": "reliable-editor-preview-transitions",
-      "title": "Make file opening and preview rendering latest-wins",
-      "status": "triaged",
-      "type": "bug",
-      "priority": "P0",
-      "area": "preview",
-      "owner": "unassigned",
-      "source": "user-report",
-      "evidence": "source-analysis",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "A rapid A-B-A file-switch test with delayed settings and markdown rendering always leaves the editor, preview, tab, status, and current path on the final A request.",
-      "tags": [
-        "async",
-        "editor",
-        "preview",
-        "reliability"
       ]
     },
     {
@@ -363,6 +343,26 @@
       ],
       "depends_on": [
         "reliable-editor-preview-transitions"
+      ]
+    },
+    {
+      "id": "reliable-editor-preview-transitions",
+      "title": "Make file opening and preview rendering latest-wins",
+      "status": "review",
+      "type": "bug",
+      "priority": "P0",
+      "area": "preview",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "A rapid A-B-A file-switch test with delayed settings and markdown rendering always leaves the editor, preview, tab, status, and current path on the final A request.",
+      "tags": [
+        "async",
+        "editor",
+        "preview",
+        "reliability"
       ]
     },
     {
