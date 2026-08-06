@@ -1,21 +1,21 @@
 {
-  "generated": "2026-08-06T21:52:49.667Z",
+  "generated": "2026-08-06T22:39:46.254Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 15,
-      "review": 2,
+      "triaged": 14,
+      "review": 3,
       "done": 2
     },
     "byPriority": {
-      "P0": 2,
       "P1": 7,
-      "P2": 10
+      "P2": 10,
+      "P0": 2
     },
     "byArea": {
-      "presentation": 3,
       "testing": 3,
       "packaging": 2,
+      "presentation": 3,
       "security": 2,
       "architecture": 3,
       "accessibility": 1,
@@ -26,25 +26,6 @@
     }
   },
   "items": [
-    {
-      "id": "fit-presentation-slides-to-viewport",
-      "title": "Fit complete presentation slides inside the viewport",
-      "status": "triaged",
-      "type": "bug",
-      "priority": "P0",
-      "area": "presentation",
-      "owner": "unassigned",
-      "source": "computer-use",
-      "evidence": "reproduced",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "At the minimum supported window and in Present mode, every edge of a 16:9 slide is visible without internal slide scrolling or adjacent-slide overlap.",
-      "tags": [
-        "layout",
-        "slides",
-        "viewport"
-      ]
-    },
     {
       "id": "modernize-electron-e2e-harness",
       "title": "Replace stale browser-style E2E tests with reliable Electron workflows",
@@ -343,6 +324,25 @@
       ],
       "depends_on": [
         "reliable-editor-preview-transitions"
+      ]
+    },
+    {
+      "id": "fit-presentation-slides-to-viewport",
+      "title": "Fit complete presentation slides inside the viewport",
+      "status": "review",
+      "type": "bug",
+      "priority": "P0",
+      "area": "presentation",
+      "owner": "codex",
+      "source": "computer-use",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "At the minimum supported window and in Present mode, every edge of a 16:9 slide is visible without internal slide scrolling or adjacent-slide overlap.",
+      "tags": [
+        "layout",
+        "slides",
+        "viewport"
       ]
     },
     {

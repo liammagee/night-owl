@@ -52,6 +52,9 @@ describe('nightowl-presentations plugin', () => {
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
     // Scripts loaded (with optional cache-busting query params)
+    expect(scriptsArg.some(url => url.includes('presentation-viewport.js'))).toBe(true);
+    expect(scriptsArg.findIndex(url => url.includes('presentation-viewport.js')))
+      .toBeLessThan(scriptsArg.findIndex(url => url.includes('touch-gestures.js')));
     expect(scriptsArg.some(url => url.includes('ttsService.js'))).toBe(true);
     expect(scriptsArg.some(url => url.includes('videoRecordingService.js'))).toBe(true);
     expect(scriptsArg.some(url => url.includes('speaker-notes.js'))).toBe(true);

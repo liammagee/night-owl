@@ -2,7 +2,7 @@
 // Using global React and ReactDOM instead of imports
 const React = window.React;
 const ReactDOM = window.ReactDOM;
-const { useState, useRef, useEffect, useCallback } = React;
+const { useState, useRef, useEffect, useLayoutEffect, useCallback } = React;
 
 // Lucide React icons as simple SVG components
 const ChevronLeft = () => (
@@ -42,11 +42,97 @@ const ZoomOut = () => (
   </svg>
 );
 
-const SLIDE_WIDTH = 864;
-const SLIDE_HEIGHT = 486;
+const presentationViewport = window.NightOwlPresentationViewport;
+const SLIDE_WIDTH = presentationViewport?.SLIDE_WIDTH || 864;
+const SLIDE_HEIGHT = presentationViewport?.SLIDE_HEIGHT || 486;
 const SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
 const SLIDE_HALF_HEIGHT = SLIDE_HEIGHT / 2;
 const SLIDE_SPACING = SLIDE_WIDTH + 240;
+
+const PresentationSlideContent = ({ html, isPresenting }) => {
+  const frameRef = useRef(null);
+  const contentRef = useRef(null);
+  const [contentScale, setContentScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    const element = contentRef.current;
+    if (!frame || !element) return undefined;
+    const slideElement = element.closest('.slide');
+    let animationFrame = null;
+
+    const measure = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        const availableWidth = Math.min(frame.clientWidth, element.clientWidth);
+        const availableHeight = Math.min(frame.clientHeight, element.clientHeight);
+        const descendants = Array.from(element.querySelectorAll('*'));
+        const contentWidth = descendants.reduce(
+          (maximum, child) => Math.max(maximum, child.scrollWidth || 0),
+          Math.max(availableWidth, element.scrollWidth)
+        );
+        const contentHeight = descendants.reduce(
+          (maximum, child) => Math.max(maximum, (child.offsetTop || 0) + (child.scrollHeight || 0)),
+          Math.max(availableHeight, element.scrollHeight)
+        );
+        const nextScale = presentationViewport?.calculateContentScale?.({
+          availableWidth,
+          availableHeight,
+          contentWidth,
+          contentHeight
+        }) ?? 1;
+        const overflows = nextScale < 0.999;
+
+        if (slideElement) {
+          slideElement.dataset.contentOverflow = overflows ? 'true' : 'false';
+        }
+        setContentScale(previous => Math.abs(previous - nextScale) > 0.001 ? nextScale : previous);
+      });
+    };
+
+    measure();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(measure)
+      : null;
+    resizeObserver?.observe(frame);
+    resizeObserver?.observe(element);
+    const mutationObserver = new MutationObserver(measure);
+    mutationObserver.observe(element, { childList: true, subtree: true, characterData: true });
+    element.querySelectorAll('img').forEach(image => image.addEventListener('load', measure));
+    window.addEventListener('resize', measure);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      mutationObserver.disconnect();
+      element.querySelectorAll('img').forEach(image => image.removeEventListener('load', measure));
+      window.removeEventListener('resize', measure);
+      if (slideElement) delete slideElement.dataset.contentOverflow;
+    };
+  }, [html, isPresenting]);
+
+  return (
+    <div
+      ref={frameRef}
+      className="slide-content-frame"
+      style={{ height: '100%', width: '100%', overflow: 'hidden' }}
+    >
+      <div
+        ref={contentRef}
+        className={`slide-content ${isPresenting ? 'slide-content-delivery' : 'slide-content-authoring'}`}
+        data-content-scale={contentScale.toFixed(4)}
+        style={{
+          height: '100%',
+          width: '100%',
+          transform: isPresenting ? `scale(${contentScale})` : 'none',
+          transformOrigin: 'top left'
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </div>
+  );
+};
 
 const Home = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -213,9 +299,14 @@ const MarkdownPreziApp = () => {
   // Current slides and slide index state
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const stageRef = useRef(null);
+  const presentationControlsRef = useRef(null);
+  const navigationControlsRef = useRef(null);
   const zoomInteractionTimeoutRef = useRef(null);
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
+  const [presentationInsets, setPresentationInsets] = useState({ top: 16, right: 16, bottom: 16, left: 16 });
+  const [presentationFit, setPresentationFit] = useState({ scale: 1, pan: { x: 0, y: 0 } });
 
   // Sample markdown content for demo
   const sampleMarkdown = `# SAMPLE CONTENT TEST
@@ -354,6 +445,106 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   useEffect(() => {
     panRef.current = pan;
   }, [pan]);
+
+  useLayoutEffect(() => {
+    if (!isPresenting) {
+      setPresentationInsets({ top: 0, right: 0, bottom: 0, left: 0 });
+      return undefined;
+    }
+
+    const notesPanel = document.getElementById('speaker-notes-panel');
+    const observedElements = [containerRef.current, presentationControlsRef.current, navigationControlsRef.current, notesPanel]
+      .filter(Boolean);
+    let animationFrame = null;
+
+    const measureChrome = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        const controlsHeight = presentationControlsRef.current?.getBoundingClientRect?.().height || 0;
+        const navigationHeight = navigationControlsRef.current?.getBoundingClientRect?.().height || 0;
+        const notesStyle = notesPanel ? window.getComputedStyle(notesPanel) : null;
+        const notesHeight = notesPanel && notesStyle?.display !== 'none' && notesStyle?.visibility !== 'hidden'
+          ? notesPanel.getBoundingClientRect().height
+          : 0;
+        const next = {
+          top: controlsHeight > 0 ? controlsHeight + 28 : 16,
+          right: 16,
+          bottom: Math.max(navigationHeight > 0 ? navigationHeight + 28 : 16, notesHeight > 0 ? notesHeight + 12 : 0),
+          left: 16
+        };
+        setPresentationInsets(previous => (
+          previous.top === next.top &&
+          previous.right === next.right &&
+          previous.bottom === next.bottom &&
+          previous.left === next.left
+        ) ? previous : next);
+      });
+    };
+
+    measureChrome();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(measureChrome)
+      : null;
+    observedElements.forEach(element => resizeObserver?.observe(element));
+    const mutationObserver = new MutationObserver(measureChrome);
+    mutationObserver.observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true });
+    if (notesPanel) {
+      mutationObserver.observe(notesPanel, { attributes: true, attributeFilter: ['class', 'style'] });
+    }
+    window.addEventListener('resize', measureChrome);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', measureChrome);
+    };
+  }, [isPresenting, speakerNotesWindowVisible]);
+
+  useLayoutEffect(() => {
+    if (!isPresenting || slides.length === 0) return undefined;
+    const stage = stageRef.current;
+    const slide = slides[currentSlide];
+    if (!stage || !slide) return undefined;
+    let animationFrame = null;
+
+    const updateFit = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        if (!stage.clientWidth || !stage.clientHeight) return;
+        const next = presentationViewport?.calculateFitTransform?.({
+          viewportWidth: stage.clientWidth,
+          viewportHeight: stage.clientHeight,
+          slideX: slide.position.x,
+          slideY: slide.position.y,
+          slideWidth: SLIDE_WIDTH,
+          slideHeight: SLIDE_HEIGHT,
+          padding: 12
+        });
+        if (!next) return;
+        setPresentationFit(previous => (
+          Math.abs(previous.scale - next.scale) < 0.0001 &&
+          Math.abs(previous.pan.x - next.pan.x) < 0.1 &&
+          Math.abs(previous.pan.y - next.pan.y) < 0.1
+        ) ? previous : { scale: next.scale, pan: next.pan });
+      });
+    };
+
+    updateFit();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(updateFit)
+      : null;
+    resizeObserver?.observe(stage);
+    window.addEventListener('resize', updateFit);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateFit);
+    };
+  }, [isPresenting, slides, currentSlide, presentationInsets]);
 
   const markZoomInteraction = useCallback(() => {
     setIsZooming(true);
@@ -940,20 +1131,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       return;
     }
 
-    const targetZoom = isPresenting ? zoomRef.current || zoom : 1.2;
-    const targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
-
-    console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
-    
     if (!isPresenting) {
+      const targetZoom = 1.2;
+      const targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
+      console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
       markZoomInteraction();
+      zoomRef.current = targetZoom;
+      panRef.current = targetPan;
+      setZoom(targetZoom);
+      setPan(targetPan);
     }
     setCurrentSlide(slideIndex);
     setFocusedSlide(null);
-    zoomRef.current = targetZoom;
-    panRef.current = targetPan;
-    setZoom(targetZoom);
-    setPan(targetPan);
     
     // Mark slide transition in recording if recording is active
     if (isRecording && window.videoRecordingService) {
@@ -1316,6 +1505,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       }
 
       e.preventDefault();
+      if (isPresenting) return;
       markZoomInteraction();
 
       const previousZoom = zoomRef.current || 1;
@@ -1351,7 +1541,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [markZoomInteraction, MAX_ZOOM, MIN_ZOOM, slides, currentSlide]);
+  }, [markZoomInteraction, MAX_ZOOM, MIN_ZOOM, slides, currentSlide, isPresenting]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -2340,7 +2530,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Mouse handlers for panning
   const handleMouseDown = (e) => {
-    // Allow panning from anywhere in the canvas, even during presentation
+    if (isPresenting) return;
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
     setPanStart(pan);
@@ -2372,11 +2562,31 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     };
   }, []);
 
+  const activeZoom = isPresenting ? presentationFit.scale : zoom;
+  const activePan = isPresenting ? presentationFit.pan : pan;
+  const presentationStageStyle = isPresenting ? {
+    position: 'absolute',
+    top: `${presentationInsets.top}px`,
+    right: `${presentationInsets.right}px`,
+    bottom: `${presentationInsets.bottom}px`,
+    left: `${presentationInsets.left}px`,
+    overflow: 'hidden'
+  } : {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden'
+  };
+
   return (
     <div 
       ref={containerRef}
-      className="w-full h-screen relative overflow-hidden cursor-grab active:cursor-grabbing" 
-      style={{background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))'}}
+      className={`presentation-shell w-full h-full relative overflow-hidden ${isPresenting ? '' : 'cursor-grab active:cursor-grabbing'}`}
+      data-presentation-mode={isPresenting ? 'delivery' : 'authoring'}
+      style={{
+        background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))',
+        height: '100%',
+        minHeight: 0
+      }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -2448,7 +2658,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       )}
 
       {/* Navigation Controls */}
-      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4">
+      <div
+        ref={navigationControlsRef}
+        className="presentation-navigation absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4"
+      >
         <button
           onClick={() => goToSlide(currentSlide - 1)}
           disabled={currentSlide === 0}
@@ -2494,28 +2707,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
       {/* Presentation Mode Controls */}
       {isPresenting && (
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
-          <button
-            onClick={handleZoomIn}
-            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom In"
-          >
-            <ZoomIn />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom Out"
-          >
-            <ZoomOut />
-          </button>
-          <button
-            onClick={resetView}
-            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Reset Zoom"
-          >
-            <Home />
-          </button>
+        <div ref={presentationControlsRef} className="presentation-toolbar absolute top-4 right-4 z-10 flex gap-2">
           <button
             onClick={() => {
               if (window.exportVisualizationAsPNG) {
@@ -2629,88 +2821,100 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         </div>
       )}
 
-
-      {/* Canvas */}
       <div
-        ref={canvasRef}
-        className="w-full h-full"
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: '0 0',
-          transition: (isDragging || isZooming)
-            ? 'none'
-            : isPresenting
-              ? 'transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
-              : 'transform 0.2s ease-out'
-        }}
+        ref={stageRef}
+        className="presentation-stage"
+        data-fit-mode={isPresenting ? 'contain' : 'canvas'}
+        style={presentationStageStyle}
       >
-        <div className="relative w-full h-full flex items-center justify-center">
-          {/* Slides */}
-          {slides.map((slide, index) => {
-            const isFocused = index === focusedSlide;
-            const isCurrent = index === currentSlide;
-            
-            return (
-              <div
-                key={slide.id}
-                className={`absolute slide rounded-xl shadow-2xl transition-all duration-500 cursor-pointer transform ${
-                  slide.backgroundImage ? 'slide-has-bg' : ''
-                } ${
-                  isFocused
-                    ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse'
-                    : isCurrent
-                      ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105'
-                      : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'
-                }`}
-                style={{
-                  left: `${slide.position.x}px`,
-                  top: `${slide.position.y}px`,
-                  width: `${SLIDE_WIDTH}px`,
-                  height: `${SLIDE_HEIGHT}px`,
-                  minHeight: `${SLIDE_HEIGHT}px`,
-                  transform: 'translate(-50%, -50%)',
-                  opacity: isPresenting && index !== currentSlide ? 0.1 : 1,
-                  zIndex: isFocused ? 1000 : isCurrent ? 999 : isPresenting && index !== currentSlide ? 0 : 1,
-                  position: 'absolute',
-                  boxSizing: 'border-box',
-                  overflow: 'hidden',
-                  ...(slide.backgroundImage ? {
-                    backgroundImage: `url('${slide.backgroundImage}')`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat'
-                  } : {})
-                }}
-                onDoubleClick={() => handleSlideDoubleClick(index)}
-              >
-                <div
-                  className="slide-content"
-                  style={{ height: '100%', width: '100%' }}
-                  dangerouslySetInnerHTML={{ __html: slide.parsed }}
-                />
-              </div>
-            );
-          })}
-
-          {/* Connection Lines */}
-          <svg className="absolute inset-0 pointer-events-none" style={{ width: '200%', height: '200%' }}>
+        {/* Canvas */}
+        <div
+          ref={canvasRef}
+          className="presentation-canvas w-full h-full"
+          data-active-scale={activeZoom.toFixed(6)}
+          style={{
+            transform: `translate(${activePan.x}px, ${activePan.y}px) scale(${activeZoom})`,
+            transformOrigin: '0 0',
+            transition: (isDragging || isZooming)
+              ? 'none'
+              : isPresenting
+                ? 'transform 0.35s ease-out'
+                : 'transform 0.2s ease-out'
+          }}
+        >
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Slides */}
             {slides.map((slide, index) => {
-              if (index === slides.length - 1) return null;
-              const nextSlide = slides[index + 1];
+              const isFocused = index === focusedSlide;
+              const isCurrent = index === currentSlide;
+              if (isPresenting && !isCurrent) return null;
+
               return (
-                <line
-                  key={`line-${index}`}
-                  x1={slide.position.x + SLIDE_HALF_WIDTH}
-                  y1={slide.position.y + SLIDE_HALF_HEIGHT}
-                  x2={nextSlide.position.x + SLIDE_HALF_WIDTH}
-                  y2={nextSlide.position.y + SLIDE_HALF_HEIGHT}
-                  stroke="rgba(255,255,255,0.1)"
-                  strokeWidth="2"
-                  strokeDasharray="5,5"
-                />
+                <div
+                  key={slide.id}
+                  data-slide-index={index}
+                  data-current-slide={isCurrent ? 'true' : 'false'}
+                  className={`absolute slide rounded-xl shadow-2xl transition-all duration-500 transform ${
+                    slide.backgroundImage ? 'slide-has-bg' : ''
+                  } ${
+                    isPresenting
+                      ? 'presentation-current-slide'
+                      : isFocused
+                        ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse'
+                        : isCurrent
+                          ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105'
+                          : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'
+                  }`}
+                  style={{
+                    '--slide-x': `${slide.position.x}px`,
+                    '--slide-y': `${slide.position.y}px`,
+                    left: `${slide.position.x}px`,
+                    top: `${slide.position.y}px`,
+                    width: `${SLIDE_WIDTH}px`,
+                    height: `${SLIDE_HEIGHT}px`,
+                    minHeight: `${SLIDE_HEIGHT}px`,
+                    transform: 'translate(-50%, -50%)',
+                    opacity: 1,
+                    zIndex: isFocused ? 1000 : isCurrent ? 999 : 1,
+                    position: 'absolute',
+                    boxSizing: 'border-box',
+                    overflow: 'hidden',
+                    ...(slide.backgroundImage ? {
+                      backgroundImage: `url('${slide.backgroundImage}')`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat'
+                    } : {})
+                  }}
+                  onDoubleClick={isPresenting ? undefined : () => handleSlideDoubleClick(index)}
+                >
+                  <PresentationSlideContent html={slide.parsed} isPresenting={isPresenting} />
+                </div>
               );
             })}
-          </svg>
+
+            {/* Connection Lines */}
+            {!isPresenting && (
+              <svg className="absolute inset-0 pointer-events-none" style={{ width: '200%', height: '200%' }}>
+                {slides.map((slide, index) => {
+                  if (index === slides.length - 1) return null;
+                  const nextSlide = slides[index + 1];
+                  return (
+                    <line
+                      key={`line-${index}`}
+                      x1={slide.position.x + SLIDE_HALF_WIDTH}
+                      y1={slide.position.y + SLIDE_HALF_HEIGHT}
+                      x2={nextSlide.position.x + SLIDE_HALF_WIDTH}
+                      y2={nextSlide.position.y + SLIDE_HALF_HEIGHT}
+                      stroke="rgba(255,255,255,0.1)"
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                    />
+                  );
+                })}
+              </svg>
+            )}
+          </div>
         </div>
       </div>
     </div>

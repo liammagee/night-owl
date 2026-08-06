@@ -35,7 +35,7 @@ body.is-presenting #speaker-notes-panel[style*="display: block"] {
 
 /* Adjust presentation content when speaker notes are visible */
 body.is-presenting.speaker-notes-visible #presentation-content {
-    height: calc(100vh - 200px) !important;
+    height: 100% !important;
 }
 
 /* Speaker notes content styling */

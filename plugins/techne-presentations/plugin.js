@@ -1,7 +1,7 @@
 (function () {
     const FEATURE_ID = 'nightowl-presentations';
     const BASE = 'plugins/techne-presentations';
-    const VERSION = '20251222g'; // Bump this to bust cache
+    const VERSION = '20260807a'; // Bump this to bust cache
     const reactRoots = new WeakMap();
 
     const cacheBust = (url) => `${url}?v=${VERSION}`;
@@ -82,6 +82,7 @@
                 await host.loadCSS(cacheBust(`${BASE}/speaker-notes.css`), { id: `${FEATURE_ID}-notes-css` });
 
                 const scripts = [
+                    cacheBust(`${BASE}/presentation-viewport.js`),
                     cacheBust(`${BASE}/ttsService.js`),
                     cacheBust(`${BASE}/videoRecordingService.js`),
                     cacheBust(`${BASE}/speaker-notes.js`),

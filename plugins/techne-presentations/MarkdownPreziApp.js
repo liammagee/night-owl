@@ -25,6 +25,7 @@ var ReactDOM = window.ReactDOM;
 var useState = React.useState,
   useRef = React.useRef,
   useEffect = React.useEffect,
+  useLayoutEffect = React.useLayoutEffect,
   useCallback = React.useCallback;
 
 // Lucide React icons as simple SVG components
@@ -118,11 +119,104 @@ var ZoomOut = function ZoomOut() {
     y2: "11"
   }));
 };
-var SLIDE_WIDTH = 864;
-var SLIDE_HEIGHT = 486;
+var presentationViewport = window.NightOwlPresentationViewport;
+var SLIDE_WIDTH = (presentationViewport === null || presentationViewport === void 0 ? void 0 : presentationViewport.SLIDE_WIDTH) || 864;
+var SLIDE_HEIGHT = (presentationViewport === null || presentationViewport === void 0 ? void 0 : presentationViewport.SLIDE_HEIGHT) || 486;
 var SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
 var SLIDE_HALF_HEIGHT = SLIDE_HEIGHT / 2;
 var SLIDE_SPACING = SLIDE_WIDTH + 240;
+var PresentationSlideContent = function PresentationSlideContent(_ref) {
+  var html = _ref.html,
+    isPresenting = _ref.isPresenting;
+  var frameRef = useRef(null);
+  var contentRef = useRef(null);
+  var _useState = useState(1),
+    _useState2 = _slicedToArray(_useState, 2),
+    contentScale = _useState2[0],
+    setContentScale = _useState2[1];
+  useLayoutEffect(function () {
+    var frame = frameRef.current;
+    var element = contentRef.current;
+    if (!frame || !element) return undefined;
+    var slideElement = element.closest('.slide');
+    var animationFrame = null;
+    var measure = function measure() {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(function () {
+        var _presentationViewport, _presentationViewport2;
+        animationFrame = null;
+        var availableWidth = Math.min(frame.clientWidth, element.clientWidth);
+        var availableHeight = Math.min(frame.clientHeight, element.clientHeight);
+        var descendants = Array.from(element.querySelectorAll('*'));
+        var contentWidth = descendants.reduce(function (maximum, child) {
+          return Math.max(maximum, child.scrollWidth || 0);
+        }, Math.max(availableWidth, element.scrollWidth));
+        var contentHeight = descendants.reduce(function (maximum, child) {
+          return Math.max(maximum, (child.offsetTop || 0) + (child.scrollHeight || 0));
+        }, Math.max(availableHeight, element.scrollHeight));
+        var nextScale = (_presentationViewport = presentationViewport === null || presentationViewport === void 0 || (_presentationViewport2 = presentationViewport.calculateContentScale) === null || _presentationViewport2 === void 0 ? void 0 : _presentationViewport2.call(presentationViewport, {
+          availableWidth: availableWidth,
+          availableHeight: availableHeight,
+          contentWidth: contentWidth,
+          contentHeight: contentHeight
+        })) !== null && _presentationViewport !== void 0 ? _presentationViewport : 1;
+        var overflows = nextScale < 0.999;
+        if (slideElement) {
+          slideElement.dataset.contentOverflow = overflows ? 'true' : 'false';
+        }
+        setContentScale(function (previous) {
+          return Math.abs(previous - nextScale) > 0.001 ? nextScale : previous;
+        });
+      });
+    };
+    measure();
+    var resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(frame);
+    resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(element);
+    var mutationObserver = new MutationObserver(measure);
+    mutationObserver.observe(element, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+    element.querySelectorAll('img').forEach(function (image) {
+      return image.addEventListener('load', measure);
+    });
+    window.addEventListener('resize', measure);
+    return function () {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver === null || resizeObserver === void 0 || resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      element.querySelectorAll('img').forEach(function (image) {
+        return image.removeEventListener('load', measure);
+      });
+      window.removeEventListener('resize', measure);
+      if (slideElement) delete slideElement.dataset.contentOverflow;
+    };
+  }, [html, isPresenting]);
+  return /*#__PURE__*/React.createElement("div", {
+    ref: frameRef,
+    className: "slide-content-frame",
+    style: {
+      height: '100%',
+      width: '100%',
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    ref: contentRef,
+    className: "slide-content ".concat(isPresenting ? 'slide-content-delivery' : 'slide-content-authoring'),
+    "data-content-scale": contentScale.toFixed(4),
+    style: {
+      height: '100%',
+      width: '100%',
+      transform: isPresenting ? "scale(".concat(contentScale, ")") : 'none',
+      transformOrigin: 'top left'
+    },
+    dangerouslySetInnerHTML: {
+      __html: html
+    }
+  }));
+};
 var Home = function Home() {
   return /*#__PURE__*/React.createElement("svg", {
     width: "16",
@@ -359,83 +453,83 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var isElectron = window.electronAPI && window.electronAPI.isElectron;
 
   // React component rendering
-  var _useState = useState([]),
-    _useState2 = _slicedToArray(_useState, 2),
-    slides = _useState2[0],
-    setSlides = _useState2[1];
-  var _useState3 = useState(0),
+  var _useState3 = useState([]),
     _useState4 = _slicedToArray(_useState3, 2),
-    currentSlide = _useState4[0],
-    setCurrentSlide = _useState4[1];
-  var _useState5 = useState(1),
+    slides = _useState4[0],
+    setSlides = _useState4[1];
+  var _useState5 = useState(0),
     _useState6 = _slicedToArray(_useState5, 2),
-    zoom = _useState6[0],
-    setZoom = _useState6[1];
-  var _useState7 = useState({
+    currentSlide = _useState6[0],
+    setCurrentSlide = _useState6[1];
+  var _useState7 = useState(1),
+    _useState8 = _slicedToArray(_useState7, 2),
+    zoom = _useState8[0],
+    setZoom = _useState8[1];
+  var _useState9 = useState({
       x: 0,
       y: 0
     }),
-    _useState8 = _slicedToArray(_useState7, 2),
-    pan = _useState8[0],
-    setPan = _useState8[1];
-  var _useState9 = useState(false),
     _useState0 = _slicedToArray(_useState9, 2),
-    isZooming = _useState0[0],
-    setIsZooming = _useState0[1];
+    pan = _useState0[0],
+    setPan = _useState0[1];
   var _useState1 = useState(false),
     _useState10 = _slicedToArray(_useState1, 2),
-    isDragging = _useState10[0],
-    setIsDragging = _useState10[1];
-  var _useState11 = useState({
-      x: 0,
-      y: 0
-    }),
+    isZooming = _useState10[0],
+    setIsZooming = _useState10[1];
+  var _useState11 = useState(false),
     _useState12 = _slicedToArray(_useState11, 2),
-    dragStart = _useState12[0],
-    setDragStart = _useState12[1];
+    isDragging = _useState12[0],
+    setIsDragging = _useState12[1];
   var _useState13 = useState({
       x: 0,
       y: 0
     }),
     _useState14 = _slicedToArray(_useState13, 2),
-    panStart = _useState14[0],
-    setPanStart = _useState14[1];
-  var _useState15 = useState(false),
+    dragStart = _useState14[0],
+    setDragStart = _useState14[1];
+  var _useState15 = useState({
+      x: 0,
+      y: 0
+    }),
     _useState16 = _slicedToArray(_useState15, 2),
-    isPresenting = _useState16[0],
-    setIsPresenting = _useState16[1];
-  var _useState17 = useState('spiral'),
+    panStart = _useState16[0],
+    setPanStart = _useState16[1];
+  var _useState17 = useState(false),
     _useState18 = _slicedToArray(_useState17, 2),
-    layoutType = _useState18[0],
-    setLayoutType = _useState18[1];
-  var _useState19 = useState(null),
+    isPresenting = _useState18[0],
+    setIsPresenting = _useState18[1];
+  var _useState19 = useState('spiral'),
     _useState20 = _slicedToArray(_useState19, 2),
-    focusedSlide = _useState20[0],
-    setFocusedSlide = _useState20[1];
-  var _useState21 = useState(true),
+    layoutType = _useState20[0],
+    setLayoutType = _useState20[1];
+  var _useState21 = useState(null),
     _useState22 = _slicedToArray(_useState21, 2),
-    speakerNotesVisible = _useState22[0],
-    setSpeakerNotesVisible = _useState22[1];
-  var _useState23 = useState(false),
+    focusedSlide = _useState22[0],
+    setFocusedSlide = _useState22[1];
+  var _useState23 = useState(true),
     _useState24 = _slicedToArray(_useState23, 2),
-    speakerNotesWindowVisible = _useState24[0],
-    setSpeakerNotesWindowVisible = _useState24[1];
+    speakerNotesVisible = _useState24[0],
+    setSpeakerNotesVisible = _useState24[1];
   var _useState25 = useState(false),
     _useState26 = _slicedToArray(_useState25, 2),
-    ttsEnabled = _useState26[0],
-    setTtsEnabled = _useState26[1];
+    speakerNotesWindowVisible = _useState26[0],
+    setSpeakerNotesWindowVisible = _useState26[1];
   var _useState27 = useState(false),
     _useState28 = _slicedToArray(_useState27, 2),
-    isSpeaking = _useState28[0],
-    setIsSpeaking = _useState28[1];
+    ttsEnabled = _useState28[0],
+    setTtsEnabled = _useState28[1];
   var _useState29 = useState(false),
     _useState30 = _slicedToArray(_useState29, 2),
-    isLoadingTTS = _useState30[0],
-    setIsLoadingTTS = _useState30[1];
-  var _useState31 = useState('sarah'),
+    isSpeaking = _useState30[0],
+    setIsSpeaking = _useState30[1];
+  var _useState31 = useState(false),
     _useState32 = _slicedToArray(_useState31, 2),
-    selectedVoice = _useState32[0],
-    setSelectedVoice = _useState32[1]; // Default voice
+    isLoadingTTS = _useState32[0],
+    setIsLoadingTTS = _useState32[1];
+  var _useState33 = useState('sarah'),
+    _useState34 = _slicedToArray(_useState33, 2),
+    selectedVoice = _useState34[0],
+    setSelectedVoice = _useState34[1]; // Default voice
   var ttsStateRef = useRef({
     isAdvancing: false,
     currentSpeakingSlide: -1
@@ -444,26 +538,48 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var MAX_ZOOM = 3;
 
   // Video recording state
-  var _useState33 = useState(false),
-    _useState34 = _slicedToArray(_useState33, 2),
-    isRecording = _useState34[0],
-    setIsRecording = _useState34[1];
   var _useState35 = useState(false),
     _useState36 = _slicedToArray(_useState35, 2),
-    isPaused = _useState36[0],
-    setIsPaused = _useState36[1];
-  var _useState37 = useState(0),
+    isRecording = _useState36[0],
+    setIsRecording = _useState36[1];
+  var _useState37 = useState(false),
     _useState38 = _slicedToArray(_useState37, 2),
-    recordingDuration = _useState38[0],
-    setRecordingDuration = _useState38[1];
+    isPaused = _useState38[0],
+    setIsPaused = _useState38[1];
+  var _useState39 = useState(0),
+    _useState40 = _slicedToArray(_useState39, 2),
+    recordingDuration = _useState40[0],
+    setRecordingDuration = _useState40[1];
   var recordingTimerRef = useRef(null);
 
   // Current slides and slide index state
   var canvasRef = useRef(null);
   var containerRef = useRef(null);
+  var stageRef = useRef(null);
+  var presentationControlsRef = useRef(null);
+  var navigationControlsRef = useRef(null);
   var zoomInteractionTimeoutRef = useRef(null);
   var zoomRef = useRef(zoom);
   var panRef = useRef(pan);
+  var _useState41 = useState({
+      top: 16,
+      right: 16,
+      bottom: 16,
+      left: 16
+    }),
+    _useState42 = _slicedToArray(_useState41, 2),
+    presentationInsets = _useState42[0],
+    setPresentationInsets = _useState42[1];
+  var _useState43 = useState({
+      scale: 1,
+      pan: {
+        x: 0,
+        y: 0
+      }
+    }),
+    _useState44 = _slicedToArray(_useState43, 2),
+    presentationFit = _useState44[0],
+    setPresentationFit = _useState44[1];
 
   // Sample markdown content for demo
   var sampleMarkdown = "# SAMPLE CONTENT TEST\nThis is sample content to test speaker notes.\n\n```notes\n\uD83D\uDD34 SAMPLE SPEAKER NOTES: If you can see this, the speaker notes parsing is working correctly!\n\nThis is a test of the speaker notes functionality in presentation mode.\n```\n\n---\n\n## What is This?\n- Advanced Markdown editor with AI assistance\n- Interactive presentation capabilities\n- Integrated file management\n- Philosophical content support\n\n```notes\nExplain each bullet point briefly:\n\n1. Advanced editor - mention Monaco editor, syntax highlighting\n2. Presentation capabilities - this is what they're seeing now!\n3. File management - integrated file tree, folder operations\n4. Philosophical content - specifically designed for philosophy education\n\nAsk if anyone has questions about the core features before moving on.\n```\n\n---\n\n## Key Features\n### Editor Mode\n- Monaco editor with syntax highlighting\n- Real-time preview\n- AI chat integration\n- Document structure navigation\n\n### Presentation Mode\n- Zoomable presentation canvas\n- Multiple layout types\n- Smooth transitions\n- Interactive navigation\n\n```notes\nDemonstrate the dual modes:\n\nEditor Mode:\n- Show how the editor looks\n- Mention real-time preview\n- AI chat for philosophical discussions\n\nPresentation Mode:\n- This is what we're in right now\n- Mention zoom capabilities (demonstrate if needed)\n- Different layouts available (spiral, grid, linear, circle)\n\nTransition: \"Now let's talk about the philosophical foundation...\"\n```\n\n---\n\n## Philosophical Focus\n### Hegelian Dialectic\n- **Thesis**: Initial position or concept\n- **Antithesis**: Negation or contradiction\n- **Synthesis**: Higher unity transcending both\n\n### AI & Pedagogy\nIntegration of artificial intelligence with philosophical education.\n\n```notes\nThis is the core philosophical concept we're exploring:\n\nHegelian Dialectic explanation:\n- Thesis: Starting point, initial idea\n- Antithesis: Opposition, contradiction, challenge\n- Synthesis: Resolution that preserves and transcends both\n\nGive a concrete example if time permits - maybe democracy/authoritarianism -> constitutional democracy.\n\nAI & Pedagogy:\n- Not replacing human instruction\n- Augmenting and enhancing learning\n- Helping students explore complex philosophical concepts\n```\n\n---\n\n## Getting Started\n1. Switch between Editor and Presentation views\n2. Load your Markdown files\n3. Use AI chat for assistance\n4. Create engaging presentations\n5. Explore philosophical concepts\n\n```notes\nPractical steps for new users:\n\n1. Mode switching - use the buttons at the top\n2. File loading - integrated file system\n3. AI assistance - context-aware help for philosophical concepts\n4. Presentations - what they're experiencing now\n5. Exploration - encourage experimentation\n\nRemind them that speaker notes like these are available in presentation mode!\n\nNext: Thank them and open for questions.\n```\n\n---\n\n## Thank You!\nWelcome to the future of philosophical education.\n\n*Happy learning and presenting!*\n\n```notes\nClosing remarks:\n\n- Thank the audience for their attention\n- Emphasize the innovative nature of combining AI with philosophy\n- Invite questions and discussion\n- Mention that this is just the beginning\n\nEnd with: \"Are there any questions about the platform or its philosophical applications?\"\n\nNote: You can press 'N' to toggle these speaker notes on/off during presentation.\n```";
@@ -473,6 +589,104 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   useEffect(function () {
     panRef.current = pan;
   }, [pan]);
+  useLayoutEffect(function () {
+    if (!isPresenting) {
+      setPresentationInsets({
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0
+      });
+      return undefined;
+    }
+    var notesPanel = document.getElementById('speaker-notes-panel');
+    var observedElements = [containerRef.current, presentationControlsRef.current, navigationControlsRef.current, notesPanel].filter(Boolean);
+    var animationFrame = null;
+    var measureChrome = function measureChrome() {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(function () {
+        var _presentationControls, _presentationControls2, _navigationControlsRe, _navigationControlsRe2;
+        animationFrame = null;
+        var controlsHeight = ((_presentationControls = presentationControlsRef.current) === null || _presentationControls === void 0 || (_presentationControls2 = _presentationControls.getBoundingClientRect) === null || _presentationControls2 === void 0 ? void 0 : _presentationControls2.call(_presentationControls).height) || 0;
+        var navigationHeight = ((_navigationControlsRe = navigationControlsRef.current) === null || _navigationControlsRe === void 0 || (_navigationControlsRe2 = _navigationControlsRe.getBoundingClientRect) === null || _navigationControlsRe2 === void 0 ? void 0 : _navigationControlsRe2.call(_navigationControlsRe).height) || 0;
+        var notesStyle = notesPanel ? window.getComputedStyle(notesPanel) : null;
+        var notesHeight = notesPanel && (notesStyle === null || notesStyle === void 0 ? void 0 : notesStyle.display) !== 'none' && (notesStyle === null || notesStyle === void 0 ? void 0 : notesStyle.visibility) !== 'hidden' ? notesPanel.getBoundingClientRect().height : 0;
+        var next = {
+          top: controlsHeight > 0 ? controlsHeight + 28 : 16,
+          right: 16,
+          bottom: Math.max(navigationHeight > 0 ? navigationHeight + 28 : 16, notesHeight > 0 ? notesHeight + 12 : 0),
+          left: 16
+        };
+        setPresentationInsets(function (previous) {
+          return previous.top === next.top && previous.right === next.right && previous.bottom === next.bottom && previous.left === next.left ? previous : next;
+        });
+      });
+    };
+    measureChrome();
+    var resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measureChrome) : null;
+    observedElements.forEach(function (element) {
+      return resizeObserver === null || resizeObserver === void 0 ? void 0 : resizeObserver.observe(element);
+    });
+    var mutationObserver = new MutationObserver(measureChrome);
+    mutationObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      childList: true
+    });
+    if (notesPanel) {
+      mutationObserver.observe(notesPanel, {
+        attributes: true,
+        attributeFilter: ['class', 'style']
+      });
+    }
+    window.addEventListener('resize', measureChrome);
+    return function () {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver === null || resizeObserver === void 0 || resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', measureChrome);
+    };
+  }, [isPresenting, speakerNotesWindowVisible]);
+  useLayoutEffect(function () {
+    if (!isPresenting || slides.length === 0) return undefined;
+    var stage = stageRef.current;
+    var slide = slides[currentSlide];
+    if (!stage || !slide) return undefined;
+    var animationFrame = null;
+    var updateFit = function updateFit() {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(function () {
+        var _presentationViewport3;
+        animationFrame = null;
+        if (!stage.clientWidth || !stage.clientHeight) return;
+        var next = presentationViewport === null || presentationViewport === void 0 || (_presentationViewport3 = presentationViewport.calculateFitTransform) === null || _presentationViewport3 === void 0 ? void 0 : _presentationViewport3.call(presentationViewport, {
+          viewportWidth: stage.clientWidth,
+          viewportHeight: stage.clientHeight,
+          slideX: slide.position.x,
+          slideY: slide.position.y,
+          slideWidth: SLIDE_WIDTH,
+          slideHeight: SLIDE_HEIGHT,
+          padding: 12
+        });
+        if (!next) return;
+        setPresentationFit(function (previous) {
+          return Math.abs(previous.scale - next.scale) < 0.0001 && Math.abs(previous.pan.x - next.pan.x) < 0.1 && Math.abs(previous.pan.y - next.pan.y) < 0.1 ? previous : {
+            scale: next.scale,
+            pan: next.pan
+          };
+        });
+      });
+    };
+    updateFit();
+    var resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(updateFit) : null;
+    resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(stage);
+    window.addEventListener('resize', updateFit);
+    return function () {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver === null || resizeObserver === void 0 || resizeObserver.disconnect();
+      window.removeEventListener('resize', updateFit);
+    };
+  }, [isPresenting, slides, currentSlide, presentationInsets]);
   var markZoomInteraction = useCallback(function () {
     setIsZooming(true);
     if (zoomInteractionTimeoutRef.current) {
@@ -928,9 +1142,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     html = html.replace(/<p>\s*<\/p>/g, '');
 
     // Restore math expressions
-    mathExpressions.forEach(function (_ref) {
-      var placeholder = _ref.placeholder,
-        content = _ref.content;
+    mathExpressions.forEach(function (_ref2) {
+      var placeholder = _ref2.placeholder,
+        content = _ref2.content;
       html = html.replace(placeholder, content);
     });
     return html;
@@ -1070,18 +1284,18 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }
       return;
     }
-    var targetZoom = isPresenting ? zoomRef.current || zoom : 1.2;
-    var targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
-    console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
     if (!isPresenting) {
+      var targetZoom = 1.2;
+      var targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
+      console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
       markZoomInteraction();
+      zoomRef.current = targetZoom;
+      panRef.current = targetPan;
+      setZoom(targetZoom);
+      setPan(targetPan);
     }
     setCurrentSlide(slideIndex);
     setFocusedSlide(null);
-    zoomRef.current = targetZoom;
-    panRef.current = targetPan;
-    setZoom(targetZoom);
-    setPan(targetPan);
 
     // Mark slide transition in recording if recording is active
     if (isRecording && window.videoRecordingService) {
@@ -1434,6 +1648,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         return;
       }
       e.preventDefault();
+      if (isPresenting) return;
       markZoomInteraction();
       var previousZoom = zoomRef.current || 1;
       var deltaModeMultiplier = e.deltaMode === 1 ? 33 : 1;
@@ -1463,7 +1678,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     return function () {
       return container.removeEventListener('wheel', handleWheel);
     };
-  }, [markZoomInteraction, MAX_ZOOM, MIN_ZOOM, slides, currentSlide]);
+  }, [markZoomInteraction, MAX_ZOOM, MIN_ZOOM, slides, currentSlide, isPresenting]);
 
   // Keyboard navigation
   useEffect(function () {
@@ -1756,7 +1971,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Update speaker notes display when current slide changes
   useEffect(function () {
     var updateSpeakerNotes = /*#__PURE__*/function () {
-      var _ref2 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
+      var _ref3 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
         var notesPanel, notesContent, noteText, formattedNotes, currentContent, shouldShowInlinePanel, presentationContent, currentSlideNotes, _t;
         return _regenerator().w(function (_context) {
           while (1) switch (_context.p = _context.n) {
@@ -1853,7 +2068,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         }, _callee, null, [[1, 4]]);
       }));
       return function updateSpeakerNotes() {
-        return _ref2.apply(this, arguments);
+        return _ref3.apply(this, arguments);
       };
     }();
     updateSpeakerNotes();
@@ -1935,7 +2150,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Speak text using TTS with auto-advance
   var speakText = /*#__PURE__*/function () {
-    var _ref3 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(text, slideIndex) {
+    var _ref4 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(text, slideIndex) {
       var completionHandled, handleCompletion, ttsOptions, ttsPromise, pollCount, maxPollCount, _checkCompletion;
       return _regenerator().w(function (_context2) {
         while (1) switch (_context2.n) {
@@ -2084,7 +2299,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }, _callee2);
     }));
     return function speakText(_x, _x2) {
-      return _ref3.apply(this, arguments);
+      return _ref4.apply(this, arguments);
     };
   }();
 
@@ -2102,7 +2317,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Video Recording Functions
   var startRecording = /*#__PURE__*/function () {
-    var _ref4 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3() {
+    var _ref5 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3() {
       var options, includeAudio, _t2;
       return _regenerator().w(function (_context3) {
         while (1) switch (_context3.p = _context3.n) {
@@ -2187,7 +2402,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }, _callee3, null, [[1, 5]]);
     }));
     return function startRecording() {
-      return _ref4.apply(this, arguments);
+      return _ref5.apply(this, arguments);
     };
   }();
   var stopRecording = function stopRecording() {
@@ -2314,7 +2529,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     return "".concat(hours, "h ").concat(remainingMinutes, "m");
   };
   var toggleSpeakerNotesWindow = /*#__PURE__*/function () {
-    var _ref5 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
+    var _ref6 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
       var panel, presentationContent, notesContainer, currentSlideNotes, _panel, sidebarPane, allNotes, _currentSlideNotes, formattedNotes, _panel2, _panel4, _t3, _t4;
       return _regenerator().w(function (_context4) {
         while (1) switch (_context4.p = _context4.n) {
@@ -2511,7 +2726,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }, _callee4, null, [[7, 11, 12, 13], [2, 4, 5, 6]]);
     }));
     return function toggleSpeakerNotesWindow() {
-      return _ref5.apply(this, arguments);
+      return _ref6.apply(this, arguments);
     };
   }();
 
@@ -2519,7 +2734,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Mouse handlers for panning
   var handleMouseDown = function handleMouseDown(e) {
-    // Allow panning from anywhere in the canvas, even during presentation
+    if (isPresenting) return;
     setIsDragging(true);
     setDragStart({
       x: e.clientX,
@@ -2551,11 +2766,28 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       window.formatTime = null;
     };
   }, []);
+  var activeZoom = isPresenting ? presentationFit.scale : zoom;
+  var activePan = isPresenting ? presentationFit.pan : pan;
+  var presentationStageStyle = isPresenting ? {
+    position: 'absolute',
+    top: "".concat(presentationInsets.top, "px"),
+    right: "".concat(presentationInsets.right, "px"),
+    bottom: "".concat(presentationInsets.bottom, "px"),
+    left: "".concat(presentationInsets.left, "px"),
+    overflow: 'hidden'
+  } : {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden'
+  };
   return /*#__PURE__*/React.createElement("div", {
     ref: containerRef,
-    className: "w-full h-screen relative overflow-hidden cursor-grab active:cursor-grabbing",
+    className: "presentation-shell w-full h-full relative overflow-hidden ".concat(isPresenting ? '' : 'cursor-grab active:cursor-grabbing'),
+    "data-presentation-mode": isPresenting ? 'delivery' : 'authoring',
     style: {
-      background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))'
+      background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))',
+      height: '100%',
+      minHeight: 0
     },
     onMouseDown: handleMouseDown,
     onMouseMove: handleMouseMove,
@@ -2612,7 +2844,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     },
     className: "presentation-control-btn presentation-present-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-lg border"
   }, /*#__PURE__*/React.createElement(Play, null), "Present")), /*#__PURE__*/React.createElement("div", {
-    className: "fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4"
+    ref: navigationControlsRef,
+    className: "presentation-navigation absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return goToSlide(currentSlide - 1);
@@ -2648,20 +2881,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       boxShadow: '3px 3px 0 var(--techne-black, rgba(0,0,0,0.8))'
     }
   }, /*#__PURE__*/React.createElement(ChevronRight, null))), isPresenting && /*#__PURE__*/React.createElement("div", {
-    className: "absolute top-4 right-4 z-10 flex gap-2"
+    ref: presentationControlsRef,
+    className: "presentation-toolbar absolute top-4 right-4 z-10 flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: handleZoomIn,
-    className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Zoom In"
-  }, /*#__PURE__*/React.createElement(ZoomIn, null)), /*#__PURE__*/React.createElement("button", {
-    onClick: handleZoomOut,
-    className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Zoom Out"
-  }, /*#__PURE__*/React.createElement(ZoomOut, null)), /*#__PURE__*/React.createElement("button", {
-    onClick: _resetView,
-    className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Reset Zoom"
-  }, /*#__PURE__*/React.createElement(Home, null)), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       if (window.exportVisualizationAsPNG) {
         window.exportVisualizationAsPNG('presentation-root', 'presentation');
@@ -2748,30 +2970,41 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     },
     className: "px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
   }, "Exit Presentation")), /*#__PURE__*/React.createElement("div", {
+    ref: stageRef,
+    className: "presentation-stage",
+    "data-fit-mode": isPresenting ? 'contain' : 'canvas',
+    style: presentationStageStyle
+  }, /*#__PURE__*/React.createElement("div", {
     ref: canvasRef,
-    className: "w-full h-full",
+    className: "presentation-canvas w-full h-full",
+    "data-active-scale": activeZoom.toFixed(6),
     style: {
-      transform: "translate(".concat(pan.x, "px, ").concat(pan.y, "px) scale(").concat(zoom, ")"),
+      transform: "translate(".concat(activePan.x, "px, ").concat(activePan.y, "px) scale(").concat(activeZoom, ")"),
       transformOrigin: '0 0',
-      transition: isDragging || isZooming ? 'none' : isPresenting ? 'transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)' : 'transform 0.2s ease-out'
+      transition: isDragging || isZooming ? 'none' : isPresenting ? 'transform 0.35s ease-out' : 'transform 0.2s ease-out'
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "relative w-full h-full flex items-center justify-center"
   }, slides.map(function (slide, index) {
     var isFocused = index === focusedSlide;
     var isCurrent = index === currentSlide;
+    if (isPresenting && !isCurrent) return null;
     return /*#__PURE__*/React.createElement("div", {
       key: slide.id,
-      className: "absolute slide rounded-xl shadow-2xl transition-all duration-500 cursor-pointer transform ".concat(slide.backgroundImage ? 'slide-has-bg' : '', " ").concat(isFocused ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse' : isCurrent ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105' : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'),
+      "data-slide-index": index,
+      "data-current-slide": isCurrent ? 'true' : 'false',
+      className: "absolute slide rounded-xl shadow-2xl transition-all duration-500 transform ".concat(slide.backgroundImage ? 'slide-has-bg' : '', " ").concat(isPresenting ? 'presentation-current-slide' : isFocused ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse' : isCurrent ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105' : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'),
       style: _objectSpread({
+        '--slide-x': "".concat(slide.position.x, "px"),
+        '--slide-y': "".concat(slide.position.y, "px"),
         left: "".concat(slide.position.x, "px"),
         top: "".concat(slide.position.y, "px"),
         width: "".concat(SLIDE_WIDTH, "px"),
         height: "".concat(SLIDE_HEIGHT, "px"),
         minHeight: "".concat(SLIDE_HEIGHT, "px"),
         transform: 'translate(-50%, -50%)',
-        opacity: isPresenting && index !== currentSlide ? 0.1 : 1,
-        zIndex: isFocused ? 1000 : isCurrent ? 999 : isPresenting && index !== currentSlide ? 0 : 1,
+        opacity: 1,
+        zIndex: isFocused ? 1000 : isCurrent ? 999 : 1,
         position: 'absolute',
         boxSizing: 'border-box',
         overflow: 'hidden'
@@ -2781,20 +3014,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
       } : {}),
-      onDoubleClick: function onDoubleClick() {
+      onDoubleClick: isPresenting ? undefined : function () {
         return handleSlideDoubleClick(index);
       }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "slide-content",
-      style: {
-        height: '100%',
-        width: '100%'
-      },
-      dangerouslySetInnerHTML: {
-        __html: slide.parsed
-      }
+    }, /*#__PURE__*/React.createElement(PresentationSlideContent, {
+      html: slide.parsed,
+      isPresenting: isPresenting
     }));
-  }), /*#__PURE__*/React.createElement("svg", {
+  }), !isPresenting && /*#__PURE__*/React.createElement("svg", {
     className: "absolute inset-0 pointer-events-none",
     style: {
       width: '200%',
@@ -2813,7 +3040,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       strokeWidth: "2",
       strokeDasharray: "5,5"
     });
-  })))));
+  }))))));
 };
 
 // Make component available globally
