@@ -212,7 +212,7 @@ const PauseIcon = () => (
   </svg>
 );
 
-const MarkdownPreziApp = () => {
+const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) => {
   console.log('[Presentation] *** COMPONENT LOADING ***');
 
   // Set up the global handler immediately, not in useEffect
@@ -1065,26 +1065,34 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Parse markdown into slides
   const parseMarkdown = (markdown) => {
-    // Strip trailing whitespace from the entire markdown content first
-    const trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
+    try {
+      // Strip trailing whitespace from the entire markdown content first
+      const trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
 
-    // Split content by slide separators (--- on standalone lines)
-    // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
-    const slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
-    const slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
-    return slideTexts.map((text, index) => {
-      const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
-      const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);
-      return {
-        id: index,
-        content: text,
-        cleanContent: cleanContent,
-        speakerNotes: speakerNotes,
-        backgroundImage: backgroundImage,
-        position: calculateSlidePosition(index, slideTexts.length),
-        parsed: parseMarkdownContent(cleanContent)
-      };
-    });
+      // Split content by slide separators (--- on standalone lines)
+      // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
+      const slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
+      const slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
+      return slideTexts.map((text, index) => {
+        const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
+        const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);
+        return {
+          id: index,
+          content: text,
+          cleanContent: cleanContent,
+          speakerNotes: speakerNotes,
+          backgroundImage: backgroundImage,
+          position: calculateSlidePosition(index, slideTexts.length),
+          parsed: parseMarkdownContent(cleanContent)
+        };
+      });
+    } catch (error) {
+      console.error('[Presentation] Failed to parse slide content:', error);
+      if (typeof onPresentationError === 'function') {
+        onPresentationError(error);
+      }
+      return [];
+    }
   };
 
   // Initialize - wait for content from editor or use sample as fallback
@@ -1093,17 +1101,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     
     // Brief delay to allow content synchronization from editor
     const initTimeout = setTimeout(() => {
-      // Check if there's pending content from Generate Summary or fresh editor content
-      if (window.pendingPresentationContent) {
-        // Found pending content, using it
-        const pendingSlides = parseMarkdown(window.pendingPresentationContent);
-        setSlides(pendingSlides);
-        window.pendingPresentationContent = null; // Clear it after use
-      } else {
-        // No pending content, using sample content
-        const initialSlides = parseMarkdown(sampleMarkdown);
-        setSlides(initialSlides);
-      }
+      // Prefer the mount prop so a newly mounted component receives the current
+      // document exactly once. The pending global remains a compatibility path
+      // for older callers that do not supply a prop.
+      const initialContent = markdown || window.pendingPresentationContent || sampleMarkdown;
+      setSlides(parseMarkdown(initialContent));
+      window.pendingPresentationContent = null;
     }, 100); // Small delay to allow content synchronization
     
     return () => clearTimeout(initTimeout);
