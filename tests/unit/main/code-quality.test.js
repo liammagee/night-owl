@@ -446,13 +446,18 @@ describe('Code quality guardrails', () => {
 
   test('presentation runtime handles React 18 and later root APIs consistently', () => {
     const modeSwitcher = fs.readFileSync(path.join(__dirname, '../../../js/mode-switcher.js'), 'utf8');
+    const renderer = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const presentationPlugin = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/plugin.js'), 'utf8');
     const presentationPackage = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/package.json'), 'utf8'));
 
     expect(modeSwitcher).toContain('function getPresentationReactRuntime');
     expect(modeSwitcher).toContain('function renderPresentationComponent');
     expect(modeSwitcher).toContain('runtime.reactDOM.createRoot(container)');
+    expect(modeSwitcher).toContain('class PresentationErrorBoundary');
+    expect(modeSwitcher).toContain('NO-PRES-CONTENT');
     expect(modeSwitcher).not.toContain('window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), presentationRoot)');
+    expect(renderer).toContain('window.updateSpeakerNotesDisplay?.();');
+    expect(renderer).not.toMatch(/\n\s+updateSpeakerNotesDisplay\(\);/);
     expect(presentationPlugin).toContain('const getReactRuntime = () =>');
     expect(presentationPlugin).toContain('runtime.reactDOM.createRoot(container)');
     expect(presentationPlugin).toContain('runtime.reactDOM.render(element, container)');

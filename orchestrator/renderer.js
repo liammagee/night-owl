@@ -1283,7 +1283,7 @@ async function renderRegularMarkdown(markdownContent, options = {}) {
         if (typeof window.updatePreviewWordCount === 'function') {
             window.updatePreviewWordCount(previewContent);
         }
-        updateSpeakerNotesDisplay();
+        window.updateSpeakerNotesDisplay?.();
         updateStructurePane(markdownContent);
         if (loadToken) finishLargeFileIndicator(loadToken);
         if (isMarkdownFilePath(options.currentFilePath) && !isBibliographyConfigCurrent(options.currentFilePath, markdownContent)) {
@@ -9507,7 +9507,7 @@ function showSpecificPane(paneType) {
             }
             const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
             if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.add('active');
-            updateSpeakerNotesDisplay();
+            window.updateSpeakerNotesDisplay?.();
             break;
         case 'wholepart':
             if (wholepartPane) {

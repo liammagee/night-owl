@@ -401,6 +401,11 @@ var PauseIcon = function PauseIcon() {
   }));
 };
 var MarkdownPreziApp = function MarkdownPreziApp() {
+  var _ref2 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
+    _ref2$markdown = _ref2.markdown,
+    markdown = _ref2$markdown === void 0 ? '' : _ref2$markdown,
+    _ref2$onPresentationE = _ref2.onPresentationError,
+    onPresentationError = _ref2$onPresentationE === void 0 ? null : _ref2$onPresentationE;
   console.log('[Presentation] *** COMPONENT LOADING ***');
 
   // Set up the global handler immediately, not in useEffect
@@ -1142,9 +1147,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     html = html.replace(/<p>\s*<\/p>/g, '');
 
     // Restore math expressions
-    mathExpressions.forEach(function (_ref2) {
-      var placeholder = _ref2.placeholder,
-        content = _ref2.content;
+    mathExpressions.forEach(function (_ref3) {
+      var placeholder = _ref3.placeholder,
+        content = _ref3.content;
       html = html.replace(placeholder, content);
     });
     return html;
@@ -1205,34 +1210,42 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Parse markdown into slides
   var parseMarkdown = function parseMarkdown(markdown) {
-    // Strip trailing whitespace from the entire markdown content first
-    var trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
+    try {
+      // Strip trailing whitespace from the entire markdown content first
+      var trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
 
-    // Split content by slide separators (--- on standalone lines)
-    // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
-    var slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
-    var slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(function (slide) {
-      return slide.trim();
-    }).filter(function (slide) {
-      return slide;
-    });
-    return slideTexts.map(function (text, index) {
-      var _extractSpeakerNotes = extractSpeakerNotes(text),
-        afterNotes = _extractSpeakerNotes.cleanContent,
-        speakerNotes = _extractSpeakerNotes.speakerNotes;
-      var _extractSlideDirectiv = extractSlideDirectives(afterNotes),
-        cleanContent = _extractSlideDirectiv.cleanContent,
-        backgroundImage = _extractSlideDirectiv.backgroundImage;
-      return {
-        id: index,
-        content: text,
-        cleanContent: cleanContent,
-        speakerNotes: speakerNotes,
-        backgroundImage: backgroundImage,
-        position: calculateSlidePosition(index, slideTexts.length),
-        parsed: parseMarkdownContent(cleanContent)
-      };
-    });
+      // Split content by slide separators (--- on standalone lines)
+      // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
+      var slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
+      var slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(function (slide) {
+        return slide.trim();
+      }).filter(function (slide) {
+        return slide;
+      });
+      return slideTexts.map(function (text, index) {
+        var _extractSpeakerNotes = extractSpeakerNotes(text),
+          afterNotes = _extractSpeakerNotes.cleanContent,
+          speakerNotes = _extractSpeakerNotes.speakerNotes;
+        var _extractSlideDirectiv = extractSlideDirectives(afterNotes),
+          cleanContent = _extractSlideDirectiv.cleanContent,
+          backgroundImage = _extractSlideDirectiv.backgroundImage;
+        return {
+          id: index,
+          content: text,
+          cleanContent: cleanContent,
+          speakerNotes: speakerNotes,
+          backgroundImage: backgroundImage,
+          position: calculateSlidePosition(index, slideTexts.length),
+          parsed: parseMarkdownContent(cleanContent)
+        };
+      });
+    } catch (error) {
+      console.error('[Presentation] Failed to parse slide content:', error);
+      if (typeof onPresentationError === 'function') {
+        onPresentationError(error);
+      }
+      return [];
+    }
   };
 
   // Initialize - wait for content from editor or use sample as fallback
@@ -1241,17 +1254,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
     // Brief delay to allow content synchronization from editor
     var initTimeout = setTimeout(function () {
-      // Check if there's pending content from Generate Summary or fresh editor content
-      if (window.pendingPresentationContent) {
-        // Found pending content, using it
-        var pendingSlides = parseMarkdown(window.pendingPresentationContent);
-        setSlides(pendingSlides);
-        window.pendingPresentationContent = null; // Clear it after use
-      } else {
-        // No pending content, using sample content
-        var initialSlides = parseMarkdown(sampleMarkdown);
-        setSlides(initialSlides);
-      }
+      // Prefer the mount prop so a newly mounted component receives the current
+      // document exactly once. The pending global remains a compatibility path
+      // for older callers that do not supply a prop.
+      var initialContent = markdown || window.pendingPresentationContent || sampleMarkdown;
+      setSlides(parseMarkdown(initialContent));
+      window.pendingPresentationContent = null;
     }, 100); // Small delay to allow content synchronization
 
     return function () {
@@ -1971,7 +1979,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Update speaker notes display when current slide changes
   useEffect(function () {
     var updateSpeakerNotes = /*#__PURE__*/function () {
-      var _ref3 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
+      var _ref4 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
         var notesPanel, notesContent, noteText, formattedNotes, currentContent, shouldShowInlinePanel, presentationContent, currentSlideNotes, _t;
         return _regenerator().w(function (_context) {
           while (1) switch (_context.p = _context.n) {
@@ -2068,7 +2076,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         }, _callee, null, [[1, 4]]);
       }));
       return function updateSpeakerNotes() {
-        return _ref3.apply(this, arguments);
+        return _ref4.apply(this, arguments);
       };
     }();
     updateSpeakerNotes();
@@ -2150,7 +2158,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Speak text using TTS with auto-advance
   var speakText = /*#__PURE__*/function () {
-    var _ref4 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(text, slideIndex) {
+    var _ref5 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(text, slideIndex) {
       var completionHandled, handleCompletion, ttsOptions, ttsPromise, pollCount, maxPollCount, _checkCompletion;
       return _regenerator().w(function (_context2) {
         while (1) switch (_context2.n) {
@@ -2299,7 +2307,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }, _callee2);
     }));
     return function speakText(_x, _x2) {
-      return _ref4.apply(this, arguments);
+      return _ref5.apply(this, arguments);
     };
   }();
 
@@ -2317,7 +2325,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Video Recording Functions
   var startRecording = /*#__PURE__*/function () {
-    var _ref5 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3() {
+    var _ref6 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3() {
       var options, includeAudio, _t2;
       return _regenerator().w(function (_context3) {
         while (1) switch (_context3.p = _context3.n) {
@@ -2402,7 +2410,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }, _callee3, null, [[1, 5]]);
     }));
     return function startRecording() {
-      return _ref5.apply(this, arguments);
+      return _ref6.apply(this, arguments);
     };
   }();
   var stopRecording = function stopRecording() {
@@ -2529,7 +2537,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     return "".concat(hours, "h ").concat(remainingMinutes, "m");
   };
   var toggleSpeakerNotesWindow = /*#__PURE__*/function () {
-    var _ref6 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
+    var _ref7 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
       var panel, presentationContent, notesContainer, currentSlideNotes, _panel, sidebarPane, allNotes, _currentSlideNotes, formattedNotes, _panel2, _panel4, _t3, _t4;
       return _regenerator().w(function (_context4) {
         while (1) switch (_context4.p = _context4.n) {
@@ -2726,7 +2734,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }, _callee4, null, [[7, 11, 12, 13], [2, 4, 5, 6]]);
     }));
     return function toggleSpeakerNotesWindow() {
-      return _ref6.apply(this, arguments);
+      return _ref7.apply(this, arguments);
     };
   }();
 

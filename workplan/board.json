@@ -1,11 +1,11 @@
 {
-  "generated": "2026-08-06T22:39:46.254Z",
+  "generated": "2026-08-07T01:05:17.289Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 14,
+      "triaged": 13,
       "review": 3,
-      "done": 2
+      "done": 3
     },
     "byPriority": {
       "P1": 7,
@@ -15,10 +15,10 @@
     "byArea": {
       "testing": 3,
       "packaging": 2,
-      "presentation": 3,
       "security": 2,
       "architecture": 3,
       "accessibility": 1,
+      "presentation": 3,
       "performance": 1,
       "platform": 2,
       "editor": 1,
@@ -62,25 +62,6 @@
         "asar",
         "packaged-app",
         "tutor-core"
-      ]
-    },
-    {
-      "id": "recover-presentation-load-failures",
-      "title": "Make presentation loading fail visibly and recoverably",
-      "status": "triaged",
-      "type": "bug",
-      "priority": "P1",
-      "area": "presentation",
-      "owner": "unassigned",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "Injected feature-loader, React-render, and content-parse failures each show an actionable error and Retry returns to a rendered deck without restarting NightOwl.",
-      "tags": [
-        "error-boundary",
-        "loading",
-        "recovery"
       ]
     },
     {
@@ -382,6 +363,25 @@
         "build",
         "macos",
         "release"
+      ]
+    },
+    {
+      "id": "recover-presentation-load-failures",
+      "title": "Make presentation loading fail visibly and recoverably",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "presentation",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-07",
+      "verification": "Injected feature-loader, React-render, and content-parse failures each show an actionable error and Retry returns to a rendered deck without restarting NightOwl.",
+      "tags": [
+        "error-boundary",
+        "loading",
+        "recovery"
       ]
     },
     {
