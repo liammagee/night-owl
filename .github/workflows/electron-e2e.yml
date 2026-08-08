@@ -1,0 +1,43 @@
+name: Electron E2E
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  required-smoke:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: night-owl
+
+    steps:
+      - name: Checkout NightOwl
+        uses: actions/checkout@v4
+        with:
+          path: night-owl
+
+      - name: Checkout tutor-core dependency
+        uses: actions/checkout@v4
+        with:
+          repository: liammagee/machinespirits-tutor-core
+          path: machinespirits-tutor-core
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: night-owl/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run required Electron smoke
+        run: npm run test:e2e

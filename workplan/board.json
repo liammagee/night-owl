@@ -1,11 +1,11 @@
 {
-  "generated": "2026-08-07T01:05:17.289Z",
+  "generated": "2026-08-08T06:13:13.731Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 13,
+      "triaged": 12,
       "review": 3,
-      "done": 3
+      "done": 4
     },
     "byPriority": {
       "P1": 7,
@@ -13,7 +13,6 @@
       "P0": 2
     },
     "byArea": {
-      "testing": 3,
       "packaging": 2,
       "security": 2,
       "architecture": 3,
@@ -22,29 +21,11 @@
       "performance": 1,
       "platform": 2,
       "editor": 1,
-      "preview": 1
+      "preview": 1,
+      "testing": 3
     }
   },
   "items": [
-    {
-      "id": "modernize-electron-e2e-harness",
-      "title": "Replace stale browser-style E2E tests with reliable Electron workflows",
-      "status": "triaged",
-      "type": "testing",
-      "priority": "P1",
-      "area": "testing",
-      "owner": "unassigned",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "The default E2E command runs a small deterministic Electron matrix on macOS and CI, reports real executions versus skips, and covers editor-preview and full-slide geometry.",
-      "tags": [
-        "electron",
-        "playwright",
-        "regression"
-      ]
-    },
     {
       "id": "package-tutor-core-writable-data-path",
       "title": "Keep tutor-core runtime data outside app.asar",
@@ -363,6 +344,25 @@
         "build",
         "macos",
         "release"
+      ]
+    },
+    {
+      "id": "modernize-electron-e2e-harness",
+      "title": "Replace stale browser-style E2E tests with reliable Electron workflows",
+      "status": "done",
+      "type": "testing",
+      "priority": "P1",
+      "area": "testing",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "The default E2E command runs a small deterministic Electron matrix on macOS and CI, reports real executions versus skips, and covers editor-preview and full-slide geometry.",
+      "tags": [
+        "electron",
+        "playwright",
+        "regression"
       ]
     },
     {

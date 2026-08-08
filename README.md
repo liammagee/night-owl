@@ -131,8 +131,11 @@ Contributions welcome! Please read our contributing guidelines before submitting
 # Run tests
 npm run test:all
 
-# Run E2E tests (requires display)
+# Run the required Electron smoke matrix
 npm run test:e2e
+
+# Run slower accessibility, performance, and theme diagnostics
+npm run test:e2e:optional
 ```
 
 ## Related Projects

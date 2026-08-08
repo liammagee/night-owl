@@ -92,7 +92,13 @@ describe('local CI runner', () => {
 
   test('builds an explicit release stage and preserves Node options', () => {
     const dependency = { path: '/tmp/nightowl-node-modules', source: 'test' };
-    expect(createStages({ dependency })).toHaveLength(4);
+    const defaultStages = createStages({ dependency });
+    expect(defaultStages).toHaveLength(5);
+    expect(defaultStages.at(-1)).toMatchObject({
+      name: 'Required Electron E2E smoke',
+      command: process.execPath,
+      args: ['scripts/run-electron-e2e.js']
+    });
     expect(createStages({ dependency, release: true }).at(-1).name).toBe('Distribution readiness');
     expect(appendNodeOption('--trace-warnings', '--experimental-vm-modules')).toBe(
       '--trace-warnings --experimental-vm-modules'
