@@ -10,6 +10,14 @@
 (function () {
     'use strict';
 
+    const uiStateStore = typeof module !== 'undefined' && module.exports
+        ? require('./ui-state-store').store
+        : window.NightOwlUIState;
+    const getRecordUIState = () => uiStateStore?.getState?.().structuredRecord || {
+        active: false,
+        sourceVisible: false
+    };
+
     const MULTILINE_FIELD_RE = /(context|message|turn|reference|text|content|description|instruction|rationale|note|prompt|response|answer|basis)/i;
     const PRIMARY_ID_KEYS = ['item_id', 'record_id', 'id', 'key', 'name'];
     const SECONDARY_KEYS = ['domain', 'category', 'type', 'status', 'coder_id'];
@@ -350,7 +358,6 @@
     }
 
     const state = {
-        active: false,
         format: 'jsonl',
         filePath: null,
         content: '',
@@ -358,9 +365,7 @@
         selectedIndex: 0,
         selectedByFile: new Map(),
         query: '',
-        sourceVisible: false,
         container: null,
-        savedLayout: null,
         fieldTimers: new Map(),
         generation: 0,
         initialized: false
@@ -368,10 +373,6 @@
 
     function getElement(id) {
         return typeof document !== 'undefined' ? document.getElementById(id) : null;
-    }
-
-    function setDisplay(element, display) {
-        if (element) element.style.display = display;
     }
 
     function getFileStatusLabel(filePath) {
@@ -403,9 +404,8 @@
 
         const container = document.createElement('section');
         container.id = 'jsonl-record-mode';
-        container.className = 'jsonl-record-mode';
+        container.className = 'jsonl-record-mode nightowl-ui-hidden';
         container.setAttribute('aria-label', 'Structured record editor');
-        container.style.display = 'none';
         container.innerHTML = `
             <header class="jsonl-mode-header">
                 <div>
@@ -436,9 +436,10 @@
         `;
         previewPane.appendChild(container);
         state.container = container;
+        uiStateStore?.render?.();
 
         getElement('jsonl-source-toggle')?.addEventListener('click', () => {
-            setSourceVisible(!state.sourceVisible);
+            setSourceVisible(!getRecordUIState().sourceVisible);
         });
         getElement('jsonl-prev-record')?.addEventListener('click', () => selectRecord(state.selectedIndex - 1));
         getElement('jsonl-next-record')?.addEventListener('click', () => selectRecord(state.selectedIndex + 1));
@@ -459,75 +460,24 @@
         state.container?.setAttribute('aria-label', `${formatLabel} record editor`);
     }
 
-    function captureLayout() {
-        if (state.savedLayout) return;
-        const ids = [
-            'editor-pane',
-            'resizer',
-            'right-pane',
-            'preview-content',
-            'preview-scroll-sync-btn',
-            'preview-source-btn',
-            'preview-fullscreen-btn',
-            'preview-source-toolbar',
-            'preview-source'
-        ];
-        const saved = {};
-        ids.forEach(id => {
-            const element = getElement(id);
-            if (!element) return;
-            saved[id] = {
-                display: element.style.display,
-                flex: element.style.flex,
-                width: element.style.width
-            };
-        });
-        state.savedLayout = saved;
-    }
-
-    function restoreLayout() {
-        if (!state.savedLayout) return;
-        Object.entries(state.savedLayout).forEach(([id, values]) => {
-            const element = getElement(id);
-            if (!element) return;
-            element.style.display = values.display;
-            element.style.flex = values.flex;
-            element.style.width = values.width;
-        });
-        state.savedLayout = null;
-        requestAnimationFrame(() => window.editor?.layout?.());
-    }
-
     function applyModeLayout() {
-        captureLayout();
-        setDisplay(getElement('preview-content'), 'none');
-        setDisplay(getElement('preview-scroll-sync-btn'), 'none');
-        setDisplay(getElement('preview-source-btn'), 'none');
-        setDisplay(getElement('preview-fullscreen-btn'), 'none');
-        setDisplay(getElement('preview-source-toolbar'), 'none');
-        setDisplay(getElement('preview-source'), 'none');
-        setDisplay(state.container, 'flex');
-        setSourceVisible(state.sourceVisible);
+        const sourceVisible = getRecordUIState().sourceVisible;
+        uiStateStore?.dispatch?.({ type: 'SET_STRUCTURED_RECORD', active: true, sourceVisible });
+        updateSourceToggle(sourceVisible);
     }
 
     function setSourceVisible(visible) {
-        state.sourceVisible = Boolean(visible);
-        const editorPane = getElement('editor-pane');
-        const resizer = getElement('resizer');
-        const rightPane = getElement('right-pane');
-        const toggle = getElement('jsonl-source-toggle');
+        const sourceVisible = Boolean(visible);
+        uiStateStore?.dispatch?.({ type: 'SET_RECORD_SOURCE_VISIBLE', visible: sourceVisible });
+        updateSourceToggle(sourceVisible);
+    }
 
-        setDisplay(editorPane, state.sourceVisible ? (state.savedLayout?.['editor-pane']?.display || '') : 'none');
-        setDisplay(resizer, state.sourceVisible ? (state.savedLayout?.resizer?.display || '') : 'none');
-        if (rightPane) {
-            rightPane.style.flex = '1';
-            rightPane.style.width = state.sourceVisible ? (state.savedLayout?.['right-pane']?.width || '') : '100%';
-        }
+    function updateSourceToggle(sourceVisible) {
+        const toggle = getElement('jsonl-source-toggle');
         if (toggle) {
-            toggle.textContent = state.sourceVisible ? 'Focus records' : `Show raw ${state.format.toUpperCase()}`;
-            toggle.setAttribute('aria-pressed', String(state.sourceVisible));
+            toggle.textContent = sourceVisible ? 'Focus records' : `Show raw ${state.format.toUpperCase()}`;
+            toggle.setAttribute('aria-pressed', String(sourceVisible));
         }
-        requestAnimationFrame(() => window.editor?.layout?.());
     }
 
     function cancelPendingEdits() {
@@ -556,27 +506,21 @@
             if (search) search.value = '';
         }
 
-        state.active = true;
         updateModeLabels();
-        document.body.classList.add('jsonl-record-mode-active');
         applyModeLayout();
         return true;
     }
 
     function deactivate() {
         cancelPendingEdits();
-        if (!state.active) return;
+        if (!getRecordUIState().active) return;
         if (state.filePath) state.selectedByFile.set(state.filePath, state.selectedIndex);
-        state.active = false;
         state.format = 'jsonl';
         state.filePath = null;
         state.content = '';
         state.parsed = null;
         state.query = '';
-        state.sourceVisible = false;
-        setDisplay(state.container, 'none');
-        document.body.classList.remove('jsonl-record-mode-active');
-        restoreLayout();
+        uiStateStore?.dispatch?.({ type: 'SET_STRUCTURED_RECORD', active: false });
         const fileStatus = getElement('file-status');
         if (fileStatus) fileStatus.textContent = getFileStatusLabel(window.currentFilePath);
     }
@@ -1056,8 +1000,8 @@
         handlePreviewUpdate,
         syncToCurrentFile,
         cancelPendingEdits,
-        isActive: () => state.active,
-        getState: () => state
+        isActive: () => getRecordUIState().active,
+        getState: () => ({ ...state, ...getRecordUIState() })
     };
 
     if (typeof window !== 'undefined') {

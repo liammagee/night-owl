@@ -4140,6 +4140,24 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     z-index: 1 !important;
 }
 
+/* UI state is rendered from NightOwlUIState. These classes override legacy
+ * inline defaults without requiring transition-specific style cleanup. */
+.nightowl-ui-hidden {
+    display: none !important;
+}
+
+.content-pane.ui-pane-active {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+#right-pane.ui-record-focus {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+}
+
 /* Preview Fullscreen Styles */
 .preview-fullscreen-toggle {
     position: absolute;

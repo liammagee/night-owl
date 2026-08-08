@@ -5,7 +5,10 @@ class PreviewFullscreen {
     constructor() {
         this.previewPane = null;
         this.fullscreenBtn = null;
-        this.isFullscreen = false;
+    }
+
+    get isFullscreen() {
+        return Boolean(window.NightOwlUIState?.getState?.().preview.fullscreen);
     }
 
     initialize() {
@@ -53,18 +56,8 @@ class PreviewFullscreen {
         if (!this.previewPane) return;
 
         console.log('[PreviewFullscreen] Entering fullscreen mode');
-
-        // Add fullscreen class to preview pane
-        this.previewPane.classList.add('preview-fullscreen');
-
-        // Update button icon and title
-        if (this.fullscreenBtn) {
-            this.fullscreenBtn.textContent = '⛶';
-            this.fullscreenBtn.title = 'Exit Fullscreen (F11 or Esc)';
-            this.fullscreenBtn.classList.add('active');
-        }
-
-        this.isFullscreen = true;
+        window.NightOwlUIState?.dispatch?.({ type: 'SET_PREVIEW_FULLSCREEN', fullscreen: true });
+        if (!this.isFullscreen) return;
 
         // Dispatch event for other components
         window.dispatchEvent(new CustomEvent('preview-fullscreen-enter'));
@@ -74,18 +67,7 @@ class PreviewFullscreen {
         if (!this.previewPane) return;
 
         console.log('[PreviewFullscreen] Exiting fullscreen mode');
-
-        // Remove fullscreen class
-        this.previewPane.classList.remove('preview-fullscreen');
-
-        // Update button icon and title
-        if (this.fullscreenBtn) {
-            this.fullscreenBtn.textContent = '⛶';
-            this.fullscreenBtn.title = 'Toggle Fullscreen (F11)';
-            this.fullscreenBtn.classList.remove('active');
-        }
-
-        this.isFullscreen = false;
+        window.NightOwlUIState?.dispatch?.({ type: 'SET_PREVIEW_FULLSCREEN', fullscreen: false });
 
         // Dispatch event for other components
         window.dispatchEvent(new CustomEvent('preview-fullscreen-exit'));

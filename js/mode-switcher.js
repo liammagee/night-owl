@@ -1,8 +1,16 @@
 // Mode Switching Functions
 // Handles switching between editor, presentation, network, circle, and library modes
 
-// Global mode state
-let currentMode = 'editor';
+// Application mode is owned by the shared UI state store. CommonJS tests load
+// a fresh store; the packaged renderer receives the instance from index.html.
+const uiStateStore = (typeof module !== 'undefined' && module.exports)
+  ? require('../orchestrator/modules/ui-state-store').store
+  : window.NightOwlUIState;
+
+function getCurrentMode() {
+  return uiStateStore?.getState?.().mode || 'editor';
+}
+
 let presentationEditorContent = '';
 let presentationLoadNonce = 0;
 let presentationLoadController = null;
@@ -266,7 +274,7 @@ function startPresentationLoad(container, options = {}) {
   const isCurrent = () =>
     !controller.signal.aborted &&
     nonce === presentationLoadNonce &&
-    currentMode === 'presentation';
+    getCurrentMode() === 'presentation';
 
   const fail = (diagnosticId, error, message) => {
     if (!isCurrent()) return 'cancelled';
@@ -477,91 +485,36 @@ function calculateSlideFromCursor() {
 
 function restoreUIElementsAfterPresentation() {
   console.log('[Mode Switching] Restoring UI elements after presentation mode');
-  
-  // Force refresh of pane visibility and layout
-  if (window.refreshPaneVisibility) {
-    window.refreshPaneVisibility();
-  }
-  
-  // Reset any inline styles that might have been applied
-  const elementsToReset = [
-    '#left-sidebar', '#sidebar-resizer', '#editor-container', '#mode-switcher', 
-    '#editor-toolbar', '#right-pane', '#main-content'
-  ];
-  
-  elementsToReset.forEach(selector => {
-    const element = document.querySelector(selector);
-    if (element) {
-      // Remove any inline display styles that might override CSS
-      element.style.removeProperty('display');
-      element.style.removeProperty('width');
-      element.style.removeProperty('height');
-      element.style.removeProperty('flex');
-    }
-  });
-  
-  // Trigger a layout refresh
-  setTimeout(() => {
-    if (window.refreshEditorLayout) {
-      window.refreshEditorLayout();
-    }
-    
-    // Ensure editor is visible and focused
-    const editorContainer = document.getElementById('editor-container');
-    if (editorContainer) {
-      editorContainer.style.display = '';
-    }
-    
+  uiStateStore?.render?.();
+  uiStateStore?.afterTransition?.(() => {
+    window.editor?.focus?.();
     console.log('[Mode Switching] UI restoration completed');
-  }, 100);
+  });
 }
 
 function switchToMode(modeName) {
   console.log('[Mode Switching] Switching to:', modeName);
 
+  const previousMode = getCurrentMode();
+  const nextState = uiStateStore?.dispatch?.({ type: 'SET_MODE', mode: modeName });
+  if (!nextState || nextState.mode !== modeName) {
+    console.error('[Mode Switching] Ignoring unsupported mode:', modeName);
+    return false;
+  }
+
   // Cancel any in-flight presentation load when leaving presentation mode
   if (modeName !== 'presentation') {
     cancelPresentationLoad();
   }
-  
-  // Hide all content views
-  const contentViews = document.querySelectorAll('.content-view');
-  console.log('[Mode Switching] Found content views:', contentViews.length);
-  contentViews.forEach(view => {
-    console.log('[Mode Switching] Removing active from:', view.id);
-    view.classList.remove('active');
-  });
-
-  // Show selected content view
-  const targetView = document.getElementById(`${modeName}-content`);
-  console.log('[Mode Switching] Target view:', targetView);
-  if (targetView) {
-    targetView.classList.add('active');
-    console.log('[Mode Switching] Added active class to:', modeName + '-content');
-    console.log('[Mode Switching] Target view classes:', targetView.className);
-  } else {
-    console.error('[Mode Switching] Could not find target view:', modeName + '-content');
-  }
-
-  // Update mode buttons
-  const modeButtons = document.querySelectorAll('.mode-btn');
-  modeButtons.forEach(btn => btn.classList.remove('active'));
-  
-  const targetButton = document.getElementById(`${modeName}-mode-btn`);
-  if (targetButton) {
-    targetButton.classList.add('active');
-  }
 
   // Handle mode-specific logic
   if (modeName === 'presentation') {
-    document.body.classList.add('presentation-mode');
-    
     // Calculate which slide to jump to based on cursor position if coming from editor
     let targetSlide = 0;
-    if (currentMode === 'editor') {
+    if (previousMode === 'editor') {
       targetSlide = calculateSlideFromCursor();
       console.log('[Mode Switching] Calculated target slide from cursor:', targetSlide);
-      console.log('[Mode Switching] Current mode was:', currentMode, ', switching to presentation with target slide:', targetSlide);
+      console.log('[Mode Switching] Current mode was:', previousMode, ', switching to presentation with target slide:', targetSlide);
     }
     
     // Store target slide for React component to pick up
@@ -589,7 +542,6 @@ function switchToMode(modeName) {
       }
     }
   } else if (modeName === 'network') {
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
     
     // Initialize unified network visualization
@@ -605,7 +557,6 @@ function switchToMode(modeName) {
       }
     }
   } else if (modeName === 'circle') {
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
     
     // Initialize circle visualization
@@ -615,7 +566,6 @@ function switchToMode(modeName) {
       window.initializeCircleVisualization();
     }
   } else if (modeName === 'library') {
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
 
     // Try to use the feature-provided maze mode first
@@ -661,20 +611,17 @@ function switchToMode(modeName) {
     }
   } else {
     // Default case (editor mode)
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
     restoreUIElementsAfterPresentation();
     
     // Jump to current slide position in editor if coming from presentation
-    if (currentMode === 'presentation' && typeof window.currentPresentationSlide === 'number') {
+    if (previousMode === 'presentation' && typeof window.currentPresentationSlide === 'number') {
       jumpToSlideInEditor(window.currentPresentationSlide);
     }
   }
 
-  // Update current mode
-  currentMode = modeName;
-  window.currentMode = currentMode;
-  console.log('[Mode Switching] Mode switched to:', currentMode);
+  console.log('[Mode Switching] Mode switched to:', getCurrentMode());
+  return true;
 }
 
 function setupModeSwitching() {
@@ -756,7 +703,7 @@ function setupModeSwitching() {
 
     const _isPresentationVisible = () => {
       // Mode is presentation, OR the React app is mounted and the root is on-screen.
-      if (currentMode === 'presentation') return true;
+      if (getCurrentMode() === 'presentation') return true;
       const root = document.getElementById('presentation-root');
       if (!root) return false;
       const mounted = root.querySelector('.slide, [data-reactroot]');
@@ -880,7 +827,7 @@ function setupFeatureModeButtons() {
           'circle-mode-btn': 'circle'
         };
         const mode = modeMap[buttonId];
-        if (currentMode === mode) {
+        if (getCurrentMode() === mode) {
           switchToMode('editor');
         }
       }
@@ -906,7 +853,12 @@ window.switchToMode = switchToMode;
 window.setupModeSwitching = setupModeSwitching;
 window.restoreUIElementsAfterPresentation = restoreUIElementsAfterPresentation;
 window.updateModeButtonVisibility = updateModeButtonVisibility;
-window.currentMode = currentMode;
+Object.defineProperty(window, 'currentMode', {
+  configurable: true,
+  enumerable: true,
+  get: getCurrentMode,
+  set: (mode) => switchToMode(mode)
+});
 window.presentationEditorContent = presentationEditorContent;
 
 if (typeof module !== 'undefined' && module.exports) {

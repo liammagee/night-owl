@@ -170,7 +170,8 @@ describe('structured record mode helpers', () => {
 
     expect(window.jsonlMode.handlePreviewUpdate(window.currentFilePath, source)).toBe(true);
     expect(document.querySelectorAll('.jsonl-record-list-item')).toHaveLength(2);
-    expect(document.getElementById('editor-pane').style.display).toBe('none');
+    expect(document.getElementById('editor-pane').classList.contains('nightowl-ui-hidden')).toBe(true);
+    expect(window.recordMode.getState()).toMatchObject({ active: true, sourceVisible: false });
     expect(window.updateStatusBar).toHaveBeenCalledWith(source);
     expect(document.getElementById('preview-word-count').textContent).toBe('Records: 2');
     expect(document.getElementById('file-status').textContent).toBe('JSONL (.jsonl)');
@@ -186,7 +187,8 @@ describe('structured record mode helpers', () => {
     ]);
 
     document.getElementById('jsonl-source-toggle').click();
-    expect(document.getElementById('editor-pane').style.display).toBe('');
+    expect(document.getElementById('editor-pane').classList.contains('nightowl-ui-hidden')).toBe(false);
+    expect(window.recordMode.getState()).toMatchObject({ active: true, sourceVisible: true });
   });
 
   test('renders a CSV labelling sheet with constrained selects and writes a valid row', () => {

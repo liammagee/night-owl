@@ -318,9 +318,8 @@ const previewSourceFilepath = document.getElementById('preview-source-filepath')
 const previewSourceOpenBtn = document.getElementById('preview-source-open-btn');
 const previewSourceSyncToggle = document.getElementById('preview-source-sync-toggle');
 const previewScrollSyncBtn = document.getElementById('preview-scroll-sync-btn');
-let previewSourceMode = false;
-let sourceViewFilePath = null; // null = mirror editor, string = independent file
-let sourceViewSyncToEditor = true; // scroll sync enabled when mirroring
+const nightOwlUIStateStore = window.NightOwlUIState;
+const getNightOwlUIState = () => nightOwlUIStateStore?.getState?.();
 let previewScrollSyncEnabled = true; // global scroll sync on/off
 let _syncingFromEditor = false;
 let _syncingFromSource = false;
@@ -896,7 +895,8 @@ async function updatePreviewAndStructure(markdownContent, options = {}) {
     try {
         if (!isCurrent()) return previewTransition.done;
 
-        if (previewSourceMode && previewSourceEl && !sourceViewFilePath) {
+        const previewState = getNightOwlUIState()?.preview;
+        if (previewState?.sourceView && previewSourceEl && !previewState.sourceFilePath) {
             previewTransition.commit(() => {
                 previewSourceEl.textContent = markdownContent;
             });
@@ -8784,20 +8784,19 @@ function applyLayoutSettings(layout) {
         rightPane.style.flex = `0 0 ${defaultLayout.rightWidth}`;
     }
 
-    // Restore pane visibility from saved layout state
+    // Hydrate the shared pane model once. DOM visibility is derived by the UI
+    // state adapter, so restoration cannot race with mode-specific cleanup.
     _restoringPaneVisibility = true;
     try {
-        if (layout?.editorVisible === false && editorVisible) {
-            toggleEditor();
-        }
-        if (layout?.sidebarVisible === false && sidebarVisible) {
-            toggleSidebar();
-        }
-        // Preview: check both the legacy editor.showPreview setting and layout state
         const showPreview = layout?.previewVisible ?? (appSettings?.editor?.showPreview !== false);
-        if (!showPreview && previewVisible) {
-            togglePreview();
-        }
+        nightOwlUIStateStore?.dispatch?.({
+            type: 'HYDRATE_PANES',
+            panes: {
+                sidebar: layout?.sidebarVisible !== false,
+                editor: layout?.editorVisible !== false,
+                right: showPreview
+            }
+        });
     } finally {
         _restoringPaneVisibility = false;
     }
@@ -9129,31 +9128,17 @@ showWholepartBtn.addEventListener('click', () => {
 // --- Source View Toggle ---
 if (previewSourceBtn) {
     previewSourceBtn.addEventListener('click', () => {
-        previewSourceMode = !previewSourceMode;
-        previewSourceBtn.classList.toggle('active', previewSourceMode);
-        if (previewSourceMode) {
+        const sourceView = !getNightOwlUIState()?.preview?.sourceView;
+        nightOwlUIStateStore?.dispatch?.({ type: 'SET_SOURCE_VIEW', enabled: sourceView });
+        if (sourceView) {
             // Reset to mirror mode
-            sourceViewFilePath = null;
-            sourceViewSyncToEditor = true;
             if (previewSourceFilepath) previewSourceFilepath.textContent = 'Current Editor';
-            if (previewSourceSyncToggle) {
-                previewSourceSyncToggle.classList.add('active');
-                previewSourceSyncToggle.style.display = '';
-            }
             // Populate source from the editor
             const source = window.editor ? window.editor.getValue() : '';
             previewSourceEl.textContent = source;
-            previewContent.style.display = 'none';
-            previewSourceEl.style.display = '';
-            if (previewSourceToolbar) previewSourceToolbar.style.display = '';
-            // Delay setup so the <pre> has time to lay out its content and compute scrollHeight
-            requestAnimationFrame(() => _setupSourceScrollSync());
+            nightOwlUIStateStore?.afterTransition?.(() => _setupSourceScrollSync());
         } else {
-            previewContent.style.display = '';
-            previewSourceEl.style.display = 'none';
-            if (previewSourceToolbar) previewSourceToolbar.style.display = 'none';
-            // Switch scroll sync back to preview content
-            requestAnimationFrame(() => _activateScrollSyncForCurrentPane());
+            nightOwlUIStateStore?.afterTransition?.(() => _activateScrollSyncForCurrentPane());
         }
     });
 }
@@ -9177,16 +9162,11 @@ if (previewSourceOpenBtn) {
                 return;
             }
 
-            sourceViewFilePath = result.filePath;
-            sourceViewSyncToEditor = false;
+            nightOwlUIStateStore?.dispatch?.({ type: 'SET_SOURCE_FILE', filePath: result.filePath });
             previewSourceEl.textContent = fileResult.content;
             if (previewSourceFilepath) {
                 previewSourceFilepath.textContent = fileResult.fileName;
                 previewSourceFilepath.title = result.filePath;
-            }
-            if (previewSourceSyncToggle) {
-                previewSourceSyncToggle.classList.remove('active');
-                previewSourceSyncToggle.style.display = 'none';
             }
             _teardownSourceScrollSync();
         } catch (err) {
@@ -9198,10 +9178,11 @@ if (previewSourceOpenBtn) {
 // --- Source View: Sync Toggle ---
 if (previewSourceSyncToggle) {
     previewSourceSyncToggle.addEventListener('click', () => {
-        if (sourceViewFilePath) return; // sync toggle only works in mirror mode
-        sourceViewSyncToEditor = !sourceViewSyncToEditor;
-        previewSourceSyncToggle.classList.toggle('active', sourceViewSyncToEditor);
-        if (sourceViewSyncToEditor) {
+        const previewState = getNightOwlUIState()?.preview;
+        if (previewState?.sourceFilePath) return; // sync toggle only works in mirror mode
+        const sourceSync = !previewState?.sourceSync;
+        nightOwlUIStateStore?.dispatch?.({ type: 'SET_SOURCE_SYNC', enabled: sourceSync });
+        if (sourceSync) {
             _setupSourceScrollSync();
         } else {
             _teardownSourceScrollSync();
@@ -9413,10 +9394,11 @@ function _teardownScrollSync() {
 // Activate scroll sync for whichever pane is currently visible
 function _activateScrollSyncForCurrentPane() {
     if (!previewScrollSyncEnabled) { _teardownScrollSync(); return; }
-    if (previewSourceMode && !sourceViewFilePath && sourceViewSyncToEditor) {
+    const previewState = getNightOwlUIState()?.preview;
+    if (previewState?.sourceView && !previewState.sourceFilePath && previewState.sourceSync) {
         // Source view mirror mode — proportional (same text content)
         _setupScrollSync(previewSourceEl, 'proportional');
-    } else if (!previewSourceMode && previewContent && previewContent.style.display !== 'none') {
+    } else if (!previewState?.sourceView && previewContent && !previewContent.classList.contains('nightowl-ui-hidden')) {
         // Normal preview mode — line-based mapping
         _setupScrollSync(previewContent, 'linemap');
     } else {
@@ -9445,112 +9427,40 @@ if (previewScrollSyncBtn) {
 // --- Right Pane Switching Function ---
 // Helper functions for right pane management
 function hideAllRightPanes() {
-    const panes = [
-        { element: previewPane, name: 'preview' },
-        { element: chatPane, name: 'chat' },
-        { element: wholepartPane, name: 'wholepart' },
-        { element: document.getElementById('search-pane'), name: 'search' },
-        { element: document.getElementById('speaker-notes-pane'), name: 'speaker-notes' }
-    ];
-    
-    panes.forEach(({ element }) => {
-        if (element) {
-            element.style.display = 'none';
-            element.classList.add('pane-hidden');
-        }
-    });
-}
-
-function deactivateAllToggleButtons() {
-    const buttons = [
-        showPreviewBtn,
-        showChatBtn,
-        showWholepartBtn,
-        document.getElementById('show-search-btn'),
-        document.getElementById('show-speaker-notes-btn')
-    ];
-    
-    buttons.forEach(btn => {
-        if (btn) btn.classList.remove('active');
-    });
+    nightOwlUIStateStore?.dispatch?.({ type: 'SET_PANE_VISIBILITY', pane: 'right', visible: false });
 }
 
 function showSpecificPane(paneType) {
     switch (paneType) {
-        case 'preview':
-            if (previewPane) {
-                previewPane.style.display = '';
-                previewPane.classList.remove('pane-hidden');
-            }
-            if (showPreviewBtn) showPreviewBtn.classList.add('active');
-            break;
-        case 'chat':
-            if (chatPane) {
-                chatPane.style.display = '';
-                chatPane.classList.remove('pane-hidden');
-            }
-            if (showChatBtn) showChatBtn.classList.add('active');
-            break;
-        case 'search':
-            const searchPane = document.getElementById('search-pane');
-            if (searchPane) {
-                searchPane.style.display = '';
-                searchPane.classList.remove('pane-hidden');
-            }
-            if (searchBtn) searchBtn.classList.add('active');
-            break;
         case 'speaker-notes':
-            const speakerNotesPane = document.getElementById('speaker-notes-pane');
-            if (speakerNotesPane) {
-                speakerNotesPane.style.display = '';
-                speakerNotesPane.classList.remove('pane-hidden');
-            }
-            const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
-            if (showSpeakerNotesBtn) showSpeakerNotesBtn.classList.add('active');
             window.updateSpeakerNotesDisplay?.();
             break;
         case 'wholepart':
-            if (wholepartPane) {
-                wholepartPane.style.display = '';
-                wholepartPane.classList.remove('pane-hidden');
-            }
-            if (showWholepartBtn) showWholepartBtn.classList.add('active');
             if (window.initializeWholepartVisualization) {
                 window.initializeWholepartVisualization();
             }
-            break;
-        default:
-            // Default to preview if unknown pane type
-            if (previewPane) {
-                previewPane.style.display = '';
-                previewPane.classList.remove('pane-hidden');
-            }
-            if (showPreviewBtn) showPreviewBtn.classList.add('active');
             break;
     }
 }
 
 function showRightPane(paneType) {
-    hideAllRightPanes();
-    deactivateAllToggleButtons();
+    if (paneType === 'search') {
+        switchStructureView('search');
+        return;
+    }
     _teardownScrollSync(); // tear down before switching
+    const state = nightOwlUIStateStore?.dispatch?.({ type: 'SHOW_RIGHT_PANE', pane: paneType });
+    if (!state || state.activeRightPane !== paneType) return;
     showSpecificPane(paneType);
     // Activate scroll sync when preview pane is shown (and not in source-with-independent-file mode)
     if (paneType === 'preview') {
-        requestAnimationFrame(() => _activateScrollSyncForCurrentPane());
+        nightOwlUIStateStore?.afterTransition?.(() => _activateScrollSyncForCurrentPane());
     }
 }
 
 // Expose showPane globally for plugins (AI Tutor, etc.)
-window.showPane = function(paneType) {
-    // First make sure the right pane is visible
-    const rightPane = document.getElementById('right-pane');
-    if (rightPane && (rightPane.classList.contains('pane-hidden') || !previewVisible)) {
-        togglePreview(); // This will show the right pane
-    }
-    // Then switch to the requested pane
-    showRightPane(paneType);
-};
+window.showPane = showRightPane;
+window._hideAllRightPanes = hideAllRightPanes;
 
 // --- Structure Pane / File Tree Functions ---
 
@@ -12850,8 +12760,8 @@ if (window.electronAPI && window.electronAPI.on) {
     });
 
     window.electronAPI.on('toggle-preview-pane', (visible) => {
-        // Sync the previewVisible state with the incoming value
-        if (visible !== previewVisible) {
+        // Sync the requested visibility through the shared UI state.
+        if (Boolean(visible) !== getNightOwlUIState()?.panes?.right) {
             togglePreview();
         }
     });
@@ -13488,199 +13398,48 @@ setTimeout(() => {
     // Formatting initialization complete
 }, 2000);
 
-// === Pane Toggle Functionality ===
-let sidebarVisible = true;
-let editorVisible = true;
-let previewVisible = true;
-
 // Persist pane visibility to settings so state survives restarts
 let _restoringPaneVisibility = false;
 function savePaneVisibility() {
     if (_restoringPaneVisibility) return; // Skip saves during initial restore
+    const panes = getNightOwlUIState()?.panes;
     if (window.electronAPI) {
         window.electronAPI.send('save-layout', {
-            sidebarVisible,
-            editorVisible,
-            previewVisible
+            sidebarVisible: panes?.sidebar !== false,
+            editorVisible: panes?.editor !== false,
+            previewVisible: panes?.right !== false
         });
     }
 }
 
-function setPaneVisibilityButtonState(toggleBtn, isVisible, onVariantClass = 'btn-primary') {
-    if (!toggleBtn) return;
-
-    toggleBtn.classList.remove('toggle-off');
-    toggleBtn.classList.remove('btn-primary', 'btn-warning', 'btn-error', 'btn-success');
-
-    if (isVisible) {
-        toggleBtn.classList.add(onVariantClass);
-        toggleBtn.setAttribute('aria-pressed', 'true');
-    } else {
-        toggleBtn.classList.add('toggle-off');
-        toggleBtn.setAttribute('aria-pressed', 'false');
-    }
-
-    // Clear any legacy inline styles
-    toggleBtn.style.background = '';
-    toggleBtn.style.color = '';
-    toggleBtn.style.opacity = '';
-}
-
 function toggleSidebar() {
-    
-    const sidebar = document.getElementById('left-sidebar');
-    const resizer = document.getElementById('sidebar-resizer');
-    const toggleBtn = document.getElementById('toggle-sidebar-btn');
-    
-    if (sidebarVisible) {
-        sidebar.style.display = 'none';
-        resizer.style.display = 'none';
-        setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
-        
-        // Remove width constraints completely
-        sidebar.style.width = '0px';
-        sidebar.style.minWidth = '0px';
-        sidebar.style.maxWidth = '0px';
-        sidebar.style.overflow = 'hidden';
-        
-    } else {
-        sidebar.style.display = 'flex';
-        resizer.style.display = 'block';
-        setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
-        
-        // Restore sidebar width
-        sidebar.style.width = '';
-        sidebar.style.minWidth = '';
-        sidebar.style.maxWidth = '';
-        sidebar.style.overflow = '';
-        
-        // Restore normal layout proportions
-        refreshLayoutProportions();
-    }
-    
-    sidebarVisible = !sidebarVisible;
+    nightOwlUIStateStore?.dispatch?.({ type: 'TOGGLE_PANE', pane: 'sidebar' });
     savePaneVisibility();
 }
 
 function toggleEditor() {
-    const editorPane = document.getElementById('editor-pane');
-    const toggleBtn = document.getElementById('toggle-editor-btn');
-    
-    if (editorVisible) {
-        editorPane.style.display = 'none';
-        setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
-        // Adjust preview to take full width
-        const previewPane = document.getElementById('preview-pane');
-        if (previewPane) previewPane.style.flex = '1';
-    } else {
-        editorPane.style.display = 'flex';
-        setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
-        // Restore normal layout proportions
-        refreshLayoutProportions();
-    }
-    editorVisible = !editorVisible;
+    nightOwlUIStateStore?.dispatch?.({ type: 'TOGGLE_PANE', pane: 'editor' });
     savePaneVisibility();
 }
 
 function togglePreview() {
-    const rightPane = document.getElementById('right-pane');
-    const toggleBtn = document.getElementById('toggle-preview-btn');
-
-    if (!rightPane) {
-        console.warn('[togglePreview] right-pane element not found');
-        return;
-    }
-
-    if (previewVisible) {
-        // Use CSS class to hide - inline display:none is overridden by CSS !important
-        rightPane.classList.add('pane-hidden');
-        if (toggleBtn) setPaneVisibilityButtonState(toggleBtn, false, 'btn-primary');
-        // Adjust editor to take full width
-        const editorContainer = document.getElementById('editor-container');
-        if (editorContainer) editorContainer.style.flex = '1';
-    } else {
-        rightPane.classList.remove('pane-hidden');
-        if (toggleBtn) setPaneVisibilityButtonState(toggleBtn, true, 'btn-primary');
-        // Restore normal layout proportions
-        refreshLayoutProportions();
-    }
-    previewVisible = !previewVisible;
+    nightOwlUIStateStore?.dispatch?.({ type: 'TOGGLE_PANE', pane: 'right' });
     savePaneVisibility();
 }
 
 // Expose togglePreview globally for command palette
 window.togglePreview = togglePreview;
 
-// --- Zen Mode (Distraction-Free) ---
-let zenModeActive = false;
-let zenModeState = {}; // Stores previous visibility state
-
 function toggleZenMode() {
-    const sidebar = document.getElementById('left-sidebar');
-    const modeSwitcher = document.getElementById('mode-switcher');
-    const editorToolbar = document.getElementById('editor-toolbar');
-    const rightPane = document.getElementById('right-pane');
-    const gamificationPanel = document.getElementById('gamification-panel');
-    const statusBar = document.getElementById('status-bar');
-
-    if (!zenModeActive) {
-        // Enter zen mode — save current state and hide everything except editor
-        zenModeState = {
-            sidebarHidden: sidebar?.classList.contains('pane-hidden'),
-            previewVisible: previewVisible,
-            gamificationHidden: gamificationPanel?.classList.contains('pane-hidden'),
-        };
-
-        if (sidebar) sidebar.classList.add('pane-hidden');
-        if (modeSwitcher) modeSwitcher.style.display = 'none';
-        if (editorToolbar) editorToolbar.style.display = 'none';
-        if (rightPane) rightPane.classList.add('pane-hidden');
-        if (gamificationPanel) gamificationPanel.classList.add('pane-hidden');
-        if (statusBar) statusBar.style.display = 'none';
-
-        // Give editor full width
-        const editorContainer = document.getElementById('editor-container');
-        if (editorContainer) editorContainer.style.flex = '1';
-
-        previewVisible = false;
-        zenModeActive = true;
-        document.body.classList.add('zen-mode');
-
-        if (window.showNotification) {
-            window.showNotification('Zen mode — press Cmd+Shift+Enter or Esc to exit', 'info');
-        }
-    } else {
-        // Exit zen mode — restore previous state
-        if (modeSwitcher) modeSwitcher.style.display = '';
-        if (editorToolbar) editorToolbar.style.display = '';
-        if (statusBar) statusBar.style.display = '';
-
-        if (sidebar && !zenModeState.sidebarHidden) {
-            sidebar.classList.remove('pane-hidden');
-        }
-        if (rightPane && zenModeState.previewVisible) {
-            rightPane.classList.remove('pane-hidden');
-            previewVisible = true;
-            refreshLayoutProportions();
-        }
-        if (gamificationPanel && !zenModeState.gamificationHidden) {
-            gamificationPanel.classList.remove('pane-hidden');
-        }
-
-        zenModeActive = false;
-        document.body.classList.remove('zen-mode');
-    }
-
-    // Re-layout editor
-    if (window.editor && window.editor.layout) {
-        setTimeout(() => window.editor.layout(), 50);
-    }
+    const active = !getNightOwlUIState()?.zenMode;
+    nightOwlUIStateStore?.dispatch?.({ type: 'SET_ZEN_MODE', active });
+    if (active) window.showNotification?.('Zen mode — press Cmd+Shift+Enter or Esc to exit', 'info');
 }
 window.toggleZenMode = toggleZenMode;
 
 // Esc key exits zen mode
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && zenModeActive) {
+    if (e.key === 'Escape' && getNightOwlUIState()?.zenMode) {
         toggleZenMode();
     }
 });
@@ -14783,11 +14542,12 @@ window.updateFootnotesPanel = updateFootnotesPanel;
 function refreshLayoutProportions() {
     const editorPane = document.getElementById('editor-pane');
     const previewPane = document.getElementById('preview-pane');
+    const effectivePanes = nightOwlUIStateStore?.getEffectivePanes?.() || {};
     
     // Check if we're in Kanban view
     const isKanban = document.querySelector('.kanban-board') !== null;
     
-    if (editorVisible && previewVisible) {
+    if (effectivePanes.editor && effectivePanes.right) {
         if (isKanban) {
             editorPane.style.flex = '0 0 300px';
             previewPane.style.flex = '1';

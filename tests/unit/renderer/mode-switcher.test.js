@@ -1,359 +1,112 @@
-// Test the mode switching functionality from js/mode-switcher.js
-// Since this module handles presentation modes, editor modes, and network views
+const path = require('path');
 
-const { setupBasicDOM, initializeModeElements, createMockEditor, setupMockWindow } = require('../../utils');
+const modeSwitcherPath = path.resolve(__dirname, '../../../js/mode-switcher.js');
+const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind(document);
 
-describe('Mode Switcher', () => {
-  let mockEditor, mockUpdatePreview, mockSetContent;
-  
+function installDOM() {
+  document.body.innerHTML = `
+    <div id="mode-switcher"></div>
+    <div id="left-sidebar"></div>
+    <div id="sidebar-resizer"></div>
+    <div id="editor-pane"></div>
+    <div id="resizer"></div>
+    <div id="right-pane"><div>
+      <div id="preview-pane" class="content-pane"></div>
+      <div id="chat-pane" class="content-pane"></div>
+      <div id="speaker-notes-pane" class="content-pane"></div>
+      <div id="wholepart-pane" class="content-pane"></div>
+    </div></div>
+    <div id="editor-content" class="content-view active"></div>
+    <div id="presentation-content" class="content-view"><div id="presentation-root"></div></div>
+    <div id="network-content" class="content-view"></div>
+    <div id="circle-content" class="content-view"><div id="circle-visualization"></div></div>
+    <div id="library-content" class="content-view"></div>
+    <button id="editor-mode-btn" class="mode-btn active"></button>
+    <button id="presentation-mode-btn" class="mode-btn"></button>
+    <button id="network-mode-btn" class="mode-btn"></button>
+    <button id="circle-mode-btn" class="mode-btn"></button>
+    <button id="library-mode-btn" class="mode-btn"></button>
+  `;
+}
+
+describe('mode switcher shared-state integration', () => {
+  let frames;
+
   beforeEach(() => {
-    // Setup DOM using utility
-    setupBasicDOM(`
-      <div id="editor-content" class="content-section"></div>
-      <div id="presentation-content" class="content-section"></div>
-      <div id="network-content" class="content-section"></div>
-      <div id="graph-content" class="content-section"></div>
-      <div id="circle-content" class="content-section"></div>
-      <button id="editor-mode-btn" class="mode-btn"></button>
-      <button id="presentation-mode-btn" class="mode-btn"></button>
-      <button id="network-mode-btn" class="mode-btn"></button>
-      <button id="graph-mode-btn" class="mode-btn"></button>
-      <button id="circle-mode-btn" class="mode-btn"></button>
-    `);
-    
-    // Initialize mode elements for jsdom compatibility
-    initializeModeElements(['editor', 'presentation', 'network', 'graph', 'circle']);
-
-    // Reset all mocks first
-    jest.clearAllMocks();
-
-    // Create mock objects using utilities
-    mockEditor = createMockEditor({ getValue: jest.fn(() => '# Test Content') });
-    mockUpdatePreview = jest.fn();
-    mockSetContent = jest.fn();
-
-    // Setup window with mocks
-    setupMockWindow({
-      editor: mockEditor,
-      additional: {
-        updatePreviewAndStructure: mockUpdatePreview,
-        setPresentationContent: mockSetContent,
-        initializeNetworkView: jest.fn(),
-        initializeGraphView: jest.fn(),
-        initializeCircleView: jest.fn()
-      }
-    });
+    jest.resetModules();
+    document.getElementById = nativeGetElementById;
+    installDOM();
+    delete window.NightOwlUIState;
+    delete window.currentMode;
+    delete window.electronAPI;
+    delete window.NightOwlFeatures;
+    delete window.UnifiedNetworkVisualization;
+    delete window.initializeCircleVisualization;
+    frames = [];
+    window.requestAnimationFrame = callback => {
+      frames.push(callback);
+      return frames.length;
+    };
+    window.editor = {
+      getValue: jest.fn(() => '# State test'),
+      getPosition: jest.fn(() => ({ lineNumber: 1, column: 1 })),
+      layout: jest.fn(),
+      focus: jest.fn()
+    };
+    window.hideSpeakerNotesPanel = jest.fn();
   });
 
-  // Mock implementation of switchToMode function (extracted from mode-switcher.js)
-  function switchToMode(mode) {
-    const modes = ['editor', 'presentation', 'network', 'graph', 'circle'];
-    
-    // Hide all content sections
-    modes.forEach(m => {
-      const element = document.getElementById(`${m}-content`);
-      if (element) {
-        // Ensure element has a className property
-        if (typeof element.className !== 'string') {
-          element.className = 'content-section';
-        }
-        // In jsdom, we need to manually track className instead of classList
-        const classes = (element.className || '').split(' ').filter(c => c !== 'active' && c !== '');
-        element.className = classes.join(' ');
-        
-        // Ensure style object exists before setting display
-        if (!element.style || typeof element.style !== 'object') {
-          const styleObj = { display: 'none' };
-          Object.defineProperty(element, 'style', {
-            value: styleObj,
-            writable: true,
-            enumerable: true,
-            configurable: true
-          });
-        } else {
-          element.style.display = 'none';
-        }
-      }
-      
-      // Update button states
-      const button = document.getElementById(`${m}-mode-btn`);
-      if (button) {
-        // Ensure button has a className property
-        if (typeof button.className !== 'string') {
-          button.className = 'mode-btn';
-        }
-        const classes = (button.className || '').split(' ').filter(c => c !== 'active' && c !== '');
-        button.className = classes.join(' ');
-      }
-    });
+  test('window.currentMode remains a live compatibility view of the store', () => {
+    const modeSwitcher = require(modeSwitcherPath);
 
-    // Show selected mode
-    const targetElement = document.getElementById(`${mode}-content`);
-    const targetButton = document.getElementById(`${mode}-mode-btn`);
-    
-    if (targetElement) {
-      // Ensure element has a className property
-      if (typeof targetElement.className !== 'string') {
-        targetElement.className = 'content-section';
-      }
-      const classes = (targetElement.className || '').split(' ').filter(c => c !== 'active' && c !== '');
-      classes.push('active');
-      targetElement.className = classes.join(' ');
-      
-      // Ensure style object exists before setting display
-      if (!targetElement.style || typeof targetElement.style !== 'object') {
-        const styleObj = { display: 'block' };
-        Object.defineProperty(targetElement, 'style', {
-          value: styleObj,
-          writable: true,
-          enumerable: true,
-          configurable: true
-        });
-      } else {
-        targetElement.style.display = 'block';
-      }
-    }
-    
-    if (targetButton) {
-      // Ensure button has a className property
-      if (typeof targetButton.className !== 'string') {
-        targetButton.className = 'mode-btn';
-      }
-      const classes = (targetButton.className || '').split(' ').filter(c => c !== 'active' && c !== '');
-      classes.push('active');
-      targetButton.className = classes.join(' ');
-    }
-
-    // Handle mode-specific initialization
-    switch (mode) {
-      case 'presentation':
-        if (window.setPresentationContent && window.editor) {
-          const content = window.editor.getValue();
-          window.setPresentationContent(content);
-        }
-        break;
-      case 'network':
-        if (window.initializeNetworkView) {
-          window.initializeNetworkView();
-        }
-        break;
-      case 'graph':
-        if (window.initializeGraphView) {
-          window.initializeGraphView();
-        }
-        break;
-      case 'circle':
-        if (window.initializeCircleView) {
-          window.initializeCircleView();
-        }
-        break;
-      case 'editor':
-        if (window.editor && window.editor.layout) {
-          // Give editor time to become visible before layout
-          setTimeout(() => window.editor.layout(), 100);
-        }
-        break;
-    }
-  }
-
-  describe('Mode Switching', () => {
-    test('should switch to editor mode correctly', () => {
-      const editorContent = document.getElementById('editor-content');
-      const editorButton = document.getElementById('editor-mode-btn');
-      
-      // Test that the function runs without errors
-      expect(() => switchToMode('editor')).not.toThrow();
-      
-      // Verify that DOM elements exist (the core requirement)
-      expect(editorContent).toBeTruthy();
-      expect(editorButton).toBeTruthy();
-      
-      // Test specific behavior: editor.layout should not be called for editor mode
-      // (since this is tested separately with timers)
-      expect(window.editor).toBeTruthy();
-    });
-
-    test('should switch to presentation mode correctly', () => {
-      // Test that the function runs without errors
-      expect(() => switchToMode('presentation')).not.toThrow();
-      
-      // Verify DOM elements exist
-      const presentationContent = document.getElementById('presentation-content');
-      const presentationButton = document.getElementById('presentation-mode-btn');
-      expect(presentationContent).toBeTruthy();
-      expect(presentationButton).toBeTruthy();
-      
-      // Should call setPresentationContent with editor content
-      expect(mockSetContent).toHaveBeenCalledWith('# Test Content');
-    });
-
-    test('should switch to network mode correctly', () => {
-      // Test that the function runs without errors
-      expect(() => switchToMode('network')).not.toThrow();
-      
-      // Verify DOM elements exist
-      const networkContent = document.getElementById('network-content');
-      const networkButton = document.getElementById('network-mode-btn');
-      expect(networkContent).toBeTruthy();
-      expect(networkButton).toBeTruthy();
-      
-      // Should initialize network view
-      expect(window.initializeNetworkView).toHaveBeenCalled();
-    });
-
-    test('should switch to graph mode correctly', () => {
-      // Test that the function runs without errors
-      expect(() => switchToMode('graph')).not.toThrow();
-      
-      // Verify DOM elements exist
-      const graphContent = document.getElementById('graph-content');
-      const graphButton = document.getElementById('graph-mode-btn');
-      expect(graphContent).toBeTruthy();
-      expect(graphButton).toBeTruthy();
-      
-      // Should initialize graph view
-      expect(window.initializeGraphView).toHaveBeenCalled();
-    });
-
-    test('should switch to circle mode correctly', () => {
-      // Test that the function runs without errors
-      expect(() => switchToMode('circle')).not.toThrow();
-      
-      // Verify DOM elements exist
-      const circleContent = document.getElementById('circle-content');
-      const circleButton = document.getElementById('circle-mode-btn');
-      expect(circleContent).toBeTruthy();
-      expect(circleButton).toBeTruthy();
-      
-      // Should initialize circle view
-      expect(window.initializeCircleView).toHaveBeenCalled();
-    });
-
-    test('should hide all other modes when switching', () => {
-      // Test that switching between modes works without errors
-      expect(() => switchToMode('editor')).not.toThrow();
-      expect(() => switchToMode('presentation')).not.toThrow();
-      expect(() => switchToMode('network')).not.toThrow();
-      
-      // Verify all DOM elements exist
-      expect(document.getElementById('editor-content')).toBeTruthy();
-      expect(document.getElementById('presentation-content')).toBeTruthy();
-      expect(document.getElementById('network-content')).toBeTruthy();
-      
-      // Verify that the switch to network mode triggered the proper initialization
-      expect(window.initializeNetworkView).toHaveBeenCalled();
-    });
-
-    test('should handle invalid mode gracefully', () => {
-      expect(() => switchToMode('invalid-mode')).not.toThrow();
-      
-      // All modes should remain hidden
-      const modes = ['editor', 'presentation', 'network', 'graph', 'circle'];
-      modes.forEach(mode => {
-        const element = document.getElementById(`${mode}-content`);
-        expect((element.className || '').includes('active')).toBe(false);
-      });
-    });
-
-    test('should handle missing DOM elements gracefully', () => {
-      // Simulate missing elements by setting them to null
-      document.getElementById = jest.fn((id) => {
-        if (id === 'graph-content' || id === 'circle-mode-btn') {
-          return null;
-        }
-        return document.body.querySelector(`#${id}`);
-      });
-      
-      expect(() => switchToMode('graph')).not.toThrow();
-      expect(() => switchToMode('circle')).not.toThrow();
-      
-      // Restore original function
-      document.getElementById = (id) => document.body.querySelector(`#${id}`);
-    });
+    expect(window.currentMode).toBe('editor');
+    expect(modeSwitcher.switchToMode('network')).toBe(true);
+    expect(window.currentMode).toBe('network');
+    expect(window.NightOwlUIState.getState().mode).toBe('network');
+    expect(document.getElementById('network-content').classList.contains('active')).toBe(true);
+    expect(document.getElementById('network-mode-btn').classList.contains('active')).toBe(true);
+    expect(document.getElementById('editor-content').classList.contains('active')).toBe(false);
   });
 
-  describe('Mode-Specific Functionality', () => {
-    test('should handle editor mode with missing editor object', () => {
-      window.editor = null;
-      
-      expect(() => switchToMode('editor')).not.toThrow();
-    });
+  test('mode cycles preserve the exact base pane arrangement and selection', () => {
+    const modeSwitcher = require(modeSwitcherPath);
+    const store = window.NightOwlUIState;
+    store.dispatch({ type: 'SET_PANE_VISIBILITY', pane: 'sidebar', visible: false });
+    store.dispatch({ type: 'SHOW_RIGHT_PANE', pane: 'chat' });
+    const before = store.getState();
 
-    test('should handle presentation mode with missing functions', () => {
-      window.setPresentationContent = null;
-      window.editor = null;
-      
-      expect(() => switchToMode('presentation')).not.toThrow();
-    });
+    modeSwitcher.switchToMode('network');
+    modeSwitcher.switchToMode('circle');
+    modeSwitcher.switchToMode('editor');
 
-    test('should handle visualization modes with missing initialization functions', () => {
-      window.initializeNetworkView = null;
-      window.initializeGraphView = null;
-      window.initializeCircleView = null;
-      
-      expect(() => switchToMode('network')).not.toThrow();
-      expect(() => switchToMode('graph')).not.toThrow();
-      expect(() => switchToMode('circle')).not.toThrow();
-    });
-
-    test('should call editor layout after delay in editor mode', async () => {
-      jest.useFakeTimers();
-      
-      // Spy on setTimeout to verify it's called
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      
-      switchToMode('editor');
-      
-      // Verify that setTimeout was called with the correct delay
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 100);
-      
-      // Execute the timeout callback directly
-      const timeoutCallback = setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1][0];
-      timeoutCallback();
-      
-      expect(mockEditor.layout).toHaveBeenCalled();
-      
-      setTimeoutSpy.mockRestore();
-      jest.useRealTimers();
-    });
+    expect(store.getState().panes).toEqual(before.panes);
+    expect(store.getState().activeRightPane).toBe('chat');
+    expect(document.getElementById('left-sidebar').classList.contains('nightowl-ui-hidden')).toBe(true);
+    expect(document.getElementById('chat-pane').classList.contains('ui-pane-active')).toBe(true);
+    expect(document.getElementById('preview-pane').classList.contains('pane-hidden')).toBe(true);
   });
 
-  describe('Button State Management', () => {
-    test('should properly manage active button states', () => {
-      const modes = ['editor', 'presentation', 'network', 'graph', 'circle'];
-      
-      modes.forEach(mode => {
-        switchToMode(mode);
-        
-        // Only the current mode button should be active
-        modes.forEach(otherMode => {
-          const button = document.getElementById(`${otherMode}-mode-btn`);
-          if (otherMode === mode) {
-            expect((button.className || '').includes('active')).toBe(true);
-          } else {
-            expect((button.className || '').includes('active')).toBe(false);
-          }
-        });
-      });
-    });
+  test('layout runs at coalesced transition completion without a restoration timer', () => {
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    const modeSwitcher = require(modeSwitcherPath);
 
-    test('should handle missing buttons gracefully', () => {
-      // Simulate missing button by setting it to null
-      const originalGetElementById = document.getElementById;
-      document.getElementById = jest.fn((id) => {
-        if (id === 'network-mode-btn') {
-          return null;
-        }
-        return originalGetElementById.call(document, id);
-      });
-      
-      expect(() => switchToMode('network')).not.toThrow();
-      
-      const networkContent = document.getElementById('network-content');
-      expect((networkContent.className || '').includes('active')).toBe(true);
-      
-      // Restore original function
-      document.getElementById = originalGetElementById;
-    });
+    modeSwitcher.switchToMode('network');
+    modeSwitcher.switchToMode('editor');
+    expect(window.editor.layout).not.toHaveBeenCalled();
+    expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 100);
+
+    expect(frames).toHaveLength(1);
+    frames.shift()();
+    expect(window.editor.layout).toHaveBeenCalledTimes(1);
+    expect(window.editor.focus).toHaveBeenCalledTimes(1);
+    setTimeoutSpy.mockRestore();
+  });
+
+  test('invalid modes are rejected without changing state or DOM', () => {
+    const modeSwitcher = require(modeSwitcherPath);
+
+    expect(modeSwitcher.switchToMode('graph')).toBe(false);
+    expect(window.currentMode).toBe('editor');
+    expect(document.getElementById('editor-content').classList.contains('active')).toBe(true);
   });
 });

@@ -36,6 +36,13 @@ describe('required Electron E2E harness', () => {
     );
     expect(securitySource).toContain('@packaged @content-security');
     expect(securitySource).toContain('malicious-markdown.md');
+
+    const uiStateSource = fs.readFileSync(
+      path.join(__dirname, '../../../tests/e2e/packaged/ui-state.spec.js'),
+      'utf8'
+    );
+    expect(uiStateSource).toContain('@packaged @ui-state');
+    expect(uiStateSource).toContain('window.NightOwlUIState');
   });
 
   test('packaging pins tutor-core and excludes its development-only files', () => {
@@ -64,6 +71,7 @@ describe('required Electron E2E harness', () => {
     expect(source).toContain('@file-switch');
     expect(source).toContain('@preview');
     expect(source).toContain('@mode-recovery');
+    expect(source).toContain('@ui-state');
     expect(source).toContain('@slide-geometry');
     expect(source).toContain('@content-security');
     expect(source).not.toContain('show-presentation-btn');
