@@ -69,4 +69,36 @@ describe('structured record schemas', () => {
     expect(() => schemaTools.normalizeSchema({ fields: { value: { type: 'date' } } })).toThrow('Unsupported type');
     expect(() => schemaTools.normalizeSchema({ fields: { value: { pattern: '[' } } })).toThrow('Invalid pattern');
   });
+
+  test('normalizes optional labelling workflow fields, saved views, and keyboard labels', () => {
+    const schema = schemaTools.normalizeSchema({
+      ...TASK_SCHEMA,
+      workflow: {
+        labelField: 'applicability',
+        coderField: 'applicability',
+        gridColumns: ['item_id', 'applicability', 'score'],
+        facetFields: ['applicability'],
+        defaultSort: { field: 'item_id', direction: 'desc' },
+        savedViews: [{
+          id: 'needs-score',
+          title: 'Needs score',
+          filters: [{ field: 'score', operator: 'is_empty' }]
+        }]
+      }
+    });
+
+    expect(schema.workflow).toMatchObject({
+      labelField: 'applicability',
+      labelValues: ['applicable', 'not_applicable'],
+      coderField: 'applicability',
+      gridColumns: ['item_id', 'applicability', 'score'],
+      facetFields: ['applicability'],
+      defaultSort: { field: 'item_id', direction: 'desc' }
+    });
+    expect(schema.workflow.savedViews[0]).toMatchObject({ id: 'needs-score', builtin: false });
+    expect(() => schemaTools.normalizeSchema({
+      fields: { label: {} },
+      workflow: { reviewerField: 'missing' }
+    })).toThrow('unknown field');
+  });
 });

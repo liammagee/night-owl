@@ -1,7 +1,7 @@
 ---
 id: "labelling-review-workbench"
 title: "Expand structured records into a labelling and review workbench"
-status: "triaged"
+status: "done"
 type: "enhancement"
 priority: "P1"
 area: "editor"
@@ -28,11 +28,21 @@ Add a task-oriented list/grid alongside the existing source-preserving form.
 Extend the schema contract with optional workflow roles and status fields while
 leaving generic JSONL and CSV behavior unchanged.
 
+## Implemented change
+
+The optional `workflow` schema contract now declares keyboard label choices,
+grid columns, facets, sorting, saved views, and coder/reviewer/adjudication
+fields. The record surface adds a shared-selection grid, role-aware queues,
+local saved views and resume state, source-free handoff metadata, and
+preview-before-apply bulk fill or clear. Bulk changes are exact record
+replacements submitted in one Monaco edit transaction so the entire batch is
+one undo step. Schema-free files retain the original record list and form.
+
 ## Acceptance criteria
 
-- [ ] Grid and form views share one record selection and source-preserving edit history.
-- [ ] Keyboard actions support label, save, and next-record workflows without trapping focus.
-- [ ] Sorts, filters, facets, and saved views work across task fields and validation state.
-- [ ] Bulk fill or clear operations preview their affected records and remain undoable.
-- [ ] Optional coder, reviewer, disagreement, and adjudication views do not alter schema-free files.
-- [ ] Resume and export metadata make incomplete or reviewed task state observable.
+- [x] Grid and form views share one record selection and source-preserving edit history.
+- [x] Keyboard actions support label, save, and next-record workflows without trapping focus.
+- [x] Sorts, filters, facets, and saved views work across task fields and validation state.
+- [x] Bulk fill or clear operations preview their affected records and remain undoable.
+- [x] Optional coder, reviewer, disagreement, and adjudication views do not alter schema-free files.
+- [x] Resume and export metadata make incomplete or reviewed task state observable.

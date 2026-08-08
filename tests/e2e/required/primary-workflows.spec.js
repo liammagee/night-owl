@@ -511,8 +511,8 @@ test('@required @ui-state mode and record overlays preserve one deterministic pa
 
 test('@required @record-schema task schemas drive controls, validation, progress, and export checks', async ({ appPage }) => {
   const records = [
-    '{"item_id":"dev-001","decision":"accept","score":4,"notes":"Ready"}',
-    '{"item_id":"dev-002","decision":"","score":8,"notes":"Review"}'
+    '{"item_id":"dev-001","decision":"accept","reviewer_decision":"reject","final_decision":"","score":4,"notes":"Ready"}',
+    '{"item_id":"dev-002","decision":"","reviewer_decision":"","final_decision":"","score":8,"notes":"Review"}'
   ].join('\n');
   await openMarkdown(appPage, '/virtual-workspace/schema-task.jsonl', records);
   await expect.poll(() => appPage.evaluate(() => window.NightOwlUIState.getState().structuredRecord.active)).toBe(true);
@@ -530,8 +530,17 @@ test('@required @record-schema task schemas drive controls, validation, progress
         required: true,
         order: 1
       },
-      score: { type: 'integer', min: 1, max: 5, required: true, order: 2 },
-      notes: { type: 'multiline', order: 3 }
+      reviewer_decision: { label: 'Reviewer decision', enum: ['accept', 'reject'], order: 2 },
+      final_decision: { label: 'Final decision', enum: ['accept', 'reject'], order: 3 },
+      score: { type: 'integer', min: 1, max: 5, required: true, order: 4 },
+      notes: { type: 'multiline', order: 5 }
+    },
+    workflow: {
+      labelField: 'decision',
+      coderField: 'decision',
+      reviewerField: 'reviewer_decision',
+      adjudicationField: 'final_decision',
+      gridColumns: ['item_id', 'decision', 'reviewer_decision', 'final_decision', 'score']
     },
     completion: { blockExport: true }
   }, { source: 'required E2E' }));
@@ -554,11 +563,26 @@ test('@required @record-schema task schemas drive controls, validation, progress
   });
   await expect(appPage.locator('#jsonl-mode-status')).toContainText('Export blocked');
 
+  await expect(appPage.locator('#jsonl-workbench-toggle')).toBeVisible();
+  await appPage.locator('#jsonl-workbench-toggle').click();
+  await expect(appPage.locator('.jsonl-workbench-table tbody tr')).toHaveCount(2);
+  await appPage.locator('#jsonl-workbench-view').selectOption('disagreements');
+  await expect(appPage.locator('.jsonl-workbench-table tbody tr')).toHaveCount(1);
+  await expect(appPage.locator('.jsonl-workbench-table tbody tr td').nth(2)).toHaveText('dev-001');
+  expect(await appPage.evaluate(() => window.recordMode.getHandoffMetadata())).toMatchObject({
+    schemaId: 'required-e2e-schema',
+    totalRecords: 2,
+    workflow: expect.objectContaining({ disagreements: 1, unresolvedDisagreements: 1 })
+  });
+  expect(await appPage.evaluate(() => Boolean(window.NightOwlActions.get('records.saveNext')))).toBe(true);
+  await appPage.locator('#jsonl-workbench-toggle').click();
+
   await appPage.locator('#jsonl-record-search').fill('dev-001');
   await expect(appPage.locator('#jsonl-record-progress')).toContainText('Filtered: 1/2');
 
   await openMarkdown(appPage, '/virtual-workspace/generic-records.jsonl', '{"id":"generic","status":"open"}');
   await expect(appPage.locator('#jsonl-schema-summary')).toHaveText('Generic record fields');
+  await expect(appPage.locator('#jsonl-workbench-toggle')).toBeHidden();
   expect(await appPage.evaluate(() => window.recordMode.checkForExport())).toMatchObject({
     allowed: true,
     reason: 'generic'
