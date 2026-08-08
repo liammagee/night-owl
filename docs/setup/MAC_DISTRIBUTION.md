@@ -1,6 +1,8 @@
 # macOS Distribution
 
 NightOwl is configured for hardened-runtime builds through electron-builder.
+For the complete clean-build, packaged-smoke, artifact, and hosted release
+sequence, see [Build and release chain](../development/BUILD_AND_RELEASE.md).
 
 Run the packaging preflight:
 

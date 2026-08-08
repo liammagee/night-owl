@@ -29,6 +29,7 @@ Download the latest release for your platform:
 - **Babel Maze** - MUD-style exploration of interconnected Markdown documents
 - **AI Integration** - Chat, summarization, and note extraction with multiple AI providers
 - **Citation Management** - SQLite-backed citation database with BibTeX support
+- **Structured Records** - Readable JSONL/CSV editing with optional task schemas, validation, and progress
 - **Graph Visualization** - Force-directed graph of document relationships
 - **Bundled Features** - App-native feature modules for presentation, preview, graph, maze, and feed workflows
 
@@ -40,7 +41,7 @@ git clone https://github.com/liammagee/night-owl.git
 cd night-owl
 
 # Install dependencies
-npm install
+npm ci
 
 # Run in development mode
 npm run electron-dev
@@ -125,21 +126,26 @@ Found a bug or have a feature request?
 
 ## Contributing
 
-Contributions welcome! Please read our contributing guidelines before submitting PRs.
+Contributions welcome! Start with [CONTRIBUTING.md](CONTRIBUTING.md), the
+[architecture map](ARCHITECTURE.md), and the
+[build/release chain](docs/development/BUILD_AND_RELEASE.md).
 
 ```bash
-# Run tests
-npm run test:all
+# Run the complete local branch gate
+npm run ci:local
 
-# Run the required Electron smoke matrix
-npm run test:e2e
+# Add distribution preflight for packaging changes
+npm run ci:local:release
 
-# Run slower accessibility, performance, and theme diagnostics
-npm run test:e2e:optional
+# Run deterministic startup/view performance budgets
+npm run benchmark:performance
 
 # After an unpacked build, verify packaged tutor-core storage
 NIGHTOWL_PACKAGED_APP=dist/mac-arm64/NightOwl.app npm run test:e2e:packaged
 ```
+
+Live engineering status belongs in the source-controlled
+[workplan board](workplan/BOARD.md), not in architecture notes.
 
 ## Related Projects
 
