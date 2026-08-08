@@ -14,6 +14,8 @@ function getCurrentMode() {
 let presentationEditorContent = '';
 let presentationLoadNonce = 0;
 let presentationLoadController = null;
+let presentationReadinessToken = null;
+let presentationReadinessCleanup = null;
 const presentationReactRoots = new WeakMap();
 
 const PRESENTATION_DIAGNOSTICS = {
@@ -240,11 +242,39 @@ function cancelPresentationLoad(options = {}) {
   presentationLoadNonce += 1;
   presentationLoadController?.abort();
   presentationLoadController = null;
+  presentationReadinessCleanup?.();
+  presentationReadinessCleanup = null;
+  window.NightOwlPerformance?.readiness?.cancel(presentationReadinessToken, {
+    reason: options.reason || 'presentation-load-cancelled'
+  });
+  presentationReadinessToken = null;
 
   const container = options.container || document.getElementById('presentation-root');
   if (options.markCancelled !== false && container?.dataset.presentationLoadState === 'loading') {
     renderPresentationLoadState(container, 'cancelled');
   }
+}
+
+function armPresentationContentReadiness(container, token, context = {}) {
+  if (!token) return;
+  presentationReadinessCleanup?.();
+  container.dataset.presentationContentState = 'rendering';
+
+  const onReady = event => {
+    cleanup();
+    container.dataset.presentationContentState = 'ready';
+    window.NightOwlPerformance?.readiness?.complete(token, {
+      ...context,
+      slides: event.detail?.slides ?? context.slides ?? null
+    });
+    if (presentationReadinessToken === token) presentationReadinessToken = null;
+  };
+  const cleanup = () => {
+    window.removeEventListener('nightowl:presentation-content-ready', onReady);
+    if (presentationReadinessCleanup === cleanup) presentationReadinessCleanup = null;
+  };
+  presentationReadinessCleanup = cleanup;
+  window.addEventListener('nightowl:presentation-content-ready', onReady, { once: true });
 }
 
 function ensurePresentationsReady(timeoutMs = 8000, options = {}) {
@@ -340,6 +370,12 @@ function startPresentationLoad(container, options = {}) {
     `NO-PRESENTATION-${Date.now().toString(36).toUpperCase()}-${nonce}`
   );
   const content = options.content ?? getPresentationSourceContent();
+  const readinessToken = window.NightOwlPerformance?.readiness?.begin('presentation-ready', {
+    characters: content.length,
+    slides: content.split(/^---\s*$/m).length,
+    loadNonce: nonce
+  }) || null;
+  presentationReadinessToken = readinessToken;
   renderPresentationLoadState(container, 'loading');
   let failureHandled = false;
 
@@ -349,10 +385,20 @@ function startPresentationLoad(container, options = {}) {
     getCurrentMode() === 'presentation';
 
   const fail = (diagnosticId, error, message) => {
-    if (!isCurrent()) return 'cancelled';
+    if (!isCurrent()) {
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'stale-presentation-load' });
+      return 'cancelled';
+    }
     if (failureHandled) return 'failed';
     failureHandled = true;
     presentationLoadController = null;
+    presentationReadinessCleanup?.();
+    presentationReadinessCleanup = null;
+    if (presentationReadinessToken === readinessToken) presentationReadinessToken = null;
+    window.NightOwlPerformance?.readiness?.fail(readinessToken, error, {
+      diagnosticId,
+      loadNonce: nonce
+    });
     const incident = recordPresentationFailure(diagnosticId, correlationId, error, {
       diagnosticId,
       loadNonce: nonce,
@@ -397,6 +443,7 @@ function startPresentationLoad(container, options = {}) {
     });
 
     if (!isCurrent()) {
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'mode-changed' });
       if (container.dataset.presentationLoadState === 'loading') {
         renderPresentationLoadState(container, 'cancelled');
       }
@@ -420,6 +467,10 @@ function startPresentationLoad(container, options = {}) {
     }
 
     try {
+      armPresentationContentReadiness(container, readinessToken, {
+        loadNonce: nonce,
+        reused: false
+      });
       const rendered = renderPresentationComponent(container, {
         content,
         onError: reportAsyncFailure
@@ -619,6 +670,15 @@ function switchToMode(modeName) {
       const alreadyMounted = presentationRoot.dataset.presentationLoadState === 'ready';
       if (alreadyMounted && window.MarkdownPreziApp) {
         console.log('[Mode Switching] Presentation component already mounted, reusing');
+        const reuseReadiness = window.NightOwlPerformance?.readiness?.begin('presentation-ready', {
+          characters: currentContent.length,
+          slides: currentContent.split(/^---\s*$/m).length,
+          reused: true
+        }) || null;
+        presentationReadinessToken = reuseReadiness;
+        armPresentationContentReadiness(presentationRoot, reuseReadiness, {
+          reused: true
+        });
         if (currentContent) {
           window.syncContentToPresentationImmediate?.(currentContent);
         }

@@ -329,6 +329,7 @@ describe('Code quality guardrails', () => {
     const performanceE2E = fs.readFileSync(path.join(__dirname, '../../../tests/e2e/performance.e2e.js'), 'utf8');
 
     expect(packageJson.scripts['quality:trace']).toBe('node scripts/compare-chromium-traces.js');
+    expect(packageJson.scripts['benchmark:performance']).toContain('playwright.performance.config.js');
     expect(traceScript).toContain('summarizeTrace');
     expect(traceScript).toContain('traceEvents');
     expect(runbook).toContain('Large-file editing');
@@ -337,7 +338,8 @@ describe('Code quality guardrails', () => {
     expect(runbook).toContain('Presentation view');
     expect(performanceE2E).toContain('waitForNightOwlReady');
     expect(performanceE2E).toContain('collectAppDiagnostics');
-    expect(performanceE2E).toContain('performance.mark');
+    expect(performanceE2E).toContain('getReadinessRecords');
+    expect(performanceE2E).toContain('summarizeSamples');
     expect(performanceE2E).not.toContain('Date.now()');
     expect(performanceE2E).not.toContain('waitForTimeout');
   });
@@ -463,7 +465,7 @@ describe('Code quality guardrails', () => {
       expect(indexSource.indexOf(controllerPath)).toBeGreaterThan(-1);
       expect(indexSource.indexOf(controllerPath)).toBeLessThan(indexSource.indexOf('orchestrator/renderer.js'));
     }
-    expect(rendererSource).toContain('return previewRouter.render(markdownContent, options);');
+    expect(rendererSource).toContain('const outcome = await previewRouter.render(markdownContent, options);');
     expect(rendererSource).toContain('return fileTreeController.render();');
     expect(rendererSource).toContain("return paneController.show(paneType);");
     expect(rendererSource).not.toContain('let fileTreeSignaturePollTimer');

@@ -276,7 +276,17 @@ function cancelBrowserIdleCallback(handle) {
     }
 }
 
+const performanceReadiness = window.NightOwlPerformanceBudgets?.readiness || null;
+const appStartupReadiness = performanceReadiness?.begin('startup', {
+    documentBytes: document.documentElement?.outerHTML?.length || 0
+});
+if (document.documentElement) document.documentElement.dataset.nightOwlStartupState = 'loading';
+
 window.NightOwlPerformance = {
+    budgets: window.NightOwlPerformanceBudgets?.DEFAULT_BUDGETS || {},
+    readiness: performanceReadiness,
+    getReadinessRecords: (name = null) => performanceReadiness?.getRecords(name) || [],
+    getActiveReadiness: (name = null) => performanceReadiness?.getActive(name) || [],
     getGPUDiagnostics: async () => window.electronAPI?.performance?.getGpuDiagnostics(),
     getResourceDiagnostics: async () => ({
         ...(await window.electronAPI?.performance?.getResourceDiagnostics()),
@@ -1076,8 +1086,34 @@ const previewRouter = window.NightOwlPreviewRouter?.createPreviewRouter?.({
 });
 if (!previewRouter) throw new Error('Preview router is not loaded');
 
-function updatePreviewAndStructure(markdownContent, options = {}) {
-    return previewRouter.render(markdownContent, options);
+async function updatePreviewAndStructure(markdownContent, options = {}) {
+    const filePath = options.filePath ?? window.currentFilePath ?? '';
+    const readiness = performanceReadiness?.begin('preview-ready', {
+        filePath,
+        characters: typeof markdownContent === 'string' ? markdownContent.length : String(markdownContent || '').length
+    });
+    try {
+        const outcome = await previewRouter.render(markdownContent, options);
+        if (outcome?.status === 'committed') {
+            performanceReadiness?.complete(readiness, {
+                renderer: outcome.renderer || 'markdown',
+                transitionId: outcome.id || null
+            });
+        } else if (outcome?.status === 'failed') {
+            performanceReadiness?.fail(readiness, outcome.error, {
+                transitionId: outcome.id || null
+            });
+        } else {
+            performanceReadiness?.cancel(readiness, {
+                reason: outcome?.reason || outcome?.status || 'superseded',
+                transitionId: outcome?.id || null
+            });
+        }
+        return outcome;
+    } catch (error) {
+        performanceReadiness?.fail(readiness, error);
+        throw error;
+    }
 }
 
 // Helper functions for markdown rendering
@@ -6262,6 +6298,7 @@ async function generateThumbnailForMultipleFiles(filePaths) {
     });
 }
 
+let activeFileSwitchReadiness = null;
 const fileOpenController = window.NightOwlFileOpenController?.createFileOpenController?.({
     transitions: fileTransitionCoordinator,
     readPath: (filePath, options) => (
@@ -6270,12 +6307,33 @@ const fileOpenController = window.NightOwlFileOpenController?.createFileOpenCont
             : window.electronAPI.files.openFilePath(filePath)
     ),
     applyContent: _openFileInEditorImpl,
-    onBegin: ({ transition }) => {
+    onBegin: ({ filePath, transition }) => {
+        if (activeFileSwitchReadiness) {
+            performanceReadiness?.cancel(activeFileSwitchReadiness, { reason: 'newer-file-switch' });
+        }
+        activeFileSwitchReadiness = performanceReadiness?.begin('file-switch', {
+            filePath,
+            transitionId: transition.id,
+            source: transition.metadata?.source || null
+        }) || null;
         (window.recordMode || window.jsonlMode)?.deactivate?.();
         scheduleFileTransitionStatus(transition);
     },
-    onComplete: ({ transition }) => clearFileTransitionStatus(transition),
-    onFailure: ({ transition, error, retry }) => showFileTransitionFailure(transition, error, retry),
+    onComplete: ({ filePath, transition }) => {
+        clearFileTransitionStatus(transition);
+        performanceReadiness?.complete(activeFileSwitchReadiness, {
+            filePath,
+            transitionId: transition.id
+        });
+        activeFileSwitchReadiness = null;
+    },
+    onFailure: ({ transition, error, retry }) => {
+        performanceReadiness?.fail(activeFileSwitchReadiness, error, {
+            transitionId: transition.id
+        });
+        activeFileSwitchReadiness = null;
+        showFileTransitionFailure(transition, error, retry);
+    },
     onLogError: () => {}
 });
 if (!fileOpenController) throw new Error('File-open controller is not loaded');
@@ -8781,19 +8839,35 @@ setTimeout(() => {
     }
 }, 3000);
 
+let appInitializationPromise = null;
+function startAppInitialization() {
+    if (appInitializationPromise) return appInitializationPromise;
+    appInitializationPromise = performAppInitialization()
+        .then(() => {
+            performanceReadiness?.complete(appStartupReadiness, {
+                editorReady: Boolean(window.editor?.getValue),
+                featureLoaderReady: Boolean(window.NightOwlFeatures)
+            });
+            if (document.documentElement) document.documentElement.dataset.nightOwlStartupState = 'ready';
+            return true;
+        })
+        .catch(error => {
+            performanceReadiness?.fail(appStartupReadiness, error);
+            if (document.documentElement) document.documentElement.dataset.nightOwlStartupState = 'failed';
+            console.error('[renderer.js] ERROR in performAppInitialization:', error);
+            setTimeout(createEmergencyEditor, 1000);
+            return false;
+        });
+    return appInitializationPromise;
+}
+
 // Wait for the DOM to be fully loaded before trying to initialize
 if (document.readyState === 'loading') {
     // DOM hasn't finished loading yet
-    document.addEventListener('DOMContentLoaded', performAppInitialization);
+    document.addEventListener('DOMContentLoaded', startAppInitialization, { once: true });
 } else {
     // DOM has already finished loading
-    try {
-        performAppInitialization();
-    } catch (error) {
-        console.error('[renderer.js] ERROR in performAppInitialization:', error);
-        // Try emergency editor if main initialization fails
-        setTimeout(createEmergencyEditor, 1000);
-    }
+    void startAppInitialization();
 }
 
 // --- Apply Layout Settings Function ---
