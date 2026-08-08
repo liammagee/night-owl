@@ -462,6 +462,63 @@ test('@required @ui-state mode and record overlays preserve one deterministic pa
   });
 });
 
+test('@required @record-schema task schemas drive controls, validation, progress, and export checks', async ({ appPage }) => {
+  const records = [
+    '{"item_id":"dev-001","decision":"accept","score":4,"notes":"Ready"}',
+    '{"item_id":"dev-002","decision":"","score":8,"notes":"Review"}'
+  ].join('\n');
+  await openMarkdown(appPage, '/virtual-workspace/schema-task.jsonl', records);
+  await expect.poll(() => appPage.evaluate(() => window.NightOwlUIState.getState().structuredRecord.active)).toBe(true);
+
+  await appPage.evaluate(() => window.recordMode.setSchema({
+    id: 'required-e2e-schema',
+    title: 'Required E2E labelling',
+    description: 'Finish every decision and score.',
+    fields: {
+      item_id: { label: 'Item', readOnly: true, order: 0 },
+      decision: {
+        label: 'Decision',
+        help: 'Choose the final disposition.',
+        enum: ['accept', 'reject'],
+        required: true,
+        order: 1
+      },
+      score: { type: 'integer', min: 1, max: 5, required: true, order: 2 },
+      notes: { type: 'multiline', order: 3 }
+    },
+    completion: { blockExport: true }
+  }, { source: 'required E2E' }));
+
+  await expect(appPage.locator('#jsonl-schema-summary')).toContainText('Required E2E labelling');
+  await expect(appPage.locator('#jsonl-record-progress')).toHaveText(
+    'Complete: 1 · Incomplete: 0 · Invalid: 1 · Filtered: 2/2'
+  );
+  await expect(appPage.locator('[data-field="item_id"]')).toHaveAttribute('readonly', '');
+  await expect(appPage.locator('[data-field="decision"]')).toHaveAttribute('aria-required', 'true');
+  await expect(appPage.locator('.jsonl-field-help')).toContainText('Choose the final disposition');
+  await expect(appPage.locator('[data-validation-state="complete"]')).toHaveCount(1);
+  await expect(appPage.locator('[data-validation-state="invalid"]')).toHaveCount(1);
+
+  const exportCheck = await appPage.evaluate(() => window.recordMode.checkForExport());
+  expect(exportCheck).toMatchObject({
+    allowed: false,
+    blocked: true,
+    reason: 'schema-completion-required'
+  });
+  await expect(appPage.locator('#jsonl-mode-status')).toContainText('Export blocked');
+
+  await appPage.locator('#jsonl-record-search').fill('dev-001');
+  await expect(appPage.locator('#jsonl-record-progress')).toContainText('Filtered: 1/2');
+
+  await openMarkdown(appPage, '/virtual-workspace/generic-records.jsonl', '{"id":"generic","status":"open"}');
+  await expect(appPage.locator('#jsonl-schema-summary')).toHaveText('Generic record fields');
+  expect(await appPage.evaluate(() => window.recordMode.checkForExport())).toMatchObject({
+    allowed: true,
+    reason: 'generic'
+  });
+  await expect(appPage.locator('[data-field="status"]')).toHaveJSProperty('tagName', 'INPUT');
+});
+
 test('@required @content-security preview and presentation enforce the same HTML policy', async ({ appPage }) => {
   await appPage.evaluate(() => {
     window.__nightOwlMarkdownXssEvents = [];

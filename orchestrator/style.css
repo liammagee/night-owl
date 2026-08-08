@@ -4784,6 +4784,21 @@ body.dark-mode .app-confirm-path-list {
     color: #c62828;
 }
 
+.jsonl-schema-summary {
+    margin-top: 3px;
+    color: var(--text-muted, #667085);
+    font-size: 10px;
+}
+
+.jsonl-schema-summary[data-tone="schema"] {
+    color: var(--accent-color, #2f6feb);
+    font-weight: 700;
+}
+
+.jsonl-schema-summary[data-tone="error"] {
+    color: #c62828;
+}
+
 .jsonl-mode-actions {
     display: flex;
     align-items: center;
@@ -4860,6 +4875,17 @@ body.dark-mode .app-confirm-path-list {
     font-size: 10px;
 }
 
+.jsonl-record-progress {
+    min-height: 14px;
+    color: var(--text-muted, #667085);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.jsonl-record-progress[data-schema-active="true"] {
+    color: var(--text-secondary, #475467);
+}
+
 .jsonl-record-list {
     display: flex;
     flex: 1;
@@ -4910,7 +4936,8 @@ body.dark-mode .app-confirm-path-list {
 }
 
 .jsonl-record-badge,
-.jsonl-record-detail-badge {
+.jsonl-record-detail-badge,
+.jsonl-record-validation-badge {
     max-width: 140px;
     padding: 2px 6px;
     overflow: hidden;
@@ -4922,6 +4949,29 @@ body.dark-mode .app-confirm-path-list {
     text-overflow: ellipsis;
     text-transform: capitalize;
     white-space: nowrap;
+}
+
+.jsonl-record-validation-badge[data-state="complete"] {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.jsonl-record-validation-badge[data-state="incomplete"] {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.jsonl-record-validation-badge[data-state="invalid"] {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.jsonl-record-list-item.is-incomplete {
+    border-left: 3px solid #d97706;
+}
+
+.jsonl-record-list-item.is-invalid {
+    border-left: 3px solid #dc2626;
 }
 
 .jsonl-record-list-snippet {
@@ -4999,6 +5049,16 @@ body.dark-mode .app-confirm-path-list {
     border-color: #d92d20;
 }
 
+.jsonl-field.is-read-only {
+    background: var(--surface-variant, #f7f8fa);
+}
+
+.jsonl-field-required {
+    color: #b42318;
+    font-size: 10px;
+    font-weight: 600;
+}
+
 .jsonl-field-label-row {
     display: flex;
     align-items: baseline;
@@ -5022,6 +5082,19 @@ body.dark-mode .app-confirm-path-list {
 textarea.jsonl-field-control {
     min-height: 76px;
     resize: vertical;
+}
+
+.jsonl-field-control:disabled,
+.jsonl-field-control[readonly] {
+    cursor: not-allowed;
+    opacity: 0.72;
+}
+
+.jsonl-field-help {
+    margin: 6px 0 0;
+    color: var(--text-muted, #667085);
+    font-size: 10px;
+    line-height: 1.4;
 }
 
 .jsonl-code-value {

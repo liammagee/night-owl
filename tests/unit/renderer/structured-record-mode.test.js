@@ -13,6 +13,8 @@ describe('structured record mode helpers', () => {
     delete window.StructuredRecordModeUtils;
     delete window.jsonlMode;
     delete window.recordMode;
+    delete window.electronAPI;
+    delete window.appSettings;
     window.currentFilePath = null;
     window.requestAnimationFrame = callback => callback();
     global.requestAnimationFrame = window.requestAnimationFrame;
@@ -89,11 +91,15 @@ describe('structured record mode helpers', () => {
     expect(updated).toBe('item_id,notes,score\ndev-001,"Needs, review",3\ndev-002,Keep,4\n');
   });
 
-  test('offers constrained controls for the human-labelling CSV fields', () => {
-    expect(helpers.getCSVFieldOptions('applicability')).toEqual(['', 'applicable', 'not_applicable']);
-    expect(helpers.getCSVFieldOptions('content_accuracy_score')).toEqual(['', '1', '2', '3', '4', '5']);
-    expect(helpers.getCSVFieldOptions('confidence')).toEqual(['', '1', '2', '3', '4', '5']);
-    expect(helpers.getCSVFieldOptions('notes')).toBeNull();
+  test('derives automatic sidecar candidates without hard-coded task columns', () => {
+    expect(helpers.schemaSidecarPaths('/workspace/items.jsonl')).toEqual([
+      '/workspace/items.jsonl.schema.json',
+      '/workspace/items.schema.json'
+    ]);
+    expect(helpers.schemaSidecarPaths('/workspace/labels.csv')).toEqual([
+      '/workspace/labels.csv.schema.json',
+      '/workspace/labels.schema.json'
+    ]);
   });
 
   test('coerces edits using the original JSON value type', () => {
@@ -235,6 +241,23 @@ describe('structured record mode helpers', () => {
     window.updateStatusBar = jest.fn();
 
     expect(window.recordMode.handlePreviewUpdate(window.currentFilePath, source)).toBe(true);
+    window.recordMode.setSchema({
+      title: 'Human labelling',
+      fields: {
+        coder_id: { readOnly: true, order: 0 },
+        item_id: { readOnly: true, order: 1 },
+        applicability: {
+          enum: ['applicable', 'not_applicable'],
+          required: true,
+          help: 'Choose whether this item can be labelled.',
+          order: 2
+        },
+        content_accuracy_score: { enum: ['1', '2', '3', '4', '5'], required: true, order: 3 },
+        confidence: { enum: ['1', '2', '3', '4', '5'], required: true, order: 4 },
+        notes: { type: 'multiline', order: 5 }
+      },
+      completion: { blockExport: true }
+    }, { source: 'test' });
     expect(document.getElementById('jsonl-mode-eyebrow').textContent).toBe('CSV record mode');
     expect(document.getElementById('file-status').textContent).toBe('CSV (.csv)');
     expect(document.querySelectorAll('.jsonl-record-list-item')).toHaveLength(1);
@@ -244,6 +267,13 @@ describe('structured record mode helpers', () => {
     expect(applicability.tagName).toBe('SELECT');
     expect(score.tagName).toBe('SELECT');
     expect(score.options).toHaveLength(6);
+    expect(document.querySelector('[data-field="coder_id"]').readOnly).toBe(true);
+    expect(document.getElementById('jsonl-record-progress').textContent)
+      .toBe('Complete: 0 · Incomplete: 1 · Invalid: 0 · Filtered: 1/1');
+    expect(window.recordMode.checkForExport()).toMatchObject({
+      allowed: false,
+      reason: 'schema-completion-required'
+    });
 
     applicability.value = 'applicable';
     applicability.dispatchEvent(new Event('change'));
@@ -253,6 +283,151 @@ describe('structured record mode helpers', () => {
         text: 'coder-a,dev-001,applicable,,,'
       })
     ]);
+  });
+
+  test('keeps schema-invalid records visible and updates filtered progress', () => {
+    document.body.innerHTML = `
+      <div id="editor-pane"></div>
+      <div id="resizer"></div>
+      <div id="right-pane"><div id="preview-pane"><div id="preview-content"></div></div></div>
+      <span id="preview-word-count"></span>
+      <span id="file-status"></span>
+    `;
+    const source = [
+      '{"item_id":"a","label":"yes","score":4}',
+      '{"item_id":"b","label":"","score":8}'
+    ].join('\n');
+    window.editor = {
+      getValue: jest.fn(() => source),
+      getModel: jest.fn(() => ({ getLineMaxColumn: () => 50 })),
+      executeEdits: jest.fn(),
+      layout: jest.fn()
+    };
+    window.currentFilePath = '/workspace/items.jsonl';
+
+    window.recordMode.handlePreviewUpdate(window.currentFilePath, source);
+    window.recordMode.setSchema({
+      title: 'Review task',
+      match: ['items.jsonl'],
+      fields: {
+        item_id: { readOnly: true, order: 0 },
+        label: { enum: ['yes', 'no'], required: true, order: 1 },
+        score: { type: 'integer', min: 1, max: 5, required: true, order: 2 }
+      },
+      completion: { blockExport: true }
+    });
+
+    expect(document.querySelectorAll('.jsonl-record-list-item')).toHaveLength(2);
+    expect(document.querySelectorAll('[data-validation-state="complete"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-validation-state="invalid"]')).toHaveLength(1);
+    expect(document.querySelector('[data-field="label"]').tagName).toBe('SELECT');
+
+    const search = document.getElementById('jsonl-record-search');
+    search.value = 'item_id":"a';
+    search.dispatchEvent(new Event('input'));
+    expect(document.getElementById('jsonl-record-progress').textContent)
+      .toContain('Filtered: 1/2');
+
+    window.recordMode.setSchema({
+      title: 'Advisory review',
+      fields: {
+        label: { enum: ['yes', 'no'], required: true },
+        score: { type: 'integer', min: 1, max: 5, required: true }
+      },
+      completion: { blockExport: false }
+    });
+    expect(window.recordMode.checkForExport()).toMatchObject({
+      allowed: true,
+      blocked: false,
+      reason: 'schema-check-passed'
+    });
+  });
+
+  test('loads a workspace schema automatically by filename pattern', async () => {
+    document.body.innerHTML = `
+      <div id="editor-pane"></div>
+      <div id="resizer"></div>
+      <div id="right-pane"><div id="preview-pane"><div id="preview-content"></div></div></div>
+      <span id="preview-word-count"></span>
+      <span id="file-status"></span>
+    `;
+    const source = '{"item_id":"a","label":""}';
+    window.editor = {
+      getValue: jest.fn(() => source),
+      getModel: jest.fn(() => ({ getLineMaxColumn: () => source.length + 1 })),
+      executeEdits: jest.fn(),
+      layout: jest.fn()
+    };
+    window.electronAPI = {
+      files: {
+        checkFileExists: jest.fn(async filePath => ({ exists: filePath.endsWith('.nightowl/record-schemas.json') })),
+        readFileContentOnly: jest.fn(async () => ({
+          success: true,
+          content: JSON.stringify({
+            schemas: [{
+              title: 'Workspace labels',
+              match: ['development-*.jsonl'],
+              fields: { label: { enum: ['yes', 'no'], required: true } },
+              completion: { blockExport: true }
+            }]
+          })
+        }))
+      },
+      workspace: {
+        getWorkspaceFolders: jest.fn(async () => ({ primaryFolder: '/workspace', workspaceFolders: [] }))
+      }
+    };
+    window.currentFilePath = '/workspace/development-items.jsonl';
+
+    window.recordMode.handlePreviewUpdate(window.currentFilePath, source);
+    await window.recordMode.resolveSchemaForFile(window.currentFilePath, window.recordMode.getState().schemaGeneration);
+
+    expect(window.recordMode.getState()).toMatchObject({
+      schemaSource: 'workspace pattern',
+      schema: expect.objectContaining({ title: 'Workspace labels' })
+    });
+    expect(document.querySelector('[data-field="label"]').tagName).toBe('SELECT');
+  });
+
+  test('allows an explicit schema file to replace generic controls', async () => {
+    document.body.innerHTML = `
+      <div id="editor-pane"></div>
+      <div id="resizer"></div>
+      <div id="right-pane"><div id="preview-pane"><div id="preview-content"></div></div></div>
+      <span id="preview-word-count"></span>
+      <span id="file-status"></span>
+    `;
+    const source = '{"item_id":"a","decision":""}';
+    window.editor = {
+      getValue: jest.fn(() => source),
+      getModel: jest.fn(() => ({ getLineMaxColumn: () => source.length + 1 })),
+      executeEdits: jest.fn(),
+      layout: jest.fn()
+    };
+    window.electronAPI = {
+      files: {
+        checkFileExists: jest.fn(async () => ({ exists: false })),
+        dialogOpenFile: jest.fn(async () => ({ success: true, filePath: '/schemas/decision.json' })),
+        readFileContentOnly: jest.fn(async () => ({
+          success: true,
+          content: JSON.stringify({
+            title: 'Explicit decision',
+            fields: { decision: { enum: ['accept', 'reject'], required: true } }
+          })
+        }))
+      },
+      workspace: { getWorkspaceFolders: jest.fn(async () => ({ workspaceFolders: [] })) }
+    };
+    window.currentFilePath = '/workspace/items.jsonl';
+
+    window.recordMode.handlePreviewUpdate(window.currentFilePath, source);
+    await window.recordMode.selectSchemaFromDialog();
+
+    expect(window.recordMode.getState()).toMatchObject({
+      schemaSource: 'explicit',
+      schemaPath: '/schemas/decision.json'
+    });
+    expect(document.querySelector('[data-field="decision"]').tagName).toBe('SELECT');
   });
 
   test('cancels a delayed field edit before another file and model become active', () => {

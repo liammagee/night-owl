@@ -13,6 +13,9 @@
     const uiStateStore = typeof module !== 'undefined' && module.exports
         ? require('./ui-state-store').store
         : window.NightOwlUIState;
+    const schemaTools = typeof module !== 'undefined' && module.exports
+        ? require('./structured-record-schema')
+        : window.NightOwlRecordSchema;
     const getRecordUIState = () => uiStateStore?.getState?.().structuredRecord || {
         active: false,
         sourceVisible: false
@@ -269,6 +272,7 @@
     }
 
     function fieldValueToText(value) {
+        if (value === undefined) return '';
         if (typeof value === 'string') return value;
         if (value === null) return 'null';
         if (typeof value === 'object') return JSON.stringify(value, null, 2);
@@ -368,8 +372,174 @@
         container: null,
         fieldTimers: new Map(),
         generation: 0,
-        initialized: false
+        initialized: false,
+        schema: null,
+        schemaPath: null,
+        schemaSource: 'generic',
+        schemaError: null,
+        schemaGeneration: 0,
+        schemasByFile: new Map(),
+        validation: [],
+        progress: null
     };
+
+    function pathDirectory(filePath) {
+        const value = String(filePath || '');
+        const index = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        return index >= 0 ? value.slice(0, index) : '';
+    }
+
+    function joinPath(basePath, childPath) {
+        const base = String(basePath || '').replace(/[\\/]+$/, '');
+        const separator = base.includes('\\') && !base.includes('/') ? '\\' : '/';
+        return `${base}${separator}${String(childPath || '').replace(/^[\\/]+/, '')}`;
+    }
+
+    function schemaSidecarPaths(filePath) {
+        const direct = `${filePath}.schema.json`;
+        const stem = String(filePath || '').replace(/\.(?:jsonl|csv)$/i, '.schema.json');
+        return [...new Set([direct, stem])];
+    }
+
+    async function readSchemaJSON(filePath) {
+        const files = window.electronAPI?.files;
+        if (!files?.checkFileExists || !files?.readFileContentOnly) return null;
+        const exists = await files.checkFileExists(filePath);
+        if (!(exists === true || exists?.exists)) return null;
+        const result = await files.readFileContentOnly(filePath);
+        if (!result?.success) throw new Error(result?.error || `Could not read ${filePath}`);
+        try {
+            return JSON.parse(result.content);
+        } catch (error) {
+            throw new Error(`Invalid schema JSON in ${filePath}: ${error.message}`);
+        }
+    }
+
+    async function getWorkspaceRoots() {
+        const result = await window.electronAPI?.workspace?.getWorkspaceFolders?.();
+        const candidates = [
+            result?.primaryFolder,
+            ...(Array.isArray(result?.workspaceFolders) ? result.workspaceFolders : []),
+            window.appSettings?.workingDirectory,
+            pathDirectory(state.filePath)
+        ];
+        return [...new Set(candidates.map(value => (
+            typeof value === 'string' ? value : value?.path
+        )).filter(Boolean))];
+    }
+
+    function refreshSchemaUI() {
+        const summary = getElement('jsonl-schema-summary');
+        const choose = getElement('jsonl-schema-select');
+        const check = getElement('jsonl-schema-check');
+        if (summary) {
+            summary.textContent = state.schemaError
+                ? state.schemaError
+                : state.schema
+                    ? `${state.schema.title} · ${state.schemaSource}`
+                    : 'Generic record fields';
+            summary.dataset.tone = state.schemaError ? 'error' : state.schema ? 'schema' : 'generic';
+        }
+        if (choose) choose.textContent = state.schema ? 'Change schema…' : 'Choose schema…';
+        if (check) check.hidden = !state.schema;
+    }
+
+    function refreshSchemaRendering() {
+        refreshSchemaUI();
+        if (!state.parsed || state.parsed.errors.length) return;
+        renderRecordList();
+        renderRecordDetail();
+        updateFooter();
+    }
+
+    function setSchema(schema, options = {}) {
+        const normalized = schema?.fieldsByName
+            ? schema
+            : schemaTools.normalizeSchema(schema, {
+                path: options.path || null,
+                source: options.source || 'explicit'
+            });
+        if (normalized.formats.length && !normalized.formats.includes(state.format)) {
+            throw new Error(`${normalized.title} does not support ${state.format.toUpperCase()} files.`);
+        }
+        state.schema = normalized;
+        state.schemaPath = options.path || normalized.path || null;
+        state.schemaSource = options.source || normalized.source || 'explicit';
+        state.schemaError = null;
+        if (state.filePath) state.schemasByFile.set(state.filePath, {
+            schema: normalized,
+            path: state.schemaPath,
+            source: state.schemaSource
+        });
+        refreshSchemaRendering();
+        return normalized;
+    }
+
+    function useGenericSchema(options = {}) {
+        state.schema = null;
+        state.schemaPath = null;
+        state.schemaSource = 'generic';
+        state.schemaError = options.error || null;
+        if (options.remember && state.filePath) state.schemasByFile.set(state.filePath, null);
+        refreshSchemaRendering();
+    }
+
+    async function resolveSchemaForFile(filePath, generation = state.schemaGeneration) {
+        if (!schemaTools || !window.electronAPI) return null;
+        try {
+            for (const candidatePath of schemaSidecarPaths(filePath)) {
+                const documentValue = await readSchemaJSON(candidatePath);
+                if (generation !== state.schemaGeneration || filePath !== state.filePath) return null;
+                if (!documentValue) continue;
+                const selected = schemaTools.selectSchemaFromDocument(documentValue, filePath, {
+                    path: candidatePath,
+                    source: 'sidecar'
+                });
+                if (selected) return setSchema(selected, { path: candidatePath, source: 'sidecar' });
+            }
+
+            const workspaceRoots = await getWorkspaceRoots();
+            for (const root of workspaceRoots) {
+                const manifestPath = joinPath(root, '.nightowl/record-schemas.json');
+                const documentValue = await readSchemaJSON(manifestPath);
+                if (generation !== state.schemaGeneration || filePath !== state.filePath) return null;
+                if (!documentValue) continue;
+                const matched = schemaTools.selectSchemaFromDocument(documentValue, filePath, {
+                    path: manifestPath,
+                    source: 'workspace pattern'
+                });
+                if (matched) return setSchema(matched, { path: manifestPath, source: 'workspace pattern' });
+            }
+        } catch (error) {
+            if (generation === state.schemaGeneration && filePath === state.filePath) {
+                useGenericSchema({ error: error.message });
+                updateStatus('Schema could not be loaded', 'error');
+            }
+        }
+        return null;
+    }
+
+    async function selectSchemaFromDialog() {
+        const files = window.electronAPI?.files;
+        if (!files?.dialogOpenFile || !files?.readFileContentOnly) {
+            throw new Error('Schema file selection is unavailable.');
+        }
+        const selection = await files.dialogOpenFile({
+            title: 'Choose a NightOwl record schema',
+            defaultPath: pathDirectory(state.filePath),
+            filters: [{ name: 'JSON schema files', extensions: ['json'] }]
+        });
+        if (!selection?.success) return selection?.canceled ? null : Promise.reject(new Error(selection?.error || 'Schema selection failed'));
+        const result = await files.readFileContentOnly(selection.filePath);
+        if (!result?.success) throw new Error(result?.error || 'Schema file could not be read.');
+        const documentValue = JSON.parse(result.content);
+        const schema = schemaTools.selectSchemaFromDocument(documentValue, state.filePath, {
+            path: selection.filePath,
+            source: 'explicit'
+        });
+        if (!schema) throw new Error('The selected schema file has no pattern matching this record file.');
+        return setSchema(schema, { path: selection.filePath, source: 'explicit' });
+    }
 
     function getElement(id) {
         return typeof document !== 'undefined' ? document.getElementById(id) : null;
@@ -414,8 +584,11 @@
                         <h2 id="jsonl-mode-title">Records</h2>
                         <span id="jsonl-mode-status" class="jsonl-mode-status" aria-live="polite"></span>
                     </div>
+                    <div id="jsonl-schema-summary" class="jsonl-schema-summary">Generic record fields</div>
                 </div>
                 <div class="jsonl-mode-actions">
+                    <button id="jsonl-schema-select" class="jsonl-mode-button" type="button">Choose schema…</button>
+                    <button id="jsonl-schema-check" class="jsonl-mode-button" type="button" hidden>Check for export</button>
                     <button id="jsonl-source-toggle" class="jsonl-mode-button" type="button">Show raw source</button>
                 </div>
             </header>
@@ -424,6 +597,7 @@
                     <label class="jsonl-search-label" for="jsonl-record-search">Find a record</label>
                     <input id="jsonl-record-search" class="jsonl-record-search" type="search" placeholder="ID, domain, or text…" autocomplete="off">
                     <div id="jsonl-record-list-summary" class="jsonl-record-list-summary"></div>
+                    <div id="jsonl-record-progress" class="jsonl-record-progress" role="status" aria-live="polite"></div>
                     <div id="jsonl-record-list" class="jsonl-record-list" role="listbox"></div>
                 </aside>
                 <main id="jsonl-record-detail" class="jsonl-record-detail"></main>
@@ -441,6 +615,17 @@
         getElement('jsonl-source-toggle')?.addEventListener('click', () => {
             setSourceVisible(!getRecordUIState().sourceVisible);
         });
+        getElement('jsonl-schema-select')?.addEventListener('click', async () => {
+            try {
+                await selectSchemaFromDialog();
+                if (state.schema) updateStatus(`Using ${state.schema.title}`, 'saved');
+            } catch (error) {
+                state.schemaError = error.message;
+                refreshSchemaUI();
+                updateStatus('Schema could not be loaded', 'error');
+            }
+        });
+        getElement('jsonl-schema-check')?.addEventListener('click', () => checkForExport());
         getElement('jsonl-prev-record')?.addEventListener('click', () => selectRecord(state.selectedIndex - 1));
         getElement('jsonl-next-record')?.addEventListener('click', () => selectRecord(state.selectedIndex + 1));
         getElement('jsonl-record-search')?.addEventListener('input', event => {
@@ -502,11 +687,21 @@
             state.selectedIndex = state.selectedByFile.get(filePath) || 0;
             state.query = '';
             state.content = '';
+            state.schemaGeneration += 1;
+            const cachedSchema = state.schemasByFile.get(filePath);
+            state.schema = cachedSchema?.schema || null;
+            state.schemaPath = cachedSchema?.path || null;
+            state.schemaSource = cachedSchema?.source || 'generic';
+            state.schemaError = null;
             const search = getElement('jsonl-record-search');
             if (search) search.value = '';
+            if (!state.schemasByFile.has(filePath)) {
+                void resolveSchemaForFile(filePath, state.schemaGeneration);
+            }
         }
 
         updateModeLabels();
+        refreshSchemaUI();
         applyModeLayout();
         return true;
     }
@@ -519,6 +714,13 @@
         state.filePath = null;
         state.content = '';
         state.parsed = null;
+        state.schemaGeneration += 1;
+        state.schema = null;
+        state.schemaPath = null;
+        state.schemaSource = 'generic';
+        state.schemaError = null;
+        state.validation = [];
+        state.progress = null;
         state.query = '';
         uiStateStore?.dispatch?.({ type: 'SET_STRUCTURED_RECORD', active: false });
         const fileStatus = getElement('file-status');
@@ -564,6 +766,60 @@
         updateFooter();
     }
 
+    function refreshValidation(filteredCount = state.parsed?.records?.length || 0) {
+        const records = state.parsed?.records || [];
+        const result = state.schema
+            ? schemaTools.summarizeRecords(records, state.schema, filteredCount)
+            : {
+                validation: records.map(() => ({ status: 'generic', fields: {}, issues: [], missing: [] })),
+                progress: {
+                    total: records.length,
+                    complete: 0,
+                    incomplete: 0,
+                    invalid: 0,
+                    filtered: filteredCount
+                }
+            };
+        state.validation = result.validation;
+        state.progress = result.progress;
+        const progress = getElement('jsonl-record-progress');
+        if (progress) {
+            progress.textContent = state.schema
+                ? `Complete: ${result.progress.complete} · Incomplete: ${result.progress.incomplete} · Invalid: ${result.progress.invalid} · Filtered: ${result.progress.filtered}/${result.progress.total}`
+                : `Filtered: ${result.progress.filtered}/${result.progress.total}`;
+            progress.dataset.schemaActive = String(Boolean(state.schema));
+        }
+        return result;
+    }
+
+    function checkForExport() {
+        const result = refreshValidation();
+        if (!state.schema) {
+            const outcome = { allowed: true, blocked: false, reason: 'generic', progress: result.progress };
+            updateStatus('No task schema; export checks are not required', 'valid');
+            return outcome;
+        }
+        const hasIncomplete = result.progress.incomplete > 0 || result.progress.invalid > 0;
+        const blocked = state.schema.completion.blockExport && hasIncomplete;
+        const outcome = {
+            allowed: !blocked,
+            blocked,
+            reason: blocked ? 'schema-completion-required' : 'schema-check-passed',
+            progress: result.progress,
+            schemaId: state.schema.id
+        };
+        updateStatus(
+            blocked
+                ? `Export blocked: ${result.progress.incomplete} incomplete, ${result.progress.invalid} invalid`
+                : hasIncomplete
+                    ? 'Schema check is advisory; export remains available'
+                    : 'Task is complete and valid for export',
+            blocked ? 'error' : 'valid'
+        );
+        state.container?.dispatchEvent(new CustomEvent('structured-record-export-check', { detail: outcome }));
+        return outcome;
+    }
+
     function renderRecordList() {
         const list = getElement('jsonl-record-list');
         const summary = getElement('jsonl-record-list-summary');
@@ -573,6 +829,7 @@
         state.parsed.records.forEach((record, index) => {
             if (recordMatches(record.value, state.query)) matches.push({ record, index });
         });
+        refreshValidation(matches.length);
 
         list.replaceChildren();
         matches.forEach(({ record, index }) => {
@@ -594,6 +851,17 @@
                 secondary.className = 'jsonl-record-badge';
                 secondary.textContent = secondaryValue;
                 top.appendChild(secondary);
+            }
+            const validation = state.validation[index];
+            if (state.schema && validation) {
+                button.classList.add(`is-${validation.status}`);
+                button.dataset.validationState = validation.status;
+                const validationBadge = document.createElement('span');
+                validationBadge.className = 'jsonl-record-validation-badge';
+                validationBadge.dataset.state = validation.status;
+                validationBadge.textContent = validation.status;
+                top.appendChild(validationBadge);
+                button.setAttribute('aria-label', `${recordTitle(record.value, index)}, ${validation.status}`);
             }
 
             const snippet = document.createElement('span');
@@ -694,25 +962,30 @@
         updateDocumentStatus(state.content, state.parsed?.records?.length || 0);
     }
 
-    function commitField(recordIndex, key, rawValue, wrapper) {
+    function commitField(recordIndex, key, rawValue, wrapper, field = null) {
         const record = state.parsed?.records?.[recordIndex];
         if (!record) return false;
+        if (field?.readOnly) return false;
         const originalValue = record.value[key];
 
         try {
-            const nextValue = coerceFieldValue(rawValue, originalValue);
+            const nextValue = field
+                ? schemaTools.coerceValue(rawValue, field, state.format, originalValue).value
+                : coerceFieldValue(rawValue, originalValue);
             clearFieldError(wrapper);
             if (JSON.stringify(nextValue) === JSON.stringify(originalValue)) return true;
-            record.value[key] = nextValue;
             if (state.format === 'csv') {
                 const columnIndex = state.parsed.headers.indexOf(key);
-                if (columnIndex >= 0) record.row[columnIndex] = String(nextValue ?? '');
+                if (columnIndex < 0) throw new Error(`${field?.label || prettifyFieldName(key)} is not present in the CSV header.`);
+                record.row[columnIndex] = String(nextValue ?? '');
             }
+            record.value[key] = nextValue;
             replaceSourceRecord(record, record.value);
             updateStatus(
                 state.format === 'csv' ? `Updated record ${recordIndex + 1}` : `Updated line ${record.lineNumber}`,
                 'saved'
             );
+            refreshValidation();
             renderRecordList();
             window.dispatchEvent(new CustomEvent('structured-record-updated', {
                 detail: { filePath: state.filePath, format: state.format, lineNumber: record.lineNumber, key }
@@ -725,7 +998,7 @@
         }
     }
 
-    function scheduleStringCommit(control, recordIndex, key, wrapper) {
+    function scheduleStringCommit(control, recordIndex, key, wrapper, field = null) {
         const existing = state.fieldTimers.get(control);
         if (existing) clearTimeout(existing);
         const editContext = {
@@ -742,29 +1015,18 @@
             ) {
                 return;
             }
-            commitField(recordIndex, key, control.value, wrapper);
+            commitField(recordIndex, key, control.value, wrapper, field);
         }, 300);
         state.fieldTimers.set(control, timer);
     }
 
-    function flushControl(control, recordIndex, key, wrapper) {
+    function flushControl(control, recordIndex, key, wrapper, field = null) {
         const existing = state.fieldTimers.get(control);
         if (existing) {
             clearTimeout(existing);
             state.fieldTimers.delete(control);
         }
-        commitField(recordIndex, key, control.value, wrapper);
-    }
-
-    function getCSVFieldOptions(key) {
-        const normalized = String(key || '').trim().toLowerCase();
-        if (normalized === 'applicability') {
-            return ['', 'applicable', 'not_applicable'];
-        }
-        if (normalized === 'content_accuracy_score' || normalized === 'confidence') {
-            return ['', '1', '2', '3', '4', '5'];
-        }
-        return null;
+        commitField(recordIndex, key, control.value, wrapper, field);
     }
 
     function createSelectControl(options, value) {
@@ -775,57 +1037,67 @@
             option.textContent = optionValue || '— Not set —';
             control.appendChild(option);
         });
-        if (!options.includes(String(value))) {
+        const currentValue = value == null ? '' : String(value);
+        if (!options.some(option => String(option) === currentValue)) {
             const current = document.createElement('option');
-            current.value = String(value);
+            current.value = currentValue;
             current.textContent = `${value} (current value)`;
             control.appendChild(current);
         }
-        control.value = String(value);
+        control.value = currentValue;
         return control;
     }
 
-    function createFieldControl(recordIndex, key, value, wrapper) {
-        const type = valueType(value);
-        const csvOptions = state.format === 'csv' ? getCSVFieldOptions(key) : null;
+    function createFieldControl(recordIndex, key, value, wrapper, field = null) {
+        const type = field?.type || valueType(value);
+        const fieldOptions = field?.enum ? [...field.enum] : null;
+        if (fieldOptions && !fieldOptions.some(option => String(option) === '')) fieldOptions.unshift('');
         let control;
 
-        if (csvOptions) {
-            control = createSelectControl(csvOptions, value);
-            control.addEventListener('change', () => commitField(recordIndex, key, control.value, wrapper));
+        if (fieldOptions) {
+            control = createSelectControl(fieldOptions, value);
+            control.addEventListener('change', () => commitField(recordIndex, key, control.value, wrapper, field));
         } else if (type === 'boolean') {
             control = createSelectControl(['true', 'false'], value);
-            control.addEventListener('change', () => commitField(recordIndex, key, control.value, wrapper));
-        } else if (type === 'number') {
+            control.addEventListener('change', () => commitField(recordIndex, key, control.value, wrapper, field));
+        } else if (type === 'number' || type === 'integer') {
             control = document.createElement('input');
             control.type = 'number';
-            control.step = 'any';
-            control.value = String(value);
-            control.addEventListener('change', () => commitField(recordIndex, key, control.value, wrapper));
-            control.addEventListener('blur', () => commitField(recordIndex, key, control.value, wrapper));
-        } else if (type === 'string' && !MULTILINE_FIELD_RE.test(key) && value.length <= 100 && !value.includes('\n')) {
+            control.step = type === 'integer' ? '1' : 'any';
+            if (field?.min != null) control.min = String(field.min);
+            if (field?.max != null) control.max = String(field.max);
+            control.value = value == null ? '' : String(value);
+            control.addEventListener('change', () => commitField(recordIndex, key, control.value, wrapper, field));
+            control.addEventListener('blur', () => commitField(recordIndex, key, control.value, wrapper, field));
+        } else if (type === 'string' && !MULTILINE_FIELD_RE.test(key) && String(value ?? '').length <= 100 && !String(value ?? '').includes('\n')) {
             control = document.createElement('input');
             control.type = 'text';
-            control.value = value;
-            control.addEventListener('input', () => scheduleStringCommit(control, recordIndex, key, wrapper));
-            control.addEventListener('blur', () => flushControl(control, recordIndex, key, wrapper));
+            control.value = value ?? '';
+            control.addEventListener('input', () => scheduleStringCommit(control, recordIndex, key, wrapper, field));
+            control.addEventListener('blur', () => flushControl(control, recordIndex, key, wrapper, field));
         } else {
             control = document.createElement('textarea');
             control.value = fieldValueToText(value);
             const estimatedRows = Math.ceil(control.value.length / 88) + (control.value.match(/\n/g) || []).length;
             control.rows = Math.max(3, Math.min(10, estimatedRows));
-            if (type === 'string') {
-                control.addEventListener('input', () => scheduleStringCommit(control, recordIndex, key, wrapper));
-                control.addEventListener('blur', () => flushControl(control, recordIndex, key, wrapper));
+            if (type === 'string' || type === 'multiline') {
+                control.addEventListener('input', () => scheduleStringCommit(control, recordIndex, key, wrapper, field));
+                control.addEventListener('blur', () => flushControl(control, recordIndex, key, wrapper, field));
             } else {
                 control.classList.add('jsonl-code-value');
-                control.addEventListener('blur', () => commitField(recordIndex, key, control.value, wrapper));
+                control.addEventListener('blur', () => commitField(recordIndex, key, control.value, wrapper, field));
             }
         }
 
         control.classList.add('jsonl-field-control');
         control.dataset.field = key;
-        control.setAttribute('aria-label', prettifyFieldName(key));
+        control.setAttribute('aria-label', field?.label || prettifyFieldName(key));
+        if (field?.required) control.setAttribute('aria-required', 'true');
+        if (field?.readOnly) {
+            wrapper.classList.add('is-read-only');
+            if (control.tagName === 'SELECT') control.disabled = true;
+            else control.readOnly = true;
+        }
         return control;
     }
 
@@ -866,28 +1138,46 @@
 
         const hint = document.createElement('p');
         hint.className = 'jsonl-record-hint';
-        hint.textContent = `Edit the readable fields below. Changes are written back to this record’s ${state.format.toUpperCase()} source and saved through the normal editor workflow.`;
+        hint.textContent = state.schema
+            ? `${state.schema.description || `Complete the ${state.schema.title} fields.`} Changes are written back to this record’s ${state.format.toUpperCase()} source through the normal editor workflow.`
+            : `Edit the readable fields below. Changes are written back to this record’s ${state.format.toUpperCase()} source and saved through the normal editor workflow.`;
 
         const form = document.createElement('div');
         form.className = 'jsonl-record-form';
-        Object.entries(record.value).forEach(([key, value]) => {
+        schemaTools.orderedFields(record.value, state.schema).forEach(({ name: key, value, field }) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'jsonl-field';
-            if (MULTILINE_FIELD_RE.test(key) || (typeof value === 'string' && value.length > 100) || typeof value === 'object') {
+            if (field?.type === 'multiline' || MULTILINE_FIELD_RE.test(key) || (typeof value === 'string' && value.length > 100) || typeof value === 'object') {
                 wrapper.classList.add('jsonl-field-wide');
             }
             const labelRow = document.createElement('div');
             labelRow.className = 'jsonl-field-label-row';
             const label = document.createElement('label');
-            label.textContent = prettifyFieldName(key);
+            label.textContent = field?.label || prettifyFieldName(key);
+            if (field?.required) {
+                const required = document.createElement('span');
+                required.className = 'jsonl-field-required';
+                required.textContent = ' required';
+                label.appendChild(required);
+            }
             const type = document.createElement('span');
             type.className = 'jsonl-field-type';
-            type.textContent = state.format === 'csv' && getCSVFieldOptions(key) ? 'choice' : valueType(value);
+            type.textContent = field?.enum ? 'choice' : field?.type || valueType(value);
             labelRow.append(label, type);
-            const control = createFieldControl(state.selectedIndex, key, value, wrapper);
+            const control = createFieldControl(state.selectedIndex, key, value, wrapper, field);
             label.htmlFor = `jsonl-field-${state.selectedIndex}-${key}`;
             control.id = label.htmlFor;
             wrapper.append(labelRow, control);
+            if (field?.help) {
+                const help = document.createElement('p');
+                help.className = 'jsonl-field-help';
+                help.id = `${control.id}-help`;
+                help.textContent = field.help;
+                control.setAttribute('aria-describedby', help.id);
+                wrapper.appendChild(help);
+            }
+            const fieldIssues = state.validation[state.selectedIndex]?.fields?.[key] || [];
+            if (fieldIssues.length) showFieldError(wrapper, fieldIssues.map(issue => issue.message).join(' '));
             form.appendChild(wrapper);
         });
 
@@ -932,7 +1222,12 @@
         }
 
         state.selectedIndex = Math.max(0, Math.min(state.selectedIndex, Math.max(0, state.parsed.records.length - 1)));
-        updateStatus(`${state.parsed.records.length} ${state.parsed.records.length === 1 ? 'record' : 'records'} · valid`, 'valid');
+        updateStatus(
+            state.schema
+                ? `${state.parsed.records.length} records · ${state.schema.title}`
+                : `${state.parsed.records.length} ${state.parsed.records.length === 1 ? 'record' : 'records'} · valid`,
+            'valid'
+        );
         renderRecordList();
         renderRecordDetail();
         updateFooter();
@@ -985,12 +1280,12 @@
         valueType,
         fieldValueToText,
         getFileStatusLabel,
-        getCSVFieldOptions,
         coerceFieldValue,
         replaceRecordLine,
         recordMatches,
         recordTitle,
-        recordSecondary
+        recordSecondary,
+        schemaSidecarPaths
     };
     const controller = {
         init,
@@ -1000,6 +1295,11 @@
         handlePreviewUpdate,
         syncToCurrentFile,
         cancelPendingEdits,
+        checkForExport,
+        clearSchema: () => useGenericSchema({ remember: true }),
+        resolveSchemaForFile,
+        selectSchemaFromDialog,
+        setSchema,
         isActive: () => getRecordUIState().active,
         getState: () => ({ ...state, ...getRecordUIState() })
     };
