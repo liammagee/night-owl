@@ -1,7 +1,7 @@
 ---
 id: "fit-presentation-slides-to-viewport"
 title: "Fit complete presentation slides inside the viewport"
-status: "review"
+status: "done"
 type: "bug"
 priority: "P0"
 area: "presentation"
@@ -9,7 +9,7 @@ owner: "codex"
 source: "computer-use"
 evidence: "reproduced"
 created: "2026-08-07"
-updated: "2026-08-07"
+updated: "2026-08-08"
 verification: "At the minimum supported window and in Present mode, every edge of a 16:9 slide is visible without internal slide scrolling or adjacent-slide overlap."
 tags: ["layout", "slides", "viewport"]
 ---

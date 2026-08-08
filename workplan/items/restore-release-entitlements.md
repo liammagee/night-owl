@@ -1,7 +1,7 @@
 ---
 id: "restore-release-entitlements"
 title: "Restore tracked macOS entitlements and clean-build preflight"
-status: "review"
+status: "done"
 type: "release"
 priority: "P1"
 area: "packaging"
@@ -9,8 +9,8 @@ owner: "codex"
 source: "test-failure"
 evidence: "test-failure"
 created: "2026-08-07"
-updated: "2026-08-07"
-verification: "npm run dist:check and the hardened-runtime code-quality guard pass from a fresh clone before electron-builder starts."
+updated: "2026-08-08"
+verification: "Distribution preflight, ARM64 assembly, and all 3 packaged Electron checks pass; hosted required-smoke also builds and exercises the packaged app."
 tags: ["build", "macos", "release"]
 ---
 
@@ -28,11 +28,12 @@ Restored a minimal entitlement containing only the JIT exception required by
 Chromium's V8 runtime and documented the security boundary. Distribution
 readiness is now part of local CI release mode and remains the `predist` gate.
 Signing identity and notarization credentials remain expected warnings outside
-release CI. A signed packaged-app smoke test is still required before closure.
+release CI. Fresh ARM64 assembly and the packaged Electron matrix now pass
+locally and in hosted required-smoke.
 
 ## Acceptance criteria
 
 - [x] Entitlements are tracked and contain no capability that NightOwl does not use.
 - [x] Clean-checkout `dist:check` passes apart from documented local signing warnings.
 - [x] Release CI fails before packaging when a required input is absent.
-- [ ] The packaged app is smoke-tested after signing/assembly.
+- [x] The packaged app is smoke-tested after signing/assembly.
