@@ -1,7 +1,7 @@
 (function () {
     const FEATURE_ID = 'nightowl-presentations';
     const BASE = 'plugins/techne-presentations';
-    const VERSION = '20260808a'; // Bump this to bust cache
+    const VERSION = '20260808b'; // Bump this to bust cache
     const reactRoots = new WeakMap();
 
     const cacheBust = (url) => `${url}?v=${VERSION}`;
@@ -55,14 +55,16 @@
 
         const panel = document.createElement('div');
         panel.id = 'speaker-notes-panel';
+        panel.setAttribute('role', 'region');
+        panel.setAttribute('aria-labelledby', 'speaker-notes-title');
         panel.style.display = 'none';
 
         panel.innerHTML = `
-            <div id="speaker-notes-resize-handle" style="position: absolute; top: 0; left: 0; right: 0; height: 8px; cursor: ns-resize;"></div>
+            <div id="speaker-notes-resize-handle" role="separator" aria-label="Resize speaker notes" aria-controls="current-slide-notes" aria-orientation="horizontal" aria-valuemin="80" aria-valuenow="180" tabindex="0" style="position: absolute; top: 0; left: 0; right: 0; height: 8px; cursor: ns-resize;"></div>
             <div style="margin: 16px 16px 8px 16px; padding-top: 8px;">
-                <h4 style="margin: 0; font-size: 14px;">📝 Speaker Notes</h4>
+                <h4 id="speaker-notes-title" style="margin: 0; font-size: 14px;">📝 Speaker Notes</h4>
             </div>
-            <div id="current-slide-notes" style="font-size: 13px; line-height: 1.4; padding: 0 16px 16px 16px; overflow-y: auto; height: calc(100% - 60px);">
+            <div id="current-slide-notes" role="note" aria-live="polite" aria-atomic="true" style="font-size: 13px; line-height: 1.4; padding: 0 16px 16px 16px; overflow-y: auto; height: calc(100% - 60px);">
                 <em>No speaker notes for this slide.</em>
             </div>
         `;

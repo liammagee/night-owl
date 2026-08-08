@@ -33,11 +33,14 @@ body[data-techne-theme] {
        light-mode class even when techne tokens are dark */
     --text: var(--techne-text);
     --text-color: var(--techne-text);
-    --text-secondary: color-mix(in srgb, var(--techne-text) 78%, var(--techne-bg));
+    --text-secondary: var(--techne-text);
     --text-muted: var(--techne-text-muted);
     --text-disabled: var(--techne-text-muted);
     --preview-text: var(--techne-text);
     --text-on-primary: var(--techne-text-inverted);
+    --git-status-clean: var(--techne-success);
+    --git-status-staged: #7a3f00;
+    --git-status-changed: var(--techne-accent-active);
 
     /* Accent */
     --primary: var(--techne-accent);
@@ -138,6 +141,11 @@ body[data-techne-theme] {
     --error: color-mix(in srgb, var(--techne-accent) 25%, #dc322f);
     --error-subtle: color-mix(in srgb, #dc322f 12%, var(--techne-bg));
     --danger: var(--error);
+}
+
+body[data-techne-theme].techne-dark {
+    --git-status-staged: var(--techne-warning);
+    --git-status-changed: var(--techne-accent-hover);
 }
 
 /* ── Direct element overrides ──────────────────────────────────────────
@@ -696,7 +704,7 @@ body[data-techne-theme].techne-theme #editor-toolbar {
 
 /* Mode buttons */
 body[data-techne-theme].techne-theme .mode-btn {
-    color: var(--techne-text-muted) !important;
+    color: var(--techne-text) !important;
 }
 
 body[data-techne-theme].techne-theme .mode-btn:hover {
@@ -706,7 +714,7 @@ body[data-techne-theme].techne-theme .mode-btn:hover {
 
 body[data-techne-theme].techne-theme .mode-btn.active {
     background: var(--techne-accent) !important;
-    color: var(--techne-text-inverted) !important;
+    color: #0a0a0a !important;
     border-color: var(--techne-text) !important;
 }
 

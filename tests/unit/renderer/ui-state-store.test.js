@@ -29,6 +29,10 @@ function installDOM() {
     <button id="preview-source-sync-toggle"></button>
     <button id="preview-fullscreen-btn"></button>
     <button id="preview-scroll-sync-btn"></button>
+    <button id="show-preview-btn"></button>
+    <button id="show-chat-btn"></button>
+    <button id="show-speaker-notes-btn"></button>
+    <button id="show-wholepart-btn"></button>
     <section id="jsonl-record-mode"></section>
   `;
 }
@@ -99,13 +103,19 @@ describe('NightOwl UI state store', () => {
     store.dispatch({ type: 'SHOW_RIGHT_PANE', pane: 'chat' });
     expect(document.body.dataset.nightowlMode).toBe('network');
     expect(document.getElementById('network-content').classList.contains('active')).toBe(true);
+    expect(document.getElementById('network-mode-btn').getAttribute('aria-pressed')).toBe('true');
+    expect(document.getElementById('editor-mode-btn').getAttribute('aria-pressed')).toBe('false');
     expect(document.getElementById('chat-pane').classList.contains('ui-pane-active')).toBe(true);
+    expect(document.getElementById('show-chat-btn').getAttribute('aria-pressed')).toBe('true');
+    expect(document.getElementById('show-preview-btn').getAttribute('aria-pressed')).toBe('false');
     expect(document.getElementById('preview-pane').classList.contains('pane-hidden')).toBe(true);
 
     store.dispatch({ type: 'SET_MODE', mode: 'editor' });
     store.dispatch({ type: 'SET_SOURCE_VIEW', enabled: true });
     expect(document.getElementById('preview-content').classList.contains('nightowl-ui-hidden')).toBe(true);
     expect(document.getElementById('preview-source').classList.contains('nightowl-ui-hidden')).toBe(false);
+    expect(document.getElementById('preview-source-btn').getAttribute('aria-pressed')).toBe('true');
+    expect(document.getElementById('preview-source-sync-toggle').getAttribute('aria-pressed')).toBe('true');
 
     store.dispatch({ type: 'SET_STRUCTURED_RECORD', active: true, sourceVisible: false });
     expect(document.body.classList.contains('jsonl-record-mode-active')).toBe(true);

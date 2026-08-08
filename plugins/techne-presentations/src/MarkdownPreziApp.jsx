@@ -30,19 +30,19 @@ const setSanitizedHTML = (element, html) => {
 
 // Lucide React icons as simple SVG components
 const ChevronLeft = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="15,18 9,12 15,6"></polyline>
   </svg>
 );
 
 const ChevronRight = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="9,18 15,12 9,6"></polyline>
   </svg>
 );
 
 const Upload = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
     <polyline points="7,10 12,15 17,10"></polyline>
     <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -50,7 +50,7 @@ const Upload = () => (
 );
 
 const ZoomIn = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="8"></circle>
     <path d="m21 21-4.35-4.35"></path>
     <line x1="11" y1="8" x2="11" y2="14"></line>
@@ -59,7 +59,7 @@ const ZoomIn = () => (
 );
 
 const ZoomOut = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="8"></circle>
     <path d="m21 21-4.35-4.35"></path>
     <line x1="8" y1="11" x2="14" y2="11"></line>
@@ -161,20 +161,20 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
 };
 
 const Home = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
     <polyline points="9,22 9,12 15,12 15,22"></polyline>
   </svg>
 );
 
 const Play = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="5,3 19,12 5,21"></polygon>
   </svg>
 );
 
 const StickyNote = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 3v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V3z"></path>
     <path d="M8 7h8"></path>
     <path d="M8 11h8"></path>
@@ -183,14 +183,14 @@ const StickyNote = () => (
 );
 
 const Eye = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
     <circle cx="12" cy="12" r="3"></circle>
   </svg>
 );
 
 const EyeOff = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
     <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"></path>
     <path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"></path>
@@ -199,40 +199,40 @@ const EyeOff = () => (
 );
 
 const Speaker = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
     <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
   </svg>
 );
 
 const SpeakerOff = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
     <line x1="23" y1="1" x2="1" y2="23"></line>
   </svg>
 );
 
 const LoadingSpinner = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin" style={{ display: 'inline-block' }}>
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin" style={{ display: 'inline-block' }}>
     <circle cx="12" cy="12" r="10" strokeOpacity="0.25"></circle>
     <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"></path>
   </svg>
 );
 
 const RecordIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"></circle>
   </svg>
 );
 
 const StopIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
     <rect x="6" y="6" width="12" height="12"></rect>
   </svg>
 );
 
 const PauseIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="6" y="4" width="4" height="16"></rect>
     <rect x="14" y="4" width="4" height="16"></rect>
   </svg>
@@ -329,6 +329,7 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   const stageRef = useRef(null);
   const presentationControlsRef = useRef(null);
   const navigationControlsRef = useRef(null);
+  const previousFocusRef = useRef(null);
   const zoomInteractionTimeoutRef = useRef(null);
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
@@ -1564,12 +1565,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   useEffect(() => {
     const handleKeyPress = (e) => {
       // Only handle keyboard events if we're in presentation view and not focused on an input element
-      const presentationContent = document.getElementById('presentation-content');
-      const isInPresentationView = presentationContent && presentationContent.classList.contains('active');
+      const isInPresentationView = Boolean(
+        document.body.classList.contains('presentation-mode') &&
+        containerRef.current?.isConnected
+      );
       const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+      const isInteractiveControl = Boolean(e.target.closest?.(
+        'button, a[href], select, [role="button"], [role="menuitem"], [role="option"]'
+      ));
       
-      if (!isInPresentationView || isInputFocused) {
-        return; // Don't handle keyboard events if not in presentation view or if an input is focused
+      if (!isInPresentationView || isInputFocused || isInteractiveControl) {
+        return; // Preserve native keyboard behavior for focused controls.
       }
       
       if (e.key === 'ArrowRight' || e.key === ' ') {
@@ -1581,6 +1587,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       } else if (e.key === 'Home') {
         e.preventDefault();
         goToSlide(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(slides.length - 1);
       } else if (e.key === 'Escape') {
         console.log('[PRESENTATION] Escaping presentation mode...');
         
@@ -1599,12 +1608,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [currentSlide, goToSlide]);
+  }, [currentSlide, goToSlide, slides.length]);
 
 
   // Control body class for presenting mode
   useEffect(() => {
     if (isPresenting) {
+      if (!previousFocusRef.current) previousFocusRef.current = document.activeElement;
       document.body.classList.add('is-presenting');
       console.log('[Presentation] Added is-presenting class to body');
       
@@ -1621,6 +1631,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       
       // Immediate focus
       focusMainWindow();
+      requestAnimationFrame(() => {
+        containerRef.current
+          ?.querySelector('[data-current-slide="true"]')
+          ?.focus({ preventScroll: true });
+      });
       
       // Additional focus attempts to override any focus stealing
       setTimeout(focusMainWindow, 100);
@@ -1726,6 +1741,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         delete el.dataset.hiddenByPresentation;
       });
       console.log('[Presentation] Restored content toolbar');
+
+      const previousFocus = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previousFocus) {
+        requestAnimationFrame(() => {
+          const target = previousFocus.isConnected
+            ? previousFocus
+            : containerRef.current?.querySelector('.presentation-present-btn');
+          target?.focus({ preventScroll: true });
+        });
+      }
     }
   }, [isPresenting]);
 
@@ -2599,6 +2625,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       ref={containerRef}
       className={`presentation-shell w-full h-full relative overflow-hidden ${isPresenting ? '' : 'cursor-grab active:cursor-grabbing'}`}
       data-presentation-mode={isPresenting ? 'delivery' : 'authoring'}
+      role="region"
+      aria-label={isPresenting ? 'Presentation delivery' : 'Presentation editor'}
       style={{
         background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))',
         height: '100%',
@@ -2611,10 +2639,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     >
       {/* Controls */}
       {!isPresenting && (
-        <div className="absolute top-4 left-4 z-10 flex gap-2">
+        <div className="absolute top-4 left-4 z-10 flex gap-2" role="group" aria-label="Presentation layout">
           <select
             value={layoutType}
             onChange={(e) => setLayoutType(e.target.value)}
+            aria-label="Presentation layout"
             className="px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-[#E63946] outline-none shadow-lg"
             style={{backgroundColor: '#fefdfb'}}
           >
@@ -2631,25 +2660,28 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
       {/* Zoom Controls */}
       {!isPresenting && (
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
+        <div className="absolute top-4 right-4 z-10 flex gap-2" role="toolbar" aria-label="Presentation editor controls">
           <button
             onClick={handleZoomIn}
+            aria-label="Zoom in"
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom In"
+            data-tooltip="Zoom in"
           >
             <ZoomIn />
           </button>
           <button
             onClick={handleZoomOut}
+            aria-label="Zoom out"
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom Out"
+            data-tooltip="Zoom out"
           >
             <ZoomOut />
           </button>
           <button
             onClick={resetView}
+            aria-label="Reset presentation view"
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Reset View"
+            data-tooltip="Reset presentation view"
           >
             <Home />
           </button>
@@ -2660,13 +2692,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               }
             }}
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Export as PNG"
+            aria-label="Export presentation as PNG"
+            data-tooltip="Export presentation as PNG"
           >
             📸
           </button>
 	          <button
-	            onClick={() => setIsPresenting(true)}
+	            onClick={() => {
+	              previousFocusRef.current = document.activeElement;
+	              setIsPresenting(true);
+	            }}
 	            className="presentation-control-btn presentation-present-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-lg border"
+	            aria-label="Start presentation"
 	          >
 	            <Play />
 	            Present
@@ -2675,13 +2712,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       )}
 
       {/* Navigation Controls */}
-      <div
+      <nav
         ref={navigationControlsRef}
         className="presentation-navigation absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4"
+        aria-label="Slide navigation"
       >
         <button
           onClick={() => goToSlide(currentSlide - 1)}
           disabled={currentSlide === 0}
+          aria-label="Previous slide"
           className="p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg"
           style={{
             background: 'var(--techne-off-white, #fafafa)',
@@ -2695,6 +2734,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
         <div
           className="flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           style={{
             background: 'var(--techne-off-white, #fafafa)',
             color: 'var(--techne-black, #0a0a0a)',
@@ -2710,6 +2752,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         <button
           onClick={() => goToSlide(currentSlide + 1)}
           disabled={currentSlide === slides.length - 1}
+          aria-label="Next slide"
           className="p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg"
           style={{
             background: 'var(--techne-accent, #E63946)',
@@ -2720,11 +2763,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         >
           <ChevronRight />
         </button>
-      </div>
+      </nav>
 
       {/* Presentation Mode Controls */}
       {isPresenting && (
-        <div ref={presentationControlsRef} className="presentation-toolbar absolute top-4 right-4 z-10 flex gap-2">
+        <div ref={presentationControlsRef} className="presentation-toolbar absolute top-4 right-4 z-10 flex gap-2" role="toolbar" aria-label="Presentation delivery controls">
           <button
             onClick={() => {
               if (window.exportVisualizationAsPNG) {
@@ -2732,7 +2775,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               }
             }}
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Export as PNG"
+            aria-label="Export presentation as PNG"
+            data-tooltip="Export presentation as PNG"
           >
             📸
           </button>
@@ -2743,7 +2787,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 ? 'bg-green-600 hover:bg-green-700 text-white border-green-700' 
                 : 'bg-cream hover:bg-gray-100 text-gray-900'
             }`}
-            title={speakerNotesWindowVisible ? "Switch to Bottom Panel" : "Switch to Separate Window"}
+            data-tooltip={speakerNotesWindowVisible ? "Show speaker notes in bottom panel" : "Show speaker notes in separate window"}
+            aria-label={speakerNotesWindowVisible ? "Show speaker notes in bottom panel" : "Show speaker notes in separate window"}
+            aria-pressed={speakerNotesWindowVisible}
           >
             {speakerNotesWindowVisible ? <StickyNote /> : <Eye />}
             <span style={{fontSize: '8px', marginLeft: '2px'}}>{speakerNotesWindowVisible ? 'T' : 'F'}</span>
@@ -2764,7 +2810,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                   ? { background: 'var(--techne-accent, #E63946)', color: 'white', borderColor: 'var(--techne-black, #0a0a0a)' }
                   : {}
             }
-            title={isLoadingTTS ? "Loading audio..." : ttsEnabled ? "Disable Text-to-Speech" : "Enable Text-to-Speech"}
+            data-tooltip={isLoadingTTS ? "Loading slide narration" : ttsEnabled ? "Disable slide narration" : "Enable slide narration"}
+            aria-label={isLoadingTTS ? "Loading slide narration" : ttsEnabled ? "Disable slide narration" : "Enable slide narration"}
+            aria-pressed={ttsEnabled}
             disabled={isLoadingTTS}
           >
             {isLoadingTTS ? <LoadingSpinner /> : ttsEnabled ? <Speaker /> : <SpeakerOff />}
@@ -2774,8 +2822,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           <select
             value={selectedVoice}
             onChange={(e) => setSelectedVoice(e.target.value)}
+            aria-label="Narration voice"
             className="px-2 py-1 text-sm rounded-lg bg-cream hover:bg-gray-100 text-gray-900 border shadow-lg cursor-pointer"
-            title="Select TTS Voice"
+            data-tooltip="Select narration voice"
             style={{ maxWidth: '90px' }}
           >
             <option value="sarah">Sarah</option>
@@ -2788,8 +2837,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           {!isRecording ? (
             <button
               onClick={startRecording}
+              aria-label="Start presentation recording"
               className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg border border-red-700"
-              title="Start Recording"
+              data-tooltip="Start presentation recording"
             >
               <RecordIcon />
             </button>
@@ -2797,15 +2847,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             <div className="flex items-center gap-2">
               <button
                 onClick={togglePauseRecording}
+                aria-label={isPaused ? "Resume presentation recording" : "Pause presentation recording"}
+                aria-pressed={isPaused}
                 className="p-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors shadow-lg border border-yellow-700"
-                title={isPaused ? "Resume Recording" : "Pause Recording"}
+                data-tooltip={isPaused ? "Resume presentation recording" : "Pause presentation recording"}
               >
                 {isPaused ? <RecordIcon /> : <PauseIcon />}
               </button>
               <button
                 onClick={stopRecording}
+                aria-label="Stop presentation recording"
                 className="p-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors shadow-lg border border-gray-700"
-                title="Stop Recording"
+                data-tooltip="Stop presentation recording"
               >
                 <StopIcon />
               </button>
@@ -2832,6 +2885,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               setIsPresenting(false);
             }}
             className="px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+            aria-label="Exit presentation"
           >
             Exit Presentation
           </button>
@@ -2871,6 +2925,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                   key={slide.id}
                   data-slide-index={index}
                   data-current-slide={isCurrent ? 'true' : 'false'}
+                  role="group"
+                  aria-roledescription="slide"
+                  aria-label={`Slide ${index + 1} of ${slides.length}`}
+                  aria-current={isCurrent ? 'step' : undefined}
+                  tabIndex={isCurrent ? 0 : -1}
                   className={`absolute slide rounded-xl shadow-2xl transition-all duration-500 transform ${
                     slide.backgroundImage ? 'slide-has-bg' : ''
                   } ${
@@ -2912,7 +2971,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
             {/* Connection Lines */}
             {!isPresenting && (
-              <svg className="absolute inset-0 pointer-events-none" style={{ width: '200%', height: '200%' }}>
+              <svg className="presentation-connection-lines absolute inset-0 pointer-events-none" aria-hidden="true" focusable="false" style={{ width: '200%', height: '200%' }}>
                 {slides.map((slide, index) => {
                   if (index === slides.length - 1) return null;
                   const nextSlide = slides[index + 1];

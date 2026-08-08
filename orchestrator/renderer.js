@@ -9476,12 +9476,16 @@ function _teardownSourceScrollSync() { _teardownScrollSync(); }
 if (previewScrollSyncBtn) {
     // Start active
     previewScrollSyncBtn.classList.add('active');
+    previewScrollSyncBtn.setAttribute('aria-pressed', 'true');
     previewScrollSyncBtn.addEventListener('click', () => {
         previewScrollSyncEnabled = !previewScrollSyncEnabled;
         previewScrollSyncBtn.classList.toggle('active', previewScrollSyncEnabled);
-        previewScrollSyncBtn.title = previewScrollSyncEnabled
+        previewScrollSyncBtn.setAttribute('aria-pressed', String(previewScrollSyncEnabled));
+        const accessibleLabel = previewScrollSyncEnabled
             ? 'Scroll sync enabled — click to disable'
             : 'Scroll sync disabled — click to enable';
+        previewScrollSyncBtn.setAttribute('aria-label', accessibleLabel);
+        previewScrollSyncBtn.dataset.tooltip = accessibleLabel;
         _activateScrollSyncForCurrentPane();
     });
 }
@@ -12392,8 +12396,8 @@ const MANAGED_THEME_FALLBACKS = {
             '--techne-bg': '#fdf6e3',
             '--techne-surface': '#eee8d5',
             '--techne-surface-elevated': '#fdf6e3',
-            '--techne-text': '#657b83',
-            '--techne-text-muted': '#93a1a1',
+            '--techne-text': '#43565d',
+            '--techne-text-muted': '#52666d',
             '--techne-text-inverted': '#fdf6e3',
             '--techne-border': 'rgba(101, 123, 131, 0.25)',
             '--techne-border-subtle': 'rgba(101, 123, 131, 0.12)',
@@ -12410,9 +12414,9 @@ const MANAGED_THEME_FALLBACKS = {
             '--techne-bg': '#002b36',
             '--techne-surface': '#073642',
             '--techne-surface-elevated': '#0a4050',
-            '--techne-text': '#839496',
-            '--techne-text-muted': '#586e75',
-            '--techne-text-inverted': '#002b36',
+            '--techne-text': '#b4c5c5',
+            '--techne-text-muted': '#9aabad',
+            '--techne-text-inverted': '#ffffff',
             '--techne-border': 'rgba(131, 148, 150, 0.25)',
             '--techne-border-subtle': 'rgba(131, 148, 150, 0.12)',
             '--techne-glass-bg': 'rgba(0, 43, 54, 0.85)',

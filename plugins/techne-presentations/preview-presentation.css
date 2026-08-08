@@ -208,8 +208,10 @@ body.techne-theme #presentation-root .presentation-control-btn {
     border-width: 2px !important;
 }
 
-body.techne-theme #presentation-root .presentation-present-btn {
+body.techne-theme #presentation-root .presentation-present-btn,
+body[data-techne-theme] #presentation-root .presentation-present-btn {
     border-color: var(--techne-black, #0a0a0a) !important;
+    color: var(--techne-black, #0a0a0a) !important;
     box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.12) !important;
 }
 
@@ -643,9 +645,9 @@ body.is-presenting ol ol ol,
      * 3. Only take over layout when actually presenting (is-presenting class)
      */
 
-    /* Hide SVG connection lines on mobile - they're distracting */
-    .cursor-grab svg,
-    .h-screen svg {
+    /* Hide only decorative connection lines on mobile. Slide diagrams and
+       control icons retain their own display and accessibility semantics. */
+    #presentation-root .presentation-connection-lines {
         display: none !important;
     }
 
@@ -669,8 +671,8 @@ body.is-presenting ol ol ol,
         background: var(--techne-black, #0a0a0a) !important;
     }
 
-    /* Hide connection lines/SVG in presentation mode */
-    body.is-presenting svg {
+    /* Hide only decorative authoring connections in presentation mode. */
+    body.is-presenting #presentation-root .presentation-connection-lines {
         display: none !important;
     }
 

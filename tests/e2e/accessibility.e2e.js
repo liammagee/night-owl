@@ -1,175 +1,190 @@
-const { test, expect, _electron: electron } = require('@playwright/test');
+'use strict';
+
 const { injectAxe, checkA11y } = require('axe-playwright');
-const path = require('path');
+const { test, expect } = require('./fixtures/electron-app');
 
-test.describe('Accessibility Tests', () => {
-  let app;
-  let window;
+const ACCESSIBLE_DECK = `# Accessible first slide
 
-  test.beforeEach(async () => {
-    // Create clean environment without ELECTRON_RUN_AS_NODE (conflicts with Electron GUI mode)
-    const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
-    app = await electron.launch({
-      args: [path.join(__dirname, '../..')],
-      env: { ...cleanEnv, NODE_ENV: 'test' }
-    });
-    
-    window = await app.firstWindow();
-    await window.waitForLoadState('domcontentloaded');
-    
-    // Inject axe-core for accessibility testing
-    await injectAxe(window);
-  });
+Keyboard and semantic coverage.
 
-  test.afterEach(async () => {
-    await app.close();
-  });
+---
 
-  test('main window has no accessibility violations', async () => {
-    // Check entire page
-    await checkA11y(window, null, {
-      detailedReport: true,
-      detailedReportOptions: {
-        html: true
+# Accessible second slide
+
+The second slide proves keyboard navigation.`;
+
+async function ensureAxe(page) {
+  if (!await page.evaluate(() => Boolean(window.axe))) await injectAxe(page);
+}
+
+async function expectNamedControls(page, scope = 'body') {
+  const inventory = await page.locator(scope).evaluate(root => {
+    const controls = Array.from(root.querySelectorAll([
+      'button',
+      'a[href]',
+      'input:not([type="hidden"])',
+      'select',
+      'textarea',
+      '[role="button"]'
+    ].join(', '))).filter(element => {
+      if (typeof element.checkVisibility === 'function') {
+        return element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
       }
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
     });
+
+    const accessibleName = element => {
+      const labelledBy = element.getAttribute('aria-labelledby');
+      const referenced = labelledBy
+        ? labelledBy.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ')
+        : '';
+      const labels = Array.from(element.labels || []).map(label => label.textContent || '').join(' ');
+      return [
+        element.getAttribute('aria-label'),
+        referenced,
+        labels,
+        element.getAttribute('alt'),
+        element.textContent,
+        element.getAttribute('title'),
+        element.getAttribute('placeholder'),
+        element.value
+      ].find(value => String(value || '').trim()) || '';
+    };
+
+    return {
+      count: controls.length,
+      unnamed: controls
+        .filter(element => !accessibleName(element))
+        .map(element => element.outerHTML.slice(0, 300))
+    };
+  });
+  expect(inventory.count).toBeGreaterThan(0);
+  expect(inventory.unnamed, `Unnamed visible controls: ${inventory.unnamed.join('\n')}`).toEqual([]);
+  return inventory.count;
+}
+
+async function openPresentation(page) {
+  await page.evaluate(({ markdown }) => window.openFileInEditor(
+    '/virtual-workspace/accessibility-deck.md',
+    markdown,
+    { source: 'accessibility-e2e', refreshExistingTabContent: true }
+  ), { markdown: ACCESSIBLE_DECK });
+  await page.evaluate(() => window.switchToMode('presentation'));
+  await expect(page.locator('#presentation-root')).toHaveAttribute('data-presentation-load-state', 'ready');
+  await expect(page.locator('#presentation-root [data-slide-index]')).toHaveCount(2);
+}
+
+test.describe.configure({ mode: 'serial' });
+
+test('editor surface passes Axe and names every visible control', async ({ appPage }) => {
+  await appPage.evaluate(() => window.switchToMode('editor'));
+  await ensureAxe(appPage);
+  await checkA11y(appPage, '#main-content', {
+    detailedReport: true,
+    detailedReportOptions: { html: true }
   });
 
-  test('editor area is keyboard navigable', async () => {
-    // Focus on editor
-    await window.focus('.monaco-editor');
-    
-    // Check tab navigation
-    await window.keyboard.press('Tab');
-    
-    // Verify focus moved
-    const activeElement = await window.evaluate(() => document.activeElement.tagName);
-    expect(activeElement).toBeTruthy();
+  const namedControlCount = await expectNamedControls(appPage, '#main-content');
+  expect(namedControlCount).toBeGreaterThan(20);
+
+  await appPage.locator('body').click({ position: { x: 8, y: 8 } });
+  await appPage.keyboard.press('Tab');
+  const keyboardFocusedControl = appPage.locator(':focus-visible');
+  await expect(keyboardFocusedControl).toHaveCount(1);
+  await expect(keyboardFocusedControl).toHaveAccessibleName(/\S/);
+  const focusStyle = await keyboardFocusedControl.evaluate(element => {
+    const style = getComputedStyle(element);
+    return {
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      boxShadow: style.boxShadow
+    };
+  });
+  expect(
+    (focusStyle.outlineStyle !== 'none' && parseFloat(focusStyle.outlineWidth) > 0) ||
+    focusStyle.boxShadow !== 'none'
+  ).toBe(true);
+});
+
+test('presentation controls, slides, graphics, and notes expose durable semantics', async ({ appPage }) => {
+  await openPresentation(appPage);
+  await ensureAxe(appPage);
+
+  await expect(appPage.getByRole('region', { name: 'Presentation editor' })).toBeVisible();
+  await expect(appPage.getByRole('toolbar', { name: 'Presentation editor controls' })).toBeVisible();
+  await expect(appPage.getByRole('navigation', { name: 'Slide navigation' })).toBeVisible();
+  await expect(appPage.locator('#speaker-notes-panel')).toHaveAttribute('aria-labelledby', 'speaker-notes-title');
+  await expect(appPage.locator('#current-slide-notes')).toHaveAttribute('role', 'note');
+  await expectNamedControls(appPage, '#presentation-root');
+
+  const connectionLines = appPage.locator('#presentation-root .presentation-connection-lines');
+  await expect(connectionLines).toHaveAttribute('aria-hidden', 'true');
+
+  const authoringDiagramDisplay = await appPage.evaluate(() => {
+    const diagram = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    diagram.id = 'meaningful-slide-diagram';
+    diagram.setAttribute('role', 'img');
+    diagram.setAttribute('aria-label', 'Meaningful slide diagram');
+    diagram.setAttribute('width', '120');
+    diagram.setAttribute('height', '60');
+    diagram.innerHTML = '<circle cx="30" cy="30" r="20"></circle>';
+    document.querySelector('[data-current-slide="true"] .slide-content').appendChild(diagram);
+    return getComputedStyle(diagram).display;
+  });
+  expect(authoringDiagramDisplay).not.toBe('none');
+
+  await checkA11y(appPage, '#presentation-root', {
+    detailedReport: true,
+    detailedReportOptions: { html: true }
+  });
+});
+
+test('delivery mode supports keyboard navigation without trapping focus or hiding diagrams', async ({ appPage }) => {
+  await appPage.getByRole('button', { name: 'Start presentation' }).click();
+  await expect(appPage.locator('body')).toHaveClass(/is-presenting/);
+  await expect(appPage.getByRole('region', { name: 'Presentation delivery' })).toBeVisible();
+  await expect(appPage.getByRole('toolbar', { name: 'Presentation delivery controls' })).toBeVisible();
+  await expectNamedControls(appPage, '#presentation-root');
+
+  let currentSlide = appPage.locator('#presentation-root [aria-current="step"]');
+  await expect(currentSlide).toHaveAttribute('data-slide-index', '0');
+  await currentSlide.focus();
+  await appPage.keyboard.press('End');
+  currentSlide = appPage.locator('#presentation-root [aria-current="step"]');
+  await expect(currentSlide).toHaveAttribute('data-slide-index', '1');
+  await appPage.keyboard.press('ArrowLeft');
+  await expect(appPage.locator('#presentation-root [aria-current="step"]')).toHaveAttribute('data-slide-index', '0');
+
+  const deliveryDiagramDisplay = await appPage.evaluate(() => {
+    const diagram = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    diagram.id = 'meaningful-delivery-diagram';
+    diagram.setAttribute('role', 'img');
+    diagram.setAttribute('aria-label', 'Meaningful delivery diagram');
+    diagram.setAttribute('width', '120');
+    diagram.setAttribute('height', '60');
+    document.querySelector('[data-current-slide="true"] .slide-content').appendChild(diagram);
+    return getComputedStyle(diagram).display;
+  });
+  expect(deliveryDiagramDisplay).not.toBe('none');
+
+  await appPage.locator('#presentation-root [aria-current="step"]').focus();
+  await appPage.keyboard.press('Tab');
+  const focusedRole = await appPage.evaluate(() => ({
+    tagName: document.activeElement?.tagName,
+    name: document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent?.trim()
+  }));
+  expect(['BUTTON', 'SELECT']).toContain(focusedRole.tagName);
+  expect(focusedRole.name).toBeTruthy();
+
+  await ensureAxe(appPage);
+  await checkA11y(appPage, '#presentation-root', {
+    detailedReport: true,
+    detailedReportOptions: { html: true }
   });
 
-  test('all buttons have accessible labels', async () => {
-    // Get count of visible buttons
-    const buttonCount = await window.locator('button:visible').count();
-
-    // Test a sample of buttons (first 20 to prevent timeout)
-    const samplesToTest = Math.min(buttonCount, 20);
-
-    for (let i = 0; i < samplesToTest; i++) {
-      const button = window.locator('button:visible').nth(i);
-      const ariaLabel = await button.getAttribute('aria-label');
-      const title = await button.getAttribute('title');
-      const text = await button.textContent();
-
-      // Button should have either aria-label, title, or text content
-      const hasAccessibleName = ariaLabel || title || text?.trim();
-      expect(hasAccessibleName).toBeTruthy();
-    }
-  });
-
-  test('color contrast meets WCAG standards', async () => {
-    await checkA11y(window, null, {
-      rules: {
-        'color-contrast': { enabled: true }
-      }
-    });
-  });
-
-  test('forms have proper labels', async () => {
-    // Check visible form inputs on the main page
-    // Note: Settings modal is not accessible via a simple Settings button in this app
-    const inputs = await window.locator('input:visible:not([type="hidden"])').all();
-
-    for (const input of inputs) {
-      const id = await input.getAttribute('id');
-      const ariaLabel = await input.getAttribute('aria-label');
-      const ariaLabelledBy = await input.getAttribute('aria-labelledby');
-      const placeholder = await input.getAttribute('placeholder');
-      const type = await input.getAttribute('type');
-
-      // Color inputs and hidden inputs can be exempt from label requirements
-      if (type === 'color' || type === 'hidden') continue;
-
-      if (id) {
-        // Check for associated label, aria-label, aria-labelledby, or placeholder
-        const label = await window.locator(`label[for="${id}"]`).count();
-        const hasLabel = label > 0 || ariaLabel || ariaLabelledBy || placeholder;
-        expect(hasLabel).toBeTruthy();
-      }
-    }
-  });
-
-  test('focus indicators are visible', async () => {
-    // Tab through interactive elements
-    const interactiveElements = await window.locator('button, a, input, select, textarea').all();
-    
-    for (let i = 0; i < Math.min(5, interactiveElements.length); i++) {
-      await window.keyboard.press('Tab');
-      
-      // Get focused element
-      const focusedElement = await window.evaluate(() => {
-        const el = document.activeElement;
-        const styles = window.getComputedStyle(el);
-        return {
-          outline: styles.outline,
-          outlineWidth: styles.outlineWidth,
-          boxShadow: styles.boxShadow
-        };
-      });
-      
-      // Check for focus indicator (outline or box-shadow)
-      const hasFocusIndicator = 
-        (focusedElement.outline && focusedElement.outline !== 'none') ||
-        (focusedElement.outlineWidth && focusedElement.outlineWidth !== '0px') ||
-        (focusedElement.boxShadow && focusedElement.boxShadow !== 'none');
-      
-      expect(hasFocusIndicator).toBeTruthy();
-    }
-  });
-
-  test('ARIA landmarks are properly used', async () => {
-    // Check for main landmark
-    const main = await window.locator('[role="main"], main').count();
-    expect(main).toBeGreaterThan(0);
-    
-    // Check for navigation
-    const nav = await window.locator('[role="navigation"], nav').count();
-    expect(nav).toBeGreaterThan(0);
-    
-    // Check for complementary regions
-    const aside = await window.locator('[role="complementary"], aside').count();
-    expect(aside).toBeGreaterThanOrEqual(0);
-  });
-
-  test('images have alt text', async () => {
-    const images = await window.locator('img').all();
-    
-    for (const img of images) {
-      const alt = await img.getAttribute('alt');
-      const role = await img.getAttribute('role');
-      
-      // Image should have alt text or role="presentation" for decorative images
-      const isAccessible = alt !== null || role === 'presentation';
-      expect(isAccessible).toBeTruthy();
-    }
-  });
-
-  test('headings follow proper hierarchy', async () => {
-    const headings = await window.evaluate(() => {
-      const h1 = document.querySelectorAll('h1').length;
-      const h2 = document.querySelectorAll('h2').length;
-      const h3 = document.querySelectorAll('h3').length;
-      const h4 = document.querySelectorAll('h4').length;
-      const h5 = document.querySelectorAll('h5').length;
-      const h6 = document.querySelectorAll('h6').length;
-      
-      return { h1, h2, h3, h4, h5, h6 };
-    });
-    
-    // Should have at least one h1
-    expect(headings.h1).toBeGreaterThan(0);
-    
-    // Should not skip heading levels (if h3 exists, h2 should exist)
-    if (headings.h3 > 0) expect(headings.h2).toBeGreaterThan(0);
-    if (headings.h4 > 0) expect(headings.h3).toBeGreaterThan(0);
-  });
+  await appPage.locator('#presentation-root [aria-current="step"]').focus();
+  await appPage.keyboard.press('Escape');
+  await expect(appPage.locator('body')).not.toHaveClass(/is-presenting/);
+  await expect(appPage.getByRole('button', { name: 'Start presentation' })).toBeFocused();
 });

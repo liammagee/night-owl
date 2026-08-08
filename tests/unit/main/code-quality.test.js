@@ -757,12 +757,31 @@ describe('Code quality guardrails', () => {
   test('startup chrome keeps basic accessibility affordances', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const accessibilityCss = fs.readFileSync(path.join(__dirname, '../../../css/accessibility.css'), 'utf8');
+    const presentationSource = fs.readFileSync(
+      path.join(__dirname, '../../../plugins/techne-presentations/src/MarkdownPreziApp.jsx'),
+      'utf8'
+    );
+    const presentationCss = fs.readFileSync(
+      path.join(__dirname, '../../../plugins/techne-presentations/preview-presentation.css'),
+      'utf8'
+    );
 
+    expect(indexSource).toContain('css/accessibility.css');
+    expect(indexSource).toContain("el.setAttribute('aria-label', title)");
+    expect(indexSource).toContain('role="group" aria-label="Application mode"');
     expect(indexSource).toContain('id="format-inline-math-btn"');
     expect(indexSource).toContain('aria-label="Inline Math"');
     expect(indexSource).toContain('id="format-display-math-btn"');
     expect(indexSource).toContain('aria-label="Display Math"');
     expect(indexSource).toContain('id="current-file-name"');
+    expect(indexSource).toContain('role="separator" aria-label="Resize speaker notes"');
+    expect(accessibilityCss).toContain(':focus-visible');
+    expect(presentationSource).toContain('aria-roledescription="slide"');
+    expect(presentationSource).toContain('aria-label="Slide navigation"');
+    expect(presentationSource).toContain('className="presentation-connection-lines');
+    expect(presentationCss).not.toMatch(/body\.is-presenting\s+svg\s*\{/);
+    expect(presentationCss).not.toMatch(/\.cursor-grab\s+svg/);
     expect(indexSource).not.toContain('id="current-file-name" class="breadcrumb-segment" style="color: var(--text-muted, #999);"');
     expect(mainSource).toContain("process.env.NIGHTOWL_OPEN_DEVTOOLS === '1'");
     expect(mainSource).not.toContain("accelerator: 'CmdOrCtrl+K CmdOrCtrl");

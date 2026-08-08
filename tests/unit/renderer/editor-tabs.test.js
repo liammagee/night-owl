@@ -225,6 +225,36 @@ describe('TabManager', () => {
             { source: 'editor-tab' }
         );
     });
+
+    test('renders a named, keyboard-navigable toolbar for open files', () => {
+        const tm = window.tabManager;
+        tm.createTab('/home/user/first.md', '# First');
+        tm.activateTab('/home/user/first.md');
+        tm.createTab('/home/user/second.md', '# Second');
+
+        const bar = document.getElementById('editor-tabs-bar');
+        const openButtons = Array.from(bar.querySelectorAll('.editor-tab-select'));
+        const closeButtons = Array.from(bar.querySelectorAll('.editor-tab-close'));
+
+        expect(bar.getAttribute('role')).toBe('toolbar');
+        expect(bar.getAttribute('aria-label')).toBe('Open editor files');
+        expect(bar.tabIndex).toBe(0);
+        expect(openButtons).toHaveLength(2);
+        expect(openButtons[0].getAttribute('aria-label')).toBe('Open first.md');
+        expect(openButtons[0].getAttribute('aria-pressed')).toBe('true');
+        expect(openButtons[1].getAttribute('aria-pressed')).toBe('false');
+        expect(closeButtons.map(button => button.getAttribute('aria-label'))).toEqual([
+            'Close first.md',
+            'Close second.md'
+        ]);
+
+        openButtons[0].focus();
+        openButtons[0].dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'ArrowRight',
+            bubbles: true
+        }));
+        expect(document.activeElement).toBe(openButtons[1]);
+    });
 });
 
 // ─── Untitled tab creation (the core bug fix) ───

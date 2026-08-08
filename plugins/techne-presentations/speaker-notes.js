@@ -348,6 +348,35 @@ function setupSpeakerNotesResize() {
   let isResizing = false;
   let startY = 0;
   let startHeight = 0;
+  const minimumHeight = 80;
+  const maximumHeight = () => Math.max(minimumHeight, Math.floor(presentationContent.offsetHeight * 0.6));
+
+  function setPanelHeight(height) {
+    const maximum = maximumHeight();
+    const nextHeight = Math.round(Math.max(minimumHeight, Math.min(height, maximum)));
+    panel.style.height = `${nextHeight}px`;
+    resizeHandle.setAttribute('aria-valuemin', String(minimumHeight));
+    resizeHandle.setAttribute('aria-valuemax', String(maximum));
+    resizeHandle.setAttribute('aria-valuenow', String(nextHeight));
+  }
+
+  setPanelHeight(panel.offsetHeight || 180);
+
+  if (resizeHandle.dataset.keyboardResizeBound !== 'true') {
+    resizeHandle.dataset.keyboardResizeBound = 'true';
+    resizeHandle.addEventListener('keydown', (event) => {
+      const currentHeight = panel.offsetHeight || minimumHeight;
+      const targetHeight = {
+        ArrowUp: currentHeight + 20,
+        ArrowDown: currentHeight - 20,
+        Home: minimumHeight,
+        End: maximumHeight()
+      }[event.key];
+      if (targetHeight == null) return;
+      event.preventDefault();
+      setPanelHeight(targetHeight);
+    });
+  }
   
   // Mouse events
   resizeHandle.addEventListener('mousedown', (e) => {
@@ -364,8 +393,7 @@ function setupSpeakerNotesResize() {
     if (!isResizing) return;
     
     const deltaY = startY - e.clientY; // Inverted because panel grows upward
-    const newHeight = Math.max(80, Math.min(startHeight + deltaY, presentationContent.offsetHeight * 0.6));
-    panel.style.height = newHeight + 'px';
+    setPanelHeight(startHeight + deltaY);
   }
   
   function stopResize() {
@@ -389,8 +417,7 @@ function setupSpeakerNotesResize() {
     if (!isResizing) return;
     
     const deltaY = startY - e.touches[0].clientY;
-    const newHeight = Math.max(80, Math.min(startHeight + deltaY, presentationContent.offsetHeight * 0.6));
-    panel.style.height = newHeight + 'px';
+    setPanelHeight(startHeight + deltaY);
   }
   
   function stopTouchResize() {

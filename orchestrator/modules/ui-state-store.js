@@ -241,7 +241,9 @@
       view.classList.toggle('active', view.id === `${state.mode}-content`);
     });
     documentRef.querySelectorAll('.mode-btn').forEach(button => {
-      button.classList.toggle('active', button.id === `${state.mode}-mode-btn`);
+      const active = button.id === `${state.mode}-mode-btn`;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
     });
 
     const effectivePanes = getEffectivePanes(state);
@@ -272,7 +274,11 @@
       recognition: 'toggle-recognition-btn'
     };
     Object.entries(paneButtonIds).forEach(([pane, id]) => {
-      documentRef.getElementById(id)?.classList.toggle('active', renderedRightPane === pane);
+      const button = documentRef.getElementById(id);
+      if (!button) return;
+      const active = renderedRightPane === pane;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
     });
 
     const previewFullscreen = state.mode === 'editor' &&
@@ -284,16 +290,24 @@
     toggleClass(documentRef, 'preview-fullscreen-btn', 'active', previewFullscreen);
     const fullscreenButton = documentRef.getElementById('preview-fullscreen-btn');
     if (fullscreenButton) {
-      fullscreenButton.title = previewFullscreen ? 'Exit Fullscreen (F11 or Esc)' : 'Toggle Fullscreen (F11)';
+      const fullscreenLabel = previewFullscreen ? 'Exit Fullscreen (F11 or Esc)' : 'Toggle Fullscreen (F11)';
+      fullscreenButton.title = fullscreenLabel;
+      fullscreenButton.dataset.tooltip = fullscreenLabel;
+      fullscreenButton.setAttribute('aria-label', fullscreenLabel);
       fullscreenButton.setAttribute('aria-pressed', String(previewFullscreen));
     }
 
     const sourceView = state.preview.sourceView && !state.structuredRecord.active;
     toggleClass(documentRef, 'preview-source-btn', 'active', sourceView);
+    documentRef.getElementById('preview-source-btn')?.setAttribute('aria-pressed', String(sourceView));
     toggleClass(documentRef, 'preview-content', 'nightowl-ui-hidden', sourceView || state.structuredRecord.active);
     toggleClass(documentRef, 'preview-source', 'nightowl-ui-hidden', !sourceView);
     toggleClass(documentRef, 'preview-source-toolbar', 'nightowl-ui-hidden', !sourceView);
     toggleClass(documentRef, 'preview-source-sync-toggle', 'active', sourceView && state.preview.sourceSync);
+    documentRef.getElementById('preview-source-sync-toggle')?.setAttribute(
+      'aria-pressed',
+      String(sourceView && state.preview.sourceSync)
+    );
     toggleClass(
       documentRef,
       'preview-source-sync-toggle',

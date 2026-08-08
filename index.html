@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/modes.css">
     <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/accessibility.css">
     <link rel="stylesheet" href="css/diagnostics.css">
     <link id="nightowl-presentations-preview-css" rel="stylesheet" href="plugins/techne-presentations/preview-presentation.css">
     <link rel="stylesheet" href="css/search.css">
@@ -174,7 +175,7 @@
         
         /* Mode button styling */
         .mode-btn {
-            transition: all 0.2s ease;
+            transition: box-shadow 0.2s ease;
         }
         
         .mode-btn:hover {
@@ -3659,17 +3660,30 @@
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 0 8px;
+            padding: 0;
             max-width: 180px;
             min-width: 0;
             height: 100%;
             border-right: 1px solid var(--border, #ddd);
-            cursor: pointer;
             font-size: 12px;
             color: var(--text-muted, #666);
             white-space: nowrap;
             position: relative;
             flex-shrink: 0;
+        }
+        .editor-tab-select {
+            appearance: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 0;
+            height: 100%;
+            padding: 0 4px 0 8px;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            cursor: pointer;
         }
         /* Tabs that share a basename get a small folder hint appended.
            Allow them slightly more horizontal room so the disambiguator
@@ -3707,6 +3721,11 @@
             flex-shrink: 0;
         }
         .editor-tab-close {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
             font-size: 14px;
             line-height: 1;
             opacity: 0;
@@ -4580,12 +4599,12 @@
                 </div>
                 
                 <!-- Mode Switcher -->
-                <div style="display: flex; gap: 4px; padding: 4px; background: var(--surface, #fefdfb); border: 1px solid var(--border-color, #ddd); border-radius: 6px;">
-                    <button id="editor-mode-btn" class="mode-btn active" title="Editor View">Editor</button>
-                    <button id="presentation-mode-btn" class="mode-btn" title="Presentation View">Presentation</button>
-	                    <button id="network-mode-btn" class="mode-btn" title="Network Visualization">Network</button>
-	                    <button id="library-mode-btn" class="mode-btn" title="Maze View">Maze</button>
-	                    <button id="circle-mode-btn" class="mode-btn" title="Circle View">Circle</button>
+                <div role="group" aria-label="Application mode" style="display: flex; gap: 4px; padding: 4px; background: var(--surface, #fefdfb); border: 1px solid var(--border-color, #ddd); border-radius: 6px;">
+                    <button id="editor-mode-btn" class="mode-btn active" title="Editor View" aria-pressed="true">Editor</button>
+                    <button id="presentation-mode-btn" class="mode-btn" title="Presentation View" aria-pressed="false">Presentation</button>
+	                    <button id="network-mode-btn" class="mode-btn" title="Network Visualization" aria-pressed="false">Network</button>
+	                    <button id="library-mode-btn" class="mode-btn" title="Maze View" aria-pressed="false">Maze</button>
+	                    <button id="circle-mode-btn" class="mode-btn" title="Circle View" aria-pressed="false">Circle</button>
 	                </div>
                 
                 <!-- Pane Toggle Controls -->
@@ -4726,7 +4745,7 @@
                         </button>
                 </div>
                 <!-- Editor Tabs Bar -->
-                <div id="editor-tabs-bar"></div>
+                <div id="editor-tabs-bar" role="toolbar" aria-label="Open editor files" aria-orientation="horizontal" tabindex="0"></div>
                 <!-- Container for editor and preview panes -->
                 <!-- Slide Preview Thumbnails (visible when document has slides) -->
                 <div id="slide-thumbnails-strip" style="display: none; border-bottom: 1px solid var(--border-color, #ddd); background: var(--surface-variant, #f5f5f5); overflow-x: auto; overflow-y: hidden; white-space: nowrap; padding: 6px 8px; max-height: 110px; min-height: 0;">
@@ -4872,11 +4891,11 @@
                             </div>
                         </div>
                     </div>
-                    <div class="toggle-buttons" style="padding: 4px 8px; border-top: 1px solid var(--border-color, #ddd); background: var(--toolbar-bg, #f8f9fa); display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; min-height: 32px; max-height: 40px;">
-                        <button id="show-preview-btn" class="btn pane-toggle-button active" title="Show Preview" style="padding: 6px 8px; font-size: 12px;">Preview</button>
-                        <button id="show-chat-btn" class="btn pane-toggle-button" title="Assistant Terminal" style="padding: 6px 8px; font-size: 12px;">Terminal</button>
-                        <button id="show-speaker-notes-btn" class="btn pane-toggle-button" title="Speaker Notes" style="padding: 6px 8px; font-size: 12px;">📝 Notes</button>
-                        <button id="show-wholepart-btn" class="btn pane-toggle-button" title="Whole-Part Relations" style="padding: 6px 8px; font-size: 12px;">🔗 Relations</button>
+                    <div class="toggle-buttons" role="group" aria-label="Right pane" style="padding: 4px 8px; border-top: 1px solid var(--border-color, #ddd); background: var(--toolbar-bg, #f8f9fa); display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; min-height: 32px; max-height: 40px;">
+                        <button id="show-preview-btn" class="btn pane-toggle-button active" title="Show Preview" aria-pressed="true" style="padding: 6px 8px; font-size: 12px;">Preview</button>
+                        <button id="show-chat-btn" class="btn pane-toggle-button" title="Assistant Terminal" aria-pressed="false" style="padding: 6px 8px; font-size: 12px;">Terminal</button>
+                        <button id="show-speaker-notes-btn" class="btn pane-toggle-button" title="Speaker Notes" aria-pressed="false" style="padding: 6px 8px; font-size: 12px;">📝 Notes</button>
+                        <button id="show-wholepart-btn" class="btn pane-toggle-button" title="Whole-Part Relations" aria-pressed="false" style="padding: 6px 8px; font-size: 12px;">🔗 Relations</button>
                     </div>
                 </div>
                 </div> <!-- End panes-container -->
@@ -4890,7 +4909,7 @@
                         <span id="line-count">Lines: 1</span>
                     </div>
                     <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
-                        <span id="git-status-indicator" style="display: none; cursor: pointer;" title="Click for Git options"></span>
+                        <button type="button" id="git-status-indicator" style="display: none; cursor: pointer; border: 0; background: transparent; padding: 0; font: inherit;" title="Open Source Control"></button>
                         <span id="cursor-position">Ln 1, Col 1</span>
                         <span id="file-status">Markdown (.md)</span>
                         <span id="load-status" style="display: none; color: #0f766e;"></span>
@@ -4905,17 +4924,17 @@
             <div id="presentation-content" class="content-view" style="display: flex; flex-direction: column; position: relative;">
                 <div id="presentation-export-controls" style="position: absolute; top: 10px; right: 10px; z-index: 1000;"></div>
                 <div id="presentation-root" style="width: 100%; flex: 1; min-height: 0;"></div>
-                <div id="speaker-notes-panel" style="display: none !important;">
+                <div id="speaker-notes-panel" role="region" aria-labelledby="speaker-notes-title" style="display: none !important;">
                     <!-- Resize Handle -->
-                    <div id="speaker-notes-resize-handle" style="position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #34495e; cursor: ns-resize; border-radius: 4px 4px 0 0; display: flex; align-items: center; justify-content: center;">
-                        <div style="width: 40px; height: 3px; background: #7f8c8d; border-radius: 2px;"></div>
+                    <div id="speaker-notes-resize-handle" role="separator" aria-label="Resize speaker notes" aria-controls="current-slide-notes" aria-orientation="horizontal" aria-valuemin="80" aria-valuenow="180" tabindex="0" style="position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #34495e; cursor: ns-resize; border-radius: 4px 4px 0 0; display: flex; align-items: center; justify-content: center;">
+                        <div aria-hidden="true" style="width: 40px; height: 3px; background: #7f8c8d; border-radius: 2px;"></div>
                     </div>
                     <!-- Header -->
                     <div style="margin: 16px 16px 8px 16px; padding-top: 8px;">
-                        <h4 style="margin: 0; font-size: 14px; color: #ecf0f1;">📝 Speaker Notes</h4>
+                        <h4 id="speaker-notes-title" style="margin: 0; font-size: 14px; color: #ecf0f1;">📝 Speaker Notes</h4>
                     </div>
                     <!-- Scrollable Content -->
-                    <div id="current-slide-notes" style="font-size: 13px; line-height: 1.4; color: #bdc3c7; padding: 0 16px 16px 16px; overflow-y: auto; height: calc(100% - 60px);">
+                    <div id="current-slide-notes" role="note" aria-live="polite" aria-atomic="true" style="font-size: 13px; line-height: 1.4; color: #bdc3c7; padding: 0 16px 16px 16px; overflow-y: auto; height: calc(100% - 60px);">
                         <em>No speaker notes for this slide.</em>
                     </div>
                 </div>
@@ -5198,10 +5217,13 @@
         function convertTitles(root) {
             var els = (root || document).querySelectorAll('[title]');
             els.forEach(function(el) {
-                if (!el.dataset.tooltip) {
-                    el.dataset.tooltip = el.getAttribute('title');
-                    el.removeAttribute('title');
+                var title = el.getAttribute('title');
+                var isNamedControl = el.matches('button, input, select, textarea, a[href], [role="button"]');
+                if (isNamedControl && !el.hasAttribute('aria-label') && !el.hasAttribute('aria-labelledby')) {
+                    el.setAttribute('aria-label', title);
                 }
+                if (!el.dataset.tooltip) el.dataset.tooltip = title;
+                el.removeAttribute('title');
             });
         }
 
@@ -5266,7 +5288,12 @@
                 m.addedNodes.forEach(function(node) {
                     if (node.nodeType === 1) {
                         if (node.getAttribute && node.getAttribute('title')) {
-                            node.dataset.tooltip = node.getAttribute('title');
+                            var title = node.getAttribute('title');
+                            var isNamedControl = node.matches('button, input, select, textarea, a[href], [role="button"]');
+                            if (isNamedControl && !node.hasAttribute('aria-label') && !node.hasAttribute('aria-labelledby')) {
+                                node.setAttribute('aria-label', title);
+                            }
+                            node.dataset.tooltip = title;
                             node.removeAttribute('title');
                         }
                         if (node.querySelectorAll) convertTitles(node);

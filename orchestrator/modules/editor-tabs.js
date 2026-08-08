@@ -761,6 +761,11 @@
             const bar = document.getElementById('editor-tabs-bar');
             if (!bar) return;
 
+            bar.setAttribute('role', 'toolbar');
+            bar.setAttribute('aria-label', 'Open editor files');
+            bar.setAttribute('aria-orientation', 'horizontal');
+            bar.tabIndex = 0;
+
             if (this.tabOrder.length === 0) {
                 bar.style.display = 'none';
                 return;
@@ -780,41 +785,51 @@
                 el.className = 'editor-tab'
                     + (filePath === this.activeTabPath ? ' active' : '')
                     + (folderHint ? ' has-folder-hint' : '');
+                el.setAttribute('role', 'presentation');
                 el.dataset.filePath = filePath;
-                el.title = filePath;
+
+                const selectBtn = document.createElement('button');
+                selectBtn.type = 'button';
+                selectBtn.className = 'editor-tab-select';
+                selectBtn.setAttribute('aria-label', `Open ${tab.fileName}`);
+                selectBtn.setAttribute('aria-pressed', filePath === this.activeTabPath ? 'true' : 'false');
+                selectBtn.tabIndex = filePath === this.activeTabPath ? 0 : -1;
+                selectBtn.dataset.filePath = filePath;
+                selectBtn.title = filePath;
 
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'editor-tab-name';
                 nameSpan.textContent = tab.fileName;
-                el.appendChild(nameSpan);
+                selectBtn.appendChild(nameSpan);
 
                 if (folderHint) {
                     const folderSpan = document.createElement('span');
                     folderSpan.className = 'editor-tab-folder';
                     folderSpan.textContent = folderHint;
                     folderSpan.title = filePath;
-                    el.appendChild(folderSpan);
+                    selectBtn.appendChild(folderSpan);
                 }
 
                 if (tab.isDirty) {
                     const dot = document.createElement('span');
                     dot.className = 'editor-tab-dirty';
                     dot.textContent = '●';
-                    el.appendChild(dot);
+                    dot.setAttribute('aria-hidden', 'true');
+                    selectBtn.appendChild(dot);
                 }
 
-                const closeBtn = document.createElement('span');
+                const closeBtn = document.createElement('button');
+                closeBtn.type = 'button';
                 closeBtn.className = 'editor-tab-close';
                 closeBtn.textContent = '×';
-                closeBtn.title = 'Close';
+                closeBtn.setAttribute('aria-label', `Close ${tab.fileName}`);
+                closeBtn.dataset.tooltip = `Close ${tab.fileName}`;
                 closeBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.closeTab(filePath);
                 });
-                el.appendChild(closeBtn);
 
-                // Left click to activate
-                el.addEventListener('click', () => {
+                const activate = () => {
                     const tab = this.tabs.get(filePath);
                     if (tab && typeof window.openFileInEditor === 'function') {
                         void window.openFileInEditor(filePath, tab.model.getValue(), {
@@ -823,7 +838,33 @@
                         return;
                     }
                     this.activateTab(filePath);
+                };
+
+                // Left click and keyboard activation use the native button.
+                selectBtn.addEventListener('click', activate);
+                selectBtn.addEventListener('keydown', (event) => {
+                    let targetIndex = null;
+                    const index = this.tabOrder.indexOf(filePath);
+                    if (event.key === 'ArrowLeft') targetIndex = Math.max(0, index - 1);
+                    else if (event.key === 'ArrowRight') targetIndex = Math.min(this.tabOrder.length - 1, index + 1);
+                    else if (event.key === 'Home') targetIndex = 0;
+                    else if (event.key === 'End') targetIndex = this.tabOrder.length - 1;
+                    if (targetIndex === null || targetIndex === index) return;
+
+                    event.preventDefault();
+                    const targetPath = this.tabOrder[targetIndex];
+                    const target = Array.from(bar.querySelectorAll('.editor-tab-select'))
+                        .find(button => button.dataset.filePath === targetPath);
+                    target?.focus();
                 });
+
+                // Preserve delegated/programmatic wrapper clicks used by older callers.
+                el.addEventListener('click', (event) => {
+                    if (event.target === el) activate();
+                });
+
+                el.appendChild(selectBtn);
+                el.appendChild(closeBtn);
 
                 // Middle click to close
                 el.addEventListener('mousedown', (e) => {
