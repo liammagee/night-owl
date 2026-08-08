@@ -9,6 +9,16 @@ test('@packaged @ui-state packaged modes share the same live pane state', async 
     Boolean(window.NightOwlUIState)
   ), undefined, { timeout: 30 * 1000 });
 
+  const presentationStyles = await appPage.evaluate(() => (
+    Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .map(link => ({ id: link.id, href: link.getAttribute('href') || '' }))
+      .filter(link => link.href.includes('preview-presentation.css'))
+  ));
+  expect(presentationStyles).toEqual([{
+    id: 'nightowl-presentations-preview-css',
+    href: 'plugins/techne-presentations/preview-presentation.css'
+  }]);
+
   const snapshots = await appPage.evaluate(() => {
     const store = window.NightOwlUIState;
     window.switchToMode('editor');

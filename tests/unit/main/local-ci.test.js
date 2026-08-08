@@ -93,7 +93,12 @@ describe('local CI runner', () => {
   test('builds an explicit release stage and preserves Node options', () => {
     const dependency = { path: '/tmp/nightowl-node-modules', source: 'test' };
     const defaultStages = createStages({ dependency });
-    expect(defaultStages).toHaveLength(5);
+    expect(defaultStages).toHaveLength(6);
+    expect(defaultStages).toContainEqual(expect.objectContaining({
+      name: 'Presentation generated assets',
+      command: process.execPath,
+      args: ['scripts/build-presentations.js', '--check']
+    }));
     expect(defaultStages.at(-1)).toMatchObject({
       name: 'Required Electron E2E smoke',
       command: process.execPath,

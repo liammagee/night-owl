@@ -520,6 +520,29 @@ describe('Code quality guardrails', () => {
     expect(presentationCss).toContain('body.is-presenting #presentation-root .slide-content-delivery');
   });
 
+  test('presentation and feature assets have one canonical owner', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const presentationPlugin = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/plugin.js'), 'utf8');
+    const presentationCss = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/preview-presentation.css'), 'utf8');
+
+    expect(indexSource).toContain(
+      'id="nightowl-presentations-preview-css" rel="stylesheet" href="plugins/techne-presentations/preview-presentation.css"'
+    );
+    expect(presentationPlugin).toContain("id: `${FEATURE_ID}-preview-css`");
+    expect(indexSource).not.toContain('href="css/preview-presentation.css"');
+    expect(indexSource).not.toContain('href="css/babel-maze.css"');
+    expect(indexSource).not.toContain('orchestrator/modules/unifiedNetwork.js');
+    expect(fs.existsSync(path.join(__dirname, '../../../css/preview-presentation.css'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../css/speaker-notes.css'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../css/babel-maze.css'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../orchestrator/modules/unifiedNetwork.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../plugins/techne-maze/babel-maze.css'))).toBe(true);
+    expect(fs.existsSync(path.join(__dirname, '../../../plugins/techne-network-diagram/unified-network.js'))).toBe(true);
+    expect(presentationCss).toContain('#presentation-root .slide-content');
+    expect(presentationCss).toContain('#presentation-root .presentation-stage');
+    expect(presentationCss).not.toMatch(/^\s*\.slide(?:\s|:|\{|\.|\[)/m);
+  });
+
   test('file pane toolbar remains compact inside the activity sidebar', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
 
@@ -619,7 +642,8 @@ describe('Code quality guardrails', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
     const distCheckSource = fs.readFileSync(path.join(__dirname, '../../../scripts/check-distribution-readiness.js'), 'utf8');
 
-    expect(packageJson.scripts['dist:check']).toBe('node scripts/check-distribution-readiness.js');
+    expect(packageJson.scripts['dist:check']).toContain('npm run presentation:check');
+    expect(packageJson.scripts['dist:check']).toContain('node scripts/check-distribution-readiness.js');
     expect(packageJson.scripts.predist).toBe('npm run dist:check');
     expect(packageJson.build.mac.hardenedRuntime).toBe(true);
     expect(packageJson.build.mac.gatekeeperAssess).toBe(false);

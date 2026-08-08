@@ -1,16 +1,16 @@
 ---
 id: "consolidate-presentation-source-and-styles"
 title: "Make presentation source, build output, and CSS ownership explicit"
-status: "triaged"
+status: "done"
 type: "refactor"
 priority: "P2"
 area: "presentation"
-owner: "unassigned"
+owner: "codex"
 source: "systematic-review"
-evidence: "opportunity"
+evidence: "source-analysis"
 created: "2026-08-07"
-updated: "2026-08-07"
-verification: "One documented build command deterministically produces the shipped presentation asset, one canonical stylesheet owns slide layout, and CI rejects stale generated output."
+updated: "2026-08-08"
+verification: "The root presentation build/check deterministically reproduces MarkdownPreziApp.js; local CI passed 6/6 stages, 92 suites / 1,193 tests, and 7 required Electron workflows; a fresh ARM64 package passed 3/3 packaged workflows and ASAR inspection contained only canonical plugin assets."
 tags: ["build", "css", "presentation"]
 depends_on: ["fit-presentation-slides-to-viewport", "recover-presentation-load-failures"]
 ---
@@ -32,7 +32,33 @@ and document which compatibility copies can be removed.
 
 ## Acceptance criteria
 
-- [ ] Editing JSX plus running one command updates the shipped JavaScript.
-- [ ] CI detects stale compiled presentation assets.
-- [ ] Slide layout selectors are scoped and have one owner.
-- [ ] Exact duplicate assets are removed or generated with an explicit check.
+- [x] Editing JSX plus running one command updates the shipped JavaScript.
+- [x] CI detects stale compiled presentation assets.
+- [x] Slide layout selectors are scoped and have one owner.
+- [x] Exact duplicate assets are removed or generated with an explicit check.
+
+## Implementation
+
+- Added root `presentation:build` and `presentation:check` commands backed by a
+  deterministic Babel build script; local CI and distribution readiness now
+  reject stale generated runtime output.
+- Made `plugins/techne-presentations/preview-presentation.css` the single owner
+  for preview and slide layout, reused one link ID across startup and feature
+  initialization, and scoped slide selectors below `#presentation-root`.
+- Removed the shadow presentation and speaker-note stylesheets plus the exact
+  duplicate Babel Maze stylesheet and network runtime.
+- Removed the nested presentation lockfile and redirected plugin-local build
+  commands to the root toolchain.
+- Documented canonical source, generated output, styles, and feature assets in
+  `docs/development/PRESENTATION_ASSETS.md`.
+
+## Verification
+
+- `npm run presentation:build` reported the shipped runtime current, and unit
+  coverage proves check mode rejects a deliberately stale output.
+- `npm run ci:local`: 6/6 stages passed; 92 suites and 1,193 tests passed; all
+  7 required Electron workflows passed.
+- A fresh `npm run dist:dir -- --arm64` passed the stale-output preflight, and
+  all 3 packaged workflows passed against `dist/mac-arm64/NightOwl.app`.
+- ASAR inspection found only the canonical presentation, Maze, and network
+  assets; no removed compatibility paths were shipped.

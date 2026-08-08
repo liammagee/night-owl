@@ -48,4 +48,16 @@ describe('npm scripts sanity checks', () => {
     expect(fs.existsSync(path.join(repoRoot, 'scripts/local-ci.js'))).toBe(true);
     expect(fs.existsSync(path.join(repoRoot, '.githooks/pre-push'))).toBe(true);
   });
+
+  test('presentation source has one root build and stale-output check', () => {
+    const packageJson = readPackageJson();
+    const presentationPackage = require('../../../plugins/techne-presentations/package.json');
+
+    expect(packageJson.scripts['presentation:build']).toBe('node scripts/build-presentations.js');
+    expect(packageJson.scripts['presentation:check']).toBe('node scripts/build-presentations.js --check');
+    expect(packageJson.scripts['dist:check']).toContain('npm run presentation:check');
+    expect(presentationPackage.scripts.build).toBe('node ../../scripts/build-presentations.js');
+    expect(presentationPackage.scripts.check).toBe('node ../../scripts/build-presentations.js --check');
+    expect(fs.existsSync(path.join(repoRoot, 'scripts/build-presentations.js'))).toBe(true);
+  });
 });
