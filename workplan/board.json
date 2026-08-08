@@ -1,29 +1,270 @@
 {
-  "generated": "2026-08-08T15:01:11.171Z",
+  "generated": "2026-08-08T22:34:56.583Z",
   "counts": {
-    "total": 19,
+    "total": 29,
     "byStatus": {
+      "triaged": 10,
       "done": 19
     },
     "byPriority": {
-      "P0": 2,
-      "P1": 7,
-      "P2": 10
+      "P0": 3,
+      "P1": 13,
+      "P2": 12,
+      "P3": 1
     },
     "byArea": {
-      "presentation": 3,
-      "preview": 1,
+      "platform": 6,
+      "preview": 3,
+      "editor": 3,
+      "presentation": 4,
+      "files": 1,
       "testing": 3,
       "packaging": 2,
       "security": 2,
       "architecture": 3,
       "accessibility": 1,
-      "performance": 1,
-      "platform": 2,
-      "editor": 1
+      "performance": 1
     }
   },
   "items": [
+    {
+      "id": "unify-command-and-shortcut-registry",
+      "title": "Unify commands, menus, shortcuts, and feature actions",
+      "status": "triaged",
+      "type": "refactor",
+      "priority": "P0",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "One action registry drives the command palette and shortcut help, rejects conflicting active shortcuts, and exposes actions contributed by bundled feature modules in a required Electron workflow.",
+      "tags": [
+        "commands",
+        "discoverability",
+        "shortcuts",
+        "ui"
+      ],
+      "depends_on": [
+        "single-source-mode-and-pane-state"
+      ]
+    },
+    {
+      "id": "citation-linked-pdf-research",
+      "title": "Integrate PDF annotations with citations and research notes",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "preview",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "Packaged and development builds can highlight PDF text, persist page-addressed annotations, link them to a citation, and create a source-linked Markdown note without falling back to no-op annotation behavior.",
+      "tags": [
+        "pdf",
+        "citations",
+        "annotations",
+        "research"
+      ],
+      "depends_on": [
+        "minimize-electron-privilege-surface",
+        "resource-lifecycle-ownership"
+      ]
+    },
+    {
+      "id": "labelling-review-workbench",
+      "title": "Expand structured records into a labelling and review workbench",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "A schema-backed JSONL or CSV task supports keyboard-first labelling, saved filters, bulk operations, resumable progress, and reviewer disagreement or adjudication while preserving the source format.",
+      "tags": [
+        "csv",
+        "jsonl",
+        "labelling",
+        "review"
+      ],
+      "depends_on": [
+        "schema-driven-record-workflows",
+        "unify-command-and-shortcut-registry"
+      ]
+    },
+    {
+      "id": "multi-repo-publishing-profiles",
+      "title": "Add safe workspace publishing profiles for multi-repository sites",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "platform",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "A declarative Machine Spirits profile can preflight and preview the IDE-to-brand-to-content-to-website handoff, then run an explicitly confirmed publish while reporting the exact content revision and verification stages.",
+      "tags": [
+        "publishing",
+        "workflow",
+        "multi-repo",
+        "machinespirits"
+      ],
+      "depends_on": [
+        "unify-command-and-shortcut-registry",
+        "minimize-electron-privilege-surface"
+      ]
+    },
+    {
+      "id": "presentation-authoring-preflight",
+      "title": "Add presentation authoring preflight and presenter tools",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "presentation",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "A presentation preflight reports overflow, missing assets, and basic accessibility failures for every slide, while the presenter view exposes current, next, notes, and timer state without clipping the delivered slide.",
+      "tags": [
+        "presentation",
+        "preflight",
+        "presenter"
+      ],
+      "depends_on": [
+        "fit-presentation-slides-to-viewport",
+        "recover-presentation-load-failures",
+        "accessible-names-and-presentation-semantics"
+      ]
+    },
+    {
+      "id": "reviewable-ai-edit-proposals",
+      "title": "Make AI document edits reviewable and attributable",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "editor",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "An AI editing action presents a deterministic proposed diff with disclosed context and provider provenance, and applies only explicitly accepted hunks through Monaco's undoable edit path.",
+      "tags": [
+        "ai",
+        "diff",
+        "privacy",
+        "provenance"
+      ],
+      "depends_on": [
+        "unify-command-and-shortcut-registry",
+        "renderer-error-telemetry-and-recovery"
+      ]
+    },
+    {
+      "id": "unified-workspace-index",
+      "title": "Build one multi-format workspace index",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "files",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "Quick Open, workspace search, links, rename planning, and graph consumers query one incremental index that covers every supported text and structured-record format without stale results after a file change.",
+      "tags": [
+        "indexing",
+        "search",
+        "links",
+        "files"
+      ],
+      "depends_on": [
+        "reliable-editor-preview-transitions",
+        "resource-lifecycle-ownership"
+      ]
+    },
+    {
+      "id": "capability-health-and-workflow-presets",
+      "title": "Add capability health and focused workflow presets",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "NightOwl reports available, degraded, and missing capabilities with actionable checks, and Writing, Research, Presentation, and Labelling presets project a focused reversible UI without hiding user data or disabling required actions.",
+      "tags": [
+        "onboarding",
+        "health",
+        "workflows",
+        "discoverability"
+      ],
+      "depends_on": [
+        "unify-command-and-shortcut-registry"
+      ]
+    },
+    {
+      "id": "validated-static-publishing",
+      "title": "Turn static export into a validated publishing workflow",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "preview",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "Static publication uses the same trusted Markdown semantics as preview, rewrites internal links and assets deterministically, provides a local site preview, and passes a no-network publication contract test.",
+      "tags": [
+        "publishing",
+        "static-site",
+        "preview",
+        "links"
+      ],
+      "depends_on": [
+        "multi-repo-publishing-profiles",
+        "sanitize-rendered-markdown-and-navigation",
+        "unified-workspace-index"
+      ]
+    },
+    {
+      "id": "collaboration-reliability-boundary",
+      "title": "Replace or retire the prototype collaboration surface",
+      "status": "triaged",
+      "type": "enhancement",
+      "priority": "P3",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "The collaboration surface is either backed by tested convergent document synchronization, reconnect and identity semantics, or is removed from normal product discovery and explicitly labelled unsupported.",
+      "tags": [
+        "collaboration",
+        "sync",
+        "experimental"
+      ],
+      "depends_on": [
+        "unify-command-and-shortcut-registry",
+        "resource-lifecycle-ownership"
+      ]
+    },
     {
       "id": "fit-presentation-slides-to-viewport",
       "title": "Fit complete presentation slides inside the viewport",
