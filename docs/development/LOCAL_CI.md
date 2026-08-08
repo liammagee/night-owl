@@ -97,3 +97,16 @@ preview readiness, presentation-load recovery, and complete-slide geometry. It
 does not replace the optional accessibility and performance diagnostics or the
 distribution-readiness stage. Legacy browser-style specs remain quarantined
 until they are rewritten against the shared Electron fixture.
+
+Packaged-runtime checks are also explicit because they require a fresh build.
+On Apple Silicon, the release-hardening sequence is:
+
+```bash
+npm run dist:dir -- --mac --arm64
+NIGHTOWL_PACKAGED_APP=dist/mac-arm64/NightOwl.app npm run test:e2e:packaged
+```
+
+The packaged smoke uses an isolated profile, invokes a non-network tutor-core
+storage probe, and rejects database or log destinations inside `app.asar` or the
+application bundle. The hosted macOS E2E workflow runs this sequence after the
+short source-level matrix.

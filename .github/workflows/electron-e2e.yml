@@ -12,7 +12,7 @@ permissions:
 jobs:
   required-smoke:
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: night-owl
@@ -23,11 +23,11 @@ jobs:
         with:
           path: night-owl
 
-      - name: Checkout tutor-core dependency
-        uses: actions/checkout@v4
+      - name: Setup Python for native modules
+        id: setup-python
+        uses: actions/setup-python@v5
         with:
-          repository: liammagee/machinespirits-tutor-core
-          path: machinespirits-tutor-core
+          python-version: '3.11'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,3 +41,14 @@ jobs:
 
       - name: Run required Electron smoke
         run: npm run test:e2e
+
+      - name: Build unpacked macOS app
+        run: npm run dist:dir -- --mac --${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+        env:
+          PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          npm_config_python: ${{ steps.setup-python.outputs.python-path }}
+
+      - name: Run packaged tutor-core smoke
+        run: npm run test:e2e:packaged
+        env:
+          NIGHTOWL_PACKAGED_APP: ${{ runner.arch == 'ARM64' && 'dist/mac-arm64/NightOwl.app' || 'dist/mac/NightOwl.app' }}

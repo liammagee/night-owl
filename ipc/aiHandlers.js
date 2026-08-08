@@ -389,6 +389,33 @@ function register(deps) {
     }
   });
 
+  ipcMain.handle('get-tutor-core-status', async () => {
+    if (!tutorBridge) {
+      return {
+        success: false,
+        coreAvailable: false,
+        providerConfigured: false,
+        storageReady: false,
+        providers: [],
+        error: 'Tutor-core bridge not available'
+      };
+    }
+
+    try {
+      const status = await tutorBridge.probeLocalRuntime();
+      return { success: status.ok, ...status };
+    } catch (error) {
+      return {
+        success: false,
+        coreAvailable: tutorBridge.isAvailable?.() || false,
+        providerConfigured: false,
+        storageReady: false,
+        providers: [],
+        error: error.message
+      };
+    }
+  });
+
   ipcMain.handle('get-current-ai-config', async (event) => {
     if (!tutorBridge) {
       return { success: false, error: 'AI Service not available' };

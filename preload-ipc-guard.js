@@ -111,6 +111,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'get-screen-sources',
   'get-settings',
   'get-settings-category',
+  'get-tutor-core-status',
   'get-working-directory',
   'get-workspace-folders',
   'git-add-remote',

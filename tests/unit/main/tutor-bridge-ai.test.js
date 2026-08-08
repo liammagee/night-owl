@@ -19,7 +19,10 @@ const mockUnifiedAIProvider = {
 };
 
 const mockTutorCore = {
-  writingPadService: { initializeWritingPad: jest.fn() },
+  writingPadService: {
+    initializeWritingPad: jest.fn(),
+    getWritingPad: jest.fn(() => ({ id: 'pad-local-writer' }))
+  },
   learnerIntegrationService: { detectResistance: jest.fn(), detectBreakthrough: jest.fn() },
   tutorDialogueEngine: { runDialogue: jest.fn() },
   recognitionGamificationService: { getLearnerRecognitionProfile: jest.fn() },

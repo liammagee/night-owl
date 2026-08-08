@@ -1,15 +1,15 @@
 ---
 id: "package-tutor-core-writable-data-path"
 title: "Keep tutor-core runtime data outside app.asar"
-status: "triaged"
+status: "done"
 type: "bug"
 priority: "P1"
 area: "packaging"
-owner: "unassigned"
+owner: "codex"
 source: "computer-use"
 evidence: "reproduced"
 created: "2026-08-07"
-updated: "2026-08-07"
+updated: "2026-08-08"
 verification: "A clean packaged launch initializes tutor-core using only app userData paths and emits no app.asar write or ENOTDIR error."
 tags: ["asar", "packaged-app", "tutor-core"]
 ---
@@ -30,9 +30,46 @@ Make every tutor-core storage/cache/resource location injectable and configure
 it before import-time side effects. Package immutable seed resources explicitly;
 route all writable databases and caches to `app.getPath('userData')`.
 
+## Implemented change
+
+NightOwl now derives tutor-core database and log paths from Electron `userData`,
+rejects destinations inside `app.asar` or an application bundle, and exports the
+database and log environment variables before dynamically importing tutor-core.
+This handles tutor-core's current import-time database consumer while retaining
+the explicit `initDb` and `setLogDir` calls for later versions.
+
+A provider-independent status IPC runs a local writing-pad read and reports core,
+storage, and provider readiness separately. The packaged Playwright fixture
+launches a freshly built app with an isolated profile and no external provider
+keys, then verifies the database, log directory, non-network storage probe, and
+the absence of development-only tutor-core content from the actual app archive.
+The hosted macOS E2E workflow now builds and runs this packaged contract on the
+runner's native architecture.
+
+The IDE also pins tutor-core to its public `v0.5.3` commit archive instead of a
+sibling-directory symlink. Clean installs now resolve tutor-core's production
+dependencies, while packaging filters remove repository settings and tests.
+Builds no longer depend on or capture a developer checkout's local databases,
+logs, settings, or modules.
+
 ## Acceptance criteria
 
-- [ ] Packaged startup reports tutor-core available.
-- [ ] No code attempts to write within `app.asar` or the application bundle.
-- [ ] A packaged smoke test invokes one non-network tutor-core operation.
-- [ ] Missing optional AI providers degrade separately from tutor-core initialization.
+- [x] Packaged startup reports tutor-core available.
+- [x] No code attempts to write within `app.asar` or the application bundle.
+- [x] A packaged smoke test invokes one non-network tutor-core operation.
+- [x] Missing optional AI providers degrade separately from tutor-core initialization.
+
+## Verification
+
+- `npm ci --no-audit --no-fund`: installed the pinned public tutor-core archive
+  and its native production dependencies without a sibling checkout.
+- `npm run dist:dir -- --mac --arm64`: produced a fresh unsigned
+  `dist/mac-arm64/NightOwl.app`; only the expected local signing and notarization
+  warnings were emitted.
+- `NIGHTOWL_PACKAGED_APP=dist/mac-arm64/NightOwl.app npm run test:e2e:packaged`:
+  one packaged Electron test executed and passed with zero skips; it also
+  inspected `app.asar` and rejected development-only tutor-core entries.
+- The packaged probe created `tutor-core.db` and the log directory below its
+  isolated profile and successfully read the initialized local writing pad.
+- `node scripts/local-ci.js`: 5/5 stages passed, including 87 Jest suites
+  (1,178 tests) and all four required source-level Electron workflows.

@@ -16,6 +16,38 @@ describe('required Electron E2E harness', () => {
     ]);
   });
 
+  test('packaged config selects only the packaged runtime contract', () => {
+    const config = require('../../../playwright.packaged.config');
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../../tests/e2e/packaged/tutor-core.spec.js'),
+      'utf8'
+    );
+
+    expect(config.testDir).toBe('./tests/e2e/packaged');
+    expect(config.testMatch).toBe('**/*.spec.js');
+    expect(config.workers).toBe(1);
+    expect(source).toContain("window.electronAPI.invoke('get-tutor-core-status')");
+    expect(source).toContain('expect(status.runtimePaths)');
+    expect(source).not.toMatch(/sendMessage|generateText|fetch\(/);
+  });
+
+  test('packaging pins tutor-core and excludes its development-only files', () => {
+    const packageJson = require('../../../package.json');
+    const tutorDependency = packageJson.dependencies['@machinespirits/tutor-core'];
+
+    expect(tutorDependency).toContain('321b9d21686c3cf4d9395524e569fe21ffd40361');
+    expect(tutorDependency).not.toMatch(/^file:/);
+    expect(packageJson.build.files).toEqual(expect.arrayContaining([
+      '!node_modules/@machinespirits/tutor-core/.claude{,/**/*}',
+      '!node_modules/@machinespirits/tutor-core/.github{,/**/*}',
+      '!node_modules/@machinespirits/tutor-core/.npmignore',
+      '!node_modules/@machinespirits/tutor-core/CHANGELOG.md',
+      '!node_modules/@machinespirits/tutor-core/package-lock.json',
+      '!node_modules/@machinespirits/tutor-core/services/__tests__{,/**/*}',
+      '!node_modules/@machinespirits/tutor-core/vitest.config.js'
+    ]));
+  });
+
   test('active required tests use current production selectors and cover each contract', () => {
     const source = fs.readFileSync(
       path.join(__dirname, '../../../tests/e2e/required/primary-workflows.spec.js'),

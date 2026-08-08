@@ -6,6 +6,8 @@
 // replacing the old services/aiService.js. It wraps tutor-core's
 // unifiedAIProvider.call() / callStream() with conversation history management.
 
+const path = require('path');
+
 function isDebugLoggingEnabled(namespace) {
     const raw = typeof process !== 'undefined' && process.env
         ? process.env.NIGHTOWL_DEBUG_LOGS || ''
@@ -24,7 +26,8 @@ let tutorCore = null;
 let bridgeState = {
     initialized: false,
     learnerId: 'local-writer',
-    initError: null
+    initError: null,
+    runtimePaths: null
 };
 
 // ============================================================================
@@ -67,6 +70,38 @@ async function loadTutorCore() {
     }
 }
 
+function isImmutableApplicationPath(targetPath) {
+    if (!targetPath) return false;
+    const normalized = path.resolve(targetPath);
+    const segments = normalized.split(path.sep).filter(Boolean);
+    if (segments.some(segment => segment.endsWith('.asar'))) return true;
+    const appIndex = segments.findIndex(segment => segment.endsWith('.app'));
+    return appIndex >= 0 && segments[appIndex + 1] === 'Contents';
+}
+
+function configureTutorCoreRuntime(options = {}) {
+    const dbPath = options.dbPath || (options.dataDir ? path.join(options.dataDir, 'tutor-core.db') : null);
+    const dataDir = options.dataDir || (dbPath ? path.dirname(dbPath) : null);
+    const logDir = options.logDir || (dataDir ? path.join(dataDir, 'logs') : null);
+    const runtimePaths = { dataDir, dbPath, logDir };
+
+    for (const [name, targetPath] of Object.entries(runtimePaths)) {
+        if (!targetPath) continue;
+        if (!path.isAbsolute(targetPath)) {
+            throw new Error(`Tutor-core ${name} must be an absolute path`);
+        }
+        if (isImmutableApplicationPath(targetPath)) {
+            throw new Error(`Tutor-core ${name} must not be inside app.asar or an application bundle`);
+        }
+    }
+
+    const runtimeEnv = typeof process !== 'undefined' ? process.env : null;
+    if (runtimeEnv && dbPath) runtimeEnv.AUTH_DB_PATH = dbPath;
+    if (runtimeEnv && logDir) runtimeEnv.TUTOR_CORE_LOG_DIR = logDir;
+    bridgeState.runtimePaths = runtimePaths;
+    return runtimePaths;
+}
+
 /**
  * Initialize the tutor bridge for the local user.
  * Sets up the database, writing pad, and verifies tutor-core availability.
@@ -83,6 +118,17 @@ async function initTutorBridge(options = {}) {
 
     const learnerId = options.learnerId || bridgeState.learnerId;
     bridgeState.learnerId = learnerId;
+
+    let runtimePaths;
+    try {
+        // tutor-core currently has one import-time database consumer. These
+        // environment variables therefore have to be set before import(), not
+        // merely passed to initDb() afterwards.
+        runtimePaths = configureTutorCoreRuntime(options);
+    } catch (error) {
+        bridgeState.initError = error.message;
+        return { ok: false, error: error.message };
+    }
 
     const core = await loadTutorCore();
     if (!core) {
@@ -101,6 +147,10 @@ async function initTutorBridge(options = {}) {
                 // initDb throws if already initialized - that's fine
                 debug(`[TutorBridge] Database already initialized: ${dbErr.message}`);
             }
+        }
+
+        if (runtimePaths.logDir && core.setLogDir) {
+            runTutorCoreQuietly(() => core.setLogDir(runtimePaths.logDir));
         }
 
         // Initialize writing pad for the local writer
@@ -659,12 +709,54 @@ function isAvailable() {
     return bridgeState.initialized && tutorCore !== null;
 }
 
+function getRuntimeStatus() {
+    const providers = tutorCore ? getAvailableProviders() : [];
+    return {
+        coreAvailable: isAvailable(),
+        providerConfigured: providers.length > 0,
+        providers,
+        learnerId: bridgeState.learnerId,
+        runtimePaths: bridgeState.runtimePaths ? { ...bridgeState.runtimePaths } : null,
+        error: bridgeState.initError
+    };
+}
+
+async function probeLocalRuntime() {
+    if (!isAvailable()) {
+        return {
+            ok: false,
+            storageReady: false,
+            ...getRuntimeStatus()
+        };
+    }
+
+    try {
+        const writingPad = tutorCore.writingPadService?.getWritingPad
+            ? tutorCore.writingPadService.getWritingPad(bridgeState.learnerId)
+            : null;
+        return {
+            ok: true,
+            storageReady: Boolean(writingPad),
+            ...getRuntimeStatus()
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            storageReady: false,
+            ...getRuntimeStatus(),
+            error: error.message
+        };
+    }
+}
+
 // Export for CommonJS consumption
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         // Initialization
         initTutorBridge,
         isAvailable,
+        getRuntimeStatus,
+        probeLocalRuntime,
         // AI service interface (replaces aiService)
         sendMessage,
         streamMessage,
@@ -704,6 +796,8 @@ if (typeof window !== 'undefined') {
     window.TutorBridge = {
         initTutorBridge,
         isAvailable,
+        getRuntimeStatus,
+        probeLocalRuntime,
         sendMessage,
         streamMessage,
         generateText,

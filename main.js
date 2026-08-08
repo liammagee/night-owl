@@ -34,6 +34,7 @@ const {
   extractWorkspaceUserDataDir
 } = require('./services/cliWorkspaceProfile');
 const { installNightOwlCli } = require('./services/cliInstaller');
+const { resolveTutorRuntimePaths } = require('./services/tutorRuntimePaths');
 const ipcHandlers = require('./ipc');
 const { createDebugLogger } = require('./ipc/logging');
 
@@ -3773,11 +3774,16 @@ app.whenReady().then(async () => {
   
   // Initialize tutor-bridge (async — loads ESM tutor-core via dynamic import)
   try {
-    await tutorBridge.initTutorBridge({
+    const tutorRuntimePaths = resolveTutorRuntimePaths(app.getPath('userData'));
+    const tutorStatus = await tutorBridge.initTutorBridge({
       learnerId: 'local-writer',
-      dbPath: path.join(app.getPath('userData'), 'tutor-core.db')
+      ...tutorRuntimePaths
     });
-    debugMain('TutorBridge initialized successfully');
+    if (!tutorStatus.ok) {
+      console.error('[main.js] Tutor-core runtime unavailable:', tutorStatus.error);
+    } else {
+      debugMain('Tutor-core runtime available:', tutorBridge.getRuntimeStatus());
+    }
 
     // Apply saved AI settings
     if (appSettings.ai && appSettings.ai.preferredProvider) {
@@ -3789,7 +3795,7 @@ app.whenReady().then(async () => {
       }
     }
 
-    const providers = tutorBridge.getAvailableProviders();
+    const providers = tutorStatus.ok ? tutorBridge.getAvailableProviders() : [];
     debugMain('AI providers available via tutor-core:', providers);
     if (providers.length === 0) {
       debugMain('No AI providers configured. Built-in AI writing features will be disabled.');

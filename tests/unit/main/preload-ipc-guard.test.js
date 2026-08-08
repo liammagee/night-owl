@@ -50,6 +50,7 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_INVOKE_CHANNELS.has('perform-save-with-path')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('feed:list-sources')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('get-file-tree-signature')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('get-tutor-core-status')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('terminal-resize')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('shell-run')).toBe(false);
     expect(ALLOWED_ON_CHANNELS.has('settings-changed')).toBe(true);
