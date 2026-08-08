@@ -1628,16 +1628,17 @@
       });
     }
 
-    // Push tags command
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Git: Push Tags',
-        action: async () => {
+    // Push tags action
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand(
+        'git.pushTags',
+        'Git: Push Tags',
+        async () => {
           if (!repoRoot) return;
           const r = await window.electronAPI.git.pushTags(repoRoot);
           r.success ? notify('Tags pushed', 'success') : notify('Push tags failed: ' + r.error, 'error');
         }
-      });
+      );
     }
 
     // Remotes toggle (lazy load)
@@ -1666,22 +1667,19 @@
       });
     }
 
-    // Register command palette commands
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Git: Toggle Blame',
-        action: () => toggleBlame()
-      });
-      window.commandPaletteCommands.push({
-        name: 'Git: Toggle Gutter Indicators',
-        action: () => {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('git.toggleBlame', 'Git: Toggle Blame', () => toggleBlame());
+      window.registerCommand(
+        'git.toggleGutterIndicators',
+        'Git: Toggle Gutter Indicators',
+        () => {
           if (gutterDecorations.length > 0) {
             clearGutterIndicators();
           } else {
             updateGutterIndicators();
           }
         }
-      });
+      );
     }
 
     // Clear blame and update gutter when file changes

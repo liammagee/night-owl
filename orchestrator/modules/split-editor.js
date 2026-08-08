@@ -230,27 +230,28 @@
     resizer.addEventListener('mousedown', onMouseDown);
   }
 
-  // Register command palette commands
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'View: Toggle Split Editor',
-        action: () => {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand(
+        'view.splitEditor',
+        'View: Toggle Split Editor',
+        () => {
           if (splitActive) {
             deactivateSplit();
           } else {
             activateSplit();
           }
         }
-      });
-      window.commandPaletteCommands.push({
-        name: 'View: Open Current File in Split',
-        action: () => {
+      );
+      window.registerCommand(
+        'view.openCurrentInSplit',
+        'View: Open Current File in Split',
+        () => {
           if (window.currentFilePath) {
             openInSplit(window.currentFilePath);
           }
         }
-      });
+      );
     }
   }
 

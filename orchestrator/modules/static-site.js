@@ -127,8 +127,8 @@
   function esc(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({ name: 'Export: Static Site (HTML)', action: generateSite });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('export.staticSite', 'Export: Static Site (HTML)', generateSite);
     }
   }
 

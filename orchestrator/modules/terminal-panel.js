@@ -238,29 +238,19 @@
     header.style.cursor = 'ns-resize';
   }
 
-  // Register command palette + keyboard shortcut
+  // Register terminal actions. The shared registry owns the shortcut.
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Terminal: Toggle Integrated Terminal',
-        action: toggle
-      });
-      window.commandPaletteCommands.push({
-        name: 'Terminal: Spawn Interactive Shell',
-        action: () => {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('terminal.toggle', 'Terminal: Toggle Integrated Terminal', toggle);
+      window.registerCommand(
+        'terminal.spawnShell',
+        'Terminal: Spawn Interactive Shell',
+        () => {
           show();
           spawnShell();
         }
-      });
+      );
     }
-
-    // Ctrl+` shortcut
-    document.addEventListener('keydown', (e) => {
-      if (e.key === '`' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        toggle();
-      }
-    });
   }
 
   window.terminalPanel = {

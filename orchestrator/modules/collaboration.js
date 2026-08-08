@@ -255,10 +255,10 @@
   }
 
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({ name: 'Collaboration: Open Session Manager', action: showCollabDialog });
-      window.commandPaletteCommands.push({ name: 'Collaboration: Host Session', action: () => startServer() });
-      window.commandPaletteCommands.push({ name: 'Collaboration: Stop Server', action: stopServer });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('collaboration.sessions', 'Collaboration: Open Session Manager', showCollabDialog);
+      window.registerCommand('collaboration.host', 'Collaboration: Host Session', () => startServer());
+      window.registerCommand('collaboration.stop', 'Collaboration: Stop Server', stopServer);
     }
   }
 

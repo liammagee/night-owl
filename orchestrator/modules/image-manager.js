@@ -253,14 +253,12 @@
   function init() {
     registerSidebarPane();
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Images: Show Image Gallery',
-        action: () => { if (window.switchStructureView) window.switchStructureView('images'); }
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('images.gallery', 'Images: Show Image Gallery', () => {
+        if (window.switchStructureView) window.switchStructureView('images');
       });
-      window.commandPaletteCommands.push({
-        name: 'Images: Insert Image',
-        action: () => insertImageMarkdown('image.png', 'alt text')
+      window.registerCommand('images.insert', 'Images: Insert Image', () => {
+        insertImageMarkdown('image.png', 'alt text');
       });
     }
   }

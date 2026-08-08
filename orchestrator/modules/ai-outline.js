@@ -154,8 +154,8 @@ Output ONLY the markdown outline (headings and optional bullet points), no other
   function esc(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({ name: 'AI: Generate Document Outline', action: generateOutline });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('ai.generate-outline', 'AI: Generate Document Outline', generateOutline);
     }
   }
 

@@ -227,8 +227,8 @@ ${excerpt}`
   function esc(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({ name: 'Writing Coach: Analyze Document', action: showCoachPanel });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('ai.writing-coach', 'Writing Coach: Analyze Document', showCoachPanel);
     }
   }
 

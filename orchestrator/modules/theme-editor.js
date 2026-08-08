@@ -625,24 +625,14 @@
   function init() {
     restoreTheme();
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'View: Open Theme Editor',
-        action: showThemeEditor
-      });
+    if (typeof window.registerCommand === 'function' && !window.NightOwlActions?.get('theme.open')) {
+      window.registerCommand('theme.open', 'View: Open Theme Editor', showThemeEditor);
 
-      // Quick-apply presets from command palette
       for (const [id, preset] of Object.entries(PRESETS)) {
-        window.commandPaletteCommands.push({
-          name: `Theme: Apply ${preset.name}`,
-          action: () => applyPreset(id)
-        });
+        window.registerCommand(`theme.apply.${id}`, `Theme: Apply ${preset.name}`, () => applyPreset(id));
       }
 
-      window.commandPaletteCommands.push({
-        name: 'Theme: Reset to Default',
-        action: resetToDefault
-      });
+      window.registerCommand('theme.reset', 'Theme: Reset to Default', resetToDefault);
     }
   }
 

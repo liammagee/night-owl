@@ -3885,18 +3885,6 @@
         <div class="techne-layer techne-grid-micro"></div>
     </div>
 
-    <!-- Command Palette Modal (VS Code style Cmd+P) -->
-    <div id="command-palette-overlay" class="command-palette-overlay" style="display: none;">
-        <div id="command-palette" class="command-palette">
-            <div class="command-palette-header">
-                <input type="text" id="command-palette-input" placeholder="Type to search files..." autocomplete="off">
-            </div>
-            <div id="command-palette-results" class="command-palette-results">
-                <div class="command-palette-loading">Loading files...</div>
-            </div>
-        </div>
-    </div>
-
     <!-- Keyboard Shortcuts Help Modal -->
     <div id="keyboard-shortcuts-overlay" class="modal-overlay" style="display: none;">
         <div class="modal-dialog" style="width: 700px; max-height: 85vh;">
@@ -5056,6 +5044,7 @@
 	    <!-- Bundled diagnostics, feature loader, and owned-resource registry -->
 	    <script src="services/resourceLifecycle.js"></script>
 	    <script src="orchestrator/modules/diagnostics.js"></script>
+	    <script src="orchestrator/modules/action-registry.js"></script>
 	    <script src="orchestrator/modules/feature-loader.js"></script>
 	    <script src="plugins/techne-theme-manager/themes.js"></script>
 	    <script src="plugins/techne-theme-manager/theme-manager.js"></script>

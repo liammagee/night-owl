@@ -483,32 +483,13 @@
   // ── Init ──
 
   function init() {
-    // Command palette commands
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Table: Insert New Table',
-        action: insertNewTable
-      });
-      window.commandPaletteCommands.push({
-        name: 'Table: Add Row Below',
-        action: addRowBelow
-      });
-      window.commandPaletteCommands.push({
-        name: 'Table: Add Column Right',
-        action: addColumnRight
-      });
-      window.commandPaletteCommands.push({
-        name: 'Table: Cycle Column Alignment',
-        action: cycleAlignment
-      });
-      window.commandPaletteCommands.push({
-        name: 'Table: Sort Column Ascending',
-        action: () => sortColumn(true)
-      });
-      window.commandPaletteCommands.push({
-        name: 'Table: Sort Column Descending',
-        action: () => sortColumn(false)
-      });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('table.insert', 'Table: Insert New Table', insertNewTable);
+      window.registerCommand('table.addRow', 'Table: Add Row Below', addRowBelow);
+      window.registerCommand('table.addColumn', 'Table: Add Column Right', addColumnRight);
+      window.registerCommand('table.cycleAlignment', 'Table: Cycle Column Alignment', cycleAlignment);
+      window.registerCommand('table.sortAscending', 'Table: Sort Column Ascending', () => sortColumn(true));
+      window.registerCommand('table.sortDescending', 'Table: Sort Column Descending', () => sortColumn(false));
     }
 
     // Wait for Monaco editor to be ready, then attach cursor listener

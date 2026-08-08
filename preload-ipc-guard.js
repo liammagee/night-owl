@@ -289,6 +289,8 @@ const ALLOWED_ON_CHANNELS = new Set([
   'set-theme',
   'settings-changed',
   'show-command-palette',
+  'show-keyboard-shortcuts',
+  'show-quick-open',
   'show-presentation-statistics',
   'speaker-notes-window-closed',
   'start-presentation',

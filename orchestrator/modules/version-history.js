@@ -569,38 +569,6 @@
       return true;
     }
 
-    // Backward compatibility with legacy palette wiring.
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Version History: Show Timeline',
-        action: () => {
-          if (window.switchStructureView) {
-            window.switchStructureView('history');
-          }
-        }
-      });
-      window.commandPaletteCommands.push({
-        name: 'Version History: Save Checkpoint',
-        action: async () => {
-          await createCheckpoint('Manual checkpoint');
-          if (window.showNotification) window.showNotification('Checkpoint saved', 'success');
-        }
-      });
-      window.commandPaletteCommands.push({
-        name: 'Version History: Diff Current vs Latest Checkpoint',
-        action: async () => {
-          await diffWithLatestCheckpoint();
-        }
-      });
-      window.commandPaletteCommands.push({
-        name: 'Version History: Restore Latest Checkpoint',
-        action: async () => {
-          await restoreLatestCheckpoint();
-        }
-      });
-      return true;
-    }
-
     return false;
   }
 

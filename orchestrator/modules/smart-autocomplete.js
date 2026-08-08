@@ -213,15 +213,16 @@
     }, 500);
     setTimeout(() => clearInterval(check), 15000);
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Smart Autocomplete: Info',
-        action: () => {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand(
+        'autocomplete.info',
+        'Smart Autocomplete: Info',
+        () => {
           if (window.showNotification) {
             window.showNotification('Smart autocomplete active: headings, citations, footnotes, and context words', 'info');
           }
         }
-      });
+      );
     }
   }
 

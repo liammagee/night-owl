@@ -2,49 +2,96 @@
 // Provides a command palette interface for quick access to all application functions
 // Supports keyboard navigation, fuzzy search, and keyboard shortcuts
 
-// --- Command Registry ---
-let commandRegistry = new Map();
+// --- Shared Action Registry ---
+const actionRegistry = window.NightOwlActions;
+const actionRegistryModule = window.NightOwlActionRegistryModule;
 let commandPalette = null;
 let selectedIndex = 0;
 
 // --- Command Registration ---
-function registerCommand(id, label, action, shortcut = null) {
-    commandRegistry.set(id, {
-        id,
-        label,
-        action,
-        shortcut,
-        searchText: label.toLowerCase()
+function registerCoreAction(id, label, action, shortcut = null, options = {}) {
+    if (!actionRegistry || typeof window.registerCommand !== 'function') {
+        throw new Error('NightOwl action registry is unavailable.');
+    }
+    return window.registerCommand(id, label, action, shortcut, {
+        owner: 'core',
+        replace: true,
+        ...options
     });
 }
 
 // --- Initialize Command Palette ---
 function initializeCommandPalette() {
+    // Keep this alias function-local so a classic-script declaration cannot
+    // replace the shared window.registerCommand API used by feature modules.
+    const registerCommand = registerCoreAction;
+    registerCommand(
+        'app.commandPalette',
+        'Application: Show Command Palette',
+        () => showCommandPalette(),
+        null,
+        { category: 'Application', allowInInput: true }
+    );
+    registerCommand(
+        'file.quickOpen',
+        'File: Quick Open',
+        () => window.showQuickOpen?.(),
+        null,
+        { allowInInput: true }
+    );
+    registerCommand(
+        'app.keyboardShortcuts',
+        'Application: Show Keyboard Shortcuts',
+        () => showKeyboardShortcuts(),
+        null,
+        { category: 'Application', allowInInput: true }
+    );
+
     // File Operations
     registerCommand('file.new', 'File: New File', () => window.newFile(), 'Cmd+N');
     registerCommand('file.open', 'File: Open File', () => window.openFile(), 'Cmd+O');
     registerCommand('file.save', 'File: Save', () => window.saveFile(), 'Cmd+S');
     registerCommand('file.saveAs', 'File: Save As...', () => window.saveAsFile(), 'Cmd+Shift+S');
-    registerCommand('file.openFolder', 'File: Open Folder', () => window.changeDirectory(), 'Cmd+Shift+O');
+    registerCommand('file.closeTab', 'File: Close Tab', async () => {
+        const tabManager = window.tabManager;
+        if (tabManager?.activeTabPath && tabManager.tabs.has(tabManager.activeTabPath)) {
+            await tabManager.closeTab(tabManager.activeTabPath);
+        } else {
+            window.close();
+        }
+    }, 'Cmd+W');
+    registerCommand('file.openFolder', 'File: Open Folder', () => window.changeDirectory(), 'Cmd+Alt+O');
     registerCommand('file.newFolder', 'File: New Folder', () => window.showNewFolderModal());
     
     // Edit Operations
-    registerCommand('edit.find', 'Edit: Find and Replace', () => window.showFindReplaceDialog(), 'Cmd+F');
+    registerCommand('edit.find', 'Edit: Find', () => window.showFindReplaceDialog(false), 'Cmd+F');
+    registerCommand('edit.replace', 'Edit: Find and Replace', () => window.showFindReplaceDialog(true), 'Cmd+H');
     registerCommand('edit.findGlobal', 'Edit: Global Search', () => window.showGlobalSearchDialog(), 'Cmd+Shift+F');
     registerCommand('edit.undo', 'Edit: Undo', () => window.editor?.trigger('source', 'undo'), 'Cmd+Z');
     registerCommand('edit.redo', 'Edit: Redo', () => window.editor?.trigger('source', 'redo'), 'Cmd+Shift+Z');
     
     // View Operations
-    registerCommand('view.togglePreview', 'View: Toggle Preview', () => window.togglePreview(), 'Cmd+Shift+V');
+    registerCommand('view.togglePreview', 'View: Toggle Preview', () => window.togglePreview(), 'Cmd+Shift+M');
     registerCommand('view.toggleStructure', 'View: Toggle Structure Panel', () => window.toggleStructurePane());
     registerCommand('view.toggleFiles', 'View: Toggle File Explorer', () => window.toggleFilePane());
-    registerCommand('view.presentationMode', 'View: Enter Presentation Mode', () => window.enterPresentationMode(), 'F5');
+    registerCommand('view.visualMarkdown', 'View: Toggle Visual Markdown', () => {
+        const enabled = !Boolean(window.appSettings?.editor?.visualMarkdown);
+        window.setVisualMarkdownEnabled?.(enabled);
+    }, 'Cmd+Shift+V');
+    registerCommand('view.writingStats', 'View: Show Writing Stats', () => {
+        if (typeof window.toggleGamificationPanel === 'function') {
+            window.toggleGamificationPanel();
+        } else if (typeof window.switchStructureView === 'function') {
+            window.switchStructureView('statistics');
+        }
+    }, 'Cmd+Shift+G');
+    registerCommand('presentation.start', 'Presentation: Start Presentation', () => window.enterPresentationMode(), 'F5');
     registerCommand('view.editorMode', 'View: Editor Mode', () => window.switchToMode('editor'), 'Cmd+1');
-    registerCommand('view.presentationTab', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
+    registerCommand('view.presentationMode', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
     registerCommand('view.networkMode', 'View: Network Mode', () => window.switchToMode('network'), 'Cmd+3');
     registerCommand('view.circleMode', 'View: Circle Mode', () => window.switchToMode('circle'), 'Cmd+4');
     registerCommand('view.libraryMode', 'View: Library Maze Mode', () => window.switchToMode('library'), 'Cmd+5');
-    registerCommand('view.kanban', 'View: Open Kanban Board', () => window.showKanbanBoard(), 'Cmd+K');
+    registerCommand('view.kanban', 'View: Open Kanban Board', () => window.showKanbanBoard());
     registerCommand('view.minimap.toggle', 'View: Toggle Minimap', () => {
         if (window.editor && window.editor.updateOptions) {
             const currentOptions = window.editor.getRawOptions();
@@ -58,9 +105,14 @@ function initializeCommandPalette() {
         if (window.editor && window.editor.updateOptions) {
             const currentOptions = window.editor.getRawOptions();
             const wrapOn = currentOptions.wordWrap === 'on';
-            window.editor.updateOptions({ wordWrap: wrapOn ? 'off' : 'on' });
+            const wordWrap = wrapOn ? 'off' : 'on';
+            window.editor.updateOptions({ wordWrap });
+            if (window.appSettings?.editor) {
+                window.appSettings.editor.wordWrap = wordWrap;
+                window.electronAPI?.settings?.setSettings?.(window.appSettings).catch(() => {});
+            }
             if (window.showNotification) {
-                window.showNotification(`Word wrap ${wrapOn ? 'off' : 'on'}`, 'info');
+                window.showNotification(`Word wrap ${wordWrap}`, 'info');
             }
         }
     }, 'Alt+Z');
@@ -95,12 +147,12 @@ function initializeCommandPalette() {
     // Navigation
     registerCommand('nav.back', 'Navigate: Back', () => window.navigateBack());
     registerCommand('nav.forward', 'Navigate: Forward', () => window.navigateForward());
-    registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => window.showGoToLineDialog(), 'Ctrl+G');
-    registerCommand('nav.fileUp', 'Navigate: Previous File', () => window.moveFileSelection(-1), '↑');
-    registerCommand('nav.fileDown', 'Navigate: Next File', () => window.moveFileSelection(1), '↓');
-    registerCommand('nav.firstFile', 'Navigate: First File', () => window.selectFirstFile(), 'Home');
-    registerCommand('nav.lastFile', 'Navigate: Last File', () => window.selectLastFile(), 'End');
-    registerCommand('nav.openSelectedFile', 'Navigate: Open Selected File', () => window.openSelectedFile(), 'Enter');
+    registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => window.showGoToLineDialog(), 'Cmd+G');
+    registerCommand('nav.fileUp', 'Navigate: Previous File', () => window.moveFileSelection(-1));
+    registerCommand('nav.fileDown', 'Navigate: Next File', () => window.moveFileSelection(1));
+    registerCommand('nav.firstFile', 'Navigate: First File', () => window.selectFirstFile());
+    registerCommand('nav.lastFile', 'Navigate: Last File', () => window.selectLastFile());
+    registerCommand('nav.openSelectedFile', 'Navigate: Open Selected File', () => window.openSelectedFile());
     
     // Folding
     registerCommand('fold.all', 'Fold: Fold All', () => window.foldAll());
@@ -186,17 +238,15 @@ function initializeCommandPalette() {
     registerCommand('speaker.toggle', 'Speaker Notes: Toggle View', () => window.toggleSpeakerNotesView());
     registerCommand('speaker.add', 'Speaker Notes: Add Note', () => window.addSpeakerNote());
     
-    console.log(`[CommandPalette] Registered ${commandRegistry.size} commands`);
-    
-    // Set up keyboard shortcut to show command palette
-    // Use capture phase to ensure this runs before other handlers
-    document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
-            e.preventDefault();
-            e.stopPropagation();
-            showCommandPalette();
-        }
-    }, true); // Use capture phase
+    console.log(`[CommandPalette] ${actionRegistry.list().length} actions available`);
+
+    window.__nightOwlActionShortcutCleanup?.();
+    window.__nightOwlActionShortcutCleanup = actionRegistry.installShortcutHandler(document, {
+        contextProvider: () => ({
+            editor: window.editor,
+            mode: window.NightOwlUIState?.getState?.().mode
+        })
+    });
 }
 
 // --- Command Palette UI ---
@@ -213,7 +263,10 @@ function showCommandPalette() {
         <div class="command-palette">
             <div class="command-palette-input-container">
                 <input type="text" class="command-palette-input" placeholder="Type a command..." autocomplete="off" spellcheck="false">
-                <div class="command-palette-shortcut">Ctrl+Shift+P</div>
+                <div class="command-palette-shortcut">${actionRegistryModule.formatShortcut(
+                    actionRegistryModule.getShortcutForAction('app.commandPalette'),
+                    navigator.platform
+                )}</div>
             </div>
             <div class="command-palette-results" id="command-results"></div>
         </div>
@@ -291,14 +344,15 @@ function hideCommandPalette() {
 }
 
 function updateCommandResults(query, resultsContainer) {
-    const filteredCommands = Array.from(commandRegistry.values())
-        .filter(cmd => cmd.searchText.includes(query.toLowerCase()))
-        .slice(0, 50);
+    const filteredCommands = actionRegistry.search(query, {
+        includeUnavailable: false,
+        context: { editor: window.editor, mode: window.NightOwlUIState?.getState?.().mode }
+    }).slice(0, 50);
     
     resultsContainer.innerHTML = filteredCommands.map((cmd, index) => `
         <div class="command-item ${index === 0 ? 'selected' : ''}" data-command-id="${cmd.id}">
             <div class="command-label">${highlightMatch(cmd.label, query)}</div>
-            ${cmd.shortcut ? `<div class="command-shortcut">${cmd.shortcut}</div>` : ''}
+            ${cmd.shortcut ? `<div class="command-shortcut">${actionRegistryModule.formatShortcut(cmd.shortcut, navigator.platform)}</div>` : ''}
         </div>
     `).join('');
     
@@ -312,10 +366,23 @@ function updateCommandResults(query, resultsContainer) {
 }
 
 function highlightMatch(text, query) {
-    if (!query) return text;
-    
-    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    return text.replace(regex, '<mark>$1</mark>');
+    const value = String(text || '');
+    const needle = String(query || '');
+    if (!needle) return escapeHtml(value);
+    const lowerValue = value.toLowerCase();
+    const lowerNeedle = needle.toLowerCase();
+    const index = lowerValue.indexOf(lowerNeedle);
+    if (index < 0) return escapeHtml(value);
+    return `${escapeHtml(value.slice(0, index))}<mark>${escapeHtml(value.slice(index, index + needle.length))}</mark>${escapeHtml(value.slice(index + needle.length))}`;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function updateSelection(items, selectedIndex) {
@@ -335,11 +402,14 @@ function updateSelection(items, selectedIndex) {
 }
 
 async function executeCommand(commandId) {
-    const command = commandRegistry.get(commandId);
+    const command = actionRegistry.get(commandId);
     if (command) {
         console.log(`[CommandPalette] Executing command: ${command.label}`);
         try {
-            await command.action();
+            await actionRegistry.execute(commandId, {
+                editor: window.editor,
+                mode: window.NightOwlUIState?.getState?.().mode
+            });
         } catch (error) {
             console.error(`[CommandPalette] Error executing command ${commandId}:`, error);
             if (window.showNotification) {
@@ -349,8 +419,47 @@ async function executeCommand(commandId) {
     }
 }
 
+function showKeyboardShortcuts() {
+    const overlay = document.getElementById('keyboard-shortcuts-overlay');
+    const content = document.getElementById('keyboard-shortcuts-content');
+    if (!overlay || !content) return;
+
+    const grouped = new Map();
+    actionRegistry.list().filter(action => action.shortcut).forEach(action => {
+        const category = action.category || 'Other';
+        if (!grouped.has(category)) grouped.set(category, []);
+        grouped.get(category).push(action);
+    });
+
+    content.innerHTML = Array.from(grouped.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([category, actions]) => `
+            <div class="shortcuts-section">
+                <h4>${escapeHtml(category)}</h4>
+                ${actions.map(action => `
+                    <div class="shortcut-item" data-action-id="${escapeHtml(action.id)}">
+                        <span class="shortcut-description">${escapeHtml(action.label)}</span>
+                        <div class="shortcut-keys">
+                            ${actionRegistryModule.formatShortcut(action.shortcut, navigator.platform)
+                                .split('+')
+                                .map(key => `<span class="shortcut-key">${escapeHtml(key)}</span>`)
+                                .join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+    overlay.style.display = 'flex';
+}
+
+function hideKeyboardShortcuts() {
+    const overlay = document.getElementById('keyboard-shortcuts-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
 // --- Export Functions for Global Access ---
 window.showCommandPalette = showCommandPalette;
 window.hideCommandPalette = hideCommandPalette;
 window.initializeCommandPalette = initializeCommandPalette;
-window.registerCommand = registerCommand;
+window.showKeyboardShortcuts = showKeyboardShortcuts;
+window.hideKeyboardShortcuts = hideKeyboardShortcuts;
