@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-08T13:52:59.972Z",
+  "generated": "2026-08-08T14:34:11.210Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 3,
-      "done": 16
+      "triaged": 2,
+      "done": 17
     },
     "byPriority": {
       "P2": 10,
@@ -12,7 +12,6 @@
       "P1": 7
     },
     "byArea": {
-      "performance": 1,
       "architecture": 3,
       "editor": 1,
       "presentation": 3,
@@ -21,33 +20,11 @@
       "packaging": 2,
       "security": 2,
       "accessibility": 1,
+      "performance": 1,
       "platform": 2
     }
   },
   "items": [
-    {
-      "id": "performance-and-large-document-budgets",
-      "title": "Add budgets for startup, file switching, preview, and large documents",
-      "status": "triaged",
-      "type": "testing",
-      "priority": "P2",
-      "area": "performance",
-      "owner": "unassigned",
-      "source": "systematic-review",
-      "evidence": "opportunity",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "CI or a documented benchmark job records p50 and p95 startup, file-switch, preview-ready, and presentation-ready timings against fixed small and large fixtures with regression thresholds.",
-      "tags": [
-        "benchmark",
-        "large-files",
-        "performance"
-      ],
-      "depends_on": [
-        "modernize-electron-e2e-harness",
-        "reliable-editor-preview-transitions"
-      ]
-    },
     {
       "id": "refresh-architecture-and-build-docs",
       "title": "Refresh architecture, ownership, and build documentation",
@@ -380,6 +357,29 @@
       ],
       "depends_on": [
         "sanitize-rendered-markdown-and-navigation"
+      ]
+    },
+    {
+      "id": "performance-and-large-document-budgets",
+      "title": "Add budgets for startup, file switching, preview, and large documents",
+      "status": "done",
+      "type": "testing",
+      "priority": "P2",
+      "area": "performance",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-07",
+      "updated": "2026-08-09",
+      "verification": "CI or a documented benchmark job records p50 and p95 startup, file-switch, preview-ready, and presentation-ready timings against fixed small and large fixtures with regression thresholds.",
+      "tags": [
+        "benchmark",
+        "large-files",
+        "performance"
+      ],
+      "depends_on": [
+        "modernize-electron-e2e-harness",
+        "reliable-editor-preview-transitions"
       ]
     },
     {

@@ -646,6 +646,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     _useState44 = _slicedToArray(_useState43, 2),
     presentationFit = _useState44[0],
     setPresentationFit = _useState44[1];
+  var _useState45 = useState(false),
+    _useState46 = _slicedToArray(_useState45, 2),
+    presentationFitReady = _useState46[0],
+    setPresentationFitReady = _useState46[1];
 
   // Sample markdown content for demo
   var sampleMarkdown = "# SAMPLE CONTENT TEST\nThis is sample content to test speaker notes.\n\n```notes\n\uD83D\uDD34 SAMPLE SPEAKER NOTES: If you can see this, the speaker notes parsing is working correctly!\n\nThis is a test of the speaker notes functionality in presentation mode.\n```\n\n---\n\n## What is This?\n- Advanced Markdown editor with AI assistance\n- Interactive presentation capabilities\n- Integrated file management\n- Philosophical content support\n\n```notes\nExplain each bullet point briefly:\n\n1. Advanced editor - mention Monaco editor, syntax highlighting\n2. Presentation capabilities - this is what they're seeing now!\n3. File management - integrated file tree, folder operations\n4. Philosophical content - specifically designed for philosophy education\n\nAsk if anyone has questions about the core features before moving on.\n```\n\n---\n\n## Key Features\n### Editor Mode\n- Monaco editor with syntax highlighting\n- Real-time preview\n- AI chat integration\n- Document structure navigation\n\n### Presentation Mode\n- Zoomable presentation canvas\n- Multiple layout types\n- Smooth transitions\n- Interactive navigation\n\n```notes\nDemonstrate the dual modes:\n\nEditor Mode:\n- Show how the editor looks\n- Mention real-time preview\n- AI chat for philosophical discussions\n\nPresentation Mode:\n- This is what we're in right now\n- Mention zoom capabilities (demonstrate if needed)\n- Different layouts available (spiral, grid, linear, circle)\n\nTransition: \"Now let's talk about the philosophical foundation...\"\n```\n\n---\n\n## Philosophical Focus\n### Hegelian Dialectic\n- **Thesis**: Initial position or concept\n- **Antithesis**: Negation or contradiction\n- **Synthesis**: Higher unity transcending both\n\n### AI & Pedagogy\nIntegration of artificial intelligence with philosophical education.\n\n```notes\nThis is the core philosophical concept we're exploring:\n\nHegelian Dialectic explanation:\n- Thesis: Starting point, initial idea\n- Antithesis: Opposition, contradiction, challenge\n- Synthesis: Resolution that preserves and transcends both\n\nGive a concrete example if time permits - maybe democracy/authoritarianism -> constitutional democracy.\n\nAI & Pedagogy:\n- Not replacing human instruction\n- Augmenting and enhancing learning\n- Helping students explore complex philosophical concepts\n```\n\n---\n\n## Getting Started\n1. Switch between Editor and Presentation views\n2. Load your Markdown files\n3. Use AI chat for assistance\n4. Create engaging presentations\n5. Explore philosophical concepts\n\n```notes\nPractical steps for new users:\n\n1. Mode switching - use the buttons at the top\n2. File loading - integrated file system\n3. AI assistance - context-aware help for philosophical concepts\n4. Presentations - what they're experiencing now\n5. Exploration - encourage experimentation\n\nRemind them that speaker notes like these are available in presentation mode!\n\nNext: Thank them and open for questions.\n```\n\n---\n\n## Thank You!\nWelcome to the future of philosophical education.\n\n*Happy learning and presenting!*\n\n```notes\nClosing remarks:\n\n- Thank the audience for their attention\n- Emphasize the innovative nature of combining AI with philosophy\n- Invite questions and discussion\n- Mention that this is just the beginning\n\nEnd with: \"Are there any questions about the platform or its philosophical applications?\"\n\nNote: You can press 'N' to toggle these speaker notes on/off during presentation.\n```";
@@ -714,13 +718,29 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     };
   }, [isPresenting, speakerNotesWindowVisible]);
   useLayoutEffect(function () {
-    if (!isPresenting || slides.length === 0) return undefined;
+    if (!isPresenting || slides.length === 0) {
+      setPresentationFitReady(false);
+      return undefined;
+    }
     var stage = stageRef.current;
     var slide = slides[currentSlide];
     if (!stage || !slide) return undefined;
     var animationFrame = null;
+    var readyFrame = null;
+    var readinessToken = null;
     var updateFit = function updateFit() {
+      var _window$NightOwlPerfo, _window$NightOwlPerfo2;
       if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (readyFrame) cancelAnimationFrame(readyFrame);
+      (_window$NightOwlPerfo = window.NightOwlPerformance) === null || _window$NightOwlPerfo === void 0 || (_window$NightOwlPerfo = _window$NightOwlPerfo.readiness) === null || _window$NightOwlPerfo === void 0 || _window$NightOwlPerfo.cancel(readinessToken, {
+        reason: 'presentation-fit-recalculated'
+      });
+      readinessToken = ((_window$NightOwlPerfo2 = window.NightOwlPerformance) === null || _window$NightOwlPerfo2 === void 0 || (_window$NightOwlPerfo2 = _window$NightOwlPerfo2.readiness) === null || _window$NightOwlPerfo2 === void 0 ? void 0 : _window$NightOwlPerfo2.begin('presentation-fit', {
+        slideIndex: currentSlide,
+        viewportWidth: stage.clientWidth,
+        viewportHeight: stage.clientHeight
+      })) || null;
+      setPresentationFitReady(false);
       animationFrame = requestAnimationFrame(function () {
         var _presentationViewport3;
         animationFrame = null;
@@ -741,6 +761,16 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             pan: next.pan
           };
         });
+        readyFrame = requestAnimationFrame(function () {
+          var _window$NightOwlPerfo3;
+          readyFrame = null;
+          setPresentationFitReady(true);
+          (_window$NightOwlPerfo3 = window.NightOwlPerformance) === null || _window$NightOwlPerfo3 === void 0 || (_window$NightOwlPerfo3 = _window$NightOwlPerfo3.readiness) === null || _window$NightOwlPerfo3 === void 0 || _window$NightOwlPerfo3.complete(readinessToken, {
+            scale: next.scale,
+            slideIndex: currentSlide
+          });
+          readinessToken = null;
+        });
       });
     };
     updateFit();
@@ -748,7 +778,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(stage);
     window.addEventListener('resize', updateFit);
     return function () {
+      var _window$NightOwlPerfo4;
       if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (readyFrame) cancelAnimationFrame(readyFrame);
+      (_window$NightOwlPerfo4 = window.NightOwlPerformance) === null || _window$NightOwlPerfo4 === void 0 || (_window$NightOwlPerfo4 = _window$NightOwlPerfo4.readiness) === null || _window$NightOwlPerfo4 === void 0 || _window$NightOwlPerfo4.cancel(readinessToken, {
+        reason: 'presentation-fit-unmounted'
+      });
       resizeObserver === null || resizeObserver === void 0 || resizeObserver.disconnect();
       window.removeEventListener('resize', updateFit);
     };
@@ -1462,6 +1497,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       window.removeEventListener('updatePresentationContent', handleContentUpdate);
     };
   }, []);
+  useEffect(function () {
+    if (slides.length === 0) return;
+    window.dispatchEvent(new CustomEvent('nightowl:presentation-content-ready', {
+      detail: {
+        slides: slides.length
+      }
+    }));
+  }, [slides]);
 
   // Set up Electron API listeners (only once)
   useEffect(function () {
@@ -3090,6 +3133,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     ref: stageRef,
     className: "presentation-stage",
     "data-fit-mode": isPresenting ? 'contain' : 'canvas',
+    "data-fit-state": isPresenting ? presentationFitReady ? 'ready' : 'measuring' : 'inactive',
     style: presentationStageStyle
   }, /*#__PURE__*/React.createElement("div", {
     ref: canvasRef,

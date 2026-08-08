@@ -31,17 +31,21 @@ async function closeElectronApp(app, timeoutMs = 10 * 1000) {
   }
 }
 
-const test = base.extend({
-  electronApp: [async ({}, use) => {
-    if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-      throw new Error(
-        'Required Electron E2E smoke needs a Linux display. Run it with xvfb-run; the suite will not silently skip.'
-      );
-    }
+async function launchIsolatedElectronApp(options = {}) {
+  if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+    throw new Error(
+      'Electron E2E needs a Linux display. Run it with xvfb-run; the suite will not silently skip.'
+    );
+  }
 
-    const profilePath = await fs.mkdtemp(path.join(os.tmpdir(), 'nightowl-e2e-profile-'));
-    const { ELECTRON_RUN_AS_NODE, NODE_OPTIONS, ...cleanEnv } = process.env;
-    const app = await electron.launch({
+  const profilePath = await fs.mkdtemp(path.join(
+    os.tmpdir(),
+    options.profilePrefix || 'nightowl-e2e-profile-'
+  ));
+  const { ELECTRON_RUN_AS_NODE, NODE_OPTIONS, ...cleanEnv } = process.env;
+  let app;
+  try {
+    app = await electron.launch({
       executablePath: require('electron'),
       args: [BOOTSTRAP_PATH],
       env: {
@@ -50,16 +54,34 @@ const test = base.extend({
         NIGHTOWL_DISABLE_SINGLE_INSTANCE: '1',
         NIGHTOWL_E2E_APP_PATH: APP_PATH,
         NIGHTOWL_NODE_MODULES: resolveNodeModulesPath(),
-        NIGHTOWL_WORKSPACE_USER_DATA_DIR: profilePath
+        NIGHTOWL_WORKSPACE_USER_DATA_DIR: profilePath,
+        ...(options.env || {})
       },
-      timeout: 30 * 1000
+      timeout: options.timeoutMs || 30 * 1000
     });
+  } catch (error) {
+    await fs.rm(profilePath, { recursive: true, force: true });
+    throw error;
+  }
+
+  return {
+    app,
+    profilePath,
+    async close() {
+      await closeElectronApp(app, options.closeTimeoutMs);
+      await fs.rm(profilePath, { recursive: true, force: true });
+    }
+  };
+}
+
+const test = base.extend({
+  electronApp: [async ({}, use) => {
+    const launched = await launchIsolatedElectronApp();
 
     try {
-      await use(app);
+      await use(launched.app);
     } finally {
-      await closeElectronApp(app);
-      await fs.rm(profilePath, { recursive: true, force: true });
+      await launched.close();
     }
   }, { scope: 'worker' }],
 
@@ -86,4 +108,10 @@ const test = base.extend({
   }, { scope: 'worker' }]
 });
 
-module.exports = { test, expect };
+module.exports = {
+  APP_PATH,
+  closeElectronApp,
+  launchIsolatedElectronApp,
+  test,
+  expect
+};

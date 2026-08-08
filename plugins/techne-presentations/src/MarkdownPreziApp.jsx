@@ -335,6 +335,7 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   const panRef = useRef(pan);
   const [presentationInsets, setPresentationInsets] = useState({ top: 16, right: 16, bottom: 16, left: 16 });
   const [presentationFit, setPresentationFit] = useState({ scale: 1, pan: { x: 0, y: 0 } });
+  const [presentationFitReady, setPresentationFitReady] = useState(false);
 
   // Sample markdown content for demo
   const sampleMarkdown = `# SAMPLE CONTENT TEST
@@ -531,14 +532,27 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   }, [isPresenting, speakerNotesWindowVisible]);
 
   useLayoutEffect(() => {
-    if (!isPresenting || slides.length === 0) return undefined;
+    if (!isPresenting || slides.length === 0) {
+      setPresentationFitReady(false);
+      return undefined;
+    }
     const stage = stageRef.current;
     const slide = slides[currentSlide];
     if (!stage || !slide) return undefined;
     let animationFrame = null;
+    let readyFrame = null;
+    let readinessToken = null;
 
     const updateFit = () => {
       if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (readyFrame) cancelAnimationFrame(readyFrame);
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'presentation-fit-recalculated' });
+      readinessToken = window.NightOwlPerformance?.readiness?.begin('presentation-fit', {
+        slideIndex: currentSlide,
+        viewportWidth: stage.clientWidth,
+        viewportHeight: stage.clientHeight
+      }) || null;
+      setPresentationFitReady(false);
       animationFrame = requestAnimationFrame(() => {
         animationFrame = null;
         if (!stage.clientWidth || !stage.clientHeight) return;
@@ -557,6 +571,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           Math.abs(previous.pan.x - next.pan.x) < 0.1 &&
           Math.abs(previous.pan.y - next.pan.y) < 0.1
         ) ? previous : { scale: next.scale, pan: next.pan });
+        readyFrame = requestAnimationFrame(() => {
+          readyFrame = null;
+          setPresentationFitReady(true);
+          window.NightOwlPerformance?.readiness?.complete(readinessToken, {
+            scale: next.scale,
+            slideIndex: currentSlide
+          });
+          readinessToken = null;
+        });
       });
     };
 
@@ -569,6 +592,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
     return () => {
       if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (readyFrame) cancelAnimationFrame(readyFrame);
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'presentation-fit-unmounted' });
       resizeObserver?.disconnect();
       window.removeEventListener('resize', updateFit);
     };
@@ -1265,6 +1290,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       window.removeEventListener('updatePresentationContent', handleContentUpdate);
     };
   }, []);
+
+  useEffect(() => {
+    if (slides.length === 0) return;
+    window.dispatchEvent(new CustomEvent('nightowl:presentation-content-ready', {
+      detail: { slides: slides.length }
+    }));
+  }, [slides]);
 
   // Set up Electron API listeners (only once)
   useEffect(() => {
@@ -2896,6 +2928,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         ref={stageRef}
         className="presentation-stage"
         data-fit-mode={isPresenting ? 'contain' : 'canvas'}
+        data-fit-state={isPresenting ? (presentationFitReady ? 'ready' : 'measuring') : 'inactive'}
         style={presentationStageStyle}
       >
         {/* Canvas */}
