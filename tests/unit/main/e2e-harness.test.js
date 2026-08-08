@@ -1,0 +1,56 @@
+const fs = require('fs');
+const path = require('path');
+
+const RequiredSmokeReporter = require('../../../tests/e2e/reporters/required-smoke-reporter');
+
+describe('required Electron E2E harness', () => {
+  test('default config selects only the required Electron matrix', () => {
+    const config = require('../../../playwright.config');
+
+    expect(config.testDir).toBe('./tests/e2e/required');
+    expect(config.testMatch).toBe('**/*.spec.js');
+    expect(config.workers).toBe(1);
+    expect(config.fullyParallel).toBe(false);
+    expect(config.reporter).toContainEqual([
+      './tests/e2e/reporters/required-smoke-reporter.js'
+    ]);
+  });
+
+  test('active required tests use current production selectors and cover each contract', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../../tests/e2e/required/primary-workflows.spec.js'),
+      'utf8'
+    );
+
+    expect(source).toContain('@file-switch');
+    expect(source).toContain('@preview');
+    expect(source).toContain('@mode-recovery');
+    expect(source).toContain('@slide-geometry');
+    expect(source).not.toContain('show-presentation-btn');
+    expect(source).not.toContain('presentation-view');
+    expect(source).not.toContain('process.env.DISPLAY');
+  });
+
+  test('required reporter fails empty and wholly skipped runs', () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const empty = new RequiredSmokeReporter();
+      empty.onBegin({}, { allTests: () => [] });
+      expect(empty.onEnd()).toEqual({ status: 'failed' });
+
+      const skipped = new RequiredSmokeReporter();
+      skipped.onBegin({}, { allTests: () => [{ id: 'one' }] });
+      skipped.onTestEnd({ id: 'one' }, { status: 'skipped' });
+      expect(skipped.onEnd()).toEqual({ status: 'failed' });
+
+      const executed = new RequiredSmokeReporter();
+      executed.onBegin({}, { allTests: () => [{ id: 'one' }] });
+      executed.onTestEnd({ id: 'one' }, { status: 'passed' });
+      expect(executed.onEnd()).toBeUndefined();
+    } finally {
+      log.mockRestore();
+      error.mockRestore();
+    }
+  });
+});

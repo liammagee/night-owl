@@ -158,6 +158,11 @@ function createStages({ dependency, release = false }) {
       name: 'Jest unit, integration, and behavioral suites',
       command: process.execPath,
       args: [path.join(dependency.path, 'jest', 'bin', 'jest.js'), '--runInBand']
+    },
+    {
+      name: 'Required Electron E2E smoke',
+      command: process.execPath,
+      args: ['scripts/run-electron-e2e.js']
     }
   ];
 
@@ -209,6 +214,7 @@ async function main(argv = process.argv.slice(2)) {
     ...process.env,
     NODE_PATH: [dependency.path, process.env.NODE_PATH].filter(Boolean).join(path.delimiter),
     NODE_OPTIONS: appendNodeOption(process.env.NODE_OPTIONS, '--experimental-vm-modules'),
+    NIGHTOWL_NODE_MODULES: dependency.path,
     NIGHTOWL_TEST_LOOPBACK: loopback.available ? '1' : '0'
   };
 

@@ -13,6 +13,7 @@ The default pipeline runs:
 2. Static repository policy checks.
 3. Workplan validation and generated-view freshness checks.
 4. All Jest unit, integration, and behavioral projects in one process.
+5. The required Playwright Electron smoke matrix.
 
 Run release preflight as an additional stage when changing packaging:
 
@@ -52,6 +53,25 @@ The current file-watcher unit test uses an injected watcher and fake timers, so
 it tests event routing and resource cleanup without consuming an operating-system
 watch descriptor.
 
+The Electron stage launches the real main process and renderer with an isolated
+temporary user-data directory. On macOS it uses the normal desktop session and
+does not inspect X11's `DISPLAY`. Linux runners must provide `DISPLAY` or
+`WAYLAND_DISPLAY` (for example with `xvfb-run`); the required suite fails instead
+of silently skipping when neither is available. Its final summary distinguishes
+planned, executed, passed, failed, and skipped tests.
+
+Run only the required matrix with:
+
+```bash
+npm run test:e2e
+```
+
+Slower accessibility, performance, and theme diagnostics remain explicit:
+
+```bash
+npm run test:e2e:optional
+```
+
 ## Optional pre-push hook
 
 Enable the tracked hook for this clone:
@@ -72,8 +92,8 @@ The hook is opt-in because Git does not activate tracked hooks automatically.
 
 ## Scope boundary
 
-Playwright is not in the required local gate yet. The current browser-style
-suite mixes incompatible harness assumptions; replacing it with deterministic
-Electron workflows is tracked as `modernize-electron-e2e-harness`. Until that
-item closes, `npm run test:e2e` remains an explicit diagnostic command rather
-than evidence that the packaged IDE works.
+The required matrix is deliberately short: rapid file switching, committed
+preview readiness, presentation-load recovery, and complete-slide geometry. It
+does not replace the optional accessibility and performance diagnostics or the
+distribution-readiness stage. Legacy browser-style specs remain quarantined
+until they are rewritten against the shared Electron fixture.
