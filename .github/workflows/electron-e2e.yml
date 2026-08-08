@@ -23,12 +23,6 @@ jobs:
         with:
           path: night-owl
 
-      - name: Checkout tutor-core dependency
-        uses: actions/checkout@v4
-        with:
-          repository: liammagee/machinespirits-tutor-core
-          path: machinespirits-tutor-core
-
       - name: Setup Python for native modules
         id: setup-python
         uses: actions/setup-python@v5

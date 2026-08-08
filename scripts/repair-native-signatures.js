@@ -74,10 +74,8 @@ function main() {
     return;
   }
 
-  const roots = [
-    path.join(process.cwd(), 'node_modules'),
-    path.resolve(process.cwd(), '../machinespirits-tutor-core/node_modules')
-  ].filter(root => fs.existsSync(root));
+  const roots = [path.join(process.cwd(), 'node_modules')]
+    .filter(root => fs.existsSync(root));
 
   if (roots.length === 0) {
     info('No node_modules roots found for signature repair.');

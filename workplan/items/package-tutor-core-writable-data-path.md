@@ -41,9 +41,16 @@ the explicit `initDb` and `setLogDir` calls for later versions.
 A provider-independent status IPC runs a local writing-pad read and reports core,
 storage, and provider readiness separately. The packaged Playwright fixture
 launches a freshly built app with an isolated profile and no external provider
-keys, then verifies the database, log directory, and non-network storage probe.
+keys, then verifies the database, log directory, non-network storage probe, and
+the absence of development-only tutor-core content from the actual app archive.
 The hosted macOS E2E workflow now builds and runs this packaged contract on the
 runner's native architecture.
+
+The IDE also pins tutor-core to its public `v0.5.3` commit archive instead of a
+sibling-directory symlink. Clean installs now resolve tutor-core's production
+dependencies, while packaging filters remove repository settings and tests.
+Builds no longer depend on or capture a developer checkout's local databases,
+logs, settings, or modules.
 
 ## Acceptance criteria
 
@@ -54,12 +61,15 @@ runner's native architecture.
 
 ## Verification
 
+- `npm ci --no-audit --no-fund`: installed the pinned public tutor-core archive
+  and its native production dependencies without a sibling checkout.
 - `npm run dist:dir -- --mac --arm64`: produced a fresh unsigned
   `dist/mac-arm64/NightOwl.app`; only the expected local signing and notarization
   warnings were emitted.
 - `NIGHTOWL_PACKAGED_APP=dist/mac-arm64/NightOwl.app npm run test:e2e:packaged`:
-  one packaged Electron test executed and passed with zero skips.
+  one packaged Electron test executed and passed with zero skips; it also
+  inspected `app.asar` and rejected development-only tutor-core entries.
 - The packaged probe created `tutor-core.db` and the log directory below its
   isolated profile and successfully read the initialized local writing pad.
 - `node scripts/local-ci.js`: 5/5 stages passed, including 87 Jest suites
-  (1,177 tests) and all four required source-level Electron workflows.
+  (1,178 tests) and all four required source-level Electron workflows.
