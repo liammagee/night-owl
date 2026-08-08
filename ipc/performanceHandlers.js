@@ -34,6 +34,17 @@ async function collectGpuDiagnostics(electronApp = app) {
   };
 }
 
+function collectResourceDiagnostics(getResourceDiagnostics) {
+  try {
+    return {
+      success: true,
+      ...(typeof getResourceDiagnostics === 'function' ? getResourceDiagnostics() : {})
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 function getTracePath(electronApp = app) {
   const userDataPath = electronApp.getPath ? electronApp.getPath('userData') : process.cwd();
   return path.join(userDataPath, `nightowl-performance-${Date.now()}.json`);
@@ -83,6 +94,10 @@ function register(dependencies = {}) {
     collectGpuDiagnostics(electronApp)
   ));
 
+  ipcMain.handle('performance:get-resource-diagnostics', async () => (
+    collectResourceDiagnostics(dependencies.getResourceDiagnostics)
+  ));
+
   ipcMain.handle('performance:start-trace', async (_event, options = {}) => (
     startPerformanceTrace(options)
   ));
@@ -96,6 +111,7 @@ function register(dependencies = {}) {
 
 module.exports = {
   collectGpuDiagnostics,
+  collectResourceDiagnostics,
   register,
   startPerformanceTrace,
   stopPerformanceTrace

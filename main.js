@@ -1372,6 +1372,7 @@ if (process.platform !== 'darwin') {
 // Save settings and stop capture bridge on shutdown
 app.on('before-quit', () => {
   saveSettings();
+  ipcHandlers.cleanupHandlers();
   if (citationCaptureServer && citationCaptureServer.isRunning()) {
     citationCaptureServer.stop().catch((error) => {
       console.error('[main.js] Failed to stop citation capture bridge:', error);

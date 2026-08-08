@@ -212,6 +212,15 @@ function cancelBrowserIdleCallback(handle) {
 
 window.NightOwlPerformance = {
     getGPUDiagnostics: async () => window.electronAPI?.invoke('performance:get-gpu-diagnostics'),
+    getResourceDiagnostics: async () => ({
+        ...(await window.electronAPI?.invoke('performance:get-resource-diagnostics')),
+        renderer: window.NightOwlResourceLifecycle?.getDiagnostics?.() || {
+            activeRegistries: 0,
+            activeResources: 0,
+            byType: {},
+            registries: []
+        }
+    }),
     startTrace: async (options = {}) => window.electronAPI?.invoke('performance:start-trace', options),
     stopTrace: async () => window.electronAPI?.invoke('performance:stop-trace')
 };

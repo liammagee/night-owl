@@ -28,6 +28,26 @@ const debug = createDebugLogger('FileHandlers');
 
 const SAVE_BACKUP_DIR_NAME = '.nightowl-backups';
 const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
+let activeRegistrationCleanup = null;
+let activeRegistrationDiagnostics = null;
+
+function cleanup() {
+  if (!activeRegistrationCleanup) return false;
+  const dispose = activeRegistrationCleanup;
+  activeRegistrationCleanup = null;
+  activeRegistrationDiagnostics = null;
+  dispose();
+  return true;
+}
+
+function getDiagnostics() {
+  return activeRegistrationDiagnostics?.() || {
+    watcher: 0,
+    timers: 0,
+    trackedFileStates: 0,
+    cachedScans: 0
+  };
+}
 
 async function statOrNull(filePath, fsApi = fs) {
   try {
@@ -102,6 +122,7 @@ async function guardedWriteFile(filePath, content, options = {}, context = {}) {
  * @param {Object} deps - Dependencies from main.js
  */
 function register(deps) {
+  cleanup();
   const {
     appSettings,
     saveSettings,
@@ -281,6 +302,18 @@ function register(deps) {
       stopWatchingCurrentFile();
     }
   }
+
+  activeRegistrationCleanup = () => {
+    stopWatchingCurrentFile();
+    clearFileScanCaches();
+    fileStateMap.clear();
+  };
+  activeRegistrationDiagnostics = () => ({
+    watcher: currentFileWatcher ? 1 : 0,
+    timers: currentFileWatchTimer ? 1 : 0,
+    trackedFileStates: fileStateMap.size,
+    cachedScans: availableFilesCache.size + markdownFilesCache.size
+  });
 
   function resolveMainWindow() {
     const allWindows = typeof BrowserWindow.getAllWindows === 'function'
@@ -3251,6 +3284,8 @@ function register(deps) {
 
 module.exports = {
   register,
+  cleanup,
+  getDiagnostics,
   __testHooks: {
     SAVE_CONFLICT_CODE,
     statOrNull,

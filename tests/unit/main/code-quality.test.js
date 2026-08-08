@@ -172,6 +172,26 @@ describe('Code quality guardrails', () => {
     expect(orchestratorPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
   });
 
+  test('dynamic resources have explicit owners and app shutdown cleanup', () => {
+    const lifecycleSource = fs.readFileSync(path.join(__dirname, '../../../services/resourceLifecycle.js'), 'utf8');
+    const featureLoaderSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/feature-loader.js'), 'utf8');
+    const feedSource = fs.readFileSync(path.join(__dirname, '../../../ipc/feedHandlers.js'), 'utf8');
+    const ipcSource = fs.readFileSync(path.join(__dirname, '../../../ipc/index.js'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+
+    expect(indexSource).toContain('services/resourceLifecycle.js');
+    expect(lifecycleSource).toContain('function createRegistry');
+    expect(featureLoaderSource).toContain('disposeFeatureLifecycle');
+    expect(featureLoaderSource).toContain('disposeAllFeatures');
+    expect(feedSource).toContain("name: 'main:research-feed'");
+    expect(feedSource).toContain('pollLifecycle.interval');
+    expect(feedSource).toContain('pollLifecycle.timeout');
+    expect(ipcSource).toContain('fileHandlers.cleanup()');
+    expect(ipcSource).toContain('terminalHandlers.cleanup()');
+    expect(mainSource).toContain('ipcHandlers.cleanupHandlers()');
+  });
+
   test('NightOwl command-line installer is reachable from the app menu and packaged build', () => {
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const cliSource = fs.readFileSync(path.join(__dirname, '../../../bin/nightowl'), 'utf8');

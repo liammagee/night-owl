@@ -46,4 +46,18 @@ test('@packaged @ui-state packaged modes share the same live pane state', async 
     expect(snapshot.state.activeRightPane).toBe('chat');
     expect(snapshot.activeViews).toEqual([`${snapshot.requested}-content`]);
   }
+
+  const resources = await appPage.evaluate(() => window.NightOwlPerformance.getResourceDiagnostics());
+  expect(resources).toMatchObject({
+    success: true,
+    handlers: {
+      feed: { active: expect.any(Number) },
+      file: { watcher: expect.any(Number) },
+      terminal: { activeProcesses: expect.any(Number) }
+    },
+    renderer: {
+      activeRegistries: expect.any(Number),
+      activeResources: expect.any(Number)
+    }
+  });
 });
