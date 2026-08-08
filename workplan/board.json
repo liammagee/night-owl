@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-08T13:11:51.232Z",
+  "generated": "2026-08-08T13:52:59.972Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 4,
-      "done": 15
+      "triaged": 3,
+      "done": 16
     },
     "byPriority": {
       "P2": 10,
@@ -12,7 +12,6 @@
       "P1": 7
     },
     "byArea": {
-      "accessibility": 1,
       "performance": 1,
       "architecture": 3,
       "editor": 1,
@@ -21,32 +20,11 @@
       "testing": 3,
       "packaging": 2,
       "security": 2,
+      "accessibility": 1,
       "platform": 2
     }
   },
   "items": [
-    {
-      "id": "accessible-names-and-presentation-semantics",
-      "title": "Add accessible names and preserve presentation semantics",
-      "status": "triaged",
-      "type": "enhancement",
-      "priority": "P2",
-      "area": "accessibility",
-      "owner": "unassigned",
-      "source": "computer-use",
-      "evidence": "reproduced",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "Axe and keyboard tests pass for editor and presentation controls, and every visible icon-only control has a stable accessible name.",
-      "tags": [
-        "a11y",
-        "keyboard",
-        "presentation"
-      ],
-      "depends_on": [
-        "modernize-electron-e2e-harness"
-      ]
-    },
     {
       "id": "performance-and-large-document-budgets",
       "title": "Add budgets for startup, file switching, preview, and large documents",
@@ -293,6 +271,28 @@
       "depends_on": [
         "reliable-editor-preview-transitions",
         "recover-presentation-load-failures"
+      ]
+    },
+    {
+      "id": "accessible-names-and-presentation-semantics",
+      "title": "Add accessible names and preserve presentation semantics",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "accessibility",
+      "owner": "codex",
+      "source": "computer-use",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "Axe and keyboard tests pass for editor and presentation controls, and every visible icon-only control has a stable accessible name.",
+      "tags": [
+        "a11y",
+        "keyboard",
+        "presentation"
+      ],
+      "depends_on": [
+        "modernize-electron-e2e-harness"
       ]
     },
     {

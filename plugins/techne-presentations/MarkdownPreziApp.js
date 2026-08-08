@@ -52,6 +52,8 @@ var setSanitizedHTML = function setSanitizedHTML(element, html) {
 // Lucide React icons as simple SVG components
 var ChevronLeft = function ChevronLeft() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "24",
     height: "24",
     viewBox: "0 0 24 24",
@@ -64,6 +66,8 @@ var ChevronLeft = function ChevronLeft() {
 };
 var ChevronRight = function ChevronRight() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "24",
     height: "24",
     viewBox: "0 0 24 24",
@@ -76,6 +80,8 @@ var ChevronRight = function ChevronRight() {
 };
 var Upload = function Upload() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -95,6 +101,8 @@ var Upload = function Upload() {
 };
 var ZoomIn = function ZoomIn() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -121,6 +129,8 @@ var ZoomIn = function ZoomIn() {
 };
 var ZoomOut = function ZoomOut() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -245,6 +255,8 @@ var PresentationSlideContent = function PresentationSlideContent(_ref) {
 };
 var Home = function Home() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -259,6 +271,8 @@ var Home = function Home() {
 };
 var Play = function Play() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -271,6 +285,8 @@ var Play = function Play() {
 };
 var StickyNote = function StickyNote() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -289,6 +305,8 @@ var StickyNote = function StickyNote() {
 };
 var Eye = function Eye() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -305,6 +323,8 @@ var Eye = function Eye() {
 };
 var EyeOff = function EyeOff() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -326,6 +346,8 @@ var EyeOff = function EyeOff() {
 };
 var Speaker = function Speaker() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -340,6 +362,8 @@ var Speaker = function Speaker() {
 };
 var SpeakerOff = function SpeakerOff() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -357,6 +381,8 @@ var SpeakerOff = function SpeakerOff() {
 };
 var LoadingSpinner = function LoadingSpinner() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -379,6 +405,8 @@ var LoadingSpinner = function LoadingSpinner() {
 };
 var RecordIcon = function RecordIcon() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -393,6 +421,8 @@ var RecordIcon = function RecordIcon() {
 };
 var StopIcon = function StopIcon() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -408,6 +438,8 @@ var StopIcon = function StopIcon() {
 };
 var PauseIcon = function PauseIcon() {
   return /*#__PURE__*/React.createElement("svg", {
+    "aria-hidden": "true",
+    focusable: "false",
     width: "16",
     height: "16",
     viewBox: "0 0 24 24",
@@ -591,6 +623,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var stageRef = useRef(null);
   var presentationControlsRef = useRef(null);
   var navigationControlsRef = useRef(null);
+  var previousFocusRef = useRef(null);
   var zoomInteractionTimeoutRef = useRef(null);
   var zoomRef = useRef(zoom);
   var panRef = useRef(pan);
@@ -1707,12 +1740,13 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Keyboard navigation
   useEffect(function () {
     var handleKeyPress = function handleKeyPress(e) {
+      var _containerRef$current, _e$target$closest, _e$target;
       // Only handle keyboard events if we're in presentation view and not focused on an input element
-      var presentationContent = document.getElementById('presentation-content');
-      var isInPresentationView = presentationContent && presentationContent.classList.contains('active');
+      var isInPresentationView = Boolean(document.body.classList.contains('presentation-mode') && ((_containerRef$current = containerRef.current) === null || _containerRef$current === void 0 ? void 0 : _containerRef$current.isConnected));
       var isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
-      if (!isInPresentationView || isInputFocused) {
-        return; // Don't handle keyboard events if not in presentation view or if an input is focused
+      var isInteractiveControl = Boolean((_e$target$closest = (_e$target = e.target).closest) === null || _e$target$closest === void 0 ? void 0 : _e$target$closest.call(_e$target, 'button, a[href], select, [role="button"], [role="menuitem"], [role="option"]'));
+      if (!isInPresentationView || isInputFocused || isInteractiveControl) {
+        return; // Preserve native keyboard behavior for focused controls.
       }
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
@@ -1723,6 +1757,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       } else if (e.key === 'Home') {
         e.preventDefault();
         goToSlide(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(slides.length - 1);
       } else if (e.key === 'Escape') {
         console.log('[PRESENTATION] Escaping presentation mode...');
 
@@ -1741,11 +1778,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     return function () {
       return window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [currentSlide, goToSlide]);
+  }, [currentSlide, goToSlide, slides.length]);
 
   // Control body class for presenting mode
   useEffect(function () {
     if (isPresenting) {
+      if (!previousFocusRef.current) previousFocusRef.current = document.activeElement;
       document.body.classList.add('is-presenting');
       console.log('[Presentation] Added is-presenting class to body');
 
@@ -1763,6 +1801,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
       // Immediate focus
       focusMainWindow();
+      requestAnimationFrame(function () {
+        var _containerRef$current2;
+        (_containerRef$current2 = containerRef.current) === null || _containerRef$current2 === void 0 || (_containerRef$current2 = _containerRef$current2.querySelector('[data-current-slide="true"]')) === null || _containerRef$current2 === void 0 || _containerRef$current2.focus({
+          preventScroll: true
+        });
+      });
 
       // Additional focus attempts to override any focus stealing
       setTimeout(focusMainWindow, 100);
@@ -1880,6 +1924,17 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         delete el.dataset.hiddenByPresentation;
       });
       console.log('[Presentation] Restored content toolbar');
+      var previousFocus = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previousFocus) {
+        requestAnimationFrame(function () {
+          var _containerRef$current3;
+          var target = previousFocus.isConnected ? previousFocus : (_containerRef$current3 = containerRef.current) === null || _containerRef$current3 === void 0 ? void 0 : _containerRef$current3.querySelector('.presentation-present-btn');
+          target === null || target === void 0 || target.focus({
+            preventScroll: true
+          });
+        });
+      }
     }
   }, [isPresenting]);
 
@@ -2814,6 +2869,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     ref: containerRef,
     className: "presentation-shell w-full h-full relative overflow-hidden ".concat(isPresenting ? '' : 'cursor-grab active:cursor-grabbing'),
     "data-presentation-mode": isPresenting ? 'delivery' : 'authoring',
+    role: "region",
+    "aria-label": isPresenting ? 'Presentation delivery' : 'Presentation editor',
     style: {
       background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))',
       height: '100%',
@@ -2824,12 +2881,15 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     onMouseUp: handleMouseUp,
     onMouseLeave: handleMouseUp
   }, !isPresenting && /*#__PURE__*/React.createElement("div", {
-    className: "absolute top-4 left-4 z-10 flex gap-2"
+    className: "absolute top-4 left-4 z-10 flex gap-2",
+    role: "group",
+    "aria-label": "Presentation layout"
   }, /*#__PURE__*/React.createElement("select", {
     value: layoutType,
     onChange: function onChange(e) {
       return setLayoutType(e.target.value);
     },
+    "aria-label": "Presentation layout",
     className: "px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-[#E63946] outline-none shadow-lg",
     style: {
       backgroundColor: '#fefdfb'
@@ -2847,19 +2907,24 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   }, "Tree"), /*#__PURE__*/React.createElement("option", {
     value: "zigzag"
   }, "Zigzag"))), !isPresenting && /*#__PURE__*/React.createElement("div", {
-    className: "absolute top-4 right-4 z-10 flex gap-2"
+    className: "absolute top-4 right-4 z-10 flex gap-2",
+    role: "toolbar",
+    "aria-label": "Presentation editor controls"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: handleZoomIn,
+    "aria-label": "Zoom in",
     className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Zoom In"
+    "data-tooltip": "Zoom in"
   }, /*#__PURE__*/React.createElement(ZoomIn, null)), /*#__PURE__*/React.createElement("button", {
     onClick: handleZoomOut,
+    "aria-label": "Zoom out",
     className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Zoom Out"
+    "data-tooltip": "Zoom out"
   }, /*#__PURE__*/React.createElement(ZoomOut, null)), /*#__PURE__*/React.createElement("button", {
     onClick: _resetView,
+    "aria-label": "Reset presentation view",
     className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Reset View"
+    "data-tooltip": "Reset presentation view"
   }, /*#__PURE__*/React.createElement(Home, null)), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       if (window.exportVisualizationAsPNG) {
@@ -2867,20 +2932,25 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }
     },
     className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Export as PNG"
+    "aria-label": "Export presentation as PNG",
+    "data-tooltip": "Export presentation as PNG"
   }, "\uD83D\uDCF8"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      return setIsPresenting(true);
+      previousFocusRef.current = document.activeElement;
+      setIsPresenting(true);
     },
-    className: "presentation-control-btn presentation-present-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-lg border"
-  }, /*#__PURE__*/React.createElement(Play, null), "Present")), /*#__PURE__*/React.createElement("div", {
+    className: "presentation-control-btn presentation-present-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-lg border",
+    "aria-label": "Start presentation"
+  }, /*#__PURE__*/React.createElement(Play, null), "Present")), /*#__PURE__*/React.createElement("nav", {
     ref: navigationControlsRef,
-    className: "presentation-navigation absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4"
+    className: "presentation-navigation absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4",
+    "aria-label": "Slide navigation"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return goToSlide(currentSlide - 1);
     },
     disabled: currentSlide === 0,
+    "aria-label": "Previous slide",
     className: "p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg",
     style: {
       background: 'var(--techne-off-white, #fafafa)',
@@ -2890,6 +2960,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     }
   }, /*#__PURE__*/React.createElement(ChevronLeft, null)), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg",
+    role: "status",
+    "aria-live": "polite",
+    "aria-atomic": "true",
     style: {
       background: 'var(--techne-off-white, #fafafa)',
       color: 'var(--techne-black, #0a0a0a)',
@@ -2903,6 +2976,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       return goToSlide(currentSlide + 1);
     },
     disabled: currentSlide === slides.length - 1,
+    "aria-label": "Next slide",
     className: "p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg",
     style: {
       background: 'var(--techne-accent, #E63946)',
@@ -2912,7 +2986,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     }
   }, /*#__PURE__*/React.createElement(ChevronRight, null))), isPresenting && /*#__PURE__*/React.createElement("div", {
     ref: presentationControlsRef,
-    className: "presentation-toolbar absolute top-4 right-4 z-10 flex gap-2"
+    className: "presentation-toolbar absolute top-4 right-4 z-10 flex gap-2",
+    role: "toolbar",
+    "aria-label": "Presentation delivery controls"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       if (window.exportVisualizationAsPNG) {
@@ -2920,13 +2996,16 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }
     },
     className: "p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
-    title: "Export as PNG"
+    "aria-label": "Export presentation as PNG",
+    "data-tooltip": "Export presentation as PNG"
   }, "\uD83D\uDCF8"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return toggleSpeakerNotesWindow();
     },
     className: "p-2 rounded-lg transition-colors shadow-lg border ".concat(speakerNotesWindowVisible ? 'bg-green-600 hover:bg-green-700 text-white border-green-700' : 'bg-cream hover:bg-gray-100 text-gray-900'),
-    title: speakerNotesWindowVisible ? "Switch to Bottom Panel" : "Switch to Separate Window"
+    "data-tooltip": speakerNotesWindowVisible ? "Show speaker notes in bottom panel" : "Show speaker notes in separate window",
+    "aria-label": speakerNotesWindowVisible ? "Show speaker notes in bottom panel" : "Show speaker notes in separate window",
+    "aria-pressed": speakerNotesWindowVisible
   }, speakerNotesWindowVisible ? /*#__PURE__*/React.createElement(StickyNote, null) : /*#__PURE__*/React.createElement(Eye, null), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '8px',
@@ -2946,15 +3025,18 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       color: 'white',
       borderColor: 'var(--techne-black, #0a0a0a)'
     } : {},
-    title: isLoadingTTS ? "Loading audio..." : ttsEnabled ? "Disable Text-to-Speech" : "Enable Text-to-Speech",
+    "data-tooltip": isLoadingTTS ? "Loading slide narration" : ttsEnabled ? "Disable slide narration" : "Enable slide narration",
+    "aria-label": isLoadingTTS ? "Loading slide narration" : ttsEnabled ? "Disable slide narration" : "Enable slide narration",
+    "aria-pressed": ttsEnabled,
     disabled: isLoadingTTS
   }, isLoadingTTS ? /*#__PURE__*/React.createElement(LoadingSpinner, null) : ttsEnabled ? /*#__PURE__*/React.createElement(Speaker, null) : /*#__PURE__*/React.createElement(SpeakerOff, null)), /*#__PURE__*/React.createElement("select", {
     value: selectedVoice,
     onChange: function onChange(e) {
       return setSelectedVoice(e.target.value);
     },
+    "aria-label": "Narration voice",
     className: "px-2 py-1 text-sm rounded-lg bg-cream hover:bg-gray-100 text-gray-900 border shadow-lg cursor-pointer",
-    title: "Select TTS Voice",
+    "data-tooltip": "Select narration voice",
     style: {
       maxWidth: '90px'
     }
@@ -2968,18 +3050,22 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     value: "michael"
   }, "Michael")), !isRecording ? /*#__PURE__*/React.createElement("button", {
     onClick: startRecording,
+    "aria-label": "Start presentation recording",
     className: "p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg border border-red-700",
-    title: "Start Recording"
+    "data-tooltip": "Start presentation recording"
   }, /*#__PURE__*/React.createElement(RecordIcon, null)) : /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: togglePauseRecording,
+    "aria-label": isPaused ? "Resume presentation recording" : "Pause presentation recording",
+    "aria-pressed": isPaused,
     className: "p-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors shadow-lg border border-yellow-700",
-    title: isPaused ? "Resume Recording" : "Pause Recording"
+    "data-tooltip": isPaused ? "Resume presentation recording" : "Pause presentation recording"
   }, isPaused ? /*#__PURE__*/React.createElement(RecordIcon, null) : /*#__PURE__*/React.createElement(PauseIcon, null)), /*#__PURE__*/React.createElement("button", {
     onClick: stopRecording,
+    "aria-label": "Stop presentation recording",
     className: "p-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors shadow-lg border border-gray-700",
-    title: "Stop Recording"
+    "data-tooltip": "Stop presentation recording"
   }, /*#__PURE__*/React.createElement(StopIcon, null)), /*#__PURE__*/React.createElement("span", {
     className: "px-2 py-1 bg-red-600 text-white rounded text-sm"
   }, formatRecordingTime(recordingDuration))), /*#__PURE__*/React.createElement("button", {
@@ -2998,7 +3084,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       // Exit presentation mode
       setIsPresenting(false);
     },
-    className: "px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+    className: "px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
+    "aria-label": "Exit presentation"
   }, "Exit Presentation")), /*#__PURE__*/React.createElement("div", {
     ref: stageRef,
     className: "presentation-stage",
@@ -3023,6 +3110,11 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       key: slide.id,
       "data-slide-index": index,
       "data-current-slide": isCurrent ? 'true' : 'false',
+      role: "group",
+      "aria-roledescription": "slide",
+      "aria-label": "Slide ".concat(index + 1, " of ").concat(slides.length),
+      "aria-current": isCurrent ? 'step' : undefined,
+      tabIndex: isCurrent ? 0 : -1,
       className: "absolute slide rounded-xl shadow-2xl transition-all duration-500 transform ".concat(slide.backgroundImage ? 'slide-has-bg' : '', " ").concat(isPresenting ? 'presentation-current-slide' : isFocused ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse' : isCurrent ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105' : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'),
       style: _objectSpread({
         '--slide-x': "".concat(slide.position.x, "px"),
@@ -3052,7 +3144,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       isPresenting: isPresenting
     }));
   }), !isPresenting && /*#__PURE__*/React.createElement("svg", {
-    className: "absolute inset-0 pointer-events-none",
+    className: "presentation-connection-lines absolute inset-0 pointer-events-none",
+    "aria-hidden": "true",
+    focusable: "false",
     style: {
       width: '200%',
       height: '200%'

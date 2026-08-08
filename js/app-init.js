@@ -222,7 +222,10 @@ function setupKeyboardShortcuts() {
     }
     
     // Presentation mode shortcuts
-    if (document.body.classList.contains('presentation-mode')) {
+    if (
+      document.body.classList.contains('presentation-mode') &&
+      !document.body.classList.contains('is-presenting')
+    ) {
       switch (e.key) {
         case 'Escape':
           e.preventDefault();

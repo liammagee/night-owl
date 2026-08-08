@@ -15,8 +15,8 @@ const TOKENS = {
     '--techne-bg': '#fdf6e3',
     '--techne-surface': '#eee8d5',
     '--techne-surface-elevated': '#fdf6e3',
-    '--techne-text': '#657b83',
-    '--techne-text-muted': '#93a1a1',
+    '--techne-text': '#43565d',
+    '--techne-text-muted': '#52666d',
     '--techne-text-inverted': '#fdf6e3',
     '--techne-border': 'rgba(101, 123, 131, 0.25)',
     '--techne-border-subtle': 'rgba(101, 123, 131, 0.12)'
@@ -28,9 +28,9 @@ const TOKENS = {
     '--techne-bg': '#002b36',
     '--techne-surface': '#073642',
     '--techne-surface-elevated': '#0a4050',
-    '--techne-text': '#839496',
-    '--techne-text-muted': '#586e75',
-    '--techne-text-inverted': '#002b36',
+    '--techne-text': '#b4c5c5',
+    '--techne-text-muted': '#9aabad',
+    '--techne-text-inverted': '#ffffff',
     '--techne-border': 'rgba(131, 148, 150, 0.25)',
     '--techne-border-subtle': 'rgba(131, 148, 150, 0.12)'
   }

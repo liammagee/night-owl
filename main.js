@@ -3314,7 +3314,7 @@ app.whenReady().then(async () => {
       border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     }
     
-    .speaker-notes-header h4 {
+    .speaker-notes-header h1 {
       margin: 0;
       font-size: 14px;
       color: #ecf0f1;
@@ -3379,11 +3379,13 @@ app.whenReady().then(async () => {
   </style>
 </head>
 <body>
+  <main aria-labelledby="speaker-notes-window-title">
   <div class="speaker-notes-header">
-    <h4>📝 Speaker Notes</h4>
-    <div class="slide-indicator">Slide <span id="slide-number">1</span></div>
+    <h1 id="speaker-notes-window-title">📝 Speaker Notes</h1>
+    <div class="slide-indicator" role="status" aria-live="polite" aria-atomic="true">Slide <span id="slide-number">1</span></div>
   </div>
-  <div id="notes-content"><em>No speaker notes for this slide.</em></div>
+  <div id="notes-content" role="note" aria-live="polite" aria-atomic="true"><em>No speaker notes for this slide.</em></div>
+  </main>
   <script>
     function renderEmptyState(contentDiv) {
       contentDiv.replaceChildren();

@@ -1,5 +1,4 @@
-const { test, expect, _electron: electron } = require('@playwright/test');
-const path = require('path');
+const { test, expect } = require('./fixtures/electron-app');
 
 const isHeadlessLinux = process.platform === 'linux' && !process.env.DISPLAY;
 
@@ -63,30 +62,15 @@ async function collectAppDiagnostics(page) {
 }
 
 test.describe('Performance Tests', () => {
-  let app;
-  let window;
-
   test.skip(isHeadlessLinux || process.env.HEADLESS, 'Electron performance tests require a desktop display');
 
-  test.beforeEach(async () => {
-    const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
-    app = await electron.launch({
-      args: [path.join(__dirname, '../..')],
-      env: { ...cleanEnv, NODE_ENV: 'test' }
-    });
-
-    window = await app.firstWindow();
-    await waitForNightOwlReady(window);
+  test.beforeEach(async ({ appPage }) => {
+    await appPage.evaluate(() => window.switchToMode('editor'));
+    await waitForNightOwlReady(appPage);
   });
 
-  test.afterEach(async () => {
-    if (app) {
-      await app.close();
-    }
-  });
-
-  test('app reaches editor, file tree, and feature readiness', async () => {
-    const diagnostics = await collectAppDiagnostics(window);
+  test('app reaches editor, file tree, and feature readiness', async ({ appPage }) => {
+    const diagnostics = await collectAppDiagnostics(appPage);
 
     expect(diagnostics.editorReady).toBe(true);
     expect(diagnostics.fileTreeReady).toBe(true);
@@ -94,9 +78,9 @@ test.describe('Performance Tests', () => {
     expect(diagnostics.navigation).toBeTruthy();
   });
 
-  test('file tree exposes rendered app nodes after workspace load', async () => {
-    await waitForFileTreeState(window);
-    const diagnostics = await collectAppDiagnostics(window);
+  test('file tree exposes rendered app nodes after workspace load', async ({ appPage }) => {
+    await waitForFileTreeState(appPage);
+    const diagnostics = await collectAppDiagnostics(appPage);
 
     expect(diagnostics.fileTreeReady).toBe(true);
     if (diagnostics.electronBridgeReady) {
@@ -108,12 +92,12 @@ test.describe('Performance Tests', () => {
     }
   });
 
-  test('editor large-document update is measured in the renderer', async () => {
+  test('editor large-document update is measured in the renderer', async ({ appPage }) => {
     const largeContent = Array.from({ length: 1500 }, (_, index) =>
       `## Section ${index + 1}\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit.`
     ).join('\n\n');
 
-    const measurement = await window.evaluate(async (content) => {
+    const measurement = await appPage.evaluate(async (content) => {
       performance.clearMarks('nightowl-large-set-start');
       performance.clearMarks('nightowl-large-set-end');
       performance.clearMeasures('nightowl-large-set');
@@ -139,8 +123,8 @@ test.describe('Performance Tests', () => {
     expect(Number.isFinite(measurement.duration)).toBe(true);
   });
 
-  test('editor scroll workflow changes editor state without fixed sleeps', async () => {
-    const scrollState = await window.evaluate(async () => {
+  test('editor scroll workflow changes editor state without fixed sleeps', async ({ appPage }) => {
+    const scrollState = await appPage.evaluate(async () => {
       const content = Array.from({ length: 400 }, (_, index) => `Line ${index + 1}`).join('\n');
       window.editor.setValue(content);
       window.editor.setScrollTop?.(0);
@@ -179,16 +163,16 @@ test.describe('Performance Tests', () => {
     expect(scrollState.finalScrollTop > scrollState.initialScrollTop || scrollState.lineNumber > 1).toBe(true);
   });
 
-  test('renderer exposes navigation and paint metrics for trace comparison', async () => {
-    const diagnostics = await collectAppDiagnostics(window);
+  test('renderer exposes navigation and paint metrics for trace comparison', async ({ appPage }) => {
+    const diagnostics = await collectAppDiagnostics(appPage);
 
     expect(diagnostics.navigation).toBeTruthy();
     expect(Number.isFinite(diagnostics.navigation.domInteractive)).toBe(true);
     expect(Array.isArray(diagnostics.paints)).toBe(true);
   });
 
-  test('animation frame sampling runs inside the app window', async () => {
-    const frameStats = await window.evaluate(() => new Promise((resolve) => {
+  test('animation frame sampling runs inside the app window', async ({ appPage }) => {
+    const frameStats = await appPage.evaluate(() => new Promise((resolve) => {
       const samples = [];
       let previous = performance.now();
 

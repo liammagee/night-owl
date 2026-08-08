@@ -64,7 +64,12 @@ describe('nightowl-presentations plugin', () => {
     expect(scriptsArg.some(url => url.includes('speaker-notes.js'))).toBe(true);
     expect(scriptsArg.some(url => url.includes('touch-gestures.js'))).toBe(true);
 
-    expect(document.body.querySelector('#speaker-notes-panel')).toBeTruthy();
+    const notesPanel = document.body.querySelector('#speaker-notes-panel');
+    expect(notesPanel).toBeTruthy();
+    expect(notesPanel.getAttribute('role')).toBe('region');
+    expect(notesPanel.getAttribute('aria-labelledby')).toBe('speaker-notes-title');
+    expect(notesPanel.querySelector('#current-slide-notes').getAttribute('role')).toBe('note');
+    expect(notesPanel.querySelector('#speaker-notes-resize-handle').getAttribute('role')).toBe('separator');
     expect(host.emit).toHaveBeenCalledWith('presentations:ready', { id: 'nightowl-presentations' });
   });
 

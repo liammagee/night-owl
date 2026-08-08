@@ -5,7 +5,8 @@ module.exports = defineConfig({
   testMatch: [
     'accessibility.e2e.js',
     'editor-theme-inheritance.e2e.js',
-    'performance.e2e.js'
+    'performance.e2e.js',
+    'theme-consistency.spec.js'
   ],
   timeout: 90 * 1000,
   expect: {

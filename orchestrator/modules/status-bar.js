@@ -261,11 +261,11 @@ async function updateGitStatusIndicator() {
 
             // Color based on state
             if (statusResult.clean) {
-                indicator.style.color = '#22c55e'; // green
+                indicator.style.color = 'var(--git-status-clean, #166534)';
             } else if (statusResult.staged > 0) {
-                indicator.style.color = '#f59e0b'; // amber - staged changes
+                indicator.style.color = 'var(--git-status-staged, #7a3f00)';
             } else {
-                indicator.style.color = '#6366f1'; // indigo - has changes
+                indicator.style.color = 'var(--git-status-changed, #4338ca)';
             }
 
             // Update tooltip
@@ -276,7 +276,8 @@ async function updateGitStatusIndicator() {
             if (statusResult.ahead > 0) tooltip += `\nUnpushed commits: ${statusResult.ahead}`;
             if (statusResult.clean) tooltip += `\n✓ Working tree clean`;
             tooltip += `\n\nClick to open Source Control`;
-            indicator.title = tooltip;
+            indicator.dataset.tooltip = tooltip;
+            indicator.setAttribute('aria-label', tooltip.replace(/\n+/g, '. '));
         } else {
             indicator.style.display = 'none';
         }

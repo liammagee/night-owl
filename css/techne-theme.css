@@ -60,7 +60,7 @@ body.techne-theme {
     --text-secondary: rgba(10, 10, 10, 0.68);
     --text-muted: rgba(10, 10, 10, 0.55);
     --text-disabled: rgba(10, 10, 10, 0.35);
-    --text-on-primary: var(--techne-white);
+    --text-on-primary: var(--techne-black);
 
     --primary: var(--primary-600);
     --primary-hover: var(--primary-700);
@@ -237,7 +237,7 @@ body.techne-theme .mode-btn:hover {
 
 body.techne-theme .mode-btn.active {
     background: var(--primary-500) !important;
-    color: var(--techne-white) !important;
+    color: var(--techne-black) !important;
     border-color: var(--techne-black) !important;
 }
 
