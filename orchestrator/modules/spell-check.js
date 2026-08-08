@@ -78,7 +78,7 @@
 
     try {
       // Use Electron's session spell checker
-      const result = await window.electronAPI.invoke('spell-check-words', { words });
+      const result = await window.electronAPI.spellcheck.checkWords({ words });
       if (result.success && result.misspelled) {
         return result.misspelled;
       }
@@ -338,7 +338,7 @@
     saveCustomDictionary();
     // Also tell Electron's session
     if (window.electronAPI) {
-      window.electronAPI.invoke('spell-add-word', { word: word.toLowerCase() });
+      window.electronAPI.spellcheck.addWord({ word: word.toLowerCase() });
     }
     // Re-run check to clear the decoration
     if (enabled) scheduleCheck();
@@ -349,7 +349,7 @@
     customDictionary.delete(word.toLowerCase());
     saveCustomDictionary();
     if (window.electronAPI) {
-      window.electronAPI.invoke('spell-remove-word', { word: word.toLowerCase() });
+      window.electronAPI.spellcheck.removeWord({ word: word.toLowerCase() });
     }
     if (enabled) scheduleCheck();
   }

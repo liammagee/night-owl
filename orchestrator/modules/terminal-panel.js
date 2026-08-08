@@ -78,7 +78,7 @@
 
       if (terminalSpawned) {
         // Interactive mode: send to running shell
-        window.electronAPI.invoke('terminal-write', { data: cmd + '\n' });
+        window.electronAPI.terminal.write({ data: cmd + '\n' });
       } else {
         // One-shot mode: run command and show output
         appendOutput(`$ ${cmd}\n`, 'command');
@@ -101,7 +101,7 @@
       }
     } else if (e.key === 'c' && e.ctrlKey) {
       if (terminalSpawned) {
-        window.electronAPI.invoke('terminal-write', { data: '\x03' });
+        window.electronAPI.terminal.write({ data: '\x03' });
       }
     }
   }
@@ -110,7 +110,7 @@
     if (!window.electronAPI) return;
 
     const cwd = window.appSettings?.workingDirectory || undefined;
-    const result = await window.electronAPI.invoke('terminal-exec', { command: cmd, cwd });
+    const result = await window.electronAPI.terminal.exec({ command: cmd, cwd });
 
     if (result.output) {
       appendOutput(result.output, 'stdout');
@@ -124,14 +124,14 @@
     if (!window.electronAPI || terminalSpawned) return;
 
     const cwd = window.appSettings?.workingDirectory || undefined;
-    const result = await window.electronAPI.invoke('terminal-spawn', { cwd });
+    const result = await window.electronAPI.terminal.spawn({ cwd });
 
     if (result.success) {
       terminalSpawned = true;
       appendOutput(`[Shell started, PID: ${result.pid}]\n`, 'info');
 
       // Listen for output
-      cleanupListener = window.electronAPI.on('terminal-output', (msg) => {
+      cleanupListener = window.electronAPI.events.terminalOutput((msg) => {
         if (msg.sessionId && msg.sessionId !== 'default') return;
         if (msg.data) {
           appendOutput(msg.data, msg.stream);
@@ -142,7 +142,7 @@
 
   async function killProcess() {
     if (window.electronAPI) {
-      await window.electronAPI.invoke('terminal-kill');
+      await window.electronAPI.terminal.kill();
     }
     terminalSpawned = false;
     if (cleanupListener) {

@@ -7,7 +7,7 @@ let currentSettings = null;
 async function openSettingsDialog(category = 'general') {
     try {
         // Load current settings
-        currentSettings = await window.electronAPI.invoke('get-settings');
+        currentSettings = await window.electronAPI.settings.getSettings();
         
         // Create dialog if it doesn't exist
         if (!settingsDialog) {
@@ -161,7 +161,7 @@ function createSettingsDialog() {
                 delete window.appSettings.plugins;
 
                 // Persist to settings file
-                await window.electronAPI?.invoke?.('set-settings', window.appSettings);
+                await window.electronAPI?.settings?.setSettings(window.appSettings);
 
                 // Update mode button visibility
                 if (window.updateModeButtonVisibility) {
@@ -1803,7 +1803,7 @@ function addSettingsEventListeners(category) {
             
             // Save settings
             try {
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 
                 // Update currentSettings to reflect the change
                 if (!currentSettings.linkPreview) currentSettings.linkPreview = {};
@@ -1860,7 +1860,7 @@ function addSettingsEventListeners(category) {
                 window.appSettings.theme = newTheme;
 
                 // Save settings
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
 
                 // Update currentSettings to reflect the change
                 currentSettings.theme = newTheme;
@@ -1912,7 +1912,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.accent = accent;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), accent };
 
                 if (window.appSettings.theme === 'techne') {
@@ -1937,7 +1937,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.grid = grid;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), grid };
 
                 if (window.appSettings.theme === 'techne') {
@@ -1962,7 +1962,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.noise = noise;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), noise };
 
                 if (window.appSettings.theme === 'techne') {
@@ -1987,7 +1987,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.blurBloom = blurBloom;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), blurBloom };
 
                 if (window.appSettings.theme === 'techne') {
@@ -2149,7 +2149,7 @@ function setupTTSEventListeners() {
     // Helper function to save TTS settings
     async function saveTTSSettings(updates) {
         try {
-            await window.electronAPI.invoke('update-settings-category', 'tts', updates);
+            await window.electronAPI.settings.updateSettingsCategory('tts', updates);
             console.log('[Settings] TTS settings saved:', updates);
             
             // Update current settings to reflect changes
@@ -2340,7 +2340,7 @@ async function saveSettingsDialog() {
         const nextHideGeneratedArtifacts = updatedSettings?.navigation?.hideGeneratedArtifacts === true;
         
         // Update settings via IPC
-        await window.electronAPI.invoke('set-settings', updatedSettings);
+        await window.electronAPI.settings.setSettings(updatedSettings);
         
         // Update global settings object
         window.appSettings = updatedSettings;
@@ -2359,7 +2359,7 @@ async function saveSettingsDialog() {
                 window.renderFileTree();
             }
             try {
-                await window.electronAPI.invoke('refresh-file-tree');
+                await window.electronAPI.files.refreshFileTree();
             } catch (error) {
                 console.warn('[Settings] Could not refresh file tree after artifact setting change:', error);
             }
@@ -2913,7 +2913,7 @@ async function testVisualizationFilters() {
         const excludePatterns = document.getElementById('viz-exclude-patterns')?.value.split('\n').filter(p => p.trim()) || [];
         
         // Get all files and test filters
-        const allFiles = await window.electronAPI.invoke('get-available-files');
+        const allFiles = await window.electronAPI.workspace.getAvailableFiles();
         const filteredFiles = filterVisualizationFiles(allFiles, includePatterns, excludePatterns);
 
         const formatFileItem = (fileItem) => {
@@ -2973,7 +2973,7 @@ async function testVisualizationFilters() {
 // Helper functions for dialog buttons
 async function changeWorkingDirectory() {
     try {
-        const result = await window.electronAPI.invoke('change-working-directory');
+        const result = await window.electronAPI.workspace.changeWorkingDirectory();
         if (result.success) {
             const input = document.getElementById('working-directory');
             if (input && result.directory) {
@@ -2992,7 +2992,7 @@ async function changeWorkingDirectory() {
 
 async function exportSettingsFromDialog() {
     try {
-        await window.electronAPI.invoke('export-settings');
+        await window.electronAPI.settings.exportSettings();
         showNotification('Settings exported successfully', 'success');
     } catch (error) {
         console.error('[Renderer] Error exporting settings:', error);
@@ -3002,7 +3002,7 @@ async function exportSettingsFromDialog() {
 
 async function importSettingsFromDialog() {
     try {
-        await window.electronAPI.invoke('import-settings');
+        await window.electronAPI.settings.importSettings();
         showNotification('Settings imported successfully', 'success');
     } catch (error) {
         console.error('[Renderer] Error importing settings:', error);
@@ -3196,7 +3196,7 @@ async function generateModelOptions(provider, selectedModel) {
         }
 
         // Get models from backend
-        const result = await window.electronAPI.invoke('get-provider-models', provider);
+        const result = await window.electronAPI.ai.getProviderModels(provider);
         if (!result || !result.models || !Array.isArray(result.models)) {
             console.warn(`[Settings] No models available for provider: ${provider}`);
             return '';
@@ -3295,7 +3295,7 @@ function toggleWritingCompanionOptions() {
 
 async function browseSystemPromptFile() {
     try {
-        const result = await window.electronAPI.invoke('browse-system-prompt-file');
+        const result = await window.electronAPI.settings.browseSystemPromptFile();
         if (result.success && result.filePath) {
             const input = document.getElementById('system-prompt-file');
             if (input) {
@@ -3392,7 +3392,7 @@ async function refreshAIProviders() {
         console.log('[Settings] Refreshing AI providers...');
 
         // Get fresh provider data from backend
-        const providerData = await window.electronAPI.invoke('get-available-ai-providers');
+        const providerData = await window.electronAPI.ai.getAvailableAiProviders();
         if (!providerData || !providerData.providers) {
             console.warn('[Settings] No provider data received');
             showNotification('No AI providers available', 'warning');

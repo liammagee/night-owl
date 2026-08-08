@@ -31,7 +31,7 @@
 
       for (const f of mdFiles) {
         try {
-          const result = await window.electronAPI.invoke('read-file', f.path);
+          const result = await window.electronAPI.files.readFile(f.path);
           if (result && result.content) {
             files.push({ name: f.name, content: result.content });
           }
@@ -105,7 +105,7 @@
       }
 
       try {
-        const result = await window.electronAPI.invoke('static-site-generate', {
+        const result = await window.electronAPI.publishing.generate({
           files: selectedFiles,
           options: { title }
         });

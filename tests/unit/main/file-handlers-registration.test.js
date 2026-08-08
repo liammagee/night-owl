@@ -55,6 +55,42 @@ describe('fileHandlers registration', () => {
     expect(handler()).toBe('/workspace/updated');
   });
 
+  test('extract-text-with-replacement writes the new file and updates the source inside the workspace', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-extract-text-'));
+    const originalFilePath = path.join(workspace, 'source.md');
+    const newFilePath = path.join(workspace, 'extracted.md');
+    fsSync.writeFileSync(originalFilePath, '# Source\n\nSelected passage.\n');
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(() => originalFilePath),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const handler = getRegisteredHandler('extract-text-with-replacement');
+      const result = await handler({}, {
+        originalFilePath,
+        textToReplace: 'Selected passage.',
+        replacementText: '[[extracted]]',
+        newFilePath,
+        newFileContent: '# Extracted\n\nSelected passage.'
+      });
+
+      expect(result).toMatchObject({ success: true, originalFilePath, newFilePath });
+      expect(fsSync.readFileSync(originalFilePath, 'utf8')).toContain('[[extracted]]');
+      expect(fsSync.readFileSync(newFilePath, 'utf8')).toContain('Selected passage.');
+    } finally {
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   test('change-working-directory updates state through the provided setter', async () => {
     let currentWorkingDirectory = '/workspace/initial';
     const send = jest.fn();

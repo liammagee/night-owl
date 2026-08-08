@@ -89,7 +89,7 @@ Output ONLY the markdown outline (headings and optional bullet points), no other
       }
 
       try {
-        const result = await window.electronAPI.invoke('ai-chat', {
+        const result = await window.electronAPI.ai.aiChat({
           messages: [{ role: 'user', content: prompt }]
         });
 

@@ -151,7 +151,7 @@ async function performGlobalSearch() {
         }
         
         // Perform regular content search
-        const result = await window.electronAPI.invoke('global-search', { query, options });
+        const result = await window.electronAPI.search.globalSearch({ query, options });
 
         if (result.success) {
             // Check if this is a file pattern search
@@ -665,7 +665,7 @@ async function performGlobalReplace(previewOnly = false) {
             previewOnly: previewOnly
         };
         
-        const result = await window.electronAPI.invoke('global-replace', {
+        const result = await window.electronAPI.search.globalReplace({
             searchQuery,
             replaceText,
             options

@@ -3276,7 +3276,7 @@ Rules:
         const rawLabel = suggestion.targetLabel || this.getNodeDisplayLabel(targetNode) || targetId;
         const targetLabel = rawLabel ? rawLabel.replace(/\s+/g, ' ').trim() : targetId;
 
-        if (!window?.electronAPI?.invoke) {
+        if (!window?.electronAPI?.app?.libraryAppendInternalLink) {
             this.setStatus('File bridge unavailable in this environment.', { temporary: true, duration: 2200 });
             return;
         }
@@ -3291,7 +3291,7 @@ Rules:
         this.setStatus('Scribing Ash’s corridor…', { temporary: true, duration: 2000 });
 
         try {
-            const result = await window.electronAPI.invoke('library.append-internal-link', payload);
+            const result = await window.electronAPI.app.libraryAppendInternalLink(payload);
             if (!result?.success && !result?.alreadyExists) {
                 const message = result?.error || 'Failed to inscribe corridor.';
                 this.setStatus(message, { temporary: true, duration: 2200 });

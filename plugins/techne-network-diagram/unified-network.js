@@ -764,7 +764,7 @@ class UnifiedNetworkVisualization {
     async getFileContent(filePath) {
         try {
             if (window.electronAPI) {
-                const result = await window.electronAPI.invoke('read-file-content', filePath);
+                const result = await window.electronAPI.files.readFileContent(filePath);
                 return result.success ? result.content : null;
             }
             return null;

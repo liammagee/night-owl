@@ -675,10 +675,10 @@
                 }
 
                 if (hasRecoverableTabs) {
-                    await window.electronAPI.invoke('recovery-persist', recoveryData);
+                    await window.electronAPI.recovery.recoveryPersist(recoveryData);
                 } else {
                     // No unsaved content — clear the recovery file
-                    await window.electronAPI.invoke('recovery-clear');
+                    await window.electronAPI.recovery.recoveryClear();
                 }
             } catch (err) {
                 console.warn('[TabManager] Recovery persist failed:', err);
@@ -688,7 +688,7 @@
         async _loadRecovery() {
             if (!window.electronAPI) return null;
             try {
-                const result = await window.electronAPI.invoke('recovery-load');
+                const result = await window.electronAPI.recovery.recoveryLoad();
                 if (result.success && result.data) {
                     return result.data;
                 }
@@ -901,7 +901,7 @@
                 const activeTabIndex = this.activeTabPath
                     ? this.tabOrder.indexOf(this.activeTabPath)
                     : 0;
-                await window.electronAPI.invoke('set-settings', {
+                await window.electronAPI.settings.setSettings({
                     editorTabs: { openTabs, activeTabIndex }
                 });
             } catch (err) {
@@ -912,7 +912,7 @@
         async _restoreTabs() {
             if (!window.electronAPI) return;
             try {
-                const settings = await window.electronAPI.invoke('get-settings');
+                const settings = await window.electronAPI.settings.getSettings();
                 const tabSettings = settings?.editorTabs;
                 if (!tabSettings?.openTabs?.length) return;
 
@@ -953,7 +953,7 @@
 
                     // Real file — read from disk first
                     try {
-                        const response = await window.electronAPI.invoke('read-file', filePath);
+                        const response = await window.electronAPI.files.readFile(filePath);
                         if (response && response.success && response.content !== undefined) {
                             this.createTab(filePath, response.content, detectLanguage(filePath));
 
@@ -987,7 +987,7 @@
                 // Clear recovery file now that data has been applied
                 // (it will be re-created if tabs are still dirty)
                 if (recovery) {
-                    await window.electronAPI.invoke('recovery-clear');
+                    await window.electronAPI.recovery.recoveryClear();
                 }
             } catch (err) {
                 console.warn('[TabManager] Failed to restore tabs:', err);

@@ -41,7 +41,7 @@ test('@packaged @tutor-core initializes writable local storage without an extern
     );
   }
 
-  const status = await appPage.evaluate(() => window.electronAPI.invoke('get-tutor-core-status'));
+  const status = await appPage.evaluate(() => window.electronAPI.ai.getTutorCoreStatus());
 
   expect(status).toMatchObject({
     success: true,

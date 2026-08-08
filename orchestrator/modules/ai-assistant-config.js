@@ -79,7 +79,7 @@ Your style is scholarly, patient, and intellectually rigorous while remaining ac
 
     async loadAssistantSettings() {
         try {
-            const settings = await window.electronAPI.invoke('get-settings');
+            const settings = await window.electronAPI.settings.getSettings();
             if (settings && settings.ai && settings.ai.assistants) {
                 this.mergeCustomSettings(settings.ai.assistants);
                 console.log('[AIAssistantConfig] Loaded custom settings for assistants:', Object.keys(settings.ai.assistants));

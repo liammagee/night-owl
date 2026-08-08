@@ -13,8 +13,9 @@ describe('Basic Renderer Test Setup', () => {
 
   test('should have mocked electronAPI', () => {
     expect(global.electronAPI).toBeDefined();
-    expect(global.electronAPI.invoke).toBeDefined();
-    expect(typeof global.electronAPI.invoke).toBe('function');
+    expect(global.electronAPI.invoke).toBeUndefined();
+    expect(typeof global.electronAPI.files.readFile).toBe('function');
+    expect(typeof global.electronAPI.git.status).toBe('function');
   });
 
   test('should have mocked Monaco editor', () => {

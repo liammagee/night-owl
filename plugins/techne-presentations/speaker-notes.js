@@ -153,7 +153,7 @@ async function showSpeakerNotesPanel(content, forceInline = false) {
         allNotes: allNotes
       };
       
-      const result = await window.electronAPI.invoke('open-speaker-notes-window', windowData);
+      const result = await window.electronAPI.presentation.openSpeakerNotesWindow(windowData);
       
       // Store notes for later updates and make them available to React component
       // Only create if React isn't already controlling it
@@ -253,7 +253,7 @@ async function hideSpeakerNotesPanel() {
   // Close the separate window if it exists
   if (window.electronAPI) {
     try {
-      await window.electronAPI.invoke('close-speaker-notes-window');
+      await window.electronAPI.presentation.closeSpeakerNotesWindow();
       console.log('[Speaker Notes] Separate window closed');
     } catch (error) {
       console.error('[Speaker Notes] Failed to close separate window:', error);
@@ -297,7 +297,7 @@ async function updateSpeakerNotes(slideIndex, content) {
     
     try {
       const formattedNotes = currentSlideNotes ? markdownToHtml(currentSlideNotes) : '<em>No speaker notes for this slide.</em>';
-      const updateResult = await window.electronAPI.invoke('update-speaker-notes', {
+      const updateResult = await window.electronAPI.presentation.updateSpeakerNotes({
         notes: formattedNotes,
         slideNumber: slideIndex + 1
       });
@@ -306,7 +306,7 @@ async function updateSpeakerNotes(slideIndex, content) {
       if (!updateResult.success && updateResult.error === 'Speaker notes window not available') {
         // Recreate the window with the full speaker notes data
         try {
-          await window.electronAPI.invoke('open-speaker-notes-window', {
+          await window.electronAPI.presentation.openSpeakerNotesWindow({
             notes: formattedNotes,
             slideNumber: slideIndex + 1,
             allNotes: window.speakerNotesData.allNotes

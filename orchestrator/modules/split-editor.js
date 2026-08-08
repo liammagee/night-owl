@@ -136,7 +136,7 @@
     if (!secondEditor || !window.electronAPI) return;
 
     try {
-      const result = await window.electronAPI.invoke('read-file', filePath);
+      const result = await window.electronAPI.files.readFile(filePath);
       const content = typeof result === 'string' ? result : (result?.content || '');
 
       // Detect language
@@ -164,7 +164,7 @@
           clearTimeout(secondModel._saveTimer);
           secondModel._saveTimer = setTimeout(async () => {
             try {
-              await window.electronAPI.invoke('save-file', {
+              await window.electronAPI.files.saveFile({
                 filePath: secondFilePath,
                 content: secondModel.getValue()
               });

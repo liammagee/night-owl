@@ -66,9 +66,9 @@
   }
 
   async function getRuntimeWorkingDirectory() {
-    if (window.electronAPI?.invoke) {
+    if (window.electronAPI?.workspace?.getWorkingDirectory) {
       try {
-        const workingDirectory = await window.electronAPI.invoke('get-working-directory');
+        const workingDirectory = await window.electronAPI.workspace.getWorkingDirectory();
         if (workingDirectory) return workingDirectory;
       } catch (error) {
         console.warn('[GitPanel] Could not resolve runtime working directory:', error);
@@ -85,7 +85,7 @@
     if (!workingDir) return;
 
     // Find repo
-    const repoResult = await window.electronAPI.invoke('git-find-repo', workingDir);
+    const repoResult = await window.electronAPI.git.findRepo(workingDir);
     if (!repoResult.success) {
       repoRoot = null;
       renderNoRepo();
@@ -94,7 +94,7 @@
     repoRoot = repoResult.repoRoot;
 
     // Get branch
-    const branchResult = await window.electronAPI.invoke('git-get-branch', repoRoot);
+    const branchResult = await window.electronAPI.git.getBranch(repoRoot);
     currentBranch = branchResult.success ? branchResult.branch : '??';
     const branchEl = document.getElementById('git-branch-name');
     if (branchEl) branchEl.textContent = currentBranch;
@@ -102,7 +102,7 @@
     // Ahead/behind indicator
     const syncEl = document.getElementById('git-sync-indicator');
     if (syncEl) {
-      const summary = await window.electronAPI.invoke('git-status-summary', repoRoot);
+      const summary = await window.electronAPI.git.statusSummary(repoRoot);
       if (summary.success) {
         const parts = [];
         if (summary.ahead > 0) parts.push(`↑${summary.ahead}`);
@@ -117,7 +117,7 @@
     }
 
     // Get detailed status
-    const statusResult = await window.electronAPI.invoke('git-status-detailed', repoRoot);
+    const statusResult = await window.electronAPI.git.statusDetailed(repoRoot);
     if (statusResult.success) {
       renderFileList('git-staged-list', statusResult.staged, true);
       renderFileList('git-unstaged-list', statusResult.unstaged, false);
@@ -191,7 +191,7 @@
       if (unstageBtn) {
         unstageBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          await window.electronAPI.invoke('git-unstage', { repoRoot, paths: [file.file] });
+          await window.electronAPI.git.unstage({ repoRoot, paths: [file.file] });
           refresh();
         });
       }
@@ -200,7 +200,7 @@
       if (stageBtn) {
         stageBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          await window.electronAPI.invoke('git-stage', { repoRoot, paths: [file.file] });
+          await window.electronAPI.git.stage({ repoRoot, paths: [file.file] });
           refresh();
         });
       }
@@ -219,7 +219,7 @@
             confirmText: 'Discard',
             variant: 'danger'
           }))) return;
-          await window.electronAPI.invoke('git-discard', {
+          await window.electronAPI.git.discard({
             repoRoot,
             paths: [file.file],
             untracked: file.status === 'untracked'
@@ -249,29 +249,27 @@
     if (status === 'untracked') {
       // New untracked file — show full content as "added"
       try {
-        const result = await window.electronAPI.invoke('read-file',
-          repoRoot + '/' + filePath);
+        const result = await window.electronAPI.files.readFile(repoRoot + '/' + filePath);
         modifiedContent = typeof result === 'string' ? result : (result?.content || '');
       } catch (e) {
         modifiedContent = '';
       }
     } else if (status === 'deleted') {
       // Deleted file — show HEAD version as "removed"
-      const headResult = await window.electronAPI.invoke('git-file-content', {
+      const headResult = await window.electronAPI.git.fileContent({
         repoRoot, ref: 'HEAD', filePath
       });
       originalContent = headResult.success ? headResult.content : '';
     } else {
       // Get HEAD version
-      const headResult = await window.electronAPI.invoke('git-file-content', {
+      const headResult = await window.electronAPI.git.fileContent({
         repoRoot, ref: 'HEAD', filePath
       });
       originalContent = headResult.success ? headResult.content : '';
 
       // Get working copy
       try {
-        const result = await window.electronAPI.invoke('read-file',
-          repoRoot + '/' + filePath);
+        const result = await window.electronAPI.files.readFile(repoRoot + '/' + filePath);
         modifiedContent = typeof result === 'string' ? result : (result?.content || '');
       } catch (e) {
         modifiedContent = originalContent;
@@ -279,7 +277,7 @@
 
       // If cached (staged), modified = staged content which we get from index
       if (cached) {
-        const indexResult = await window.electronAPI.invoke('git-file-content', {
+        const indexResult = await window.electronAPI.git.fileContent({
           repoRoot, ref: ':0', filePath
         });
         if (indexResult.success) {
@@ -295,7 +293,7 @@
   async function showDiffWithHunks(filePath) {
     if (!repoRoot) return;
 
-    const hunksResult = await window.electronAPI.invoke('git-diff-hunks', {
+    const hunksResult = await window.electronAPI.git.diffHunks({
       repoRoot, filePath
     });
     if (!hunksResult.success || hunksResult.hunks.length === 0) {
@@ -359,7 +357,7 @@
         const hunk = hunksResult.hunks[idx];
         // Build a minimal patch: file header + single hunk
         const patch = hunksResult.fileHeader + '\n' + hunk.lines.join('\n') + '\n';
-        const result = await window.electronAPI.invoke('git-stage-hunk', { repoRoot, patch });
+        const result = await window.electronAPI.git.stageHunk({ repoRoot, patch });
         if (result.success) {
           btn.textContent = 'Staged';
           btn.disabled = true;
@@ -373,7 +371,7 @@
 
     // Stage all hunks at once (just stage the whole file)
     document.getElementById('git-stage-all-hunks').addEventListener('click', async () => {
-      await window.electronAPI.invoke('git-stage', { repoRoot, paths: [filePath] });
+      await window.electronAPI.git.stage({ repoRoot, paths: [filePath] });
       closeDiffModal();
       notify('All changes staged', 'success');
       refresh();
@@ -509,7 +507,7 @@
     const listEl = document.getElementById('git-branch-list');
     if (!listEl) return;
 
-    const result = await window.electronAPI.invoke('git-list-branches', repoRoot);
+    const result = await window.electronAPI.git.listBranches(repoRoot);
     if (!result.success) {
       listEl.innerHTML = '<div style="padding:12px;font-size:12px;color:#888;">Failed to load branches</div>';
       return;
@@ -567,7 +565,7 @@
     closeBranchDialog();
 
     // Check for dirty tree
-    const statusResult = await window.electronAPI.invoke('git-status-detailed', repoRoot);
+    const statusResult = await window.electronAPI.git.statusDetailed(repoRoot);
     if (statusResult.success && (statusResult.staged.length > 0 || statusResult.unstaged.length > 0)) {
       const choice = await confirmGitAction({
         title: 'Stash Before Switching',
@@ -577,7 +575,7 @@
         variant: 'warning'
       });
       if (choice) {
-        const stashResult = await window.electronAPI.invoke('git-stash-save', {
+        const stashResult = await window.electronAPI.git.stashSave({
           repoRoot, message: `Auto-stash before switching to ${branch}`
         });
         if (!stashResult.success) {
@@ -588,7 +586,7 @@
       }
     }
 
-    const result = await window.electronAPI.invoke('git-switch-branch', { repoRoot, branch, create });
+    const result = await window.electronAPI.git.switchBranch({ repoRoot, branch, create });
     if (result.success) {
       notify(`Switched to ${branch}`, 'success');
       refresh();
@@ -609,7 +607,7 @@
 
     listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Loading...</div>';
 
-    const result = await window.electronAPI.invoke('git-log', { repoRoot, limit: 50 });
+    const result = await window.electronAPI.git.log({ repoRoot, limit: 50 });
     if (!result.success) {
       listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Failed to load history</div>';
       return;
@@ -633,7 +631,7 @@
   }
 
   async function showCommitDetail(hash) {
-    const result = await window.electronAPI.invoke('git-show', { repoRoot, hash });
+    const result = await window.electronAPI.git.show({ repoRoot, hash });
     if (!result.success) {
       notify('Failed to load commit detail', 'error');
       return;
@@ -693,7 +691,7 @@
         confirmText: 'Cherry-pick',
         variant: 'warning'
       }))) return;
-      const cpResult = await window.electronAPI.invoke('git-cherry-pick', { repoRoot, hash });
+      const cpResult = await window.electronAPI.git.cherryPick({ repoRoot, hash });
       if (cpResult.success) {
         closeDiffModal();
         notify(`Cherry-picked ${hash.substring(0, 8)}`, 'success');
@@ -707,15 +705,15 @@
     overlay.querySelectorAll('.git-file-item[data-file]').forEach(el => {
       el.addEventListener('click', async () => {
         const filePath = el.dataset.file;
-        const diffResult = await window.electronAPI.invoke('git-diff-commit', { repoRoot, hash, filePath });
+        const diffResult = await window.electronAPI.git.diffCommit({ repoRoot, hash, filePath });
         if (diffResult.success) {
           // Parse diff to get before/after — fallback: just show raw diff
           closeDiffModal();
           // Show content at parent and at commit
-          const parentContent = await window.electronAPI.invoke('git-file-content', {
+          const parentContent = await window.electronAPI.git.fileContent({
             repoRoot, ref: hash + '^', filePath
           });
-          const commitContent = await window.electronAPI.invoke('git-file-content', {
+          const commitContent = await window.electronAPI.git.fileContent({
             repoRoot, ref: hash, filePath
           });
           openDiffModal(filePath,
@@ -735,7 +733,7 @@
     const countEl = document.getElementById('git-stash-count');
     if (!section || !listEl) return;
 
-    const result = await window.electronAPI.invoke('git-stash-list', repoRoot);
+    const result = await window.electronAPI.git.stashList(repoRoot);
     if (!result.success || result.stashes.length === 0) {
       section.style.display = 'none';
       return;
@@ -759,13 +757,13 @@
       `;
 
       item.querySelector('.git-stash-apply').addEventListener('click', async () => {
-        const r = await window.electronAPI.invoke('git-stash-apply', { repoRoot, ref: stash.ref, drop: false });
+        const r = await window.electronAPI.git.stashApply({ repoRoot, ref: stash.ref, drop: false });
         r.success ? notify('Stash applied', 'success') : notify('Apply failed: ' + r.error, 'error');
         refresh();
       });
 
       item.querySelector('.git-stash-pop').addEventListener('click', async () => {
-        const r = await window.electronAPI.invoke('git-stash-apply', { repoRoot, ref: stash.ref, drop: true });
+        const r = await window.electronAPI.git.stashApply({ repoRoot, ref: stash.ref, drop: true });
         r.success ? notify('Stash popped', 'success') : notify('Pop failed: ' + r.error, 'error');
         refresh();
       });
@@ -778,7 +776,7 @@
           confirmText: 'Drop Stash',
           variant: 'danger'
         }))) return;
-        const r = await window.electronAPI.invoke('git-stash-drop', { repoRoot, ref: stash.ref });
+        const r = await window.electronAPI.git.stashDrop({ repoRoot, ref: stash.ref });
         r.success ? notify('Stash dropped', 'success') : notify('Drop failed: ' + r.error, 'error');
         refresh();
       });
@@ -808,7 +806,7 @@
       relativePath = filePath.substring(repoRoot.length + 1);
     }
 
-    const result = await window.electronAPI.invoke('git-blame', { repoRoot, filePath: relativePath });
+    const result = await window.electronAPI.git.blame({ repoRoot, filePath: relativePath });
     if (!result.success) {
       notify('Blame failed: ' + result.error, 'error');
       return;
@@ -861,7 +859,7 @@
   // --- Phase 7: Merge conflicts ---
   async function checkConflicts() {
     if (!repoRoot) return;
-    const result = await window.electronAPI.invoke('git-merge-conflicts', repoRoot);
+    const result = await window.electronAPI.git.mergeConflicts(repoRoot);
     if (result.success && result.files.length > 0) {
       showConflictUI(result.files);
     }
@@ -907,7 +905,7 @@
     // Read current file content (with conflict markers)
     let content = '';
     try {
-      const result = await window.electronAPI.invoke('read-file', repoRoot + '/' + filePath);
+      const result = await window.electronAPI.files.readFile(repoRoot + '/' + filePath);
       content = typeof result === 'string' ? result : (result?.content || '');
     } catch (e) {
       notify('Failed to read file', 'error');
@@ -976,11 +974,11 @@
     // Conflict action handlers
     const writeAndResolve = async (newContent) => {
       try {
-        await window.electronAPI.invoke('save-file', {
+        await window.electronAPI.files.saveFile({
           filePath: repoRoot + '/' + filePath,
           content: newContent
         });
-        await window.electronAPI.invoke('git-mark-resolved', { repoRoot, filePath });
+        await window.electronAPI.git.markResolved({ repoRoot, filePath });
         closeDiffModal();
         notify(`Resolved: ${basename(filePath)}`, 'success');
         refresh();
@@ -999,7 +997,7 @@
       writeAndResolve([...oursLines, ...theirsLines].join('\n'));
     });
     document.getElementById('git-mark-resolved').addEventListener('click', async () => {
-      await window.electronAPI.invoke('git-mark-resolved', { repoRoot, filePath });
+      await window.electronAPI.git.markResolved({ repoRoot, filePath });
       closeDiffModal();
       notify(`Marked resolved: ${basename(filePath)}`, 'success');
       refresh();
@@ -1025,7 +1023,7 @@
       relativePath = filePath.substring(repoRoot.length + 1);
     }
 
-    const result = await window.electronAPI.invoke('git-diff-lines', {
+    const result = await window.electronAPI.git.diffLines({
       repoRoot, filePath: relativePath
     });
 
@@ -1147,7 +1145,7 @@
 
     listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Loading...</div>';
 
-    const result = await window.electronAPI.invoke('git-list-tags', repoRoot);
+    const result = await window.electronAPI.git.listTags(repoRoot);
     if (!result.success) {
       listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Failed to load tags</div>';
       return;
@@ -1182,7 +1180,7 @@
           confirmText: 'Delete Tag',
           variant: 'danger'
         }))) return;
-        const r = await window.electronAPI.invoke('git-delete-tag', { repoRoot, name: tag.name });
+        const r = await window.electronAPI.git.deleteTag({ repoRoot, name: tag.name });
         r.success ? notify(`Tag "${tag.name}" deleted`, 'success') : notify('Delete failed: ' + r.error, 'error');
         loadTags();
       });
@@ -1225,7 +1223,7 @@
       const message = document.getElementById('git-tag-message-input').value.trim();
       if (!name) { notify('Enter a tag name', 'error'); return; }
 
-      const result = await window.electronAPI.invoke('git-create-tag', {
+      const result = await window.electronAPI.git.createTag({
         repoRoot, name, message, annotated: !!message
       });
       if (result.success) {
@@ -1253,7 +1251,7 @@
 
     listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Loading...</div>';
 
-    const result = await window.electronAPI.invoke('git-list-remotes', repoRoot);
+    const result = await window.electronAPI.git.listRemotes(repoRoot);
     if (!result.success) {
       listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Failed to load remotes</div>';
       return;
@@ -1282,7 +1280,7 @@
       item.querySelector('.git-remote-push-to').addEventListener('click', async (e) => {
         e.stopPropagation();
         notify(`Pushing to ${remote.name}...`, 'info');
-        const r = await window.electronAPI.invoke('git-push-to-remote', {
+        const r = await window.electronAPI.git.pushToRemote({
           repoRoot, remote: remote.name, branch: currentBranch, setUpstream: true
         });
         r.success ? notify(`Pushed to ${remote.name}`, 'success') : notify('Push failed: ' + r.error, 'error');
@@ -1298,7 +1296,7 @@
           confirmText: 'Remove Remote',
           variant: 'danger'
         }))) return;
-        const r = await window.electronAPI.invoke('git-remove-remote', { repoRoot, name: remote.name });
+        const r = await window.electronAPI.git.removeRemote({ repoRoot, name: remote.name });
         r.success ? notify(`Remote "${remote.name}" removed`, 'success') : notify('Remove failed: ' + r.error, 'error');
         loadRemotes();
       });
@@ -1341,7 +1339,7 @@
       const url = document.getElementById('git-remote-url-input').value.trim();
       if (!name || !url) { notify('Enter name and URL', 'error'); return; }
 
-      const result = await window.electronAPI.invoke('git-add-remote', { repoRoot, name, url });
+      const result = await window.electronAPI.git.addRemote({ repoRoot, name, url });
       if (result.success) {
         overlay.remove();
         notify(`Remote "${name}" added`, 'success');
@@ -1365,7 +1363,7 @@
 
     listEl.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#888;">Loading graph...</div>';
 
-    const result = await window.electronAPI.invoke('git-log-graph', { repoRoot, limit: 60 });
+    const result = await window.electronAPI.git.logGraph({ repoRoot, limit: 60 });
     if (!result.success || result.entries.length === 0) {
       // Fall back to simple log
       loadHistory();
@@ -1451,7 +1449,7 @@
         if (!message) { notify('Enter a commit message', 'error'); return; }
         if (!repoRoot) { notify('No git repository', 'error'); return; }
 
-        const result = await window.electronAPI.invoke('git-commit', { repoRoot, message, amend });
+        const result = await window.electronAPI.git.commit({ repoRoot, message, amend });
         if (result.success) {
           notify(`${amend ? 'Amended' : 'Committed'}: ${result.commitHash}`, 'success');
           if (msgEl) msgEl.value = '';
@@ -1470,7 +1468,7 @@
         const msgEl = document.getElementById('git-commit-message');
         if (!msgEl || !repoRoot) return;
         if (amendCheck.checked && !msgEl.value.trim()) {
-          const logResult = await window.electronAPI.invoke('git-log', { repoRoot, limit: 1 });
+          const logResult = await window.electronAPI.git.log({ repoRoot, limit: 1 });
           if (logResult.success && logResult.commits.length > 0) {
             msgEl.value = logResult.commits[0].message;
             msgEl.focus();
@@ -1496,7 +1494,7 @@
       pushBtn.addEventListener('click', async () => {
         if (!repoRoot) return;
         notify('Pushing...', 'info');
-        const result = await window.electronAPI.invoke('git-push', repoRoot);
+        const result = await window.electronAPI.git.push(repoRoot);
         result.success ? notify('Pushed successfully', 'success') : notify('Push failed: ' + result.error, 'error');
         refresh();
       });
@@ -1508,7 +1506,7 @@
       pullBtn.addEventListener('click', async () => {
         if (!repoRoot) return;
         notify('Pulling...', 'info');
-        const result = await window.electronAPI.invoke('git-pull', repoRoot);
+        const result = await window.electronAPI.git.pull(repoRoot);
         if (result.success) {
           notify('Pull: ' + (result.output || 'Up to date'), 'success');
           refresh();
@@ -1537,7 +1535,7 @@
     if (stageAllBtn) {
       stageAllBtn.addEventListener('click', async () => {
         if (!repoRoot) return;
-        await window.electronAPI.invoke('git-stage', { repoRoot, paths: ['.'] });
+        await window.electronAPI.git.stage({ repoRoot, paths: ['.'] });
         refresh();
       });
     }
@@ -1546,7 +1544,7 @@
     if (unstageAllBtn) {
       unstageAllBtn.addEventListener('click', async () => {
         if (!repoRoot) return;
-        await window.electronAPI.invoke('git-unstage', { repoRoot, paths: ['.'] });
+        await window.electronAPI.git.unstage({ repoRoot, paths: ['.'] });
         refresh();
       });
     }
@@ -1564,11 +1562,11 @@
         }))) return;
         // Discard tracked changes
         try {
-          await window.electronAPI.invoke('git-discard', { repoRoot, paths: ['.'], untracked: false });
+          await window.electronAPI.git.discard({ repoRoot, paths: ['.'], untracked: false });
         } catch (e) { /* may fail if no tracked changes */ }
         // Clean untracked
         try {
-          await window.electronAPI.invoke('git-discard', { repoRoot, paths: ['.'], untracked: true });
+          await window.electronAPI.git.discard({ repoRoot, paths: ['.'], untracked: true });
         } catch (e) { /* may fail if no untracked files */ }
         refresh();
       });
@@ -1581,7 +1579,7 @@
         if (!repoRoot) return;
         const msg = prompt('Stash message (optional):');
         if (msg === null) return; // cancelled
-        const result = await window.electronAPI.invoke('git-stash-save', { repoRoot, message: msg || '' });
+        const result = await window.electronAPI.git.stashSave({ repoRoot, message: msg || '' });
         result.success ? notify('Changes stashed', 'success') : notify('Stash failed: ' + result.error, 'error');
         refresh();
       });
@@ -1636,7 +1634,7 @@
         name: 'Git: Push Tags',
         action: async () => {
           if (!repoRoot) return;
-          const r = await window.electronAPI.invoke('git-push-tags', repoRoot);
+          const r = await window.electronAPI.git.pushTags(repoRoot);
           r.success ? notify('Tags pushed', 'success') : notify('Push tags failed: ' + r.error, 'error');
         }
       });

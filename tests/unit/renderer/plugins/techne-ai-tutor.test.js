@@ -11,6 +11,7 @@
  */
 
 const path = require('path');
+const { createElectronApiMock } = require('../../../helpers/electron-api-mock');
 
 const pluginPath = path.resolve(__dirname, '../../../../plugins/techne-ai-tutor/plugin.js');
 
@@ -392,10 +393,7 @@ describe('Techne AI Tutor - AI Adapter (Electron Mode)', () => {
 
     // Setup Electron mock
     mockInvoke = jest.fn().mockResolvedValue({ content: 'Electron AI response' });
-    window.electronAPI = {
-      isElectron: true,
-      invoke: mockInvoke
-    };
+    window.electronAPI = createElectronApiMock((channel, ...args) => mockInvoke(channel, ...args)).api;
 
     window.NightOwlFeatures = { register: jest.fn() };
     document.body.innerHTML = '<div class="editor-container"></div>';

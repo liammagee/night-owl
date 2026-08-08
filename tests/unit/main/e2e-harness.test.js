@@ -26,7 +26,7 @@ describe('required Electron E2E harness', () => {
     expect(config.testDir).toBe('./tests/e2e/packaged');
     expect(config.testMatch).toBe('**/*.spec.js');
     expect(config.workers).toBe(1);
-    expect(source).toContain("window.electronAPI.invoke('get-tutor-core-status')");
+    expect(source).toContain("window.electronAPI.ai.getTutorCoreStatus()");
     expect(source).toContain('expect(status.runtimePaths)');
     expect(source).not.toMatch(/sendMessage|generateText|fetch\(/);
 

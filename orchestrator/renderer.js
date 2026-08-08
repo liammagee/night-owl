@@ -3,7 +3,7 @@
 // Replace console logging with IPC-based logging for visibility in main process
 function debugLog(level, message, data) {
     if (window.electronAPI) {
-        window.electronAPI.invoke('debug-log', level, message, data);
+        window.electronAPI.app.debugLog(level, message, data);
     }
     // Also keep console logs as fallback
     if (data !== undefined) {
@@ -195,7 +195,7 @@ async function loadPDFAnnotationsModule() {
     try {
         // Use Electron's file system to read the pdfAnnotations.js file
         const filePath = './orchestrator/pdfAnnotations.js';
-        const response = await window.electronAPI.invoke('read-file', filePath);
+        const response = await window.electronAPI.files.readFile(filePath);
         
         if (response.success) {
             // Create a script element instead of using eval() to avoid CSP issues
@@ -277,9 +277,9 @@ function cancelBrowserIdleCallback(handle) {
 }
 
 window.NightOwlPerformance = {
-    getGPUDiagnostics: async () => window.electronAPI?.invoke('performance:get-gpu-diagnostics'),
+    getGPUDiagnostics: async () => window.electronAPI?.performance?.getGpuDiagnostics(),
     getResourceDiagnostics: async () => ({
-        ...(await window.electronAPI?.invoke('performance:get-resource-diagnostics')),
+        ...(await window.electronAPI?.performance?.getResourceDiagnostics()),
         renderer: window.NightOwlResourceLifecycle?.getDiagnostics?.() || {
             activeRegistries: 0,
             activeResources: 0,
@@ -287,8 +287,8 @@ window.NightOwlPerformance = {
             registries: []
         }
     }),
-    startTrace: async (options = {}) => window.electronAPI?.invoke('performance:start-trace', options),
-    stopTrace: async () => window.electronAPI?.invoke('performance:stop-trace')
+    startTrace: async (options = {}) => window.electronAPI?.performance?.startTrace(options),
+    stopTrace: async () => window.electronAPI?.performance?.stopTrace()
 };
 
 async function initializePerformanceDiagnostics() {
@@ -352,17 +352,17 @@ const hasFileClipboardItems = fileTreeState?.hasClipboardItems || (() => false);
 const describeFileClipboard = fileTreeState?.describeClipboard || (() => '0 files');
 const fileTreeController = window.NightOwlFileTreeController?.createFileTreeController?.({
     requestTree: () => {
-        if (!window.electronAPI?.invoke) throw new Error('ElectronAPI not available');
-        return window.electronAPI.invoke('request-file-tree');
+        if (!window.electronAPI?.files?.requestFileTree) throw new Error('File capability not available');
+        return window.electronAPI.files.requestFileTree();
     },
     renderTree: fileTree => {
         window.fileTreeData = fileTree;
         renderFileTreeData(fileTree);
         updateAvailableFiles(fileTree);
     },
-    requestSignature: () => window.electronAPI.invoke('get-file-tree-signature'),
+    requestSignature: () => window.electronAPI.files.getFileTreeSignature(),
     shouldPoll: context => {
-        if (!window.electronAPI?.invoke || document.visibilityState === 'hidden') return false;
+        if (!window.electronAPI?.files?.getFileTreeSignature || document.visibilityState === 'hidden') return false;
         if (context?.starting) return true;
         const view = document.getElementById('file-tree-view');
         return window.currentStructureView === 'file' && view && view.style.display !== 'none';
@@ -418,7 +418,7 @@ const nightOwlUIStateStore = window.NightOwlUIState;
 const getNightOwlUIState = () => nightOwlUIStateStore?.getState?.();
 const paneController = window.NightOwlPaneController?.createPaneController?.({
     store: nightOwlUIStateStore,
-    persist: layout => window.electronAPI?.send?.('save-layout', layout),
+    persist: layout => window.electronAPI?.signals?.saveLayout(layout),
     onBeforeShow: () => _teardownScrollSync(),
     onShown: pane => {
         showSpecificPane(pane);
@@ -986,7 +986,7 @@ async function renderMarkdownPreviewRoute(context) {
 
     let settings = window.appSettings || null;
     if (!settings && filePath) {
-        settings = await window.electronAPI.invoke('get-settings');
+        settings = await window.electronAPI.settings.getSettings();
         if (!isCurrent()) return { status: 'superseded' };
         window.appSettings = settings;
     }
@@ -1144,7 +1144,7 @@ function checkAndFixCorruptedLayout(editorPane, previewPane) {
         
         // Also save the corrected layout
         if (window.electronAPI) {
-            window.electronAPI.invoke('set-settings', 'layout', {
+            window.electronAPI.settings.setSettings('layout', {
                 structureWidth: '18%',
                 editorWidth: '41%',
                 rightWidth: '41%'
@@ -1825,7 +1825,7 @@ function handleContextMenu(event, heading) {
     if (li && (li.dataset.startLine || li.dataset.lineNumber)) {
         const lineNumberStr = li.dataset.startLine || li.dataset.lineNumber;
         // Ask the main process to show the context menu
-        window.electronAPI.invoke('show-context-menu', { lineNumber: lineNumberStr })
+        window.electronAPI.app.showContextMenu({ lineNumber: lineNumberStr })
           .catch(err => console.error('[renderer.js] Error invoking context menu:', err));
     } else {
     }
@@ -1837,7 +1837,7 @@ function setupContextMenuListener() {
         console.error("[renderer.js] Cannot set up context menu listener: electronAPI not available.");
         return;
     }
-    window.electronAPI.on('context-menu-command', (args) => {
+    window.electronAPI.events.contextMenuCommand((args) => {
         const { command, lineNumber } = args;
         handleContextMenuAction(command, parseInt(lineNumber, 10)); // Reuse existing handler
     });
@@ -2333,7 +2333,7 @@ async function handleAISummarization(ed) {
     try {
         showNotification('Generating speaker notes...', 'info');
         
-        const result = await window.electronAPI.invoke('summarize-text-to-notes', selectedText);
+        const result = await window.electronAPI.ai.summarizeTextToNotes(selectedText);
         
         if (result.error) {
             console.error('[renderer.js] AI summarization failed:', result.error);
@@ -2370,7 +2370,7 @@ async function handleNotesExtraction(ed) {
     try {
         showNotification('Extracting notes content...', 'info');
         
-        const result = await window.electronAPI.invoke('extract-notes-content', selectedText);
+        const result = await window.electronAPI.ai.extractNotesContent(selectedText);
         
         if (result.error) {
             console.error('[renderer.js] Notes extraction failed:', result.error);
@@ -2431,7 +2431,7 @@ Use ## markdown heading format.
 
 Respond with ONLY the heading text (including the ## markdown symbols). No explanation or additional text.`;
 
-        const result = await window.electronAPI.invoke('ai-chat', {
+        const result = await window.electronAPI.ai.aiChat({
             message: prompt,
             options: {
                 temperature: 0.3,
@@ -3302,13 +3302,13 @@ async function setBibliographyForMarkdownFile(filePath = window.currentFilePath)
         return;
     }
 
-    if (!window.electronAPI?.invoke) {
+    if (!window.electronAPI?.files?.dialogOpenFile) {
         showNotification('File dialog is not available', 'error');
         return;
     }
 
     const markdownDirectory = getDirectoryName(filePath);
-    const selection = await window.electronAPI.invoke('dialog-open-file', {
+    const selection = await window.electronAPI.files.dialogOpenFile({
         title: 'Select BibTeX Bibliography',
         defaultPath: markdownDirectory || window.currentFileDirectory || window.appSettings?.workingDirectory || undefined,
         filters: [
@@ -3327,7 +3327,7 @@ async function setBibliographyForMarkdownFile(filePath = window.currentFilePath)
     let expectedMtimeMs = null;
 
     if (!isCurrentFile) {
-        const readResult = await window.electronAPI.invoke('read-file', filePath);
+        const readResult = await window.electronAPI.files.readFile(filePath);
         if (!readResult?.success) {
             showNotification(readResult?.error || 'Failed to read Markdown file', 'error');
             return;
@@ -3343,7 +3343,7 @@ async function setBibliographyForMarkdownFile(filePath = window.currentFilePath)
     }
 
     const saveOptions = Number.isFinite(expectedMtimeMs) ? { expectedMtimeMs } : {};
-    let saveResult = await window.electronAPI.invoke('perform-save-with-path', updatedContent, filePath, saveOptions);
+    let saveResult = await window.electronAPI.files.performSaveWithPath(updatedContent, filePath, saveOptions);
 
     if (!saveResult?.success && saveResult?.code === 'FILE_MODIFIED_EXTERNALLY') {
         const overwriteConfirmed = await window.showAppConfirm({
@@ -3358,7 +3358,7 @@ async function setBibliographyForMarkdownFile(filePath = window.currentFilePath)
             showNotification('Bibliography update canceled', 'warning');
             return;
         }
-        saveResult = await window.electronAPI.invoke('perform-save-with-path', updatedContent, filePath, {
+        saveResult = await window.electronAPI.files.performSaveWithPath(updatedContent, filePath, {
             force: true,
             expectedMtimeMs: saveResult.currentMtimeMs
         });
@@ -3582,7 +3582,7 @@ async function loadBibliographyForMarkdownFile(filePath, content, options = {}) 
         }
 
         try {
-            const response = await window.electronAPI.invoke('read-file', resolvedPath);
+            const response = await window.electronAPI.files.readFile(resolvedPath);
             if (token !== currentBibLoadToken || !isCurrent()) return true;
             if (!response.success) {
                 console.warn(`[renderer.js] Failed to read bibliography file: ${resolvedPath}`, response.error);
@@ -3681,7 +3681,7 @@ function scheduleBibliographyRefresh(filePath, content) {
 // Load database citations and convert to BibTeX-like format
 async function loadDatabaseCitations() {
     try {
-        const response = await window.electronAPI.invoke('citations-get', {});
+        const response = await window.electronAPI.citations.get({});
         
         if (!response.success) {
             throw new Error(response.error || 'Failed to load database citations');
@@ -3739,7 +3739,7 @@ async function syncBibEntriesToDatabase(entries) {
 
     const bibContent = bibLines.join('\n\n');
     try {
-        const result = await window.electronAPI.invoke('citations-import-bib-to-db', bibContent);
+        const result = await window.electronAPI.citations.importBibToDb(bibContent);
         if (result.success) {
             const { imported, updated, skipped } = result;
             if (imported > 0 || updated > 0) {
@@ -3763,7 +3763,7 @@ async function loadBibTeXFiles(options = {}) {
         
         try {
             // First, get the current working directory to understand the context
-            const workingDir = await window.electronAPI.invoke('get-working-directory');
+            const workingDir = await window.electronAPI.workspace.getWorkingDirectory();
             if (token !== currentBibLoadToken || !isCurrent()) return [];
             // Try multiple possible locations for BibTeX files
             const possiblePaths = [
@@ -3773,7 +3773,7 @@ async function loadBibTeXFiles(options = {}) {
             
             for (const relativePath of possiblePaths) {
                 try {
-                    const lecturesFiles = await window.electronAPI.invoke('list-directory-files', relativePath);
+                    const lecturesFiles = await window.electronAPI.files.listDirectoryFiles(relativePath);
                     if (token !== currentBibLoadToken || !isCurrent()) return [];
                     
                     if (lecturesFiles && Array.isArray(lecturesFiles)) {
@@ -3787,7 +3787,7 @@ async function loadBibTeXFiles(options = {}) {
                                 
                                 // Try to read the file directly
                                 try {
-                                    const response = await window.electronAPI.invoke('read-file', fullBibPath);
+                                    const response = await window.electronAPI.files.readFile(fullBibPath);
                                     if (token !== currentBibLoadToken || !isCurrent()) return [];
                                     
                                     if (!response.success) {
@@ -3809,7 +3809,7 @@ async function loadBibTeXFiles(options = {}) {
                                     try {
                                         // If relative path failed, try with just the filename in lectures
                                         const altPath = `lectures/${file.name}`;
-                                        const response = await window.electronAPI.invoke('read-file', altPath);
+                                        const response = await window.electronAPI.files.readFile(altPath);
                                         if (token !== currentBibLoadToken || !isCurrent()) return [];
                                         
                                         if (!response.success) {
@@ -4028,7 +4028,7 @@ async function updateAvailableFiles(fileTreeOverride = null) {
     }
     
     try {
-        const fileTree = fileTreeOverride || window.fileTreeData || await window.electronAPI.invoke('request-file-tree');
+        const fileTree = fileTreeOverride || window.fileTreeData || await window.electronAPI.files.requestFileTree();
         if (!fileTree) {
             return;
         }
@@ -4158,7 +4158,7 @@ function registerInlineAICompletions() {
                     }
 
                     try {
-                        const result = await window.electronAPI.invoke('send-chat-message', {
+                        const result = await window.electronAPI.ai.sendChatMessage({
                             message: `Continue this markdown text naturally. Output ONLY the continuation (1-2 sentences max, no explanation). Do not repeat any existing text:\n\n${contextText}`,
                             systemMessage: 'You are a ghost-text writing assistant. Complete the text naturally and concisely. Output ONLY the continuation text, nothing else. Keep it brief (1-2 sentences).',
                             newConversation: true
@@ -4429,7 +4429,7 @@ async function initializeMonacoEditor() {
             requestAnimationFrame(() => _activateScrollSyncForCurrentPane());
 
             // Load settings first, then initialize auto-save
-            window.electronAPI.invoke('get-settings').then(settings => {
+            window.electronAPI.settings.getSettings().then(settings => {
                 window.appSettings = settings;
 
                 // Initialize auto-save after settings are loaded
@@ -4532,8 +4532,8 @@ async function initializeMonacoEditor() {
             async function fetchPageTitle(url) {
                 try {
                     // Use the main process to fetch the title to avoid CORS issues
-                    if (window.electronAPI && window.electronAPI.invoke) {
-                        const result = await window.electronAPI.invoke('fetch-url-title', url);
+                    if (window.electronAPI?.navigation?.fetchUrlTitle) {
+                        const result = await window.electronAPI.navigation.fetchUrlTitle(url);
                         if (result.success) {
                             return result.title;
                         }
@@ -4634,7 +4634,7 @@ async function initializeMonacoEditor() {
             
             // Helper function to handle image paste
             async function pasteImageFromClipboard() {
-                const result = await window.electronAPI.invoke('paste-image-from-clipboard', {
+                const result = await window.electronAPI.images.pasteImageFromClipboard({
                     sourceFilePath: window.currentFilePath || null,
                     sourceFileDirectory: window.currentFileDirectory || null
                 });
@@ -4658,9 +4658,9 @@ async function initializeMonacoEditor() {
                     await window.updatePreview(editor.getValue());
                 }
 
-                if (window.electronAPI && window.electronAPI.invoke) {
+                if (window.electronAPI?.files?.refreshFileTree) {
                     try {
-                        await window.electronAPI.invoke('refresh-file-tree');
+                        await window.electronAPI.files.refreshFileTree();
                     } catch (error) {
                         console.warn('[Editor] Could not refresh file tree:', error);
                     }
@@ -4794,7 +4794,7 @@ async function initializeMonacoEditor() {
                                     continue;
                                 }
 
-                                const result = await window.electronAPI.invoke('copy-local-image-file', filePath);
+                                const result = await window.electronAPI.images.copyLocalImageFile(filePath);
 
                                 if (result.success) {
 
@@ -4826,9 +4826,9 @@ async function initializeMonacoEditor() {
                                     }
 
                                     // Refresh file tree to show new image
-                                    if (window.electronAPI && window.electronAPI.invoke) {
+                                    if (window.electronAPI?.files?.refreshFileTree) {
                                         try {
-                                            await window.electronAPI.invoke('refresh-file-tree');
+                                            await window.electronAPI.files.refreshFileTree();
                                         } catch (error) {
                                             console.warn('[Editor] Could not refresh file tree:', error);
                                         }
@@ -5190,7 +5190,7 @@ async function loadAppSettings() {
         return;
     }
     try {
-        appSettings = await window.electronAPI.invoke('get-settings');
+        appSettings = await window.electronAPI.settings.getSettings();
         window.appSettings = appSettings; // Make settings globally available
         // Handle both empty string and null for currentFile
         const currentFileFromSettings = appSettings.currentFile;
@@ -5220,7 +5220,7 @@ async function loadAppSettings() {
                 };
             } else {
                 try {
-                    const result = await window.electronAPI.invoke('open-file-path', window.currentFilePath);
+                    const result = await window.electronAPI.files.openFilePath(window.currentFilePath);
                     if (result.success) {
                         // Store the content to be loaded into editor after Monaco is initialized
                         window.restoredFileContent = {
@@ -5254,7 +5254,7 @@ async function loadAppSettings() {
         if (!themeAppliedFromSettings) {
             try {
                 // Assuming 'get-initial-theme' returns boolean 'isDarkMode'
-                const osIsDarkMode = await window.electronAPI.invoke('get-initial-theme');
+                const osIsDarkMode = await window.electronAPI.settings.getInitialTheme();
                 applyTheme(osIsDarkMode);
             } catch (osThemeErr) {
                 console.error('[renderer.js] Failed to get initial OS theme:', osThemeErr);
@@ -5269,8 +5269,8 @@ async function loadAppSettings() {
         // File restoration is now handled in the updated logic above
 
         // 3. NOW set up the listener for future OS changes, only once
-        if (!window.electronAPI._themeListenerAttached) { // Use a flag to prevent duplicates
-            window.electronAPI.on('theme-updated', (osIsDarkMode) => {
+        if (!themeListenerAttached) { // Use a flag to prevent duplicates
+            window.electronAPI.events.themeUpdated((osIsDarkMode) => {
                 // Skip OS updates when the user has any explicit non-auto theme selected.
                 if (typeof appSettings.theme === 'string' && appSettings.theme && appSettings.theme !== 'auto') {
                     return;
@@ -5278,7 +5278,7 @@ async function loadAppSettings() {
                 // Apply theme based on OS update if setting is 'auto' or not set
                 applyTheme(osIsDarkMode);
             });
-            window.electronAPI._themeListenerAttached = true; // Set flag
+            themeListenerAttached = true;
         } else {
         }
 
@@ -5320,7 +5320,7 @@ async function loadAppSettings() {
 
 // Handle file opened event (e.g., from File > Open or File Tree click)
 if (window.electronAPI) {
-    window.electronAPI.on('file-opened', async (data) => {
+    window.electronAPI.events.fileOpened(async (data) => {
         if (data && typeof data.content === 'string' && typeof data.filePath === 'string') {
             await openFileInEditor(data.filePath, data.content);
         }
@@ -5375,8 +5375,8 @@ function handleCurrentFileDeletedOnDisk(payload = {}) {
 }
 
 if (window.electronAPI) {
-    window.electronAPI.on('current-file-changed-on-disk', reloadCurrentFileFromDisk);
-    window.electronAPI.on('current-file-deleted-on-disk', handleCurrentFileDeletedOnDisk);
+    window.electronAPI.events.currentFileChangedOnDisk(reloadCurrentFileFromDisk);
+    window.electronAPI.events.currentFileDeletedOnDisk(handleCurrentFileDeletedOnDisk);
 }
 
 // Helper to open file in editor
@@ -5445,7 +5445,7 @@ async function importPdfAsMarkdown() {
 
     try {
         // Call the IPC handler to open file dialog and convert
-        const result = await window.electronAPI.invoke('import-pdf-as-markdown');
+        const result = await window.electronAPI.documents.importPdfAsMarkdown();
 
         if (result.cancelled) {
             if (statusElement) statusElement.textContent = originalStatus;
@@ -5515,7 +5515,7 @@ async function importWordAsMarkdown() {
 
     try {
         // Call the IPC handler to open file dialog and convert
-        const result = await window.electronAPI.invoke('import-word-as-markdown');
+        const result = await window.electronAPI.documents.importWordAsMarkdown();
 
         if (result.cancelled) {
             if (statusElement) statusElement.textContent = originalStatus;
@@ -5585,7 +5585,7 @@ async function generateThumbnail(options = {}) {
     try {
         // If no options provided, show the dialog
         if (!options.input) {
-            const dialogResult = await window.electronAPI.invoke('generate-thumbnail-dialog', window.currentFilePath);
+            const dialogResult = await window.electronAPI.images.generateThumbnailDialog(window.currentFilePath);
 
             if (dialogResult.cancelled) {
                 return;
@@ -5610,7 +5610,7 @@ async function generateThumbnail(options = {}) {
         }
 
         // Call the thumbnail generation handler
-        const result = await window.electronAPI.invoke('generate-thumbnail', options);
+        const result = await window.electronAPI.images.generateThumbnail(options);
 
         if (!result.success) {
             console.error('[Renderer] Thumbnail generation failed:', result.error);
@@ -5800,7 +5800,7 @@ async function generateThumbnailForFile(filePath) {
     const referenceInput = styleDialog.querySelector('#reference-image-path');
     browseBtn.addEventListener('click', async () => {
         try {
-            const result = await window.electronAPI.invoke('select-image-file');
+            const result = await window.electronAPI.images.selectImageFile();
             if (result && result.filePath) {
                 referenceInput.value = result.filePath;
                 referenceImagePath = result.filePath;
@@ -5852,7 +5852,7 @@ async function generateThumbnailForFile(filePath) {
                     options.referenceImage = referenceImagePath;
                 }
 
-                const result = await window.electronAPI.invoke('generate-thumbnail', options);
+                const result = await window.electronAPI.images.generateThumbnail(options);
 
                 if (!result.success) {
                     console.error('[Renderer] Thumbnail generation failed:', result.error);
@@ -6037,7 +6037,7 @@ async function generateThumbnailsForFolder(folderPath) {
     const referenceInput = styleDialog.querySelector('#reference-image-path');
     browseBtn.addEventListener('click', async () => {
         try {
-            const result = await window.electronAPI.invoke('select-image-file');
+            const result = await window.electronAPI.images.selectImageFile();
             if (result && result.filePath) {
                 referenceInput.value = result.filePath;
                 referenceImagePath = result.filePath;
@@ -6090,7 +6090,7 @@ async function generateThumbnailsForFolder(folderPath) {
                     options.referenceImage = referenceImagePath;
                 }
 
-                const result = await window.electronAPI.invoke('generate-thumbnail', options);
+                const result = await window.electronAPI.images.generateThumbnail(options);
 
                 if (!result.success) {
                     console.error('[Renderer] Folder thumbnail generation failed:', result.error);
@@ -6227,7 +6227,7 @@ async function generateThumbnailForMultipleFiles(filePaths) {
 
                 // Use the common directory as input with synthesize flag
                 // The script will use the files list to synthesize
-                const result = await window.electronAPI.invoke('generate-thumbnail', {
+                const result = await window.electronAPI.images.generateThumbnail({
                     input: commonDir,
                     style: selectedStyle,
                     synthesize: true,
@@ -6264,9 +6264,10 @@ async function generateThumbnailForMultipleFiles(filePaths) {
 
 const fileOpenController = window.NightOwlFileOpenController?.createFileOpenController?.({
     transitions: fileTransitionCoordinator,
-    readPath: (filePath, options) => window.electronAPI.invoke(
-        options.ipcChannel || 'open-file-path',
-        filePath
+    readPath: (filePath, options) => (
+        options.ipcChannel === 'read-file'
+            ? window.electronAPI.files.readFile(filePath)
+            : window.electronAPI.files.openFilePath(filePath)
     ),
     applyContent: _openFileInEditorImpl,
     onBegin: ({ transition }) => {
@@ -6620,13 +6621,13 @@ async function handlePDFFile(filePath, transition = null) {
     const associatedMdFile = baseName + '.md';
     
     try {
-        const result = await window.electronAPI.invoke('check-file-exists', associatedMdFile);
+        const result = await window.electronAPI.files.checkFileExists(associatedMdFile);
         if (!isTransitionCurrent(transition)) return;
         const exists = typeof result === 'object' ? result?.exists : result;
         let markdownResult = null;
         if (exists) {
             exitPDFOnlyMode();
-            markdownResult = await window.electronAPI.invoke('open-file-path', associatedMdFile);
+            markdownResult = await window.electronAPI.files.openFilePath(associatedMdFile);
             if (!isTransitionCurrent(transition)) return;
         }
 
@@ -6907,7 +6908,7 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
     // still bypass the main open-file pipeline.
     if (!options.syncCurrentFileAfterModel && !options.preserveCurrentFile) {
         if (!isTransitionCurrent(transition)) return;
-        await window.electronAPI.invoke('set-current-file', filePath);
+        await window.electronAPI.files.setCurrentFile(filePath);
     }
 }
 
@@ -6951,7 +6952,7 @@ async function displayPDFInPreview(filePath, transition = null) {
                     <div class="pdf-fallback" style="display: none; padding: 20px; text-align: center; color: #666;">
                         <p>📄 PDF preview not available</p>
                         <p><small>Path: ${filePath}</small></p>
-                        <button class="btn btn-primary" onclick="window.electronAPI.invoke('open-external', '${filePath}')" style="margin-top: 10px;">Open in External Viewer</button>
+                        <button class="btn btn-primary" onclick="window.electronAPI.navigation.openExternal('${filePath}')" style="margin-top: 10px;">Open in External Viewer</button>
                     </div>
                     <div class="pdf-loading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted, #666);">
                         Loading PDF...
@@ -8289,7 +8290,7 @@ document.addEventListener('keydown', async (e) => {
             if (window.appSettings?.editor) {
                 window.appSettings.editor.wordWrap = newValue;
                 if (window.electronAPI) {
-                    window.electronAPI.invoke('set-settings', window.appSettings).catch(() => {});
+                    window.electronAPI.settings.setSettings(window.appSettings).catch(() => {});
                 }
             }
             if (window.showNotification) {
@@ -8473,7 +8474,7 @@ async function invokeAshExplicitly() {
         } else {
             // Fallback: Try to call AI service directly
             try {
-                const response = await window.electronAPI.invoke('ai-chat', {
+                const response = await window.electronAPI.ai.aiChat({
                     message: `Please provide brief writing feedback or encouragement for the current document. The user has explicitly requested your assistance.`,
                     options: {
                         context: 'explicit_ash_invocation',
@@ -8542,7 +8543,7 @@ function initializeNativeThemeManager() {
 
     const persistSettings = () => {
         try {
-            window.electronAPI?.invoke?.('set-settings', window.appSettings);
+            window.electronAPI?.settings?.setSettings(window.appSettings);
         } catch (error) {
             console.warn('[Theme] Failed to persist theme manager settings:', error);
         }
@@ -8864,6 +8865,7 @@ function applyLayoutSettings(layout) {
 
 // --- Settings Management ---
 let appSettings = {};
+let themeListenerAttached = false;
 
 
 // --- Structure/File Pane Toggle Listeners ---
@@ -8999,7 +9001,7 @@ changeDirectoryBtn.addEventListener('click', async (e) => {
     // Fetch recent workspaces
     let recents = [];
     try {
-        recents = await window.electronAPI.invoke('get-recent-workspaces');
+        recents = await window.electronAPI.workspace.getRecentWorkspaces();
     } catch (err) {
         console.warn('[Renderer] Could not fetch recent workspaces:', err);
     }
@@ -9021,7 +9023,7 @@ changeDirectoryBtn.addEventListener('click', async (e) => {
             item.addEventListener('click', async () => {
                 dropdown.remove();
                 try {
-                    const result = await window.electronAPI.invoke('switch-workspace', ws);
+                    const result = await window.electronAPI.workspace.switchWorkspace(ws);
                     if (result.success) {
                         if (window.appSettings) window.appSettings.workingDirectory = result.directory;
                         showNotification(`Switched to ${ws.split('/').pop()}`, 'success');
@@ -9056,7 +9058,7 @@ changeDirectoryBtn.addEventListener('click', async (e) => {
     browse.addEventListener('click', async () => {
         dropdown.remove();
         try {
-            const result = await window.electronAPI.invoke('change-working-directory');
+            const result = await window.electronAPI.workspace.changeWorkingDirectory();
             if (result.success) {
                 if (window.appSettings) window.appSettings.workingDirectory = result.directory;
                 showNotification(`Working directory changed`, 'success');
@@ -9090,7 +9092,7 @@ changeDirectoryBtn.addEventListener('click', async (e) => {
 if (addWorkspaceFolderBtn) {
     addWorkspaceFolderBtn.addEventListener('click', async () => {
         try {
-            const result = await window.electronAPI.invoke('add-workspace-folder');
+            const result = await window.electronAPI.workspace.addWorkspaceFolder();
             if (result.success) {
                 // Update global settings cache with new folder
                 if (window.appSettings) {
@@ -9207,7 +9209,7 @@ if (previewSourceBtn) {
 if (previewSourceOpenBtn) {
     previewSourceOpenBtn.addEventListener('click', async () => {
         try {
-            const result = await window.electronAPI.invoke('dialog-open-file', {
+            const result = await window.electronAPI.files.dialogOpenFile({
                 title: 'Open File in Source View',
                 filters: [
                     { name: 'Text Files', extensions: ['md', 'txt', 'js', 'html', 'css', 'json', 'yaml', 'yml', 'toml', 'py', 'rb', 'sh', 'ts', 'tsx', 'jsx'] },
@@ -9216,7 +9218,7 @@ if (previewSourceOpenBtn) {
             });
             if (!result.success || result.canceled) return;
 
-            const fileResult = await window.electronAPI.invoke('read-file-content-only', result.filePath);
+            const fileResult = await window.electronAPI.files.readFileContentOnly(result.filePath);
             if (!fileResult.success) {
                 console.error('[SourceView] Failed to read file:', fileResult.error);
                 return;
@@ -9979,7 +9981,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                 if (isNowExpanded) {
                     // Refresh folder contents when expanding
                     try {
-                        const result = await window.electronAPI.invoke('get-folder-contents', node.path);
+                        const result = await window.electronAPI.files.getFolderContents(node.path);
                         if (result.success && result.children) {
                             renderFileTreeNodes(result.children, childrenContainer, depth + 1, forceExpanded);
                             scheduleFileTreeTagHydration({
@@ -10202,7 +10204,7 @@ function shouldPollFileTreeSignature() {
     const fileTreeView = document.getElementById('file-tree-view');
     const state = fileTreeController.getSnapshot();
     return Boolean(
-        window.electronAPI?.invoke &&
+        window.electronAPI?.files?.getFileTreeSignature &&
         window.currentStructureView === 'file' &&
         state.rendered &&
         !state.rendering &&
@@ -10692,7 +10694,7 @@ async function showTagEditDialog(filePath) {
         if (newContent) {
             try {
                 // Save the file with updated frontmatter
-                const result = await window.electronAPI.invoke('write-file', filePath, newContent);
+                const result = await window.electronAPI.files.writeFile(filePath, newContent);
                 
                 if (result.success) {
                     showNotification('Tags updated successfully', 'success');
@@ -10954,7 +10956,7 @@ async function preProcessMarkdownTags(node) {
 
     try {
         // Use batch frontmatter reading - much faster than reading full files
-        const results = await window.electronAPI.invoke('batch-read-frontmatter', markdownPaths);
+        const results = await window.electronAPI.files.batchReadFrontmatter(markdownPaths);
 
         for (const result of results) {
             if (result.success && result.hasFrontmatter && result.content) {
@@ -11115,7 +11117,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
     let gitInfo = null;
     if (isFolder && window.electronAPI) {
         try {
-            gitInfo = await window.electronAPI.invoke('git-find-repo', filePath);
+            gitInfo = await window.electronAPI.git.findRepo(filePath);
         } catch (error) {
         }
     }
@@ -11333,7 +11335,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     break;
                 }
 
-                const result = await window.electronAPI.invoke('open-external', resolvedUrl);
+                const result = await window.electronAPI.navigation.openExternal(resolvedUrl);
                 if (!result?.success) {
                     showNotification(`Failed to open published page: ${result?.error || 'Unknown error'}`, 'error');
                 }
@@ -11366,7 +11368,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             );
             if (newName && newName !== filePath.split('/').pop()) {
                 try {
-                    const result = await window.electronAPI.invoke('rename-item', { 
+                    const result = await window.electronAPI.files.renameItem({
                         filePath: filePath, 
                         newName: newName 
                     });
@@ -11405,7 +11407,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             });
             if (confirmDelete) {
                 try {
-                    const result = await window.electronAPI.invoke('delete-item', {
+                    const result = await window.electronAPI.files.deleteItem({
                         path: filePath,
                         type: isFolder ? 'directory' : 'file',
                         name: filePath.split('/').pop()
@@ -11477,7 +11479,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
 
                     for (const path of selectedPaths) {
                         try {
-                            const result = await window.electronAPI.invoke('delete-item', {
+                            const result = await window.electronAPI.files.deleteItem({
                                 path: path,
                                 type: 'file',
                                 name: path.split('/').pop()
@@ -11551,7 +11553,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     }
 
                     // Copy the image to project images directory and get markdown link
-                    const result = await window.electronAPI.invoke('copy-local-image-file', filePath);
+                    const result = await window.electronAPI.images.copyLocalImageFile(filePath);
 
                     if (result.success) {
 
@@ -11584,9 +11586,9 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                             }
 
                             // Refresh file tree to show new image
-                            if (window.electronAPI && window.electronAPI.invoke) {
+                            if (window.electronAPI?.files?.refreshFileTree) {
                                 try {
-                                    await window.electronAPI.invoke('refresh-file-tree');
+                                    await window.electronAPI.files.refreshFileTree();
                                 } catch (error) {
                                     console.warn('[handleFileContextMenuAction] Could not refresh file tree:', error);
                                 }
@@ -11610,7 +11612,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'open-in-finder':
             if (isFolder) {
                 try {
-                    const result = await window.electronAPI.invoke('open-folder-in-finder', filePath);
+                    const result = await window.electronAPI.navigation.openFolderInFinder(filePath);
                     if (!result.success) {
                         showNotification(`Failed to open folder: ${result.error}`, 'error');
                     }
@@ -11640,7 +11642,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
         case 'set-as-primary':
             if (isFolder) {
                 try {
-                    const result = await window.electronAPI.invoke('switch-workspace', filePath);
+                    const result = await window.electronAPI.workspace.switchWorkspace(filePath);
                     if (result.success) {
                         if (window.appSettings) window.appSettings.workingDirectory = result.directory;
                         showNotification(`Primary folder set to ${filePath.split('/').pop()}`, 'success');
@@ -11668,7 +11670,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                 });
                 if (confirmRemove) {
                     try {
-                        const result = await window.electronAPI.invoke('remove-workspace-folder', filePath);
+                        const result = await window.electronAPI.workspace.removeWorkspaceFolder(filePath);
                         if (result.success) {
                             // Update global settings cache
                             if (window.appSettings) {
@@ -11699,7 +11701,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                         // User confirmed, execute git publish
                         showNotification('Publishing changes...', 'info');
 
-                        const publishResult = await window.electronAPI.invoke('git-publish', {
+                        const publishResult = await window.electronAPI.git.publish({
                             repoRoot: result.gitInfo.repoRoot,
                             subfolder: result.gitInfo.relativePath,
                             message: result.message
@@ -11800,7 +11802,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                         }
 
                         if (clipboardOperation === 'cut') {
-                            const moveResult = await window.electronAPI.invoke('move-file', {
+                            const moveResult = await window.electronAPI.files.moveFile({
                                 source: sourceFilePath,
                                 destination: destinationPath
                             });
@@ -11819,7 +11821,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                                 lastError = moveResult.error || 'Move failed';
                             }
                         } else {
-                            const copyResult = await window.electronAPI.invoke('copy-file-to', {
+                            const copyResult = await window.electronAPI.files.copyFileTo({
                                 source: sourceFilePath,
                                 destination: destinationPath
                             });
@@ -11963,7 +11965,7 @@ async function handleCreateFolder() {
     try {
         
         // Send request to main process to create folder
-        const result = await window.electronAPI.invoke('create-folder', trimmedName, folderCreationParentPath);
+        const result = await window.electronAPI.files.createFolder(trimmedName, folderCreationParentPath);
         
         if (result.success) {
             hideFolderNameModal();
@@ -12059,7 +12061,7 @@ async function handleCreateFile() {
         }
 
         // Use the create-file IPC handler
-        const result = await window.electronAPI.invoke('create-file', trimmedName, relativePath, '');
+        const result = await window.electronAPI.files.createFile(trimmedName, relativePath, '');
 
         if (result.success) {
             hideFileNameModal();
@@ -12090,7 +12092,7 @@ async function handleCreateFile() {
 // --- Settings Integration ---
 async function saveNavigationHistoryToSettings() {
     try {
-        await window.electronAPI.invoke('save-navigation-history', navigationHistory);
+        await window.electronAPI.navigation.saveNavigationHistory(navigationHistory);
     } catch (error) {
         console.error('[Navigation] Error saving navigation history:', error);
     }
@@ -12098,7 +12100,7 @@ async function saveNavigationHistoryToSettings() {
 
 async function loadNavigationHistoryFromSettings() {
     try {
-        const savedHistory = await window.electronAPI.invoke('get-navigation-history');
+        const savedHistory = await window.electronAPI.navigation.getNavigationHistory();
         if (Array.isArray(savedHistory) && savedHistory.length > 0) {
             navigationHistory = savedHistory;
             currentHistoryIndex = navigationHistory.length - 1;
@@ -12128,7 +12130,7 @@ async function loadNavigationHistoryFromSettings() {
 
 async function addFileToRecents(filePath) {
     try {
-        await window.electronAPI.invoke('add-recent-file', filePath);
+        await window.electronAPI.files.addRecentFile(filePath);
     } catch (error) {
         console.error('[Settings] Error adding file to recents:', error);
     }
@@ -12616,7 +12618,7 @@ setupContextMenuListener();
 
 // Handle new file creation signal from main process
 if (window.electronAPI) {
-    window.electronAPI.on('new-file-created', () => {
+    window.electronAPI.events.newFileCreated(() => {
 
         // Create a new untitled tab (rather than reusing the current tab)
         if (window.tabManager) {
@@ -12664,7 +12666,7 @@ if (window.electronAPI) {
 
 // Listen for signal to refresh the file tree (e.g., after Open Folder)
     if (window.electronAPI) {
-    window.electronAPI.on('refresh-file-tree', () => {
+    window.electronAPI.events.refreshFileTree(() => {
 
         // Reset the rendered flag to force a refresh
         fileTreeController.markStale();
@@ -12692,7 +12694,7 @@ if (window.electronAPI) {
     });
 
     // Listen for settings changes from main process (e.g., working directory change)
-    window.electronAPI.on('settings-changed', (changedSettings) => {
+    window.electronAPI.events.settingsChanged((changedSettings) => {
 
         // Update global appSettings with changed values
         if (changedSettings && changedSettings.workingDirectory && window.appSettings) {
@@ -12704,27 +12706,27 @@ if (window.electronAPI) {
 // Listen for theme updates from main process
 
 // Listen for 'set-theme' event via electronAPI, calling applyTheme(theme === 'dark')
-if (window.electronAPI && window.electronAPI.on) {
-    window.electronAPI.on('set-theme', (theme) => {
+if (window.electronAPI?.events) {
+    window.electronAPI.events.setTheme((theme) => {
         applyTheme(typeof theme === 'string' ? theme : Boolean(theme));
     });
     
-    window.electronAPI.on('show-command-palette', () => {
+    window.electronAPI.events.showCommandPalette(() => {
         if (window.showCommandPalette) {
             window.showCommandPalette();
         }
     });
 
-    window.electronAPI.on('toggle-assistant-terminal', () => {
+    window.electronAPI.events.toggleAssistantTerminal(() => {
         showRightPane('chat');
     });
 
     // Backward-compatible menu event name from older builds.
-    window.electronAPI.on('toggle-ai-chat', () => {
+    window.electronAPI.events.toggleAiChat(() => {
         showRightPane('chat');
     });
 
-    window.electronAPI.on('toggle-visual-markdown', (enabled) => {
+    window.electronAPI.events.toggleVisualMarkdown((enabled) => {
         if (typeof window.setVisualMarkdownEnabled === 'function') {
             window.setVisualMarkdownEnabled(enabled);
         } else {
@@ -12732,22 +12734,22 @@ if (window.electronAPI && window.electronAPI.on) {
         }
     });
 
-    window.electronAPI.on('toggle-preview-pane', (visible) => {
+    window.electronAPI.events.togglePreviewPane((visible) => {
         // Sync the requested visibility through the shared UI state.
         if (Boolean(visible) !== getNightOwlUIState()?.panes?.right) {
             togglePreview();
         }
     });
 
-    window.electronAPI.on('trigger-import-pdf', async () => {
+    window.electronAPI.events.triggerImportPdf(async () => {
         await importPdfAsMarkdown();
     });
 
-    window.electronAPI.on('trigger-import-word', async () => {
+    window.electronAPI.events.triggerImportWord(async () => {
         await importWordAsMarkdown();
     });
 
-    window.electronAPI.on('trigger-generate-thumbnail', async () => {
+    window.electronAPI.events.triggerGenerateThumbnail(async () => {
         await generateThumbnail();
     });
 }
@@ -12768,7 +12770,7 @@ function getCurrentEditorContent() {
 
 // Listen for 'Save' trigger from main process
 if (window.electronAPI) {
-    window.electronAPI.on('trigger-save', async () => {
+    window.electronAPI.events.triggerSave(async () => {
         // Use the existing saveFile function which handles all the logic
         await saveFile();
     });
@@ -12776,7 +12778,7 @@ if (window.electronAPI) {
 
 // Listen for 'Save As' trigger from main process
 if (window.electronAPI) {
-    window.electronAPI.on('trigger-save-as', async () => {
+    window.electronAPI.events.triggerSaveAs(async () => {
         // Use the existing saveAsFile function which handles all the logic
         await saveAsFile();
     });
@@ -12788,7 +12790,7 @@ if (window.electronAPI) {
 // When there are no tabs, fall back to closing the window so the shortcut
 // still behaves sensibly for an empty editor.
 if (window.electronAPI) {
-    window.electronAPI.on('menu:close-tab', async () => {
+    window.electronAPI.events.menuCloseTab(async () => {
         const tm = window.tabManager;
         if (tm && tm.activeTabPath && tm.tabs.has(tm.activeTabPath)) {
             await tm.closeTab(tm.activeTabPath);
@@ -12800,14 +12802,14 @@ if (window.electronAPI) {
 
 // Listen for 'save-all-and-close' from main process (window close with unsaved changes)
 if (window.electronAPI) {
-    window.electronAPI.on('save-all-and-close', async () => {
+    window.electronAPI.events.saveAllAndClose(async () => {
         try {
             if (window.editorTabs) {
                 for (const [filePath, tab] of window.editorTabs.tabs) {
                     if (tab.isDirty && filePath && !filePath.startsWith('untitled:')) {
                         const content = tab.model ? tab.model.getValue() : null;
                         if (content !== null) {
-                            await window.electronAPI.invoke('save-file', { filePath, content });
+                            await window.electronAPI.files.saveFile({ filePath, content });
                         }
                     }
                 }
@@ -12819,7 +12821,7 @@ if (window.electronAPI) {
             console.error('[renderer] Error saving all files before close:', err);
         }
         // Signal main process that saves are done and it can close
-        window.electronAPI.send('saves-completed-close');
+        window.electronAPI.signals.savesCompletedClose();
     });
 }
 
@@ -12831,7 +12833,7 @@ if (window.electronAPI) {
 if (window.electronAPI) {
 
 
-    window.electronAPI.on('trigger-export-pdf', async () => {
+    window.electronAPI.events.triggerExportPdf(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -12851,7 +12853,7 @@ if (window.electronAPI) {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent, exportOptions);
+            const result = await window.electronAPI.documents.performExportPdf(content, htmlContent, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -12875,7 +12877,7 @@ if (window.electronAPI) {
         }
     });
 
-    window.electronAPI.on('trigger-export-pptx', async () => {
+    window.electronAPI.events.triggerExportPptx(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -12890,7 +12892,7 @@ if (window.electronAPI) {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-pptx', content, exportOptions);
+            const result = await window.electronAPI.documents.performExportPptx(content, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -12909,7 +12911,7 @@ if (window.electronAPI) {
         }
     });
 
-    window.electronAPI.on('trigger-export-pdf-pandoc', async () => {
+    window.electronAPI.events.triggerExportPdfPandoc(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -12925,7 +12927,7 @@ if (window.electronAPI) {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-pdf-pandoc', content, exportOptions);
+            const result = await window.electronAPI.documents.performExportPdfPandoc(content, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -12947,28 +12949,28 @@ if (window.electronAPI) {
     });
 
     // Handle settings dialog triggers from main process
-    window.electronAPI.on('open-settings-dialog', () => {
+    window.electronAPI.events.openSettingsDialog(() => {
         openSettingsDialog();
     });
 
-    window.electronAPI.on('open-ai-settings-dialog', () => {
+    window.electronAPI.events.openAiSettingsDialog(() => {
         openSettingsDialog('ai');
     });
 
-    window.electronAPI.on('open-editor-settings-dialog', () => {
+    window.electronAPI.events.openEditorSettingsDialog(() => {
         openSettingsDialog('editor');
     });
 
-    window.electronAPI.on('open-export-settings-dialog', () => {
+    window.electronAPI.events.openExportSettingsDialog(() => {
         openSettingsDialog('export');
     });
 
-    window.electronAPI.on('open-diagnostics', () => {
+    window.electronAPI.events.openDiagnostics(() => {
         window.NightOwlDiagnostics?.open?.();
     });
     
     // Listen for HTML export completion to refresh preview if needed
-    window.electronAPI.on('html-export-completed', async (exportedFilePath) => {
+    window.electronAPI.events.htmlExportCompleted(async (exportedFilePath) => {
         
         // Check if the exported HTML file should refresh the current preview
         let shouldRefresh = false;
@@ -13001,7 +13003,7 @@ if (window.electronAPI) {
             
             try {
                 // Re-read the HTML file content and refresh the preview
-                const response = await window.electronAPI.invoke('read-file', exportedFilePath);
+                const response = await window.electronAPI.files.readFile(exportedFilePath);
                 if (response.success) {
                     displayHTMLInPreview(response.content, exportedFilePath);
                 } else {
@@ -13068,7 +13070,7 @@ function saveCurrentLayout() {
         rightWidth: `${finalRight}%`
     };
 
-    window.electronAPI.send('save-layout', layoutData);
+    window.electronAPI.signals.saveLayout(layoutData);
 }
 
 // Global search functionality is handled by the search.js module
@@ -13217,7 +13219,7 @@ async function performAutoSave() {
         if (window.currentFilePath && window.electronAPI) {
             // Check if file was deleted externally
             try {
-                const existsResult = await window.electronAPI.invoke('check-file-exists', window.currentFilePath);
+                const existsResult = await window.electronAPI.files.checkFileExists(window.currentFilePath);
                 const exists = typeof existsResult === 'object' ? existsResult?.exists : existsResult;
                 if (!exists) {
                     console.warn('[renderer.js] File no longer exists, skipping auto-save:', window.currentFilePath);
@@ -13230,7 +13232,7 @@ async function performAutoSave() {
                 // If we can't check, proceed with save attempt
             }
             // CRITICAL FIX: Pass the file path explicitly to prevent saving to wrong file
-            const result = await window.electronAPI.invoke('perform-save-with-path', content, window.currentFilePath);
+            const result = await window.electronAPI.files.performSaveWithPath(content, window.currentFilePath);
             
             if (result.success) {
                 lastSavedContent = content;
@@ -13418,8 +13420,8 @@ async function showQuickOpen() {
     let workspaceFiles = [];
     try {
         [recentFiles, workspaceFiles] = await Promise.all([
-            window.electronAPI.invoke('get-recent-files').catch(() => []),
-            window.electronAPI.invoke('get-markdown-files').then(r => r?.files || r || []).catch(() => [])
+            window.electronAPI.workspace.getRecentFiles().catch(() => []),
+            window.electronAPI.files.getMarkdownFiles().then(r => r?.files || r || []).catch(() => [])
         ]);
     } catch (err) {
         console.warn('[QuickOpen] Error fetching files:', err);
@@ -14299,7 +14301,7 @@ async function copyOrMoveSlidesToFile(indices, slideTexts, isMove) {
     // Get list of markdown files
     let mdFiles = [];
     try {
-        const result = await window.electronAPI.invoke('get-markdown-files');
+        const result = await window.electronAPI.files.getMarkdownFiles();
         mdFiles = (result?.files || result || []).filter(f => f !== window.currentFilePath);
     } catch (err) {
         showNotification('Could not list markdown files', 'error');
@@ -14390,7 +14392,7 @@ async function copyOrMoveSlidesToFile(indices, slideTexts, isMove) {
 
 async function appendSlidesToFile(filePath, slideTexts) {
     try {
-        const result = await window.electronAPI.invoke('read-file-content-only', filePath);
+        const result = await window.electronAPI.files.readFileContentOnly(filePath);
         if (!result?.success) {
             showNotification(`Failed to read ${filePath}`, 'error');
             return;
@@ -14401,7 +14403,7 @@ async function appendSlidesToFile(filePath, slideTexts) {
         const newContent = existingContent.trim()
             ? existingContent.trimEnd() + '\n\n---\n\n' + slidesBlock
             : slidesBlock;
-        await window.electronAPI.invoke('write-file', { filePath, content: newContent });
+        await window.electronAPI.files.writeFile({ filePath, content: newContent });
     } catch (err) {
         showNotification(`Error writing to file: ${err.message}`, 'error');
     }
@@ -14692,7 +14694,7 @@ async function saveFile() {
         
         if (window.currentFilePath) {
             // Save existing file
-            const result = await window.electronAPI.invoke('perform-save', content);
+            const result = await window.electronAPI.files.performSave(content);
             
             if (result.success) {
                 // Check if content was modified during save (e.g., H1 heading added)
@@ -14735,7 +14737,7 @@ async function saveFile() {
                     return;
                 }
 
-                const forcedResult = await window.electronAPI.invoke('perform-save', content, {
+                const forcedResult = await window.electronAPI.files.performSave(content, {
                     force: true,
                     expectedMtimeMs: result.currentMtimeMs
                 });
@@ -14765,14 +14767,14 @@ async function saveFile() {
                 || window.appSettings?.workingDirectory;
             if (!defaultDirectory) {
                 try {
-                    const settings = await window.electronAPI.invoke('get-settings');
+                    const settings = await window.electronAPI.settings.getSettings();
                     defaultDirectory = settings?.workingDirectory;
                 } catch (error) {
                     console.warn('[renderer.js] saveFile - Failed to load settings:', error);
                 }
             }
 
-            const result = await window.electronAPI.invoke('perform-save-as', {
+            const result = await window.electronAPI.files.performSaveAs({
                 content: content,
                 defaultDirectory: defaultDirectory
             });
@@ -14796,7 +14798,7 @@ async function saveFile() {
                         
                         // Save the updated content with the heading
                         try {
-                            const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
+                            const saveResult = await window.electronAPI.files.performSave(updatedContent);
                             if (!saveResult.success) {
                                 console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
                             }
@@ -14833,7 +14835,7 @@ async function saveFile() {
 
                 // Also refresh via IPC to ensure file tree is completely up to date
                 try {
-                    await window.electronAPI.invoke('refresh-file-tree');
+                    await window.electronAPI.files.refreshFileTree();
                 } catch (error) {
                     console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
                 }
@@ -14926,7 +14928,7 @@ async function saveAsFile() {
             || window.appSettings?.workingDirectory;
         if (!defaultDirectory) {
             try {
-                const settings = await window.electronAPI.invoke('get-settings');
+                const settings = await window.electronAPI.settings.getSettings();
                 defaultDirectory = settings?.workingDirectory;
             } catch (error) {
                 console.warn('[renderer.js] saveAsFile - Failed to load settings:', error);
@@ -14934,7 +14936,7 @@ async function saveAsFile() {
         }
         
         
-        const result = await window.electronAPI.invoke('perform-save-as', {
+        const result = await window.electronAPI.files.performSaveAs({
             content: content,
             defaultDirectory: defaultDirectory
         });
@@ -14958,7 +14960,7 @@ async function saveAsFile() {
                     
                     // Save the updated content with the heading
                     try {
-                        const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
+                        const saveResult = await window.electronAPI.files.performSave(updatedContent);
                         if (!saveResult.success) {
                             console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
                         }
@@ -14987,7 +14989,7 @@ async function saveAsFile() {
 
             // Also refresh via IPC to ensure file tree is completely up to date
             try {
-                await window.electronAPI.invoke('refresh-file-tree');
+                await window.electronAPI.files.refreshFileTree();
             } catch (error) {
                 console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
             }
@@ -15022,7 +15024,7 @@ async function showGitPublishDialog(folderPath, gitInfo) {
     // Fetch git status
     let changes = [];
     try {
-        const statusResult = await window.electronAPI.invoke('git-status', {
+        const statusResult = await window.electronAPI.git.status({
             repoRoot: gitInfo.repoRoot,
             subfolder: gitInfo.relativePath
         });
@@ -15341,7 +15343,7 @@ async function extractTextToNewFile() {
         let workingDirectory = window.appSettings?.workingDirectory;
         if (!workingDirectory) {
             try {
-                const settings = await window.electronAPI.invoke('get-settings');
+                const settings = await window.electronAPI.settings.getSettings();
                 workingDirectory = settings?.workingDirectory;
             } catch (error) {
                 console.warn('[extractTextToNewFile] Failed to load settings:', error);
@@ -15354,7 +15356,7 @@ async function extractTextToNewFile() {
         const newFileContent = addH1HeadingIfNeeded(selectedText, cleanFileName);
         
         
-        const result = await window.electronAPI.invoke('extract-text-with-replacement', {
+        const result = await window.electronAPI.files.extractTextWithReplacement({
             // Original file info
             originalFilePath: window.currentFilePath,
             textToReplace: selectedText,
@@ -15538,7 +15540,7 @@ window.openFileInEditor = openFileInEditor;
 // New file function - trigger the menu action
 function newFile() {
     if (window.electronAPI) {
-        window.electronAPI.invoke('trigger-new-file');
+        window.electronAPI.app.triggerNewFile();
     }
 }
 window.newFile = newFile;
@@ -15862,7 +15864,7 @@ async function getAllProjectFiles() {
 // Recursively scan directory for files
 async function scanDirectoryRecursively(dirPath, fileList, rootDir) {
     try {
-        const items = await window.electronAPI.invoke('list-directory-files', dirPath);
+        const items = await window.electronAPI.files.listDirectoryFiles(dirPath);
         
         if (!items || !Array.isArray(items)) {
             console.warn('[Command Palette] No items returned for directory:', dirPath);

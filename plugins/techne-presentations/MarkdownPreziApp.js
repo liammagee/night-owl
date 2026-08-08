@@ -455,6 +455,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         event.stopPropagation();
         var linkPath = linkElement.getAttribute('data-link');
         if (linkPath) {
+          var _window$electronAPI;
           var decodedPath = decodeURIComponent(linkPath);
           console.log('[Internal Link] Opening:', decodedPath);
 
@@ -462,10 +463,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           if (window.openFile) {
             console.log('[Internal Link] Using window.openFile');
             window.openFile(decodedPath);
-          } else if (window.electronAPI && window.electronAPI.invoke) {
+          } else if ((_window$electronAPI = window.electronAPI) !== null && _window$electronAPI !== void 0 && (_window$electronAPI = _window$electronAPI.files) !== null && _window$electronAPI !== void 0 && _window$electronAPI.openFile) {
             // Fallback for Electron API
             console.log('[Internal Link] Using electronAPI');
-            window.electronAPI.invoke('open-file', decodedPath);
+            window.electronAPI.files.openFile(decodedPath);
           } else {
             console.warn('[Internal Link] No file opening API available');
           }
@@ -1431,9 +1432,11 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Set up Electron API listeners (only once)
   useEffect(function () {
-    if (isElectron && window.electronAPI) {
+    var _window$electronAPI2;
+    var unsubscribers = [];
+    if (isElectron && (_window$electronAPI2 = window.electronAPI) !== null && _window$electronAPI2 !== void 0 && _window$electronAPI2.events) {
       // File loading
-      window.electronAPI.loadPresentationFile(function (content, filePath, error) {
+      unsubscribers.push(window.electronAPI.events.loadPresentationFile(function (content, filePath, error) {
         if (error) {
           console.error('Error loading file:', error);
           return;
@@ -1450,13 +1453,13 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             }
           }, 100); // Give more time for canvas to be ready
         }
-      });
+      }));
 
       // Presentation controls
-      window.electronAPI.onStartPresentation(function () {
+      unsubscribers.push(window.electronAPI.events.startPresentation(function () {
         setIsPresenting(true);
-      });
-      window.electronAPI.onExitPresentation(function () {
+      }));
+      unsubscribers.push(window.electronAPI.events.exitPresentation(function () {
         console.log('[PRESENTATION] External exit presentation triggered...');
 
         // Stop TTS audio
@@ -1468,53 +1471,47 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           stopRecording();
         }
         setIsPresenting(false);
-      });
-      window.electronAPI.onTogglePresentationMode(function () {
+      }));
+      unsubscribers.push(window.electronAPI.events.togglePresentationMode(function () {
         // Switch to presentation mode
         switchToMode('presentation');
-      });
+      }));
 
       // Auto-generate and show statistics
-      window.electronAPI.onShowPresentationStatistics(function () {
+      unsubscribers.push(window.electronAPI.events.showPresentationStatistics(function () {
         console.log('[PRESENTATION] Auto-generating and showing statistics');
         // Auto-switch to statistics view and display immediately
         if (window.switchStructureView) {
           window.switchStructureView('statistics');
         }
-      });
+      }));
 
       // Zoom controls
-      window.electronAPI.onZoomIn(function () {
+      unsubscribers.push(window.electronAPI.events.zoomIn(function () {
         handleZoomIn();
-      });
-      window.electronAPI.onZoomOut(function () {
+      }));
+      unsubscribers.push(window.electronAPI.events.zoomOut(function () {
         handleZoomOut();
-      });
-      window.electronAPI.onResetZoom(function () {
+      }));
+      unsubscribers.push(window.electronAPI.events.resetZoom(function () {
         _resetView();
-      });
+      }));
 
       // Layout changes
-      window.electronAPI.onChangeLayout(function (layout) {
+      unsubscribers.push(window.electronAPI.events.changeLayout(function (layout) {
         setLayoutType(layout);
-      });
+      }));
     }
     return function () {
-      if (isElectron && window.electronAPI) {
-        window.electronAPI.removeAllListeners();
-      }
+      unsubscribers.forEach(function (unsubscribe) {
+        return unsubscribe === null || unsubscribe === void 0 ? void 0 : unsubscribe();
+      });
     };
   }, []);
 
-  // Clean up any existing IPC navigation listeners to prevent conflicts
+  // Reset the legacy navigation flag without disturbing listeners owned by
+  // other renderer features.
   useEffect(function () {
-    if (isElectron && window.electronAPI && window.electronAPI.removeAllListeners) {
-      // Remove any existing navigation listeners that might be causing conflicts
-      window.electronAPI.removeAllListeners();
-      console.log('[Navigation] Cleaned up all existing IPC listeners to prevent conflicts');
-    }
-
-    // Reset navigation setup flag so no stale listeners remain
     window.navigationListenersSetup = false;
   }, []); // Run once on mount
 
@@ -1754,8 +1751,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
       // Focus the main window to ensure keyboard navigation works immediately (multiple attempts)
       var focusMainWindow = function focusMainWindow() {
-        if (window.electronAPI && window.electronAPI.invoke) {
-          window.electronAPI.invoke('focus-main-window');
+        var _window$electronAPI3;
+        if ((_window$electronAPI3 = window.electronAPI) !== null && _window$electronAPI3 !== void 0 && (_window$electronAPI3 = _window$electronAPI3.presentation) !== null && _window$electronAPI3 !== void 0 && _window$electronAPI3.focusMainWindow) {
+          window.electronAPI.presentation.focusMainWindow();
           console.log('[Presentation] Focused main window for keyboard navigation');
         } else {
           // Fallback for non-Electron environments
@@ -1838,14 +1836,15 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       // Wait for legacy system to open window, then sync React state with it
       setTimeout(function () {
         if (window.speakerNotesData && window.SPEAKER_NOTES_WINDOW_OPEN) {
+          var _window$electronAPI4;
           // Legacy system opened the window, sync our state
           setSpeakerNotesWindowVisible(true);
           window.explicitlySeparateWindow = true;
           console.log('[Presentation] React synced with legacy speaker notes window');
 
           // Focus main window after speaker notes window has opened and stolen focus
-          if (window.electronAPI && window.electronAPI.invoke) {
-            window.electronAPI.invoke('focus-main-window');
+          if ((_window$electronAPI4 = window.electronAPI) !== null && _window$electronAPI4 !== void 0 && (_window$electronAPI4 = _window$electronAPI4.presentation) !== null && _window$electronAPI4 !== void 0 && _window$electronAPI4.focusMainWindow) {
+            window.electronAPI.presentation.focusMainWindow();
             console.log('[Presentation] Re-focused main window after speaker notes window opened');
           } else {
             window.focus();
@@ -1853,15 +1852,17 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
           // Add additional aggressive focus attempts
           setTimeout(function () {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            var _window$electronAPI5;
+            if ((_window$electronAPI5 = window.electronAPI) !== null && _window$electronAPI5 !== void 0 && (_window$electronAPI5 = _window$electronAPI5.presentation) !== null && _window$electronAPI5 !== void 0 && _window$electronAPI5.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Additional focus attempt at 1.5s');
             }
           }, 500); // 1.5 seconds total
 
           setTimeout(function () {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            var _window$electronAPI6;
+            if ((_window$electronAPI6 = window.electronAPI) !== null && _window$electronAPI6 !== void 0 && (_window$electronAPI6 = _window$electronAPI6.presentation) !== null && _window$electronAPI6 !== void 0 && _window$electronAPI6.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Final focus attempt at 2s');
             }
           }, 1000); // 2 seconds total
@@ -1906,6 +1907,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Listen for speaker notes window being closed externally
   useEffect(function () {
     if (isElectron && window.electronAPI) {
+      var _window$electronAPI$e;
       var handleSpeakerNotesWindowClosed = function handleSpeakerNotesWindowClosed() {
         // Ignore close events during controlled toggle to prevent race condition
         if (window.REACT_CONTROLLED_TOGGLE) {
@@ -1926,8 +1928,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       };
 
       // Set up listener for speaker notes window close event
-      if (window.electronAPI.on) {
-        var cleanup = window.electronAPI.on('speaker-notes-window-closed', handleSpeakerNotesWindowClosed);
+      if ((_window$electronAPI$e = window.electronAPI.events) !== null && _window$electronAPI$e !== void 0 && _window$electronAPI$e.speakerNotesWindowClosed) {
+        var cleanup = window.electronAPI.events.speakerNotesWindowClosed(handleSpeakerNotesWindowClosed);
         return cleanup;
       }
     }
@@ -2033,7 +2035,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 formattedNotes = '<em>No speaker notes for this slide.</em>';
               }
               _context.n = 2;
-              return window.electronAPI.invoke('update-speaker-notes', {
+              return window.electronAPI.presentation.updateSpeakerNotes({
                 notes: formattedNotes,
                 slideNumber: currentSlide + 1
               });
@@ -2577,7 +2579,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
             // Close the separate window
             _context4.n = 3;
-            return window.electronAPI.invoke('close-speaker-notes-window');
+            return window.electronAPI.presentation.closeSpeakerNotesWindow();
           case 3:
             setSpeakerNotesWindowVisible(false);
             // Clear the flag since we're now explicitly using inline panel
@@ -2684,7 +2686,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               formattedNotes = '<em>No speaker notes for this slide.</em>';
             }
             _context4.n = 8;
-            return window.electronAPI.invoke('open-speaker-notes-window', {
+            return window.electronAPI.presentation.openSpeakerNotesWindow({
               notes: formattedNotes,
               slideNumber: currentSlide + 1,
               allNotes: window.speakerNotesData.allNotes
@@ -2696,8 +2698,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
             // Focus main window after opening speaker notes window
             setTimeout(function () {
-              if (window.electronAPI && window.electronAPI.invoke) {
-                window.electronAPI.invoke('focus-main-window');
+              var _window$electronAPI7;
+              if ((_window$electronAPI7 = window.electronAPI) !== null && _window$electronAPI7 !== void 0 && (_window$electronAPI7 = _window$electronAPI7.presentation) !== null && _window$electronAPI7 !== void 0 && _window$electronAPI7.focusMainWindow) {
+                window.electronAPI.presentation.focusMainWindow();
               }
             }, 100); // Short delay to ensure window has opened
             // Clear inline panel flag

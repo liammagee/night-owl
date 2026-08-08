@@ -460,7 +460,7 @@ class AICompanionManager {
                 this.log('debug', 'ai_input', prompt);
             }
 
-            const response = await window.electronAPI.invoke('ai-chat', {
+            const response = await window.electronAPI.ai.aiChat({
                 message: prompt,
                 options: ashConfig
             });
@@ -804,7 +804,7 @@ class AICompanionManager {
 
     async loadCompanionSettings() {
         try {
-            const settings = await window.electronAPI.invoke('get-settings');
+            const settings = await window.electronAPI.settings.getSettings();
             if (settings && settings.ai) {
                 // Update context manager settings
                 this.contextManager.loadContextSettings();

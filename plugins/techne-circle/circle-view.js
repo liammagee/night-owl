@@ -407,13 +407,13 @@ class CircleView {
             if (this.host?.readFile) {
                 const result = await this.host.readFile(filePath);
                 content = result?.content;
-            } else if (this.host?.electronAPI?.invoke) {
-                const result = await this.host.electronAPI.invoke('read-file-content', filePath);
+            } else if (this.host?.electronAPI?.files?.readFileContent) {
+                const result = await this.host.electronAPI.files.readFileContent(filePath);
                 if (result?.success) {
                     content = result.content;
                 }
-            } else if (window.electronAPI?.invoke) {
-                const result = await window.electronAPI.invoke('read-file-content', filePath);
+            } else if (window.electronAPI?.files?.readFileContent) {
+                const result = await window.electronAPI.files.readFileContent(filePath);
                 if (result?.success) {
                     content = result.content;
                 }
@@ -453,10 +453,10 @@ class CircleView {
     async openFile(filePath) {
         if (this.host?.openFile) {
             await this.host.openFile(filePath);
-        } else if (this.host?.electronAPI?.invoke) {
-            await this.host.electronAPI.invoke('open-file', filePath);
-        } else if (window.electronAPI?.invoke) {
-            await window.electronAPI.invoke('open-file', filePath);
+        } else if (this.host?.electronAPI?.files?.openFile) {
+            await this.host.electronAPI.files.openFile(filePath);
+        } else if (window.electronAPI?.files?.openFile) {
+            await window.electronAPI.files.openFile(filePath);
         }
     }
 
@@ -476,13 +476,13 @@ class CircleView {
                     content: this.documentContent,
                     filePath: this.currentDocument
                 });
-            } else if (this.host?.electronAPI?.invoke) {
-                summaryResult = await this.host.electronAPI.invoke('generate-document-summaries', {
+            } else if (this.host?.electronAPI?.ai?.generateDocumentSummaries) {
+                summaryResult = await this.host.electronAPI.ai.generateDocumentSummaries({
                     content: this.documentContent,
                     filePath: this.currentDocument
                 });
-            } else if (window.electronAPI?.invoke) {
-                summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
+            } else if (window.electronAPI?.ai?.generateDocumentSummaries) {
+                summaryResult = await window.electronAPI.ai.generateDocumentSummaries({
                     content: this.documentContent,
                     filePath: this.currentDocument
                 });

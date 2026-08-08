@@ -124,8 +124,8 @@ class BabelMazeView {
             const result = await this.host.readFile(filePath);
             return result ? { success: true, content: result.content } : { success: false };
         }
-        if (window.electronAPI?.invoke) {
-            return window.electronAPI.invoke('read-file-content-only', filePath);
+        if (window.electronAPI?.files?.readFileContentOnly) {
+            return window.electronAPI.files.readFileContentOnly(filePath);
         }
         return { success: false, error: 'No file reader available' };
     }
@@ -134,8 +134,8 @@ class BabelMazeView {
         if (this.host?.openFile) {
             return this.host.openFile(filePath);
         }
-        if (window.electronAPI?.invoke) {
-            return window.electronAPI.invoke('open-file-path', filePath);
+        if (window.electronAPI?.files?.openFilePath) {
+            return window.electronAPI.files.openFilePath(filePath);
         }
         return { success: false, error: 'No file opener available' };
     }
@@ -144,8 +144,8 @@ class BabelMazeView {
         if (this.host?.appendLink) {
             return this.host.appendLink(sourcePath, targetId, targetLabel);
         }
-        if (window.electronAPI?.invoke) {
-            return window.electronAPI.invoke('library.append-internal-link', {
+        if (window.electronAPI?.app?.libraryAppendInternalLink) {
+            return window.electronAPI.app.libraryAppendInternalLink({
                 sourcePath, targetId, targetLabel
             });
         }
@@ -156,8 +156,8 @@ class BabelMazeView {
         if (this.host?.saveFile) {
             return this.host.saveFile(filePath, content);
         }
-        if (window.electronAPI?.invoke) {
-            return window.electronAPI.invoke('perform-save-with-path', content, filePath);
+        if (window.electronAPI?.files?.performSaveWithPath) {
+            return window.electronAPI.files.performSaveWithPath(content, filePath);
         }
         return { success: false, error: 'No file saver available' };
     }
@@ -2808,7 +2808,7 @@ class BabelMazeView {
             return;
         }
 
-        if (!window?.electronAPI?.invoke) {
+        if (!window?.electronAPI?.app?.libraryAppendInternalLink) {
             this.appendLog('system', 'File bridge unavailable in this environment.');
             return;
         }
@@ -3214,7 +3214,7 @@ Respond in 2–5 sentences: atmospheric but actionable. Suggest 1 concrete next 
     async buildGraph() {
         // Check if we have file access via host adapter or window globals
         const hasHostFiles = this.host?.getFiles || this.host?.readFile;
-        const hasWindowFiles = window?.getFilteredVisualizationFiles || window?.electronAPI?.invoke;
+        const hasWindowFiles = window?.getFilteredVisualizationFiles || window?.electronAPI?.files?.readFileContentOnly;
         if (!hasHostFiles && !hasWindowFiles) {
             throw new Error('Visualization file loader unavailable.');
         }

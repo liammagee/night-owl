@@ -90,7 +90,7 @@ class StyleManager {
     async loadUserStyles() {
         try {
             if (window.electronAPI) {
-                const userStyles = await window.electronAPI.invoke('load-user-styles');
+                const userStyles = await window.electronAPI.settings.loadUserStyles();
                 if (userStyles) {
                     Object.entries(userStyles).forEach(([key, style]) => {
                         this.customStyles.set(key, style);
@@ -107,7 +107,7 @@ class StyleManager {
         try {
             if (window.electronAPI) {
                 const userStylesObj = Object.fromEntries(this.customStyles);
-                await window.electronAPI.invoke('save-user-styles', userStylesObj);
+                await window.electronAPI.settings.saveUserStyles(userStylesObj);
             }
         } catch (error) {
             console.error('[StyleManager] Could not save user styles:', error);
@@ -356,7 +356,7 @@ class StyleManager {
         try {
             if (filePath.startsWith('./styles/') && window.electronAPI) {
                 // Load from file system
-                const response = await window.electronAPI.invoke('load-style-file', filePath);
+                const response = await window.electronAPI.settings.loadStyleFile(filePath);
                 if (response.success) {
                     return response.content;
                 } else {
@@ -405,7 +405,7 @@ class StyleManager {
             };
 
             if (window.electronAPI) {
-                await window.electronAPI.invoke('save-style-preferences', preferences);
+                await window.electronAPI.settings.saveStylePreferences(preferences);
             } else {
                 localStorage.setItem('hegel-style-preferences', JSON.stringify(preferences));
             }
@@ -420,7 +420,7 @@ class StyleManager {
             let preferences;
             
             if (window.electronAPI) {
-                preferences = await window.electronAPI.invoke('load-style-preferences');
+                preferences = await window.electronAPI.settings.loadStylePreferences();
             } else {
                 const stored = localStorage.getItem('hegel-style-preferences');
                 preferences = stored ? JSON.parse(stored) : null;

@@ -36,7 +36,7 @@
       return;
     }
     try {
-      const result = await window.electronAPI.invoke('export-to-latex', { content, options: {} });
+      const result = await window.electronAPI.documents.exportToLatex({ content, options: {} });
       if (result.success) {
         if (window.showNotification) window.showNotification('Exported to LaTeX: ' + result.filePath.split('/').pop(), 'success');
       } else if (!result.cancelled) {
@@ -56,7 +56,7 @@
     }
     const metadata = getMetadata();
     try {
-      const result = await window.electronAPI.invoke('export-to-epub', { content, metadata });
+      const result = await window.electronAPI.documents.exportToEpub({ content, metadata });
       if (result.success) {
         if (window.showNotification) window.showNotification('Exported to EPUB: ' + result.filePath.split('/').pop(), 'success');
       } else if (!result.cancelled) {
@@ -72,7 +72,7 @@
 
     let templates = [];
     try {
-      const res = await window.electronAPI.invoke('get-pdf-templates');
+      const res = await window.electronAPI.documents.getPdfTemplates();
       if (res.success) templates = res.templates;
     } catch (_) { /* use defaults */ }
 
@@ -129,7 +129,7 @@
           try { htmlContent = window.marked.parse(content); } catch (_) { /* use raw */ }
         }
         try {
-          const result = await window.electronAPI.invoke('export-pdf-with-template', { htmlContent, template: templateId });
+          const result = await window.electronAPI.documents.exportPdfWithTemplate({ htmlContent, template: templateId });
           if (result.success) {
             if (window.showNotification) window.showNotification('Exported PDF: ' + result.filePath.split('/').pop(), 'success');
           } else if (!result.cancelled) {

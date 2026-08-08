@@ -274,7 +274,7 @@ class ScholarSupport {
 
             // Fallback to electron API
             if (window.electronAPI) {
-                const currentFile = await window.electronAPI.invoke('get-current-file-content');
+                const currentFile = await window.electronAPI.files.getCurrentFileContent();
                 return currentFile?.content || '';
             }
 
@@ -375,7 +375,7 @@ class ScholarSupport {
             headingStyle: headingStyle
         });
 
-        const response = await window.electronAPI.invoke('ai-chat', requestData);
+        const response = await window.electronAPI.ai.aiChat(requestData);
         
         if (!response?.response) {
             throw new Error('No response from AI service');

@@ -340,11 +340,11 @@
             observe: (...args) => lifecycle?.observe?.(...args),
             track: (...args) => lifecycle?.track?.(...args),
             readFile: async (filePath) => {
-                if (!window.electronAPI?.invoke) return null;
-                const result = await window.electronAPI.invoke('read-file-content', filePath);
+                if (!window.electronAPI?.files?.readFileContent) return null;
+                const result = await window.electronAPI.files.readFileContent(filePath);
                 return result?.success ? { content: result.content } : null;
             },
-            openFile: async (filePath) => window.electronAPI?.invoke?.('open-file', filePath),
+            openFile: async (filePath) => window.electronAPI?.files?.openFile(filePath),
             getFiles: async () => {
                 if (typeof window.getFilteredVisualizationFiles === 'function') {
                     return window.getFilteredVisualizationFiles();
@@ -352,8 +352,8 @@
                 return { files: [], totalFiles: 0 };
             },
             generateSummaries: async ({ content, filePath }) => {
-                if (!window.electronAPI?.invoke) return { success: false, error: 'Not available' };
-                return window.electronAPI.invoke('generate-document-summaries', { content, filePath });
+                if (!window.electronAPI?.ai?.generateDocumentSummaries) return { success: false, error: 'Not available' };
+                return window.electronAPI.ai.generateDocumentSummaries({ content, filePath });
             },
             getCurrentFile: () => window.currentFilePath || null,
             getEditor: () => window.editor || null,

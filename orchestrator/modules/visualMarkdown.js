@@ -1130,8 +1130,8 @@ function openLink(url) {
     // Handle different link types
     if (url.startsWith('http://') || url.startsWith('https://')) {
         // External link - open in browser
-        if (window.electronAPI && window.electronAPI.invoke) {
-            window.electronAPI.invoke('open-external', url);
+        if (window.electronAPI?.navigation?.openExternal) {
+            window.electronAPI.navigation.openExternal(url);
         } else {
             window.open(url, '_blank');
         }
@@ -1163,7 +1163,7 @@ function openLink(url) {
 async function navigateToInternalFile(relativePath, anchor = null) {
     console.log('[visualMarkdown] Navigating to internal file:', relativePath, anchor ? `#${anchor}` : '');
 
-    if (!window.electronAPI || !window.electronAPI.invoke) {
+    if (!window.electronAPI?.files?.readFileContent) {
         console.warn('[visualMarkdown] Electron API not available for internal file navigation');
         return;
     }
@@ -1179,7 +1179,7 @@ async function navigateToInternalFile(relativePath, anchor = null) {
             }
         } else {
             // Fall back to working directory
-            const workingDir = await window.electronAPI.invoke('get-working-directory');
+            const workingDir = await window.electronAPI.workspace.getWorkingDirectory();
             basePath = workingDir;
         }
 
@@ -1187,7 +1187,7 @@ async function navigateToInternalFile(relativePath, anchor = null) {
         let fullPath;
         if (relativePath.startsWith('/')) {
             // Absolute path from workspace root
-            const workingDir = await window.electronAPI.invoke('get-working-directory');
+            const workingDir = await window.electronAPI.workspace.getWorkingDirectory();
             fullPath = workingDir + relativePath;
         } else if (relativePath.startsWith('./')) {
             // Explicit relative path
@@ -1206,7 +1206,7 @@ async function navigateToInternalFile(relativePath, anchor = null) {
         console.log('[visualMarkdown] Resolved path:', fullPath);
 
         // Check if file exists first
-        const fileCheck = await window.electronAPI.invoke('read-file-content', fullPath);
+        const fileCheck = await window.electronAPI.files.readFileContent(fullPath);
         if (!fileCheck.success) {
             console.warn('[visualMarkdown] File not found:', fullPath);
             // Try to find the file in workspace
@@ -1220,7 +1220,7 @@ async function navigateToInternalFile(relativePath, anchor = null) {
         }
 
         // Open the file
-        await window.electronAPI.invoke('open-file', fullPath);
+        await window.electronAPI.files.openFile(fullPath);
 
         // If there's an anchor, scroll to it after the file loads
         if (anchor) {
@@ -1281,7 +1281,7 @@ async function findFileInWorkspace(filename) {
         const baseName = filename.split('/').pop();
 
         // Get all markdown files in workspace
-        const result = await window.electronAPI.invoke('get-markdown-files');
+        const result = await window.electronAPI.files.getMarkdownFiles();
         if (!result.success || !result.files) return null;
 
         // Find matching file

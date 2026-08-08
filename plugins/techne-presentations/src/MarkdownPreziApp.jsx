@@ -269,10 +269,10 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
           if (window.openFile) {
             console.log('[Internal Link] Using window.openFile');
             window.openFile(decodedPath);
-          } else if (window.electronAPI && window.electronAPI.invoke) {
+          } else if (window.electronAPI?.files?.openFile) {
             // Fallback for Electron API
             console.log('[Internal Link] Using electronAPI');
-            window.electronAPI.invoke('open-file', decodedPath);
+            window.electronAPI.files.openFile(decodedPath);
           } else {
             console.warn('[Internal Link] No file opening API available');
           }
@@ -1267,9 +1267,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Set up Electron API listeners (only once)
   useEffect(() => {
-    if (isElectron && window.electronAPI) {
+    const unsubscribers = [];
+    if (isElectron && window.electronAPI?.events) {
       // File loading
-      window.electronAPI.loadPresentationFile((content, filePath, error) => {
+      unsubscribers.push(window.electronAPI.events.loadPresentationFile((content, filePath, error) => {
         if (error) {
           console.error('Error loading file:', error);
           return;
@@ -1286,14 +1287,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             }
           }, 100); // Give more time for canvas to be ready
         }
-      });
+      }));
 
       // Presentation controls
-      window.electronAPI.onStartPresentation(() => {
+      unsubscribers.push(window.electronAPI.events.startPresentation(() => {
         setIsPresenting(true);
-      });
+      }));
 
-      window.electronAPI.onExitPresentation(() => {
+      unsubscribers.push(window.electronAPI.events.exitPresentation(() => {
         console.log('[PRESENTATION] External exit presentation triggered...');
         
         // Stop TTS audio
@@ -1306,57 +1307,49 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }
         
         setIsPresenting(false);
-      });
+      }));
 
-      window.electronAPI.onTogglePresentationMode(() => {
+      unsubscribers.push(window.electronAPI.events.togglePresentationMode(() => {
         // Switch to presentation mode
         switchToMode('presentation');
-      });
+      }));
 
       // Auto-generate and show statistics
-      window.electronAPI.onShowPresentationStatistics(() => {
+      unsubscribers.push(window.electronAPI.events.showPresentationStatistics(() => {
         console.log('[PRESENTATION] Auto-generating and showing statistics');
         // Auto-switch to statistics view and display immediately
         if (window.switchStructureView) {
           window.switchStructureView('statistics');
         }
-      });
+      }));
 
       // Zoom controls
-      window.electronAPI.onZoomIn(() => {
+      unsubscribers.push(window.electronAPI.events.zoomIn(() => {
         handleZoomIn();
-      });
+      }));
 
-      window.electronAPI.onZoomOut(() => {
+      unsubscribers.push(window.electronAPI.events.zoomOut(() => {
         handleZoomOut();
-      });
+      }));
 
-      window.electronAPI.onResetZoom(() => {
+      unsubscribers.push(window.electronAPI.events.resetZoom(() => {
         resetView();
-      });
+      }));
 
       // Layout changes
-      window.electronAPI.onChangeLayout((layout) => {
+      unsubscribers.push(window.electronAPI.events.changeLayout((layout) => {
         setLayoutType(layout);
-      });
+      }));
     }
 
     return () => {
-      if (isElectron && window.electronAPI) {
-        window.electronAPI.removeAllListeners();
-      }
+      unsubscribers.forEach(unsubscribe => unsubscribe?.());
     };
   }, []);
 
-  // Clean up any existing IPC navigation listeners to prevent conflicts
+  // Reset the legacy navigation flag without disturbing listeners owned by
+  // other renderer features.
   useEffect(() => {
-    if (isElectron && window.electronAPI && window.electronAPI.removeAllListeners) {
-      // Remove any existing navigation listeners that might be causing conflicts
-      window.electronAPI.removeAllListeners();
-      console.log('[Navigation] Cleaned up all existing IPC listeners to prevent conflicts');
-    }
-    
-    // Reset navigation setup flag so no stale listeners remain
     window.navigationListenersSetup = false;
   }, []); // Run once on mount
 
@@ -1617,8 +1610,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       
       // Focus the main window to ensure keyboard navigation works immediately (multiple attempts)
       const focusMainWindow = () => {
-        if (window.electronAPI && window.electronAPI.invoke) {
-          window.electronAPI.invoke('focus-main-window');
+        if (window.electronAPI?.presentation?.focusMainWindow) {
+          window.electronAPI.presentation.focusMainWindow();
           console.log('[Presentation] Focused main window for keyboard navigation');
         } else {
           // Fallback for non-Electron environments
@@ -1698,8 +1691,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           console.log('[Presentation] React synced with legacy speaker notes window');
           
           // Focus main window after speaker notes window has opened and stolen focus
-          if (window.electronAPI && window.electronAPI.invoke) {
-            window.electronAPI.invoke('focus-main-window');
+          if (window.electronAPI?.presentation?.focusMainWindow) {
+            window.electronAPI.presentation.focusMainWindow();
             console.log('[Presentation] Re-focused main window after speaker notes window opened');
           } else {
             window.focus();
@@ -1707,15 +1700,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           
           // Add additional aggressive focus attempts
           setTimeout(() => {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            if (window.electronAPI?.presentation?.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Additional focus attempt at 1.5s');
             }
           }, 500); // 1.5 seconds total
           
           setTimeout(() => {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            if (window.electronAPI?.presentation?.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Final focus attempt at 2s');
             }
           }, 1000); // 2 seconds total
@@ -1780,8 +1773,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       };
 
       // Set up listener for speaker notes window close event
-      if (window.electronAPI.on) {
-        const cleanup = window.electronAPI.on('speaker-notes-window-closed', handleSpeakerNotesWindowClosed);
+      if (window.electronAPI.events?.speakerNotesWindowClosed) {
+        const cleanup = window.electronAPI.events.speakerNotesWindowClosed(handleSpeakerNotesWindowClosed);
         return cleanup;
       }
     }
@@ -1885,7 +1878,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             formattedNotes = '<em>No speaker notes for this slide.</em>';
           }
           
-          await window.electronAPI.invoke('update-speaker-notes', {
+          await window.electronAPI.presentation.updateSpeakerNotes({
             notes: formattedNotes,
             slideNumber: currentSlide + 1
           });
@@ -2398,7 +2391,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         window.REACT_CONTROLLED_TOGGLE = true;
         
         // Close the separate window
-        await window.electronAPI.invoke('close-speaker-notes-window');
+        await window.electronAPI.presentation.closeSpeakerNotesWindow();
         setSpeakerNotesWindowVisible(false);
         // Clear the flag since we're now explicitly using inline panel
         window.explicitlySeparateWindow = false;
@@ -2491,7 +2484,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             formattedNotes = '<em>No speaker notes for this slide.</em>';
           }
 
-          await window.electronAPI.invoke('open-speaker-notes-window', {
+          await window.electronAPI.presentation.openSpeakerNotesWindow({
             notes: formattedNotes,
             slideNumber: currentSlide + 1,
             allNotes: window.speakerNotesData.allNotes
@@ -2502,8 +2495,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
           // Focus main window after opening speaker notes window
           setTimeout(() => {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            if (window.electronAPI?.presentation?.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
             }
           }, 100); // Short delay to ensure window has opened
           // Clear inline panel flag

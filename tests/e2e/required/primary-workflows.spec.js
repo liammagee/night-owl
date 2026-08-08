@@ -88,6 +88,45 @@ test('@required @workflow-controllers renderer startup exposes the extracted wor
   }));
 });
 
+test('@required @ipc-contract preload exposes fixed capabilities and rejects malformed privileged payloads', async ({ appPage }) => {
+  const result = await appPage.evaluate(async () => {
+    const api = window.electronAPI;
+    const rejected = {};
+    for (const [name, operation] of Object.entries({
+      terminal: () => api.terminal.exec({ cwd: '/tmp' }),
+      git: () => api.git.stage({ repoRoot: '/tmp', paths: 'all' }),
+      file: () => api.files.saveFile({ filePath: '/tmp/missing-content.md' }),
+      collaboration: () => api.collaboration.startServer({ port: 70000 })
+    })) {
+      try {
+        await operation();
+        rejected[name] = null;
+      } catch (error) {
+        rejected[name] = error.message;
+      }
+    }
+    const settings = await api.settings.getSettings();
+    return {
+      generic: {
+        invoke: typeof api.invoke,
+        on: typeof api.on,
+        send: typeof api.send
+      },
+      capabilities: ['files', 'git', 'terminal', 'settings', 'events', 'signals']
+        .filter(name => typeof api[name] === 'object'),
+      rejected,
+      settingsLoaded: Boolean(settings && typeof settings === 'object')
+    };
+  });
+
+  expect(result.generic).toEqual({ invoke: 'undefined', on: 'undefined', send: 'undefined' });
+  expect(result.capabilities).toEqual(['files', 'git', 'terminal', 'settings', 'events', 'signals']);
+  expect(result.settingsLoaded).toBe(true);
+  for (const message of Object.values(result.rejected)) {
+    expect(message).toMatch(/Invalid payload/);
+  }
+});
+
 test('@required @resource-lifecycle repeated feature mounts return to the live resource baseline', async ({ appPage }) => {
   const result = await appPage.evaluate(async () => {
     const features = window.NightOwlFeatures;
@@ -227,25 +266,17 @@ test('@required @error-recovery file and preview failures are correlated, redact
   const privatePath = '/Users/nightowl/Research/private-preview.md';
   const secret = 'PRIVATE_DIAGNOSTIC_SECRET';
   const fileFailure = await appPage.evaluate(async ({ path, credential }) => {
-    const originalInvoke = window.electronAPI.invoke;
-    window.electronAPI.invoke = async (channel, ...args) => {
-      if (channel === 'open-file-path') {
-        return { success: false, error: `Injected read failure at ${path} token=${credential}` };
-      }
-      return originalInvoke.call(window.electronAPI, channel, ...args);
+    const outcome = await window.openFilePathInEditor(path, {
+      source: 'required-error-recovery',
+      diagnosticCredential: credential
+    });
+    const status = document.getElementById('file-transition-status');
+    const incidentId = status.dataset.correlationId;
+    return {
+      outcome,
+      incidentId,
+      report: JSON.stringify(await window.NightOwlDiagnostics.getReport({ incidentId }))
     };
-    try {
-      const outcome = await window.openFilePathInEditor(path, { source: 'required-error-recovery' });
-      const status = document.getElementById('file-transition-status');
-      const incidentId = status.dataset.correlationId;
-      return {
-        outcome,
-        incidentId,
-        report: JSON.stringify(await window.NightOwlDiagnostics.getReport({ incidentId }))
-      };
-    } finally {
-      window.electronAPI.invoke = originalInvoke;
-    }
   }, { path: privatePath, credential: secret });
 
   expect(fileFailure.outcome).toMatchObject({

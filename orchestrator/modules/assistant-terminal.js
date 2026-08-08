@@ -195,9 +195,9 @@
   }
 
   function ensureTerminalListener() {
-    if (!window.electronAPI?.on || cleanupListener) return;
+    if (!window.electronAPI?.events?.terminalOutput || cleanupListener) return;
 
-    cleanupListener = window.electronAPI.on('terminal-output', (message = {}) => {
+    cleanupListener = window.electronAPI.events.terminalOutput((message = {}) => {
       if (message.sessionId && message.sessionId !== SESSION_ID) return;
       if (!message.sessionId && activeProcess === false) return;
       if (message.pid && activePid && message.pid !== activePid) return;
@@ -342,9 +342,9 @@
   }
 
   async function resizeActiveTerminal() {
-    if (!activeProcess || !window.electronAPI?.invoke || !terminal) return;
+    if (!activeProcess || !window.electronAPI?.terminal?.resize || !terminal) return;
     const { cols, rows } = getTerminalDimensions();
-    await window.electronAPI.invoke('terminal-resize', {
+    await window.electronAPI.terminal.resize({
       sessionId: SESSION_ID,
       cols,
       rows
@@ -388,8 +388,8 @@
       const result = await spawnTerminal();
       const bufferedInput = pendingTerminalInput;
       pendingTerminalInput = '';
-      if (result?.success && bufferedInput && window.electronAPI?.invoke) {
-        await window.electronAPI.invoke('terminal-write', {
+      if (result?.success && bufferedInput && window.electronAPI?.terminal?.write) {
+        await window.electronAPI.terminal.write({
           sessionId: SESSION_ID,
           data: bufferedInput
         });
@@ -439,12 +439,12 @@
         paneEl?.classList?.add('terminal-emulator-ready');
         terminal.open(outputEl);
         terminal.onData(async (data) => {
-          if (!window.electronAPI?.invoke) return;
+          if (!window.electronAPI?.terminal?.write) return;
           if (!activeProcess) {
             await restartShellForTerminalInput(data);
             return;
           }
-          await window.electronAPI.invoke('terminal-write', {
+          await window.electronAPI.terminal.write({
             sessionId: SESSION_ID,
             data
           });
@@ -486,9 +486,9 @@
   }
 
   async function killProcess({ quiet = false } = {}) {
-    if (!window.electronAPI?.invoke) return { success: false, error: 'Terminal IPC unavailable' };
+    if (!window.electronAPI?.terminal?.kill) return { success: false, error: 'Terminal IPC unavailable' };
 
-    const result = await window.electronAPI.invoke('terminal-kill', { sessionId: SESSION_ID });
+    const result = await window.electronAPI.terminal.kill({ sessionId: SESSION_ID });
     activeProcess = false;
     activePid = null;
     if (!quiet) writeStatus('\n[assistant terminal process stopped]\n', 'info');
@@ -496,7 +496,7 @@
   }
 
   async function spawnTerminal(options = {}) {
-    if (!window.electronAPI?.invoke) {
+    if (!window.electronAPI?.terminal?.spawn) {
       writeStatus('[terminal unavailable]\n', 'error');
       return { success: false, error: 'Terminal IPC unavailable' };
     }
@@ -506,7 +506,7 @@
     scheduleTerminalFit();
 
     const { cols, rows } = getTerminalDimensions();
-    const result = await window.electronAPI.invoke('terminal-spawn', {
+    const result = await window.electronAPI.terminal.spawn({
       sessionId: SESSION_ID,
       cwd: getWorkspaceCwd(),
       cols,
@@ -562,13 +562,13 @@
   }
 
   async function runOneShot(command) {
-    if (!window.electronAPI?.invoke) {
+    if (!window.electronAPI?.terminal?.exec) {
       writeStatus('[terminal unavailable]\n', 'error');
       return;
     }
 
     writeStatus(`$ ${command}\n`, 'command');
-    const result = await window.electronAPI.invoke('terminal-exec', {
+    const result = await window.electronAPI.terminal.exec({
       command,
       cwd: getWorkspaceCwd()
     });
@@ -605,7 +605,7 @@
 
     if (activeProcess) {
       appendFallbackOutput(`${trimmed}\n`, 'stdin');
-      await window.electronAPI.invoke('terminal-write', {
+      await window.electronAPI.terminal.write({
         sessionId: SESSION_ID,
         data: `${command}\n`
       });
@@ -639,7 +639,7 @@
         handleHistory(1);
       } else if (event.key === 'c' && event.ctrlKey && activeProcess) {
         event.preventDefault();
-        await window.electronAPI.invoke('terminal-write', {
+        await window.electronAPI.terminal.write({
           sessionId: SESSION_ID,
           data: '\x03'
         });

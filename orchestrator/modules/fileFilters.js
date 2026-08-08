@@ -125,7 +125,7 @@ function filterVisualizationFiles(allFiles, includePatterns = [], excludePattern
 // Get visualization settings from app settings
 async function getVisualizationFilters() {
     try {
-        const settings = await window.electronAPI.invoke('get-settings');
+        const settings = await window.electronAPI.settings.getSettings();
         const vizSettings = settings?.visualization || {};
         
         return {
@@ -150,7 +150,7 @@ async function getVisualizationFilters() {
 async function getFilteredVisualizationFiles() {
     try {
         // Get all files
-        const allFiles = await window.electronAPI.invoke('get-available-files');
+        const allFiles = await window.electronAPI.workspace.getAvailableFiles();
         
         console.log('[FileFilters] Raw files from get-available-files:', allFiles.slice(0, 10)); // Show first 10 for debugging
         

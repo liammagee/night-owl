@@ -188,9 +188,9 @@ let gitStatusCache = {
 };
 
 async function getRuntimeWorkingDirectory() {
-    if (window.electronAPI?.invoke) {
+    if (window.electronAPI?.workspace?.getWorkingDirectory) {
         try {
-            const workingDirectory = await window.electronAPI.invoke('get-working-directory');
+            const workingDirectory = await window.electronAPI.workspace.getWorkingDirectory();
             if (workingDirectory) return workingDirectory;
         } catch (error) {
             console.warn('[GitStatus] Could not resolve runtime working directory:', error);
@@ -211,7 +211,7 @@ async function updateGitStatusIndicator() {
 
     try {
         // Check if working directory is in a git repo
-        const repoResult = await window.electronAPI.invoke('git-find-repo', workingDir);
+        const repoResult = await window.electronAPI.git.findRepo(workingDir);
         if (!repoResult.success) {
             indicator.style.display = 'none';
             gitStatusCache.repoRoot = null;
@@ -222,12 +222,12 @@ async function updateGitStatusIndicator() {
         gitStatusCache.repoRoot = repoRoot;
 
         // Get branch name
-        const branchResult = await window.electronAPI.invoke('git-get-branch', repoRoot);
+        const branchResult = await window.electronAPI.git.getBranch(repoRoot);
         const branch = branchResult.success ? branchResult.branch : 'unknown';
         gitStatusCache.branch = branch;
 
         // Get status summary
-        const statusResult = await window.electronAPI.invoke('git-status-summary', repoRoot);
+        const statusResult = await window.electronAPI.git.statusSummary(repoRoot);
 
         if (statusResult.success) {
             gitStatusCache.status = statusResult;

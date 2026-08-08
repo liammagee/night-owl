@@ -79,18 +79,7 @@ const test = base.extend({
         workingDirectory: '/virtual-workspace'
       };
 
-      if (!window.electronAPI?.invoke || window.__nightOwlE2EIPCInstalled) return;
-      const originalInvoke = window.electronAPI.invoke.bind(window.electronAPI);
-      window.electronAPI.invoke = async (channel, payload) => {
-        if (channel === 'get-working-directory') return '/virtual-workspace';
-        if (channel === 'get-settings') return window.appSettings;
-        if (channel === 'set-current-file') return { success: true };
-        if (channel === 'save-file' || channel === 'perform-save-with-path') {
-          return { success: true, filePath: payload?.filePath || window.currentFilePath };
-        }
-        return originalInvoke(channel, payload);
-      };
-      window.__nightOwlE2EIPCInstalled = true;
+      window.__nightOwlE2EIPCInstalled = Boolean(window.electronAPI?.files?.openFilePath);
     });
 
     await use(page);

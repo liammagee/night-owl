@@ -929,9 +929,9 @@ function setupFeatureModeButtons() {
 
 // Wire up IPC events from menu keyboard shortcuts (Cmd+1/2/3)
 if (window.electronAPI) {
-  window.electronAPI.onSwitchToEditor?.(() => switchToMode('editor'));
-  window.electronAPI.onSwitchToPresentation?.(() => switchToMode('presentation'));
-  window.electronAPI.onSwitchToNetwork?.(() => switchToMode('network'));
+  window.electronAPI.events?.switchToEditor?.(() => switchToMode('editor'));
+  window.electronAPI.events?.switchToPresentation?.(() => switchToMode('presentation'));
+  window.electronAPI.events?.switchToNetwork?.(() => switchToMode('network'));
 }
 
 // Export functions to global scope for backward compatibility

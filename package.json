@@ -66,7 +66,6 @@
     "feed-mcp": "node scripts/feed-mcp-server.js"
   },
   "dependencies": {
-    "@electron/remote": "^2.1.3",
     "@google/genai": "^1.30.0",
     "@machinespirits/tutor-core": "https://github.com/liammagee/machinespirits-tutor-core/archive/321b9d21686c3cf4d9395524e569fe21ffd40361.tar.gz",
     "@xterm/addon-fit": "^0.11.0",

@@ -5,6 +5,8 @@
  * stable without native file dialogs or a particular local workspace.
  */
 const { test, expect, _electron: electron } = require('@playwright/test');
+const fs = require('fs/promises');
+const os = require('os');
 const path = require('path');
 
 const APP_PATH = path.join(__dirname, '../..');
@@ -13,9 +15,17 @@ const isHeadless = process.env.CI || process.env.HEADLESS || !process.env.DISPLA
 test.describe('Primary workflow smoke', () => {
   let app;
   let window;
+  let workspacePath;
 
   test.beforeAll(async () => {
     test.skip(isHeadless, 'Electron smoke tests require a desktop display');
+
+    workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'nightowl-primary-smoke-'));
+    await Promise.all([
+      fs.writeFile(path.join(workspacePath, 'index.html'), '<!doctype html><html><body><h1>HTML Smoke</h1></body></html>'),
+      fs.writeFile(path.join(workspacePath, 'paper.md'), '---\nbibliography: refs.bib\n---\n\n# Paper\n\nCitation [@hegel1807].'),
+      fs.writeFile(path.join(workspacePath, 'refs.bib'), '@book{hegel1807,title={Phenomenology of Spirit},author={Hegel, G. W. F.},year={1807}}')
+    ]);
 
     const electronPath = require('electron');
     const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
@@ -29,75 +39,18 @@ test.describe('Primary workflow smoke', () => {
     await window.waitForLoadState('domcontentloaded');
     await window.waitForFunction(() => Boolean(window.editor && window.renderFileTree), null, { timeout: 30000 });
 
-    await window.evaluate(() => {
-      const files = new Map([
-        ['/workspace/index.html', '<!doctype html><html><body><h1>HTML Smoke</h1></body></html>'],
-        ['/workspace/paper.md', '---\nbibliography: refs.bib\n---\n\n# Paper\n\nCitation [@hegel1807].'],
-        ['/workspace/refs.bib', '@book{hegel1807,title={Phenomenology of Spirit},author={Hegel, G. W. F.},year={1807}}']
-      ]);
-
-      const originalInvoke = window.electronAPI.invoke.bind(window.electronAPI);
+    await window.evaluate(async (workspace) => {
+      await window.electronAPI.workspace.switchWorkspace(workspace);
       window.appSettings = {
         ...(window.appSettings || {}),
-        workingDirectory: '/workspace'
+        workingDirectory: workspace
       };
-      window.__terminalInvocations = [];
-      window.electronAPI.invoke = async (channel, payload) => {
-        if (channel === 'request-file-tree') {
-          return {
-            name: 'workspace',
-            type: 'directory',
-            path: '/workspace',
-            children: [
-              { name: 'index.html', type: 'file', path: '/workspace/index.html' },
-              { name: 'paper.md', type: 'file', path: '/workspace/paper.md' },
-              { name: 'refs.bib', type: 'file', path: '/workspace/refs.bib' }
-            ]
-          };
-        }
-        if (channel === 'global-search') {
-          return {
-            success: true,
-            isFilePatternSearch: true,
-            fileMatches: [{
-              name: 'index.html',
-              path: '/workspace/index.html',
-              relativePath: 'index.html',
-              sourceFolder: '/workspace',
-              isPrimaryFolder: true
-            }]
-          };
-        }
-        if (channel === 'open-file-path' || channel === 'read-file') {
-          const filePath = typeof payload === 'string' ? payload : payload?.filePath;
-          return { success: true, filePath, content: files.get(filePath) || '' };
-        }
-        if (channel === 'save-file') {
-          return { success: true, filePath: payload?.filePath || '/workspace/paper.md' };
-        }
-        if (channel === 'terminal-kill') {
-          window.__terminalInvocations.push({ channel, payload });
-          return { success: true, sessionId: payload?.sessionId || 'assistant' };
-        }
-        if (channel === 'terminal-spawn') {
-          window.__terminalInvocations.push({ channel, payload });
-          return {
-            success: true,
-            pid: 4242,
-            sessionId: payload?.sessionId || 'assistant',
-            backend: 'pty'
-          };
-        }
-        if (channel === 'set-current-file' || channel === 'get-working-directory') {
-          return channel === 'get-working-directory' ? '/workspace' : { success: true };
-        }
-        return originalInvoke(channel, payload);
-      };
-    });
+    }, workspacePath);
   });
 
   test.afterAll(async () => {
     if (app) await app.close();
+    if (workspacePath) await fs.rm(workspacePath, { recursive: true, force: true });
   });
 
   test('opens a folder tree, searches wildcard, opens HTML, edits Markdown, previews citations, and saves', async () => {
@@ -109,7 +62,7 @@ test.describe('Primary workflow smoke', () => {
     await expect(window.locator('#search-results')).toContainText('index.html');
 
     await window.locator('#file-tree-view .file-tree-item.file', { hasText: 'index.html' }).click();
-    await expect.poll(() => window.evaluate(() => window.currentFilePath)).toBe('/workspace/index.html');
+    await expect.poll(() => window.evaluate(() => window.currentFilePath)).toBe(path.join(workspacePath, 'index.html'));
     await expect(window.locator('#preview-content iframe')).toBeVisible();
 
     await window.locator('#file-tree-view .file-tree-item.file', { hasText: 'paper.md' }).click();
@@ -121,23 +74,17 @@ test.describe('Primary workflow smoke', () => {
     await expect(window.locator('#preview-content')).toContainText('Citation');
 
     await window.keyboard.press(process.platform === 'darwin' ? 'Meta+S' : 'Control+S');
-    await expect.poll(() => window.evaluate(() => window.currentFilePath)).toBe('/workspace/paper.md');
+    await expect.poll(() => window.evaluate(() => window.currentFilePath)).toBe(path.join(workspacePath, 'paper.md'));
   });
 
-  test('launches a workspace shell from the Assistant Terminal pane', async () => {
+  test('executes a bounded command through the terminal capability', async () => {
     await window.click('#show-chat-btn');
     await expect(window.locator('#chat-pane')).toBeVisible();
 
-    await window.click('#assistant-launch-shell');
-
-    await expect.poll(() => window.evaluate(() => {
-      return window.__terminalInvocations?.find(entry => entry.channel === 'terminal-spawn') || null;
-    })).toMatchObject({
-      channel: 'terminal-spawn',
-      payload: {
-        sessionId: 'assistant',
-        cwd: '/workspace'
-      }
-    });
+    const result = await window.evaluate((workspace) => (
+      window.electronAPI.terminal.exec({ command: 'pwd', cwd: workspace })
+    ), workspacePath);
+    expect(result).toMatchObject({ success: true });
+    expect(result.output).toContain(workspacePath);
   });
 });
