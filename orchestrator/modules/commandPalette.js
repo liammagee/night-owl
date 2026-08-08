@@ -9,7 +9,7 @@ let commandPalette = null;
 let selectedIndex = 0;
 
 // --- Command Registration ---
-function registerCommand(id, label, action, shortcut = null, options = {}) {
+function registerCoreAction(id, label, action, shortcut = null, options = {}) {
     if (!actionRegistry || typeof window.registerCommand !== 'function') {
         throw new Error('NightOwl action registry is unavailable.');
     }
@@ -22,6 +22,9 @@ function registerCommand(id, label, action, shortcut = null, options = {}) {
 
 // --- Initialize Command Palette ---
 function initializeCommandPalette() {
+    // Keep this alias function-local so a classic-script declaration cannot
+    // replace the shared window.registerCommand API used by feature modules.
+    const registerCommand = registerCoreAction;
     registerCommand(
         'app.commandPalette',
         'Application: Show Command Palette',

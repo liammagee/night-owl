@@ -68,11 +68,17 @@ describe('Code quality guardrails', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const paletteSource = fs.readFileSync(
+      path.join(__dirname, '../../../orchestrator/modules/commandPalette.js'),
+      'utf8'
+    );
 
     expect(indexSource).toContain('orchestrator/modules/action-registry.js');
     expect(indexSource).not.toContain('id="command-palette-overlay"');
     expect(rendererSource).not.toContain('Command Palette (VS Code-style Cmd+P) Implementation');
     expect(appSources.some(source => source.includes('window.commandPaletteCommands'))).toBe(false);
+    expect(paletteSource).not.toContain('function registerCommand(');
+    expect(paletteSource).toContain('const registerCommand = registerCoreAction;');
     expect(mainSource).toContain("getElectronAccelerator('file.quickOpen')");
     expect(mainSource).toContain("getElectronAccelerator('view.togglePreview')");
     expect(mainSource).toContain("webContents.send('show-keyboard-shortcuts')");
