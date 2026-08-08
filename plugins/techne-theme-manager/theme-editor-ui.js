@@ -380,27 +380,24 @@
         });
     }
 
-    // ── Register command palette commands (NightOwl) ──
-    if (window.commandPaletteCommands) {
-        window.commandPaletteCommands.push({
-            name: 'View: Open Theme Editor',
-            action: showThemeEditor
-        });
+    // ── Register NightOwl actions ──
+    if (typeof window.registerCommand === 'function') {
+        window.registerCommand('theme.open', 'View: Open Theme Editor', showThemeEditor);
 
         const editor = window.techneThemeEditor;
         if (editor) {
             const presets = editor.getPresets();
             for (const [id, preset] of Object.entries(presets)) {
-                window.commandPaletteCommands.push({
-                    name: `Theme: Apply ${preset.name}`,
-                    action: () => editor.applyPreset(id)
-                });
+                window.registerCommand(
+                    `theme.apply.${id}`,
+                    `Theme: Apply ${preset.name}`,
+                    () => editor.applyPreset(id)
+                );
             }
         }
 
-        window.commandPaletteCommands.push({
-            name: 'Theme: Reset to Default',
-            action: () => window.techneThemeEditor?.resetToDefault()
+        window.registerCommand('theme.reset', 'Theme: Reset to Default', () => {
+            window.techneThemeEditor?.resetToDefault();
         });
     }
 

@@ -367,20 +367,19 @@
       setTimeout(() => clearInterval(interval), 30000);
     }
 
-    // Command palette commands
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Snippets: Manage Snippets',
-        action: showSnippetManager
-      });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('snippets.manage', 'Snippets: Manage Snippets', showSnippetManager);
 
-      // Add each default snippet as a command too
       const snippets = getSnippets();
-      snippets.forEach(s => {
-        window.commandPaletteCommands.push({
-          name: `Insert Snippet: ${s.label || s.prefix}`,
-          action: () => insertSnippetByPrefix(s.prefix)
-        });
+      snippets.forEach((snippet, index) => {
+        const suffix = String(snippet.prefix || index)
+          .toLowerCase()
+          .replace(/[^a-z0-9._-]+/g, '-');
+        window.registerCommand(
+          `snippets.insert.${suffix || 'snippet'}.${index}`,
+          `Insert Snippet: ${snippet.label || snippet.prefix}`,
+          () => insertSnippetByPrefix(snippet.prefix)
+        );
       });
     }
   }

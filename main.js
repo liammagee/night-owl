@@ -38,6 +38,7 @@ const { installNightOwlCli } = require('./services/cliInstaller');
 const { resolveTutorRuntimePaths } = require('./services/tutorRuntimePaths');
 const { installNavigationGuards } = require('./services/contentSecurity');
 const { installIpcMainGuard } = require('./services/ipcSecurity');
+const { getElectronAccelerator } = require('./orchestrator/modules/action-registry');
 const ipcHandlers = require('./ipc');
 const { createDebugLogger } = require('./ipc/logging');
 
@@ -1594,7 +1595,7 @@ function createFileMenuItems() {
     return [
       {
         label: 'New File',
-        accelerator: 'CmdOrCtrl+N',
+        accelerator: getElectronAccelerator('file.new'),
         click: async () => {
           if (!mainWindow) return;
           debugMain('[main.js] New File menu item clicked.');
@@ -1606,7 +1607,7 @@ function createFileMenuItems() {
       },
       {
         label: 'Open File...',
-        accelerator: 'CmdOrCtrl+O',
+        accelerator: getElectronAccelerator('file.open'),
         click: async () => {
           if (!mainWindow) return;
           debugMain('[main.js] Open File menu item clicked.');
@@ -1620,7 +1621,6 @@ function createFileMenuItems() {
       },
       {
         label: 'Open Markdown File (Presentation)',
-        accelerator: 'CmdOrCtrl+Shift+O',
         click: async () => {
           if (!mainWindow) return;
           const result = await dialog.showOpenDialog(mainWindow, {
@@ -1644,8 +1644,15 @@ function createFileMenuItems() {
         }
       },
       {
+        label: 'Quick Open...',
+        accelerator: getElectronAccelerator('file.quickOpen'),
+        click: () => {
+          if (mainWindow) mainWindow.webContents.send('show-quick-open');
+        }
+      },
+      {
         label: 'Open Folder...',
-        accelerator: 'CmdOrCtrl+Alt+O',
+        accelerator: getElectronAccelerator('file.openFolder'),
         click: async () => {
            if (!mainWindow) return;
            debugMain('[main.js] Open Folder menu item clicked.');
@@ -1718,7 +1725,6 @@ function createFileMenuItems() {
       },
       {
         label: 'Generate Thumbnail (Nano Banana)',
-        accelerator: 'CmdOrCtrl+Shift+T',
         click: async () => {
           if (!mainWindow) return;
           debugMain('[main.js] Generate Thumbnail menu item clicked.');
@@ -1728,7 +1734,7 @@ function createFileMenuItems() {
       { type: 'separator' },
       {
         label: 'Save',
-        accelerator: 'CmdOrCtrl+S',
+        accelerator: getElectronAccelerator('file.save'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Save menu item clicked. Triggering save in renderer.');
@@ -1738,7 +1744,7 @@ function createFileMenuItems() {
       },
       {
         label: 'Save As...',
-        accelerator: 'Shift+CmdOrCtrl+S',
+        accelerator: getElectronAccelerator('file.saveAs'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Save As menu item clicked. Triggering save-as in renderer.');
@@ -1751,7 +1757,7 @@ function createFileMenuItems() {
         // popup, etc.) still get native close behaviour via the focused-window
         // check — Cmd+W in those windows dismisses the popup as expected.
         label: 'Close Tab',
-        accelerator: 'CmdOrCtrl+W',
+        accelerator: getElectronAccelerator('file.closeTab'),
         click: () => {
           const focused = BrowserWindow.getFocusedWindow();
           if (!focused) return;
@@ -1838,17 +1844,17 @@ function createFileMenuItems() {
 
 function createEditMenuItems() {
     return [
-      { label: 'Undo', accelerator: 'CmdOrCtrl+Z', role: 'undo' },
-      { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', role: 'redo' },
+      { label: 'Undo', accelerator: getElectronAccelerator('edit.undo'), role: 'undo' },
+      { label: 'Redo', accelerator: getElectronAccelerator('edit.redo'), role: 'redo' },
       { type: 'separator' },
-      { label: 'Cut', accelerator: 'CmdOrCtrl+X', role: 'cut' },
-      { label: 'Copy', accelerator: 'CmdOrCtrl+C', role: 'copy' },
-      { label: 'Paste', accelerator: 'CmdOrCtrl+V', role: 'paste' },
-      { label: 'Select All', accelerator: 'CmdOrCtrl+A', role: 'selectAll' },
+      { label: 'Cut', accelerator: getElectronAccelerator('edit.cut'), role: 'cut' },
+      { label: 'Copy', accelerator: getElectronAccelerator('edit.copy'), role: 'copy' },
+      { label: 'Paste', accelerator: getElectronAccelerator('edit.paste'), role: 'paste' },
+      { label: 'Select All', accelerator: getElectronAccelerator('edit.selectAll'), role: 'selectAll' },
       { type: 'separator' },
       {
         label: 'Settings...',
-        accelerator: 'CmdOrCtrl+,',
+        accelerator: getElectronAccelerator('settings.open'),
         click: () => {
           if (!mainWindow) return;
           mainWindow.webContents.send('open-settings');
@@ -1911,7 +1917,7 @@ function createViewMenuItems() {
       { type: 'separator' },
       {
         label: 'Editor Mode',
-        accelerator: 'CmdOrCtrl+1',
+        accelerator: getElectronAccelerator('view.editorMode'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Switching to Editor mode via menu');
@@ -1921,7 +1927,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Presentation Mode',
-        accelerator: 'CmdOrCtrl+2',
+        accelerator: getElectronAccelerator('view.presentationMode'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Switching to Presentation mode via menu');
@@ -1931,7 +1937,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Network Mode',
-        accelerator: 'CmdOrCtrl+3',
+        accelerator: getElectronAccelerator('view.networkMode'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Switching to Network mode via menu');
@@ -1942,7 +1948,7 @@ function createViewMenuItems() {
       { type: 'separator' },
       {
         label: 'Command Palette...',
-        accelerator: 'CmdOrCtrl+Shift+P',
+        accelerator: getElectronAccelerator('app.commandPalette'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Opening Command Palette via menu');
@@ -1952,7 +1958,6 @@ function createViewMenuItems() {
       },
       {
         label: 'Style Settings...',
-        accelerator: 'CmdOrCtrl+Shift+T',
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Opening Style Settings via menu');
@@ -1962,7 +1967,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Show Writing Stats',
-        accelerator: 'CmdOrCtrl+Shift+G',
+        accelerator: getElectronAccelerator('view.writingStats'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Toggling Writing Stats panel via menu');
@@ -1972,7 +1977,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Visual Markdown',
-        accelerator: 'CmdOrCtrl+Shift+V',
+        accelerator: getElectronAccelerator('view.visualMarkdown'),
         type: 'checkbox',
         checked: appSettings.editor?.visualMarkdown || false,
         click: (menuItem) => {
@@ -1988,7 +1993,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Toggle Preview Pane',
-        accelerator: 'CmdOrCtrl+Shift+M',
+        accelerator: getElectronAccelerator('view.togglePreview'),
         type: 'checkbox',
         checked: appSettings.editor?.showPreview !== false, // Default to true
         click: (menuItem) => {
@@ -2015,7 +2020,7 @@ function createFormatMenuItems() {
     return [
       {
         label: 'Bold',
-        accelerator: 'CmdOrCtrl+B',
+        accelerator: getElectronAccelerator('format.bold'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Bold');
@@ -2025,7 +2030,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Italic',
-        accelerator: 'CmdOrCtrl+I',
+        accelerator: getElectronAccelerator('format.italic'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Italic');
@@ -2035,7 +2040,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Code',
-        accelerator: 'CmdOrCtrl+`',
+        accelerator: getElectronAccelerator('format.code'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Code');
@@ -2046,7 +2051,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Heading 1',
-        accelerator: 'CmdOrCtrl+Alt+1',
+        accelerator: getElectronAccelerator('format.heading1'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Heading 1');
@@ -2056,7 +2061,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Heading 2',
-        accelerator: 'CmdOrCtrl+Alt+2',
+        accelerator: getElectronAccelerator('format.heading2'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Heading 2');
@@ -2066,7 +2071,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Heading 3',
-        accelerator: 'CmdOrCtrl+Alt+3',
+        accelerator: getElectronAccelerator('format.heading3'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Heading 3');
@@ -2077,7 +2082,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Bullet List',
-        accelerator: 'CmdOrCtrl+Shift+8',
+        accelerator: getElectronAccelerator('format.bulletList'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Bullet List');
@@ -2087,7 +2092,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Numbered List',
-        accelerator: 'CmdOrCtrl+Shift+7',
+        accelerator: getElectronAccelerator('format.numberedList'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Numbered List');
@@ -2098,7 +2103,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Insert Link',
-        accelerator: 'CmdOrCtrl+K',
+        accelerator: getElectronAccelerator('format.insertLink'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Insert Link');
@@ -2108,7 +2113,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Insert Image',
-        accelerator: 'CmdOrCtrl+Shift+I',
+        accelerator: getElectronAccelerator('format.insertImage'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Insert Image');
@@ -2119,7 +2124,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Blockquote',
-        accelerator: 'CmdOrCtrl+Shift+.',
+        accelerator: getElectronAccelerator('format.blockquote'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Blockquote');
@@ -2129,7 +2134,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Strikethrough',
-        accelerator: 'CmdOrCtrl+Shift+X',
+        accelerator: getElectronAccelerator('format.strikethrough'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Strikethrough');
@@ -2140,7 +2145,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Fold Current Section',
-        accelerator: 'CmdOrCtrl+Shift+[',
+        accelerator: getElectronAccelerator('fold.current'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Fold Current');
@@ -2150,7 +2155,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Expand Current Section',
-        accelerator: 'CmdOrCtrl+Shift+]',
+        accelerator: getElectronAccelerator('fold.unfoldCurrent'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Expand Current');
@@ -2184,7 +2189,6 @@ function createPresentationMenuItems() {
     return [
       {
         label: 'Generate Lecture Summary',
-        accelerator: 'CmdOrCtrl+G',
         click: async () => {
           if (mainWindow) {
             debugMain('[main.js] Generate Lecture Summary clicked');
@@ -2195,7 +2199,6 @@ function createPresentationMenuItems() {
       { type: 'separator' },
       {
         label: 'Toggle Presentation Mode',
-        accelerator: 'CmdOrCtrl+P',
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('toggle-presentation-mode');
@@ -2204,7 +2207,7 @@ function createPresentationMenuItems() {
       },
       {
         label: 'Start Presentation',
-        accelerator: 'F5',
+        accelerator: getElectronAccelerator('presentation.start'),
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('start-presentation');
@@ -2213,7 +2216,7 @@ function createPresentationMenuItems() {
       },
       {
         label: 'Exit Presentation',
-        accelerator: 'Escape',
+        accelerator: getElectronAccelerator('presentation.exit'),
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('exit-presentation');
@@ -2241,7 +2244,7 @@ function createPresentationMenuItems() {
       },
       {
         label: 'First Slide',
-        accelerator: 'Home',
+        accelerator: getElectronAccelerator('presentation.firstSlide'),
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('first-slide');
@@ -2327,7 +2330,7 @@ function createSettingsMenuItems() {
     return [
       {
         label: 'Preferences...',
-        accelerator: 'CmdOrCtrl+,',
+        accelerator: getElectronAccelerator('settings.open'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Opening settings dialog');
@@ -2480,34 +2483,7 @@ function createHelpMenuItems() {
       {
         label: 'Keyboard Shortcuts',
         click: () => {
-          dialog.showMessageBox(mainWindow, {
-            type: 'info',
-            title: 'Keyboard Shortcuts',
-            message: 'Keyboard Shortcuts',
-            detail: `
-Editor:
-• Cmd/Ctrl+N: New file
-• Cmd/Ctrl+O: Open file
-• Cmd/Ctrl+S: Save
-• Cmd/Ctrl+Shift+S: Save As
-
-AI Writing:
-• Cmd+Shift+': Invoke Ash (AI Writing Companion)
-
-Presentation:
-• Cmd/Ctrl+P: Toggle presentation mode
-• F5: Start presentation
-• Escape: Exit presentation
-• Arrow Keys: Navigate slides
-• Home: Go to first slide
-
-View:
-• Cmd/Ctrl+Plus: Zoom in
-• Cmd/Ctrl+Minus: Zoom out
-• Cmd/Ctrl+0: Reset zoom
-• F11: Toggle fullscreen
-            `.trim()
-          });
+          mainWindow?.webContents.send('show-keyboard-shortcuts');
         }
       },
       {
@@ -2565,7 +2541,7 @@ function createMainMenu() {
           submenu: [
             { label: 'About ' + app.getName(), role: 'about' },
             { type: 'separator' },
-            { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() }
+            { label: 'Quit', accelerator: getElectronAccelerator('app.quit'), click: () => app.quit() }
           ] 
         });
     }

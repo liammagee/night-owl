@@ -210,10 +210,11 @@
   function init() {
     hookPreview();
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Media: Insert Video',
-        action: () => {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand(
+        'media.insertVideo',
+        'Media: Insert Video',
+        () => {
           if (window.editor) {
             const pos = window.editor.getPosition();
             window.editor.executeEdits('media-embed', [{
@@ -222,10 +223,11 @@
             }]);
           }
         }
-      });
-      window.commandPaletteCommands.push({
-        name: 'Media: Insert Audio',
-        action: () => {
+      );
+      window.registerCommand(
+        'media.insertAudio',
+        'Media: Insert Audio',
+        () => {
           if (window.editor) {
             const pos = window.editor.getPosition();
             window.editor.executeEdits('media-embed', [{
@@ -234,7 +236,7 @@
             }]);
           }
         }
-      });
+      );
     }
   }
 

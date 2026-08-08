@@ -1,21 +1,21 @@
 {
-  "generated": "2026-08-08T22:34:56.583Z",
+  "generated": "2026-08-08T23:02:48.767Z",
   "counts": {
     "total": 29,
     "byStatus": {
-      "triaged": 10,
-      "done": 19
+      "triaged": 9,
+      "done": 20
     },
     "byPriority": {
-      "P0": 3,
       "P1": 13,
       "P2": 12,
-      "P3": 1
+      "P3": 1,
+      "P0": 3
     },
     "byArea": {
-      "platform": 6,
       "preview": 3,
       "editor": 3,
+      "platform": 6,
       "presentation": 4,
       "files": 1,
       "testing": 3,
@@ -27,29 +27,6 @@
     }
   },
   "items": [
-    {
-      "id": "unify-command-and-shortcut-registry",
-      "title": "Unify commands, menus, shortcuts, and feature actions",
-      "status": "triaged",
-      "type": "refactor",
-      "priority": "P0",
-      "area": "platform",
-      "owner": "codex",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-09",
-      "updated": "2026-08-09",
-      "verification": "One action registry drives the command palette and shortcut help, rejects conflicting active shortcuts, and exposes actions contributed by bundled feature modules in a required Electron workflow.",
-      "tags": [
-        "commands",
-        "discoverability",
-        "shortcuts",
-        "ui"
-      ],
-      "depends_on": [
-        "single-source-mode-and-pane-state"
-      ]
-    },
     {
       "id": "citation-linked-pdf-research",
       "title": "Integrate PDF annotations with citations and research notes",
@@ -302,6 +279,29 @@
         "editor",
         "preview",
         "reliability"
+      ]
+    },
+    {
+      "id": "unify-command-and-shortcut-registry",
+      "title": "Unify commands, menus, shortcuts, and feature actions",
+      "status": "done",
+      "type": "refactor",
+      "priority": "P0",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "Unit contracts keep portable macOS/Windows shortcuts conflict-free, repository checks reject legacy registrations and hard-coded native accelerators, and the required @actions Electron workflow discovers and executes a bundled feature action.",
+      "tags": [
+        "commands",
+        "discoverability",
+        "shortcuts",
+        "ui"
+      ],
+      "depends_on": [
+        "single-source-mode-and-pane-state"
       ]
     },
     {

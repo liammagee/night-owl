@@ -136,6 +136,48 @@ test('@required @workflow-controllers renderer startup exposes the extracted wor
   }));
 });
 
+test('@required @actions one registry drives commands, feature actions, shortcuts, and help', async ({ appPage }) => {
+  await expect.poll(
+    () => appPage.evaluate(() => window.NightOwlActions?.list().length || 0),
+    { message: 'waiting for core and bundled feature actions to register' }
+  ).toBeGreaterThan(40);
+
+  const registrySnapshot = await appPage.evaluate(() => ({
+    conflicts: window.NightOwlActions.getShortcutConflicts(),
+    featureActions: ['view.focusMode', 'export.staticSite']
+      .filter(actionId => Boolean(window.NightOwlActions.get(actionId))),
+    commandShortcut: window.NightOwlActions.get('app.commandPalette')?.shortcut,
+    quickOpenShortcut: window.NightOwlActions.get('file.quickOpen')?.shortcut
+  }));
+
+  expect(registrySnapshot).toEqual({
+    conflicts: [],
+    featureActions: ['view.focusMode', 'export.staticSite'],
+    commandShortcut: 'Mod+Shift+P',
+    quickOpenShortcut: 'Mod+P'
+  });
+
+  const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+  await appPage.keyboard.press(`${modifier}+Shift+P`);
+  const commandInput = appPage.locator('.command-palette-input[placeholder="Type a command..."]');
+  await expect(commandInput).toBeVisible();
+  await commandInput.fill('focus mode');
+  await appPage.keyboard.press('Enter');
+  await expect(appPage.locator('body')).toHaveClass(/focus-mode-active/);
+  await appPage.evaluate(() => window.focusMode.deactivate());
+
+  await appPage.keyboard.press(`${modifier}+P`);
+  await expect(appPage.locator('.command-palette-input[placeholder="Search files by name..."]')).toBeVisible();
+  await appPage.keyboard.press('Escape');
+
+  await appPage.evaluate(() => window.showKeyboardShortcuts());
+  const shortcutHelp = appPage.locator('#keyboard-shortcuts-overlay');
+  await expect(shortcutHelp).toBeVisible();
+  await expect(shortcutHelp.locator('[data-action-id="app.commandPalette"]')).toContainText('Command Palette');
+  await expect(shortcutHelp.locator('[data-action-id="file.quickOpen"]')).toContainText('Quick Open');
+  await appPage.evaluate(() => window.hideKeyboardShortcuts());
+});
+
 test('@required @ipc-contract preload exposes fixed capabilities and rejects malformed privileged payloads', async ({ appPage }) => {
   const result = await appPage.evaluate(async () => {
     const api = window.electronAPI;

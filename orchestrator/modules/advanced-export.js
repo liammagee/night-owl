@@ -147,10 +147,10 @@
   }
 
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({ name: 'Export: LaTeX (.tex)', action: exportToLatex });
-      window.commandPaletteCommands.push({ name: 'Export: EPUB (.epub)', action: exportToEpub });
-      window.commandPaletteCommands.push({ name: 'Export: PDF with Template', action: exportPdfWithTemplate });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('export.latex', 'Export: LaTeX (.tex)', exportToLatex);
+      window.registerCommand('export.epub', 'Export: EPUB (.epub)', exportToEpub);
+      window.registerCommand('export.pdf-template', 'Export: PDF with Template', exportPdfWithTemplate);
     }
   }
 

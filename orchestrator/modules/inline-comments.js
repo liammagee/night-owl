@@ -280,9 +280,9 @@
       window.editor.onDidChangeModel(() => { loadComments(); updateDecorations(); });
     }
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({ name: 'Comments: Add Comment', action: showAddCommentDialog });
-      window.commandPaletteCommands.push({ name: 'Comments: Show All Comments', action: showCommentsList });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('comments.add', 'Comments: Add Comment', showAddCommentDialog);
+      window.registerCommand('comments.showAll', 'Comments: Show All Comments', showCommentsList);
     }
   }
 

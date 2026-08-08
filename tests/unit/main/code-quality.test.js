@@ -57,6 +57,29 @@ describe('Code quality guardrails', () => {
     expect(duplicates).toEqual([]);
   });
 
+  test('actions use the shared registry without legacy command arrays or duplicate file palettes', () => {
+    const appRoots = [
+      path.join(__dirname, '../../../orchestrator'),
+      path.join(__dirname, '../../../plugins')
+    ];
+    const appSources = appRoots
+      .flatMap(rootPath => collectJavaScriptFiles(rootPath))
+      .map(filePath => fs.readFileSync(filePath, 'utf8'));
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+
+    expect(indexSource).toContain('orchestrator/modules/action-registry.js');
+    expect(indexSource).not.toContain('id="command-palette-overlay"');
+    expect(rendererSource).not.toContain('Command Palette (VS Code-style Cmd+P) Implementation');
+    expect(appSources.some(source => source.includes('window.commandPaletteCommands'))).toBe(false);
+    expect(mainSource).toContain("getElectronAccelerator('file.quickOpen')");
+    expect(mainSource).toContain("getElectronAccelerator('view.togglePreview')");
+    expect(mainSource).toContain("webContents.send('show-keyboard-shortcuts')");
+    expect(mainSource).not.toContain('• Cmd/Ctrl+P: Toggle presentation mode');
+    expect(mainSource).not.toMatch(/accelerator:\s*['\"]CmdOrCtrl/);
+  });
+
   test('file tree rendering batches DOM writes and hydrates tags off the initial paint', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');

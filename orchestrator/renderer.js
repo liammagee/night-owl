@@ -477,11 +477,6 @@ let folderCreationParentPath = '';
 // Track parent folder for context menu file creation
 let fileCreationParentPath = '';
 
-// Command Palette elements
-const commandPaletteOverlay = document.getElementById('command-palette-overlay');
-const commandPaletteInput = document.getElementById('command-palette-input');
-const commandPaletteResults = document.getElementById('command-palette-results');
-
 // Speaker notes pane elements
 
 // Keep Monaco's AMD loader and worker configuration available when renderer.js
@@ -2562,31 +2557,6 @@ function addAISummarizationAction() {
     });
 }
 
-// --- Command Palette Action ---
-function addCommandPaletteAction() {
-    if (!editor) {
-        console.warn('[renderer.js] Cannot add command palette action: editor not available');
-        return;
-    }
-    
-    // Add command palette action that overrides default Monaco keybinding
-    editor.addAction({
-        id: 'show-command-palette',
-        label: 'Show Command Palette',
-        keybindings: [
-            monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP
-        ],
-        
-        run: function(ed) {
-            if (window.showCommandPalette) {
-                window.showCommandPalette();
-            }
-        }
-    });
-    
-    // console.log('[renderer.js] Command palette action added to Monaco editor');
-}
-
 // --- Custom Selection Keybindings ---
 function addCustomSelectionKeybindings() {
     if (!editor) {
@@ -4364,7 +4334,6 @@ async function initializeMonacoEditor() {
                 addFoldingToolbarControls();
                 addKeyboardShortcutsButton();
                 addAISummarizationAction();
-                addCommandPaletteAction();
                 // Initialize visual markdown enhancements
                 if (typeof initializeVisualMarkdown === 'function') {
                     initializeVisualMarkdown(editor);
@@ -8302,69 +8271,6 @@ document.addEventListener('keydown', async (e) => {
     const isInInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
     const isInFindReplace = e.target === findInput || e.target === replaceInput;
     
-    // Ctrl+F or Cmd+F: Open Find dialog
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        showFindReplaceDialog(false);
-        return;
-    }
-    
-    // Ctrl+H or Cmd+H: Open Find & Replace dialog
-    if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
-        e.preventDefault();
-        showFindReplaceDialog(true);
-        return;
-    }
-    
-    // Ctrl+P or Cmd+P: Quick-open file picker
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'p') {
-        e.preventDefault();
-        showQuickOpen();
-        return;
-    }
-    
-    // Ctrl+S or Cmd+S: Save file
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        await saveFile();
-        return;
-    }
-    
-    // Ctrl+Shift+S or Cmd+Shift+S: Save As file
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
-        e.preventDefault();
-        await saveAsFile();
-        return;
-    }
-    
-    // Alt+Z: Toggle word wrap
-    if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyZ') {
-        e.preventDefault();
-        if (window.editor && window.editor.updateOptions) {
-            const wrapOn = window.editor.getRawOptions().wordWrap === 'on';
-            const newValue = wrapOn ? 'off' : 'on';
-            window.editor.updateOptions({ wordWrap: newValue });
-            // Persist to saved settings
-            if (window.appSettings?.editor) {
-                window.appSettings.editor.wordWrap = newValue;
-                if (window.electronAPI) {
-                    window.electronAPI.settings.setSettings(window.appSettings).catch(() => {});
-                }
-            }
-            if (window.showNotification) {
-                window.showNotification(`Word wrap ${newValue}`, 'info');
-            }
-        }
-        return;
-    }
-
-    // Cmd+Shift+Enter: Toggle Zen Mode
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Enter') {
-        e.preventDefault();
-        toggleZenMode();
-        return;
-    }
-
     // F2: Rename current file
     if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (window.currentFilePath) {
@@ -8374,16 +8280,6 @@ document.addEventListener('keydown', async (e) => {
         }
     }
 
-    // Ctrl+Shift+F or Cmd+Shift+F: Open Global Search
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
-        e.preventDefault();
-        showRightPane('search');
-        if (globalSearchInput) {
-            globalSearchInput.focus();
-        }
-        return;
-    }
-    
     // Markdown formatting shortcuts
     // Ctrl+B or Cmd+B: Bold - Now handled by Monaco editor action
     // if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
@@ -12795,6 +12691,14 @@ if (window.electronAPI?.events) {
         }
     });
 
+    window.electronAPI.events.showQuickOpen(() => {
+        window.showQuickOpen?.();
+    });
+
+    window.electronAPI.events.showKeyboardShortcuts(() => {
+        window.showKeyboardShortcuts?.();
+    });
+
     window.electronAPI.events.toggleAssistantTerminal(() => {
         showRightPane('chat');
     });
@@ -12869,12 +12773,10 @@ if (window.electronAPI) {
 // still behaves sensibly for an empty editor.
 if (window.electronAPI) {
     window.electronAPI.events.menuCloseTab(async () => {
-        const tm = window.tabManager;
-        if (tm && tm.activeTabPath && tm.tabs.has(tm.activeTabPath)) {
-            await tm.closeTab(tm.activeTabPath);
-        } else {
-            window.close();
-        }
+        await window.NightOwlActions?.execute('file.closeTab', {
+            editor: window.editor,
+            mode: window.NightOwlUIState?.getState?.().mode
+        });
     });
 }
 
@@ -13512,13 +13414,17 @@ async function showQuickOpen() {
         ...workspaceFiles.filter(f => !recentSet.has(f)).map(f => ({ path: f, isRecent: false }))
     ];
 
+    const quickOpenShortcut = window.NightOwlActionRegistryModule?.formatShortcut(
+        window.NightOwlActions?.get('file.quickOpen')?.shortcut,
+        navigator.platform
+    ) || 'Cmd+P';
     quickOpenOverlay = document.createElement('div');
     quickOpenOverlay.className = 'command-palette-overlay';
     quickOpenOverlay.innerHTML = `
         <div class="command-palette">
             <div class="command-palette-input-container">
                 <input type="text" class="command-palette-input" placeholder="Search files by name..." autocomplete="off" spellcheck="false">
-                <div class="command-palette-shortcut">Cmd+P</div>
+                <div class="command-palette-shortcut">${quickOpenShortcut}</div>
             </div>
             <div class="command-palette-results" id="quick-open-results"></div>
         </div>
@@ -15783,381 +15689,6 @@ function showAsyncStyleFeedback(message, persona = 'Ash', feedbackType = 'feedba
 window.handleAshThanks = handleAshThanks;
 window.copyAshToChat = copyAshToChat;
 window.showAsyncStyleFeedback = showAsyncStyleFeedback;
-
-// === Command Palette (VS Code-style Cmd+P) Implementation ===
-
-let commandPaletteFiles = [];
-let commandPaletteFilteredFiles = [];
-let commandPaletteSelectedIndex = 0;
-
-// Show command palette
-function showCommandPalette() {
-    if (!commandPaletteOverlay) return;
-    
-    commandPaletteOverlay.style.display = 'flex';
-    commandPaletteInput.value = '';
-    commandPaletteInput.focus();
-    
-    // Load and display all files
-    loadCommandPaletteFiles();
-}
-
-// Hide command palette
-function hideCommandPalette() {
-    if (commandPaletteOverlay) {
-        commandPaletteOverlay.style.display = 'none';
-    }
-}
-
-// === Keyboard Shortcuts Help Functions ===
-
-// Show keyboard shortcuts help dialog
-function showKeyboardShortcuts() {
-    const overlay = document.getElementById('keyboard-shortcuts-overlay');
-    const content = document.getElementById('keyboard-shortcuts-content');
-
-    if (!overlay || !content) return;
-
-    // Detect platform for keyboard shortcuts display
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const cmdKey = isMac ? '⌘' : 'Ctrl';
-    const optKey = isMac ? '⌥' : 'Alt';
-
-    // Define all keyboard shortcuts organized by category
-    const shortcuts = {
-        'File Operations': [
-            { description: 'Save Document', keys: [cmdKey, 'S'] },
-            { description: 'Open Command Palette', keys: [cmdKey, 'Shift', 'P'] }
-        ],
-        'Editing': [
-            { description: 'Duplicate Line/Selection', keys: [cmdKey, 'Shift', 'D'] },
-            { description: 'Bold', keys: [cmdKey, 'B'] },
-            { description: 'Italic', keys: [cmdKey, 'I'] },
-            { description: 'Inline Code', keys: [cmdKey, '`'] },
-            { description: 'Insert Link', keys: [cmdKey, 'K'] },
-            { description: 'Comment', keys: [cmdKey, '/'] },
-            { description: 'Undo', keys: [cmdKey, 'Z'] },
-            { description: 'Redo', keys: [cmdKey, 'Shift', 'Z'] }
-        ],
-        'Selection': [
-            { description: 'Select Whole Lines Up', keys: ['Shift', optKey, '↑'] },
-            { description: 'Select Whole Lines Down', keys: ['Shift', optKey, '↓'] },
-            { description: 'Select All', keys: [cmdKey, 'A'] }
-        ],
-        'Code Folding': [
-            { description: 'Fold Current Section', keys: [cmdKey, 'Shift', '['] },
-            { description: 'Unfold Current Section', keys: [cmdKey, 'Shift', ']'] },
-            { description: 'Fold All Sections', keys: [cmdKey, 'K', cmdKey, '0'] },
-            { description: 'Unfold All Sections', keys: [cmdKey, 'K', cmdKey, 'J'] }
-        ],
-        'Navigation': [
-            { description: 'Navigate Back', keys: [cmdKey, optKey, '←'] },
-            { description: 'Navigate Forward', keys: [cmdKey, optKey, '→'] },
-            { description: 'Go to Line', keys: [cmdKey, 'G'] }
-        ],
-        'Search': [
-            { description: 'Find', keys: [cmdKey, 'F'] },
-            { description: 'Global Search', keys: [cmdKey, 'Shift', 'F'] },
-            { description: 'Replace', keys: [cmdKey, 'H'] }
-        ],
-        'View': [
-            { description: 'Toggle Presentation Mode', keys: [cmdKey, 'Shift', 'M'] },
-            { description: 'Capture Citation from Clipboard', keys: [cmdKey, 'Shift', 'Y'] }
-        ],
-        'AI Features': [
-            { description: 'Invoke Ash (AI Writing)', keys: [cmdKey, 'Shift', '\''] }
-        ]
-    };
-
-    // Build HTML for shortcuts
-    let html = '';
-    for (const [category, items] of Object.entries(shortcuts)) {
-        html += `<div class="shortcuts-section">`;
-        html += `<h4>${category}</h4>`;
-
-        for (const item of items) {
-            html += `<div class="shortcut-item">`;
-            html += `<span class="shortcut-description">${item.description}</span>`;
-            html += `<div class="shortcut-keys">`;
-
-            for (const key of item.keys) {
-                html += `<span class="shortcut-key">${key}</span>`;
-            }
-
-            html += `</div>`;
-            html += `</div>`;
-        }
-
-        html += `</div>`;
-    }
-
-    content.innerHTML = html;
-    overlay.style.display = 'flex';
-}
-
-// Hide keyboard shortcuts help dialog
-function hideKeyboardShortcuts() {
-    const overlay = document.getElementById('keyboard-shortcuts-overlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-    }
-}
-
-// Make functions globally accessible
-window.showKeyboardShortcuts = showKeyboardShortcuts;
-window.hideKeyboardShortcuts = hideKeyboardShortcuts;
-
-// Load all available files
-async function loadCommandPaletteFiles() {
-    try {
-        // Get all files from the file tree or use existing file data
-        commandPaletteFiles = await getAllProjectFiles();
-        commandPaletteFilteredFiles = [...commandPaletteFiles];
-        commandPaletteSelectedIndex = 0;
-        renderCommandPaletteResults();
-    } catch (error) {
-        console.error('[Command Palette] Error loading files:', error);
-        commandPaletteResults.innerHTML = '<div class="command-palette-no-results">Error loading files</div>';
-    }
-}
-
-// Get all project files recursively from current working directory
-async function getAllProjectFiles() {
-    try {
-        const workingDir = window.currentFileDirectory || window.currentDirectory || window.appSettings?.workingDirectory || '.';
-        const files = [];
-        await scanDirectoryRecursively(workingDir, files, workingDir);
-        return files;
-    } catch (error) {
-        console.error('[Command Palette] Error reading directory:', error);
-        // Fallback: use existing loaded files if available
-        const loadedFiles = [];
-        if (window.fileTreeData && window.fileTreeData.children) {
-            collectFilesFromTree(window.fileTreeData.children, loadedFiles);
-        }
-        return loadedFiles;
-    }
-}
-
-// Recursively scan directory for files
-async function scanDirectoryRecursively(dirPath, fileList, rootDir) {
-    try {
-        const items = await window.electronAPI.files.listDirectoryFiles(dirPath);
-        
-        if (!items || !Array.isArray(items)) {
-            console.warn('[Command Palette] No items returned for directory:', dirPath);
-            return;
-        }
-        
-        for (const item of items) {
-            // Skip hidden files and directories
-            if (item.name.startsWith('.')) continue;
-            
-            // Skip common non-essential directories
-            if (item.isDirectory && ['node_modules', '.git', 'dist', 'build', '.vscode'].includes(item.name)) {
-                continue;
-            }
-            
-            if (item.isDirectory) {
-                // Recursively scan subdirectory
-                await scanDirectoryRecursively(item.path, fileList, rootDir);
-            } else {
-                // Add file to list
-                const relativePath = item.path.replace(rootDir, '').replace(/^[\/\\]/, '');
-                fileList.push({
-                    name: item.name,
-                    path: item.path,
-                    relativePath: relativePath,
-                    icon: getFileIcon(item.name)
-                });
-            }
-        }
-    } catch (error) {
-        console.error('[Command Palette] Error scanning directory:', dirPath, error);
-    }
-}
-
-// Recursively collect files from file tree data
-function collectFilesFromTree(children, fileList, basePath = '') {
-    for (const item of children) {
-        if (item.type === 'file') {
-            fileList.push({
-                name: item.name,
-                path: item.path,
-                relativePath: basePath + item.name,
-                icon: getFileIcon(item.name)
-            });
-        } else if (item.type === 'directory' && item.children) {
-            collectFilesFromTree(item.children, fileList, basePath + item.name + '/');
-        }
-    }
-}
-
-// Get file icon based on file extension
-function getFileIcon(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    const iconMap = {
-        'md': '📝',
-        'txt': '📄',
-        'js': '📜',
-        'ts': '📜',
-        'json': '⚙️',
-        'html': '🌐',
-        'css': '🎨',
-        'py': '🐍',
-        'java': '☕',
-        'cpp': '⚡',
-        'c': '⚡',
-        'pdf': '📕',
-        'doc': '📘',
-        'docx': '📘',
-        'png': '🖼️',
-        'jpg': '🖼️',
-        'jpeg': '🖼️',
-        'gif': '🖼️',
-        'svg': '🖼️'
-    };
-    return iconMap[ext] || '📄';
-}
-
-// Filter files based on search query
-function filterCommandPaletteFiles(query) {
-    if (!query.trim()) {
-        commandPaletteFilteredFiles = [...commandPaletteFiles];
-    } else {
-        const lowerQuery = query.toLowerCase();
-        commandPaletteFilteredFiles = commandPaletteFiles.filter(file => 
-            file.name.toLowerCase().includes(lowerQuery) ||
-            file.relativePath.toLowerCase().includes(lowerQuery)
-        );
-    }
-    commandPaletteSelectedIndex = 0;
-    renderCommandPaletteResults();
-}
-
-// Render command palette results
-function renderCommandPaletteResults() {
-    if (!commandPaletteResults) return;
-    
-    if (commandPaletteFilteredFiles.length === 0) {
-        commandPaletteResults.innerHTML = '<div class="command-palette-no-results">No files found</div>';
-        return;
-    }
-    
-    const html = commandPaletteFilteredFiles.map((file, index) => `
-        <div class="command-palette-item ${index === commandPaletteSelectedIndex ? 'selected' : ''}" 
-             data-index="${index}">
-            <div class="command-palette-item-icon">${file.icon}</div>
-            <div class="command-palette-item-name">${file.name}</div>
-            <div class="command-palette-item-path">${file.relativePath}</div>
-        </div>
-    `).join('');
-    
-    commandPaletteResults.innerHTML = html;
-    
-    // No need to add individual click handlers - we'll use event delegation
-}
-
-// Open selected file
-async function openCommandPaletteFile(file) {
-    hideCommandPalette();
-    try {
-        await openFilePathInEditor(file.path, {
-            source: 'command-palette',
-            ipcChannel: 'read-file'
-        });
-    } catch (error) {
-        console.error('[Command Palette] Error opening file:', error);
-        showNotification('Error opening file: ' + file.name, 'error');
-    }
-}
-
-// Navigate selection in command palette
-function moveCommandPaletteSelection(direction) {
-    if (commandPaletteFilteredFiles.length === 0) return;
-    
-    if (direction === 'up') {
-        commandPaletteSelectedIndex = Math.max(0, commandPaletteSelectedIndex - 1);
-    } else if (direction === 'down') {
-        commandPaletteSelectedIndex = Math.min(commandPaletteFilteredFiles.length - 1, commandPaletteSelectedIndex + 1);
-    }
-    
-    renderCommandPaletteResults();
-    
-    // Scroll selected item into view
-    const selectedItem = commandPaletteResults.querySelector('.command-palette-item.selected');
-    if (selectedItem) {
-        selectedItem.scrollIntoView({ block: 'nearest' });
-    }
-}
-
-// Open currently selected file
-function openSelectedCommandPaletteFile() {
-    if (commandPaletteFilteredFiles.length > 0 && commandPaletteSelectedIndex >= 0) {
-        const selectedFile = commandPaletteFilteredFiles[commandPaletteSelectedIndex];
-        openCommandPaletteFile(selectedFile);
-    }
-}
-
-// Initialize command palette event listeners
-function initializeCommandPalette() {
-    // Input event handler
-    if (commandPaletteInput) {
-        commandPaletteInput.addEventListener('input', (e) => {
-            filterCommandPaletteFiles(e.target.value);
-        });
-        
-        commandPaletteInput.addEventListener('keydown', (e) => {
-            switch (e.key) {
-                case 'ArrowDown':
-                    e.preventDefault();
-                    moveCommandPaletteSelection('down');
-                    break;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    moveCommandPaletteSelection('up');
-                    break;
-                case 'Enter':
-                    e.preventDefault();
-                    openSelectedCommandPaletteFile();
-                    break;
-                case 'Escape':
-                    e.preventDefault();
-                    hideCommandPalette();
-                    break;
-            }
-        });
-    }
-    
-    // Results click handler using event delegation
-    if (commandPaletteResults) {
-        commandPaletteResults.addEventListener('click', (e) => {
-            const item = e.target.closest('.command-palette-item');
-            if (item) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const index = parseInt(item.getAttribute('data-index'));
-                if (!isNaN(index) && commandPaletteFilteredFiles[index]) {
-                    commandPaletteSelectedIndex = index;
-                    openCommandPaletteFile(commandPaletteFilteredFiles[index]);
-                }
-            }
-        });
-    }
-    
-    // Overlay click handler
-    if (commandPaletteOverlay) {
-        commandPaletteOverlay.addEventListener('click', (e) => {
-            if (e.target === commandPaletteOverlay) {
-                hideCommandPalette();
-            }
-        });
-    }
-}
-
-// Initialize command palette when page loads
-document.addEventListener('DOMContentLoaded', initializeCommandPalette);
 
 // === Structure Manipulation Functions ===
 
