@@ -4846,6 +4846,37 @@ body.dark-mode .app-confirm-path-list {
     background: var(--surface-variant, #f7f8fa);
 }
 
+.jsonl-workbench-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 0 10px;
+    border-bottom: 1px solid var(--border-color, #d8dee4);
+}
+
+.jsonl-workbench-control-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 5px;
+}
+
+.jsonl-workbench-control-row:first-of-type {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.jsonl-workbench-icon-button {
+    min-width: 34px;
+    padding-inline: 8px;
+    font-size: 16px;
+}
+
+.jsonl-workbench-stats,
+.jsonl-workbench-resume {
+    color: var(--text-muted, #667085);
+    font-size: 9px;
+    line-height: 1.4;
+}
+
 .jsonl-record-search,
 .jsonl-field-control {
     box-sizing: border-box;
@@ -4966,6 +4997,23 @@ body.dark-mode .app-confirm-path-list {
     color: #991b1b;
 }
 
+.jsonl-record-validation-badge[data-state="pending"],
+.jsonl-record-validation-badge[data-state="coded"] {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.jsonl-record-validation-badge[data-state="reviewed"],
+.jsonl-record-validation-badge[data-state="adjudicated"] {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.jsonl-record-validation-badge[data-state="disagreement"] {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
 .jsonl-record-list-item.is-incomplete {
     border-left: 3px solid #d97706;
 }
@@ -4993,6 +5041,115 @@ body.dark-mode .app-confirm-path-list {
     min-width: 0;
     overflow-y: auto;
     padding: clamp(16px, 3vw, 34px);
+}
+
+.jsonl-record-detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+}
+
+.jsonl-workbench-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 9px;
+    border: 1px solid var(--border-color, #d8dee4);
+    border-radius: 8px;
+    background: var(--surface-variant, #f7f8fa);
+    font-size: 11px;
+}
+
+.jsonl-workbench-bulk-field {
+    width: min(180px, 25vw);
+}
+
+.jsonl-workbench-bulk-value {
+    display: inline-block;
+    width: min(200px, 28vw);
+}
+
+.jsonl-workbench-bulk-preview {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(130px, auto) minmax(180px, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color, #d8dee4);
+    color: var(--text-secondary, #475467);
+}
+
+.jsonl-workbench-bulk-preview-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.jsonl-workbench-table-wrapper {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--border-color, #d8dee4);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+}
+
+.jsonl-workbench-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11px;
+}
+
+.jsonl-workbench-table th,
+.jsonl-workbench-table td {
+    max-width: 280px;
+    padding: 8px 9px;
+    overflow: hidden;
+    border-right: 1px solid var(--border-color, #e5e7eb);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jsonl-workbench-table th:first-child,
+.jsonl-workbench-table td:first-child {
+    width: 34px;
+    text-align: center;
+}
+
+.jsonl-workbench-table th:nth-child(2),
+.jsonl-workbench-table td:nth-child(2) {
+    width: 94px;
+}
+
+.jsonl-workbench-table th {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    background: var(--toolbar-bg, #f7f8fa);
+    color: var(--text-secondary, #475467);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.jsonl-workbench-table tbody tr {
+    cursor: pointer;
+}
+
+.jsonl-workbench-table tbody tr:hover {
+    background: var(--surface-variant, #f7f8fa);
+}
+
+.jsonl-workbench-table tbody tr.active {
+    background: color-mix(in srgb, var(--accent-color, #2f6feb) 9%, var(--surface, #fff));
+    outline: 1px solid color-mix(in srgb, var(--accent-color, #2f6feb) 45%, transparent);
+    outline-offset: -1px;
 }
 
 .jsonl-record-detail-header {
@@ -5166,10 +5323,14 @@ body.dark-mode .jsonl-mode-button,
 body.dark-mode .jsonl-record-search,
 body.dark-mode .jsonl-field,
 body.dark-mode .jsonl-field-control,
+body.dark-mode .jsonl-workbench-bulk,
+body.dark-mode .jsonl-workbench-table-wrapper,
 body.dark-theme .jsonl-mode-button,
 body.dark-theme .jsonl-record-search,
 body.dark-theme .jsonl-field,
-body.dark-theme .jsonl-field-control {
+body.dark-theme .jsonl-field-control,
+body.dark-theme .jsonl-workbench-bulk,
+body.dark-theme .jsonl-workbench-table-wrapper {
     border-color: #454545;
     background: #2d2d2d;
     color: #e5e7eb;
@@ -5182,6 +5343,21 @@ body.dark-theme .jsonl-record-list-item:hover {
 
 body.dark-mode .jsonl-record-list-item.active,
 body.dark-theme .jsonl-record-list-item.active {
+    background: #26364d;
+}
+
+body.dark-mode .jsonl-workbench-table th,
+body.dark-theme .jsonl-workbench-table th {
+    background: #252526;
+}
+
+body.dark-mode .jsonl-workbench-table tbody tr:hover,
+body.dark-theme .jsonl-workbench-table tbody tr:hover {
+    background: #2d2d2d;
+}
+
+body.dark-mode .jsonl-workbench-table tbody tr.active,
+body.dark-theme .jsonl-workbench-table tbody tr.active {
     background: #26364d;
 }
 
@@ -5203,6 +5379,10 @@ body.dark-theme .jsonl-error-panel {
 
     .jsonl-field-wide {
         grid-column: auto;
+    }
+
+    .jsonl-workbench-bulk-preview {
+        grid-template-columns: 1fr;
     }
 }
 

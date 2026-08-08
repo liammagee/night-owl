@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-08T23:29:45.205Z",
+  "generated": "2026-08-08T23:50:08.527Z",
   "counts": {
     "total": 29,
     "byStatus": {
-      "triaged": 8,
-      "done": 21
+      "triaged": 7,
+      "done": 22
     },
     "byPriority": {
       "P1": 13,
@@ -14,8 +14,8 @@
     },
     "byArea": {
       "preview": 3,
-      "editor": 3,
       "presentation": 4,
+      "editor": 3,
       "files": 1,
       "platform": 6,
       "testing": 3,
@@ -49,30 +49,6 @@
       "depends_on": [
         "minimize-electron-privilege-surface",
         "resource-lifecycle-ownership"
-      ]
-    },
-    {
-      "id": "labelling-review-workbench",
-      "title": "Expand structured records into a labelling and review workbench",
-      "status": "triaged",
-      "type": "enhancement",
-      "priority": "P1",
-      "area": "editor",
-      "owner": "codex",
-      "source": "user-report",
-      "evidence": "opportunity",
-      "created": "2026-08-09",
-      "updated": "2026-08-09",
-      "verification": "A schema-backed JSONL or CSV task supports keyboard-first labelling, saved filters, bulk operations, resumable progress, and reviewer disagreement or adjudication while preserving the source format.",
-      "tags": [
-        "csv",
-        "jsonl",
-        "labelling",
-        "review"
-      ],
-      "depends_on": [
-        "schema-driven-record-workflows",
-        "unify-command-and-shortcut-registry"
       ]
     },
     {
@@ -278,6 +254,30 @@
       ],
       "depends_on": [
         "single-source-mode-and-pane-state"
+      ]
+    },
+    {
+      "id": "labelling-review-workbench",
+      "title": "Expand structured records into a labelling and review workbench",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "A schema-backed JSONL or CSV task supports keyboard-first labelling, saved filters, bulk operations, resumable progress, and reviewer disagreement or adjudication while preserving the source format.",
+      "tags": [
+        "csv",
+        "jsonl",
+        "labelling",
+        "review"
+      ],
+      "depends_on": [
+        "schema-driven-record-workflows",
+        "unify-command-and-shortcut-registry"
       ]
     },
     {

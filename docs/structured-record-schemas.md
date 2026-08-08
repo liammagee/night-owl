@@ -8,6 +8,11 @@ A schema can add task-specific labels, help, ordering, typed controls, choices,
 required fields, read-only identifiers, validation, progress, and an export
 completion gate without changing NightOwl source.
 
+An optional `workflow` block turns that schema into a keyboard-first labelling
+and review workbench. It adds a grid, facets, saved views, bulk-edit previews,
+resumable queues, coder/reviewer disagreement views, and handoff metadata. Files
+without `workflow` keep the simpler record list and form.
+
 ## Attach a schema
 
 NightOwl tries these sources in order:
@@ -148,3 +153,92 @@ check is advisory. Generic files have no schema completion gate.
 
 For CSV, schema field names must already be present in the header. JSONL schemas
 may add a missing declared field when the user supplies a valid value.
+
+## Labelling and review workbench
+
+Declare `workflow` only when a task benefits from queue and review semantics:
+
+```json
+{
+  "id": "double-coded-review",
+  "title": "Double-coded review",
+  "fields": {
+    "item_id": { "readOnly": true, "order": 0 },
+    "domain": { "readOnly": true, "order": 1 },
+    "coder_label": { "enum": ["accept", "revise", "reject"], "order": 2 },
+    "reviewer_label": { "enum": ["accept", "revise", "reject"], "order": 3 },
+    "final_label": { "enum": ["accept", "revise", "reject"], "order": 4 },
+    "confidence": { "type": "integer", "min": 1, "max": 5, "order": 5 },
+    "review_notes": { "type": "multiline", "order": 6 }
+  },
+  "workflow": {
+    "labelField": "coder_label",
+    "coderField": "coder_label",
+    "reviewerField": "reviewer_label",
+    "adjudicationField": "final_label",
+    "notesField": "review_notes",
+    "gridColumns": [
+      "item_id",
+      "domain",
+      "coder_label",
+      "reviewer_label",
+      "final_label",
+      "confidence"
+    ],
+    "facetFields": ["domain", "confidence"],
+    "defaultSort": { "field": "item_id", "direction": "asc" },
+    "savedViews": [
+      {
+        "id": "low-confidence",
+        "title": "Low confidence",
+        "filters": [
+          { "field": "confidence", "operator": "in", "value": [1, 2] }
+        ]
+      },
+      {
+        "id": "invalid",
+        "title": "Invalid records",
+        "filters": [
+          { "field": "$validation", "operator": "equals", "value": "invalid" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The workflow properties are:
+
+| Property | Meaning |
+| --- | --- |
+| `labelField` | Field changed by `Alt+1` through `Alt+9`; values come from its `enum` or `labelValues`. |
+| `labelValues` | Optional explicit keyboard-label order. |
+| `coderField` | Enables coded state and the coder/reviewer queues. |
+| `reviewerField` | Enables reviewed state and disagreement detection against `coderField`. |
+| `adjudicationField` | Enables unresolved-adjudication and adjudicated views. |
+| `notesField` | Declares the review-notes field for workflow consumers and handoffs. |
+| `gridColumns` | Ordered comparison columns. Defaults to the first six schema fields. |
+| `facetFields` | Suggested task facets; every schema field remains filterable in the UI. |
+| `defaultSort` | Initial `{ "field", "direction" }` for the queue. |
+| `savedViews` | Named filter sets with optional sort. Special fields are `$validation` and `$workflow`. |
+
+Saved-view filter operators are `equals`, `not_equals`, `contains`, `is_empty`,
+`is_not_empty`, and `in`. NightOwl also supplies role-aware Coder queue,
+Reviewer queue, Disagreements, Adjudication queue, and Adjudicated views when
+their fields are declared. Users can save the current facet selection locally;
+these personal views do not modify the task file or schema.
+
+Grid and form views use the same selected source record. A bulk fill or clear
+must be previewed before it can be applied, and all affected line or row edits
+are submitted as one undoable editor transaction. JSONL clears remove the
+field; CSV clears retain the column and write an empty cell.
+
+`Alt+Up` and `Alt+Down` move within the filtered queue, `Alt+G` toggles grid and
+form, and `Cmd/Ctrl+Enter` saves then advances. These shortcuts are inactive
+outside a workflow-backed record file and do not intercept typing inside a form
+control.
+
+NightOwl stores the last record and queue settings locally per file and schema.
+**Copy handoff metadata** emits counts and resume coordinates without copying
+record content or the full source path. `recordMode.checkForExport()` returns
+the same metadata under `handoff`, alongside the normal validation gate.

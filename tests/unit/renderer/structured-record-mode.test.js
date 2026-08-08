@@ -15,10 +15,12 @@ describe('structured record mode helpers', () => {
     delete window.recordMode;
     delete window.electronAPI;
     delete window.appSettings;
+    window.localStorage.clear();
     window.currentFilePath = null;
     window.requestAnimationFrame = callback => callback();
     global.requestAnimationFrame = window.requestAnimationFrame;
     document.body.innerHTML = '';
+    window.registerCommand = jest.fn();
     helpers = require(modulePath);
   });
 
@@ -387,6 +389,135 @@ describe('structured record mode helpers', () => {
       schema: expect.objectContaining({ title: 'Workspace labels' })
     });
     expect(document.querySelector('[data-field="label"]').tagName).toBe('SELECT');
+  });
+
+  test('shares selection across form and grid, filters disagreements, and batches edits in one undo step', () => {
+    document.body.innerHTML = `
+      <div id="editor-pane"></div>
+      <div id="resizer"></div>
+      <div id="right-pane"><div id="preview-pane"><div id="preview-content"></div></div></div>
+      <span id="preview-word-count"></span>
+      <span id="file-status"></span>
+    `;
+    const source = [
+      '{"item_id":"a","coder_label":"yes","reviewer_label":"yes","final_label":""}',
+      '{"item_id":"b","coder_label":"yes","reviewer_label":"no","final_label":""}',
+      '{"item_id":"c","coder_label":"","reviewer_label":"","final_label":""}'
+    ].join('\n');
+    const model = {
+      getLineMaxColumn: jest.fn(lineNumber => source.split('\n')[lineNumber - 1].length + 1)
+    };
+    window.editor = {
+      getValue: jest.fn(() => source),
+      getModel: jest.fn(() => model),
+      executeEdits: jest.fn(),
+      pushUndoStop: jest.fn(),
+      layout: jest.fn()
+    };
+    window.saveFile = jest.fn(async () => true);
+    window.currentFilePath = '/workspace/review-items.jsonl';
+
+    window.recordMode.handlePreviewUpdate(window.currentFilePath, source);
+    window.recordMode.setSchema({
+      id: 'review-workbench',
+      title: 'Review workbench',
+      fields: {
+        item_id: { readOnly: true, order: 0 },
+        coder_label: { enum: ['yes', 'no'], order: 1 },
+        reviewer_label: { enum: ['yes', 'no'], order: 2 },
+        final_label: { enum: ['yes', 'no'], order: 3 }
+      },
+      workflow: {
+        labelField: 'coder_label',
+        coderField: 'coder_label',
+        reviewerField: 'reviewer_label',
+        adjudicationField: 'final_label',
+        gridColumns: ['item_id', 'coder_label', 'reviewer_label', 'final_label']
+      }
+    });
+
+    expect(document.getElementById('jsonl-workbench-controls').hidden).toBe(false);
+    expect(document.getElementById('jsonl-workbench-toggle').hidden).toBe(false);
+    document.querySelectorAll('.jsonl-record-list-item')[2].click();
+    expect(window.recordMode.getState().selectedIndex).toBe(2);
+
+    document.getElementById('jsonl-workbench-toggle').click();
+    expect(document.querySelectorAll('.jsonl-workbench-table tbody tr')).toHaveLength(3);
+    expect(document.querySelector('.jsonl-workbench-table tbody tr.active td:nth-child(3)').textContent).toBe('c');
+    document.getElementById('jsonl-workbench-toggle').click();
+    expect(document.querySelector('[data-field="item_id"]').value).toBe('c');
+
+    document.getElementById('jsonl-workbench-view').value = 'disagreements';
+    document.getElementById('jsonl-workbench-view').dispatchEvent(new Event('change'));
+    document.getElementById('jsonl-workbench-toggle').click();
+    expect(document.querySelectorAll('.jsonl-workbench-table tbody tr')).toHaveLength(1);
+    expect(document.querySelector('.jsonl-workbench-table tbody tr td:nth-child(3)').textContent).toBe('b');
+
+    document.getElementById('jsonl-workbench-view').value = 'all';
+    document.getElementById('jsonl-workbench-view').dispatchEvent(new Event('change'));
+    document.querySelector('.jsonl-workbench-table thead input[type="checkbox"]').click();
+    const bulkField = document.querySelector('.jsonl-workbench-bulk-field');
+    bulkField.value = 'reviewer_label';
+    bulkField.dispatchEvent(new Event('change'));
+    const bulkValue = document.querySelector('.jsonl-workbench-bulk-value select');
+    bulkValue.value = 'no';
+    Array.from(document.querySelectorAll('.jsonl-workbench-bulk button'))
+      .find(button => button.textContent === 'Preview fill').click();
+    expect(document.querySelector('.jsonl-workbench-bulk-preview strong').textContent).toContain('2 records');
+    Array.from(document.querySelectorAll('.jsonl-workbench-bulk-preview button'))
+      .find(button => button.textContent === 'Apply changes').click();
+
+    expect(window.editor.executeEdits).toHaveBeenLastCalledWith(
+      'structured-record-workbench-bulk',
+      expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining('"reviewer_label":"no"') })])
+    );
+    expect(window.editor.executeEdits.mock.calls.at(-1)[1]).toHaveLength(2);
+    expect(window.editor.pushUndoStop).toHaveBeenCalledTimes(2);
+    expect(window.recordMode.getHandoffMetadata()).toMatchObject({
+      schemaId: 'review-workbench',
+      totalRecords: 3,
+      workflow: expect.objectContaining({ reviewed: 3 })
+    });
+    expect(window.recordMode.checkForExport()).toHaveProperty('handoff.schemaId', 'review-workbench');
+  });
+
+  test('registers keyboard-first label and save-next actions without enabling workflow UI for generic files', async () => {
+    const registrations = Object.fromEntries(window.registerCommand.mock.calls.map(call => [call[0], call]));
+    expect(registrations['records.label.1'][3]).toBe('Alt+1');
+    expect(registrations['records.saveNext'][3]).toBe('Mod+Enter');
+
+    document.body.innerHTML = `
+      <div id="editor-pane"></div><div id="resizer"></div>
+      <div id="right-pane"><div id="preview-pane"><div id="preview-content"></div></div></div>
+      <span id="preview-word-count"></span><span id="file-status"></span>
+    `;
+    const source = '{"item_id":"a","label":""}\n{"item_id":"b","label":""}';
+    window.editor = {
+      getValue: jest.fn(() => source),
+      getModel: jest.fn(() => ({ getLineMaxColumn: line => source.split('\n')[line - 1].length + 1 })),
+      executeEdits: jest.fn(),
+      layout: jest.fn()
+    };
+    window.saveFile = jest.fn(async () => true);
+    window.currentFilePath = '/workspace/labels.jsonl';
+    window.recordMode.handlePreviewUpdate(window.currentFilePath, source);
+
+    expect(document.getElementById('jsonl-workbench-controls').hidden).toBe(true);
+    window.recordMode.setSchema({
+      id: 'keyboard-labels',
+      fields: {
+        item_id: { readOnly: true },
+        label: { enum: ['accept', 'reject'], required: true }
+      },
+      workflow: { labelField: 'label', gridColumns: ['item_id', 'label'] }
+    });
+    registrations['records.label.1'][2]();
+    expect(window.editor.executeEdits).toHaveBeenCalledWith('jsonl-record-mode', [
+      expect.objectContaining({ text: '{"item_id":"a","label":"accept"}' })
+    ]);
+    await registrations['records.saveNext'][2]();
+    expect(window.saveFile).toHaveBeenCalled();
+    expect(window.recordMode.getState().selectedIndex).toBe(1);
   });
 
   test('allows an explicit schema file to replace generic controls', async () => {

@@ -16,6 +16,9 @@
     const schemaTools = typeof module !== 'undefined' && module.exports
         ? require('./structured-record-schema')
         : window.NightOwlRecordSchema;
+    const workbenchTools = typeof module !== 'undefined' && module.exports
+        ? require('./structured-record-workbench')
+        : window.NightOwlRecordWorkbench;
     const getRecordUIState = () => uiStateStore?.getState?.().structuredRecord || {
         active: false,
         sourceVisible: false
@@ -380,8 +383,308 @@
         schemaGeneration: 0,
         schemasByFile: new Map(),
         validation: [],
-        progress: null
+        progress: null,
+        workbench: {
+            viewMode: 'form',
+            viewId: 'all',
+            filterField: '',
+            filterValue: '',
+            sortField: '',
+            sortDirection: 'asc',
+            selectedIndices: new Set(),
+            localViews: [],
+            bulkPreview: null,
+            updatedAt: null,
+            restoredKey: null
+        }
     };
+
+    function hasWorkbench() {
+        return Boolean(state.schema?.workflow && workbenchTools);
+    }
+
+    function workbenchStorageKey(kind = 'resume') {
+        if (!state.filePath || !state.schema?.id) return null;
+        return `nightowl-record-workbench:${kind}:v1:${state.schema.id}:${state.filePath}`;
+    }
+
+    function readStoredJSON(key, fallback) {
+        if (!key) return fallback;
+        try {
+            const value = window.localStorage?.getItem?.(key);
+            return value ? JSON.parse(value) : fallback;
+        } catch (_) {
+            return fallback;
+        }
+    }
+
+    function writeStoredJSON(key, value) {
+        if (!key) return false;
+        try {
+            window.localStorage?.setItem?.(key, JSON.stringify(value));
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function resetWorkbenchState(options = {}) {
+        state.workbench.viewMode = 'form';
+        state.workbench.viewId = 'all';
+        state.workbench.filterField = '';
+        state.workbench.filterValue = '';
+        state.workbench.sortField = '';
+        state.workbench.sortDirection = 'asc';
+        state.workbench.selectedIndices = new Set();
+        state.workbench.localViews = [];
+        state.workbench.bulkPreview = null;
+        state.workbench.updatedAt = null;
+        if (!options.keepRestoreKey) state.workbench.restoredKey = null;
+    }
+
+    function persistWorkbenchResume() {
+        if (!hasWorkbench()) return null;
+        const updatedAt = new Date().toISOString();
+        state.workbench.updatedAt = updatedAt;
+        const record = state.parsed?.records?.[state.selectedIndex];
+        const value = {
+            selectedIndex: state.selectedIndex,
+            selectedRecordId: record ? String(workbenchTools.recordId(record, state.selectedIndex)) : null,
+            viewMode: state.workbench.viewMode,
+            viewId: state.workbench.viewId,
+            filterField: state.workbench.filterField,
+            filterValue: state.workbench.filterValue,
+            sortField: state.workbench.sortField,
+            sortDirection: state.workbench.sortDirection,
+            updatedAt
+        };
+        writeStoredJSON(workbenchStorageKey(), value);
+        return value;
+    }
+
+    function restoreWorkbenchState() {
+        if (!hasWorkbench()) {
+            resetWorkbenchState();
+            return;
+        }
+        const key = workbenchStorageKey();
+        if (state.workbench.restoredKey === key) return;
+        resetWorkbenchState({ keepRestoreKey: true });
+        state.workbench.restoredKey = key;
+        state.workbench.localViews = readStoredJSON(workbenchStorageKey('views'), []);
+        const stored = readStoredJSON(key, null);
+        const workflow = state.schema.workflow;
+        const defaultSort = workflow.defaultSort || {};
+        state.workbench.sortField = stored?.sortField || defaultSort.field || '';
+        state.workbench.sortDirection = stored?.sortDirection || defaultSort.direction || 'asc';
+        if (!stored) return;
+        state.workbench.viewMode = stored.viewMode === 'grid' ? 'grid' : 'form';
+        state.workbench.viewId = String(stored.viewId || 'all');
+        state.workbench.filterField = String(stored.filterField || '');
+        state.workbench.filterValue = String(stored.filterValue || '');
+        state.workbench.updatedAt = stored.updatedAt || null;
+        const records = state.parsed?.records || [];
+        const matchedIndex = stored.selectedRecordId == null
+            ? -1
+            : records.findIndex((record, index) => String(workbenchTools.recordId(record, index)) === String(stored.selectedRecordId));
+        state.selectedIndex = matchedIndex >= 0
+            ? matchedIndex
+            : Math.max(0, Math.min(records.length - 1, Number(stored.selectedIndex) || 0));
+    }
+
+    function availableWorkbenchViews() {
+        return hasWorkbench()
+            ? workbenchTools.availableViews(state.schema.workflow, state.workbench.localViews)
+            : [];
+    }
+
+    function visibleRecordRows() {
+        const records = state.parsed?.records || [];
+        if (!hasWorkbench()) {
+            return records.map((record, index) => ({ record, index }))
+                .filter(({ record }) => recordMatches(record.value, state.query));
+        }
+        return workbenchTools.selectRows(records, state.validation, {
+            workflow: state.schema.workflow,
+            localViews: state.workbench.localViews,
+            viewId: state.workbench.viewId,
+            query: state.query,
+            filterField: state.workbench.filterValue ? state.workbench.filterField : '',
+            filterValue: state.workbench.filterValue,
+            sortField: state.workbench.sortField,
+            sortDirection: state.workbench.sortDirection
+        });
+    }
+
+    function replaceSelectOptions(select, options, selectedValue) {
+        if (!select) return;
+        select.replaceChildren();
+        options.forEach(item => {
+            const option = document.createElement('option');
+            option.value = String(item.value ?? '');
+            option.textContent = item.label;
+            select.appendChild(option);
+        });
+        select.value = String(selectedValue ?? '');
+        if (select.value !== String(selectedValue ?? '') && select.options.length) select.selectedIndex = 0;
+    }
+
+    function getHandoffMetadata() {
+        if (!hasWorkbench()) return null;
+        return workbenchTools.handoffMetadata(
+            state.parsed?.records || [],
+            state.validation,
+            state.schema.workflow,
+            {
+                filePath: state.filePath,
+                schemaId: state.schema.id,
+                selectedIndex: state.selectedIndex,
+                activeView: state.workbench.viewId,
+                updatedAt: state.workbench.updatedAt,
+                query: state.query,
+                filterField: state.workbench.filterField,
+                filterValue: state.workbench.filterValue,
+                sortField: state.workbench.sortField,
+                sortDirection: state.workbench.sortDirection
+            }
+        );
+    }
+
+    function refreshWorkbenchControls() {
+        const enabled = hasWorkbench();
+        const controls = getElement('jsonl-workbench-controls');
+        const toggle = getElement('jsonl-workbench-toggle');
+        if (controls) controls.hidden = !enabled;
+        if (toggle) {
+            toggle.hidden = !enabled;
+            toggle.textContent = state.workbench.viewMode === 'grid' ? 'Show form' : 'Show grid';
+            toggle.setAttribute('aria-pressed', String(state.workbench.viewMode === 'grid'));
+        }
+        const resume = getElement('jsonl-workbench-resume');
+        if (!enabled) {
+            if (resume) resume.hidden = true;
+            return;
+        }
+
+        const workflow = state.schema.workflow;
+        const views = availableWorkbenchViews();
+        if (!views.some(view => view.id === state.workbench.viewId)) state.workbench.viewId = 'all';
+        replaceSelectOptions(
+            getElement('jsonl-workbench-view'),
+            views.map(view => ({ value: view.id, label: view.title })),
+            state.workbench.viewId
+        );
+
+        const fieldOptions = [
+            { value: '', label: 'All values' },
+            { value: '$validation', label: 'Validation state' },
+            { value: '$workflow', label: 'Review state' },
+            ...state.schema.fields.map(field => ({ value: field.name, label: field.label }))
+        ];
+        replaceSelectOptions(getElement('jsonl-workbench-filter-field'), fieldOptions, state.workbench.filterField);
+        const valueSelect = getElement('jsonl-workbench-filter-value');
+        const facetValues = state.workbench.filterField
+            ? workbenchTools.facetCounts(
+                state.parsed?.records || [],
+                state.validation,
+                workflow,
+                state.workbench.filterField
+            )
+            : [];
+        replaceSelectOptions(valueSelect, [
+            { value: '', label: 'All' },
+            ...facetValues.map(facet => ({ value: facet.value, label: `${facet.value} (${facet.count})` }))
+        ], state.workbench.filterValue);
+        if (valueSelect) valueSelect.disabled = !state.workbench.filterField;
+
+        replaceSelectOptions(getElement('jsonl-workbench-sort'), [
+            { value: '', label: 'Source order' },
+            { value: '$validation', label: 'Validation state' },
+            { value: '$workflow', label: 'Review state' },
+            ...state.schema.fields.map(field => ({ value: field.name, label: field.label }))
+        ], state.workbench.sortField);
+        const direction = getElement('jsonl-workbench-sort-direction');
+        if (direction) {
+            direction.textContent = state.workbench.sortDirection === 'desc' ? '↓' : '↑';
+            direction.setAttribute('aria-label', state.workbench.sortDirection === 'desc' ? 'Sort descending' : 'Sort ascending');
+        }
+        const saveView = getElement('jsonl-workbench-save-view');
+        if (saveView) saveView.hidden = !(state.workbench.filterField && state.workbench.filterValue);
+        const deleteView = getElement('jsonl-workbench-delete-view');
+        const currentView = state.workbench.localViews.find(view => view.id === state.workbench.viewId);
+        if (deleteView) deleteView.hidden = !currentView;
+
+        const metadata = getHandoffMetadata();
+        const stats = getElement('jsonl-workbench-stats');
+        if (stats && metadata) {
+            stats.textContent = `Coded ${metadata.workflow.coded}/${metadata.totalRecords} · Reviewed ${metadata.workflow.reviewed} · Disagreements ${metadata.workflow.unresolvedDisagreements} · Adjudicated ${metadata.workflow.adjudicated}`;
+        }
+        if (resume) {
+            resume.hidden = false;
+            resume.textContent = state.workbench.updatedAt
+                ? `Resume saved ${new Date(state.workbench.updatedAt).toLocaleString()}`
+                : 'Resume point will be saved automatically';
+        }
+    }
+
+    function saveCurrentWorkbenchView() {
+        if (!hasWorkbench() || !state.workbench.filterField || !state.workbench.filterValue) return false;
+        const title = window.prompt?.('Name this saved record view:', 'My review view');
+        if (!String(title || '').trim()) return false;
+        const idBase = String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'saved-view';
+        let id = `local-${idBase}`;
+        let suffix = 2;
+        const ids = new Set(availableWorkbenchViews().map(view => view.id));
+        while (ids.has(id)) id = `local-${idBase}-${suffix++}`;
+        const view = {
+            id,
+            title: String(title).trim(),
+            filters: [{
+                field: state.workbench.filterField,
+                operator: 'equals',
+                value: state.workbench.filterValue
+            }],
+            sort: state.workbench.sortField ? {
+                field: state.workbench.sortField,
+                direction: state.workbench.sortDirection
+            } : null,
+            local: true
+        };
+        state.workbench.localViews.push(view);
+        state.workbench.viewId = id;
+        state.workbench.filterField = '';
+        state.workbench.filterValue = '';
+        writeStoredJSON(workbenchStorageKey('views'), state.workbench.localViews);
+        persistWorkbenchResume();
+        renderRecordList();
+        renderRecordDetail();
+        updateStatus(`Saved view “${view.title}”`, 'saved');
+        return true;
+    }
+
+    function deleteCurrentWorkbenchView() {
+        const index = state.workbench.localViews.findIndex(view => view.id === state.workbench.viewId);
+        if (index < 0) return false;
+        const [removed] = state.workbench.localViews.splice(index, 1);
+        state.workbench.viewId = 'all';
+        writeStoredJSON(workbenchStorageKey('views'), state.workbench.localViews);
+        persistWorkbenchResume();
+        renderRecordList();
+        renderRecordDetail();
+        updateStatus(`Removed view “${removed.title}”`, 'saved');
+        return true;
+    }
+
+    async function copyHandoffMetadata() {
+        const metadata = getHandoffMetadata();
+        if (!metadata) return false;
+        const text = JSON.stringify(metadata, null, 2);
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+        else throw new Error('Clipboard access is unavailable.');
+        updateStatus('Handoff metadata copied', 'saved');
+        state.container?.dispatchEvent(new CustomEvent('structured-record-handoff-copied', { detail: metadata }));
+        return true;
+    }
 
     function pathDirectory(filePath) {
         const value = String(filePath || '');
@@ -442,9 +745,11 @@
         }
         if (choose) choose.textContent = state.schema ? 'Change schema…' : 'Choose schema…';
         if (check) check.hidden = !state.schema;
+        refreshWorkbenchControls();
     }
 
     function refreshSchemaRendering() {
+        restoreWorkbenchState();
         refreshSchemaUI();
         if (!state.parsed || state.parsed.errors.length) return;
         renderRecordList();
@@ -463,6 +768,7 @@
             throw new Error(`${normalized.title} does not support ${state.format.toUpperCase()} files.`);
         }
         state.schema = normalized;
+        state.workbench.restoredKey = null;
         state.schemaPath = options.path || normalized.path || null;
         state.schemaSource = options.source || normalized.source || 'explicit';
         state.schemaError = null;
@@ -480,6 +786,7 @@
         state.schemaPath = null;
         state.schemaSource = 'generic';
         state.schemaError = options.error || null;
+        resetWorkbenchState();
         if (options.remember && state.filePath) state.schemasByFile.set(state.filePath, null);
         refreshSchemaRendering();
     }
@@ -587,6 +894,7 @@
                     <div id="jsonl-schema-summary" class="jsonl-schema-summary">Generic record fields</div>
                 </div>
                 <div class="jsonl-mode-actions">
+                    <button id="jsonl-workbench-toggle" class="jsonl-mode-button" type="button" hidden>Show grid</button>
                     <button id="jsonl-schema-select" class="jsonl-mode-button" type="button">Choose schema…</button>
                     <button id="jsonl-schema-check" class="jsonl-mode-button" type="button" hidden>Check for export</button>
                     <button id="jsonl-source-toggle" class="jsonl-mode-button" type="button">Show raw source</button>
@@ -594,6 +902,26 @@
             </header>
             <div class="jsonl-mode-body">
                 <aside id="jsonl-record-sidebar" class="jsonl-record-sidebar" aria-label="Records">
+                    <section id="jsonl-workbench-controls" class="jsonl-workbench-controls" aria-label="Labelling queue controls" hidden>
+                        <label class="jsonl-search-label" for="jsonl-workbench-view">Saved view</label>
+                        <div class="jsonl-workbench-control-row">
+                            <select id="jsonl-workbench-view" class="jsonl-record-search"></select>
+                            <button id="jsonl-workbench-delete-view" class="jsonl-mode-button jsonl-workbench-icon-button" type="button" title="Delete this local view" hidden>×</button>
+                        </div>
+                        <label class="jsonl-search-label" for="jsonl-workbench-filter-field">Facet filter</label>
+                        <div class="jsonl-workbench-control-row">
+                            <select id="jsonl-workbench-filter-field" class="jsonl-record-search"></select>
+                            <select id="jsonl-workbench-filter-value" class="jsonl-record-search" disabled></select>
+                        </div>
+                        <button id="jsonl-workbench-save-view" class="jsonl-mode-button" type="button" hidden>Save current view…</button>
+                        <label class="jsonl-search-label" for="jsonl-workbench-sort">Sort</label>
+                        <div class="jsonl-workbench-control-row">
+                            <select id="jsonl-workbench-sort" class="jsonl-record-search"></select>
+                            <button id="jsonl-workbench-sort-direction" class="jsonl-mode-button jsonl-workbench-icon-button" type="button" title="Reverse sort">↑</button>
+                        </div>
+                        <div id="jsonl-workbench-stats" class="jsonl-workbench-stats"></div>
+                        <button id="jsonl-workbench-copy-handoff" class="jsonl-mode-button" type="button">Copy handoff metadata</button>
+                    </section>
                     <label class="jsonl-search-label" for="jsonl-record-search">Find a record</label>
                     <input id="jsonl-record-search" class="jsonl-record-search" type="search" placeholder="ID, domain, or text…" autocomplete="off">
                     <div id="jsonl-record-list-summary" class="jsonl-record-list-summary"></div>
@@ -605,6 +933,7 @@
             <footer class="jsonl-mode-footer">
                 <button id="jsonl-prev-record" class="jsonl-mode-button" type="button">← Previous</button>
                 <span id="jsonl-position" class="jsonl-position"></span>
+                <span id="jsonl-workbench-resume" class="jsonl-workbench-resume" hidden></span>
                 <button id="jsonl-next-record" class="jsonl-mode-button" type="button">Next →</button>
             </footer>
         `;
@@ -614,6 +943,14 @@
 
         getElement('jsonl-source-toggle')?.addEventListener('click', () => {
             setSourceVisible(!getRecordUIState().sourceVisible);
+        });
+        getElement('jsonl-workbench-toggle')?.addEventListener('click', () => {
+            if (!hasWorkbench()) return;
+            state.workbench.viewMode = state.workbench.viewMode === 'grid' ? 'form' : 'grid';
+            state.workbench.bulkPreview = null;
+            persistWorkbenchResume();
+            renderRecordDetail();
+            refreshWorkbenchControls();
         });
         getElement('jsonl-schema-select')?.addEventListener('click', async () => {
             try {
@@ -626,12 +963,52 @@
             }
         });
         getElement('jsonl-schema-check')?.addEventListener('click', () => checkForExport());
-        getElement('jsonl-prev-record')?.addEventListener('click', () => selectRecord(state.selectedIndex - 1));
-        getElement('jsonl-next-record')?.addEventListener('click', () => selectRecord(state.selectedIndex + 1));
+        getElement('jsonl-prev-record')?.addEventListener('click', () => selectAdjacentRecord(-1));
+        getElement('jsonl-next-record')?.addEventListener('click', () => selectAdjacentRecord(1));
         getElement('jsonl-record-search')?.addEventListener('input', event => {
             state.query = event.target.value;
             renderRecordList();
+            if (state.workbench.viewMode === 'grid') renderRecordDetail();
         });
+        getElement('jsonl-workbench-view')?.addEventListener('change', event => {
+            state.workbench.viewId = event.target.value || 'all';
+            state.workbench.selectedIndices.clear();
+            state.workbench.bulkPreview = null;
+            persistWorkbenchResume();
+            renderRecordList();
+            renderRecordDetail();
+        });
+        getElement('jsonl-workbench-filter-field')?.addEventListener('change', event => {
+            state.workbench.filterField = event.target.value;
+            state.workbench.filterValue = '';
+            state.workbench.selectedIndices.clear();
+            refreshWorkbenchControls();
+            renderRecordList();
+            renderRecordDetail();
+        });
+        getElement('jsonl-workbench-filter-value')?.addEventListener('change', event => {
+            state.workbench.filterValue = event.target.value;
+            state.workbench.selectedIndices.clear();
+            persistWorkbenchResume();
+            renderRecordList();
+            renderRecordDetail();
+        });
+        getElement('jsonl-workbench-sort')?.addEventListener('change', event => {
+            state.workbench.sortField = event.target.value;
+            persistWorkbenchResume();
+            renderRecordList();
+            renderRecordDetail();
+        });
+        getElement('jsonl-workbench-sort-direction')?.addEventListener('click', () => {
+            state.workbench.sortDirection = state.workbench.sortDirection === 'asc' ? 'desc' : 'asc';
+            persistWorkbenchResume();
+            refreshWorkbenchControls();
+            renderRecordList();
+            renderRecordDetail();
+        });
+        getElement('jsonl-workbench-save-view')?.addEventListener('click', saveCurrentWorkbenchView);
+        getElement('jsonl-workbench-delete-view')?.addEventListener('click', deleteCurrentWorkbenchView);
+        getElement('jsonl-workbench-copy-handoff')?.addEventListener('click', copyHandoffMetadata);
 
         return container;
     }
@@ -693,6 +1070,7 @@
             state.schemaPath = cachedSchema?.path || null;
             state.schemaSource = cachedSchema?.source || 'generic';
             state.schemaError = null;
+            resetWorkbenchState();
             const search = getElement('jsonl-record-search');
             if (search) search.value = '';
             if (!state.schemasByFile.has(filePath)) {
@@ -722,6 +1100,7 @@
         state.validation = [];
         state.progress = null;
         state.query = '';
+        resetWorkbenchState();
         uiStateStore?.dispatch?.({ type: 'SET_STRUCTURED_RECORD', active: false });
         const fileStatus = getElement('file-status');
         if (fileStatus) fileStatus.textContent = getFileStatusLabel(window.currentFilePath);
@@ -794,6 +1173,7 @@
 
     function checkForExport() {
         const result = refreshValidation();
+        const handoff = getHandoffMetadata();
         if (!state.schema) {
             const outcome = { allowed: true, blocked: false, reason: 'generic', progress: result.progress };
             updateStatus('No task schema; export checks are not required', 'valid');
@@ -806,7 +1186,8 @@
             blocked,
             reason: blocked ? 'schema-completion-required' : 'schema-check-passed',
             progress: result.progress,
-            schemaId: state.schema.id
+            schemaId: state.schema.id,
+            handoff
         };
         updateStatus(
             blocked
@@ -825,11 +1206,13 @@
         const summary = getElement('jsonl-record-list-summary');
         if (!list || !state.parsed) return;
 
-        const matches = [];
-        state.parsed.records.forEach((record, index) => {
-            if (recordMatches(record.value, state.query)) matches.push({ record, index });
-        });
+        refreshValidation(state.parsed.records.length);
+        const matches = visibleRecordRows();
         refreshValidation(matches.length);
+        if (hasWorkbench() && matches.length && !matches.some(row => row.index === state.selectedIndex)) {
+            state.selectedIndex = matches[0].index;
+            persistWorkbenchResume();
+        }
 
         list.replaceChildren();
         matches.forEach(({ record, index }) => {
@@ -878,18 +1261,24 @@
         });
 
         if (summary) {
-            summary.textContent = state.query
+            const constrained = state.query || (hasWorkbench() && (
+                state.workbench.viewId !== 'all' || state.workbench.filterValue
+            ));
+            summary.textContent = constrained
                 ? `${matches.length} of ${state.parsed.records.length} records`
                 : `${state.parsed.records.length} records`;
         }
+        refreshWorkbenchControls();
     }
 
     function clearFieldError(wrapper) {
+        if (!wrapper) return;
         wrapper.classList.remove('invalid');
         wrapper.querySelector('.jsonl-field-error')?.remove();
     }
 
     function showFieldError(wrapper, message) {
+        if (!wrapper) return;
         clearFieldError(wrapper);
         wrapper.classList.add('invalid');
         const error = document.createElement('div');
@@ -907,13 +1296,10 @@
         };
     }
 
-    function replaceSourceRecord(record, nextValue) {
+    function makeSourceEdit(record, nextValue, nextRow = record.row) {
         const model = window.editor?.getModel?.();
         const isCSV = state.format === 'csv';
-        const replacement = isCSV ? serializeCSVRow(record.row) : JSON.stringify(nextValue);
-        const computedContent = isCSV
-            ? replaceCSVRecord(state.content, record, record.row)
-            : replaceRecordLine(state.content, record.lineNumber, nextValue);
+        const replacement = isCSV ? serializeCSVRow(nextRow) : JSON.stringify(nextValue);
         let range;
 
         if (isCSV) {
@@ -945,8 +1331,29 @@
                 };
         }
 
+        return { record, nextValue, nextRow, range, text: replacement };
+    }
+
+    function applySourceEdits(entries, sourceId = `${state.format}-record-mode`) {
+        if (!entries.length) return false;
+        let computedContent = state.content;
+        if (state.format === 'csv') {
+            entries.slice().sort((left, right) => right.record.startOffset - left.record.startOffset).forEach(entry => {
+                computedContent = `${computedContent.slice(0, entry.record.startOffset)}${entry.text}${computedContent.slice(entry.record.endOffset)}`;
+            });
+        } else {
+            const lines = String(computedContent || '').split('\n');
+            entries.forEach(entry => {
+                lines[entry.record.lineNumber - 1] = entry.text;
+            });
+            computedContent = lines.join('\n');
+        }
+
+        const model = window.editor?.getModel?.();
         if (model && typeof window.editor?.executeEdits === 'function') {
-            window.editor.executeEdits(`${state.format}-record-mode`, [{ range, text: replacement }]);
+            window.editor.pushUndoStop?.();
+            window.editor.executeEdits(sourceId, entries.map(entry => ({ range: entry.range, text: entry.text })));
+            window.editor.pushUndoStop?.();
             const editorContent = window.editor.getValue?.();
             state.content = typeof editorContent === 'string' && editorContent !== state.content
                 ? editorContent
@@ -960,6 +1367,11 @@
 
         state.parsed = parseRecordContent(state.filePath, state.content);
         updateDocumentStatus(state.content, state.parsed?.records?.length || 0);
+        return true;
+    }
+
+    function replaceSourceRecord(record, nextValue) {
+        return applySourceEdits([makeSourceEdit(record, nextValue)], `${state.format}-record-mode`);
     }
 
     function commitField(recordIndex, key, rawValue, wrapper, field = null) {
@@ -981,6 +1393,10 @@
             }
             record.value[key] = nextValue;
             replaceSourceRecord(record, record.value);
+            if (hasWorkbench()) {
+                state.workbench.updatedAt = new Date().toISOString();
+                persistWorkbenchResume();
+            }
             updateStatus(
                 state.format === 'csv' ? `Updated record ${recordIndex + 1}` : `Updated line ${record.lineNumber}`,
                 'saved'
@@ -1101,11 +1517,274 @@
         return control;
     }
 
+    function editableWorkbenchFields() {
+        if (!state.schema) return [];
+        return state.schema.fields.filter(field => {
+            if (field.readOnly) return false;
+            return state.format !== 'csv' || state.parsed?.headers?.includes(field.name);
+        });
+    }
+
+    function applyBulkPreview() {
+        const preview = state.workbench.bulkPreview;
+        if (!preview?.changes?.length) return false;
+        const field = state.schema?.fieldsByName?.[preview.field] || null;
+        const entries = preview.changes.map(change => {
+            const record = state.parsed.records[change.index];
+            const nextValue = { ...record.value };
+            const nextRow = state.format === 'csv' ? [...record.row] : record.row;
+            if (state.format === 'csv') {
+                const columnIndex = state.parsed.headers.indexOf(change.field);
+                if (columnIndex < 0) throw new Error(`${field?.label || change.field} is not present in the CSV header.`);
+                const value = change.clear ? '' : String(change.newValue ?? '');
+                nextRow[columnIndex] = value;
+                nextValue[change.field] = value;
+            } else if (change.clear) {
+                delete nextValue[change.field];
+            } else {
+                nextValue[change.field] = change.newValue;
+            }
+            return makeSourceEdit(record, nextValue, nextRow);
+        });
+        applySourceEdits(entries, 'structured-record-workbench-bulk');
+        state.workbench.bulkPreview = null;
+        state.workbench.updatedAt = new Date().toISOString();
+        refreshValidation();
+        persistWorkbenchResume();
+        renderRecordList();
+        renderRecordDetail();
+        updateFooter();
+        updateStatus(`Updated ${entries.length} ${entries.length === 1 ? 'record' : 'records'} in one undo step`, 'saved');
+        window.dispatchEvent(new CustomEvent('structured-record-bulk-updated', {
+            detail: { filePath: state.filePath, format: state.format, field: preview.field, count: entries.length }
+        }));
+        return true;
+    }
+
+    function createBulkToolbar(rows) {
+        const section = document.createElement('section');
+        section.className = 'jsonl-workbench-bulk';
+        const selectedCount = state.workbench.selectedIndices.size;
+        const summary = document.createElement('strong');
+        summary.textContent = `${selectedCount} selected`;
+        const fieldSelect = document.createElement('select');
+        fieldSelect.className = 'jsonl-field-control jsonl-workbench-bulk-field';
+        fieldSelect.setAttribute('aria-label', 'Bulk edit field');
+        editableWorkbenchFields().forEach(field => {
+            const option = document.createElement('option');
+            option.value = field.name;
+            option.textContent = field.label;
+            fieldSelect.appendChild(option);
+        });
+        const valueSlot = document.createElement('span');
+        valueSlot.className = 'jsonl-workbench-bulk-value';
+        let valueControl = null;
+        const renderValueControl = () => {
+            valueSlot.replaceChildren();
+            const field = state.schema.fieldsByName[fieldSelect.value];
+            valueControl = field?.enum
+                ? createSelectControl(field.enum, field.enum[0])
+                : document.createElement('input');
+            if (!field?.enum) {
+                valueControl.type = field?.type === 'number' || field?.type === 'integer' ? 'number' : 'text';
+                valueControl.placeholder = 'Value';
+            }
+            valueControl.classList.add('jsonl-field-control');
+            valueControl.setAttribute('aria-label', 'Bulk edit value');
+            valueSlot.appendChild(valueControl);
+        };
+        renderValueControl();
+        fieldSelect.addEventListener('change', () => {
+            state.workbench.bulkPreview = null;
+            renderValueControl();
+        });
+
+        const previewButton = document.createElement('button');
+        previewButton.type = 'button';
+        previewButton.className = 'jsonl-mode-button';
+        previewButton.textContent = 'Preview fill';
+        const clearButton = document.createElement('button');
+        clearButton.type = 'button';
+        clearButton.className = 'jsonl-mode-button';
+        clearButton.textContent = 'Preview clear';
+        [fieldSelect, valueControl, previewButton, clearButton].forEach(control => {
+            control.disabled = selectedCount === 0 || fieldSelect.options.length === 0;
+        });
+
+        const preview = clear => {
+            try {
+                const field = state.schema.fieldsByName[fieldSelect.value];
+                const value = clear ? undefined : schemaTools.coerceValue(
+                    valueControl.value,
+                    field,
+                    state.format,
+                    undefined
+                ).value;
+                state.workbench.bulkPreview = workbenchTools.previewBulk(
+                    state.parsed.records,
+                    state.workbench.selectedIndices,
+                    fieldSelect.value,
+                    value,
+                    { clear }
+                );
+                renderRecordDetail();
+                updateStatus(
+                    state.workbench.bulkPreview.affected
+                        ? `Previewing ${state.workbench.bulkPreview.affected} bulk changes`
+                        : 'Bulk edit would not change any records',
+                    state.workbench.bulkPreview.affected ? 'valid' : ''
+                );
+            } catch (error) {
+                updateStatus(error.message || 'Invalid bulk value', 'error');
+            }
+        };
+        previewButton.addEventListener('click', () => preview(false));
+        clearButton.addEventListener('click', () => preview(true));
+        section.append(summary, fieldSelect, valueSlot, previewButton, clearButton);
+
+        const bulkPreview = state.workbench.bulkPreview;
+        if (bulkPreview) {
+            const panel = document.createElement('div');
+            panel.className = 'jsonl-workbench-bulk-preview';
+            const heading = document.createElement('strong');
+            heading.textContent = bulkPreview.affected
+                ? `${bulkPreview.clear ? 'Clear' : 'Fill'} ${bulkPreview.field} on ${bulkPreview.affected} ${bulkPreview.affected === 1 ? 'record' : 'records'}?`
+                : 'No source changes are needed.';
+            const examples = document.createElement('span');
+            examples.textContent = bulkPreview.changes.slice(0, 5).map(change => (
+                `${change.recordId}: ${change.oldValue ?? 'empty'} → ${change.clear ? 'empty' : change.newValue}`
+            )).join(' · ');
+            const actions = document.createElement('span');
+            actions.className = 'jsonl-workbench-bulk-preview-actions';
+            const apply = document.createElement('button');
+            apply.type = 'button';
+            apply.className = 'jsonl-mode-button';
+            apply.textContent = 'Apply changes';
+            apply.disabled = bulkPreview.affected === 0;
+            apply.addEventListener('click', applyBulkPreview);
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'jsonl-mode-button';
+            cancel.textContent = 'Cancel';
+            cancel.addEventListener('click', () => {
+                state.workbench.bulkPreview = null;
+                renderRecordDetail();
+            });
+            actions.append(apply, cancel);
+            panel.append(heading, examples, actions);
+            section.appendChild(panel);
+        }
+        return section;
+    }
+
+    function renderRecordGrid(detail) {
+        const rows = visibleRecordRows();
+        const workflow = state.schema.workflow;
+        const columns = workflow.gridColumns.length
+            ? workflow.gridColumns
+            : state.schema.fields.slice(0, 6).map(field => field.name);
+        detail.classList.add('jsonl-record-detail-grid');
+        detail.appendChild(createBulkToolbar(rows));
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'jsonl-workbench-table-wrapper';
+        const table = document.createElement('table');
+        table.className = 'jsonl-workbench-table';
+        const head = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        const selectHeading = document.createElement('th');
+        const selectAll = document.createElement('input');
+        selectAll.type = 'checkbox';
+        selectAll.setAttribute('aria-label', 'Select all filtered records');
+        selectAll.checked = rows.length > 0 && rows.every(row => state.workbench.selectedIndices.has(row.index));
+        selectAll.indeterminate = !selectAll.checked && rows.some(row => state.workbench.selectedIndices.has(row.index));
+        selectAll.addEventListener('change', () => {
+            rows.forEach(row => {
+                if (selectAll.checked) state.workbench.selectedIndices.add(row.index);
+                else state.workbench.selectedIndices.delete(row.index);
+            });
+            state.workbench.bulkPreview = null;
+            renderRecordDetail();
+        });
+        selectHeading.appendChild(selectAll);
+        headRow.appendChild(selectHeading);
+        const stateHeading = document.createElement('th');
+        stateHeading.textContent = 'State';
+        headRow.appendChild(stateHeading);
+        columns.forEach(name => {
+            const heading = document.createElement('th');
+            heading.textContent = state.schema.fieldsByName[name]?.label || prettifyFieldName(name);
+            headRow.appendChild(heading);
+        });
+        head.appendChild(headRow);
+        table.appendChild(head);
+
+        const body = document.createElement('tbody');
+        rows.forEach(({ record, index }) => {
+            const row = document.createElement('tr');
+            row.tabIndex = 0;
+            row.className = index === state.selectedIndex ? 'active' : '';
+            row.setAttribute('aria-selected', String(index === state.selectedIndex));
+            const choose = () => selectRecord(index, { keepGrid: true });
+            row.addEventListener('click', choose);
+            row.addEventListener('keydown', event => {
+                if (event.key === 'Enter') choose();
+            });
+            const selectCell = document.createElement('td');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = state.workbench.selectedIndices.has(index);
+            checkbox.setAttribute('aria-label', `Select ${recordTitle(record.value, index)}`);
+            checkbox.addEventListener('click', event => event.stopPropagation());
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) state.workbench.selectedIndices.add(index);
+                else state.workbench.selectedIndices.delete(index);
+                state.workbench.bulkPreview = null;
+                renderRecordDetail();
+            });
+            selectCell.appendChild(checkbox);
+            row.appendChild(selectCell);
+            const workflowStatus = workbenchTools.workflowState(record, workflow);
+            const statusCell = document.createElement('td');
+            const status = document.createElement('span');
+            status.className = 'jsonl-record-validation-badge';
+            status.dataset.state = workflowStatus.bucket;
+            status.textContent = workflowStatus.bucket;
+            statusCell.appendChild(status);
+            row.appendChild(statusCell);
+            columns.forEach(name => {
+                const cell = document.createElement('td');
+                const value = record.value[name];
+                cell.textContent = typeof value === 'object' && value !== null
+                    ? JSON.stringify(value)
+                    : String(value ?? '');
+                cell.title = cell.textContent;
+                row.appendChild(cell);
+            });
+            body.appendChild(row);
+        });
+        table.appendChild(body);
+        wrapper.appendChild(table);
+        detail.appendChild(wrapper);
+        if (!rows.length) {
+            const empty = document.createElement('div');
+            empty.className = 'jsonl-empty-state';
+            empty.textContent = 'No records match this view and filter.';
+            detail.appendChild(empty);
+        }
+    }
+
     function renderRecordDetail() {
         const detail = getElement('jsonl-record-detail');
         const record = state.parsed?.records?.[state.selectedIndex];
         if (!detail) return;
         detail.replaceChildren();
+        detail.classList.remove('jsonl-record-detail-grid');
+
+        if (hasWorkbench() && state.workbench.viewMode === 'grid') {
+            renderRecordGrid(detail);
+            return;
+        }
 
         if (!record) {
             const empty = document.createElement('div');
@@ -1141,6 +1820,9 @@
         hint.textContent = state.schema
             ? `${state.schema.description || `Complete the ${state.schema.title} fields.`} Changes are written back to this record’s ${state.format.toUpperCase()} source through the normal editor workflow.`
             : `Edit the readable fields below. Changes are written back to this record’s ${state.format.toUpperCase()} source and saved through the normal editor workflow.`;
+        if (hasWorkbench() && state.schema.workflow.labelValues.length) {
+            hint.textContent += ` Keyboard: Alt+1–${Math.min(9, state.schema.workflow.labelValues.length)} labels this record; Cmd/Ctrl+Enter saves and advances.`;
+        }
 
         const form = document.createElement('div');
         form.className = 'jsonl-record-form';
@@ -1186,12 +1868,19 @@
 
     function updateFooter() {
         const count = state.parsed?.records?.length || 0;
+        const rows = hasWorkbench() ? visibleRecordRows() : [];
+        const visiblePosition = hasWorkbench() ? rows.findIndex(row => row.index === state.selectedIndex) : -1;
         const position = getElement('jsonl-position');
         const previous = getElement('jsonl-prev-record');
         const next = getElement('jsonl-next-record');
-        if (position) position.textContent = count ? `${state.selectedIndex + 1} of ${count}` : 'No records';
-        if (previous) previous.disabled = !count || state.selectedIndex <= 0;
-        if (next) next.disabled = !count || state.selectedIndex >= count - 1;
+        if (position) position.textContent = count
+            ? hasWorkbench() && visiblePosition >= 0
+                ? `${visiblePosition + 1} of ${rows.length} in view · ${state.selectedIndex + 1} of ${count}`
+                : `${state.selectedIndex + 1} of ${count}`
+            : 'No records';
+        if (previous) previous.disabled = !count || (hasWorkbench() ? visiblePosition <= 0 : state.selectedIndex <= 0);
+        if (next) next.disabled = !count || (hasWorkbench() ? visiblePosition < 0 || visiblePosition >= rows.length - 1 : state.selectedIndex >= count - 1);
+        refreshWorkbenchControls();
     }
 
     function selectRecord(index) {
@@ -1199,10 +1888,73 @@
         if (!count) return;
         state.selectedIndex = Math.max(0, Math.min(count - 1, Number(index) || 0));
         if (state.filePath) state.selectedByFile.set(state.filePath, state.selectedIndex);
+        persistWorkbenchResume();
         renderRecordList();
         renderRecordDetail();
         updateFooter();
         getElement('jsonl-record-detail')?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    }
+
+    function selectAdjacentRecord(delta) {
+        if (!hasWorkbench()) return selectRecord(state.selectedIndex + delta);
+        const rows = visibleRecordRows();
+        if (!rows.length) return false;
+        const current = rows.findIndex(row => row.index === state.selectedIndex);
+        const next = current < 0
+            ? (delta < 0 ? rows.length - 1 : 0)
+            : Math.max(0, Math.min(rows.length - 1, current + delta));
+        selectRecord(rows[next].index);
+        return true;
+    }
+
+    function applyLabelChoice(choiceIndex) {
+        const workflow = state.schema?.workflow;
+        const value = workflow?.labelValues?.[choiceIndex];
+        const field = workflow?.labelField ? state.schema.fieldsByName[workflow.labelField] : null;
+        if (!field || value === undefined) return false;
+        const applied = commitField(state.selectedIndex, field.name, value, null, field);
+        if (applied) {
+            renderRecordDetail();
+            updateFooter();
+            updateStatus(`Applied ${field.label}: ${value}`, 'saved');
+        }
+        return applied;
+    }
+
+    async function saveAndNextRecord() {
+        if (!hasWorkbench()) return false;
+        await window.saveFile?.();
+        return selectAdjacentRecord(1);
+    }
+
+    function registerWorkbenchActions() {
+        if (typeof window.registerCommand !== 'function') return;
+        const common = {
+            owner: 'structured-records',
+            category: 'Records',
+            shortcutScope: 'record',
+            replace: true,
+            when: () => hasWorkbench() && getRecordUIState().active
+        };
+        window.registerCommand('records.view.toggle', 'Records: Toggle Form and Grid', () => {
+            getElement('jsonl-workbench-toggle')?.click();
+        }, 'Alt+G', common);
+        window.registerCommand('records.previous', 'Records: Previous in View', () => selectAdjacentRecord(-1), 'Alt+ArrowUp', common);
+        window.registerCommand('records.next', 'Records: Next in View', () => selectAdjacentRecord(1), 'Alt+ArrowDown', common);
+        window.registerCommand('records.saveNext', 'Records: Save and Next', () => saveAndNextRecord(), 'Mod+Enter', common);
+        for (let index = 0; index < 9; index += 1) {
+            window.registerCommand(
+                `records.label.${index + 1}`,
+                `Records: Apply Label Choice ${index + 1}`,
+                () => applyLabelChoice(index),
+                `Alt+${index + 1}`,
+                {
+                    ...common,
+                    when: () => hasWorkbench() && getRecordUIState().active &&
+                        state.schema.workflow.labelValues[index] !== undefined
+                }
+            );
+        }
     }
 
     function render(content, options = {}) {
@@ -1210,6 +1962,7 @@
         if (!options.force && state.parsed && state.content === source) return true;
         state.content = source;
         state.parsed = parseRecordContent(state.filePath, source);
+        restoreWorkbenchState();
         updateDocumentStatus(source, state.parsed.records.length);
 
         const fileName = state.filePath?.split('/').pop() || `${state.format.toUpperCase()} records`;
@@ -1259,6 +2012,7 @@
     function init() {
         if (state.initialized || typeof window === 'undefined') return;
         state.initialized = true;
+        registerWorkbenchActions();
         window.addEventListener('nightowl-current-file-changed', () => {
             queueMicrotask(syncToCurrentFile);
         });
@@ -1296,6 +2050,10 @@
         syncToCurrentFile,
         cancelPendingEdits,
         checkForExport,
+        getHandoffMetadata,
+        applyLabelChoice,
+        applyBulkPreview,
+        selectAdjacentRecord,
         clearSchema: () => useGenericSchema({ remember: true }),
         resolveSchemaForFile,
         selectSchemaFromDialog,

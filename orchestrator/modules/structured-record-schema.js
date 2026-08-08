@@ -58,6 +58,99 @@
         return [];
     }
 
+    const FILTER_OPERATORS = new Set(['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty', 'in']);
+
+    function normalizeWorkflowField(value, fieldsByName, property) {
+        const name = String(value || '').trim();
+        if (!name) return null;
+        if (!fieldsByName[name]) throw new Error(`Workflow ${property} references unknown field: ${name}`);
+        return name;
+    }
+
+    function normalizeSort(input, fieldsByName) {
+        if (!input) return null;
+        const source = typeof input === 'string' ? { field: input } : input;
+        if (!source || typeof source !== 'object' || Array.isArray(source)) {
+            throw new Error('Workflow sort must be a field name or object');
+        }
+        const field = String(source.field || '').trim();
+        if (!field) return null;
+        if (!fieldsByName[field] && !['$validation', '$workflow'].includes(field)) {
+            throw new Error(`Workflow sort references unknown field: ${field}`);
+        }
+        return { field, direction: source.direction === 'desc' ? 'desc' : 'asc' };
+    }
+
+    function normalizeSavedViews(views, fieldsByName) {
+        if (views == null) return [];
+        if (!Array.isArray(views)) throw new Error('Workflow savedViews must be an array');
+        const ids = new Set();
+        return views.map((input, index) => {
+            if (!input || typeof input !== 'object' || Array.isArray(input)) {
+                throw new Error(`Workflow saved view ${index + 1} must be an object`);
+            }
+            const id = String(input.id || `view-${index + 1}`).trim();
+            if (ids.has(id)) throw new Error(`Duplicate workflow saved view: ${id}`);
+            ids.add(id);
+            const filters = (Array.isArray(input.filters) ? input.filters : []).map((filter, filterIndex) => {
+                const field = String(filter?.field || '').trim();
+                if (!field || (!fieldsByName[field] && !['$validation', '$workflow'].includes(field))) {
+                    throw new Error(`Saved view ${id} filter ${filterIndex + 1} references unknown field: ${field}`);
+                }
+                const operator = filter.operator || 'equals';
+                if (!FILTER_OPERATORS.has(operator)) throw new Error(`Unsupported saved view operator: ${operator}`);
+                return { field, operator, value: filter.value };
+            });
+            return {
+                id,
+                title: String(input.title || input.name || id),
+                filters,
+                sort: normalizeSort(input.sort, fieldsByName),
+                builtin: false
+            };
+        });
+    }
+
+    function normalizeWorkflow(input, fieldsByName) {
+        if (input == null || input === false) return null;
+        if (!input || typeof input !== 'object' || Array.isArray(input)) {
+            throw new Error('Workflow must be an object');
+        }
+        const fieldNames = Object.keys(fieldsByName);
+        const labelField = normalizeWorkflowField(input.labelField || input.primaryLabelField, fieldsByName, 'labelField');
+        const statusField = normalizeWorkflowField(input.statusField, fieldsByName, 'statusField');
+        const coderField = normalizeWorkflowField(input.coderField, fieldsByName, 'coderField');
+        const reviewerField = normalizeWorkflowField(input.reviewerField, fieldsByName, 'reviewerField');
+        const adjudicationField = normalizeWorkflowField(input.adjudicationField, fieldsByName, 'adjudicationField');
+        const notesField = normalizeWorkflowField(input.notesField, fieldsByName, 'notesField');
+        const requestedColumns = input.gridColumns || input.grid?.columns;
+        const gridColumns = (Array.isArray(requestedColumns) ? requestedColumns : fieldNames.slice(0, 6))
+            .map(name => normalizeWorkflowField(name, fieldsByName, 'gridColumns'));
+        const requestedFacets = input.facetFields || input.facets;
+        const facetFields = [...new Set((Array.isArray(requestedFacets)
+            ? requestedFacets
+            : [statusField, coderField, reviewerField, adjudicationField].filter(Boolean))
+            .map(name => normalizeWorkflowField(name, fieldsByName, 'facetFields')))];
+        const labelValues = Array.isArray(input.labelValues)
+            ? [...input.labelValues]
+            : labelField && Array.isArray(fieldsByName[labelField]?.enum)
+                ? [...fieldsByName[labelField].enum]
+                : [];
+        return {
+            labelField,
+            labelValues,
+            statusField,
+            coderField,
+            reviewerField,
+            adjudicationField,
+            notesField,
+            gridColumns,
+            facetFields,
+            defaultSort: normalizeSort(input.defaultSort || input.grid?.defaultSort, fieldsByName),
+            savedViews: normalizeSavedViews(input.savedViews, fieldsByName)
+        };
+    }
+
     function normalizeSchema(input, context = {}) {
         if (!input || typeof input !== 'object' || Array.isArray(input)) {
             throw new Error('Record schema must be a JSON object');
@@ -76,6 +169,7 @@
             else fields.push(normalizeField(fieldName, { required: true }, fields.length));
         }
         fields.sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+        const fieldsByName = Object.fromEntries(fields.map(field => [field.name, field]));
         return {
             id: String(input.id || context.path || 'record-schema'),
             title: String(input.title || input.name || 'Task schema'),
@@ -84,11 +178,12 @@
             formats: normalizePatternList(input.formats).map(format => format.toLowerCase()),
             additionalFields: input.additionalFields !== false,
             fields,
-            fieldsByName: Object.fromEntries(fields.map(field => [field.name, field])),
+            fieldsByName,
             completion: {
                 requiredFields: [...required],
                 blockExport: input.completion?.blockExport === true
             },
+            workflow: normalizeWorkflow(input.workflow, fieldsByName),
             path: context.path || null,
             source: context.source || 'manual'
         };
@@ -243,6 +338,7 @@
         coerceValue,
         globToRegExp,
         isMissing,
+        normalizeWorkflow,
         normalizeSchema,
         orderedFields,
         schemaMatchesFile,
