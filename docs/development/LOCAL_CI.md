@@ -12,8 +12,9 @@ The default pipeline runs:
 1. `git diff --check HEAD` across staged and unstaged tracked changes.
 2. Static repository policy checks.
 3. Workplan validation and generated-view freshness checks.
-4. All Jest unit, integration, and behavioral projects in one process.
-5. The required Playwright Electron smoke matrix.
+4. Presentation generated-runtime freshness checks.
+5. All Jest unit, integration, and behavioral projects in one process.
+6. The required Playwright Electron smoke matrix.
 
 Run release preflight as an additional stage when changing packaging:
 
@@ -72,6 +73,13 @@ Slower accessibility, performance, and theme diagnostics remain explicit:
 npm run test:e2e:optional
 ```
 
+For the repeatable startup, file-switch, preview, record, and presentation
+budget matrix with p50/p95 output, use the dedicated command:
+
+```bash
+npm run benchmark:performance
+```
+
 ## Optional pre-push hook
 
 Enable the tracked hook for this clone:
@@ -92,11 +100,12 @@ The hook is opt-in because Git does not activate tracked hooks automatically.
 
 ## Scope boundary
 
-The required matrix is deliberately short: rapid file switching, committed
-preview readiness, presentation-load recovery, and complete-slide geometry. It
-does not replace the optional accessibility and performance diagnostics or the
-distribution-readiness stage. Legacy browser-style specs remain quarantined
-until they are rewritten against the shared Electron fixture.
+The required matrix is deliberately bounded but covers every release-critical
+boundary: workflow controllers, fixed IPC capabilities, resource disposal,
+rapid file switching, committed preview readiness, recoverable errors,
+canonical UI state, schema-driven records, shared content security,
+accessibility, presentation-load recovery, and complete-slide geometry. It does
+not replace the repeated performance budget or distribution-readiness stage.
 
 Packaged-runtime checks are also explicit because they require a fresh build.
 On Apple Silicon, the release-hardening sequence is:

@@ -8,12 +8,21 @@ This is NightOwl - an advanced markdown editor and presentation platform for phi
 
 ## Project Status
 
-This repository is in initial development with only basic project structure in place. The .gitignore file indicates this will be a Python-based project with support for various Python tooling (pytest, poetry, uv, etc.).
+NightOwl is an Electron/Node application with a Monaco renderer, fixed preload
+capabilities, bundled app-native features, Jest projects, and real Electron
+Playwright gates. It is not a Python project; Python is only an optional helper
+runtime for some document conversion and native-module build environments.
 
 ## Development Commands
 
-*Note: Development commands will be added as the project structure and tooling are established.*
+- `npm ci` — install the committed dependency tree.
+- `npm run electron-dev` — run the development app.
+- `npm run ci:local` — run the branch gate.
+- `npm run ci:local:release` — add distribution preflight.
+- `npm run benchmark:performance` — run fixed readiness budgets.
 
 ## Architecture
 
-*Note: Project architecture details will be documented as the codebase develops.*
+Read [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) and
+[`BUILD_AND_RELEASE.md`](BUILD_AND_RELEASE.md). Track live work only in
+[`../../workplan/BOARD.md`](../../workplan/BOARD.md).
