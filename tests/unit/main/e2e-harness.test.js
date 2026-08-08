@@ -16,6 +16,21 @@ describe('required Electron E2E harness', () => {
     ]);
   });
 
+  test('packaged config selects only the packaged runtime contract', () => {
+    const config = require('../../../playwright.packaged.config');
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../../tests/e2e/packaged/tutor-core.spec.js'),
+      'utf8'
+    );
+
+    expect(config.testDir).toBe('./tests/e2e/packaged');
+    expect(config.testMatch).toBe('**/*.spec.js');
+    expect(config.workers).toBe(1);
+    expect(source).toContain("window.electronAPI.invoke('get-tutor-core-status')");
+    expect(source).toContain('expect(status.runtimePaths)');
+    expect(source).not.toMatch(/sendMessage|generateText|fetch\(/);
+  });
+
   test('active required tests use current production selectors and cover each contract', () => {
     const source = fs.readFileSync(
       path.join(__dirname, '../../../tests/e2e/required/primary-workflows.spec.js'),

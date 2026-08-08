@@ -1,11 +1,11 @@
 {
-  "generated": "2026-08-08T06:13:13.731Z",
+  "generated": "2026-08-08T06:39:48.882Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 12,
+      "triaged": 11,
       "review": 3,
-      "done": 4
+      "done": 5
     },
     "byPriority": {
       "P1": 7,
@@ -13,7 +13,6 @@
       "P0": 2
     },
     "byArea": {
-      "packaging": 2,
       "security": 2,
       "architecture": 3,
       "accessibility": 1,
@@ -22,29 +21,11 @@
       "platform": 2,
       "editor": 1,
       "preview": 1,
+      "packaging": 2,
       "testing": 3
     }
   },
   "items": [
-    {
-      "id": "package-tutor-core-writable-data-path",
-      "title": "Keep tutor-core runtime data outside app.asar",
-      "status": "triaged",
-      "type": "bug",
-      "priority": "P1",
-      "area": "packaging",
-      "owner": "unassigned",
-      "source": "computer-use",
-      "evidence": "reproduced",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "A clean packaged launch initializes tutor-core using only app userData paths and emits no app.asar write or ENOTDIR error.",
-      "tags": [
-        "asar",
-        "packaged-app",
-        "tutor-core"
-      ]
-    },
     {
       "id": "sanitize-rendered-markdown-and-navigation",
       "title": "Sanitize rendered Markdown and restrict external navigation",
@@ -363,6 +344,25 @@
         "electron",
         "playwright",
         "regression"
+      ]
+    },
+    {
+      "id": "package-tutor-core-writable-data-path",
+      "title": "Keep tutor-core runtime data outside app.asar",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "packaging",
+      "owner": "codex",
+      "source": "computer-use",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "A clean packaged launch initializes tutor-core using only app userData paths and emits no app.asar write or ENOTDIR error.",
+      "tags": [
+        "asar",
+        "packaged-app",
+        "tutor-core"
       ]
     },
     {

@@ -12,7 +12,7 @@ permissions:
 jobs:
   required-smoke:
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: night-owl
@@ -41,3 +41,11 @@ jobs:
 
       - name: Run required Electron smoke
         run: npm run test:e2e
+
+      - name: Build unpacked macOS app
+        run: npm run dist:dir -- --mac --${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: Run packaged tutor-core smoke
+        run: npm run test:e2e:packaged
+        env:
+          NIGHTOWL_PACKAGED_APP: ${{ runner.arch == 'ARM64' && 'dist/mac-arm64/NightOwl.app' || 'dist/mac/NightOwl.app' }}

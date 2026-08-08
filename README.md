@@ -136,6 +136,9 @@ npm run test:e2e
 
 # Run slower accessibility, performance, and theme diagnostics
 npm run test:e2e:optional
+
+# After an unpacked build, verify packaged tutor-core storage
+NIGHTOWL_PACKAGED_APP=dist/mac-arm64/NightOwl.app npm run test:e2e:packaged
 ```
 
 ## Related Projects

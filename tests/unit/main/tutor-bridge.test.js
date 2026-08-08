@@ -8,6 +8,7 @@
 
 const mockWritingPadService = {
   initializeWritingPad: jest.fn(),
+  getWritingPad: jest.fn(() => ({ id: 'pad-local-writer', learnerId: 'local-writer' })),
   addWorkingThought: jest.fn(),
 };
 
@@ -60,7 +61,7 @@ const mockTutorCore = {
  * we create a wrapper that evaluates the bridge source with a
  * patched `import` function.
  */
-function createBridgeWithMock(tutorCoreModule) {
+function createBridgeWithMock(tutorCoreModule, options = {}) {
   const fs = require('fs');
   const path = require('path');
   const vm = require('vm');
@@ -70,10 +71,12 @@ function createBridgeWithMock(tutorCoreModule) {
 
   // Create a sandbox with mocked import()
   const mockModule = { exports: {} };
+  const runtimeEnv = {};
   const sandbox = {
     module: mockModule,
     exports: mockModule.exports,
     require: require,
+    process: { env: runtimeEnv },
     console: { log: jest.fn(), warn: jest.fn(), error: jest.fn() },
     window: undefined,
     setTimeout: setTimeout,
@@ -81,7 +84,10 @@ function createBridgeWithMock(tutorCoreModule) {
     clearInterval: jest.fn(),
     // Override the dynamic import to return our mock
     __importDynamic: tutorCoreModule
-      ? () => Promise.resolve(tutorCoreModule)
+      ? () => {
+          options.onImport?.(runtimeEnv);
+          return Promise.resolve(tutorCoreModule);
+        }
       : () => Promise.reject(new Error('Module not found')),
   };
 
@@ -131,8 +137,61 @@ describe('tutor-bridge', () => {
       });
 
       test('accepts dbPath option and calls initDb', async () => {
-        await bridge.initTutorBridge({ dbPath: '/tmp/test.db' });
-        expect(mockTutorCore.initDb).toHaveBeenCalledWith({ dbPath: '/tmp/test.db' });
+        await bridge.initTutorBridge({
+          dataDir: '/tmp/tutor-core',
+          dbPath: '/tmp/tutor-core/test.db',
+          logDir: '/tmp/tutor-core/logs'
+        });
+        expect(mockTutorCore.initDb).toHaveBeenCalledWith({ dbPath: '/tmp/tutor-core/test.db' });
+        expect(bridge.getRuntimeStatus().runtimePaths).toEqual({
+          dataDir: '/tmp/tutor-core',
+          dbPath: '/tmp/tutor-core/test.db',
+          logDir: '/tmp/tutor-core/logs'
+        });
+      });
+
+      test('sets mutable storage environment before importing tutor-core', async () => {
+        let environmentAtImport = null;
+        const importAwareBridge = createBridgeWithMock(mockTutorCore, {
+          onImport: runtimeEnv => {
+            environmentAtImport = { ...runtimeEnv };
+          }
+        });
+
+        await importAwareBridge.initTutorBridge({
+          dbPath: '/tmp/nightowl-profile/tutor-core/tutor-core.db',
+          logDir: '/tmp/nightowl-profile/tutor-core/logs'
+        });
+
+        expect(environmentAtImport).toMatchObject({
+          AUTH_DB_PATH: '/tmp/nightowl-profile/tutor-core/tutor-core.db',
+          TUTOR_CORE_LOG_DIR: '/tmp/nightowl-profile/tutor-core/logs'
+        });
+      });
+
+      test('rejects mutable paths inside app.asar before loading tutor-core', async () => {
+        const result = await bridge.initTutorBridge({
+          dbPath: '/Applications/NightOwl.app/Contents/Resources/app.asar/data/tutor.db'
+        });
+
+        expect(result).toEqual({
+          ok: false,
+          error: 'Tutor-core dataDir must not be inside app.asar or an application bundle'
+        });
+        expect(mockTutorCore.initDb).not.toHaveBeenCalled();
+      });
+
+      test('probes local storage independently from optional AI providers', async () => {
+        await bridge.initTutorBridge({ dbPath: '/tmp/tutor-core/test.db' });
+
+        await expect(bridge.probeLocalRuntime()).resolves.toMatchObject({
+          ok: true,
+          coreAvailable: true,
+          providerConfigured: false,
+          providers: [],
+          storageReady: true,
+          learnerId: 'local-writer'
+        });
       });
 
       test('skips re-initialization on second call', async () => {
@@ -409,6 +468,17 @@ describe('tutor-bridge', () => {
     test('initTutorBridge returns ok:false', async () => {
       const result = await bridge.initTutorBridge();
       expect(result).toEqual({ ok: false, error: 'tutor-core not available' });
+    });
+
+    test('local runtime probe reports core unavailability separately', async () => {
+      await bridge.initTutorBridge();
+      await expect(bridge.probeLocalRuntime()).resolves.toMatchObject({
+        ok: false,
+        coreAvailable: false,
+        providerConfigured: false,
+        storageReady: false,
+        error: 'tutor-core not available'
+      });
     });
 
     test('routeDialogue returns null', async () => {
