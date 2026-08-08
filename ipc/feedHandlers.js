@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { getFeedStore } = require('../services/feedStore');
 const { getCredentialStore } = require('../services/credentialStore');
 const CitationService = require('../services/citationService');
+const { createRegistry } = require('../services/resourceLifecycle');
 const { createDebugLogger } = require('./logging');
 
 const debug = createDebugLogger('FeedHandlers');
@@ -47,7 +48,9 @@ let citationService = null;
 let mainWindowRef = null;
 let depsRef = null;
 let pollTimer = null;
+let pollLifecycle = null;
 let scoringInFlight = false;
+let registrationGeneration = 0;
 
 const POLL_TICK_MS = 60 * 1000;
 
@@ -221,13 +224,18 @@ async function pollDueSources() {
 
 function startPollLoop() {
     if (pollTimer) return;
-    pollTimer = setInterval(() => {
+    pollLifecycle = createRegistry({
+        name: 'main:research-feed',
+        scope: 'app',
+        onError: (error, resource) => debug(`cleanup failed (${resource.type}):`, error.message)
+    });
+    pollTimer = pollLifecycle.interval(() => {
         pollDueSources().catch((err) => debug('poll loop:', err.message));
     }, POLL_TICK_MS);
     // Run once shortly after startup so a fresh app has data quickly.
-    setTimeout(() => pollDueSources().catch(() => {}), 5000);
+    pollLifecycle.timeout(() => pollDueSources().catch(() => {}), 5000);
     // Daily prune.
-    setInterval(() => {
+    pollLifecycle.interval(() => {
         store.pruneOlderThan(30).then((n) => {
             if (n > 0) debug(`pruned ${n} old items`);
         }).catch(() => {});
@@ -235,10 +243,19 @@ function startPollLoop() {
 }
 
 function stopPollLoop() {
-    if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-    }
+    pollLifecycle?.dispose();
+    pollLifecycle = null;
+    pollTimer = null;
+}
+
+function getDiagnostics() {
+    return pollLifecycle?.getSnapshot() || {
+        name: 'main:research-feed',
+        scope: 'app',
+        disposed: true,
+        active: 0,
+        byType: {}
+    };
 }
 
 // ------------- Chrome tabs import -------------
@@ -382,11 +399,13 @@ function feedItemToCitation(item) {
 // ------------- IPC registration -------------
 
 function register(deps) {
+    const generation = ++registrationGeneration;
     depsRef = deps;
     mainWindowRef = deps.mainWindow;
     const userDataPath = deps.userDataPath;
 
     initializeServices(userDataPath).then(() => {
+        if (generation !== registrationGeneration) return;
         startPollLoop();
         debug('services ready, polling started');
     }).catch((err) => {
@@ -550,9 +569,27 @@ function register(deps) {
 }
 
 function cleanup() {
+    registrationGeneration += 1;
     stopPollLoop();
     if (store) store.close();
     if (citationService && typeof citationService.close === 'function') citationService.close();
+    store = null;
+    credentials = null;
+    citationService = null;
+    mainWindowRef = null;
+    depsRef = null;
+    scoringInFlight = false;
 }
 
-module.exports = { register, cleanup };
+module.exports = {
+    register,
+    cleanup,
+    getDiagnostics,
+    __testHooks: {
+        startPollLoop,
+        stopPollLoop,
+        setStore(value) {
+            store = value;
+        }
+    }
+};

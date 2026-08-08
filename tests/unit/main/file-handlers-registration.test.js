@@ -214,8 +214,27 @@ describe('fileHandlers registration', () => {
           size: Buffer.byteLength('changed on disk\n')
         })
       );
+
+      for (let cycle = 0; cycle < 10; cycle += 1) {
+        setCurrentFile(null, filePath);
+      }
+      expect(fileHandlers.getDiagnostics()).toEqual(expect.objectContaining({
+        watcher: 1,
+        timers: 0
+      }));
+      expect(watchSpy).toHaveBeenCalledTimes(11);
+
+      fileHandlers.cleanup();
+      fileHandlers.cleanup();
+      expect(fileHandlers.getDiagnostics()).toEqual({
+        watcher: 0,
+        timers: 0,
+        trackedFileStates: 0,
+        cachedScans: 0
+      });
+      expect(watcher.close).toHaveBeenCalledTimes(11);
     } finally {
-      if (setCurrentFile) setCurrentFile(null, null);
+      fileHandlers.cleanup();
       expect(watcher.close).toHaveBeenCalled();
       watchSpy.mockRestore();
       jest.useRealTimers();

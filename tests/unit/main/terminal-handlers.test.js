@@ -265,4 +265,30 @@ describe('terminalHandlers', () => {
       expect.objectContaining({ cwd: runtimeDir })
     );
   });
+
+  test('cleanup kills every active session and is idempotent', async () => {
+    const terminalHandlers = require('../../../ipc/terminalHandlers');
+    terminalHandlers.register({
+      appSettings: { workingDirectory: runtimeDir },
+      getCurrentWorkingDirectory: () => runtimeDir,
+      currentWorkingDirectory: runtimeDir
+    });
+
+    const spawnHandler = getRegisteredHandler('terminal-spawn');
+    await spawnHandler({ sender: { send: jest.fn() } }, { sessionId: 'default' });
+    await spawnHandler({ sender: { send: jest.fn() } }, { sessionId: 'assistant' });
+
+    expect(terminalHandlers.getDiagnostics()).toEqual({
+      activeProcesses: 2,
+      byBackend: { pipe: 2 }
+    });
+
+    terminalHandlers.cleanup();
+    terminalHandlers.cleanup();
+
+    expect(terminalHandlers.getDiagnostics()).toEqual({ activeProcesses: 0, byBackend: {} });
+    for (const result of spawnMock.mock.results) {
+      expect(result.value.kill).toHaveBeenCalledTimes(1);
+    }
+  });
 });

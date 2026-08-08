@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-08T11:55:34.664Z",
+  "generated": "2026-08-08T12:12:25.585Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 7,
-      "done": 12
+      "triaged": 6,
+      "done": 13
     },
     "byPriority": {
       "P2": 10,
@@ -135,25 +135,6 @@
       "depends_on": [
         "reliable-editor-preview-transitions",
         "recover-presentation-load-failures"
-      ]
-    },
-    {
-      "id": "resource-lifecycle-ownership",
-      "title": "Give timers, listeners, observers, and watchers explicit owners",
-      "status": "triaged",
-      "type": "maintenance",
-      "priority": "P2",
-      "area": "platform",
-      "owner": "unassigned",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "Repeatedly opening and closing each feature leaves timer, listener, observer, filesystem watcher, and open-file counts at baseline.",
-      "tags": [
-        "lifecycle",
-        "resources",
-        "watchers"
       ]
     },
     {
@@ -422,6 +403,25 @@
         "hermetic",
         "jest",
         "worktrees"
+      ]
+    },
+    {
+      "id": "resource-lifecycle-ownership",
+      "title": "Give timers, listeners, observers, and watchers explicit owners",
+      "status": "done",
+      "type": "maintenance",
+      "priority": "P2",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "Repeated feature and mode cycles returned to the live timer/listener/observer/watcher baseline; local release CI passed 7/7 stages, 94 suites / 1,200 tests, and 8 required Electron workflows; a fresh ARM64 package passed 3/3 packaged workflows.",
+      "tags": [
+        "lifecycle",
+        "resources",
+        "watchers"
       ]
     }
   ]

@@ -30,6 +30,7 @@ describe('performanceHandlers', () => {
     const channels = ipcMain.handle.mock.calls.map(([channel]) => channel);
     expect(channels).toEqual(expect.arrayContaining([
       'performance:get-gpu-diagnostics',
+      'performance:get-resource-diagnostics',
       'performance:start-trace',
       'performance:stop-trace'
     ]));
@@ -45,6 +46,22 @@ describe('performanceHandlers', () => {
       gpuInfo: { gpuDevice: [{ vendorId: 1234 }] },
       hardwareAccelerationDisabled: false
     });
+  });
+
+  test('reports owned main-process resources through one diagnostics handler', async () => {
+    const getResourceDiagnostics = jest.fn(() => ({
+      lifecycle: { activeRegistries: 1, activeResources: 3 },
+      handlers: { terminal: { activeProcesses: 2 } }
+    }));
+    performanceHandlers.register({ app, getResourceDiagnostics });
+    const handler = getRegisteredHandler('performance:get-resource-diagnostics');
+
+    await expect(handler()).resolves.toEqual({
+      success: true,
+      lifecycle: { activeRegistries: 1, activeResources: 3 },
+      handlers: { terminal: { activeProcesses: 2 } }
+    });
+    expect(getResourceDiagnostics).toHaveBeenCalledTimes(1);
   });
 
   test('records Chromium performance traces to user data', async () => {

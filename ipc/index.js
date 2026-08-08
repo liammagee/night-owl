@@ -2,6 +2,7 @@
 // Central registry for all IPC handlers organized by category
 
 const { ipcMain } = require('electron');
+const resourceLifecycle = require('../services/resourceLifecycle');
 const { createDebugLogger } = require('./logging');
 
 const debug = createDebugLogger('IPC');
@@ -131,7 +132,17 @@ function registerAllHandlers(dependencies) {
     }
 
     try {
-      performanceHandlers.register(dependencies);
+      performanceHandlers.register({
+        ...dependencies,
+        getResourceDiagnostics: () => ({
+          lifecycle: resourceLifecycle.getDiagnostics(),
+          handlers: {
+            feed: feedHandlers.getDiagnostics(),
+            file: fileHandlers.getDiagnostics(),
+            terminal: terminalHandlers.getDiagnostics()
+          }
+        })
+      });
       debug('Performance handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering performance handlers:', error);
@@ -164,6 +175,16 @@ function getHandlerCount() {
  * Cleanup handlers on app quit
  */
 function cleanupHandlers() {
+  try {
+    fileHandlers.cleanup();
+  } catch (error) {
+    console.error('[IPC] Error cleaning up file handlers:', error);
+  }
+  try {
+    terminalHandlers.cleanup();
+  } catch (error) {
+    console.error('[IPC] Error cleaning up terminal handlers:', error);
+  }
   try {
     citationHandlers.cleanupCitationService();
     debug('Handlers cleaned up successfully');

@@ -186,6 +186,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'perform-save-as',
   'perform-save-with-path',
   'performance:get-gpu-diagnostics',
+  'performance:get-resource-diagnostics',
   'performance:start-trace',
   'performance:stop-trace',
   'read-file',

@@ -52,6 +52,7 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_INVOKE_CHANNELS.has('get-file-tree-signature')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('get-tutor-core-status')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('terminal-resize')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('performance:get-resource-diagnostics')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('shell-run')).toBe(false);
     expect(ALLOWED_ON_CHANNELS.has('settings-changed')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:items')).toBe(true);

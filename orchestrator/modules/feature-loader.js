@@ -90,6 +90,7 @@
         stylePromises: new Map(),
         settings: {},
         featureSettings: new Map(),
+        lifecycles: new Map(),
         events: new Map(),
         host: null,
         hostCapabilities: {},
@@ -277,10 +278,37 @@
         return setFeatureSettings(featureId, { ...existing, ...(updates || {}) });
     }
 
-    function createHostForFeature(featureId) {
+    function getFeatureLifecycle(featureId, { create = true } = {}) {
+        const id = normalizeId(featureId);
+        const existing = state.lifecycles.get(id);
+        if (existing && !existing.isDisposed()) return existing;
+        if (!create) return null;
+        const lifecycle = window.NightOwlResourceLifecycle?.createRegistry?.({
+            name: `feature:${id}`,
+            scope: 'feature',
+            onError: (error, resource) => warn(`Feature resource cleanup failed (${id}/${resource.type}):`, error)
+        }) || null;
+        if (lifecycle) state.lifecycles.set(id, lifecycle);
+        return lifecycle;
+    }
+
+    function disposeFeatureLifecycle(featureId) {
+        const id = normalizeId(featureId);
+        const lifecycle = getFeatureLifecycle(id, { create: false });
+        state.lifecycles.delete(id);
+        return lifecycle?.dispose?.() || { disposed: false, errors: [] };
+    }
+
+    function createHostForFeature(featureId, lifecycle = getFeatureLifecycle(featureId)) {
         const boundGetSettings = () => getFeatureSettings(featureId);
         const boundSetSettings = (settings) => setFeatureSettings(featureId, settings);
         const boundUpdateSettings = (updates) => updateFeatureSettings(featureId, updates);
+        const boundOn = (eventName, handler) => {
+            const unsubscribe = on(eventName, handler);
+            if (!lifecycle) return unsubscribe;
+            const release = lifecycle.add(unsubscribe, { type: 'listener', label: `feature-event:${eventName}` });
+            return () => release();
+        };
 
         return {
             appId: state.appId,
@@ -288,7 +316,7 @@
             settings: state.settings,
             isElectron: isElectron(),
             electronAPI: window.electronAPI || null,
-            on,
+            on: boundOn,
             off,
             emit,
             loadCSS,
@@ -305,6 +333,12 @@
                 const next = { ...(boundGetSettings() || {}), [key]: value };
                 return boundSetSettings(next);
             },
+            lifecycle,
+            interval: (...args) => lifecycle?.interval?.(...args),
+            timeout: (...args) => lifecycle?.timeout?.(...args),
+            listen: (...args) => lifecycle?.listen?.(...args),
+            observe: (...args) => lifecycle?.observe?.(...args),
+            track: (...args) => lifecycle?.track?.(...args),
             readFile: async (filePath) => {
                 if (!window.electronAPI?.invoke) return null;
                 const result = await window.electronAPI.invoke('read-file-content', filePath);
@@ -358,11 +392,14 @@
         if (!id || !state.enabled.has(id) || feature.__nightOwlInited) return;
         if (typeof feature.init !== 'function') return;
 
+        const lifecycle = getFeatureLifecycle(id);
         feature.__nightOwlInited = true;
         try {
-            await feature.init(createHostForFeature(id));
+            await feature.init(createHostForFeature(id, lifecycle));
             emit('feature:initialized', { id });
         } catch (err) {
+            feature.__nightOwlInited = false;
+            disposeFeatureLifecycle(id);
             error(`Feature init failed (${id}):`, err);
         }
     }
@@ -499,16 +536,41 @@
         if (!featureId || !state.enabled.has(featureId)) return false;
         state.enabled.delete(featureId);
         const feature = state.features.get(featureId);
+        const lifecycle = getFeatureLifecycle(featureId, { create: false });
         if (feature?.destroy) {
             try {
-                feature.destroy(createHostForFeature(featureId));
+                feature.destroy(createHostForFeature(featureId, lifecycle));
             } catch (err) {
                 warn(`Feature destroy failed (${featureId}):`, err);
             }
         }
+        disposeFeatureLifecycle(featureId);
         if (feature) feature.__nightOwlInited = false;
         emit('feature:disabled', { id: featureId });
         return true;
+    }
+
+    function disposeAllFeatures() {
+        for (const feature of state.features.values()) {
+            if (!feature.__nightOwlInited) continue;
+            const lifecycle = getFeatureLifecycle(feature.id, { create: false });
+            try {
+                feature.destroy?.(createHostForFeature(feature.id, lifecycle));
+            } catch (err) {
+                warn(`Feature destroy failed (${feature.id}):`, err);
+            }
+            feature.__nightOwlInited = false;
+        }
+        for (const id of Array.from(state.lifecycles.keys())) disposeFeatureLifecycle(id);
+    }
+
+    function getLifecycleDiagnostics() {
+        return window.NightOwlResourceLifecycle?.getDiagnostics?.() || {
+            activeRegistries: 0,
+            activeResources: 0,
+            byType: {},
+            registries: []
+        };
     }
 
     function getFeature(id) {
@@ -543,6 +605,8 @@
         extendHost,
         enableFeature,
         disableFeature,
+        disposeAllFeatures,
+        getLifecycleDiagnostics,
         getFeature,
         listFeatures,
         getManifest,

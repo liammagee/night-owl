@@ -88,6 +88,86 @@ test('@required @workflow-controllers renderer startup exposes the extracted wor
   }));
 });
 
+test('@required @resource-lifecycle repeated feature mounts return to the live resource baseline', async ({ appPage }) => {
+  const result = await appPage.evaluate(async () => {
+    const features = window.NightOwlFeatures;
+    if (!features?.getLifecycleDiagnostics) throw new Error('Feature lifecycle diagnostics are unavailable');
+    const aggregate = diagnostics => ({
+      activeRegistries: diagnostics.activeRegistries,
+      activeResources: diagnostics.activeResources,
+      byType: diagnostics.byType
+    });
+    const baseline = aggregate(features.getLifecycleDiagnostics());
+    window.__nightOwlLifecycleCloseCount = 0;
+    window.__nightOwlLifecycleDestroyCount = 0;
+    features.register({
+      id: 'nightowl-required-lifecycle-stress',
+      init(host) {
+        host.interval(() => {}, 60 * 1000);
+        host.listen(window, 'nightowl-required-lifecycle-event', () => {});
+        host.on('nightowl:required-lifecycle-event', () => {});
+        host.track({
+          close() {
+            window.__nightOwlLifecycleCloseCount += 1;
+          }
+        }, { type: 'watcher' });
+      },
+      destroy() {
+        window.__nightOwlLifecycleDestroyCount += 1;
+      }
+    });
+
+    for (let cycle = 0; cycle < 15; cycle += 1) {
+      window.switchToMode('network');
+      window.switchToMode('editor');
+      const restored = aggregate(features.getLifecycleDiagnostics());
+      if (JSON.stringify(restored) !== JSON.stringify(baseline)) {
+        throw new Error(`Mode resource baseline was not restored on cycle ${cycle}`);
+      }
+    }
+
+    for (let cycle = 0; cycle < 15; cycle += 1) {
+      await features.enableFeature('nightowl-required-lifecycle-stress');
+      const mounted = aggregate(features.getLifecycleDiagnostics());
+      if (mounted.activeRegistries !== baseline.activeRegistries + 1) {
+        throw new Error(`Feature registry growth mismatch on cycle ${cycle}`);
+      }
+      if (mounted.activeResources !== baseline.activeResources + 4) {
+        throw new Error(`Feature resource growth mismatch on cycle ${cycle}`);
+      }
+      features.disableFeature('nightowl-required-lifecycle-stress');
+      const restored = aggregate(features.getLifecycleDiagnostics());
+      if (JSON.stringify(restored) !== JSON.stringify(baseline)) {
+        throw new Error(`Resource baseline was not restored on cycle ${cycle}`);
+      }
+    }
+
+    return {
+      baseline,
+      after: aggregate(features.getLifecycleDiagnostics()),
+      closeCount: window.__nightOwlLifecycleCloseCount,
+      destroyCount: window.__nightOwlLifecycleDestroyCount,
+      diagnostics: await window.NightOwlPerformance.getResourceDiagnostics()
+    };
+  });
+
+  expect(result.after).toEqual(result.baseline);
+  expect(result.closeCount).toBe(15);
+  expect(result.destroyCount).toBe(15);
+  expect(result.diagnostics).toMatchObject({
+    success: true,
+    handlers: {
+      feed: { active: expect.any(Number), byType: expect.any(Object) },
+      file: { watcher: expect.any(Number), timers: expect.any(Number) },
+      terminal: { activeProcesses: expect.any(Number), byBackend: expect.any(Object) }
+    },
+    renderer: {
+      activeRegistries: result.baseline.activeRegistries,
+      activeResources: result.baseline.activeResources
+    }
+  });
+});
+
 test('@required @file-switch rapid file switching keeps the newest editor and preview state', async ({ appPage }) => {
   await appPage.evaluate(() => {
     const renderer = window.TechneMarkdownRenderer;

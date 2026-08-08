@@ -12,6 +12,28 @@ const debug = createDebugLogger('TerminalHandlers');
 const DEFAULT_SESSION_ID = 'default';
 let cachedPtyModule;
 let ptyLoadAttempted = false;
+const activeProcesses = new Map();
+
+function cleanup() {
+  for (const activeProcess of activeProcesses.values()) {
+    activeProcess.suppressExit = true;
+    try {
+      activeProcess.kill();
+    } catch (error) {
+      debug('terminal cleanup failed:', error.message);
+    }
+  }
+  activeProcesses.clear();
+}
+
+function getDiagnostics() {
+  const byBackend = {};
+  for (const activeProcess of activeProcesses.values()) {
+    const backend = activeProcess.backend || 'unknown';
+    byBackend[backend] = (byBackend[backend] || 0) + 1;
+  }
+  return { activeProcesses: activeProcesses.size, byBackend };
+}
 
 function normalizeSessionId(sessionId) {
   return typeof sessionId === 'string' && sessionId.trim()
@@ -215,15 +237,8 @@ function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit })
 
 function register(deps) {
   debug('Registering terminal handlers...');
+  cleanup();
   const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {}, { fallback: os.homedir() });
-
-  const activeProcesses = new Map();
-  let mainWindow = null;
-
-  // Store window reference
-  if (deps && deps.mainWindow) {
-    mainWindow = deps.mainWindow;
-  }
 
   /**
    * Spawn a shell process
@@ -354,4 +369,4 @@ function register(deps) {
   debug('Registered terminal handlers');
 }
 
-module.exports = { register };
+module.exports = { register, cleanup, getDiagnostics };
