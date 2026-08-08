@@ -85,7 +85,7 @@ const test = base.extend({
   appPage: [async ({ electronApp }, use) => {
     const page = await electronApp.firstWindow();
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForFunction(() => Boolean(window.electronAPI?.invoke), undefined, {
+    await page.waitForFunction(() => Boolean(window.electronAPI?.files?.readFile), undefined, {
       timeout: 30 * 1000
     });
     await use(page);

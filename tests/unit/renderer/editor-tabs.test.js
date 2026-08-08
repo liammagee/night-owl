@@ -11,12 +11,19 @@
 
 // Restore native DOM getElementById (renderer.setup.js overrides it with a mock)
 const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind(document);
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 
 // jsdom doesn't implement scrollIntoView
 Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || jest.fn();
 
 // Load the editor-tabs module once — the IIFE sets window.tabManager
 let moduleLoaded = false;
+let electronBridge = null;
+
+function setElectronImplementation(implementation = async () => ({})) {
+    electronBridge = createElectronApiMock(implementation);
+    window.electronAPI = electronBridge.api;
+}
 
 function ensureModuleLoaded() {
     if (!moduleLoaded) {
@@ -68,7 +75,7 @@ beforeEach(() => {
     window.syncContentToPresentation = jest.fn();
     window.openFileInEditor = undefined;
     window.getMonacoTheme = jest.fn();
-    window.electronAPI = { invoke: jest.fn().mockResolvedValue({}), on: jest.fn() };
+    setElectronImplementation(async () => ({}));
 
     // Mock editor
     window.editor = {
@@ -425,7 +432,7 @@ describe('mutation cleanup', () => {
         expect(window.editorFileName).toBeNull();
         expect(window.updateBreadcrumb).toHaveBeenLastCalledWith(null);
         expect(window.updatePreviewAndStructure).toHaveBeenLastCalledWith('');
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('set-current-file', null);
+        expect(electronBridge.invoke).toHaveBeenCalledWith('set-current-file', null);
     });
 });
 
@@ -498,7 +505,7 @@ describe('Recovery persistence', () => {
 
         await tm._persistRecovery();
 
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith(
+        expect(electronBridge.invoke).toHaveBeenCalledWith(
             'recovery-persist',
             expect.objectContaining({
                 '/doc.md': expect.objectContaining({
@@ -518,7 +525,7 @@ describe('Recovery persistence', () => {
         await tm._persistRecovery();
 
         // Should call recovery-clear since no tabs need recovery
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-clear');
+        expect(electronBridge.invoke).toHaveBeenCalledWith('recovery-clear');
     });
 
     test('_persistRecovery always includes untitled tabs (even if not dirty)', async () => {
@@ -529,7 +536,7 @@ describe('Recovery persistence', () => {
         // Untitled tab is not dirty yet, but should still be persisted
         await tm._persistRecovery();
 
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith(
+        expect(electronBridge.invoke).toHaveBeenCalledWith(
             'recovery-persist',
             expect.objectContaining({
                 [path]: expect.objectContaining({
@@ -574,7 +581,7 @@ describe('Recovery restoration', () => {
         const tm = window.tabManager;
 
         // Mock settings: one tab was open
-        window.electronAPI.invoke = jest.fn((channel, ...args) => {
+        setElectronImplementation((channel, ...args) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -618,7 +625,7 @@ describe('Recovery restoration', () => {
     test('_restoreTabs recreates untitled tabs from recovery', async () => {
         const tm = window.tabManager;
 
-        window.electronAPI.invoke = jest.fn((channel) => {
+        setElectronImplementation((channel) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -662,7 +669,7 @@ describe('Recovery restoration', () => {
     test('_restoreTabs skips untitled tabs with no recovery data', async () => {
         const tm = window.tabManager;
 
-        window.electronAPI.invoke = jest.fn((channel) => {
+        setElectronImplementation((channel) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -688,7 +695,7 @@ describe('Recovery restoration', () => {
     test('_restoreTabs clears recovery file after applying', async () => {
         const tm = window.tabManager;
 
-        window.electronAPI.invoke = jest.fn((channel) => {
+        setElectronImplementation((channel) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -717,6 +724,6 @@ describe('Recovery restoration', () => {
         await tm._restoreTabs();
 
         // Should have called recovery-clear after applying
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-clear');
+        expect(electronBridge.invoke).toHaveBeenCalledWith('recovery-clear');
     });
 });

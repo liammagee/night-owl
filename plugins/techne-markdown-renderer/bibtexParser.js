@@ -174,9 +174,9 @@
     }
 
     async function getRuntimeWorkingDirectory() {
-        if (window.electronAPI?.invoke) {
+        if (window.electronAPI?.workspace?.getWorkingDirectory) {
             try {
-                const workingDir = await window.electronAPI.invoke('get-working-directory');
+                const workingDir = await window.electronAPI.workspace.getWorkingDirectory();
                 if (workingDir) return workingDir;
             } catch (_error) {
                 // Fall through to renderer-side caches.
@@ -244,7 +244,7 @@
             if (!url) return [];
 
             if (!isRemoteUrl(url)) {
-                if (!window.electronAPI?.invoke) {
+                if (!window.electronAPI?.files?.readFile) {
                     reportLoadFailure(url, new Error('Electron file API is not available'), options);
                     return [];
                 }
@@ -255,7 +255,7 @@
                     return [];
                 }
 
-                const result = await window.electronAPI.invoke('read-file', filePath);
+                const result = await window.electronAPI.files.readFile(filePath);
                 if (result?.success && typeof result.content === 'string') {
                     return parse(result.content);
                 }

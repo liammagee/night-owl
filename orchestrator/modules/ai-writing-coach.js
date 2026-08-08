@@ -89,7 +89,7 @@
     const excerpt = text.length > 3000 ? text.slice(0, 3000) + '\n...[truncated]' : text;
 
     try {
-      const result = await window.electronAPI.invoke('ai-chat', {
+      const result = await window.electronAPI.ai.aiChat({
         messages: [{
           role: 'user',
           content: `You are a writing coach. Analyze this text and provide brief, actionable feedback in these categories:

@@ -1,12 +1,12 @@
 describe('current-file-state', () => {
+  let setCurrentFile;
   beforeEach(() => {
     jest.resetModules();
     window.currentFilePath = null;
     window.editorFileName = null;
     window.currentFileDirectory = '';
-    window.electronAPI = {
-      invoke: jest.fn().mockResolvedValue({ success: true })
-    };
+    setCurrentFile = jest.fn().mockResolvedValue({ success: true });
+    window.electronAPI = { files: { setCurrentFile } };
     require('../../../orchestrator/modules/current-file-state.js');
   });
 
@@ -19,7 +19,7 @@ describe('current-file-state', () => {
     expect(window.currentFilePath).toBe('/workspace/articles/a.md');
     expect(window.editorFileName).toBe('/workspace/articles/a.md');
     expect(window.currentFileDirectory).toBe('/workspace/articles');
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('set-current-file', '/workspace/articles/a.md');
+    expect(setCurrentFile).toHaveBeenCalledWith('/workspace/articles/a.md');
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({
       detail: {
         filePath: '/workspace/articles/a.md',
@@ -38,6 +38,6 @@ describe('current-file-state', () => {
     expect(window.currentFilePath).toBeNull();
     expect(window.editorFileName).toBeNull();
     expect(window.currentFileDirectory).toBe('');
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('set-current-file', null);
+    expect(setCurrentFile).toHaveBeenCalledWith(null);
   });
 });

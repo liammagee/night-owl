@@ -14,7 +14,7 @@ async function waitForNightOwlReady(page) {
 
 async function waitForFileTreeState(page) {
   await page.evaluate(() => {
-    if (window.electronAPI?.invoke) {
+    if (window.electronAPI?.files?.requestFileTree) {
       return window.renderFileTree?.();
     }
     return null;
@@ -22,7 +22,7 @@ async function waitForFileTreeState(page) {
   await page.waitForFunction(() => {
     const tree = document.querySelector('#file-tree-view');
     if (!tree) return false;
-    if (!window.electronAPI?.invoke) return true;
+    if (!window.electronAPI?.files?.requestFileTree) return true;
     return Boolean(window.fileTreeData) ||
       tree.querySelectorAll('.file-tree-item').length > 0 ||
       Boolean(tree.querySelector('.file-tree-state'));
@@ -51,7 +51,7 @@ async function collectAppDiagnostics(page) {
       fileTreeStateVisible: Boolean(fileTreeState),
       fileTreeStateText: fileTreeState?.textContent || '',
       featureLoaderReady: Boolean(window.NightOwlFeatures),
-      electronBridgeReady: Boolean(window.electronAPI?.invoke),
+      electronBridgeReady: Boolean(window.electronAPI?.files?.requestFileTree),
       navigation: navigation ? {
         domInteractive: navigation.domInteractive,
         domContentLoadedEventEnd: navigation.domContentLoadedEventEnd,

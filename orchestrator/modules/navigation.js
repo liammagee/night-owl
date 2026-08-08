@@ -90,7 +90,7 @@ async function openFileFromHistory(historyItem) {
             }
             return;
         }
-        const result = await window.electronAPI.invoke('open-file-path', historyItem.filePath);
+        const result = await window.electronAPI.files.openFilePath(historyItem.filePath);
         if (result.success) {
             await window.openFileInEditor(result.filePath, result.content);
             updateNavigationButtons();
@@ -161,7 +161,7 @@ async function saveNavigationHistoryToSettings() {
             currentHistoryIndex: currentHistoryIndex
         };
         
-        await window.electronAPI.invoke('set-settings', updatedSettings);
+        await window.electronAPI.settings.setSettings(updatedSettings);
     } catch (error) {
         console.error('[Navigation] Failed to save navigation history to settings:', error);
     }

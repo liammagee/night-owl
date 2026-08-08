@@ -28,7 +28,6 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'citations-fetch-zotero-collections',
   'citations-format',
   'citations-get',
-  'citations-get-all',
   'citations-get-by-id',
   'citations-get-by-key',
   'citations-get-capture-tools',
@@ -176,7 +175,6 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'paste-image-from-clipboard',
   'perform-export-docx',
   'perform-export-html',
-  'perform-export-html-accessible',
   'perform-export-html-pandoc',
   'perform-export-pdf',
   'perform-export-pdf-pandoc',
@@ -331,49 +329,277 @@ const ALLOWED_SEND_CHANNELS = new Set([
   'saves-completed-close'
 ]);
 
-function assertAllowedChannel(kind, channel, allowedChannels) {
-  if (typeof channel !== 'string' || !allowedChannels.has(channel)) {
-    throw new Error(`[preload] Blocked ${kind} IPC channel: ${String(channel)}`);
+const PREFIX_CAPABILITIES = Object.freeze([
+  ['citations-', 'citations'],
+  ['collab-', 'collaboration'],
+  ['feed:', 'feed'],
+  ['git-', 'git'],
+  ['performance:', 'performance'],
+  ['spell-', 'spellcheck'],
+  ['static-site-', 'publishing'],
+  ['terminal-', 'terminal'],
+  ['tts-', 'speech'],
+  ['video-', 'video']
+]);
+
+const CAPABILITY_CHANNELS = Object.freeze({
+  ai: new Set([
+    'ai-chat', 'ai-chat-stream', 'ai-clear-conversation', 'ai-get-conversation-history',
+    'ai-restart-conversation', 'extract-notes-content', 'generate-document-summaries',
+    'get-available-ai-providers', 'get-current-ai-config', 'get-default-ai-provider',
+    'get-provider-models', 'get-tutor-core-status', 'grammar-check-text',
+    'send-chat-message', 'send-chat-message-with-context', 'send-chat-message-with-options',
+    'set-default-ai-provider', 'summarize-text-to-notes', 'test-ai-service'
+  ]),
+  documents: new Set([
+    'browse-destination-folder', 'check-docling-available', 'check-pandoc-available',
+    'convert-pdf-to-markdown', 'convert-word-to-markdown', 'embed-pdf-annotations',
+    'export-pdf-with-template', 'export-to-epub', 'export-to-latex',
+    'get-pdf-templates', 'import-pdf-as-markdown', 'import-word-as-markdown',
+    'perform-export-docx', 'perform-export-html',
+    'perform-export-html-pandoc', 'perform-export-pdf', 'perform-export-pdf-pandoc',
+    'perform-export-pptx', 'trigger-export'
+  ]),
+  files: new Set([
+    'add-recent-file', 'batch-read-frontmatter', 'check-file-exists', 'copy-file',
+    'copy-file-to', 'create-file', 'create-folder', 'delete-file', 'delete-item',
+    'dialog-open-file', 'extract-text-with-replacement', 'get-current-file-content', 'get-file-context',
+    'get-file-tree-signature', 'get-folder-contents', 'get-markdown-files',
+    'list-directory-files', 'move-file', 'move-item', 'open-file', 'open-file-path',
+    'perform-open-file', 'perform-save', 'perform-save-as', 'perform-save-with-path',
+    'read-file', 'read-file-content', 'read-file-content-only',
+    'read-frontmatter-only', 'refresh-file-tree', 'rename-item', 'request-file-tree',
+    'save-file', 'set-current-file', 'write-file'
+  ]),
+  images: new Set([
+    'browse-for-image', 'copy-local-image-file', 'generate-image', 'generate-thumbnail',
+    'generate-thumbnail-dialog', 'paste-image-from-clipboard', 'save-image-data',
+    'save-image-to-current-dir', 'select-image-file'
+  ]),
+  navigation: new Set([
+    'fetch-url-title', 'get-navigation-history', 'open-external', 'open-folder-in-finder',
+    'save-navigation-history'
+  ]),
+  presentation: new Set([
+    'choose-recording-location', 'close-speaker-notes-window', 'focus-main-window',
+    'get-screen-sources', 'open-speaker-notes-window', 'save-video-recording',
+    'update-speaker-notes'
+  ]),
+  recovery: new Set(['recovery-clear', 'recovery-load', 'recovery-persist']),
+  search: new Set(['global-replace', 'global-search']),
+  settings: new Set([
+    'browse-system-prompt-file', 'export-settings', 'get-initial-theme', 'get-settings',
+    'get-settings-category', 'import-settings', 'load-style-file',
+    'load-style-preferences', 'load-user-styles', 'reset-settings-category',
+    'save-style-preferences', 'save-user-styles', 'set-settings',
+    'update-settings-category'
+  ]),
+  workspace: new Set([
+    'add-workspace-folder', 'change-working-directory', 'get-available-files',
+    'get-recent-files', 'get-recent-workspaces', 'get-working-directory',
+    'get-workspace-folders', 'remove-workspace-folder', 'reorder-workspace-folders',
+    'switch-workspace'
+  ])
+});
+
+function toMethodName(channel, prefix = '') {
+  const source = prefix && channel.startsWith(prefix) ? channel.slice(prefix.length) : channel;
+  return source.replace(/[-:.]+([a-z0-9])/g, (_match, letter) => letter.toUpperCase());
+}
+
+function getInvokeContract(channel) {
+  if (!ALLOWED_INVOKE_CHANNELS.has(channel)) return null;
+  for (const [prefix, capability] of PREFIX_CAPABILITIES) {
+    if (channel.startsWith(prefix)) {
+      return { channel, capability, method: toMethodName(channel, prefix) };
+    }
+  }
+  for (const [capability, channels] of Object.entries(CAPABILITY_CHANNELS)) {
+    if (channels.has(channel)) {
+      return { channel, capability, method: toMethodName(channel) };
+    }
+  }
+  return { channel, capability: 'app', method: toMethodName(channel) };
+}
+
+function validateSerializable(value, path = 'payload', depth = 0, seen = new WeakSet()) {
+  if (value == null || ['string', 'number', 'boolean'].includes(typeof value)) return;
+  if (typeof value !== 'object') {
+    throw new TypeError(`${path} contains unsupported ${typeof value} data`);
+  }
+  if (depth > 20) throw new TypeError(`${path} exceeds the maximum nesting depth`);
+  if (seen.has(value)) throw new TypeError(`${path} contains a circular reference`);
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => validateSerializable(item, `${path}[${index}]`, depth + 1, seen));
+    seen.delete(value);
+    return;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(`${path} must contain plain objects only`);
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (['__proto__', 'prototype', 'constructor'].includes(key)) {
+      throw new TypeError(`${path} contains a blocked property`);
+    }
+    validateSerializable(child, `${path}.${key}`, depth + 1, seen);
+  }
+  seen.delete(value);
+}
+
+function requireObject(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError(`${label} must be an object`);
+  }
+  return value;
+}
+
+function requireString(value, label, options = {}) {
+  if (typeof value !== 'string' || (options.nonEmpty && value.trim() === '')) {
+    throw new TypeError(`${label} must be${options.nonEmpty ? ' a non-empty' : ''} string`);
+  }
+  if (options.maxLength && value.length > options.maxLength) {
+    throw new TypeError(`${label} exceeds ${options.maxLength} characters`);
   }
 }
 
-function createGuardedIpcBridge(ipcRenderer) {
-  return {
-    invoke(channel, ...args) {
-      assertAllowedChannel('invoke', channel, ALLOWED_INVOKE_CHANNELS);
-      return ipcRenderer.invoke(channel, ...args);
-    },
+const ARGUMENT_VALIDATORS = Object.freeze({
+  'collab-start-server': (args) => {
+    const input = requireObject(args[0], 'options');
+    if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535) {
+      throw new TypeError('options.port must be an integer from 1 to 65535');
+    }
+  },
+  'feed:set-credential': (args) => {
+    const input = requireObject(args[0], 'credential');
+    requireString(input.sourceId, 'credential.sourceId', { nonEmpty: true, maxLength: 200 });
+    requireString(input.name, 'credential.name', { nonEmpty: true, maxLength: 200 });
+    requireString(input.value, 'credential.value', { maxLength: 65536 });
+  },
+  'extract-text-with-replacement': (args) => {
+    const input = requireObject(args[0], 'request');
+    for (const key of ['originalFilePath', 'textToReplace', 'replacementText', 'newFilePath', 'newFileContent']) {
+      requireString(input[key], `request.${key}`, { nonEmpty: key !== 'newFileContent' });
+    }
+  },
+  'git-stage': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.repoRoot, 'request.repoRoot', { nonEmpty: true });
+    if (!Array.isArray(input.paths) || input.paths.some(item => typeof item !== 'string')) {
+      throw new TypeError('request.paths must be an array of strings');
+    }
+  },
+  'open-external': (args) => requireString(args[0], 'target', { nonEmpty: true, maxLength: 16384 }),
+  'save-file': (args) => {
+    const input = requireObject(args[0], 'file');
+    requireString(input.filePath, 'file.filePath', { nonEmpty: true });
+    requireString(input.content, 'file.content');
+  },
+  'terminal-exec': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.command, 'request.command', { nonEmpty: true, maxLength: 65536 });
+    if (input.cwd != null) requireString(input.cwd, 'request.cwd', { nonEmpty: true });
+  },
+  'terminal-kill': (args) => {
+    if (args[0] != null) requireObject(args[0], 'request');
+  },
+  'terminal-resize': (args) => {
+    const input = requireObject(args[0], 'request');
+    if (!Number.isInteger(input.cols) || input.cols < 1 || input.cols > 1000) {
+      throw new TypeError('request.cols must be an integer from 1 to 1000');
+    }
+    if (!Number.isInteger(input.rows) || input.rows < 1 || input.rows > 1000) {
+      throw new TypeError('request.rows must be an integer from 1 to 1000');
+    }
+  },
+  'terminal-spawn': (args) => {
+    const input = args[0] == null ? {} : requireObject(args[0], 'request');
+    if (input.cwd != null) requireString(input.cwd, 'request.cwd', { nonEmpty: true });
+  },
+  'terminal-write': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.data, 'request.data', { maxLength: 1048576 });
+  },
+  'write-file': (args) => {
+    if (typeof args[0] === 'string') {
+      requireString(args[0], 'filePath', { nonEmpty: true });
+      requireString(args[1], 'content');
+      return;
+    }
+    const input = requireObject(args[0], 'file');
+    requireString(input.filePath, 'file.filePath', { nonEmpty: true });
+    requireString(input.content, 'file.content');
+  }
+});
 
-    on(channel, listener) {
-      assertAllowedChannel('on', channel, ALLOWED_ON_CHANNELS);
+function validateInvokeArgs(channel, args) {
+  if (!ALLOWED_INVOKE_CHANNELS.has(channel)) {
+    throw new Error(`[ipc-contract] Unknown invoke channel: ${String(channel)}`);
+  }
+  validateSerializable(args, `${channel} arguments`);
+  try {
+    ARGUMENT_VALIDATORS[channel]?.(args);
+  } catch (error) {
+    throw new TypeError(`[ipc-contract] Invalid payload for ${channel}: ${error.message}`);
+  }
+}
+
+function createCapabilityApi(ipcRenderer, options = {}) {
+  const api = {
+    isElectron: true,
+    platform: options.platform || process.platform,
+    events: {},
+    signals: {}
+  };
+
+  for (const channel of ALLOWED_INVOKE_CHANNELS) {
+    const contract = getInvokeContract(channel);
+    if (!api[contract.capability]) api[contract.capability] = {};
+    if (api[contract.capability][contract.method]) {
+      throw new Error(`[ipc-contract] Duplicate capability method: ${contract.capability}.${contract.method}`);
+    }
+    api[contract.capability][contract.method] = (...args) => {
+      validateInvokeArgs(channel, args);
+      return ipcRenderer.invoke(channel, ...args);
+    };
+  }
+
+  for (const channel of ALLOWED_ON_CHANNELS) {
+    const method = toMethodName(channel);
+    api.events[method] = (listener) => {
       if (typeof listener !== 'function') {
         throw new TypeError('[preload] IPC listener must be a function');
       }
-
       const subscription = (event, ...args) => listener(...args);
       ipcRenderer.on(channel, subscription);
-      return () => {
-        ipcRenderer.removeListener(channel, subscription);
-      };
-    },
-
-    send(channel, ...args) {
-      assertAllowedChannel('send', channel, ALLOWED_SEND_CHANNELS);
-      return ipcRenderer.send(channel, ...args);
-    }
-  };
-}
-
-function removeAllAllowedListeners(ipcRenderer) {
-  for (const channel of ALLOWED_ON_CHANNELS) {
-    ipcRenderer.removeAllListeners(channel);
+      return () => ipcRenderer.removeListener(channel, subscription);
+    };
   }
+
+  for (const channel of ALLOWED_SEND_CHANNELS) {
+    const method = toMethodName(channel);
+    api.signals[method] = (...args) => {
+      validateSerializable(args, `${channel} arguments`);
+      return ipcRenderer.send(channel, ...args);
+    };
+  }
+
+  for (const value of Object.values(api)) {
+    if (value && typeof value === 'object') Object.freeze(value);
+  }
+  return Object.freeze(api);
 }
 
 module.exports = {
   ALLOWED_INVOKE_CHANNELS,
   ALLOWED_ON_CHANNELS,
   ALLOWED_SEND_CHANNELS,
-  createGuardedIpcBridge,
-  removeAllAllowedListeners
+  ARGUMENT_VALIDATORS,
+  CAPABILITY_CHANNELS,
+  createCapabilityApi,
+  getInvokeContract,
+  toMethodName,
+  validateInvokeArgs,
+  validateSerializable
 };

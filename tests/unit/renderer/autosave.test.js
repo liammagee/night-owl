@@ -41,7 +41,9 @@ function loadAutosaveModule(overrides = {}) {
         tabs: new Map([[activeTab.filePath, activeTab]])
       },
       electronAPI: {
-        invoke: jest.fn(async () => ({ success: true }))
+        files: {
+          performSaveWithPath: jest.fn(async () => ({ success: true }))
+        }
       }
     },
     ...overrides.context
@@ -63,8 +65,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).toHaveBeenCalledWith(
-      'perform-save-with-path',
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenCalledWith(
       'changed',
       '/project/doc.md'
     );
@@ -99,7 +100,9 @@ describe('autosave module', () => {
             tabs: new Map()
           },
           electronAPI: {
-            invoke: jest.fn(async () => ({ success: true }))
+            files: {
+              performSaveWithPath: jest.fn(async () => ({ success: true }))
+            }
           }
         }
       }
@@ -107,7 +110,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.window.electronAPI.files.performSaveWithPath).not.toHaveBeenCalled();
     expect(context.console.log).toHaveBeenCalledWith(
       '[performAutoSave] Save attempt',
       expect.objectContaining({
@@ -135,7 +138,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.window.electronAPI.files.performSaveWithPath).not.toHaveBeenCalled();
     expect(activeTab.isDirty).toBe(true);
     expect(context.window.hasUnsavedChanges).toBe(true);
     expect(context.console.log).toHaveBeenCalledWith(
@@ -172,7 +175,9 @@ describe('autosave module', () => {
             tabs: new Map([[activeTab.filePath, activeTab]])
           },
           electronAPI: {
-            invoke: jest.fn(async () => ({ success: true }))
+            files: {
+              performSaveWithPath: jest.fn(async () => ({ success: true }))
+            }
           }
         }
       }
@@ -180,7 +185,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.window.electronAPI.files.performSaveWithPath).not.toHaveBeenCalled();
     expect(activeTab.isDirty).toBe(true);
     expect(context.window.hasUnsavedChanges).toBe(true);
   });

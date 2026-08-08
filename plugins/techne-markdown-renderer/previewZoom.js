@@ -48,7 +48,7 @@ class PreviewZoom {
      * Check if AI summarization is available (Electron or custom generator)
      */
     isAISummarizationAvailable() {
-        return !!(window.electronAPI?.invoke || this.aiSummaryGenerator);
+        return !!(window.electronAPI?.ai?.generateDocumentSummaries || this.aiSummaryGenerator);
     }
 
     extractTextContent(htmlContent) {
@@ -628,10 +628,10 @@ class PreviewZoom {
             }
 
             // 2. Try Electron API (desktop app)
-            if (!summaryResult && window.electronAPI?.invoke) {
+            if (!summaryResult && window.electronAPI?.ai?.generateDocumentSummaries) {
                 try {
                     console.log('[PreviewZoom] Using Electron API for summaries');
-                    summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
+                    summaryResult = await window.electronAPI.ai.generateDocumentSummaries({
                         content: textContent,
                         filePath: this.currentFilePath
                     });

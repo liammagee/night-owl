@@ -836,8 +836,8 @@ class CanvasTextSelector {
             const annotationText = `## Page ${currentPage}\n**Selected Text:** "${selection.text}"\n**Annotation:** ${annotation}\n**Date:** ${new Date().toLocaleString()}\n\n---\n\n`;
             
             // Save to annotations.md file in working directory
-            const annotationsPath = await window.electronAPI.invoke('get-working-directory') + '/annotations.md';
-            const response = await window.electronAPI.invoke('read-file', annotationsPath);
+            const annotationsPath = await window.electronAPI.workspace.getWorkingDirectory() + '/annotations.md';
+            const response = await window.electronAPI.files.readFile(annotationsPath);
             
             let existingContent = '';
             if (response.success) {
@@ -845,7 +845,7 @@ class CanvasTextSelector {
             }
             
             const newContent = existingContent + annotationText;
-            const saveResponse = await window.electronAPI.invoke('write-file', annotationsPath, newContent);
+            const saveResponse = await window.electronAPI.files.writeFile(annotationsPath, newContent);
             
             if (saveResponse.success) {
                 console.log('[CanvasTextSelector] Annotation saved to:', annotationsPath);
@@ -1349,7 +1349,7 @@ if (typeof window !== 'undefined') {
                     lastModified: new Date().toISOString()
                 };
                 
-                await window.electronAPI.invoke('save-file', {
+                await window.electronAPI.files.saveFile({
                     filePath: annotationsFile,
                     content: JSON.stringify(data, null, 2)
                 });
@@ -1367,7 +1367,7 @@ if (typeof window !== 'undefined') {
             if (!window.currentFilePath || !window.currentFilePath.endsWith('.pdf')) return;
             
             const annotationsFile = window.currentFilePath.replace('.pdf', '.annotations');
-            const response = await window.electronAPI.invoke('read-file', annotationsFile);
+            const response = await window.electronAPI.files.readFile(annotationsFile);
             
             if (response.success) {
                 const data = JSON.parse(response.content);
@@ -1405,7 +1405,7 @@ if (typeof window !== 'undefined') {
                 filePath: window.currentFilePath
             };
             
-            const result = await window.electronAPI.invoke('embed-pdf-annotations', annotationData);
+            const result = await window.electronAPI.documents.embedPdfAnnotations(annotationData);
             
             if (!result.success) {
                 throw new Error(result.error || 'Failed to embed annotations');

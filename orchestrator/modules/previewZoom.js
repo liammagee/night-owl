@@ -585,7 +585,7 @@ class PreviewZoom {
             const startTime = Date.now();
             
             // Request AI summaries from the main process
-            const summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
+            const summaryResult = await window.electronAPI.ai.generateDocumentSummaries({
                 content: textContent,
                 filePath: this.currentFilePath
             });

@@ -646,13 +646,13 @@ class VisualizationExporter {
     // Download blob as file
     async downloadBlob(blob, filename) {
         // Check if we're in Electron and can save to current directory
-        if (window.electronAPI && window.electronAPI.saveImageToCurrentDir) {
+        if (window.electronAPI?.images?.saveImageToCurrentDir) {
             try {
                 // Convert blob to base64 for Electron IPC
                 const reader = new FileReader();
                 reader.onloadend = async () => {
                     const base64data = reader.result.split(',')[1];
-                    const result = await window.electronAPI.saveImageToCurrentDir(filename, base64data);
+                    const result = await window.electronAPI.images.saveImageToCurrentDir(filename, base64data);
                     if (result.success) {
                         this.showNotification(`Saved to: ${result.path}`, 'success');
                     } else {
@@ -685,10 +685,10 @@ class VisualizationExporter {
     // Download data URL as file
     async downloadDataURL(dataUrl, filename) {
         // Check if we're in Electron and can save to current directory
-        if (window.electronAPI && window.electronAPI.saveImageToCurrentDir) {
+        if (window.electronAPI?.images?.saveImageToCurrentDir) {
             try {
                 const base64data = dataUrl.split(',')[1];
-                const result = await window.electronAPI.saveImageToCurrentDir(filename, base64data);
+                const result = await window.electronAPI.images.saveImageToCurrentDir(filename, base64data);
                 if (result.success) {
                     this.showNotification(`Saved to: ${result.path}`, 'success');
                 } else {

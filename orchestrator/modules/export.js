@@ -176,7 +176,7 @@ async function exportToPDF() {
         const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
         const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
         const exportOptions = { usePandoc: true, pandocArgs: ['--mathjax', '--highlight-style=github'] };
-        const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent, exportOptions);
+        const result = await window.electronAPI.documents.performExportPdf(content, htmlContent, exportOptions);
         if (result.success) {
             let message = 'PDF exported successfully';
             if (result.usedPandoc) {
@@ -206,7 +206,7 @@ async function exportToPDFWithReferences() {
     try {
         if (window.showNotification) window.showNotification('Preparing PDF export with references...', 'info');
         const exportOptions = { usePandoc: true, pandocArgs: ['--toc'] };
-        const result = await window.electronAPI.invoke('perform-export-pdf-pandoc', content, exportOptions);
+        const result = await window.electronAPI.documents.performExportPdfPandoc(content, exportOptions);
         if (result.success) {
             let message = 'PDF with references exported successfully';
             if (result.bibFilesFound > 0) message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
@@ -235,7 +235,7 @@ async function exportToHTML() {
         const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
         const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
         const exportOptions = { usePandoc: true, pandocArgs: ['--mathjax', '--highlight-style=github', '--css=pandoc.css'] };
-        const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent, exportOptions);
+        const result = await window.electronAPI.documents.performExportHtml(content, htmlContent, exportOptions);
         if (result.success) {
             let message = 'HTML exported successfully';
             if (result.usedPandoc) {
@@ -267,7 +267,7 @@ async function exportToHTMLWithReferences() {
         const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
         const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
         const exportOptions = { usePandoc: true, withReferences: true, pandocArgs: ['--mathjax', '--highlight-style=github'] };
-        const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, htmlContent, exportOptions);
+        const result = await window.electronAPI.documents.performExportHtmlPandoc(content, htmlContent, exportOptions);
         if (result.success) {
             let message = 'HTML with references exported successfully';
             if (result.bibFilesFound > 0) message += ` (${result.bibFilesFound} bibliography file${result.bibFilesFound === 1 ? '' : 's'} processed)`;
@@ -294,7 +294,7 @@ async function exportToPowerPoint() {
     try {
         if (window.showNotification) window.showNotification('Preparing PowerPoint export...', 'info');
         const exportOptions = { usePandoc: true, pandocArgs: ['--slide-level=2'] };
-        const result = await window.electronAPI.invoke('perform-export-pptx', content, exportOptions);
+        const result = await window.electronAPI.documents.performExportPptx(content, exportOptions);
         if (result.success) {
             if (window.showNotification) window.showNotification('PowerPoint exported successfully', 'success');
         } else if (!result.cancelled) {
@@ -318,8 +318,15 @@ async function exportToAccessibleHTML() {
     const content = getCurrentEditorContent();
     try {
         if (window.showNotification) window.showNotification('Preparing Accessible HTML export...', 'info');
-        const exportOptions = { usePandoc: true, pandocArgs: ['--mathjax', '--highlight-style=github'] };
-        const result = await window.electronAPI.invoke('perform-export-html-accessible', content, exportOptions);
+        const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+        const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
+        const exportOptions = {
+            accessible: true,
+            wcagCompliant: true,
+            usePandoc: true,
+            pandocArgs: ['--mathjax', '--highlight-style=github']
+        };
+        const result = await window.electronAPI.documents.performExportHtml(content, htmlContent, exportOptions);
         if (result.success) {
             if (window.showNotification) window.showNotification('Accessible HTML exported successfully', 'success');
         } else if (!result.cancelled) {
@@ -363,7 +370,7 @@ async function exportToWord() {
         };
 
         console.log('[Export] Invoking perform-export-docx...');
-        const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+        const result = await window.electronAPI.documents.performExportDocx(content, exportOptions);
         console.log('[Export] perform-export-docx result:', result);
 
         if (!result) {
@@ -430,7 +437,7 @@ async function exportToWordWithReferences() {
         };
 
         console.log('[Export] Invoking perform-export-docx (with refs)...');
-        const result = await window.electronAPI.invoke('perform-export-docx', content, exportOptions);
+        const result = await window.electronAPI.documents.performExportDocx(content, exportOptions);
         console.log('[Export] perform-export-docx (with refs) result:', result);
 
         if (!result) {
@@ -472,7 +479,7 @@ function initializeExportHandlers() {
 
     // HTML export handler
     let htmlExportInProgress = false;
-    window.electronAPI.on('trigger-export-html', async () => {
+    window.electronAPI.events.triggerExportHtml(async () => {
         if (htmlExportInProgress) {
             console.log('[Export] HTML export already in progress, ignoring duplicate call');
             return;
@@ -500,7 +507,7 @@ function initializeExportHandlers() {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-html', content, htmlContent, exportOptions);
+            const result = await window.electronAPI.documents.performExportHtml(content, htmlContent, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -529,7 +536,7 @@ function initializeExportHandlers() {
     });
 
     // HTML export with references handler
-    window.electronAPI.on('trigger-export-html-pandoc', async () => {
+    window.electronAPI.events.triggerExportHtmlPandoc(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -550,7 +557,7 @@ function initializeExportHandlers() {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-html-pandoc', content, htmlContent, exportOptions);
+            const result = await window.electronAPI.documents.performExportHtmlPandoc(content, htmlContent, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -576,7 +583,7 @@ function initializeExportHandlers() {
     });
 
     // PDF export handler
-    window.electronAPI.on('trigger-export-pdf', async () => {
+    window.electronAPI.events.triggerExportPdf(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -599,7 +606,7 @@ function initializeExportHandlers() {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-pdf', content, htmlContent, exportOptions);
+            const result = await window.electronAPI.documents.performExportPdf(content, htmlContent, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -628,7 +635,7 @@ function initializeExportHandlers() {
     });
 
     // PowerPoint export handler
-    window.electronAPI.on('trigger-export-pptx', async () => {
+    window.electronAPI.events.triggerExportPptx(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -645,7 +652,7 @@ function initializeExportHandlers() {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-pptx', content, exportOptions);
+            const result = await window.electronAPI.documents.performExportPptx(content, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -669,7 +676,7 @@ function initializeExportHandlers() {
     });
 
     // Accessible HTML export handler
-    window.electronAPI.on('trigger-export-html-accessible', async () => {
+    window.electronAPI.events.triggerExportHtmlAccessible(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -682,8 +689,9 @@ function initializeExportHandlers() {
                 accessible: true,
                 wcagCompliant: true
             };
-            
-            const result = await window.electronAPI.invoke('perform-export-html-accessible', content, exportOptions);
+            const customCSS = window.styleManager ? await window.styleManager.getExportStylesheet() : null;
+            const htmlContent = await generateHTMLFromMarkdown(content, customCSS);
+            const result = await window.electronAPI.documents.performExportHtml(content, htmlContent, exportOptions);
             if (result.success) {
                 
                 // Success message
@@ -704,13 +712,13 @@ function initializeExportHandlers() {
     });
 
     // Word (DOCX) export handler — delegates to exportToWord()
-    window.electronAPI.on('trigger-export-docx', () => exportToWord());
+    window.electronAPI.events.triggerExportDocx(() => exportToWord());
 
     // Word (DOCX) with references export handler — delegates to exportToWordWithReferences()
-    window.electronAPI.on('trigger-export-docx-refs', () => exportToWordWithReferences());
+    window.electronAPI.events.triggerExportDocxRefs(() => exportToWordWithReferences());
 
     // PDF with references export handler
-    window.electronAPI.on('trigger-export-pdf-pandoc', async () => {
+    window.electronAPI.events.triggerExportPdfPandoc(async () => {
         const content = getCurrentEditorContent();
         try {
             // Show initial notification
@@ -728,7 +736,7 @@ function initializeExportHandlers() {
                 ]
             };
             
-            const result = await window.electronAPI.invoke('perform-export-pdf-pandoc', content, exportOptions);
+            const result = await window.electronAPI.documents.performExportPdfPandoc(content, exportOptions);
             if (result.success) {
                 
                 // Enhanced success message
@@ -813,7 +821,7 @@ async function exportAllFormats() {
     for (const format of formats) {
         try {
             if (window.electronAPI) {
-                const result = await window.electronAPI.invoke('trigger-export', format);
+                const result = await window.electronAPI.documents.triggerExport(format);
                 results.push({ format, success: result.success });
             }
         } catch (error) {

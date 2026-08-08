@@ -1,10 +1,12 @@
 const path = require('path');
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 
 const modulePath = path.resolve(__dirname, '../../../orchestrator/modules/assistant-terminal.js');
 const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind(document);
 
 describe('Assistant terminal', () => {
   let listeners;
+  let invoke;
 
   async function flushAsync(times = 6) {
     for (let index = 0; index < times; index += 1) {
@@ -16,7 +18,6 @@ describe('Assistant terminal', () => {
     jest.resetModules();
     jest.useFakeTimers();
     document.getElementById = nativeGetElementById;
-    listeners = {};
 
     document.body.innerHTML = `
       <div id="chat-pane" style="display: none;">
@@ -33,8 +34,7 @@ describe('Assistant terminal', () => {
     `;
 
     window.appSettings = { workingDirectory: '/tmp/nightowl-workspace' };
-    window.electronAPI = {
-      invoke: jest.fn(async (channel, payload) => {
+    const bridge = createElectronApiMock(async (channel, payload) => {
         if (channel === 'terminal-spawn') {
           return { success: true, pid: 42, sessionId: payload.sessionId || 'default' };
         }
@@ -42,12 +42,10 @@ describe('Assistant terminal', () => {
           return { success: true, output: 'ok\n' };
         }
         return { success: true };
-      }),
-      on: jest.fn((channel, handler) => {
-        listeners[channel] = handler;
-        return jest.fn();
-      })
-    };
+    });
+    window.electronAPI = bridge.api;
+    invoke = bridge.invoke;
+    listeners = bridge.listeners;
 
     require(modulePath);
     jest.runOnlyPendingTimers();
@@ -64,8 +62,8 @@ describe('Assistant terminal', () => {
     document.getElementById('assistant-launch-codex').click();
     await flushAsync();
 
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-kill', { sessionId: 'assistant' });
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-spawn', expect.objectContaining({
+    expect(invoke).toHaveBeenCalledWith('terminal-kill', { sessionId: 'assistant' });
+    expect(invoke).toHaveBeenCalledWith('terminal-spawn', expect.objectContaining({
       sessionId: 'assistant',
       cwd: '/tmp/nightowl-workspace',
       command: 'codex',
@@ -81,7 +79,7 @@ describe('Assistant terminal', () => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     await flushAsync();
 
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-exec', {
+    expect(invoke).toHaveBeenCalledWith('terminal-exec', {
       command: 'pwd',
       cwd: '/tmp/nightowl-workspace'
     });
@@ -114,7 +112,7 @@ describe('Assistant terminal', () => {
     await window.assistantTerminal.runCommand('echo still-active');
 
     expect(document.getElementById('assistant-terminal-output').textContent).not.toContain('Process exited');
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-write', {
+    expect(invoke).toHaveBeenCalledWith('terminal-write', {
       sessionId: 'assistant',
       data: 'echo still-active\n'
     });
@@ -123,7 +121,7 @@ describe('Assistant terminal', () => {
   test('falls back to one-shot commands after the assistant terminal process exits', async () => {
     document.getElementById('assistant-launch-shell').click();
     await flushAsync();
-    window.electronAPI.invoke.mockClear();
+    invoke.mockClear();
 
     listeners['terminal-output']({
       sessionId: 'assistant',
@@ -134,7 +132,7 @@ describe('Assistant terminal', () => {
     await window.assistantTerminal.runCommand('echo after-exit');
     await flushAsync();
 
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-exec', {
+    expect(invoke).toHaveBeenCalledWith('terminal-exec', {
       command: 'echo after-exit',
       cwd: '/tmp/nightowl-workspace'
     });
@@ -195,7 +193,7 @@ describe('Assistant terminal', () => {
       expect(TerminalMock).toHaveBeenCalled();
       expect(FitAddonMock).toHaveBeenCalled();
       expect(document.getElementById('chat-pane').classList.contains('terminal-emulator-ready')).toBe(true);
-      expect(window.electronAPI.invoke).toHaveBeenCalledWith('terminal-spawn', expect.objectContaining({
+      expect(invoke).toHaveBeenCalledWith('terminal-spawn', expect.objectContaining({
         sessionId: 'assistant',
         cols: 100,
         rows: 28

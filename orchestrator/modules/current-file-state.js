@@ -19,12 +19,12 @@
     }
 
     async function syncMainProcess(filePath) {
-        if (!window.electronAPI || typeof window.electronAPI.invoke !== 'function') {
+        if (typeof window.electronAPI?.files?.setCurrentFile !== 'function') {
             return { success: false, skipped: true };
         }
 
         try {
-            return await window.electronAPI.invoke('set-current-file', filePath);
+            return await window.electronAPI.files.setCurrentFile(filePath);
         } catch (error) {
             console.error('[CurrentFileState] Failed to sync current file:', error);
             return { success: false, error: error.message };

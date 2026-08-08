@@ -37,23 +37,12 @@ const {
 const { installNightOwlCli } = require('./services/cliInstaller');
 const { resolveTutorRuntimePaths } = require('./services/tutorRuntimePaths');
 const { installNavigationGuards } = require('./services/contentSecurity');
+const { installIpcMainGuard } = require('./services/ipcSecurity');
 const ipcHandlers = require('./ipc');
 const { createDebugLogger } = require('./ipc/logging');
 
 const debugMain = createDebugLogger('Main');
 debugMain('main.js execution START');
-
-// Initialize @electron/remote after checking if electron module loaded correctly
-try {
-    if (typeof ipcMain !== 'undefined' && ipcMain && typeof ipcMain.on === 'function') {
-        require('@electron/remote/main').initialize();
-        debugMain('@electron/remote initialized successfully');
-    } else {
-        console.warn('[main.js] Skipping @electron/remote initialization - ipcMain not available');
-    }
-} catch (error) {
-    console.error('[main.js] Failed to initialize @electron/remote:', error.message);
-}
 
 // Utility function to clean AI responses
 function cleanAIResponse(response) {
@@ -1389,6 +1378,12 @@ nativeTheme.on('updated', () => {
 // --- Window Creation ---
 let speakerNotesWindow = null;
 
+installIpcMainGuard(ipcMain, {
+  appEntryUrl: pathToFileURL(path.join(__dirname, 'index.html')).href,
+  getMainWindow: () => mainWindow,
+  getSpeakerNotesWindow: () => speakerNotesWindow
+});
+
 function createWindow() {
   debugMain('Creating main window...');
   rendererCitationCaptureReady = false;
@@ -1413,9 +1408,6 @@ function createWindow() {
     show: false
   });
   mainWindow = win;
-
-  // Enable @electron/remote for this window
-  require("@electron/remote/main").enable(win.webContents);
 
   // Load the index.html of the app.
   const indexPath = path.join(__dirname, 'index.html');
@@ -1505,7 +1497,7 @@ function createWindow() {
         `(async function() {
           async function fileExists(p) {
             try {
-              const r = await window.electronAPI.invoke('check-file-exists', p);
+              const r = await window.electronAPI.files.checkFileExists(p);
               return typeof r === 'object' ? !!r?.exists : !!r;
             } catch (e) { return true; } // assume dirty on IPC error
           }

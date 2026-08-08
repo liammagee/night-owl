@@ -1,4 +1,5 @@
 const path = require('path');
+const { createElectronApiMock } = require('../../../helpers/electron-api-mock');
 
 const pluginEntryPath = path.resolve(__dirname, '../../../../plugins/techne-markdown-renderer/plugin.js');
 const bibtexParserPath = path.resolve(__dirname, '../../../../plugins/techne-markdown-renderer/bibtexParser.js');
@@ -183,8 +184,7 @@ describe('nightowl-markdown-renderer plugin', () => {
   test('BibTeX parser reads local files through Electron IPC instead of fetch', async () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock;
-    window.electronAPI = {
-      invoke: jest.fn(async (channel, payload) => {
+    const bridge = createElectronApiMock(async (channel, payload) => {
         if (channel === 'get-working-directory') return '/workspace';
         if (channel === 'read-file') {
           return {
@@ -194,8 +194,8 @@ describe('nightowl-markdown-renderer plugin', () => {
           };
         }
         return null;
-      })
-    };
+    });
+    window.electronAPI = bridge.api;
 
     require(bibtexParserPath);
 
@@ -203,7 +203,7 @@ describe('nightowl-markdown-renderer plugin', () => {
 
     expect(entries).toHaveLength(1);
     expect(entries[0].key).toBe('hegel1807');
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('read-file', '/workspace/references.bib');
+    expect(bridge.invoke).toHaveBeenCalledWith('read-file', '/workspace/references.bib');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -211,15 +211,13 @@ describe('nightowl-markdown-renderer plugin', () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock;
     console.error = jest.fn();
-    window.electronAPI = {
-      invoke: jest.fn(async (channel) => {
+    window.electronAPI = createElectronApiMock(async (channel) => {
         if (channel === 'get-working-directory') return '/workspace';
         if (channel === 'read-file') {
           return { success: false, error: 'File not found' };
         }
         return null;
-      })
-    };
+    }).api;
 
     require(bibtexParserPath);
 
@@ -247,14 +245,12 @@ describe('nightowl-markdown-renderer plugin', () => {
     };
     window.bibEntries = [];
     window.appSettings = { workingDirectory: '/workspace' };
-    window.electronAPI = {
-      invoke: jest.fn(async (channel, dir) => {
+    window.electronAPI = createElectronApiMock(async (channel, dir) => {
         if (channel === 'list-directory-files' && dir === '') {
           return [{ isFile: true, name: 'references.bib', path: '/workspace/references.bib' }];
         }
         return [];
-      })
-    };
+    }).api;
 
     require(pluginEntryPath);
 

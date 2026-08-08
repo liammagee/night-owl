@@ -153,23 +153,42 @@ describe('Code quality guardrails', () => {
     expect(techneRenderer).toContain('window.NightOwlPreviewMarkdown?.setSanitizedHTML');
   });
 
-  test('preload bridge only exposes allowlisted IPC channels', () => {
+  test('preload bridge exposes fixed capability methods with guarded main-process senders', () => {
     const rootPreload = fs.readFileSync(path.join(__dirname, '../../../preload.js'), 'utf8');
     const orchestratorPreload = fs.readFileSync(path.join(__dirname, '../../../orchestrator/preload.js'), 'utf8');
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const guardSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
 
-    expect(rootPreload).toContain('createGuardedIpcBridge');
-    expect(orchestratorPreload).toContain('createGuardedIpcBridge');
+    const ipcSecuritySource = fs.readFileSync(path.join(__dirname, '../../../services/ipcSecurity.js'), 'utf8');
+
+    expect(rootPreload).toContain('createCapabilityApi');
+    expect(orchestratorPreload).toContain('createCapabilityApi');
     expect(mainSource).toContain('sandbox: false');
     expect(packageJson.build.files).toContain('preload-ipc-guard.js');
     expect(guardSource).toContain('ALLOWED_INVOKE_CHANNELS');
-    expect(guardSource).toContain('assertAllowedChannel');
-    expect(rootPreload).not.toContain('invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)');
-    expect(orchestratorPreload).not.toContain('invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)');
-    expect(rootPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
-    expect(orchestratorPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
+    expect(guardSource).toContain('CAPABILITY_CHANNELS');
+    expect(guardSource).toContain('ARGUMENT_VALIDATORS');
+    expect(ipcSecuritySource).toContain('event.senderFrame !== sender.mainFrame');
+    expect(mainSource).toContain('installIpcMainGuard(ipcMain');
+    expect(rootPreload).not.toMatch(/\binvoke\s*:/);
+    expect(orchestratorPreload).not.toMatch(/\binvoke\s*:/);
+    expect(rootPreload).not.toMatch(/\bon\s*:/);
+    expect(rootPreload).not.toMatch(/\bsend\s*:/);
+    expect(packageJson.dependencies?.['@electron/remote']).toBeUndefined();
+    expect(mainSource).not.toContain('@electron/remote');
+
+    const rendererFiles = ['js', 'orchestrator', 'plugins']
+      .flatMap(directory => collectJavaScriptFiles(path.join(__dirname, '../../..', directory)));
+    const genericDispatchers = rendererFiles.filter(file => (
+      /electronAPI(?:\?\.|\.)(?:invoke|on|send)\b/.test(fs.readFileSync(file, 'utf8'))
+    ));
+    expect(genericDispatchers).toEqual([]);
+
+    const bridgeMutations = rendererFiles.filter(file => (
+      /electronAPI(?:\?\.|\.)[A-Za-z_$][\w$]*\s*=(?!=)/.test(fs.readFileSync(file, 'utf8'))
+    ));
+    expect(bridgeMutations).toEqual([]);
   });
 
   test('dynamic resources have explicit owners and app shutdown cleanup', () => {

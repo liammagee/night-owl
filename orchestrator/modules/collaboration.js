@@ -26,7 +26,7 @@
   async function startServer(port) {
     if (!window.electronAPI) return;
     try {
-      const result = await window.electronAPI.invoke('collab-start-server', { port: port || 9876 });
+      const result = await window.electronAPI.collaboration.startServer({ port: port || 9876 });
       if (result.success) {
         isHost = true;
         if (window.showNotification) window.showNotification('Collaboration server started on port ' + (port || 9876), 'success');
@@ -43,7 +43,7 @@
   async function stopServer() {
     if (!window.electronAPI) return;
     try {
-      const result = await window.electronAPI.invoke('collab-stop-server');
+      const result = await window.electronAPI.collaboration.stopServer();
       isHost = false;
       clearPeerCursors();
       if (result.success && window.showNotification) {
@@ -140,16 +140,16 @@
   function setupHostListeners() {
     if (!window.electronAPI) return;
     // Listen for IPC events from server
-    window.electronAPI.on('collab-remote-edit', (event, data) => {
+    window.electronAPI.events.collabRemoteEdit((event, data) => {
       applyRemoteEdit(data.edit, data.peerId);
     });
-    window.electronAPI.on('collab-remote-cursor', (event, data) => {
+    window.electronAPI.events.collabRemoteCursor((event, data) => {
       updatePeerCursor(data.peerId, data.cursor, data.name);
     });
-    window.electronAPI.on('collab-peer-joined', (event, data) => {
+    window.electronAPI.events.collabPeerJoined((event, data) => {
       if (window.showNotification) window.showNotification('Peer connected: ' + data.peerId.slice(0, 8), 'info');
     });
-    window.electronAPI.on('collab-peer-left', (event, data) => {
+    window.electronAPI.events.collabPeerLeft((event, data) => {
       removePeerCursor(data.peerId);
     });
   }

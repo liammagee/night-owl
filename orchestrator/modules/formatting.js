@@ -555,7 +555,7 @@ function createImageDialog() {
     // Event handlers
     selectFileBtn.addEventListener('click', async () => {
         try {
-            const result = await window.electronAPI.invoke('browse-for-image');
+            const result = await window.electronAPI.images.browseForImage();
             if (result.success) {
                 urlInput.value = result.relativePath || result.filePath;
                 // Auto-populate alt text with filename (without extension)

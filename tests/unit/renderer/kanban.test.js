@@ -1,4 +1,5 @@
 const path = require('path');
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 
 const kanbanPath = path.resolve(__dirname, '../../../orchestrator/modules/kanban.js');
 const previewMarkdownPath = path.resolve(__dirname, '../../../orchestrator/modules/preview-markdown.js');
@@ -136,7 +137,7 @@ ${tasks}
 
   test('updates a multiline task block without flattening continuation lines', async () => {
     const writes = [];
-    window.electronAPI.invoke = jest.fn(async (channel, ...args) => {
+    window.electronAPI = createElectronApiMock(async (channel, ...args) => {
       if (channel === 'read-file') {
         return {
           success: true,
@@ -151,7 +152,7 @@ ${tasks}
         return { success: true };
       }
       return {};
-    });
+    }).api;
 
     const taskElement = document.createElement('div');
     taskElement.dataset.lineNumber = '0';

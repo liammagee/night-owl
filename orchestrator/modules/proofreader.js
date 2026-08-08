@@ -248,7 +248,7 @@
 
     try {
       // IPC: only calls correct(), NOT suggest() — fast batch
-      const result = await window.electronAPI.invoke('spell-check-words', { words: toCheck });
+      const result = await window.electronAPI.spellcheck.checkWords({ words: toCheck });
       if (!result.success) return [];
 
       // Cache newly confirmed-correct words
@@ -300,7 +300,7 @@
     if (!window.electronAPI || !grammarText || grammarText.length < 10) return [];
 
     try {
-      const result = await window.electronAPI.invoke('grammar-check-text', { text: grammarText });
+      const result = await window.electronAPI.ai.grammarCheckText({ text: grammarText });
       if (!result.success || !result.suggestions) return [];
 
       const issues = [];
@@ -364,7 +364,7 @@
     const excerpt = text.length > 6000 ? text.slice(0, 6000) + '\n...[truncated]' : text;
 
     try {
-      const result = await window.electronAPI.invoke('ai-chat', {
+      const result = await window.electronAPI.ai.aiChat({
         messages: [{
           role: 'user',
           content: `You are a precise writing style analyzer. Analyze the following markdown text and identify specific style issues.
@@ -827,7 +827,7 @@ ${excerpt}`
     customDictionary.add(word.toLowerCase());
     saveCustomDictionary();
     if (window.electronAPI) {
-      window.electronAPI.invoke('spell-add-word', { word: word.toLowerCase() });
+      window.electronAPI.spellcheck.addWord({ word: word.toLowerCase() });
     }
 
     // Instant local update: remove issues for this word without full recheck
@@ -870,7 +870,7 @@ ${excerpt}`
     saveCustomDictionary();
     saveCategorizedDict();
     if (window.electronAPI) {
-      window.electronAPI.invoke('spell-remove-word', { word: word.toLowerCase() });
+      window.electronAPI.spellcheck.removeWord({ word: word.toLowerCase() });
     }
     if (enabled) scheduleCheck();
   }

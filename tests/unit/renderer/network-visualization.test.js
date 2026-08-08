@@ -75,7 +75,7 @@ describe('Network Visualization', () => {
 
         // Extract links from file content
         for (const file of files) {
-          const content = await window.electronAPI.invoke('read-file-content', file.path);
+          const content = await window.electronAPI.files.readFileContent(file.path);
           const internalLinks = this.extractInternalLinks(content);
           
           for (const link of internalLinks) {

@@ -122,7 +122,7 @@ async function loadLinkContent(filePath) {
         const fullPath = `${workingDir}/${filePath}`;
         
         // CRITICAL FIX: Use read-file-content to avoid changing currentFilePath
-        const result = await window.electronAPI.invoke('read-file-content', fullPath);
+        const result = await window.electronAPI.files.readFileContent(fullPath);
         
         if (result.success) {
             return extractPreviewContent(result.content);
@@ -184,8 +184,8 @@ async function openInternalLink(filePath, originalLink) {
 
         if (isBinaryFile) {
             // For binary files, open them with the system default application
-            if (window.electronAPI && window.electronAPI.invoke) {
-                await window.electronAPI.invoke('open-external', fullPath);
+            if (window.electronAPI?.navigation?.openExternal) {
+                await window.electronAPI.navigation.openExternal(fullPath);
             } else {
                 notifyInternalLink(`Cannot open ${filePath} inside the editor. Open it externally instead.`, 'warning');
             }
@@ -193,7 +193,7 @@ async function openInternalLink(filePath, originalLink) {
         }
 
         // CRITICAL FIX: Use read-file-content instead of open-file-path to avoid changing currentFilePath
-        const result = await window.electronAPI.invoke('read-file-content', fullPath);
+        const result = await window.electronAPI.files.readFileContent(fullPath);
 
         if (result.success) {
 
@@ -258,7 +258,7 @@ async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
         if (!fullPath) return;
         
         // CRITICAL FIX: Use read-file-content for hover previews to avoid changing currentFilePath
-        const result = await window.electronAPI.invoke('read-file-content', fullPath);
+        const result = await window.electronAPI.files.readFileContent(fullPath);
         
         if (result.success && result.content) {
             const content = extractPreviewContent(result.content);
@@ -443,7 +443,7 @@ async function toggleLinkPreview() {
     try {
         const updatedSettings = { ...window.appSettings };
         updatedSettings.linkPreview.mode = newMode;
-        await window.electronAPI.invoke('set-settings', updatedSettings);
+        await window.electronAPI.settings.setSettings(updatedSettings);
         
         // Show notification
         const modes = {

@@ -88,4 +88,21 @@ test('@packaged @ui-state packaged modes share the same live pane state', async 
     }
   });
   await appPage.locator('.nightowl-diagnostics-close').click();
+
+  const ipcSurface = await appPage.evaluate(async () => ({
+    invoke: typeof window.electronAPI.invoke,
+    on: typeof window.electronAPI.on,
+    send: typeof window.electronAPI.send,
+    hasFiles: typeof window.electronAPI.files?.readFile === 'function',
+    hasTerminal: typeof window.electronAPI.terminal?.exec === 'function',
+    settingsLoaded: Boolean(await window.electronAPI.settings.getSettings())
+  }));
+  expect(ipcSurface).toEqual({
+    invoke: 'undefined',
+    on: 'undefined',
+    send: 'undefined',
+    hasFiles: true,
+    hasTerminal: true,
+    settingsLoaded: true
+  });
 });

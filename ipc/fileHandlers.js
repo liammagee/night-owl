@@ -1136,6 +1136,41 @@ function register(deps) {
     }
   });
 
+  ipcMain.handle('extract-text-with-replacement', async (event, request) => {
+    const originalResult = resolveWorkspaceWritePath(request.originalFilePath, 'Original file path');
+    if (!originalResult.success) return pathGuardFailure(originalResult);
+    const newFileResult = resolveWorkspaceWritePath(request.newFilePath, 'New file path');
+    if (!newFileResult.success) return pathGuardFailure(newFileResult);
+
+    try {
+      const originalContent = await fs.readFile(originalResult.path, 'utf8');
+      const occurrence = originalContent.indexOf(request.textToReplace);
+      if (occurrence < 0) {
+        return { success: false, error: 'Selected text no longer matches the saved source file' };
+      }
+      const updatedOriginalContent = [
+        originalContent.slice(0, occurrence),
+        request.replacementText,
+        originalContent.slice(occurrence + request.textToReplace.length)
+      ].join('');
+
+      await fs.mkdir(path.dirname(newFileResult.path), { recursive: true });
+      const newFileSave = await guardedWriteFile(newFileResult.path, request.newFileContent, {}, { fileStateMap });
+      if (!newFileSave.success) return newFileSave;
+      const originalSave = await guardedWriteFile(originalResult.path, updatedOriginalContent, {}, { fileStateMap });
+      if (!originalSave.success) return originalSave;
+      clearFileScanCaches();
+      return {
+        success: true,
+        originalFilePath: originalResult.path,
+        newFilePath: newFileResult.path,
+        updatedOriginalContent
+      };
+    } catch (error) {
+      return { success: false, error: `Failed to extract text: ${error.message}` };
+    }
+  });
+
   // File Opening Operations  
   ipcMain.handle('open-file', async (event, filePath) => {
     try {

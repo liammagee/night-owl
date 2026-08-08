@@ -60,7 +60,7 @@ function parseInternalLinks(content, filename) {
 async function getFileContentForParsing(filename) {
   try {
     if (window.electronAPI) {
-      const result = await window.electronAPI.invoke('read-file-content', filename);
+      const result = await window.electronAPI.files.readFileContent(filename);
       return result.success ? result.content : '';
     }
     return '';

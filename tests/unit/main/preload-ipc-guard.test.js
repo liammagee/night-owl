@@ -2,8 +2,9 @@ const {
   ALLOWED_INVOKE_CHANNELS,
   ALLOWED_ON_CHANNELS,
   ALLOWED_SEND_CHANNELS,
-  createGuardedIpcBridge,
-  removeAllAllowedListeners
+  createCapabilityApi,
+  getInvokeContract,
+  validateInvokeArgs
 } = require('../../../preload-ipc-guard');
 
 describe('preload IPC guard', () => {
@@ -17,14 +18,14 @@ describe('preload IPC guard', () => {
     };
   }
 
-  test('allows known app channels and strips the event object from listeners', async () => {
+  test('exposes fixed capability methods and strips event objects from listeners', async () => {
     const ipcRenderer = createIpcRendererMock();
-    const bridge = createGuardedIpcBridge(ipcRenderer);
+    const bridge = createCapabilityApi(ipcRenderer, { platform: 'test' });
     const listener = jest.fn();
 
-    await expect(bridge.invoke('get-settings')).resolves.toEqual({ success: true });
-    const unsubscribe = bridge.on('settings-changed', listener);
-    bridge.send('save-layout', { width: 300 });
+    await expect(bridge.settings.getSettings()).resolves.toEqual({ success: true });
+    const unsubscribe = bridge.events.settingsChanged(listener);
+    bridge.signals.saveLayout({ width: 300 });
 
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('get-settings');
     expect(ipcRenderer.on).toHaveBeenCalledWith('settings-changed', expect.any(Function));
@@ -38,12 +39,27 @@ describe('preload IPC guard', () => {
     expect(ipcRenderer.removeListener).toHaveBeenCalledWith('settings-changed', subscription);
   });
 
-  test('blocks arbitrary invoke, on, and send channels', () => {
-    const bridge = createGuardedIpcBridge(createIpcRendererMock());
+  test('does not expose a string-based invoke, on, or send escape hatch', () => {
+    const bridge = createCapabilityApi(createIpcRendererMock());
 
-    expect(() => bridge.invoke('shell-run', 'rm -rf /')).toThrow(/Blocked invoke IPC channel/);
-    expect(() => bridge.on('untrusted-event', () => {})).toThrow(/Blocked on IPC channel/);
-    expect(() => bridge.send('untrusted-send')).toThrow(/Blocked send IPC channel/);
+    expect(bridge.invoke).toBeUndefined();
+    expect(bridge.on).toBeUndefined();
+    expect(bridge.send).toBeUndefined();
+    expect(bridge.git.status).toEqual(expect.any(Function));
+    expect(bridge.terminal.exec).toEqual(expect.any(Function));
+    expect(bridge.feed.setCredential).toEqual(expect.any(Function));
+    expect(Object.isFrozen(bridge)).toBe(true);
+  });
+
+  test('rejects malformed privileged payloads before they reach ipcRenderer', () => {
+    const ipcRenderer = createIpcRendererMock();
+    const bridge = createCapabilityApi(ipcRenderer);
+
+    expect(() => bridge.terminal.exec({ cwd: '/tmp' })).toThrow(/Invalid payload for terminal-exec/);
+    expect(() => bridge.git.stage({ repoRoot: '/repo', paths: 'all' })).toThrow(/request.paths/);
+    expect(() => bridge.files.saveFile({ filePath: '/tmp/a.md' })).toThrow(/file.content/);
+    expect(() => bridge.collaboration.startServer({ port: 70000 })).toThrow(/options.port/);
+    expect(ipcRenderer.invoke).not.toHaveBeenCalled();
   });
 
   test('keeps the expected channel sets explicit', () => {
@@ -61,13 +77,30 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_ON_CHANNELS.has('toggle-assistant-terminal')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('open-diagnostics')).toBe(true);
     expect(ALLOWED_SEND_CHANNELS.has('save-layout')).toBe(true);
+    expect(getInvokeContract('git-stage')).toEqual({
+      channel: 'git-stage',
+      capability: 'git',
+      method: 'stage'
+    });
+    expect(getInvokeContract('read-file')).toEqual({
+      channel: 'read-file',
+      capability: 'files',
+      method: 'readFile'
+    });
   });
 
-  test('cleanup only removes allowlisted listener channels', () => {
-    const ipcRenderer = createIpcRendererMock();
-    removeAllAllowedListeners(ipcRenderer);
+  test('validates privileged payloads for the main-process boundary too', () => {
+    expect(() => validateInvokeArgs('terminal-write', [{ data: 'ls\n' }])).not.toThrow();
+    expect(() => validateInvokeArgs('terminal-write', [{ data: () => {} }])).toThrow(/unsupported function data/);
+    expect(() => validateInvokeArgs('shell-run', [])).toThrow(/Unknown invoke channel/);
+  });
 
-    expect(ipcRenderer.removeAllListeners).toHaveBeenCalledWith('settings-changed');
-    expect(ipcRenderer.removeAllListeners).not.toHaveBeenCalledWith('shell-run');
+  test('accepts repeated serializable references but rejects actual cycles', () => {
+    const shared = { value: 'same object' };
+    expect(() => validateInvokeArgs('debug-log', [{ first: shared, second: shared }])).not.toThrow();
+
+    const circular = {};
+    circular.self = circular;
+    expect(() => validateInvokeArgs('debug-log', [circular])).toThrow(/circular reference/);
   });
 });

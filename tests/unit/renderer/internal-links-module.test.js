@@ -1,5 +1,6 @@
 describe('internalLinks module', () => {
   const modulePath = '../../../orchestrator/modules/internalLinks.js';
+  let readFileContent;
 
   beforeEach(() => {
     jest.resetModules();
@@ -8,9 +9,8 @@ describe('internalLinks module', () => {
       workingDirectory: '/workspace',
       linkPreview: { mode: 'hover' }
     };
-    window.electronAPI = {
-      invoke: jest.fn()
-    };
+    readFileContent = jest.fn();
+    window.electronAPI = { files: { readFileContent } };
     window.openFileInEditor = jest.fn();
     window.showNotification = jest.fn();
     window.marked = {
@@ -30,7 +30,7 @@ describe('internalLinks module', () => {
 
   test('opens relative links against the working directory', async () => {
     require(modulePath);
-    window.electronAPI.invoke.mockResolvedValueOnce({
+    readFileContent.mockResolvedValueOnce({
       success: true,
       filePath: '/workspace/notes/today.md',
       content: '# Today'
@@ -38,7 +38,7 @@ describe('internalLinks module', () => {
 
     await window.openInternalLink('notes/today.md', 'notes/today');
 
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('read-file-content', '/workspace/notes/today.md');
+    expect(readFileContent).toHaveBeenCalledWith('/workspace/notes/today.md');
     expect(window.openFileInEditor).toHaveBeenCalledWith(
       '/workspace/notes/today.md',
       '# Today',
@@ -48,7 +48,7 @@ describe('internalLinks module', () => {
 
   test('uses notifications instead of blocking alerts when a link is missing', async () => {
     require(modulePath);
-    window.electronAPI.invoke.mockResolvedValueOnce({
+    readFileContent.mockResolvedValueOnce({
       success: false
     });
 

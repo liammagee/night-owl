@@ -1,12 +1,15 @@
 // Tests for git panel module logic
 // Tests cover IPC call patterns, UI rendering, state management, and DOM interactions
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 
 describe('Git Panel', () => {
   let mockInvoke;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockInvoke = global.electronAPI.invoke;
+    const bridge = createElectronApiMock();
+    mockInvoke = bridge.invoke;
+    global.electronAPI = bridge.api;
 
     // Setup window state
     global.window.electronAPI = global.electronAPI;
@@ -31,7 +34,7 @@ describe('Git Panel', () => {
         unstaged: [{ file: 'src/app.js', status: 'untracked', statusCode: '??' }]
       });
 
-      const result = await global.electronAPI.invoke('git-status-detailed', '/repo');
+      const result = await global.electronAPI.git.statusDetailed('/repo');
       expect(result.success).toBe(true);
       expect(result.staged).toHaveLength(1);
       expect(result.unstaged).toHaveLength(1);
@@ -42,7 +45,7 @@ describe('Git Panel', () => {
     test('git-stage calls with correct arguments', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-stage', {
+      await global.electronAPI.git.stage({
         repoRoot: '/repo',
         paths: ['src/file.js']
       });
@@ -56,7 +59,7 @@ describe('Git Panel', () => {
     test('git-unstage calls with correct arguments', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-unstage', {
+      await global.electronAPI.git.unstage({
         repoRoot: '/repo',
         paths: ['src/file.js']
       });
@@ -70,7 +73,7 @@ describe('Git Panel', () => {
     test('git-discard handles tracked and untracked files', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-discard', {
+      await global.electronAPI.git.discard({
         repoRoot: '/repo',
         paths: ['src/file.js'],
         untracked: false
@@ -82,7 +85,7 @@ describe('Git Panel', () => {
         untracked: false
       });
 
-      await global.electronAPI.invoke('git-discard', {
+      await global.electronAPI.git.discard({
         repoRoot: '/repo',
         paths: ['new-file.js'],
         untracked: true
@@ -98,7 +101,7 @@ describe('Git Panel', () => {
     test('git-commit returns commit hash on success', async () => {
       mockInvoke.mockResolvedValue({ success: true, commitHash: 'abc1234' });
 
-      const result = await global.electronAPI.invoke('git-commit', {
+      const result = await global.electronAPI.git.commit({
         repoRoot: '/repo',
         message: 'Test commit'
       });
@@ -110,7 +113,7 @@ describe('Git Panel', () => {
     test('git-commit returns error on failure', async () => {
       mockInvoke.mockResolvedValue({ success: false, error: 'Nothing to commit' });
 
-      const result = await global.electronAPI.invoke('git-commit', {
+      const result = await global.electronAPI.git.commit({
         repoRoot: '/repo',
         message: 'Test'
       });
@@ -129,7 +132,7 @@ describe('Git Panel', () => {
         current: 'main'
       });
 
-      const result = await global.electronAPI.invoke('git-list-branches', '/repo');
+      const result = await global.electronAPI.git.listBranches('/repo');
       expect(result.success).toBe(true);
       expect(result.local).toContain('main');
       expect(result.remote).toContain('develop');
@@ -139,7 +142,7 @@ describe('Git Panel', () => {
     test('git-switch-branch can create new branch', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-switch-branch', {
+      await global.electronAPI.git.switchBranch({
         repoRoot: '/repo',
         branch: 'new-feature',
         create: true
@@ -155,7 +158,7 @@ describe('Git Panel', () => {
     test('git-pull returns output on success', async () => {
       mockInvoke.mockResolvedValue({ success: true, output: 'Already up to date.' });
 
-      const result = await global.electronAPI.invoke('git-pull', '/repo');
+      const result = await global.electronAPI.git.pull('/repo');
       expect(result.success).toBe(true);
       expect(result.output).toBe('Already up to date.');
     });
@@ -171,7 +174,7 @@ describe('Git Panel', () => {
         ]
       });
 
-      const result = await global.electronAPI.invoke('git-log', { repoRoot: '/repo', limit: 50 });
+      const result = await global.electronAPI.git.log({ repoRoot: '/repo', limit: 50 });
       expect(result.success).toBe(true);
       expect(result.commits).toHaveLength(2);
       expect(result.commits[0].shortHash).toBe('abc123');
@@ -191,7 +194,7 @@ describe('Git Panel', () => {
         }
       });
 
-      const result = await global.electronAPI.invoke('git-show', { repoRoot: '/repo', hash: 'abc123full' });
+      const result = await global.electronAPI.git.show({ repoRoot: '/repo', hash: 'abc123full' });
       expect(result.success).toBe(true);
       expect(result.commit.files).toHaveLength(1);
     });
@@ -206,7 +209,7 @@ describe('Git Panel', () => {
         ]
       });
 
-      const result = await global.electronAPI.invoke('git-stash-list', '/repo');
+      const result = await global.electronAPI.git.stashList('/repo');
       expect(result.success).toBe(true);
       expect(result.stashes).toHaveLength(1);
       expect(result.stashes[0].ref).toBe('stash@{0}');
@@ -215,7 +218,7 @@ describe('Git Panel', () => {
     test('git-stash-save accepts optional message', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-stash-save', {
+      await global.electronAPI.git.stashSave({
         repoRoot: '/repo',
         message: 'Save before switch'
       });
@@ -229,7 +232,7 @@ describe('Git Panel', () => {
     test('git-stash-apply supports pop mode', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-stash-apply', {
+      await global.electronAPI.git.stashApply({
         repoRoot: '/repo',
         ref: 'stash@{0}',
         drop: true
@@ -253,7 +256,7 @@ describe('Git Panel', () => {
         ]
       });
 
-      const result = await global.electronAPI.invoke('git-blame', {
+      const result = await global.electronAPI.git.blame({
         repoRoot: '/repo',
         filePath: 'src/index.js'
       });
@@ -272,7 +275,7 @@ describe('Git Panel', () => {
         files: ['src/app.js', 'src/utils.js']
       });
 
-      const result = await global.electronAPI.invoke('git-merge-conflicts', '/repo');
+      const result = await global.electronAPI.git.mergeConflicts('/repo');
       expect(result.success).toBe(true);
       expect(result.files).toHaveLength(2);
     });
@@ -280,7 +283,7 @@ describe('Git Panel', () => {
     test('git-mark-resolved stages the file', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-mark-resolved', {
+      await global.electronAPI.git.markResolved({
         repoRoot: '/repo',
         filePath: 'src/app.js'
       });
@@ -299,7 +302,7 @@ describe('Git Panel', () => {
         diff: 'diff --git a/file.js b/file.js\n--- a/file.js\n+++ b/file.js'
       });
 
-      const result = await global.electronAPI.invoke('git-diff', {
+      const result = await global.electronAPI.git.diff({
         repoRoot: '/repo',
         filePath: 'file.js',
         cached: false
@@ -312,7 +315,7 @@ describe('Git Panel', () => {
     test('git-diff with cached flag for staged changes', async () => {
       mockInvoke.mockResolvedValue({ success: true, diff: '' });
 
-      await global.electronAPI.invoke('git-diff', {
+      await global.electronAPI.git.diff({
         repoRoot: '/repo',
         filePath: 'file.js',
         cached: true
@@ -328,7 +331,7 @@ describe('Git Panel', () => {
     test('git-file-content retrieves content at ref', async () => {
       mockInvoke.mockResolvedValue({ success: true, content: 'const x = 1;' });
 
-      const result = await global.electronAPI.invoke('git-file-content', {
+      const result = await global.electronAPI.git.fileContent({
         repoRoot: '/repo',
         ref: 'HEAD',
         filePath: 'src/index.js'
@@ -341,7 +344,7 @@ describe('Git Panel', () => {
     test('git-file-content returns error for new files', async () => {
       mockInvoke.mockResolvedValue({ success: false, error: 'path not found' });
 
-      const result = await global.electronAPI.invoke('git-file-content', {
+      const result = await global.electronAPI.git.fileContent({
         repoRoot: '/repo',
         ref: 'HEAD',
         filePath: 'new-file.js'
@@ -355,14 +358,14 @@ describe('Git Panel', () => {
     test('git-push succeeds', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      const result = await global.electronAPI.invoke('git-push', '/repo');
+      const result = await global.electronAPI.git.push('/repo');
       expect(result.success).toBe(true);
     });
 
     test('git-push returns error on failure', async () => {
       mockInvoke.mockResolvedValue({ success: false, error: 'Authentication failed' });
 
-      const result = await global.electronAPI.invoke('git-push', '/repo');
+      const result = await global.electronAPI.git.push('/repo');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Authentication');
     });
@@ -372,7 +375,7 @@ describe('Git Panel', () => {
     test('git-fetch returns behind count', async () => {
       mockInvoke.mockResolvedValue({ success: true, behind: 3 });
 
-      const result = await global.electronAPI.invoke('git-fetch', '/repo');
+      const result = await global.electronAPI.git.fetch('/repo');
       expect(result.success).toBe(true);
       expect(result.behind).toBe(3);
     });
@@ -569,7 +572,7 @@ describe('Git Panel', () => {
     test('stage all should call git-stage with dot path', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-stage', { repoRoot: '/repo', paths: ['.'] });
+      await global.electronAPI.git.stage({ repoRoot: '/repo', paths: ['.'] });
 
       expect(mockInvoke).toHaveBeenCalledWith('git-stage', {
         repoRoot: '/repo',
@@ -580,7 +583,7 @@ describe('Git Panel', () => {
     test('unstage all should call git-unstage with dot path', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-unstage', { repoRoot: '/repo', paths: ['.'] });
+      await global.electronAPI.git.unstage({ repoRoot: '/repo', paths: ['.'] });
 
       expect(mockInvoke).toHaveBeenCalledWith('git-unstage', {
         repoRoot: '/repo',
@@ -592,7 +595,7 @@ describe('Git Panel', () => {
       mockInvoke.mockResolvedValue({ success: true });
 
       const paths = ['src/a.js', 'src/b.js', 'test/c.test.js'];
-      await global.electronAPI.invoke('git-stage', { repoRoot: '/repo', paths });
+      await global.electronAPI.git.stage({ repoRoot: '/repo', paths });
 
       expect(mockInvoke).toHaveBeenCalledWith('git-stage', {
         repoRoot: '/repo',
@@ -708,11 +711,11 @@ describe('Git Panel', () => {
     test('full commit workflow: stage → commit → push', async () => {
       // Stage files
       mockInvoke.mockResolvedValueOnce({ success: true });
-      await global.electronAPI.invoke('git-stage', { repoRoot: '/repo', paths: ['src/app.js'] });
+      await global.electronAPI.git.stage({ repoRoot: '/repo', paths: ['src/app.js'] });
 
       // Commit
       mockInvoke.mockResolvedValueOnce({ success: true, commitHash: 'abc1234' });
-      const commitResult = await global.electronAPI.invoke('git-commit', {
+      const commitResult = await global.electronAPI.git.commit({
         repoRoot: '/repo',
         message: 'Fix login bug'
       });
@@ -720,7 +723,7 @@ describe('Git Panel', () => {
 
       // Push
       mockInvoke.mockResolvedValueOnce({ success: true });
-      const pushResult = await global.electronAPI.invoke('git-push', '/repo');
+      const pushResult = await global.electronAPI.git.push('/repo');
       expect(pushResult.success).toBe(true);
 
       expect(mockInvoke).toHaveBeenCalledTimes(3);
@@ -729,14 +732,14 @@ describe('Git Panel', () => {
     test('stash and switch workflow: stash → switch → apply', async () => {
       // Stash current changes
       mockInvoke.mockResolvedValueOnce({ success: true });
-      await global.electronAPI.invoke('git-stash-save', {
+      await global.electronAPI.git.stashSave({
         repoRoot: '/repo',
         message: 'WIP before switch'
       });
 
       // Switch branch
       mockInvoke.mockResolvedValueOnce({ success: true });
-      await global.electronAPI.invoke('git-switch-branch', {
+      await global.electronAPI.git.switchBranch({
         repoRoot: '/repo',
         branch: 'other-branch',
         create: false
@@ -744,7 +747,7 @@ describe('Git Panel', () => {
 
       // Apply stash on return
       mockInvoke.mockResolvedValueOnce({ success: true });
-      await global.electronAPI.invoke('git-stash-apply', {
+      await global.electronAPI.git.stashApply({
         repoRoot: '/repo',
         ref: 'stash@{0}',
         drop: true
@@ -759,7 +762,7 @@ describe('Git Panel', () => {
         success: false,
         error: 'CONFLICT (content): Merge conflict in src/app.js'
       });
-      const pullResult = await global.electronAPI.invoke('git-pull', '/repo');
+      const pullResult = await global.electronAPI.git.pull('/repo');
       expect(pullResult.success).toBe(false);
 
       // Check conflicts
@@ -767,12 +770,12 @@ describe('Git Panel', () => {
         success: true,
         files: ['src/app.js']
       });
-      const conflicts = await global.electronAPI.invoke('git-merge-conflicts', '/repo');
+      const conflicts = await global.electronAPI.git.mergeConflicts('/repo');
       expect(conflicts.files).toHaveLength(1);
 
       // Mark resolved
       mockInvoke.mockResolvedValueOnce({ success: true });
-      await global.electronAPI.invoke('git-mark-resolved', {
+      await global.electronAPI.git.markResolved({
         repoRoot: '/repo',
         filePath: 'src/app.js'
       });
@@ -787,10 +790,10 @@ describe('Git Panel', () => {
         .mockResolvedValueOnce({ success: true, staged: [], unstaged: [] })
         .mockResolvedValueOnce({ success: true, stashes: [] });
 
-      await global.electronAPI.invoke('git-find-repo', '/test/repo');
-      await global.electronAPI.invoke('git-get-branch', '/repo');
-      await global.electronAPI.invoke('git-status-detailed', '/repo');
-      await global.electronAPI.invoke('git-stash-list', '/repo');
+      await global.electronAPI.git.findRepo('/test/repo');
+      await global.electronAPI.git.getBranch('/repo');
+      await global.electronAPI.git.statusDetailed('/repo');
+      await global.electronAPI.git.stashList('/repo');
 
       expect(mockInvoke).toHaveBeenCalledTimes(4);
       expect(mockInvoke).toHaveBeenNthCalledWith(1, 'git-find-repo', '/test/repo');
@@ -804,7 +807,7 @@ describe('Git Panel', () => {
     test('should handle non-git directory gracefully', async () => {
       mockInvoke.mockResolvedValue({ success: false, error: 'Not a git repository' });
 
-      const result = await global.electronAPI.invoke('git-find-repo', '/not-a-repo');
+      const result = await global.electronAPI.git.findRepo('/not-a-repo');
       expect(result.success).toBe(false);
     });
 
@@ -817,7 +820,7 @@ describe('Git Panel', () => {
     test('should handle special characters in file paths', async () => {
       mockInvoke.mockResolvedValue({ success: true });
 
-      await global.electronAPI.invoke('git-stage', {
+      await global.electronAPI.git.stage({
         repoRoot: '/repo',
         paths: ['src/file with spaces.js', 'src/file"quotes.js']
       });
@@ -836,7 +839,7 @@ describe('Git Panel', () => {
         unstaged: []
       });
 
-      const result = await global.electronAPI.invoke('git-status-detailed', '/repo');
+      const result = await global.electronAPI.git.statusDetailed('/repo');
       expect(result.staged[0].file).toBe(longPath);
     });
 
@@ -848,8 +851,8 @@ describe('Git Panel', () => {
       });
 
       const results = await Promise.all([
-        global.electronAPI.invoke('git-status-detailed', '/repo'),
-        global.electronAPI.invoke('git-status-detailed', '/repo'),
+        global.electronAPI.git.statusDetailed('/repo'),
+        global.electronAPI.git.statusDetailed('/repo'),
       ]);
 
       expect(results).toHaveLength(2);
@@ -863,7 +866,7 @@ describe('Git Panel', () => {
         unstaged: []
       });
 
-      const result = await global.electronAPI.invoke('git-status-detailed', '/repo');
+      const result = await global.electronAPI.git.statusDetailed('/repo');
       expect(result.staged[0].status).toBe('renamed');
     });
   });

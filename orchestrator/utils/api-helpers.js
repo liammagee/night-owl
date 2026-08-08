@@ -5,8 +5,8 @@
 window.ApiHelpers = window.ApiHelpers || {};
 
 /**
- * Wrapper for electronAPI.invoke calls with standardized error handling
- * @param {string} method - The electronAPI method to invoke
+ * Wrapper for a fixed preload capability with standardized error handling
+ * @param {Function} operation - A capability method exposed by preload
  * @param {any} data - Data to pass to the method
  * @param {Object} options - Options for error handling
  * @param {string} options.errorMessage - Custom error message for notifications
@@ -14,21 +14,18 @@ window.ApiHelpers = window.ApiHelpers || {};
  * @param {boolean} options.logError - Whether to log errors to console (default: true)
  * @returns {Promise<any>} The result of the API call
  */
-window.ApiHelpers.invokeElectronAPI = async function(method, data = null, options = {}) {
+window.ApiHelpers.callElectronAPI = async function(operation, args = [], options = {}) {
     const {
-        errorMessage = `Error calling ${method}`,
+        errorMessage = 'Electron operation failed',
         showNotification: shouldShowNotification = true,
         logError = true
     } = options;
 
     try {
-        if (!window.electronAPI) {
-            throw new Error('ElectronAPI not available');
+        if (typeof operation !== 'function') {
+            throw new Error('Electron capability not available');
         }
-
-        const result = data !== null 
-            ? await window.electronAPI.invoke(method, data)
-            : await window.electronAPI.invoke(method);
+        const result = await operation(...args);
 
         // Handle API responses that include error messages
         if (result && result.error) {
@@ -56,19 +53,8 @@ window.ApiHelpers.invokeElectronAPI = async function(method, data = null, option
  * @param {any} data - Additional data for the operation
  * @returns {Promise<any>} The result of the file operation
  */
-window.ApiHelpers.invokeFileOperation = async function(method, filePath, data = null) {
-    return window.ApiHelpers.invokeElectronAPI(method, data ? { filePath, ...data } : filePath, {
-        errorMessage: `Failed to ${method.replace('-', ' ')} file`
-    });
-}
-
-/**
- * Helper for settings operations
- * @param {Object} settings - Settings data
- * @returns {Promise<any>} The result of the settings operation
- */
 window.ApiHelpers.saveSettings = async function(settings) {
-    return window.ApiHelpers.invokeElectronAPI('set-settings', settings, {
+    return window.ApiHelpers.callElectronAPI(window.electronAPI?.settings?.setSettings, [settings], {
         errorMessage: 'Failed to save settings'
     });
 }
@@ -78,7 +64,7 @@ window.ApiHelpers.saveSettings = async function(settings) {
  * @returns {Promise<Object>} The current settings
  */
 window.ApiHelpers.getSettings = async function() {
-    return window.ApiHelpers.invokeElectronAPI('get-settings', null, {
+    return window.ApiHelpers.callElectronAPI(window.electronAPI?.settings?.getSettings, [], {
         errorMessage: 'Failed to load settings'
     });
 }

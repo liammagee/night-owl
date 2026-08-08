@@ -173,7 +173,7 @@ function setupKeyboardShortcuts() {
           e.preventDefault();
           // Trigger save
           if (window.electronAPI) {
-            window.electronAPI.invoke('perform-save', getCurrentEditorContent());
+            window.electronAPI.files.performSave(getCurrentEditorContent());
           }
           break;
           
@@ -181,7 +181,7 @@ function setupKeyboardShortcuts() {
           e.preventDefault();
           // New file
           if (window.electronAPI) {
-            window.electronAPI.invoke('trigger-new-file');
+            window.electronAPI.app.triggerNewFile();
           }
           break;
           
@@ -428,22 +428,14 @@ function setupElectronIntegration() {
       });
     }
     
-    // Handle app ready state
-    window.electronAPI.onAppReady?.(() => {});
-    
     // Handle file operations
-    window.electronAPI.onFileOpened?.((content, filePath) => {
-      setEditorContent(content);
+    window.electronAPI.events?.fileOpened?.((data) => {
+      if (typeof data?.content === 'string') setEditorContent(data.content);
     });
-    
-    // Handle app updates
-    window.electronAPI.onUpdateAvailable?.((info) => {
-      // Show update notification
-    });
-    
+
     // Handle gamification panel toggle from menu
-    if (window.electronAPI.onToggleGamificationPanel) {
-      window.electronAPI.onToggleGamificationPanel(() => {
+    if (window.electronAPI.events?.toggleGamificationPanel) {
+      window.electronAPI.events.toggleGamificationPanel(() => {
         if (window.toggleGamificationPanel) {
           window.toggleGamificationPanel();
         }

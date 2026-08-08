@@ -238,7 +238,7 @@ test.describe('File Operations', () => {
     test('should have move-file IPC handler registered', async () => {
       // Test that the IPC handler exists by checking electronAPI
       const hasHandler = await sharedWindow.evaluate(() => {
-        return typeof window.electronAPI?.invoke === 'function';
+        return typeof window.electronAPI?.files?.moveFile === 'function';
       });
       expect(hasHandler).toBe(true);
     });
@@ -246,7 +246,7 @@ test.describe('File Operations', () => {
     test('should have copy-file-to IPC handler registered', async () => {
       // Test that the IPC handler exists
       const hasHandler = await sharedWindow.evaluate(() => {
-        return typeof window.electronAPI?.invoke === 'function';
+        return typeof window.electronAPI?.files?.copyFileTo === 'function';
       });
       expect(hasHandler).toBe(true);
     });
