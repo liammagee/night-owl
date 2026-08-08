@@ -49,6 +49,10 @@ describe('nightowl-presentations plugin', () => {
     const cssArgs = host.loadCSS.mock.calls.map(c => c[0]);
     expect(cssArgs.some(url => url.includes('preview-presentation.css'))).toBe(true);
     expect(cssArgs.some(url => url.includes('speaker-notes.css'))).toBe(true);
+    expect(host.loadCSS).toHaveBeenCalledWith(
+      expect.stringContaining('preview-presentation.css'),
+      { id: 'nightowl-presentations-preview-css' }
+    );
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
     // Scripts loaded (with optional cache-busting query params)

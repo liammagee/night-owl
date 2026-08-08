@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-08T11:40:42.392Z",
+  "generated": "2026-08-08T11:55:34.664Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 8,
-      "done": 11
+      "triaged": 7,
+      "done": 12
     },
     "byPriority": {
       "P2": 10,
@@ -13,12 +13,12 @@
     },
     "byArea": {
       "accessibility": 1,
-      "presentation": 3,
       "security": 2,
       "performance": 1,
       "architecture": 3,
       "platform": 2,
       "editor": 1,
+      "presentation": 3,
       "preview": 1,
       "testing": 3,
       "packaging": 2
@@ -45,29 +45,6 @@
       ],
       "depends_on": [
         "modernize-electron-e2e-harness"
-      ]
-    },
-    {
-      "id": "consolidate-presentation-source-and-styles",
-      "title": "Make presentation source, build output, and CSS ownership explicit",
-      "status": "triaged",
-      "type": "refactor",
-      "priority": "P2",
-      "area": "presentation",
-      "owner": "unassigned",
-      "source": "systematic-review",
-      "evidence": "opportunity",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "One documented build command deterministically produces the shipped presentation asset, one canonical stylesheet owns slide layout, and CI rejects stale generated output.",
-      "tags": [
-        "build",
-        "css",
-        "presentation"
-      ],
-      "depends_on": [
-        "fit-presentation-slides-to-viewport",
-        "recover-presentation-load-failures"
       ]
     },
     {
@@ -379,6 +356,29 @@
       ],
       "depends_on": [
         "reliable-editor-preview-transitions",
+        "recover-presentation-load-failures"
+      ]
+    },
+    {
+      "id": "consolidate-presentation-source-and-styles",
+      "title": "Make presentation source, build output, and CSS ownership explicit",
+      "status": "done",
+      "type": "refactor",
+      "priority": "P2",
+      "area": "presentation",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "The root presentation build/check deterministically reproduces MarkdownPreziApp.js; local CI passed 6/6 stages, 92 suites / 1,193 tests, and 7 required Electron workflows; a fresh ARM64 package passed 3/3 packaged workflows and ASAR inspection contained only canonical plugin assets.",
+      "tags": [
+        "build",
+        "css",
+        "presentation"
+      ],
+      "depends_on": [
+        "fit-presentation-slides-to-viewport",
         "recover-presentation-load-failures"
       ]
     },

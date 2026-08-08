@@ -310,6 +310,17 @@ test('@required @mode-recovery presentation failure offers recovery and retry re
 
 test('@required @slide-geometry delivery mode contains the complete current slide', async ({ appPage }) => {
   await enterPresentation(appPage);
+
+  const presentationStyles = await appPage.evaluate(() => (
+    Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .map(link => ({ id: link.id, href: link.getAttribute('href') || '' }))
+      .filter(link => link.href.includes('preview-presentation.css'))
+  ));
+  expect(presentationStyles).toEqual([{
+    id: 'nightowl-presentations-preview-css',
+    href: 'plugins/techne-presentations/preview-presentation.css'
+  }]);
+
   await appPage.locator('.presentation-present-btn').click();
   await expect(appPage.locator('.presentation-shell')).toHaveAttribute('data-presentation-mode', 'delivery');
   await expect(appPage.locator('.presentation-stage')).toHaveAttribute('data-fit-mode', 'contain');

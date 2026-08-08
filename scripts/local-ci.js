@@ -155,6 +155,11 @@ function createStages({ dependency, release = false }) {
       args: ['scripts/workplan.js', 'check']
     },
     {
+      name: 'Presentation generated assets',
+      command: process.execPath,
+      args: ['scripts/build-presentations.js', '--check']
+    },
+    {
       name: 'Jest unit, integration, and behavioral suites',
       command: process.execPath,
       args: [path.join(dependency.path, 'jest', 'bin', 'jest.js'), '--runInBand']
