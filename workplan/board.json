@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-08T11:18:30.697Z",
+  "generated": "2026-08-08T11:40:42.392Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 9,
-      "done": 10
+      "triaged": 8,
+      "done": 11
     },
     "byPriority": {
       "P2": 10,
@@ -14,9 +14,9 @@
     "byArea": {
       "accessibility": 1,
       "presentation": 3,
-      "architecture": 3,
       "security": 2,
       "performance": 1,
+      "architecture": 3,
       "platform": 2,
       "editor": 1,
       "preview": 1,
@@ -68,29 +68,6 @@
       "depends_on": [
         "fit-presentation-slides-to-viewport",
         "recover-presentation-load-failures"
-      ]
-    },
-    {
-      "id": "decompose-renderer-orchestrator",
-      "title": "Decompose renderer.js around workflow coordinators",
-      "status": "triaged",
-      "type": "refactor",
-      "priority": "P2",
-      "area": "architecture",
-      "owner": "unassigned",
-      "source": "existing-plan",
-      "evidence": "opportunity",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "File opening, preview routing, file-tree orchestration, and pane transitions have independent modules with contract tests, while renderer.js no longer owns their mutable state.",
-      "tags": [
-        "architecture",
-        "renderer",
-        "technical-debt"
-      ],
-      "depends_on": [
-        "reliable-editor-preview-transitions",
-        "single-source-mode-and-pane-state"
       ]
     },
     {
@@ -403,6 +380,29 @@
       "depends_on": [
         "reliable-editor-preview-transitions",
         "recover-presentation-load-failures"
+      ]
+    },
+    {
+      "id": "decompose-renderer-orchestrator",
+      "title": "Decompose renderer.js around workflow coordinators",
+      "status": "done",
+      "type": "refactor",
+      "priority": "P2",
+      "area": "architecture",
+      "owner": "codex",
+      "source": "existing-plan",
+      "evidence": "source-analysis",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "File opening, preview routing, file-tree orchestration, and pane transitions now use dependency-injected controllers. Local CI passed 91 suites / 1,188 tests and 7 required Electron workflows; a fresh ARM64 package passed all 3 packaged workflows.",
+      "tags": [
+        "architecture",
+        "renderer",
+        "technical-debt"
+      ],
+      "depends_on": [
+        "reliable-editor-preview-transitions",
+        "single-source-mode-and-pane-state"
       ]
     },
     {

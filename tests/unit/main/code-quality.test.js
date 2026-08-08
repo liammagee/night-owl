@@ -361,24 +361,50 @@ describe('Code quality guardrails', () => {
   test('file opens use a latest-wins transition before asynchronous reads', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const coordinatorSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-transition-coordinator.js'), 'utf8');
+    const fileOpenSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-open-controller.js'), 'utf8');
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
-    const openPathIndex = rendererSource.indexOf('async function openFilePathInEditor(filePath, options = {})');
-    const beginIndex = rendererSource.indexOf('const transition = beginFileOpenTransition(filePath', openPathIndex);
-    const readIndex = rendererSource.indexOf("window.electronAPI.invoke(options.ipcChannel || 'open-file-path', filePath)", openPathIndex);
+    const beginIndex = fileOpenSource.indexOf("const transition = begin(filePath");
+    const readIndex = fileOpenSource.indexOf('const result = await readPath(filePath, requestOptions)');
 
     expect(indexSource.indexOf('orchestrator/modules/file-transition-coordinator.js'))
+      .toBeLessThan(indexSource.indexOf('orchestrator/modules/file-open-controller.js'));
+    expect(indexSource.indexOf('orchestrator/modules/file-open-controller.js'))
       .toBeLessThan(indexSource.indexOf('orchestrator/renderer.js'));
-    expect(beginIndex).toBeGreaterThan(openPathIndex);
+    expect(beginIndex).toBeGreaterThan(-1);
     expect(readIndex).toBeGreaterThan(beginIndex);
     expect(coordinatorSource).toContain("supersede(channel, reason = 'newer-transition')");
     expect(coordinatorSource).toContain('commit(callback)');
-    expect(rendererSource).toContain('refreshExistingTabContent: options.refreshExistingTabContent !== false');
+    expect(fileOpenSource).toContain('refreshExistingTabContent: requestOptions.refreshExistingTabContent !== false');
+    expect(rendererSource).toContain('fileOpenController.openPath(filePath, options)');
+    expect(rendererSource).toContain('fileOpenController.openContent(filePath, content, options)');
     expect(rendererSource).toContain("if (!tab?.isDirty && tab?.model && typeof tab.model.setValue === 'function')");
     expect(rendererSource).toContain('tab.model.setValue(content);');
     expect(rendererSource).toContain('tab.lastSavedContent = content;');
     expect(rendererSource).toContain('window.openFilePathInEditor = openFilePathInEditor;');
     expect(rendererSource).not.toContain('const _queuedOpenFileRequests = new Map();');
     expect(rendererSource).not.toContain('if (_openingFilePath === filePath) return;');
+  });
+
+  test('renderer orchestration delegates to injected workflow controllers', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const controllerPaths = [
+      'orchestrator/modules/file-open-controller.js',
+      'orchestrator/modules/preview-router.js',
+      'orchestrator/modules/file-tree-controller.js',
+      'orchestrator/modules/pane-controller.js'
+    ];
+
+    for (const controllerPath of controllerPaths) {
+      expect(indexSource.indexOf(controllerPath)).toBeGreaterThan(-1);
+      expect(indexSource.indexOf(controllerPath)).toBeLessThan(indexSource.indexOf('orchestrator/renderer.js'));
+    }
+    expect(rendererSource).toContain('return previewRouter.render(markdownContent, options);');
+    expect(rendererSource).toContain('return fileTreeController.render();');
+    expect(rendererSource).toContain("return paneController.show(paneType);");
+    expect(rendererSource).not.toContain('let fileTreeSignaturePollTimer');
+    expect(rendererSource).not.toContain('let _restoringPaneVisibility');
+    expect(rendererSource).not.toContain('function beginFileOpenTransition');
   });
 
   test('Mermaid fullscreen controls clean up transient listeners', () => {
@@ -624,13 +650,17 @@ describe('Code quality guardrails', () => {
 
   test('file tree has lightweight disk polling before expensive refreshes', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const controllerSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-tree-controller.js'), 'utf8');
     const fileHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/fileHandlers.js'), 'utf8');
     const preloadGuardSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
 
-    expect(rendererSource).toContain('FILE_TREE_SIGNATURE_POLL_MS');
+    expect(controllerSource).toContain('const pollMs = options.pollMs || 4000');
+    expect(controllerSource).toContain('async function pollOnce()');
+    expect(controllerSource).toContain('requestSignature()');
+    expect(controllerSource).toContain('onSignatureChanged');
     expect(rendererSource).toContain('pollFileTreeSignatureOnce');
     expect(rendererSource).toContain("window.currentStructureView === 'file'");
-    expect(rendererSource).toContain("document.visibilityState !== 'hidden'");
+    expect(rendererSource).toContain("document.visibilityState === 'hidden'");
     expect(fileHandlersSource).toContain("ipcMain.handle('get-file-tree-signature'");
     expect(fileHandlersSource).toContain('getWorkspaceTreeSignature');
     expect(preloadGuardSource).toContain("'get-file-tree-signature'");

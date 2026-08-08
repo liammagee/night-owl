@@ -43,6 +43,51 @@ async function enterPresentation(page, content = DECK) {
 
 test.describe.configure({ mode: 'serial' });
 
+test('@required @workflow-controllers renderer startup exposes the extracted workflow contracts', async ({ appPage }) => {
+  const openResult = await openMarkdown(
+    appPage,
+    '/virtual-workspace/workflow-contracts.md',
+    '# Workflow contracts\n\nThe extracted controllers are live.'
+  );
+  expect(openResult).toMatchObject({
+    key: '/virtual-workspace/workflow-contracts.md',
+    status: 'committed'
+  });
+
+  const snapshot = await appPage.evaluate(() => {
+    const workflows = window.NightOwlWorkflows;
+    if (!workflows) throw new Error('NightOwl workflow controllers are unavailable');
+    return {
+      frozen: Object.isFrozen(workflows),
+      keys: Object.keys(workflows).sort(),
+      activeFile: workflows.fileOpen.getActive(),
+      markdownClassification: workflows.preview.classifyFilePath('/tmp/example.md'),
+      fileTree: workflows.fileTree.getSnapshot(),
+      panes: workflows.panes.getState().panes
+    };
+  });
+
+  expect(snapshot).toMatchObject({
+    frozen: true,
+    keys: ['fileOpen', 'fileTree', 'panes', 'preview'],
+    activeFile: null,
+    markdownClassification: {
+      kind: 'markdown',
+      isEditable: true,
+      isMarkdown: true
+    },
+    fileTree: {
+      rendering: false,
+      pendingRender: false
+    }
+  });
+  expect(snapshot.panes).toEqual(expect.objectContaining({
+    sidebar: expect.any(Boolean),
+    editor: expect.any(Boolean),
+    right: expect.any(Boolean)
+  }));
+});
+
 test('@required @file-switch rapid file switching keeps the newest editor and preview state', async ({ appPage }) => {
   await appPage.evaluate(() => {
     const renderer = window.TechneMarkdownRenderer;

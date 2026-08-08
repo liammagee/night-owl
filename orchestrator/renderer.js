@@ -260,15 +260,7 @@ let tagFilteringInitialized = false;
 let fileTreeSearchQuery = '';
 
 // File tree rendering state
-let fileTreeRendered = false;
-let isRenderingFileTree = false; // Prevent concurrent renders
-let pendingFileTreeRender = false;
 let fileTreeTagHydrationHandle = null;
-let fileTreeSignature = null;
-let fileTreeSignaturePollTimer = null;
-let fileTreeSignaturePollInFlight = false;
-let fileTreeSignaturePollActive = false;
-const FILE_TREE_SIGNATURE_POLL_MS = 4000;
 
 // Multi-select state for file tree
 let selectedFiles = new Set();        // Currently selected file paths
@@ -283,6 +275,35 @@ const getFileClipboard = fileTreeState?.getClipboard || (() => ({ filePath: null
 const getFileClipboardPaths = fileTreeState?.getClipboardPaths || (() => []);
 const hasFileClipboardItems = fileTreeState?.hasClipboardItems || (() => false);
 const describeFileClipboard = fileTreeState?.describeClipboard || (() => '0 files');
+const fileTreeController = window.NightOwlFileTreeController?.createFileTreeController?.({
+    requestTree: () => {
+        if (!window.electronAPI?.invoke) throw new Error('ElectronAPI not available');
+        return window.electronAPI.invoke('request-file-tree');
+    },
+    renderTree: fileTree => {
+        window.fileTreeData = fileTree;
+        renderFileTreeData(fileTree);
+        updateAvailableFiles(fileTree);
+    },
+    requestSignature: () => window.electronAPI.invoke('get-file-tree-signature'),
+    shouldPoll: context => {
+        if (!window.electronAPI?.invoke || document.visibilityState === 'hidden') return false;
+        if (context?.starting) return true;
+        const view = document.getElementById('file-tree-view');
+        return window.currentStructureView === 'file' && view && view.style.display !== 'none';
+    },
+    onSignatureChanged: () => debouncedRenderFileTree(),
+    onError: (error, context = {}) => {
+        if (context.phase === 'signature') {
+            if (window.DEBUG_VERBOSE) console.warn('[FileTree] Signature poll failed:', error);
+            return;
+        }
+        console.error('[renderFileTree] Error loading file tree:', error);
+        const view = document.getElementById('file-tree-view');
+        view?.replaceChildren(createFileTreeMessage('error', 'Error loading files'));
+    }
+});
+if (!fileTreeController) throw new Error('File-tree controller is not loaded');
 
 // Speaker notes variables (currentSpeakerNotes managed by modules/status-bar.js via window.currentSpeakerNotes)
 window.currentSpeakerNotes = window.currentSpeakerNotes || [];
@@ -320,6 +341,19 @@ const previewSourceSyncToggle = document.getElementById('preview-source-sync-tog
 const previewScrollSyncBtn = document.getElementById('preview-scroll-sync-btn');
 const nightOwlUIStateStore = window.NightOwlUIState;
 const getNightOwlUIState = () => nightOwlUIStateStore?.getState?.();
+const paneController = window.NightOwlPaneController?.createPaneController?.({
+    store: nightOwlUIStateStore,
+    persist: layout => window.electronAPI?.send?.('save-layout', layout),
+    onBeforeShow: () => _teardownScrollSync(),
+    onShown: pane => {
+        showSpecificPane(pane);
+        if (pane === 'preview') {
+            nightOwlUIStateStore.afterTransition(() => _activateScrollSyncForCurrentPane());
+        }
+    },
+    onSearch: () => switchStructureView('search')
+});
+if (!paneController) throw new Error('Pane controller is not loaded');
 let previewScrollSyncEnabled = true; // global scroll sync on/off
 let _syncingFromEditor = false;
 let _syncingFromSource = false;
@@ -871,129 +905,97 @@ async function renderMermaidDiagrams(container, options = {}) {
 
 // --- Internal Links Functionality ---
 // All internal links functionality has been moved to modules/internalLinks.js
-// --- Update Function Definition ---
-async function updatePreviewAndStructure(markdownContent, options = {}) {
-    if (typeof markdownContent !== 'string') {
-        markdownContent = markdownContent ? String(markdownContent) : '';
+async function renderMarkdownPreviewRoute(context) {
+    const { filePath, content, transition, isCurrent } = context;
+    if (!previewContent) throw new Error('Preview container is unavailable');
+
+    let settings = window.appSettings || null;
+    if (!settings && filePath) {
+        settings = await window.electronAPI.invoke('get-settings');
+        if (!isCurrent()) return { status: 'superseded' };
+        window.appSettings = settings;
     }
-    if ((markdownContent === '' || markdownContent == null) && window.editor?.getValue && options.useEditorFallback) {
-        markdownContent = window.editor.getValue();
-    }
+    settings = settings || {};
 
-    const currentFilePath = options.filePath ?? window.currentFilePath ?? '';
-    const previewTransition = options.previewTransition || fileTransitionCoordinator.begin(
-        'preview',
-        currentFilePath,
-        { fileTransitionId: options.fileTransition?.id || null }
-    );
-    const isCurrent = () => (
-        previewTransition.isCurrent() &&
-        isTransitionCurrent(options.fileTransition) &&
-        (options.allowPathMismatch || currentFilePath === (window.currentFilePath || ''))
-    );
+    if (filePath && typeof shouldRenderAsKanban === 'function' && shouldRenderAsKanban(filePath, settings)) {
+        if (!isCurrent()) return { status: 'superseded' };
+        const loadToken = activeFileLoadToken;
+        if (loadToken) updateLargeFileIndicator(loadToken, 'Rendering board…');
+        const parsedKanban = parseKanbanFromMarkdown(content, settings);
 
-    try {
-        if (!isCurrent()) return previewTransition.done;
-
-        const previewState = getNightOwlUIState()?.preview;
-        if (previewState?.sourceView && previewSourceEl && !previewState.sourceFilePath) {
-            previewTransition.commit(() => {
-                previewSourceEl.textContent = markdownContent;
-            });
-        }
-
-        const scopedPreviewBlocked = /\.(?:pdf|png|jpe?g|gif|bmp|svg|webp|ico)$/i.test(currentFilePath);
-        if (scopedPreviewBlocked && !options.force) {
-            fileTransitionCoordinator.supersede('preview', 'file-scoped-preview-policy');
-            if (activeFileLoadToken) finishLargeFileIndicator(activeFileLoadToken);
-            return previewTransition.done;
-        }
-
-        const recordMode = window.recordMode || window.jsonlMode;
-        if (/\.(?:jsonl|csv)$/i.test(currentFilePath)) {
-            if (!isCurrent()) return previewTransition.done;
-            const handled = previewTransition.commit(() => (
-                recordMode?.handlePreviewUpdate?.(currentFilePath, markdownContent)
-            ));
-            if (handled.committed && handled.value) {
-                if (activeFileLoadToken) finishLargeFileIndicator(activeFileLoadToken);
-                return fileTransitionCoordinator.complete(previewTransition, { renderer: 'records' });
+        transition.commit(() => {
+            const wasUpdated = updateKanbanBoard(previewContent, parsedKanban, filePath);
+            const kanbanBoard = previewContent.querySelector('.kanban-board');
+            if (settings.kanban?.enableDragDrop && kanbanBoard) {
+                setupKanbanDragAndDrop(previewContent, filePath);
             }
-        } else {
-            recordMode?.deactivate?.();
-        }
-
-        if (!previewContent) {
-            throw new Error('Preview container is unavailable');
-        }
-
-        if (/\.html?$/i.test(currentFilePath)) {
-            if (!isCurrent()) return previewTransition.done;
-            previewTransition.commit(() => renderHTMLSourcePreview(currentFilePath, markdownContent));
-            return fileTransitionCoordinator.complete(previewTransition, { renderer: 'html' });
-        }
-
-        let settings = window.appSettings || null;
-        if (!settings && currentFilePath) {
-            settings = await window.electronAPI.invoke('get-settings');
-            if (!isCurrent()) return previewTransition.done;
-            window.appSettings = settings;
-        }
-        settings = settings || {};
-
-        if (currentFilePath && typeof shouldRenderAsKanban === 'function' && shouldRenderAsKanban(currentFilePath, settings)) {
-            if (!isCurrent()) return previewTransition.done;
-            const loadToken = activeFileLoadToken;
-            if (loadToken) updateLargeFileIndicator(loadToken, 'Rendering board…');
-            const parsedKanban = parseKanbanFromMarkdown(markdownContent, settings);
-
-            previewTransition.commit(() => {
-                const wasUpdated = updateKanbanBoard(previewContent, parsedKanban, currentFilePath);
-                const kanbanBoard = previewContent.querySelector('.kanban-board');
-                if (settings.kanban?.enableDragDrop && kanbanBoard) {
-                    setupKanbanDragAndDrop(previewContent, currentFilePath);
-                }
-                if (kanbanBoard) setupKanbanTaskActions(previewContent, currentFilePath);
-                if (wasUpdated) {
-                    setTimeout(() => {
-                    if (previewTransition.isLatest() && window.currentFilePath === currentFilePath) {
+            if (kanbanBoard) setupKanbanTaskActions(previewContent, filePath);
+            if (wasUpdated) {
+                setTimeout(() => {
+                    if (transition.isLatest() && window.currentFilePath === filePath) {
                         forceKanbanHorizontalScroll();
                     }
-                    }, 100);
-                }
-                const totalTasks = parsedKanban.tasks.length;
-                const doneTasks = parsedKanban.tasksByColumn.done?.length || 0;
-                updateStatusBarWithKanban(totalTasks, doneTasks);
-                const structureList = document.getElementById('structure-list');
-                if (structureList) structureList.innerHTML = '<li>📋 Kanban Board View</li>';
-                const editorPane = document.getElementById('editor-pane');
-                const previewPane = document.getElementById('preview-pane');
-                if (editorPane && previewPane) {
-                    editorPane.style.flex = '0 0 300px';
-                    previewPane.style.flex = '1';
-                }
-                if (loadToken) finishLargeFileIndicator(loadToken);
-            });
-            return fileTransitionCoordinator.complete(previewTransition, { renderer: 'kanban' });
-        }
-
-        const renderResult = await renderRegularMarkdown(markdownContent, {
-            currentFilePath,
-            isCurrent,
-            isLatest: () => previewTransition.isLatest(),
-            previewTransition
+                }, 100);
+            }
+            const totalTasks = parsedKanban.tasks.length;
+            const doneTasks = parsedKanban.tasksByColumn.done?.length || 0;
+            updateStatusBarWithKanban(totalTasks, doneTasks);
+            const structureList = document.getElementById('structure-list');
+            if (structureList) structureList.innerHTML = '<li>📋 Kanban Board View</li>';
+            const editorPane = document.getElementById('editor-pane');
+            const previewPane = document.getElementById('preview-pane');
+            if (editorPane && previewPane) {
+                editorPane.style.flex = '0 0 300px';
+                previewPane.style.flex = '1';
+            }
+            if (loadToken) finishLargeFileIndicator(loadToken);
         });
-        if (!isCurrent() || renderResult?.status === 'superseded') return previewTransition.done;
-        return fileTransitionCoordinator.complete(previewTransition, { renderer: 'markdown' });
-    } catch (error) {
-        if (!isCurrent()) return previewTransition.done;
-        console.error('[renderer.js] Preview transition failed:', error);
-        renderPreviewFailure(error, () => updatePreviewAndStructure(markdownContent, {
-            filePath: currentFilePath,
-            force: options.force
-        }));
-        return fileTransitionCoordinator.fail(previewTransition, error);
+        return 'kanban';
     }
+
+    return renderRegularMarkdown(content, {
+        currentFilePath: filePath,
+        isCurrent,
+        isLatest: () => transition.isLatest(),
+        previewTransition: transition
+    });
+}
+
+const previewRouter = window.NightOwlPreviewRouter?.createPreviewRouter?.({
+    transitions: fileTransitionCoordinator,
+    getCurrentFilePath: () => window.currentFilePath || '',
+    isFileTransitionCurrent: isTransitionCurrent,
+    getEditorContent: () => window.editor?.getValue?.() || '',
+    getSourceViewState: () => getNightOwlUIState()?.preview,
+    mirrorSource: content => {
+        if (previewSourceEl) previewSourceEl.textContent = content;
+    },
+    renderRecord: (filePath, content) => {
+        const handled = (window.recordMode || window.jsonlMode)?.handlePreviewUpdate?.(filePath, content);
+        if (handled && activeFileLoadToken) finishLargeFileIndicator(activeFileLoadToken);
+        return handled;
+    },
+    deactivateRecord: () => (window.recordMode || window.jsonlMode)?.deactivate?.(),
+    renderHTML: (filePath, content) => {
+        if (!previewContent) throw new Error('Preview container is unavailable');
+        renderHTMLSourcePreview(filePath, content);
+    },
+    renderMarkdown: renderMarkdownPreviewRoute,
+    onBlocked: () => {
+        if (activeFileLoadToken) finishLargeFileIndicator(activeFileLoadToken);
+    },
+    onError: ({ filePath, content, renderOptions, error }) => {
+        console.error('[renderer.js] Preview transition failed:', error);
+        renderPreviewFailure(error, () => updatePreviewAndStructure(content, {
+            filePath,
+            force: renderOptions.force
+        }));
+    }
+});
+if (!previewRouter) throw new Error('Preview router is not loaded');
+
+function updatePreviewAndStructure(markdownContent, options = {}) {
+    return previewRouter.render(markdownContent, options);
 }
 
 // Helper functions for markdown rendering
@@ -5282,7 +5284,7 @@ function handleCurrentFileDeletedOnDisk(payload = {}) {
     }
     showNotification('Current file was deleted or moved on disk', 'warning', 6000);
     if (window.renderFileTree) {
-        fileTreeRendered = false;
+        fileTreeController.markStale();
         window.renderFileTree();
     }
 }
@@ -5779,7 +5781,7 @@ async function generateThumbnailForFile(filePath) {
                 showNotification(`Thumbnail generated: ${outputPath.split('/').pop()}`, 'success');
 
                 // Refresh file tree to show new thumbnail
-                fileTreeRendered = false;
+                fileTreeController.markStale();
                 renderFileTree();
 
                 resolve();
@@ -6018,7 +6020,7 @@ async function generateThumbnailsForFolder(folderPath) {
                 showNotification(`Folder thumbnail generated: ${fileName}`, 'success');
 
                 // Refresh file tree
-                fileTreeRendered = false;
+                fileTreeController.markStale();
                 renderFileTree();
 
                 resolve();
@@ -6162,7 +6164,7 @@ async function generateThumbnailForMultipleFiles(filePaths) {
                 clearFileSelection();
 
                 // Refresh file tree
-                fileTreeRendered = false;
+                fileTreeController.markStale();
                 renderFileTree();
 
                 resolve();
@@ -6175,58 +6177,38 @@ async function generateThumbnailForMultipleFiles(filePaths) {
     });
 }
 
-function beginFileOpenTransition(filePath, metadata = {}) {
-    fileTransitionCoordinator.supersede('preview', 'file-transition');
-    const transition = fileTransitionCoordinator.begin('file', filePath, metadata);
-    (window.recordMode || window.jsonlMode)?.deactivate?.();
-    scheduleFileTransitionStatus(transition);
-    return transition;
-}
-
-function failFileOpenTransition(transition, error, retry) {
-    if (!transition?.isCurrent?.()) return transition?.done;
-    showFileTransitionFailure(transition, error, retry);
-    return fileTransitionCoordinator.fail(transition, error);
-}
-
-async function openFilePathInEditor(filePath, options = {}) {
-    const transition = beginFileOpenTransition(filePath, { source: options.source || 'path-request' });
-    try {
-        const result = await window.electronAPI.invoke(options.ipcChannel || 'open-file-path', filePath);
-        if (!transition.isCurrent()) return transition.done;
-        if (!result?.success) throw new Error(result?.error || `Could not read ${filePath}`);
-        return openFileInEditor(result.filePath || filePath, result.content, {
-            refreshExistingTabContent: options.refreshExistingTabContent !== false,
-            ...options,
-            transition
-        });
-    } catch (error) {
-        return failFileOpenTransition(
-            transition,
-            error,
-            () => openFilePathInEditor(filePath, options)
-        );
-    }
-}
-
-async function openFileInEditor(filePath, content, options = {}) {
-    const transition = options.transition || beginFileOpenTransition(filePath, {
-        source: options.source || 'content-ready'
-    });
-    try {
-        if (!transition.isCurrent()) return transition.done;
-        await _openFileInEditorImpl(filePath, content, { ...options, transition });
-        if (!transition.isCurrent()) return transition.done;
-        clearFileTransitionStatus(transition);
-        return fileTransitionCoordinator.complete(transition, { filePath });
-    } catch (error) {
+const fileOpenController = window.NightOwlFileOpenController?.createFileOpenController?.({
+    transitions: fileTransitionCoordinator,
+    readPath: (filePath, options) => window.electronAPI.invoke(
+        options.ipcChannel || 'open-file-path',
+        filePath
+    ),
+    applyContent: _openFileInEditorImpl,
+    onBegin: ({ transition }) => {
+        (window.recordMode || window.jsonlMode)?.deactivate?.();
+        scheduleFileTransitionStatus(transition);
+    },
+    onComplete: ({ transition }) => clearFileTransitionStatus(transition),
+    onFailure: ({ transition, error, retry }) => showFileTransitionFailure(transition, error, retry),
+    onLogError: ({ filePath, error }) => {
         console.error(`[openFileInEditor] Failed to open ${filePath}:`, error);
-        return failFileOpenTransition(
-            transition,
-            error,
-            () => openFileInEditor(filePath, content, { ...options, transition: null })
-        );
     }
+});
+if (!fileOpenController) throw new Error('File-open controller is not loaded');
+
+window.NightOwlWorkflows = Object.freeze({
+    fileOpen: fileOpenController,
+    preview: previewRouter,
+    fileTree: fileTreeController,
+    panes: paneController
+});
+
+function openFilePathInEditor(filePath, options = {}) {
+    return fileOpenController.openPath(filePath, options);
+}
+
+function openFileInEditor(filePath, content, options = {}) {
+    return fileOpenController.openContent(filePath, content, options);
 }
 
 window.openFilePathInEditor = openFilePathInEditor;
@@ -6263,13 +6245,16 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
 
     // Detect file type before any state sync so editable files can defer
     // currentFilePath updates until after their Monaco model is swapped.
-    const isPDF = filePath.endsWith('.pdf');
-    const isImageFile = /\.(png|jpg|jpeg|gif|bmp|svg|webp|ico)$/i.test(filePath);
-    const isHTML = isHTMLFilePath(filePath);
-    const isBibTeX = filePath.endsWith('.bib');
-    const isJSONL = filePath.toLowerCase().endsWith('.jsonl');
-    const isCSV = filePath.toLowerCase().endsWith('.csv');
-    const isMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown');
+    const fileClassification = previewRouter.classifyFilePath(filePath);
+    const {
+        isPDF,
+        isImage: isImageFile,
+        isHTML,
+        isBibTeX,
+        isJSONL,
+        isCSV,
+        isMarkdown
+    } = fileClassification;
     const isLargeMarkdown = isMarkdown && content && content.length >= LARGE_MARKDOWN_CHAR_THRESHOLD;
     const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile;
 
@@ -8786,20 +8771,12 @@ function applyLayoutSettings(layout) {
 
     // Hydrate the shared pane model once. DOM visibility is derived by the UI
     // state adapter, so restoration cannot race with mode-specific cleanup.
-    _restoringPaneVisibility = true;
-    try {
-        const showPreview = layout?.previewVisible ?? (appSettings?.editor?.showPreview !== false);
-        nightOwlUIStateStore?.dispatch?.({
-            type: 'HYDRATE_PANES',
-            panes: {
-                sidebar: layout?.sidebarVisible !== false,
-                editor: layout?.editorVisible !== false,
-                right: showPreview
-            }
-        });
-    } finally {
-        _restoringPaneVisibility = false;
-    }
+    const showPreview = layout?.previewVisible ?? (appSettings?.editor?.showPreview !== false);
+    paneController.hydrate({
+        sidebar: layout?.sidebarVisible !== false,
+        editor: layout?.editorVisible !== false,
+        right: showPreview
+    });
 }
 
 // --- Settings Management ---
@@ -8965,7 +8942,7 @@ changeDirectoryBtn.addEventListener('click', async (e) => {
                     if (result.success) {
                         if (window.appSettings) window.appSettings.workingDirectory = result.directory;
                         showNotification(`Switched to ${ws.split('/').pop()}`, 'success');
-                        fileTreeRendered = false;
+                        fileTreeController.markStale();
                         renderFileTree();
                     } else {
                         showNotification(result.error || 'Failed to switch', 'error');
@@ -9000,7 +8977,7 @@ changeDirectoryBtn.addEventListener('click', async (e) => {
             if (result.success) {
                 if (window.appSettings) window.appSettings.workingDirectory = result.directory;
                 showNotification(`Working directory changed`, 'success');
-                fileTreeRendered = false;
+                fileTreeController.markStale();
                 renderFileTree();
             }
         } catch (err) {
@@ -9038,7 +9015,7 @@ if (addWorkspaceFolderBtn) {
                 }
                 showNotification(`Folder added to workspace`, 'success');
                 // Refresh file tree to show new folder
-                fileTreeRendered = false;
+                fileTreeController.markStale();
                 renderFileTree();
             } else if (result.cancelled) {
                 // User cancelled, no notification needed
@@ -9427,7 +9404,7 @@ if (previewScrollSyncBtn) {
 // --- Right Pane Switching Function ---
 // Helper functions for right pane management
 function hideAllRightPanes() {
-    nightOwlUIStateStore?.dispatch?.({ type: 'SET_PANE_VISIBILITY', pane: 'right', visible: false });
+    paneController.hideRight();
 }
 
 function showSpecificPane(paneType) {
@@ -9444,18 +9421,7 @@ function showSpecificPane(paneType) {
 }
 
 function showRightPane(paneType) {
-    if (paneType === 'search') {
-        switchStructureView('search');
-        return;
-    }
-    _teardownScrollSync(); // tear down before switching
-    const state = nightOwlUIStateStore?.dispatch?.({ type: 'SHOW_RIGHT_PANE', pane: paneType });
-    if (!state || state.activeRightPane !== paneType) return;
-    showSpecificPane(paneType);
-    // Activate scroll sync when preview pane is shown (and not in source-with-independent-file mode)
-    if (paneType === 'preview') {
-        nightOwlUIStateStore?.afterTransition?.(() => _activateScrollSyncForCurrentPane());
-    }
+    return paneController.show(paneType);
 }
 
 // Expose showPane globally for plugins (AI Tutor, etc.)
@@ -9527,9 +9493,9 @@ function switchStructureView(view) {
         initializeTagFiltering();
         
         // Only render file tree if it hasn't been rendered yet
-        if (!fileTreeRendered && !isRenderingFileTree) {
+        const fileTreeStatus = fileTreeController.getSnapshot();
+        if (!fileTreeStatus.rendered && !fileTreeStatus.rendering) {
             renderFileTree(); // Populate the file tree view
-            // Note: fileTreeRendered is set to true inside renderFileTree after successful render
         }
         startFileTreeAutoRefreshPolling();
     } else if (view === 'search') {
@@ -9669,53 +9635,11 @@ function updateFileTreeTagsForPath(filePath) {
 }
 
 async function renderFileTree() {
-    
-    // Prevent concurrent renders
-    if (isRenderingFileTree) {
-        pendingFileTreeRender = true;
-        return;
-    }
-    
     if (!window.electronAPI) {
         console.warn('[renderFileTree] ElectronAPI not available');
         return;
     }
-    
-    const fileTreeView = document.getElementById('file-tree-view');
-    
-    try {
-        // Set rendering flag
-        isRenderingFileTree = true;
-        
-        const fileTree = await window.electronAPI.invoke('request-file-tree');
-        window.fileTreeData = fileTree;
-        if (fileTree?.signature) {
-            fileTreeSignature = fileTree.signature;
-        }
-        
-        if (!fileTreeView) {
-            console.warn('[renderFileTree] fileTreeView element not found');
-            isRenderingFileTree = false;
-            return;
-        }
-
-        renderFileTreeData(fileTree);
-        
-        // Update available files for autocomplete
-        updateAvailableFiles(fileTree);
-    } catch (error) {
-        console.error('[renderFileTree] Error loading file tree:', error);
-        if (fileTreeView) {
-            fileTreeView.replaceChildren(createFileTreeMessage('error', 'Error loading files'));
-        }
-    } finally {
-        // Always clear the rendering flag
-        isRenderingFileTree = false;
-        if (pendingFileTreeRender) {
-            pendingFileTreeRender = false;
-            renderFileTree();
-        }
-    }
+    return fileTreeController.render();
 }
 
 function createFileTreeMessage(className, text, detail = '') {
@@ -9796,9 +9720,6 @@ function renderFileTreeData(fileTree) {
 
     // Reset visible files list for multi-select range selection
     allVisibleFiles = [];
-
-    // Mark tree as rendered
-    fileTreeRendered = true;
 
     const fragment = document.createDocumentFragment();
 
@@ -10196,11 +10117,12 @@ const debouncedRenderFileTree = debounce(renderFileTree, 100);
 
 function shouldPollFileTreeSignature() {
     const fileTreeView = document.getElementById('file-tree-view');
+    const state = fileTreeController.getSnapshot();
     return Boolean(
         window.electronAPI?.invoke &&
         window.currentStructureView === 'file' &&
-        fileTreeRendered &&
-        !isRenderingFileTree &&
+        state.rendered &&
+        !state.rendering &&
         document.visibilityState !== 'hidden' &&
         fileTreeView &&
         fileTreeView.style.display !== 'none'
@@ -10208,52 +10130,20 @@ function shouldPollFileTreeSignature() {
 }
 
 async function pollFileTreeSignatureOnce() {
-    if (!shouldPollFileTreeSignature() || fileTreeSignaturePollInFlight) return;
-
-    fileTreeSignaturePollInFlight = true;
-    try {
-        const result = await window.electronAPI.invoke('get-file-tree-signature');
-        if (!result?.success || !result.signature) return;
-
-        if (!fileTreeSignature) {
-            fileTreeSignature = result.signature;
-            return;
-        }
-
-        if (result.signature !== fileTreeSignature) {
-            fileTreeSignature = result.signature;
-            fileTreeRendered = false;
-            debouncedRenderFileTree();
-        }
-    } catch (error) {
-        if (window.DEBUG_VERBOSE) {
-            console.warn('[FileTree] Signature poll failed:', error);
-        }
-    } finally {
-        fileTreeSignaturePollInFlight = false;
-    }
+    if (!shouldPollFileTreeSignature()) return { status: 'idle' };
+    return fileTreeController.pollOnce();
 }
 
 function startFileTreeAutoRefreshPolling() {
-    if (fileTreeSignaturePollActive || !window.electronAPI?.invoke) return;
-    if (document.visibilityState === 'hidden') return;
-    fileTreeSignaturePollActive = true;
-    fileTreeSignaturePollTimer = setInterval(() => {
-        pollFileTreeSignatureOnce();
-    }, FILE_TREE_SIGNATURE_POLL_MS);
-    setTimeout(() => pollFileTreeSignatureOnce(), 0);
+    return fileTreeController.startPolling();
 }
 
 function stopFileTreeAutoRefreshPolling() {
-    fileTreeSignaturePollActive = false;
-    if (fileTreeSignaturePollTimer) {
-        clearInterval(fileTreeSignaturePollTimer);
-        fileTreeSignaturePollTimer = null;
-    }
+    fileTreeController.stopPolling();
 }
 
 function resetFileTreeSignature() {
-    fileTreeSignature = null;
+    fileTreeController.resetSignature();
 }
 
 // Initialize tag filtering system
@@ -11532,7 +11422,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
 
                     // Refresh file tree
                     if (window.renderFileTree) {
-                        fileTreeRendered = false;
+                        fileTreeController.markStale();
                         window.renderFileTree();
                     }
                 }
@@ -11671,7 +11561,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     if (result.success) {
                         if (window.appSettings) window.appSettings.workingDirectory = result.directory;
                         showNotification(`Primary folder set to ${filePath.split('/').pop()}`, 'success');
-                        fileTreeRendered = false;
+                        fileTreeController.markStale();
                         renderFileTree();
                     } else {
                         showNotification(result.error || 'Failed to set primary folder', 'error');
@@ -11703,7 +11593,7 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                             }
                             showNotification('Folder removed from workspace', 'success');
                             // Refresh file tree
-                            fileTreeRendered = false;
+                            fileTreeController.markStale();
                             renderFileTree();
                         } else {
                             showNotification(`Failed to remove folder: ${result.error}`, 'error');
@@ -11996,7 +11886,7 @@ async function handleCreateFolder() {
             hideFolderNameModal();
             folderCreationParentPath = ''; // Reset parent path after successful creation
             // Refresh the file tree to show the new folder
-            fileTreeRendered = false;
+            fileTreeController.markStale();
             debouncedRenderFileTree();
             showNotification('Folder created successfully', 'success');
         } else {
@@ -12092,7 +11982,7 @@ async function handleCreateFile() {
             hideFileNameModal();
             fileCreationParentPath = ''; // Reset parent path after successful creation
             // Refresh the file tree to show the new file
-            fileTreeRendered = false;
+            fileTreeController.markStale();
             debouncedRenderFileTree();
             showNotification('File created successfully', 'success');
 
@@ -12694,7 +12584,7 @@ if (window.electronAPI) {
     window.electronAPI.on('refresh-file-tree', () => {
 
         // Reset the rendered flag to force a refresh
-        fileTreeRendered = false;
+        fileTreeController.markStale();
         resetFileTreeSignature();
 
         // Switch to file view (which will trigger renderFileTree if needed)
@@ -12702,7 +12592,7 @@ if (window.electronAPI) {
             switchStructureView('file');
         } else {
             // If already in file view, manually refresh
-            fileTreeRendered = false;  // Reset flag to force refresh
+            fileTreeController.markStale();
             debouncedRenderFileTree();
         }
     });
@@ -13398,33 +13288,16 @@ setTimeout(() => {
     // Formatting initialization complete
 }, 2000);
 
-// Persist pane visibility to settings so state survives restarts
-let _restoringPaneVisibility = false;
-function savePaneVisibility() {
-    if (_restoringPaneVisibility) return; // Skip saves during initial restore
-    const panes = getNightOwlUIState()?.panes;
-    if (window.electronAPI) {
-        window.electronAPI.send('save-layout', {
-            sidebarVisible: panes?.sidebar !== false,
-            editorVisible: panes?.editor !== false,
-            previewVisible: panes?.right !== false
-        });
-    }
-}
-
 function toggleSidebar() {
-    nightOwlUIStateStore?.dispatch?.({ type: 'TOGGLE_PANE', pane: 'sidebar' });
-    savePaneVisibility();
+    paneController.toggle('sidebar');
 }
 
 function toggleEditor() {
-    nightOwlUIStateStore?.dispatch?.({ type: 'TOGGLE_PANE', pane: 'editor' });
-    savePaneVisibility();
+    paneController.toggle('editor');
 }
 
 function togglePreview() {
-    nightOwlUIStateStore?.dispatch?.({ type: 'TOGGLE_PANE', pane: 'right' });
-    savePaneVisibility();
+    paneController.toggle('right');
 }
 
 // Expose togglePreview globally for command palette

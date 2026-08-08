@@ -9,17 +9,17 @@ that can be ported elsewhere later if they prove durable.
 
 ### 1. Renderer Surface Decomposition
 
-`orchestrator/renderer.js` is still the highest-risk file because it owns file
-opening, preview routing, pane state, mode switching, and several shared
-globals. Continue extracting behavior behind narrow modules before adding major
-new features.
+`orchestrator/renderer.js` is still the highest-risk file, but file opening,
+preview routing, file-tree orchestration, and pane commands now live behind
+dependency-injected workflow controllers. The renderer supplies Electron and
+DOM adapters instead of owning those workflows' mutable state. See
+[`RENDERER_WORKFLOWS.md`](RENDERER_WORKFLOWS.md) for the current boundaries.
 
-Immediate candidates:
+Next candidates:
 
-- File tree orchestration and polling state.
-- Preview routing for markdown, HTML, PDF, and source-reference views.
-- Pane visibility and mode-switching state.
 - Command registration and toolbar wiring.
+- Editor-model and tab lifecycle coordination.
+- Dialog and context-menu orchestration.
 
 ### 2. Terminal Reliability
 
