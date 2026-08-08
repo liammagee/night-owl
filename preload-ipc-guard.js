@@ -187,6 +187,8 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'performance:get-resource-diagnostics',
   'performance:start-trace',
   'performance:stop-trace',
+  'publishing-profile-inspect',
+  'publishing-profile-run-stage',
   'read-file',
   'read-file-content',
   'read-file-content-only',
@@ -283,6 +285,7 @@ const ALLOWED_ON_CHANNELS = new Set([
   'open-settings',
   'open-settings-dialog',
   'open-style-settings',
+  'open-publishing-workflows',
   'previous-slide',
   'refresh-file-tree',
   'save-all-and-close',
@@ -337,6 +340,7 @@ const PREFIX_CAPABILITIES = Object.freeze([
   ['feed:', 'feed'],
   ['git-', 'git'],
   ['performance:', 'performance'],
+  ['publishing-profile-', 'publishing'],
   ['spell-', 'spellcheck'],
   ['static-site-', 'publishing'],
   ['terminal-', 'terminal'],
@@ -493,6 +497,16 @@ const ARGUMENT_VALIDATORS = Object.freeze({
     }
   },
   'open-external': (args) => requireString(args[0], 'target', { nonEmpty: true, maxLength: 16384 }),
+  'publishing-profile-run-stage': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.profileId, 'request.profileId', { nonEmpty: true, maxLength: 120 });
+    requireString(input.stageId, 'request.stageId', { nonEmpty: true, maxLength: 120 });
+    requireString(input.planDigest, 'request.planDigest', { nonEmpty: true, maxLength: 128 });
+    if (input.message != null) requireString(input.message, 'request.message', { maxLength: 240 });
+    if (input.confirmed != null && typeof input.confirmed !== 'boolean') {
+      throw new TypeError('request.confirmed must be a boolean');
+    }
+  },
   'save-file': (args) => {
     const input = requireObject(args[0], 'file');
     requireString(input.filePath, 'file.filePath', { nonEmpty: true });
