@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/modes.css">
     <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/diagnostics.css">
     <link id="nightowl-presentations-preview-css" rel="stylesheet" href="plugins/techne-presentations/preview-presentation.css">
     <link rel="stylesheet" href="css/search.css">
     <link rel="stylesheet" href="css/interactions.css">
@@ -5033,8 +5034,9 @@
 	    <!-- Debug logger (load first) - set window.DEBUG_LEVEL before this to control verbosity -->
 	    <script src="js/debug-logger.js"></script>
 
-	    <!-- Bundled app feature loader and owned-resource registry -->
+	    <!-- Bundled diagnostics, feature loader, and owned-resource registry -->
 	    <script src="services/resourceLifecycle.js"></script>
+	    <script src="orchestrator/modules/diagnostics.js"></script>
 	    <script src="orchestrator/modules/feature-loader.js"></script>
 	    <script src="plugins/techne-theme-manager/themes.js"></script>
 	    <script src="plugins/techne-theme-manager/theme-manager.js"></script>

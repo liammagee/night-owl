@@ -77,7 +77,10 @@
             const transition = renderOptions.previewTransition || transitions.begin(
                 'preview',
                 filePath,
-                { fileTransitionId: renderOptions.fileTransition?.id || null }
+                {
+                    fileTransitionId: renderOptions.fileTransition?.id || null,
+                    correlationId: renderOptions.correlationId || renderOptions.fileTransition?.correlationId || null
+                }
             );
             const isCurrent = () => (
                 transition.isCurrent() &&
@@ -127,7 +130,18 @@
                 });
             } catch (error) {
                 if (!isCurrent()) return transition.done;
-                onError({ filePath, content, renderOptions, transition, error });
+                onError({
+                    filePath,
+                    renderOptions,
+                    transition,
+                    error,
+                    retry: () => render(content, {
+                        ...renderOptions,
+                        fileTransition: null,
+                        previewTransition: null,
+                        correlationId: transition.correlationId
+                    })
+                });
                 return transitions.fail(transition, error);
             }
         }

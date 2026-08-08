@@ -18,6 +18,8 @@
             token.status = status;
             token.outcome = {
                 id: token.id,
+                correlationId: token.correlationId,
+                requestId: token.requestId,
                 channel: token.channel,
                 key: token.key,
                 status,
@@ -56,8 +58,15 @@
             const done = new Promise(resolve => {
                 resolveDone = resolve;
             });
+            const id = ++sequence;
+            const correlationId = String(
+                metadata.correlationId ||
+                `NO-${String(channel).toUpperCase()}-${Date.now().toString(36).toUpperCase()}-${id.toString(36).toUpperCase()}`
+            );
             const token = {
-                id: ++sequence,
+                id,
+                correlationId,
+                requestId: correlationId,
                 channel,
                 key: key == null ? null : String(key),
                 metadata: { ...metadata },

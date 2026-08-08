@@ -68,9 +68,12 @@ describe('renderer workflow controllers', () => {
 
     await expect(controller.openPath('/workspace/missing.md')).resolves.toMatchObject({
       status: 'failed',
-      error: 'read failed'
+      error: 'read failed',
+      correlationId: expect.stringMatching(/^NO-FILE-/),
+      requestId: expect.stringMatching(/^NO-FILE-/)
     });
     expect(failure.error.message).toBe('read failed');
+    expect(failure.transition.correlationId).toMatch(/^NO-FILE-/);
     expect(typeof failure.retry).toBe('function');
   });
 
@@ -102,6 +105,35 @@ describe('renderer workflow controllers', () => {
     await expect(first).resolves.toMatchObject({ status: 'superseded' });
     await expect(second).resolves.toMatchObject({ status: 'committed', renderer: 'markdown' });
     expect(commits).toEqual(['/workspace/b.md']);
+  });
+
+  test('preview failures keep the parent file correlation and expose content-free retry context', async () => {
+    const { createCoordinator } = require(transitionsPath);
+    const { createPreviewRouter } = require(previewRouterPath);
+    const transitions = createCoordinator();
+    const fileTransition = transitions.begin('file', '/workspace/private.md');
+    let failure;
+    const router = createPreviewRouter({
+      transitions,
+      getCurrentFilePath: () => '/workspace/private.md',
+      isFileTransitionCurrent: () => true,
+      renderMarkdown: jest.fn(async () => {
+        throw new Error('render failed');
+      }),
+      onError: detail => { failure = detail; }
+    });
+
+    await expect(router.render('PRIVATE_MARKDOWN', {
+      filePath: '/workspace/private.md',
+      fileTransition
+    })).resolves.toMatchObject({
+      status: 'failed',
+      correlationId: fileTransition.correlationId,
+      error: 'render failed'
+    });
+    expect(failure.transition.correlationId).toBe(fileTransition.correlationId);
+    expect(failure).not.toHaveProperty('content');
+    expect(typeof failure.retry).toBe('function');
   });
 
   test('preview router owns binary, record, and HTML route selection', async () => {

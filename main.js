@@ -2518,6 +2518,12 @@ View:
           });
         }
       },
+      {
+        label: 'Diagnostics...',
+        click: () => {
+          mainWindow?.webContents.send('open-diagnostics');
+        }
+      },
       { type: 'separator' },
       {
         label: "Install 'nightowl' Shell Command",

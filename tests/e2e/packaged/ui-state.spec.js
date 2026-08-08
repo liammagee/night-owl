@@ -60,4 +60,32 @@ test('@packaged @ui-state packaged modes share the same live pane state', async 
       activeResources: expect.any(Number)
     }
   });
+
+  const diagnostics = await appPage.evaluate(async () => {
+    const report = await window.NightOwlDiagnostics.getReport();
+    await window.NightOwlDiagnostics.open();
+    return {
+      report,
+      panelVisible: Boolean(document.getElementById('nightowl-diagnostics-overlay'))
+    };
+  });
+  expect(diagnostics.panelVisible).toBe(true);
+  expect(diagnostics.report).toMatchObject({
+    schemaVersion: 1,
+    runtime: {
+      success: true,
+      app: {
+        version: expect.any(String),
+        isPackaged: true,
+        packageMode: 'asar',
+        arch: expect.any(String)
+      }
+    },
+    readiness: {
+      mode: 'editor',
+      views: expect.any(Object),
+      features: expect.any(Object)
+    }
+  });
+  await appPage.locator('.nightowl-diagnostics-close').click();
 });

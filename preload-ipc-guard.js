@@ -281,6 +281,7 @@ const ALLOWED_ON_CHANNELS = new Set([
   'open-ai-settings-dialog',
   'open-editor-settings-dialog',
   'open-export-settings-dialog',
+  'open-diagnostics',
   'open-settings',
   'open-settings-dialog',
   'open-style-settings',
