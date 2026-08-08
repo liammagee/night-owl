@@ -223,6 +223,96 @@ test('@required @preview preview readiness exposes committed content rather than
   await expect(appPage.locator('.preview-transition-error')).toHaveCount(0);
 });
 
+test('@required @error-recovery file and preview failures are correlated, redacted, and resettable', async ({ appPage }) => {
+  const privatePath = '/Users/nightowl/Research/private-preview.md';
+  const secret = 'PRIVATE_DIAGNOSTIC_SECRET';
+  const fileFailure = await appPage.evaluate(async ({ path, credential }) => {
+    const originalInvoke = window.electronAPI.invoke;
+    window.electronAPI.invoke = async (channel, ...args) => {
+      if (channel === 'open-file-path') {
+        return { success: false, error: `Injected read failure at ${path} token=${credential}` };
+      }
+      return originalInvoke.call(window.electronAPI, channel, ...args);
+    };
+    try {
+      const outcome = await window.openFilePathInEditor(path, { source: 'required-error-recovery' });
+      const status = document.getElementById('file-transition-status');
+      const incidentId = status.dataset.correlationId;
+      return {
+        outcome,
+        incidentId,
+        report: JSON.stringify(await window.NightOwlDiagnostics.getReport({ incidentId }))
+      };
+    } finally {
+      window.electronAPI.invoke = originalInvoke;
+    }
+  }, { path: privatePath, credential: secret });
+
+  expect(fileFailure.outcome).toMatchObject({
+    status: 'failed',
+    correlationId: fileFailure.incidentId,
+    requestId: fileFailure.incidentId
+  });
+  expect(fileFailure.incidentId).toMatch(/^NO-FILE-/);
+  expect(fileFailure.report).not.toContain('/Users/nightowl');
+  expect(fileFailure.report).not.toContain(secret);
+  expect(fileFailure.report).toContain('<private-path>/private-preview.md');
+  await expect(appPage.locator('#file-transition-status')).toHaveAttribute('data-view-state', 'failed');
+  await expect(appPage.locator('#file-transition-status .view-error-retry')).toHaveCount(1);
+  await expect(appPage.locator('#file-transition-status .view-error-reset')).toHaveCount(1);
+  await expect(appPage.locator('#file-transition-status .view-error-copy')).toHaveCount(1);
+  await appPage.locator('#file-transition-status .view-error-reset').click();
+  await expect(appPage.locator('#file-transition-status')).toBeHidden();
+
+  await openMarkdown(appPage, '/virtual-workspace/preview-recovery.md', '# Preview recovery baseline');
+  const previewFailure = await appPage.evaluate(async ({ path, credential }) => {
+    const preview = window.NightOwlPreviewMarkdown;
+    const originalProcess = preview.processMarkdownContent;
+    const renderer = window.TechneMarkdownRenderer;
+    const originalRender = renderer.renderPreview;
+    renderer.renderPreview = async () => {
+      throw new Error('Injected primary preview renderer failure');
+    };
+    preview.processMarkdownContent = () => {
+      throw new Error(`Injected preview failure at ${path} password=${credential}`);
+    };
+    try {
+      const outcome = await window.updatePreviewAndStructure('# Failing preview', {
+        filePath: window.currentFilePath
+      });
+      const failure = document.querySelector('.preview-transition-error');
+      const incidentId = failure.dataset.correlationId;
+      return {
+        outcome,
+        incidentId,
+        report: JSON.stringify(await window.NightOwlDiagnostics.getReport({ incidentId }))
+      };
+    } finally {
+      renderer.renderPreview = originalRender;
+      preview.processMarkdownContent = originalProcess;
+    }
+  }, { path: privatePath, credential: secret });
+
+  expect(previewFailure.outcome).toMatchObject({
+    status: 'failed',
+    correlationId: previewFailure.incidentId
+  });
+  expect(previewFailure.incidentId).toMatch(/^NO-PREVIEW-/);
+  expect(previewFailure.report).not.toContain('/Users/nightowl');
+  expect(previewFailure.report).not.toContain(secret);
+  await expect(appPage.locator('.preview-transition-error')).toHaveAttribute('data-view-state', 'failed');
+  await appPage.locator('.preview-transition-error .view-error-reset').click();
+  await expect(appPage.locator('.preview-reset-state')).toContainText('Preview reset');
+
+  const overlay = await appPage.evaluate(async () => {
+    await window.NightOwlDiagnostics.open();
+    return Boolean(document.getElementById('nightowl-diagnostics-overlay'));
+  });
+  expect(overlay).toBe(true);
+  await expect(appPage.locator('#nightowl-diagnostics-overlay')).toContainText('Document contents, credentials, and full private paths are omitted');
+  await appPage.locator('.nightowl-diagnostics-close').click();
+});
+
 test('@required @ui-state mode and record overlays preserve one deterministic pane arrangement', async ({ appPage }) => {
   await appPage.evaluate(() => window.switchToMode('editor'));
   await openMarkdown(appPage, '/virtual-workspace/ui-state.md', '# UI state\n\nBaseline pane state.');
@@ -376,7 +466,13 @@ test('@required @mode-recovery presentation failure offers recovery and retry re
   });
 
   await expect(appPage.locator('#presentation-root')).toHaveAttribute('data-presentation-load-state', 'failed');
+  await expect(appPage.locator('#presentation-root')).toHaveAttribute('data-view-state', 'failed');
+  await expect(appPage.locator('#presentation-root')).toHaveAttribute('data-correlation-id', /^NO-PRESENTATION-/);
   await expect(appPage.locator('.presentation-load-diagnostic')).toContainText('NO-PRES-RENDER');
+  await expect(appPage.locator('.presentation-load-diagnostic')).toContainText('Incident: NO-PRESENTATION-');
+  await expect(appPage.locator('.presentation-load-reset')).toHaveCount(1);
+  await expect(appPage.locator('.presentation-load-copy')).toHaveCount(1);
+  await expect(appPage.locator('.presentation-load-details')).toHaveCount(1);
 
   await appPage.evaluate(() => {
     window.MarkdownPreziApp = window.__nightOwlWorkingPresentation;

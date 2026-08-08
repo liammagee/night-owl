@@ -33,6 +33,59 @@ if (!fileTransitionCoordinator) {
     throw new Error('File transition coordinator is not loaded');
 }
 
+function recordViewFailure(domain, code, transition, error, context = {}) {
+    const diagnostics = window.NightOwlDiagnostics;
+    if (diagnostics?.logger) {
+        return diagnostics.logger(domain).error(code, error, context, {
+            correlationId: transition?.correlationId,
+            state: 'failed'
+        });
+    }
+    const correlationId = transition?.correlationId || `NO-${String(domain).toUpperCase()}-FAILED`;
+    console.error(`[${domain}] ${code} [${correlationId}]:`, error);
+    return {
+        id: correlationId,
+        correlationId,
+        requestId: correlationId,
+        code,
+        state: 'failed',
+        message: error?.message || String(error || 'Unknown error')
+    };
+}
+
+function appendViewErrorControls(container, incident, actions = {}) {
+    const incidentLabel = document.createElement('code');
+    incidentLabel.className = 'view-error-incident';
+    incidentLabel.textContent = `Incident: ${incident?.correlationId || incident?.id || 'unavailable'}`;
+    container.appendChild(incidentLabel);
+
+    const actionRow = document.createElement('div');
+    actionRow.className = 'view-error-actions';
+    const addButton = (className, label, handler) => {
+        if (typeof handler !== 'function') return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = className;
+        button.textContent = label;
+        button.addEventListener('click', handler);
+        actionRow.appendChild(button);
+    };
+    addButton('view-error-retry', actions.retryLabel || 'Retry', actions.onRetry);
+    addButton('view-error-reset', 'Reset View', actions.onReset);
+    addButton('view-error-copy', 'Copy diagnostics', async event => {
+        try {
+            const result = await window.NightOwlDiagnostics?.copyReport?.({ incidentId: incident?.id });
+            event.currentTarget.textContent = result?.success ? 'Copied' : 'Copy unavailable';
+        } catch (_error) {
+            event.currentTarget.textContent = 'Copy failed';
+        }
+    });
+    addButton('view-error-details', 'View diagnostics', () => {
+        window.NightOwlDiagnostics?.open?.({ incidentId: incident?.id });
+    });
+    container.appendChild(actionRow);
+}
+
 let fileTransitionStatusTimer = null;
 
 function getFileTransitionStatusElement() {
@@ -64,6 +117,8 @@ function clearFileTransitionStatus(transition = null) {
     element.classList.remove('is-error');
     element.setAttribute('role', 'status');
     delete element.dataset.transitionId;
+    delete element.dataset.correlationId;
+    delete element.dataset.viewState;
 }
 
 function scheduleFileTransitionStatus(transition) {
@@ -96,17 +151,28 @@ function showFileTransitionFailure(transition, error, retry) {
     }
     restoreUsableEditorShell();
     const element = getFileTransitionStatusElement();
-    const message = document.createElement('span');
-    message.textContent = `Could not open ${transition.key?.split('/').pop() || 'file'}: ${error?.message || error}`;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = 'Retry';
-    button.addEventListener('click', () => {
-        clearFileTransitionStatus();
-        retry?.();
+    const incident = recordViewFailure('file', 'NO-FILE-OPEN', transition, error, {
+        filePath: transition.key,
+        transitionId: transition.id,
+        source: transition.metadata?.source
     });
-    element.replaceChildren(message, button);
+    const message = document.createElement('span');
+    message.textContent = `Could not open ${transition.key?.split('/').pop() || 'file'}: ${incident.message}`;
+    element.replaceChildren(message);
+    appendViewErrorControls(element, incident, {
+        onRetry: () => {
+            clearFileTransitionStatus();
+            retry?.();
+        },
+        onReset: () => {
+            clearFileTransitionStatus();
+            restoreUsableEditorShell();
+            window.switchToMode?.('editor');
+        }
+    });
     element.dataset.transitionId = String(transition.id);
+    element.dataset.correlationId = incident.correlationId;
+    element.dataset.viewState = 'failed';
     element.classList.add('is-error');
     element.setAttribute('role', 'alert');
     element.style.display = '';
@@ -993,12 +1059,19 @@ const previewRouter = window.NightOwlPreviewRouter?.createPreviewRouter?.({
     onBlocked: () => {
         if (activeFileLoadToken) finishLargeFileIndicator(activeFileLoadToken);
     },
-    onError: ({ filePath, content, renderOptions, error }) => {
-        console.error('[renderer.js] Preview transition failed:', error);
-        renderPreviewFailure(error, () => updatePreviewAndStructure(content, {
+    onError: ({ filePath, renderOptions, transition, error, retry }) => {
+        const incident = recordViewFailure('preview', 'NO-PREVIEW-RENDER', transition, error, {
             filePath,
-            force: renderOptions.force
-        }));
+            transitionId: transition.id,
+            force: Boolean(renderOptions.force)
+        });
+        renderPreviewFailure(incident, retry, () => {
+            fileTransitionCoordinator.supersede('preview', 'view-reset');
+            const reset = document.createElement('p');
+            reset.className = 'preview-reset-state';
+            reset.textContent = 'Preview reset. Edit or reopen the file to render it again.';
+            previewContent?.replaceChildren(reset);
+        });
     }
 });
 if (!previewRouter) throw new Error('Preview router is not loaded');
@@ -1242,20 +1315,23 @@ async function renderMarkdownContent(markdownContent, options = {}) {
     return { speakerNotes };
 }
 
-function renderPreviewFailure(error, retry) {
+function renderPreviewFailure(incident, retry, reset) {
     if (!previewContent) return;
     const container = document.createElement('div');
     container.className = 'preview-transition-error';
     container.setAttribute('role', 'alert');
+    container.dataset.correlationId = incident?.correlationId || '';
+    container.dataset.viewState = 'failed';
     const title = document.createElement('strong');
     title.textContent = 'Preview could not be rendered.';
     const detail = document.createElement('span');
-    detail.textContent = error?.message || String(error || 'Unknown preview error');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = 'Retry preview';
-    button.addEventListener('click', () => retry?.());
-    container.append(title, detail, button);
+    detail.textContent = incident?.message || 'Unknown preview error';
+    container.append(title, detail);
+    appendViewErrorControls(container, incident, {
+        retryLabel: 'Retry preview',
+        onRetry: retry,
+        onReset: reset
+    });
     previewContent.replaceChildren(container);
 }
 
@@ -6199,9 +6275,7 @@ const fileOpenController = window.NightOwlFileOpenController?.createFileOpenCont
     },
     onComplete: ({ transition }) => clearFileTransitionStatus(transition),
     onFailure: ({ transition, error, retry }) => showFileTransitionFailure(transition, error, retry),
-    onLogError: ({ filePath, error }) => {
-        console.error(`[openFileInEditor] Failed to open ${filePath}:`, error);
-    }
+    onLogError: () => {}
 });
 if (!fileOpenController) throw new Error('File-open controller is not loaded');
 
@@ -12887,6 +12961,10 @@ if (window.electronAPI) {
 
     window.electronAPI.on('open-export-settings-dialog', () => {
         openSettingsDialog('export');
+    });
+
+    window.electronAPI.on('open-diagnostics', () => {
+        window.NightOwlDiagnostics?.open?.();
     });
     
     // Listen for HTML export completion to refresh preview if needed

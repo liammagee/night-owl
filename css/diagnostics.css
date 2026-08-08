@@ -1,0 +1,122 @@
+.nightowl-diagnostics-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.nightowl-diagnostics-panel {
+    display: grid;
+    grid-template-rows: auto auto auto minmax(180px, 1fr) auto;
+    gap: 14px;
+    width: min(840px, 96vw);
+    max-height: min(820px, 92vh);
+    padding: 20px;
+    color: var(--text-primary, #e5e7eb);
+    background: var(--surface-primary, #202124);
+    border: 1px solid var(--border-color, #4b5563);
+    border-radius: 10px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.nightowl-diagnostics-header,
+.nightowl-diagnostics-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nightowl-diagnostics-header {
+    justify-content: space-between;
+}
+
+.nightowl-diagnostics-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.nightowl-diagnostics-privacy {
+    margin: 0;
+    color: var(--text-secondary, #b8bec8);
+}
+
+.nightowl-diagnostics-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px 14px;
+    margin: 0;
+}
+
+.nightowl-diagnostics-summary dt {
+    color: var(--text-secondary, #b8bec8);
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.nightowl-diagnostics-summary dd {
+    grid-row: 2;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nightowl-diagnostics-report-preview {
+    min-height: 180px;
+    margin: 0;
+    padding: 12px;
+    overflow: auto;
+    color: var(--text-primary, #e5e7eb);
+    background: var(--surface-secondary, #15171a);
+    border: 1px solid var(--border-color, #374151);
+    border-radius: 6px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+}
+
+.nightowl-diagnostics-panel button,
+.view-error-actions button {
+    min-height: 32px;
+    padding: 5px 10px;
+    color: inherit;
+    background: var(--surface-secondary, #30343a);
+    border: 1px solid var(--border-color, #596273);
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.nightowl-diagnostics-panel button:focus-visible,
+.view-error-actions button:focus-visible {
+    outline: 2px solid var(--accent-color, #60a5fa);
+    outline-offset: 2px;
+}
+
+.nightowl-diagnostics-copy-status {
+    min-height: 1em;
+    color: var(--text-secondary, #b8bec8);
+}
+
+.view-error-incident {
+    display: block;
+    margin-top: 6px;
+    font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.view-error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+    .nightowl-diagnostics-summary {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .nightowl-diagnostics-summary dd {
+        grid-row: auto;
+    }
+}

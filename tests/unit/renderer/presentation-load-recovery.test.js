@@ -39,6 +39,8 @@ async function flushPromises() {
 }
 
 describe('presentation load recovery', () => {
+  let diagnosticsLogger;
+
   beforeEach(() => {
     jest.resetModules();
     jest.useFakeTimers();
@@ -62,11 +64,28 @@ describe('presentation load recovery', () => {
     delete window.syncContentToPresentationImmediate;
     delete window.editor;
     delete window.electronAPI;
+    diagnosticsLogger = {
+      error: jest.fn((code, error, _context, options) => ({
+        id: options.correlationId,
+        correlationId: options.correlationId,
+        code,
+        state: options.state,
+        message: error.message
+      })),
+      warn: jest.fn()
+    };
+    window.NightOwlDiagnostics = {
+      createCorrelationId: jest.fn(() => 'NO-PRESENTATION-TEST-1'),
+      logger: jest.fn(() => diagnosticsLogger),
+      copyReport: jest.fn(async () => ({ success: true })),
+      open: jest.fn(async () => {})
+    };
   });
 
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
+    delete window.NightOwlDiagnostics;
   });
 
   test('feature timeout shows actions and Retry performs a fresh successful mount', async () => {
@@ -116,7 +135,16 @@ describe('presentation load recovery', () => {
 
     const root = document.getElementById('presentation-root');
     expect(root.dataset.presentationLoadState).toBe('failed');
+    expect(root.dataset.viewState).toBe('failed');
+    expect(root.dataset.correlationId).toBe('NO-PRESENTATION-TEST-1');
     expect(root.textContent).toContain('NO-PRES-RENDER');
+    expect(root.textContent).toContain('NO-PRESENTATION-TEST-1');
+    expect(diagnosticsLogger.error).toHaveBeenCalledWith(
+      'NO-PRES-RENDER',
+      expect.any(Error),
+      expect.objectContaining({ diagnosticId: 'NO-PRES-RENDER' }),
+      { correlationId: 'NO-PRESENTATION-TEST-1', state: 'failed' }
+    );
     expect(runtime.roots[0].unmount).toHaveBeenCalledTimes(1);
 
     shouldThrow = false;
@@ -126,6 +154,29 @@ describe('presentation load recovery', () => {
     expect(root.dataset.presentationLoadState).toBe('ready');
     expect(runtime.createRoot).toHaveBeenCalledTimes(2);
     expect(runtime.roots[1].render).toHaveBeenCalledTimes(1);
+  });
+
+  test('Reset View returns to a clean editor state without restarting', async () => {
+    const runtime = createReactRuntime(() => {
+      throw new Error('reset this renderer');
+    });
+    window.MarkdownPreziApp = function MarkdownPreziApp() {};
+    window.showSpeakerNotesPanel = jest.fn();
+    window.hideSpeakerNotesPanel = jest.fn();
+    window.editor = { getValue: jest.fn(() => '# Resettable deck') };
+
+    const modeSwitcher = require(modeSwitcherPath);
+    modeSwitcher.switchToMode('presentation');
+    await flushPromises();
+
+    const root = document.getElementById('presentation-root');
+    root.querySelector('.presentation-load-reset').click();
+
+    expect(window.currentMode).toBe('editor');
+    expect(root.dataset.presentationLoadState).toBe('cancelled');
+    expect(root.dataset.viewState).toBe('cancelled');
+    expect(root.dataset.correlationId).toBeUndefined();
+    expect(runtime.roots[0].unmount).toHaveBeenCalledTimes(1);
   });
 
   test('an injected content-parse failure reports its diagnostic and can be retried', async () => {

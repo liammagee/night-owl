@@ -36,6 +36,7 @@ registry's timer, listener, or observer cleanup.
 | Citation capture bridge | `main.js` | App process | `before-quit` |
 | Electron `nativeTheme` listener | `main.js` | App process | Electron process exit |
 | Feature loader script/style caches | Feature loader | Renderer window | Renderer window destruction |
+| Diagnostics global error listeners | Diagnostics module registry | Renderer window | Diagnostics disposal / renderer window destruction |
 
 The last two entries are intentionally app-lifetime resources. They do not
 accumulate across feature, mode, file, or workspace transitions and are released

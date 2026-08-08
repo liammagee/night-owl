@@ -45,6 +45,19 @@ function collectResourceDiagnostics(getResourceDiagnostics) {
   }
 }
 
+function collectAppDiagnostics(electronApp = app) {
+  return {
+    version: typeof electronApp.getVersion === 'function' ? electronApp.getVersion() : 'unknown',
+    isPackaged: Boolean(electronApp.isPackaged),
+    packageMode: electronApp.isPackaged ? 'asar' : 'source',
+    platform: process.platform,
+    arch: process.arch,
+    electronVersion: process.versions.electron || 'unknown',
+    chromeVersion: process.versions.chrome || 'unknown',
+    nodeVersion: process.versions.node || 'unknown'
+  };
+}
+
 function getTracePath(electronApp = app) {
   const userDataPath = electronApp.getPath ? electronApp.getPath('userData') : process.cwd();
   return path.join(userDataPath, `nightowl-performance-${Date.now()}.json`);
@@ -95,7 +108,10 @@ function register(dependencies = {}) {
   ));
 
   ipcMain.handle('performance:get-resource-diagnostics', async () => (
-    collectResourceDiagnostics(dependencies.getResourceDiagnostics)
+    {
+      ...collectResourceDiagnostics(dependencies.getResourceDiagnostics),
+      app: collectAppDiagnostics(electronApp)
+    }
   ));
 
   ipcMain.handle('performance:start-trace', async (_event, options = {}) => (
@@ -110,6 +126,7 @@ function register(dependencies = {}) {
 }
 
 module.exports = {
+  collectAppDiagnostics,
   collectGpuDiagnostics,
   collectResourceDiagnostics,
   register,

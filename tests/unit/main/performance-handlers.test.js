@@ -59,7 +59,17 @@ describe('performanceHandlers', () => {
     await expect(handler()).resolves.toEqual({
       success: true,
       lifecycle: { activeRegistries: 1, activeResources: 3 },
-      handlers: { terminal: { activeProcesses: 2 } }
+      handlers: { terminal: { activeProcesses: 2 } },
+      app: {
+        version: '1.0.0',
+        isPackaged: false,
+        packageMode: 'source',
+        platform: process.platform,
+        arch: process.arch,
+        electronVersion: process.versions.electron || 'unknown',
+        chromeVersion: process.versions.chrome || 'unknown',
+        nodeVersion: process.versions.node || 'unknown'
+      }
     });
     expect(getResourceDiagnostics).toHaveBeenCalledTimes(1);
   });

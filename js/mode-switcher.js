@@ -23,6 +23,33 @@ const PRESENTATION_DIAGNOSTICS = {
   content: 'NO-PRES-CONTENT'
 };
 
+function recordPresentationFailure(diagnosticId, correlationId, error, context = {}) {
+  if (window.NightOwlDiagnostics?.logger) {
+    return window.NightOwlDiagnostics.logger('presentation').error(
+      diagnosticId,
+      error,
+      context,
+      { correlationId, state: 'failed' }
+    );
+  }
+  console.error(`[Mode Switching] ${diagnosticId} [${correlationId}]:`, error);
+  return {
+    id: correlationId,
+    correlationId,
+    code: diagnosticId,
+    state: 'failed',
+    message: error?.message || String(error || 'Presentation failed')
+  };
+}
+
+function logPresentationWarning(code, error, context = {}) {
+  if (window.NightOwlDiagnostics?.logger) {
+    return window.NightOwlDiagnostics.logger('presentation').warn(code, error, context, { state: 'degraded' });
+  }
+  console.warn(`[Mode Switching] ${code}:`, error);
+  return null;
+}
+
 function getPresentationReactRuntime() {
   const react = window.React;
   const reactDOM = window.ReactDOM;
@@ -102,7 +129,7 @@ function unmountPresentationComponent(container) {
     try {
       root.unmount();
     } catch (error) {
-      console.warn('[Mode Switching] Failed to unmount presentation root:', error);
+      logPresentationWarning('NO-PRES-UNMOUNT', error);
     }
     presentationReactRoots.delete(container);
     return;
@@ -112,13 +139,19 @@ function unmountPresentationComponent(container) {
     try {
       runtime.reactDOM.unmountComponentAtNode?.(container);
     } catch (error) {
-      console.warn('[Mode Switching] Failed to unmount legacy presentation root:', error);
+      logPresentationWarning('NO-PRES-LEGACY-UNMOUNT', error);
     }
   }
 }
 
 function renderPresentationLoadState(container, state, options = {}) {
   container.dataset.presentationLoadState = state;
+  container.dataset.viewState = state;
+  if (options.incident?.correlationId) {
+    container.dataset.correlationId = options.incident.correlationId;
+  } else {
+    delete container.dataset.correlationId;
+  }
   container.replaceChildren();
 
   if (state === 'cancelled' || state === 'ready') return;
@@ -142,10 +175,14 @@ function renderPresentationLoadState(container, state, options = {}) {
 
     const diagnostic = document.createElement('code');
     diagnostic.className = 'presentation-load-diagnostic';
-    diagnostic.textContent = `Diagnostic: ${options.diagnosticId || PRESENTATION_DIAGNOSTICS.render}`;
+    diagnostic.textContent = [
+      `Diagnostic: ${options.diagnosticId || PRESENTATION_DIAGNOSTICS.render}`,
+      `Incident: ${options.incident?.correlationId || 'unavailable'}`
+    ].join(' · ');
     panel.appendChild(diagnostic);
 
     const actions = document.createElement('div');
+    actions.className = 'view-error-actions';
     actions.style.display = 'flex';
     actions.style.gap = '8px';
     actions.style.marginTop = '16px';
@@ -163,6 +200,36 @@ function renderPresentationLoadState(container, state, options = {}) {
     returnButton.textContent = 'Return to Editor';
     returnButton.addEventListener('click', () => options.onReturn?.());
     actions.appendChild(returnButton);
+
+    const resetButton = document.createElement('button');
+    resetButton.type = 'button';
+    resetButton.className = 'presentation-load-reset';
+    resetButton.textContent = 'Reset View';
+    resetButton.addEventListener('click', () => options.onReset?.());
+    actions.appendChild(resetButton);
+
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'presentation-load-copy';
+    copyButton.textContent = 'Copy diagnostics';
+    copyButton.addEventListener('click', async () => {
+      try {
+        const result = await window.NightOwlDiagnostics?.copyReport?.({ incidentId: options.incident?.id });
+        copyButton.textContent = result?.success ? 'Copied' : 'Copy unavailable';
+      } catch (_error) {
+        copyButton.textContent = 'Copy failed';
+      }
+    });
+    actions.appendChild(copyButton);
+
+    const detailsButton = document.createElement('button');
+    detailsButton.type = 'button';
+    detailsButton.className = 'presentation-load-details';
+    detailsButton.textContent = 'View diagnostics';
+    detailsButton.addEventListener('click', () => {
+      window.NightOwlDiagnostics?.open?.({ incidentId: options.incident?.id });
+    });
+    actions.appendChild(detailsButton);
     panel.appendChild(actions);
   }
 
@@ -198,7 +265,7 @@ function ensurePresentationsReady(timeoutMs = 8000, options = {}) {
         settings: window.appSettings?.features || null
       });
     } catch (error) {
-      console.warn('[Mode Switching] Failed to start NightOwl features:', error);
+      logPresentationWarning('NO-PRES-FEATURE-START', error);
     }
   };
 
@@ -244,7 +311,7 @@ function getPresentationSourceContent() {
     try {
       content = getCurrentEditorContent();
     } catch (error) {
-      console.warn('[Mode Switching] Error calling getCurrentEditorContent():', error);
+      logPresentationWarning('NO-PRES-EDITOR-CONTENT', error);
     }
   }
 
@@ -252,7 +319,7 @@ function getPresentationSourceContent() {
     try {
       content = window.editor.getValue();
     } catch (error) {
-      console.warn('[Mode Switching] Error getting content from window.editor:', error);
+      logPresentationWarning('NO-PRES-EDITOR-VALUE', error);
     }
   }
 
@@ -267,6 +334,11 @@ function startPresentationLoad(container, options = {}) {
   const controller = new AbortController();
   presentationLoadController = controller;
   const nonce = presentationLoadNonce;
+  const correlationId = String(
+    options.correlationId ||
+    window.NightOwlDiagnostics?.createCorrelationId?.('presentation') ||
+    `NO-PRESENTATION-${Date.now().toString(36).toUpperCase()}-${nonce}`
+  );
   const content = options.content ?? getPresentationSourceContent();
   renderPresentationLoadState(container, 'loading');
   let failureHandled = false;
@@ -281,16 +353,28 @@ function startPresentationLoad(container, options = {}) {
     if (failureHandled) return 'failed';
     failureHandled = true;
     presentationLoadController = null;
-    console.error(`[Mode Switching] ${diagnosticId}:`, error);
+    const incident = recordPresentationFailure(diagnosticId, correlationId, error, {
+      diagnosticId,
+      loadNonce: nonce,
+      timeoutMs: options.timeoutMs ?? 8000
+    });
     unmountPresentationComponent(container);
     renderPresentationLoadState(container, 'failed', {
       diagnosticId,
+      incident,
       message,
       onRetry: () => startPresentationLoad(container, {
         content: getPresentationSourceContent(),
         timeoutMs: options.timeoutMs
       }),
-      onReturn: () => switchToMode('editor')
+      onReturn: () => switchToMode('editor'),
+      onReset: () => {
+        cancelPresentationLoad({ container, markCancelled: false });
+        unmountPresentationComponent(container);
+        delete window.targetPresentationSlide;
+        renderPresentationLoadState(container, 'cancelled');
+        switchToMode('editor');
+      }
     });
     return 'failed';
   };
@@ -357,6 +441,8 @@ function startPresentationLoad(container, options = {}) {
 
     if (!isCurrent()) return 'cancelled';
     container.dataset.presentationLoadState = 'ready';
+    container.dataset.viewState = 'ready';
+    delete container.dataset.correlationId;
     presentationLoadController = null;
     window.showSpeakerNotesPanel?.(content);
     return 'ready';

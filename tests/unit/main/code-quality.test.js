@@ -192,6 +192,31 @@ describe('Code quality guardrails', () => {
     expect(mainSource).toContain('ipcHandlers.cleanupHandlers()');
   });
 
+  test('transition failures use structured redacted diagnostics and local recovery actions', () => {
+    const diagnosticsSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/diagnostics.js'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const modeSource = fs.readFileSync(path.join(__dirname, '../../../js/mode-switcher.js'), 'utf8');
+    const transitionSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-transition-coordinator.js'), 'utf8');
+    const previewSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/preview-router.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+
+    expect(indexSource).toContain('orchestrator/modules/diagnostics.js');
+    expect(indexSource).toContain('css/diagnostics.css');
+    expect(diagnosticsSource).toContain('SENSITIVE_KEY_RE');
+    expect(diagnosticsSource).toContain('PATH_KEY_RE');
+    expect(diagnosticsSource).toContain('Copy redacted diagnostics');
+    expect(transitionSource).toContain('correlationId');
+    expect(previewSource).not.toContain('onError({ filePath, content,');
+    expect(rendererSource).toContain("recordViewFailure('file', 'NO-FILE-OPEN'");
+    expect(rendererSource).toContain("recordViewFailure('preview', 'NO-PREVIEW-RENDER'");
+    expect(rendererSource).toContain("'Reset View'");
+    expect(modeSource).toContain('recordPresentationFailure');
+    expect(modeSource).toContain('presentation-load-reset');
+    expect(mainSource).toContain("label: 'Diagnostics...'");
+    expect(mainSource).toContain("send('open-diagnostics')");
+  });
+
   test('NightOwl command-line installer is reachable from the app menu and packaged build', () => {
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const cliSource = fs.readFileSync(path.join(__dirname, '../../../bin/nightowl'), 'utf8');
