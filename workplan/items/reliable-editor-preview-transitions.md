@@ -1,15 +1,15 @@
 ---
 id: "reliable-editor-preview-transitions"
 title: "Make file opening and preview rendering latest-wins"
-status: "review"
+status: "done"
 type: "bug"
 priority: "P0"
 area: "preview"
 owner: "codex"
 source: "user-report"
-evidence: "source-analysis"
+evidence: "reproduced"
 created: "2026-08-07"
-updated: "2026-08-07"
+updated: "2026-08-08"
 verification: "A rapid A-B-A file-switch test with delayed settings and markdown rendering always leaves the editor, preview, tab, status, and current path on the final A request."
 tags: ["async", "editor", "preview", "reliability"]
 ---

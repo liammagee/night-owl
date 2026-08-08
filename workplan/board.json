@@ -1,11 +1,10 @@
 {
-  "generated": "2026-08-08T08:37:02.283Z",
+  "generated": "2026-08-08T11:18:30.697Z",
   "counts": {
     "total": 19,
     "byStatus": {
       "triaged": 9,
-      "review": 3,
-      "done": 7
+      "done": 10
     },
     "byPriority": {
       "P2": 10,
@@ -21,8 +20,8 @@
       "platform": 2,
       "editor": 1,
       "preview": 1,
-      "packaging": 2,
-      "testing": 3
+      "testing": 3,
+      "packaging": 2
     }
   },
   "items": [
@@ -229,7 +228,7 @@
     {
       "id": "fit-presentation-slides-to-viewport",
       "title": "Fit complete presentation slides inside the viewport",
-      "status": "review",
+      "status": "done",
       "type": "bug",
       "priority": "P0",
       "area": "presentation",
@@ -237,7 +236,7 @@
       "source": "computer-use",
       "evidence": "reproduced",
       "created": "2026-08-07",
-      "updated": "2026-08-07",
+      "updated": "2026-08-08",
       "verification": "At the minimum supported window and in Present mode, every edge of a 16:9 slide is visible without internal slide scrolling or adjacent-slide overlap.",
       "tags": [
         "layout",
@@ -248,40 +247,21 @@
     {
       "id": "reliable-editor-preview-transitions",
       "title": "Make file opening and preview rendering latest-wins",
-      "status": "review",
+      "status": "done",
       "type": "bug",
       "priority": "P0",
       "area": "preview",
       "owner": "codex",
       "source": "user-report",
-      "evidence": "source-analysis",
+      "evidence": "reproduced",
       "created": "2026-08-07",
-      "updated": "2026-08-07",
+      "updated": "2026-08-08",
       "verification": "A rapid A-B-A file-switch test with delayed settings and markdown rendering always leaves the editor, preview, tab, status, and current path on the final A request.",
       "tags": [
         "async",
         "editor",
         "preview",
         "reliability"
-      ]
-    },
-    {
-      "id": "restore-release-entitlements",
-      "title": "Restore tracked macOS entitlements and clean-build preflight",
-      "status": "review",
-      "type": "release",
-      "priority": "P1",
-      "area": "packaging",
-      "owner": "codex",
-      "source": "test-failure",
-      "evidence": "test-failure",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "npm run dist:check and the hardened-runtime code-quality guard pass from a fresh clone before electron-builder starts.",
-      "tags": [
-        "build",
-        "macos",
-        "release"
       ]
     },
     {
@@ -361,6 +341,25 @@
       ],
       "depends_on": [
         "hermetic-tests-across-worktrees"
+      ]
+    },
+    {
+      "id": "restore-release-entitlements",
+      "title": "Restore tracked macOS entitlements and clean-build preflight",
+      "status": "done",
+      "type": "release",
+      "priority": "P1",
+      "area": "packaging",
+      "owner": "codex",
+      "source": "test-failure",
+      "evidence": "test-failure",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "Distribution preflight, ARM64 assembly, and all 3 packaged Electron checks pass; hosted required-smoke also builds and exercises the packaged app.",
+      "tags": [
+        "build",
+        "macos",
+        "release"
       ]
     },
     {
