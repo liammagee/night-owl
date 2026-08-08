@@ -19,6 +19,10 @@ const {
   resolvePathWithinRoots,
   validatePathSegment
 } = require('./pathGuards');
+const {
+  hasExplicitScheme,
+  isAllowedExternalUrl
+} = require('../services/contentSecurity');
 
 const debug = createDebugLogger('FileHandlers');
 
@@ -1773,26 +1777,29 @@ function register(deps) {
         return { success: false, error: 'No file or URL provided' };
       }
 
-      try {
-        const parsedUrl = new URL(targetPath);
-        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'mailto:') {
-          await shell.openExternal(targetPath);
-          debug(`[FileHandlers] Opened external URL: ${targetPath}`);
-          return { success: true, url: targetPath };
-        }
+      if (isAllowedExternalUrl(targetPath)) {
+        await shell.openExternal(targetPath);
+        debug(`[FileHandlers] Opened external URL: ${targetPath}`);
+        return { success: true, url: targetPath };
+      }
 
-        if (parsedUrl.protocol === 'file:') {
+      if (/^file:/i.test(targetPath)) {
+        try {
           const { fileURLToPath } = require('url');
-          const localPath = fileURLToPath(parsedUrl);
+          const localPath = fileURLToPath(targetPath);
           const openError = await shell.openPath(localPath);
           if (openError) {
             return { success: false, error: openError, filePath: localPath };
           }
           debug(`[FileHandlers] Opened external file URL: ${targetPath}`);
           return { success: true, filePath: localPath };
+        } catch (error) {
+          return { success: false, error: `Invalid file URL: ${error.message}` };
         }
-      } catch {
-        // Not a URL; treat it as a local filesystem path.
+      }
+
+      if (hasExplicitScheme(targetPath)) {
+        return { success: false, error: `Unsupported URL protocol: ${targetPath.split(':', 1)[0].toLowerCase()}:` };
       }
 
       const openError = await shell.openPath(targetPath);

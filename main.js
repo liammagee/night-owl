@@ -8,8 +8,9 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
 }
 
 require('dotenv').config({ quiet: true }); // Load .env file
-const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, shell } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const { execFile } = require('child_process');
@@ -35,6 +36,7 @@ const {
 } = require('./services/cliWorkspaceProfile');
 const { installNightOwlCli } = require('./services/cliInstaller');
 const { resolveTutorRuntimePaths } = require('./services/tutorRuntimePaths');
+const { installNavigationGuards } = require('./services/contentSecurity');
 const ipcHandlers = require('./ipc');
 const { createDebugLogger } = require('./ipc/logging');
 
@@ -1442,10 +1444,12 @@ function createWindow() {
     }
   });
 
-  // Handle external links
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    require('electron').shell.openExternal(url);
-    return { action: 'deny' };
+  // Keep the application document in place and send only explicitly supported
+  // external URL schemes to the operating system.
+  installNavigationGuards(win.webContents, {
+    appEntryUrl: pathToFileURL(indexPath).toString(),
+    openExternal: (url) => shell.openExternal(url),
+    onError: (error) => console.error('[main.js] Failed to open external URL:', error)
   });
 
   win.on('closed', () => {

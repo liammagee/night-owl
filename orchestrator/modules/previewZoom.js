@@ -36,6 +36,21 @@ class PreviewZoom {
         this.isInitialized = true;
     }
 
+    extractTextContent(htmlContent) {
+        const container = document.createElement('div');
+        this.setSafeHTML(container, htmlContent);
+        return container.textContent || container.innerText || '';
+    }
+
+    setSafeHTML(element, htmlContent) {
+        const security = window.NightOwlContentSecurity;
+        if (security?.setSanitizedHTML) {
+            return security.setSanitizedHTML(element, htmlContent);
+        }
+        element.textContent = String(htmlContent || '').replace(/<[^>]*>/g, ' ');
+        return element.textContent;
+    }
+
     // Generate a simple hash of content for change detection
     generateContentHash(content) {
         let hash = 0;
@@ -504,9 +519,7 @@ class PreviewZoom {
             this.currentZoomLevel = 0;
 
             // Extract text content for similarity comparison
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = htmlContent;
-            const textContent = tempDiv.textContent || tempDiv.innerText || '';
+            const textContent = this.extractTextContent(htmlContent);
 
             // Check if we have valid cached summaries
             if (this.areCachedSummariesValid(filePath, textContent)) {
@@ -561,9 +574,7 @@ class PreviewZoom {
         try {
             // Extract text content from HTML if not provided
             if (!textContent) {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = this.originalContent;
-                textContent = tempDiv.textContent || tempDiv.innerText || '';
+                textContent = this.extractTextContent(this.originalContent);
             }
 
             console.log('[PreviewZoom] 📤 Sending API request for summaries...', {
@@ -625,9 +636,7 @@ class PreviewZoom {
             console.error('[PreviewZoom] ❌ Error generating summaries:', error);
             // Fallback to simple text truncation
             if (!textContent) {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = this.originalContent;
-                textContent = tempDiv.textContent || tempDiv.innerText || '';
+                textContent = this.extractTextContent(this.originalContent);
             }
             this.generateFallbackSummaries(textContent);
             // Update UI to show fallback summaries  
@@ -776,7 +785,7 @@ class PreviewZoom {
         previewContent.style.opacity = '0';
         
         setTimeout(() => {
-            previewContent.innerHTML = contentToShow;
+            this.setSafeHTML(previewContent, contentToShow);
             previewContent.style.opacity = '1';
             console.log('[PreviewZoom] ✅ Content updated successfully');
         }, 150);
@@ -838,7 +847,7 @@ class PreviewZoom {
         // Create ghost element that overlays the current content
         const ghostDiv = document.createElement('div');
         ghostDiv.className = 'transition-ghost';
-        ghostDiv.innerHTML = currentContent;
+        this.setSafeHTML(ghostDiv, currentContent);
         ghostDiv.style.cssText = `
             position: absolute;
             top: 0;
@@ -868,7 +877,7 @@ class PreviewZoom {
         // Start transition immediately
         requestAnimationFrame(() => {
             // Update the underlying content (hidden by ghost)
-            previewContent.innerHTML = contentToShow;
+            this.setSafeHTML(previewContent, contentToShow);
             previewContent.style.position = 'relative';
             
             // Force the underlying content to have exactly the same layout as ghost
@@ -933,7 +942,7 @@ class PreviewZoom {
         previewContent.style.opacity = '0';
         
         setTimeout(() => {
-            previewContent.innerHTML = this.originalContent;
+            this.setSafeHTML(previewContent, this.originalContent);
             previewContent.style.opacity = '1';
         }, 150);
     }
@@ -993,9 +1002,7 @@ class PreviewZoom {
         if (this.isEnabled && this.originalContent) {
             console.log('[PreviewZoom] 🚀 Feature enabled, generating summaries...');
             // Extract text content for summary generation
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = this.originalContent;
-            const textContent = tempDiv.textContent || tempDiv.innerText || '';
+            const textContent = this.extractTextContent(this.originalContent);
             this.generateSummaries(textContent);
         } else if (!this.isEnabled) {
             console.log('[PreviewZoom] 🔄 Feature disabled, resetting to original');
@@ -1071,9 +1078,7 @@ class PreviewZoom {
         this.updateControlsContent();
         
         // Extract text content and regenerate
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = this.originalContent;
-        const textContent = tempDiv.textContent || tempDiv.innerText || '';
+        const textContent = this.extractTextContent(this.originalContent);
         
         console.log('[PreviewZoom] 🚀 Starting fresh summary generation...');
         

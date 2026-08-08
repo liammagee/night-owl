@@ -3,6 +3,30 @@
 const React = window.React;
 const ReactDOM = window.ReactDOM;
 const { useState, useRef, useEffect, useLayoutEffect, useCallback } = React;
+const contentSecurity = window.NightOwlContentSecurity;
+
+const sanitizeRenderedHTML = (html) => {
+  if (contentSecurity?.sanitizeRenderedHTML) {
+    return contentSecurity.sanitizeRenderedHTML(html, {
+      baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
+    });
+  }
+  return String(html || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
+const setSanitizedHTML = (element, html) => {
+  if (!element) return '';
+  if (contentSecurity?.setSanitizedHTML) {
+    return contentSecurity.setSanitizedHTML(element, html, {
+      baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
+    });
+  }
+  element.textContent = String(html || '');
+  return element.textContent;
+};
 
 // Lucide React icons as simple SVG components
 const ChevronLeft = () => (
@@ -53,6 +77,7 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
   const frameRef = useRef(null);
   const contentRef = useRef(null);
   const [contentScale, setContentScale] = useState(1);
+  const sanitizedHtml = sanitizeRenderedHTML(html);
 
   useLayoutEffect(() => {
     const frame = frameRef.current;
@@ -110,7 +135,7 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
       window.removeEventListener('resize', measure);
       if (slideElement) delete slideElement.dataset.contentOverflow;
     };
-  }, [html, isPresenting]);
+  }, [sanitizedHtml, isPresenting]);
 
   return (
     <div
@@ -128,7 +153,8 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
           transform: isPresenting ? `scale(${contentScale})` : 'none',
           transformOrigin: 'top left'
         }}
-        dangerouslySetInnerHTML={{ __html: html }}
+        onClick={(event) => window.handleInternalLinkClick?.(event)}
+        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
     </div>
   );
@@ -218,22 +244,23 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   // Set up the global handler immediately, not in useEffect
   if (!window.handleInternalLinkClick) {
     window.handleInternalLinkClick = function(event) {
+      const linkElement = event.target?.closest?.('.internal-link');
       console.log('[Internal Link] *** CLICK DETECTED *** Global handler called:', {
-        target: event.target,
-        tagName: event.target.tagName,
-        className: event.target.className,
+        target: linkElement || event.target,
+        tagName: linkElement?.tagName,
+        className: linkElement?.className,
         metaKey: event.metaKey,
         ctrlKey: event.ctrlKey,
-        hasInternalLinkClass: event.target.classList?.contains('internal-link')
+        hasInternalLinkClass: Boolean(linkElement)
       });
 
       // Check if this is a click on an internal link with Cmd/Ctrl modifier
-      if ((event.metaKey || event.ctrlKey) && event.target.classList?.contains('internal-link')) {
+      if ((event.metaKey || event.ctrlKey) && linkElement) {
         console.log('[Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
         event.preventDefault();
         event.stopPropagation();
 
-        const linkPath = event.target.getAttribute('data-link');
+        const linkPath = linkElement.getAttribute('data-link');
         if (linkPath) {
           const decodedPath = decodeURIComponent(linkPath);
           console.log('[Internal Link] Opening:', decodedPath);
@@ -252,7 +279,7 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
         } else {
           console.warn('[Internal Link] No data-link attribute found');
         }
-      } else if (event.target.classList?.contains('internal-link')) {
+      } else if (linkElement) {
         // Regular click on internal link - prevent default but don't open
         console.log('[Internal Link] Regular click on internal link - preventing default');
         event.preventDefault();
@@ -776,7 +803,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           }
         );
 
-        return html;
+        return sanitizeRenderedHTML(html);
       } catch (error) {
         console.warn('[MarkdownParser] marked.parse failed, using fallback:', error);
       }
@@ -877,7 +904,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }
       }
 
-      return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}" onclick="handleInternalLinkClick(event)">${display}</a>`;
+      return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
     });
     
     // Regular markdown links
@@ -1005,7 +1032,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       html = html.replace(placeholder, content);
     });
 
-    return html;
+    return sanitizeRenderedHTML(html);
   };
 
   // Extract speaker notes from slide content
@@ -1042,17 +1069,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     let backgroundImage = null;
 
     if (match) {
-      let imagePath = match[1].trim();
-      // Resolve relative paths (same logic as inline image rendering)
-      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://') && !imagePath.startsWith('data:')) {
-        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-        if (baseDir) {
-          imagePath = `file://${baseDir}/${imagePath}`;
-        }
-      } else if (imagePath.startsWith('/')) {
-        imagePath = `file://${imagePath}`;
-      }
-      backgroundImage = imagePath;
+      const imagePath = match[1].trim();
+      const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+      backgroundImage = contentSecurity?.resolveImageUrl
+        ? contentSecurity.resolveImageUrl(imagePath, baseDir)
+        : null;
     }
 
     // Remove bg directive and all remaining HTML comments from visible content
@@ -1902,12 +1923,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           if (currentSlideNotes) {
             // Use HTML conversion for inline panel too
             if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {
-              notesContent.innerHTML = window.markdownToHtml(currentSlideNotes);
+              setSanitizedHTML(notesContent, window.markdownToHtml(currentSlideNotes));
             } else {
-              notesContent.innerHTML = currentSlideNotes.replace(/\n/g, '<br>');
+              setSanitizedHTML(notesContent, currentSlideNotes.replace(/\n/g, '<br>'));
             }
           } else {
-            notesContent.innerHTML = '<em>No speaker notes for this slide.</em>';
+            setSanitizedHTML(notesContent, '<em>No speaker notes for this slide.</em>');
           }
         }
       } else {
@@ -2409,9 +2430,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           if (notesContainer) {
             const currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
             if (currentSlideNotes && window.markdownToHtml) {
-              notesContainer.innerHTML = window.markdownToHtml(currentSlideNotes);
+              setSanitizedHTML(notesContainer, window.markdownToHtml(currentSlideNotes));
             } else {
-              notesContainer.innerHTML = currentSlideNotes || '<em>No speaker notes for this slide.</em>';
+              setSanitizedHTML(notesContainer, currentSlideNotes || '<em>No speaker notes for this slide.</em>');
             }
           }
         }

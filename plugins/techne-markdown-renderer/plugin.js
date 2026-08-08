@@ -1,7 +1,7 @@
 (function () {
     const FEATURE_ID = 'nightowl-markdown-renderer';
     const BASE = 'plugins/techne-markdown-renderer';
-    const VERSION = '20260124a'; // Cache bust version
+    const VERSION = '20260808a'; // Cache bust version
 
     const register = () => {
         if (!window.NightOwlFeatures?.register) return;

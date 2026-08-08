@@ -1,6 +1,13 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { test, expect } = require('../fixtures/electron-app');
+
+const MALICIOUS_MARKDOWN = fs.readFileSync(
+  path.resolve(__dirname, '../../fixtures/malicious-markdown.md'),
+  'utf8'
+);
 
 const DECK = `# First slide
 
@@ -14,17 +21,24 @@ The second slide proves that parsing completed.`;
 
 async function openMarkdown(page, filePath, content) {
   return page.evaluate(
-    ({ path, markdown }) => window.openFileInEditor(path, markdown, { source: 'required-e2e' }),
+    ({ path, markdown }) => window.openFileInEditor(path, markdown, {
+      source: 'required-e2e',
+      refreshExistingTabContent: true
+    }),
     { path: filePath, markdown: content }
   );
 }
 
 async function enterPresentation(page, content = DECK) {
+  const expectedHeading = content.match(/^#\s+(.+)$/m)?.[1] || '';
   await page.evaluate(() => window.switchToMode('editor'));
   await openMarkdown(page, '/virtual-workspace/deck.md', content);
   await page.evaluate(() => window.switchToMode('presentation'));
   await expect(page.locator('#presentation-root')).toHaveAttribute('data-presentation-load-state', 'ready');
   await expect(page.locator('#presentation-root [data-slide-index]')).toHaveCount(2);
+  if (expectedHeading) {
+    await expect(page.locator('#presentation-root')).toContainText(expectedHeading);
+  }
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -82,6 +96,76 @@ test('@required @preview preview readiness exposes committed content rather than
   await expect(appPage.locator('#preview-content h1')).toContainText('Preview ready');
   await expect(appPage.locator('#preview-content')).toContainText('A deterministic preview contract.');
   await expect(appPage.locator('.preview-transition-error')).toHaveCount(0);
+});
+
+test('@required @content-security preview and presentation enforce the same HTML policy', async ({ appPage }) => {
+  await appPage.evaluate(() => {
+    window.__nightOwlMarkdownXssEvents = [];
+    let value = null;
+    Object.defineProperty(window, '__nightOwlMarkdownXss', {
+      configurable: true,
+      get: () => value,
+      set: nextValue => {
+        value = nextValue;
+        window.__nightOwlMarkdownXssEvents.push({
+          value: nextValue,
+          stack: new Error('Markdown fixture handler executed').stack
+        });
+      }
+    });
+  });
+  await openMarkdown(appPage, '/virtual-workspace/malicious.md', MALICIOUS_MARKDOWN);
+
+  for (const root of ['#preview-content']) {
+    await expect(appPage.locator(`${root} #event-handler`)).toContainText('Event handler target');
+    await expect(appPage.locator(`${root} script`)).toHaveCount(0);
+    await expect(appPage.locator(`${root} #event-handler`)).not.toHaveAttribute('onclick', /.+/);
+    await expect(appPage.locator(`${root} #unsafe-link`)).not.toHaveAttribute('href', /.+/);
+    await expect(appPage.locator(`${root} #unsafe-image`)).not.toHaveAttribute('src', /.+/);
+    await expect(appPage.locator(`${root} #unsafe-frame`)).toHaveCount(0);
+    await expect(appPage.locator(`${root} #allowed-frame`)).toHaveAttribute(
+      'sandbox',
+      'allow-same-origin allow-scripts allow-forms allow-popups'
+    );
+    await expect(appPage.locator(`${root} #local-image`)).toHaveCount(1);
+  }
+  await appPage.evaluate(() => window.updateSpeakerNotesDisplay());
+  const speakerNotesRoot = appPage.locator('#speaker-notes-content');
+  await expect(speakerNotesRoot).toContainText('Safe speaker-note text remains visible.');
+  await expect(speakerNotesRoot.locator('[onclick], [onerror]')).toHaveCount(0);
+  await expect(speakerNotesRoot.locator('img[src^="invalid:"]')).toHaveCount(0);
+  expect(await appPage.evaluate(() => ({
+    value: window.__nightOwlMarkdownXss,
+    events: window.__nightOwlMarkdownXssEvents
+  }))).toEqual({ value: null, events: [] });
+
+  await enterPresentation(appPage, MALICIOUS_MARKDOWN);
+  const presentationRoot = '#presentation-root';
+  await expect(appPage.locator(`${presentationRoot} #event-handler`).first()).toContainText('Event handler target');
+  await expect(appPage.locator(`${presentationRoot} script`)).toHaveCount(0);
+  await expect(appPage.locator(`${presentationRoot} #event-handler`).first()).not.toHaveAttribute('onclick', /.+/);
+  await expect(appPage.locator(`${presentationRoot} #unsafe-link`).first()).not.toHaveAttribute('href', /.+/);
+  await expect(appPage.locator(`${presentationRoot} #unsafe-image`).first()).not.toHaveAttribute('src', /.+/);
+  await expect(appPage.locator(`${presentationRoot} #unsafe-frame`)).toHaveCount(0);
+  await expect(appPage.locator(`${presentationRoot} #allowed-frame`).first()).toHaveAttribute(
+    'sandbox',
+    'allow-same-origin allow-scripts allow-forms allow-popups'
+  );
+  await expect(appPage.locator(`${presentationRoot} #local-image`).first()).toHaveAttribute(
+    'src',
+    'file:///virtual-workspace/fixture-image.png'
+  );
+  expect(await appPage.evaluate(() => ({
+    value: window.__nightOwlMarkdownXss,
+    events: window.__nightOwlMarkdownXssEvents
+  }))).toEqual({ value: null, events: [] });
+
+  await appPage.evaluate(() => {
+    delete window.__nightOwlMarkdownXss;
+    delete window.__nightOwlMarkdownXssEvents;
+    window.switchToMode('editor');
+  });
+  await openMarkdown(appPage, '/virtual-workspace/deck.md', DECK);
 });
 
 test('@required @mode-recovery presentation failure offers recovery and retry remounts the deck', async ({ appPage }) => {

@@ -247,6 +247,33 @@ describe('fileHandlers registration', () => {
     expect(shell.openPath).not.toHaveBeenCalled();
   });
 
+  test('open-external rejects non-allowlisted URI schemes without invoking the OS', async () => {
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => '/workspace/current'),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: '/workspace/current',
+      userDataPath: '/mock/user-data'
+    });
+
+    const handler = getRegisteredHandler('open-external');
+
+    await expect(handler(null, 'javascript:alert(1)')).resolves.toEqual({
+      success: false,
+      error: 'Unsupported URL protocol: javascript:'
+    });
+    await expect(handler(null, 'data:text/html,unsafe')).resolves.toEqual({
+      success: false,
+      error: 'Unsupported URL protocol: data:'
+    });
+    expect(shell.openExternal).not.toHaveBeenCalled();
+    expect(shell.openPath).not.toHaveBeenCalled();
+  });
+
   test('open-external still opens local file paths with the system handler', async () => {
     fileHandlers.register({
       appSettings: {},

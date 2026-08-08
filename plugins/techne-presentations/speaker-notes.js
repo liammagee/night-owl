@@ -1,6 +1,24 @@
 // Speaker Notes Functions
 // Handles speaker notes extraction, display, and panel management
 
+function sanitizeSpeakerNotesHTML(html) {
+  if (window.NightOwlContentSecurity?.sanitizeRenderedHTML) {
+    return window.NightOwlContentSecurity.sanitizeRenderedHTML(html);
+  }
+  return String(html || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function setSpeakerNotesHTML(element, html) {
+  if (window.NightOwlContentSecurity?.setSanitizedHTML) {
+    return window.NightOwlContentSecurity.setSanitizedHTML(element, html);
+  }
+  element.textContent = String(html || '');
+  return element.textContent;
+}
+
 // Simple markdown to HTML converter for speaker notes
 function markdownToHtml(markdown) {
   if (!markdown || typeof markdown !== 'string') return '';
@@ -86,7 +104,7 @@ function markdownToHtml(markdown) {
   
   html = htmlParagraphs.filter(p => p).join('\n\n');
   
-  return html;
+  return sanitizeSpeakerNotesHTML(html);
 }
 
 // Speaker Notes Functions
@@ -216,9 +234,9 @@ function showInlineSpeakerNotesPanel(content) {
     const currentSlideNotes = allNotes[0] || ''; // Start with first slide
     
     if (currentSlideNotes) {
-      notesContainer.innerHTML = markdownToHtml(currentSlideNotes);
+      setSpeakerNotesHTML(notesContainer, markdownToHtml(currentSlideNotes));
     } else {
-      notesContainer.innerHTML = '<em>No speaker notes for this slide.</em>';
+      setSpeakerNotesHTML(notesContainer, '<em>No speaker notes for this slide.</em>');
     }
     
     console.log('[Speaker Notes] Panel shown with notes:', currentSlideNotes);
@@ -311,9 +329,9 @@ async function updateSpeakerNotes(slideIndex, content) {
     const currentSlideNotes = allNotes[slideIndex] || '';
 
     if (currentSlideNotes) {
-      notesContainer.innerHTML = markdownToHtml(currentSlideNotes);
+      setSpeakerNotesHTML(notesContainer, markdownToHtml(currentSlideNotes));
     } else {
-      notesContainer.innerHTML = '<em>No speaker notes for this slide.</em>';
+      setSpeakerNotesHTML(notesContainer, '<em>No speaker notes for this slide.</em>');
     }
 
     console.log('[Speaker Notes] Updated inline panel for slide', slideIndex);
