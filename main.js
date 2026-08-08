@@ -1651,6 +1651,12 @@ function createFileMenuItems() {
         }
       },
       {
+        label: 'Publishing Workflows...',
+        click: () => {
+          if (mainWindow) mainWindow.webContents.send('open-publishing-workflows');
+        }
+      },
+      {
         label: 'Open Folder...',
         accelerator: getElectronAccelerator('file.openFolder'),
         click: async () => {

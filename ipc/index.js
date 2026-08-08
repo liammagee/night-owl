@@ -28,6 +28,7 @@ const spellcheckHandlers = require('./spellcheckHandlers');
 const advancedExportHandlers = require('./advancedExportHandlers');
 const collaborationHandlers = require('./collaborationHandlers');
 const staticSiteHandlers = require('./staticSiteHandlers');
+const publishingProfileHandlers = require('./publishingProfileHandlers');
 const performanceHandlers = require('./performanceHandlers');
 const feedHandlers = require('./feedHandlers');
 
@@ -129,6 +130,13 @@ function registerAllHandlers(dependencies) {
       debug('Static site handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering static site handlers:', error);
+    }
+
+    try {
+      publishingProfileHandlers.register(dependencies);
+      debug('Publishing profile handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering publishing profile handlers:', error);
     }
 
     try {

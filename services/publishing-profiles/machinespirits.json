@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "id": "machinespirits-public-site",
+      "title": "Machine Spirits public site",
+      "description": "Render brand assets, validate and publish the content package, then observe the website-owned deployment and exact live content revision.",
+      "matchesWorkspaceBasenames": [
+        "machinespirits-brand",
+        "machinespirits-content-philosophy",
+        "machinespirits-website"
+      ],
+      "repositories": [
+        {
+          "id": "brand",
+          "label": "Brand renderer",
+          "expectedBasenames": ["machinespirits-brand"],
+          "candidates": [".", "../machinespirits-brand"],
+          "remote": "liammagee/machinespirits-brand"
+        },
+        {
+          "id": "content",
+          "label": "Public content package",
+          "expectedBasenames": ["machinespirits-content-philosophy"],
+          "candidates": [".", "../machinespirits-content-philosophy"],
+          "remote": "liammagee/machinespirits-content-philosophy"
+        },
+        {
+          "id": "website",
+          "label": "Website and deployment owner",
+          "expectedBasenames": ["machinespirits-website"],
+          "candidates": [".", "../machinespirits-website"],
+          "remote": "liammagee/machinespirits"
+        }
+      ],
+      "stages": [
+        {
+          "id": "preflight",
+          "label": "1. Preflight",
+          "authority": "inspect",
+          "description": "Check all repository states and run the disposable brand/content contract without publishing.",
+          "requires": ["git", "pandoc"],
+          "steps": [
+            { "id": "brand-status", "type": "repository-status", "repository": "brand" },
+            { "id": "content-status", "type": "repository-status", "repository": "content" },
+            { "id": "website-status", "type": "repository-status", "repository": "website" },
+            {
+              "id": "brand-check",
+              "type": "command",
+              "repository": "brand",
+              "executable": "./check",
+              "args": [],
+              "timeoutMs": 600000
+            }
+          ]
+        },
+        {
+          "id": "preview",
+          "label": "2. Preview handoff",
+          "authority": "inspect",
+          "description": "Show the render/publish plan, changed content paths, and the content revision production should eventually serve.",
+          "requires": ["git", "pandoc"],
+          "steps": [
+            {
+              "id": "brand-dry-run",
+              "type": "command",
+              "repository": "brand",
+              "executable": "./publish-to-content",
+              "args": ["--dry-run"],
+              "timeoutMs": 300000
+            },
+            { "id": "content-status", "type": "repository-status", "repository": "content" }
+          ]
+        },
+        {
+          "id": "publish",
+          "label": "3. Publish content",
+          "authority": "mutate",
+          "description": "Render into the content package, validate, create a scoped content commit, rebase, and push. The website owns subsequent deployment discovery.",
+          "requires": ["git", "pandoc"],
+          "requiresCleanIndex": ["content"],
+          "messageRequired": true,
+          "steps": [
+            {
+              "id": "publish-content",
+              "type": "command",
+              "repository": "brand",
+              "executable": "./publish-to-content",
+              "args": ["--publish", "-m", "{{message}}"],
+              "timeoutMs": 900000
+            }
+          ]
+        },
+        {
+          "id": "deployment",
+          "label": "4. Deployment status",
+          "authority": "network",
+          "description": "Read the website-owned deploy workflow; scheduled drift checks pin and deploy the validated content revision.",
+          "requires": ["gh"],
+          "steps": [
+            {
+              "id": "website-deploy-runs",
+              "type": "command",
+              "repository": "website",
+              "executable": "gh",
+              "args": [
+                "run", "list",
+                "--repo", "liammagee/machinespirits",
+                "--workflow", "deploy.yml",
+                "--limit", "5",
+                "--json", "databaseId,status,conclusion,event,headSha,createdAt,url"
+              ],
+              "timeoutMs": 60000
+            }
+          ]
+        },
+        {
+          "id": "verify",
+          "label": "5. Verify live revision",
+          "authority": "network",
+          "description": "Wait for production to report the exact current content SHA, then run public/private route and asset smoke checks.",
+          "requires": ["node"],
+          "steps": [
+            {
+              "id": "live-content-smoke",
+              "type": "command",
+              "repository": "website",
+              "executable": "node",
+              "args": ["scripts/smoke-deployed-content.mjs"],
+              "environment": {
+                "BASE_URL": "https://machinespirits.org",
+                "EXPECTED_CONTENT_REVISION": "{{repo.content.revision}}"
+              },
+              "timeoutMs": 240000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -144,7 +144,7 @@ test('@required @actions one registry drives commands, feature actions, shortcut
 
   const registrySnapshot = await appPage.evaluate(() => ({
     conflicts: window.NightOwlActions.getShortcutConflicts(),
-    featureActions: ['view.focusMode', 'export.staticSite']
+    featureActions: ['view.focusMode', 'export.staticSite', 'publishing.openWorkflows']
       .filter(actionId => Boolean(window.NightOwlActions.get(actionId))),
     commandShortcut: window.NightOwlActions.get('app.commandPalette')?.shortcut,
     quickOpenShortcut: window.NightOwlActions.get('file.quickOpen')?.shortcut
@@ -152,7 +152,7 @@ test('@required @actions one registry drives commands, feature actions, shortcut
 
   expect(registrySnapshot).toEqual({
     conflicts: [],
-    featureActions: ['view.focusMode', 'export.staticSite'],
+    featureActions: ['view.focusMode', 'export.staticSite', 'publishing.openWorkflows'],
     commandShortcut: 'Mod+Shift+P',
     quickOpenShortcut: 'Mod+P'
   });
@@ -176,6 +176,11 @@ test('@required @actions one registry drives commands, feature actions, shortcut
   await expect(shortcutHelp.locator('[data-action-id="app.commandPalette"]')).toContainText('Command Palette');
   await expect(shortcutHelp.locator('[data-action-id="file.quickOpen"]')).toContainText('Quick Open');
   await appPage.evaluate(() => window.hideKeyboardShortcuts());
+
+  await appPage.evaluate(() => window.NightOwlActions.execute('publishing.openWorkflows'));
+  await expect(appPage.locator('.publishing-workflows-dialog')).toBeVisible();
+  await expect(appPage.locator('.publishing-workflows-dialog')).toContainText('Publishing workflows');
+  await appPage.evaluate(() => window.NightOwlPublishingWorkflows.close());
 });
 
 test('@required @ipc-contract preload exposes fixed capabilities and rejects malformed privileged payloads', async ({ appPage }) => {

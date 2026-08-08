@@ -86,6 +86,19 @@ describe('Code quality guardrails', () => {
     expect(mainSource).not.toMatch(/accelerator:\s*['\"]CmdOrCtrl/);
   });
 
+  test('publishing profiles use fixed IPC capabilities and direct command vectors', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const serviceSource = fs.readFileSync(path.join(__dirname, '../../../services/publishingProfiles.js'), 'utf8');
+
+    expect(indexSource).toContain('orchestrator/modules/publishing-workflows.js');
+    expect(indexSource).toContain('orchestrator/modules/publishing-workflows.css');
+    expect(mainSource).toContain("webContents.send('open-publishing-workflows')");
+    expect(serviceSource).toContain('execFile(executable, args');
+    expect(serviceSource).not.toContain('execSync(');
+    expect(serviceSource).not.toMatch(/shell:\s*true/);
+  });
+
   test('file tree rendering batches DOM writes and hydrates tags off the initial paint', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
