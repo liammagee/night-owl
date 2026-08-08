@@ -1,11 +1,11 @@
 {
-  "generated": "2026-08-08T06:39:48.882Z",
+  "generated": "2026-08-08T07:23:44.419Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 11,
+      "triaged": 10,
       "review": 3,
-      "done": 5
+      "done": 6
     },
     "byPriority": {
       "P1": 7,
@@ -13,10 +13,10 @@
       "P0": 2
     },
     "byArea": {
-      "security": 2,
       "architecture": 3,
       "accessibility": 1,
       "presentation": 3,
+      "security": 2,
       "performance": 1,
       "platform": 2,
       "editor": 1,
@@ -26,26 +26,6 @@
     }
   },
   "items": [
-    {
-      "id": "sanitize-rendered-markdown-and-navigation",
-      "title": "Sanitize rendered Markdown and restrict external navigation",
-      "status": "triaged",
-      "type": "security",
-      "priority": "P1",
-      "area": "security",
-      "owner": "unassigned",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "A malicious Markdown fixture cannot execute handlers, load disallowed iframe origins, or open a non-allowlisted URI scheme in development or packaged builds.",
-      "tags": [
-        "html",
-        "markdown",
-        "navigation",
-        "xss"
-      ]
-    },
     {
       "id": "single-source-mode-and-pane-state",
       "title": "Use one state model for modes and pane visibility",
@@ -404,6 +384,26 @@
       ],
       "depends_on": [
         "hermetic-tests-across-worktrees"
+      ]
+    },
+    {
+      "id": "sanitize-rendered-markdown-and-navigation",
+      "title": "Sanitize rendered Markdown and restrict external navigation",
+      "status": "done",
+      "type": "security",
+      "priority": "P1",
+      "area": "security",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "A malicious Markdown fixture cannot execute handlers, load disallowed iframe origins, or open a non-allowlisted URI scheme in development or packaged builds.",
+      "tags": [
+        "html",
+        "markdown",
+        "navigation",
+        "xss"
       ]
     },
     {

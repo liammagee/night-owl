@@ -6,6 +6,17 @@ const speakerNotesPane = document.getElementById('speaker-notes-pane');
 const speakerNotesContent = document.getElementById('speaker-notes-content');
 const toggleSpeakerNotesInPreviewBtn = document.getElementById('toggle-speaker-notes-in-preview');
 
+function setSafeSpeakerNotesHTML(element, html) {
+    if (!element) return '';
+    if (window.NightOwlContentSecurity?.setSanitizedHTML) {
+        return window.NightOwlContentSecurity.setSanitizedHTML(element, html, {
+            baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
+        });
+    }
+    element.textContent = String(html || '');
+    return element.textContent;
+}
+
 
 // Insert speaker notes template
 async function insertSpeakerNotesTemplate() {
@@ -38,12 +49,12 @@ function updateSpeakerNotesDisplay() {
     if (!speakerNotesContent) return;
     
     if (currentSpeakerNotes.length === 0) {
-        speakerNotesContent.innerHTML = `
+        setSafeSpeakerNotesHTML(speakerNotesContent, `
             <p style="color: #666; text-align: center; padding: 20px;">
                 No speaker notes found.<br>
                 <small>Add notes using <code>\`\`\`notes</code> blocks in your Markdown.</small>
             </p>
-        `;
+        `);
         return;
     }
     
@@ -62,7 +73,7 @@ function updateSpeakerNotesDisplay() {
         `;
     });
     
-    speakerNotesContent.innerHTML = notesHtml;
+    setSafeSpeakerNotesHTML(speakerNotesContent, notesHtml);
 }
 
 // Toggle speaker notes visibility in preview
@@ -76,16 +87,16 @@ function toggleSpeakerNotesInPreview() {
             const note = currentSpeakerNotes.find(n => n.id === noteId);
             if (note) {
                 const noteContent = window.marked ? window.marked.parse(note.content) : note.content.replace(/\n/g, '<br>');
-                placeholder.innerHTML = `
+                setSafeSpeakerNotesHTML(placeholder, `
                     <div class="speaker-notes-preview" style="margin: 8px 0; padding: 8px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; font-size: 12px;">
                         <div style="font-weight: bold; color: #856404; margin-bottom: 4px;">📝 Speaker Notes:</div>
                         <div style="color: #856404;">${noteContent}</div>
                     </div>
-                `;
+                `);
                 placeholder.style.display = 'block';
             }
         } else {
-            placeholder.innerHTML = '';
+            placeholder.replaceChildren();
             placeholder.style.display = 'none';
         }
     });

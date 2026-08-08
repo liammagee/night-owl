@@ -27,6 +27,27 @@ var useState = React.useState,
   useEffect = React.useEffect,
   useLayoutEffect = React.useLayoutEffect,
   useCallback = React.useCallback;
+var contentSecurity = window.NightOwlContentSecurity;
+var sanitizeRenderedHTML = function sanitizeRenderedHTML(html) {
+  if (contentSecurity !== null && contentSecurity !== void 0 && contentSecurity.sanitizeRenderedHTML) {
+    var _window$appSettings;
+    return contentSecurity.sanitizeRenderedHTML(html, {
+      baseDir: window.currentFileDirectory || ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory)
+    });
+  }
+  return String(html || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+};
+var setSanitizedHTML = function setSanitizedHTML(element, html) {
+  if (!element) return '';
+  if (contentSecurity !== null && contentSecurity !== void 0 && contentSecurity.setSanitizedHTML) {
+    var _window$appSettings2;
+    return contentSecurity.setSanitizedHTML(element, html, {
+      baseDir: window.currentFileDirectory || ((_window$appSettings2 = window.appSettings) === null || _window$appSettings2 === void 0 ? void 0 : _window$appSettings2.workingDirectory)
+    });
+  }
+  element.textContent = String(html || '');
+  return element.textContent;
+};
 
 // Lucide React icons as simple SVG components
 var ChevronLeft = function ChevronLeft() {
@@ -134,6 +155,7 @@ var PresentationSlideContent = function PresentationSlideContent(_ref) {
     _useState2 = _slicedToArray(_useState, 2),
     contentScale = _useState2[0],
     setContentScale = _useState2[1];
+  var sanitizedHtml = sanitizeRenderedHTML(html);
   useLayoutEffect(function () {
     var frame = frameRef.current;
     var element = contentRef.current;
@@ -193,7 +215,7 @@ var PresentationSlideContent = function PresentationSlideContent(_ref) {
       window.removeEventListener('resize', measure);
       if (slideElement) delete slideElement.dataset.contentOverflow;
     };
-  }, [html, isPresenting]);
+  }, [sanitizedHtml, isPresenting]);
   return /*#__PURE__*/React.createElement("div", {
     ref: frameRef,
     className: "slide-content-frame",
@@ -212,8 +234,12 @@ var PresentationSlideContent = function PresentationSlideContent(_ref) {
       transform: isPresenting ? "scale(".concat(contentScale, ")") : 'none',
       transformOrigin: 'top left'
     },
+    onClick: function onClick(event) {
+      var _window$handleInterna, _window;
+      return (_window$handleInterna = (_window = window).handleInternalLinkClick) === null || _window$handleInterna === void 0 ? void 0 : _window$handleInterna.call(_window, event);
+    },
     dangerouslySetInnerHTML: {
-      __html: html
+      __html: sanitizedHtml
     }
   }));
 };
@@ -411,22 +437,23 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Set up the global handler immediately, not in useEffect
   if (!window.handleInternalLinkClick) {
     window.handleInternalLinkClick = function (event) {
-      var _event$target$classLi, _event$target$classLi2, _event$target$classLi3;
+      var _event$target, _event$target$closest;
+      var linkElement = (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '.internal-link');
       console.log('[Internal Link] *** CLICK DETECTED *** Global handler called:', {
-        target: event.target,
-        tagName: event.target.tagName,
-        className: event.target.className,
+        target: linkElement || event.target,
+        tagName: linkElement === null || linkElement === void 0 ? void 0 : linkElement.tagName,
+        className: linkElement === null || linkElement === void 0 ? void 0 : linkElement.className,
         metaKey: event.metaKey,
         ctrlKey: event.ctrlKey,
-        hasInternalLinkClass: (_event$target$classLi = event.target.classList) === null || _event$target$classLi === void 0 ? void 0 : _event$target$classLi.contains('internal-link')
+        hasInternalLinkClass: Boolean(linkElement)
       });
 
       // Check if this is a click on an internal link with Cmd/Ctrl modifier
-      if ((event.metaKey || event.ctrlKey) && (_event$target$classLi2 = event.target.classList) !== null && _event$target$classLi2 !== void 0 && _event$target$classLi2.contains('internal-link')) {
+      if ((event.metaKey || event.ctrlKey) && linkElement) {
         console.log('[Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
         event.preventDefault();
         event.stopPropagation();
-        var linkPath = event.target.getAttribute('data-link');
+        var linkPath = linkElement.getAttribute('data-link');
         if (linkPath) {
           var decodedPath = decodeURIComponent(linkPath);
           console.log('[Internal Link] Opening:', decodedPath);
@@ -445,7 +472,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         } else {
           console.warn('[Internal Link] No data-link attribute found');
         }
-      } else if ((_event$target$classLi3 = event.target.classList) !== null && _event$target$classLi3 !== void 0 && _event$target$classLi3.contains('internal-link')) {
+      } else if (linkElement) {
         // Regular click on internal link - prevent default but don't open
         console.log('[Internal Link] Regular click on internal link - preventing default');
         event.preventDefault();
@@ -907,8 +934,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         // Fix image paths — convert relative to file:// URLs
         html = html.replace(/<img\s+src="([^"]+)"/g, function (match, src) {
           if (src && !src.startsWith('http') && !src.startsWith('/') && !src.startsWith('file://') && !src.startsWith('data:')) {
-            var _window$appSettings;
-            var baseDir = window.currentFileDirectory || ((_window$appSettings = window.appSettings) === null || _window$appSettings === void 0 ? void 0 : _window$appSettings.workingDirectory);
+            var _window$appSettings3;
+            var baseDir = window.currentFileDirectory || ((_window$appSettings3 = window.appSettings) === null || _window$appSettings3 === void 0 ? void 0 : _window$appSettings3.workingDirectory);
             if (baseDir) return "<img src=\"file://".concat(baseDir, "/").concat(src, "\"");
           }
           return match;
@@ -923,7 +950,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         html = html.replace(/<p>\s*(?:<a[^>]*>)?\s*(https?:\/\/[\w.-]*zoom\.us\/(?:j|rec\/(?:share|play))\/[^\s<]+)\s*(?:<\/a>)?\s*<\/p>/gi, function (match, url) {
           return "<div class=\"slide-video-wrapper\"><iframe src=\"".concat(url, "\" frameborder=\"0\" allow=\"microphone; camera; fullscreen\" allowfullscreen sandbox=\"allow-same-origin allow-scripts allow-forms allow-popups\"></iframe></div>");
         });
-        return html;
+        return sanitizeRenderedHTML(html);
       } catch (error) {
         console.warn('[MarkdownParser] marked.parse failed, using fallback:', error);
       }
@@ -958,9 +985,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (match, altText, imagePath) {
       // Check if this is a relative path
       if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://')) {
-        var _window$appSettings2;
+        var _window$appSettings4;
         // Use current file directory if available, otherwise fallback to working directory
-        var baseDir = window.currentFileDirectory || ((_window$appSettings2 = window.appSettings) === null || _window$appSettings2 === void 0 ? void 0 : _window$appSettings2.workingDirectory);
+        var baseDir = window.currentFileDirectory || ((_window$appSettings4 = window.appSettings) === null || _window$appSettings4 === void 0 ? void 0 : _window$appSettings4.workingDirectory);
         if (baseDir) {
           var fullPath = "file://".concat(baseDir, "/").concat(imagePath);
           console.log("[React Presentation] Converting image path: ".concat(imagePath, " -> ").concat(fullPath));
@@ -1019,13 +1046,13 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
       // Create full path for internal links, similar to image path logic
       if (!filePath.startsWith('/') && !filePath.startsWith('http')) {
-        var _window$appSettings3;
-        var baseDir = window.currentFileDirectory || ((_window$appSettings3 = window.appSettings) === null || _window$appSettings3 === void 0 ? void 0 : _window$appSettings3.workingDirectory);
+        var _window$appSettings5;
+        var baseDir = window.currentFileDirectory || ((_window$appSettings5 = window.appSettings) === null || _window$appSettings5 === void 0 ? void 0 : _window$appSettings5.workingDirectory);
         if (baseDir) {
           filePath = "".concat(baseDir, "/").concat(filePath);
         }
       }
-      return "<a href=\"#\" class=\"internal-link\" data-link=\"".concat(encodeURIComponent(filePath), "\" data-original-link=\"").concat(encodeURIComponent(cleanLink), "\" title=\"Open ").concat(display, "\" onclick=\"handleInternalLinkClick(event)\">").concat(display, "</a>");
+      return "<a href=\"#\" class=\"internal-link\" data-link=\"".concat(encodeURIComponent(filePath), "\" data-original-link=\"").concat(encodeURIComponent(cleanLink), "\" title=\"Open ").concat(display, "\">").concat(display, "</a>");
     });
 
     // Regular markdown links
@@ -1152,7 +1179,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         content = _ref3.content;
       html = html.replace(placeholder, content);
     });
-    return html;
+    return sanitizeRenderedHTML(html);
   };
 
   // Extract speaker notes from slide content
@@ -1186,18 +1213,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     var match = bgRegex.exec(slideContent);
     var backgroundImage = null;
     if (match) {
+      var _window$appSettings6;
       var imagePath = match[1].trim();
-      // Resolve relative paths (same logic as inline image rendering)
-      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://') && !imagePath.startsWith('data:')) {
-        var _window$appSettings4;
-        var baseDir = window.currentFileDirectory || ((_window$appSettings4 = window.appSettings) === null || _window$appSettings4 === void 0 ? void 0 : _window$appSettings4.workingDirectory);
-        if (baseDir) {
-          imagePath = "file://".concat(baseDir, "/").concat(imagePath);
-        }
-      } else if (imagePath.startsWith('/')) {
-        imagePath = "file://".concat(imagePath);
-      }
-      backgroundImage = imagePath;
+      var baseDir = window.currentFileDirectory || ((_window$appSettings6 = window.appSettings) === null || _window$appSettings6 === void 0 ? void 0 : _window$appSettings6.workingDirectory);
+      backgroundImage = contentSecurity !== null && contentSecurity !== void 0 && contentSecurity.resolveImageUrl ? contentSecurity.resolveImageUrl(imagePath, baseDir) : null;
     }
 
     // Remove bg directive and all remaining HTML comments from visible content
@@ -2056,12 +2075,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                   if (currentSlideNotes) {
                     // Use HTML conversion for inline panel too
                     if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {
-                      notesContent.innerHTML = window.markdownToHtml(currentSlideNotes);
+                      setSanitizedHTML(notesContent, window.markdownToHtml(currentSlideNotes));
                     } else {
-                      notesContent.innerHTML = currentSlideNotes.replace(/\n/g, '<br>');
+                      setSanitizedHTML(notesContent, currentSlideNotes.replace(/\n/g, '<br>'));
                     }
                   } else {
-                    notesContent.innerHTML = '<em>No speaker notes for this slide.</em>';
+                    setSanitizedHTML(notesContent, '<em>No speaker notes for this slide.</em>');
                   }
                 }
               } else {
@@ -2590,9 +2609,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               if (notesContainer) {
                 currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
                 if (currentSlideNotes && window.markdownToHtml) {
-                  notesContainer.innerHTML = window.markdownToHtml(currentSlideNotes);
+                  setSanitizedHTML(notesContainer, window.markdownToHtml(currentSlideNotes));
                 } else {
-                  notesContainer.innerHTML = currentSlideNotes || '<em>No speaker notes for this slide.</em>';
+                  setSanitizedHTML(notesContainer, currentSlideNotes || '<em>No speaker notes for this slide.</em>');
                 }
               }
             }

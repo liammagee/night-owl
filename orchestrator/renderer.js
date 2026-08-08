@@ -13919,14 +13919,8 @@ function renderSlideThumbnails(content) {
     const extractSlideBg = (md) => {
         const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
         if (!match) return null;
-        let imgPath = match[1].trim();
-        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('/') && !imgPath.startsWith('file://') && !imgPath.startsWith('data:')) {
-            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-            if (baseDir) imgPath = `file://${baseDir}/${imgPath}`;
-        } else if (imgPath.startsWith('/')) {
-            imgPath = `file://${imgPath}`;
-        }
-        return imgPath;
+        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+        return window.NightOwlContentSecurity?.resolveImageUrl(match[1].trim(), baseDir) || null;
     };
 
     // Render thumbnail HTML with per-slide caching
@@ -13939,6 +13933,11 @@ function renderSlideThumbnails(content) {
         } else {
             html = clean.replace(/\n/g, '<br>');
         }
+        html = window.NightOwlContentSecurity?.sanitizeRenderedHTML
+            ? window.NightOwlContentSecurity.sanitizeRenderedHTML(html, {
+                baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
+            })
+            : clean.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         _slideContentCache.set(slideHash, html);
         // Keep cache bounded
         if (_slideContentCache.size > 200) {
@@ -13957,15 +13956,22 @@ function renderSlideThumbnails(content) {
     strip.innerHTML = closeBtn + slides.map((slide, i) => {
         const slideHash = _quickHash(slide);
         const bgImage = extractSlideBg(slide);
-        const bgStyle = bgImage ? `background-image: url('${bgImage}'); background-size: cover; background-position: center;` : '';
+        const bgAttribute = bgImage ? `data-background-image="${encodeURIComponent(bgImage)}"` : '';
         // For lazy rendering, only render nearby slides initially
         const isNearby = !useLazy || Math.abs(i - activeSlide) <= 5;
         const html = isNearby ? renderHTML(slide, slideHash) : '';
-        return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" data-slide-hash="${slideHash}" title="Slide ${i + 1}" style="${bgStyle}" ${!isNearby ? 'data-lazy="true"' : ''}>
+        return `<div class="slide-thumb ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" data-slide-hash="${slideHash}" title="Slide ${i + 1}" ${bgAttribute} ${!isNearby ? 'data-lazy="true"' : ''}>
             <div class="slide-thumb-content">${html}</div>
             <span class="slide-thumb-label">${i + 1}</span>
         </div>`;
     }).join('');
+
+    strip.querySelectorAll('[data-background-image]').forEach(thumb => {
+        const imageUrl = decodeURIComponent(thumb.dataset.backgroundImage);
+        thumb.style.backgroundImage = `url(${JSON.stringify(imageUrl)})`;
+        thumb.style.backgroundSize = 'cover';
+        thumb.style.backgroundPosition = 'center';
+    });
 
     // Set up IntersectionObserver for lazy thumbnails
     if (useLazy) {
@@ -13978,7 +13984,12 @@ function renderSlideThumbnails(content) {
                         const idx = parseInt(thumb.dataset.slideIndex);
                         const slideHash = parseInt(thumb.dataset.slideHash);
                         const html = renderHTML(slides[idx], slideHash);
-                        thumb.querySelector('.slide-thumb-content').innerHTML = html;
+                        const contentElement = thumb.querySelector('.slide-thumb-content');
+                        if (window.NightOwlContentSecurity?.setSanitizedHTML) {
+                            window.NightOwlContentSecurity.setSanitizedHTML(contentElement, html);
+                        } else {
+                            contentElement.textContent = html;
+                        }
                         delete thumb.dataset.lazy;
                         _thumbnailObserver.unobserve(thumb);
                     }
@@ -14251,22 +14262,23 @@ function renderVerticalSlideThumbnails() {
     const extractSlideBg = (md) => {
         const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
         if (!match) return null;
-        let imgPath = match[1].trim();
-        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('/') && !imgPath.startsWith('file://') && !imgPath.startsWith('data:')) {
-            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-            if (baseDir) imgPath = `file://${baseDir}/${imgPath}`;
-        } else if (imgPath.startsWith('/')) {
-            imgPath = `file://${imgPath}`;
-        }
-        return imgPath;
+        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+        return window.NightOwlContentSecurity?.resolveImageUrl(match[1].trim(), baseDir) || null;
     };
 
     const renderHTML = (md) => {
         const clean = md.replace(/```notes\s*\n[\s\S]*?\n```/g, '').replace(/<!--\s*bg:\s*.+?\s*-->\s*/gi, '').trim();
         if (window.marked) {
-            try { return window.marked.parse(clean); } catch (e) { /* fall through */ }
+            try {
+                const html = window.marked.parse(clean);
+                return window.NightOwlContentSecurity?.sanitizeRenderedHTML
+                    ? window.NightOwlContentSecurity.sanitizeRenderedHTML(html, {
+                        baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
+                    })
+                    : clean.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            } catch (e) { /* fall through */ }
         }
-        return clean.replace(/\n/g, '<br>');
+        return clean.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     };
 
     // Compute scale based on pane width
@@ -14278,13 +14290,20 @@ function renderVerticalSlideThumbnails() {
     paneList.innerHTML = slides.map((slide, i) => {
         const html = renderHTML(slide);
         const bgImage = extractSlideBg(slide);
-        const bgStyle = bgImage ? `background-image: url('${bgImage}'); background-size: cover; background-position: center;` : '';
+        const bgAttribute = bgImage ? `data-background-image="${encodeURIComponent(bgImage)}"` : '';
         const thumbHeight = sourceHeight * scale;
-        return `<div class="slide-thumb-vertical ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}" style="${bgStyle} height: ${thumbHeight}px;">
+        return `<div class="slide-thumb-vertical ${i === activeSlide ? 'active' : ''}" data-slide-index="${i}" title="Slide ${i + 1}" ${bgAttribute} style="height: ${thumbHeight}px;">
             <div class="slide-thumb-vertical-content" style="transform: scale(${scale}); width: ${sourceWidth}px; height: ${sourceHeight}px;">${html}</div>
             <span class="slide-thumb-vertical-label">${i + 1}</span>
         </div>`;
     }).join('');
+
+    paneList.querySelectorAll('[data-background-image]').forEach(thumb => {
+        const imageUrl = decodeURIComponent(thumb.dataset.backgroundImage);
+        thumb.style.backgroundImage = `url(${JSON.stringify(imageUrl)})`;
+        thumb.style.backgroundSize = 'cover';
+        thumb.style.backgroundPosition = 'center';
+    });
 
     // Set up drag-and-drop for vertical thumbnails (reuse same logic)
     setupVerticalSlideDragAndDrop(paneList, content);

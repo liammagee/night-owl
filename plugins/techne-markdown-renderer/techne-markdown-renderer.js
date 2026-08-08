@@ -723,9 +723,14 @@ body.dark-mode .frontmatter-separator {
         }
 
         if (window.NightOwlPreviewMarkdown?.setSanitizedHTML) {
-            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html);
+            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html, { baseDir });
+        } else if (window.NightOwlContentSecurity?.setSanitizedHTML) {
+            window.NightOwlContentSecurity.setSanitizedHTML(previewElement, html, { baseDir });
         } else {
-            previewElement.innerHTML = html;
+            // The sanitizer is a required security boundary. If startup order
+            // is incomplete, show inert source rather than briefly mounting
+            // active markup before the preview helper arrives.
+            previewElement.textContent = html;
         }
 
         if (typeof renderMathInContent === 'function') {

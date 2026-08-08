@@ -59,7 +59,7 @@ describe('preview markdown helpers', () => {
     expect(html).not.toContain('<iframe></iframe>');
     expect(html).toContain('https://www.youtube.com/embed/abc123');
     expect(html).toContain('sandbox=');
-    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).not.toContain('target="_blank"');
   });
 
   test('setSanitizedHTML replaces children with sanitized nodes', () => {
