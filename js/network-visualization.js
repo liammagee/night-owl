@@ -409,7 +409,7 @@ function setupNetworkControls() {
 
 function updateNetworkOnFileChange() {
   console.log('[Network] File change detected, updating network...');
-  if (currentMode === 'network') {
+  if (window.currentMode === 'network') {
     refreshNetwork();
   }
 }

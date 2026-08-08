@@ -1,21 +1,21 @@
 {
-  "generated": "2026-08-08T07:23:44.419Z",
+  "generated": "2026-08-08T08:37:02.283Z",
   "counts": {
     "total": 19,
     "byStatus": {
-      "triaged": 10,
+      "triaged": 9,
       "review": 3,
-      "done": 6
+      "done": 7
     },
     "byPriority": {
-      "P1": 7,
       "P2": 10,
-      "P0": 2
+      "P0": 2,
+      "P1": 7
     },
     "byArea": {
-      "architecture": 3,
       "accessibility": 1,
       "presentation": 3,
+      "architecture": 3,
       "security": 2,
       "performance": 1,
       "platform": 2,
@@ -26,29 +26,6 @@
     }
   },
   "items": [
-    {
-      "id": "single-source-mode-and-pane-state",
-      "title": "Use one state model for modes and pane visibility",
-      "status": "triaged",
-      "type": "refactor",
-      "priority": "P1",
-      "area": "architecture",
-      "owner": "unassigned",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-07",
-      "updated": "2026-08-07",
-      "verification": "Mode and pane transitions pass invariant tests without direct style cleanup, and every consumer observes the same current mode.",
-      "tags": [
-        "mode-switching",
-        "state",
-        "ui"
-      ],
-      "depends_on": [
-        "reliable-editor-preview-transitions",
-        "recover-presentation-load-failures"
-      ]
-    },
     {
       "id": "accessible-names-and-presentation-semantics",
       "title": "Add accessible names and preserve presentation semantics",
@@ -404,6 +381,29 @@
         "markdown",
         "navigation",
         "xss"
+      ]
+    },
+    {
+      "id": "single-source-mode-and-pane-state",
+      "title": "Use one state model for modes and pane visibility",
+      "status": "done",
+      "type": "refactor",
+      "priority": "P1",
+      "area": "architecture",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "reproduced",
+      "created": "2026-08-07",
+      "updated": "2026-08-08",
+      "verification": "Reducer and Electron tests prove that mode, pane, fullscreen, source, zen, and structured-record transitions preserve one live state; local CI passed 90 suites/1,181 tests plus 6/6 source and 3/3 packaged Electron checks.",
+      "tags": [
+        "mode-switching",
+        "state",
+        "ui"
+      ],
+      "depends_on": [
+        "reliable-editor-preview-transitions",
+        "recover-presentation-load-failures"
       ]
     },
     {

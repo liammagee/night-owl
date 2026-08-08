@@ -98,6 +98,76 @@ test('@required @preview preview readiness exposes committed content rather than
   await expect(appPage.locator('.preview-transition-error')).toHaveCount(0);
 });
 
+test('@required @ui-state mode and record overlays preserve one deterministic pane arrangement', async ({ appPage }) => {
+  await appPage.evaluate(() => window.switchToMode('editor'));
+  await openMarkdown(appPage, '/virtual-workspace/ui-state.md', '# UI state\n\nBaseline pane state.');
+
+  const modeSnapshots = await appPage.evaluate(() => {
+    const store = window.NightOwlUIState;
+    if (!store) throw new Error('NightOwlUIState is unavailable');
+    store.dispatch({
+      type: 'HYDRATE_PANES',
+      panes: { sidebar: false, editor: true, right: true }
+    });
+    store.dispatch({ type: 'SHOW_RIGHT_PANE', pane: 'chat' });
+
+    return ['network', 'circle', 'library', 'editor'].map(mode => {
+      window.switchToMode(mode);
+      const state = store.getState();
+      return {
+        requested: mode,
+        currentMode: window.currentMode,
+        storeMode: state.mode,
+        panes: state.panes,
+        rightPane: state.activeRightPane,
+        activeViews: Array.from(document.querySelectorAll('.content-view.active'), element => element.id)
+      };
+    });
+  });
+
+  for (const snapshot of modeSnapshots) {
+    expect(snapshot.currentMode).toBe(snapshot.requested);
+    expect(snapshot.storeMode).toBe(snapshot.requested);
+    expect(snapshot.panes).toEqual({ sidebar: false, editor: true, right: true });
+    expect(snapshot.rightPane).toBe('chat');
+    expect(snapshot.activeViews).toEqual([`${snapshot.requested}-content`]);
+  }
+
+  const records = [
+    '{"item_id":"dev-001","notes":"First"}',
+    '{"item_id":"dev-002","notes":"Second"}'
+  ].join('\n');
+  await openMarkdown(appPage, '/virtual-workspace/ui-state.jsonl', records);
+  await expect.poll(() => appPage.evaluate(() => window.NightOwlUIState.getState().structuredRecord.active)).toBe(true);
+  expect(await appPage.evaluate(() => ({
+    panes: window.NightOwlUIState.getState().panes,
+    rightPane: window.NightOwlUIState.getState().activeRightPane,
+    editorHidden: document.getElementById('editor-pane').classList.contains('nightowl-ui-hidden'),
+    recordVisible: !document.getElementById('jsonl-record-mode').classList.contains('nightowl-ui-hidden'),
+    previewRendered: document.getElementById('preview-pane').classList.contains('ui-pane-active')
+  }))).toEqual({
+    panes: { sidebar: false, editor: true, right: true },
+    rightPane: 'chat',
+    editorHidden: true,
+    recordVisible: true,
+    previewRendered: true
+  });
+
+  await appPage.locator('#jsonl-source-toggle').click();
+  await expect(appPage.locator('#editor-pane')).not.toHaveClass(/nightowl-ui-hidden/);
+  await openMarkdown(appPage, '/virtual-workspace/ui-state-restored.md', '# Restored');
+  await expect.poll(() => appPage.evaluate(() => window.NightOwlUIState.getState().structuredRecord.active)).toBe(false);
+  expect(await appPage.evaluate(() => ({
+    panes: window.NightOwlUIState.getState().panes,
+    rightPane: window.NightOwlUIState.getState().activeRightPane,
+    chatRendered: document.getElementById('chat-pane').classList.contains('ui-pane-active')
+  }))).toEqual({
+    panes: { sidebar: false, editor: true, right: true },
+    rightPane: 'chat',
+    chatRendered: true
+  });
+});
+
 test('@required @content-security preview and presentation enforce the same HTML policy', async ({ appPage }) => {
   await appPage.evaluate(() => {
     window.__nightOwlMarkdownXssEvents = [];
