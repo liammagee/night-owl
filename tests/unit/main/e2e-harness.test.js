@@ -69,6 +69,7 @@ describe('required Electron E2E harness', () => {
     );
 
     expect(source).toContain('@file-switch');
+    expect(source).toContain('@workflow-controllers');
     expect(source).toContain('@preview');
     expect(source).toContain('@mode-recovery');
     expect(source).toContain('@ui-state');
