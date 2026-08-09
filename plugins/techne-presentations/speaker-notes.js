@@ -148,6 +148,7 @@ async function showSpeakerNotesPanel(content, forceInline = false) {
     try {
       const formattedFirstSlideNotes = markdownToHtml(currentSlideNotes);
       const windowData = {
+        html: formattedFirstSlideNotes,
         notes: formattedFirstSlideNotes,
         slideNumber: startSlideIndex + 1, // Convert to 1-based numbering
         allNotes: allNotes
@@ -298,6 +299,7 @@ async function updateSpeakerNotes(slideIndex, content) {
     try {
       const formattedNotes = currentSlideNotes ? markdownToHtml(currentSlideNotes) : '<em>No speaker notes for this slide.</em>';
       const updateResult = await window.electronAPI.presentation.updateSpeakerNotes({
+        html: formattedNotes,
         notes: formattedNotes,
         slideNumber: slideIndex + 1
       });
@@ -307,6 +309,7 @@ async function updateSpeakerNotes(slideIndex, content) {
         // Recreate the window with the full speaker notes data
         try {
           await window.electronAPI.presentation.openSpeakerNotesWindow({
+            html: formattedNotes,
             notes: formattedNotes,
             slideNumber: slideIndex + 1,
             allNotes: window.speakerNotesData.allNotes

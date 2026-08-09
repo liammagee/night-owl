@@ -697,6 +697,21 @@ describe('Code quality guardrails', () => {
     expect(presentationCss).not.toMatch(/^\s*\.slide(?:\s|:|\{|\.|\[)/m);
   });
 
+  test('speaker notes window uses a packaged, sanitized HTML renderer', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const windowHtml = fs.readFileSync(path.join(__dirname, '../../../js/speaker-notes-window.html'), 'utf8');
+    const windowRenderer = fs.readFileSync(path.join(__dirname, '../../../js/speaker-notes-window.js'), 'utf8');
+
+    expect(mainSource).toContain("path.join(__dirname, 'js', 'speaker-notes-window.html')");
+    expect(mainSource).toContain('speakerNotesWindow.loadFile(speakerNotesHtmlPath)');
+    expect(mainSource).not.toContain('data:text/html;charset=utf-8');
+    expect(windowHtml).toContain('Content-Security-Policy');
+    expect(windowHtml).toContain('speaker-notes-window.js');
+    expect(windowRenderer).toContain('sanitizeNotesHTML');
+    expect(windowRenderer).toContain("contentElement.dataset.renderFormat = 'html'");
+    expect(windowRenderer).not.toContain('contentElement.innerHTML =');
+  });
+
   test('file pane toolbar remains compact inside the activity sidebar', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
 

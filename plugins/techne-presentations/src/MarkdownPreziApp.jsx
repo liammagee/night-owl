@@ -3,9 +3,8 @@
 const React = window.React;
 const ReactDOM = window.ReactDOM;
 const { useState, useRef, useEffect, useLayoutEffect, useCallback } = React;
-const contentSecurity = window.NightOwlContentSecurity;
-
 const sanitizeRenderedHTML = (html) => {
+  const contentSecurity = window.NightOwlContentSecurity;
   if (contentSecurity?.sanitizeRenderedHTML) {
     return contentSecurity.sanitizeRenderedHTML(html, {
       baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
@@ -19,6 +18,7 @@ const sanitizeRenderedHTML = (html) => {
 
 const setSanitizedHTML = (element, html) => {
   if (!element) return '';
+  const contentSecurity = window.NightOwlContentSecurity;
   if (contentSecurity?.setSanitizedHTML) {
     return contentSecurity.setSanitizedHTML(element, html, {
       baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
@@ -104,6 +104,31 @@ const slideTextPreview = (slide) => String(slide?.cleanContent || '')
   .replace(/\s+/g, ' ')
   .trim()
   .slice(0, 240);
+
+const escapeSpeakerNotesText = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const speakerNotesHTML = (notes) => {
+  const noteText = String(notes || '').trim();
+  if (!noteText) return sanitizeRenderedHTML('<em>No speaker notes for this slide.</em>');
+  const rendered = typeof window.markdownToHtml === 'function'
+    ? window.markdownToHtml(noteText)
+    : `<p>${escapeSpeakerNotesText(noteText).replace(/\n/g, '<br>')}</p>`;
+  return sanitizeRenderedHTML(rendered);
+};
+
+const SpeakerNotesContent = ({ notes }) => (
+  <div
+    className="presentation-speaker-notes-html"
+    data-render-format="html"
+    onClick={(event) => window.handleInternalLinkClick?.(event)}
+    dangerouslySetInnerHTML={{ __html: speakerNotesHTML(notes) }}
+  />
+);
 
 const PresentationSlideContent = ({ html, isPresenting }) => {
   const frameRef = useRef(null);
@@ -2256,6 +2281,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           }
           
           await window.electronAPI.presentation.updateSpeakerNotes({
+            html: formattedNotes,
             notes: formattedNotes,
             slideNumber: currentSlide + 1
           });
@@ -2862,6 +2888,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           }
 
           await window.electronAPI.presentation.openSpeakerNotesWindow({
+            html: formattedNotes,
             notes: formattedNotes,
             slideNumber: currentSlide + 1,
             allNotes: window.speakerNotesData.allNotes
@@ -3359,7 +3386,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           </section>
           <section aria-labelledby="presenter-notes-title" className="presentation-presenter-notes">
             <small id="presenter-notes-title">Speaker notes</small>
-            <pre>{slides[currentSlide]?.speakerNotes || 'No speaker notes for this slide.'}</pre>
+            <SpeakerNotesContent notes={slides[currentSlide]?.speakerNotes} />
           </section>
           <nav aria-label="Presenter console navigation">
             <button type="button" onClick={() => goToSlide(currentSlide - 1)} disabled={currentSlide === 0}>

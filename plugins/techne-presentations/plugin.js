@@ -1,7 +1,7 @@
 (function () {
     const FEATURE_ID = 'nightowl-presentations';
     const BASE = 'plugins/techne-presentations';
-    const VERSION = '20260809d'; // Bump this to bust cache
+    const VERSION = '20260809e'; // Bump this to bust cache
     const reactRoots = new WeakMap();
 
     const cacheBust = (url) => `${url}?v=${VERSION}`;
