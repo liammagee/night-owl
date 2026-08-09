@@ -20,18 +20,19 @@ depends_on: ["presentation-authoring-preflight", "fit-presentation-slides-to-vie
 The pull-request Electron run passed, but the canonical `main` rerun exposed a
 presenter navigation race that had also appeared in the previous main run.
 After a live deck reload, the presenter could move to slide two and observe its
-title, then a passive content-reconciliation effect could return state to slide
-one. The Previous control consequently became disabled and the workflow timed
-out. This was a product state race, not merely a weak assertion.
+title, then delayed overview reconciliation could return state to slide one.
+The Previous control consequently became disabled and the workflow timed out.
+This was a product state race, not merely a weak assertion.
 
 ## Implemented change
 
 Delivery mode now clears pending content reconciliation without invoking the
-overview-canvas navigation path. The content update already commits the bounded
-slide index to state and its synchronous ref; a second passive navigation is
-only necessary for overview canvas positioning. The required Electron workflow
-now verifies that slide two remains committed across three animation frames and
-that Previous stays enabled before navigating back.
+overview-canvas navigation path. It also cannot schedule the initial overview
+centering timer when content reload resets pan and zoom; that timer is now
+cancelled whenever its effect becomes stale. The content update already commits
+the bounded slide index to state and its synchronous ref. The required Electron
+workflow verifies that slide two remains committed across three animation
+frames and that Previous stays enabled before navigating back.
 
 ## Acceptance criteria
 
