@@ -3216,7 +3216,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     className: "presentation-control-btn presentation-preflight-btn px-3 py-2 rounded-lg transition-colors shadow-lg border",
     "aria-label": "Run presentation preflight",
     "aria-expanded": preflightOpen,
-    "aria-controls": "presentation-preflight-panel"
+    "aria-controls": preflightOpen ? 'presentation-preflight-panel' : undefined
   }, "Preflight", preflightReport !== null && preflightReport !== void 0 && preflightReport.warningCount ? " \xB7 ".concat(preflightReport.warningCount) : ''), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       previousFocusRef.current = document.activeElement;
@@ -3340,7 +3340,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     className: "p-2 rounded-lg transition-colors shadow-lg border ".concat(presenterConsoleOpen ? 'bg-green-600 text-white border-green-700' : 'bg-cream hover:bg-gray-100 text-gray-900'),
     "aria-label": presenterConsoleOpen ? 'Hide presenter console' : 'Show presenter console',
     "aria-pressed": presenterConsoleOpen,
-    "aria-controls": "presentation-presenter-console"
+    "aria-controls": presenterConsoleOpen ? 'presentation-presenter-console' : undefined
   }, "Presenter"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return toggleSpeakerNotesWindow();

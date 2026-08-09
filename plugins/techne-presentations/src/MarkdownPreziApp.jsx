@@ -2922,7 +2922,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 	            className="presentation-control-btn presentation-preflight-btn px-3 py-2 rounded-lg transition-colors shadow-lg border"
 	            aria-label="Run presentation preflight"
 	            aria-expanded={preflightOpen}
-	            aria-controls="presentation-preflight-panel"
+	            aria-controls={preflightOpen ? 'presentation-preflight-panel' : undefined}
 	          >
 	            Preflight{preflightReport?.warningCount ? ` · ${preflightReport.warningCount}` : ''}
 	          </button>
@@ -3080,7 +3080,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             }`}
             aria-label={presenterConsoleOpen ? 'Hide presenter console' : 'Show presenter console'}
             aria-pressed={presenterConsoleOpen}
-            aria-controls="presentation-presenter-console"
+            aria-controls={presenterConsoleOpen ? 'presentation-presenter-console' : undefined}
           >
             Presenter
           </button>
