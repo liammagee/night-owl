@@ -271,6 +271,60 @@ test('@required @capabilities capability health is redacted and workflow presets
   expect(presetResult.bodyPreset).toBe('custom');
 });
 
+test('@required @static-publishing trusted rendering preflights routes, anchors, assets, and handoff metadata offline', async ({ appPage }) => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-static-required-'));
+  const indexPath = path.join(workspacePath, 'index.md');
+  const guidePath = path.join(workspacePath, 'guide.md');
+  const imagePath = path.join(workspacePath, 'diagram.png');
+  fs.writeFileSync(indexPath, '# Home\n\n[[guide#Details]]\n\n![Diagram](diagram.png)\n');
+  fs.writeFileSync(guidePath, '# Guide\n\n## Details\n\nReturn to [home](index.md#Home).\n');
+  fs.writeFileSync(imagePath, Buffer.from('required-static-image'));
+  const previousWorkspace = await appPage.evaluate(() => window.electronAPI.workspace.getWorkingDirectory());
+
+  try {
+    const switched = await appPage.evaluate(root => window.electronAPI.workspace.switchWorkspace(root), workspacePath);
+    expect(switched).toMatchObject({ success: true });
+    const result = await appPage.evaluate(async files => {
+      const request = await window.NightOwlStaticSite.preparePublication(files, {
+        title: 'Required publication',
+        profile: {
+          id: 'machinespirits-public-site',
+          title: 'Machine Spirits public site',
+          contentRepository: { remote: 'liammagee/machinespirits-content-philosophy', revision: 'required-revision' }
+        }
+      });
+      return window.electronAPI.publishing.preview(request);
+    }, [
+      { sourcePath: indexPath, title: 'Home', content: fs.readFileSync(indexPath, 'utf8') },
+      { sourcePath: guidePath, title: 'Guide', content: fs.readFileSync(guidePath, 'utf8') }
+    ]);
+
+    expect(result.ready).toBe(true);
+    expect(result.rendererContract).toBe('nightowl-trusted-markdown-v1');
+    expect(result.report.summary).toMatchObject({ pages: 2, assets: 1, internalLinks: 2, errors: 0 });
+    expect(result.report.mappings.pages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'index.md', output: 'index.html' }),
+      expect.objectContaining({ source: 'guide.md', output: 'guide.html' })
+    ]));
+    expect(result.manifest.handoff).toMatchObject({
+      id: 'machinespirits-public-site',
+      contentRepository: { revision: 'required-revision' }
+    });
+    expect(JSON.stringify(result.manifest)).not.toContain(workspacePath);
+    expect(result.documents.find(document => document.output === 'index.html').previewHtml).toContain('guide.html#heading-details');
+
+    const broken = await appPage.evaluate(async file => {
+      const request = await window.NightOwlStaticSite.preparePublication([file], { title: 'Broken publication' });
+      return window.electronAPI.publishing.preview(request);
+    }, { sourcePath: indexPath, title: 'Home', content: '# Home\n\n[Missing](missing.md)' });
+    expect(broken.ready).toBe(false);
+    expect(broken.report.issues).toContainEqual(expect.objectContaining({ code: 'broken-route', severity: 'error' }));
+  } finally {
+    await appPage.evaluate(root => window.electronAPI.workspace.switchWorkspace(root), previousWorkspace);
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  }
+});
+
 test('@required @ai-edits AI changes remain reviewable, attributable, selective, and undoable', async ({ appPage }) => {
   const source = 'Alpha line\nKeep this line\nGamma line\n';
   await openMarkdown(appPage, '/virtual-workspace/reviewable-ai-edit.md', source);

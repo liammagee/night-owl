@@ -181,6 +181,27 @@ describe('nightowl-markdown-renderer plugin', () => {
     expect(previewElement.textContent).toContain('bad');
   });
 
+  test('trusted publication rendering shares preview parsing, citations, and sanitization', async () => {
+    require(previewMarkdownPath);
+    require(pluginCorePath);
+    window.TechneCitationRenderer = {
+      renderCitations: jest.fn(html => `${html}<p class="bibliography">Rendered citation</p>`)
+    };
+
+    const result = await window.TechneMarkdownRenderer.renderTrustedHtml({
+      markdownContent: '# Shared contract\n<script>alert(1)</script>\n[@source]',
+      filePath: '/workspace/page.md',
+      baseDir: '/workspace',
+      previewZoom: null
+    });
+
+    expect(result.contract).toBe(window.TechneMarkdownRenderer.RENDER_CONTRACT);
+    expect(result.html).toContain('id="heading-shared-contract"');
+    expect(result.html).toContain('Rendered citation');
+    expect(result.html).not.toContain('<script');
+    expect(window.TechneCitationRenderer.renderCitations).toHaveBeenCalledTimes(1);
+  });
+
   test('BibTeX parser reads local files through Electron IPC instead of fetch', async () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock;

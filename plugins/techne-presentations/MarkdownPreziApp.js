@@ -1441,25 +1441,26 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     var MAX_RETRIES = 20;
     var slide = slides[slideIndex];
     var canvas = canvasRef.current;
-    if (!canvas) {
-      if (_retries < MAX_RETRIES) {
-        setTimeout(function () {
-          return goToSlide(slideIndex, _retries + 1);
-        }, 50);
-      }
-      return;
-    }
-
-    // Ensure canvas has proper dimensions
-    if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
-      if (_retries < MAX_RETRIES) {
-        setTimeout(function () {
-          return goToSlide(slideIndex, _retries + 1);
-        }, 50);
-      }
-      return;
-    }
     if (!isPresenting) {
+      // The overview needs canvas geometry to calculate pan. Delivery mode
+      // does not: blocking its state transition on a hidden or resizing canvas
+      // makes presenter Next/Previous silently exhaust their retries.
+      if (!canvas) {
+        if (_retries < MAX_RETRIES) {
+          setTimeout(function () {
+            return goToSlide(slideIndex, _retries + 1);
+          }, 50);
+        }
+        return;
+      }
+      if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+        if (_retries < MAX_RETRIES) {
+          setTimeout(function () {
+            return goToSlide(slideIndex, _retries + 1);
+          }, 50);
+        }
+        return;
+      }
       var targetZoom = 1.2;
       var targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
       console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);

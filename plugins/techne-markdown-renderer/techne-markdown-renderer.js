@@ -686,22 +686,18 @@ body.dark-mode .frontmatter-separator {
         return headerHtml + html;
     };
 
-    const renderPreview = async ({
+    const RENDER_CONTRACT = 'nightowl-trusted-markdown-v1';
+
+    const renderTrustedHtml = async ({
         markdownContent,
-        previewElement,
         filePath = '',
         baseDir = '',
         processAnnotations = null,
         processInternalLinksHTML = null,
         speakerNotesSink = null,
         previewZoom = window.previewZoom || null,
-        renderMathInContent = null,
-        renderMermaidDiagrams = null,
-        updateSpeakerNotesDisplay = null,
         renderCitations = true
     } = {}) => {
-        if (!previewElement) return '';
-
         let html = await renderToHtml(markdownContent, {
             filePath,
             baseDir,
@@ -722,10 +718,50 @@ body.dark-mode .frontmatter-separator {
             }
         }
 
+        const security = window.NightOwlPreviewMarkdown || window.NightOwlContentSecurity;
+        if (security?.sanitizePreviewHTML) {
+            html = security.sanitizePreviewHTML(html, { baseDir });
+        } else if (security?.sanitizeRenderedHTML) {
+            html = security.sanitizeRenderedHTML(html, { baseDir });
+        } else {
+            html = escapeHtml(html);
+        }
+
+        return Object.freeze({ html, contract: RENDER_CONTRACT });
+    };
+
+    const renderPreview = async ({
+        markdownContent,
+        previewElement,
+        filePath = '',
+        baseDir = '',
+        processAnnotations = null,
+        processInternalLinksHTML = null,
+        speakerNotesSink = null,
+        previewZoom = window.previewZoom || null,
+        renderMathInContent = null,
+        renderMermaidDiagrams = null,
+        updateSpeakerNotesDisplay = null,
+        renderCitations = true
+    } = {}) => {
+        if (!previewElement) return '';
+
+        const rendered = await renderTrustedHtml({
+            markdownContent,
+            filePath,
+            baseDir,
+            processAnnotations,
+            processInternalLinksHTML,
+            speakerNotesSink,
+            previewZoom,
+            renderCitations
+        });
+        const html = rendered.html;
+
         if (window.NightOwlPreviewMarkdown?.setSanitizedHTML) {
-            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html, { baseDir });
+            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html);
         } else if (window.NightOwlContentSecurity?.setSanitizedHTML) {
-            window.NightOwlContentSecurity.setSanitizedHTML(previewElement, html, { baseDir });
+            window.NightOwlContentSecurity.setSanitizedHTML(previewElement, html);
         } else {
             // The sanitizer is a required security boundary. If startup order
             // is incomplete, show inert source rather than briefly mounting
@@ -747,7 +783,9 @@ body.dark-mode .frontmatter-separator {
     };
 
     window.TechneMarkdownRenderer = {
+        RENDER_CONTRACT,
         renderToHtml,
+        renderTrustedHtml,
         renderPreview,
         getFootnoteCSS,
         // Exposed for testing

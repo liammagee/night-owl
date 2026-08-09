@@ -1,21 +1,21 @@
 {
-  "generated": "2026-08-09T02:11:40.932Z",
+  "generated": "2026-08-09T02:42:04.310Z",
   "counts": {
     "total": 29,
     "byStatus": {
-      "triaged": 2,
-      "done": 27
+      "triaged": 1,
+      "done": 28
     },
     "byPriority": {
-      "P2": 12,
       "P3": 1,
       "P0": 3,
-      "P1": 13
+      "P1": 13,
+      "P2": 12
     },
     "byArea": {
-      "preview": 3,
       "platform": 6,
       "presentation": 4,
+      "preview": 3,
       "editor": 3,
       "testing": 3,
       "packaging": 2,
@@ -27,31 +27,6 @@
     }
   },
   "items": [
-    {
-      "id": "validated-static-publishing",
-      "title": "Turn static export into a validated publishing workflow",
-      "status": "triaged",
-      "type": "enhancement",
-      "priority": "P2",
-      "area": "preview",
-      "owner": "codex",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-09",
-      "updated": "2026-08-09",
-      "verification": "Static publication uses the same trusted Markdown semantics as preview, rewrites internal links and assets deterministically, provides a local site preview, and passes a no-network publication contract test.",
-      "tags": [
-        "publishing",
-        "static-site",
-        "preview",
-        "links"
-      ],
-      "depends_on": [
-        "multi-repo-publishing-profiles",
-        "sanitize-rendered-markdown-and-navigation",
-        "unified-workspace-index"
-      ]
-    },
     {
       "id": "collaboration-reliability-boundary",
       "title": "Replace or retire the prototype collaboration surface",
@@ -662,6 +637,31 @@
       ],
       "depends_on": [
         "reliable-editor-preview-transitions"
+      ]
+    },
+    {
+      "id": "validated-static-publishing",
+      "title": "Turn static export into a validated publishing workflow",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "preview",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "Static publication uses the same trusted Markdown semantics as preview, rewrites internal links and assets deterministically, provides a local site preview, and passes a no-network publication contract test.",
+      "tags": [
+        "publishing",
+        "static-site",
+        "preview",
+        "links"
+      ],
+      "depends_on": [
+        "multi-repo-publishing-profiles",
+        "sanitize-rendered-markdown-and-navigation",
+        "unified-workspace-index"
       ]
     }
   ]
