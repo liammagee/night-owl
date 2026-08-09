@@ -354,6 +354,7 @@ const tagSearchInput = document.getElementById('tag-search-input');
 const tagFilterChips = document.getElementById('tag-filter-chips');
 window.fileTreeView = fileTreeView;
 const newFolderBtn = document.getElementById('new-folder-btn');
+const duplicateFolderBtn = document.getElementById('duplicate-folder-btn');
 const changeDirectoryBtn = document.getElementById('change-directory-btn');
 const addWorkspaceFolderBtn = document.getElementById('add-workspace-folder-btn');
 
@@ -8939,6 +8940,68 @@ newFolderBtn.addEventListener('click', async () => {
     await createNewFolder();
 });
 
+function updateDuplicateFolderButtonState() {
+    if (!duplicateFolderBtn) return;
+    const selectedFolderPath = window.selectedFolderPath;
+    const normalizeUiPath = value => {
+        const normalized = String(value || '').replace(/[\\/]+$/, '');
+        return normalized || String(value || '');
+    };
+    const selectedPathKey = normalizeUiPath(selectedFolderPath);
+    const configuredRoots = [
+        window.appSettings?.workingDirectory,
+        ...(window.appSettings?.workspaceFolders || [])
+    ].filter(Boolean).map(normalizeUiPath);
+    const selectedFolderElement = selectedFolderPath
+        ? Array.from(document.querySelectorAll('.file-tree-item.folder'))
+            .find(element => element.dataset.path === selectedFolderPath)
+        : null;
+    const isWorkspaceRoot = configuredRoots.includes(selectedPathKey) ||
+        Boolean(selectedFolderElement?.classList.contains('primary-folder-root') ||
+            selectedFolderElement?.classList.contains('workspace-folder-root'));
+    duplicateFolderBtn.disabled = !selectedFolderPath || isWorkspaceRoot;
+    duplicateFolderBtn.title = !selectedFolderPath
+        ? 'Select a subfolder to duplicate'
+        : isWorkspaceRoot
+            ? 'Workspace roots cannot be duplicated here'
+            : `Duplicate "${selectedFolderPath.split(/[\\/]/).pop()}"`;
+}
+
+async function duplicateFolder(folderPath = window.selectedFolderPath) {
+    if (!folderPath) {
+        showNotification('Select a subfolder to duplicate', 'warning');
+        return false;
+    }
+
+    duplicateFolderBtn?.setAttribute('disabled', '');
+    try {
+        const result = await window.electronAPI.files.duplicateFolder(folderPath);
+        if (!result?.success) {
+            showNotification(result?.error || 'Failed to duplicate folder', 'error');
+            return false;
+        }
+
+        window.expandedFolders.add(result.destinationPath);
+        setActiveTreeFolder(result.destinationPath);
+        fileTreeController.markStale();
+        await renderFileTree();
+        showNotification(result.message || `Folder duplicated as "${result.folderName}"`, 'success');
+        return true;
+    } catch (error) {
+        console.error('[Renderer] Error duplicating folder:', error);
+        showNotification(`Failed to duplicate folder: ${error.message}`, 'error');
+        return false;
+    } finally {
+        updateDuplicateFolderButtonState();
+    }
+}
+
+duplicateFolderBtn?.addEventListener('click', async () => {
+    await duplicateFolder();
+});
+window.addEventListener('nightowl:active-folder-changed', updateDuplicateFolderButtonState);
+window.duplicateSelectedFolder = duplicateFolder;
+
 // --- Change Directory Button Listener (dropdown with recent workspaces) ---
 changeDirectoryBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
@@ -9527,6 +9590,7 @@ function switchStructureView(view) {
     if (slidesPane) slidesPane.style.display = 'none';
     if (tagSearchSection) tagSearchSection.style.display = 'none';
     newFolderBtn.style.display = 'none';
+    if (duplicateFolderBtn) duplicateFolderBtn.style.display = 'none';
     changeDirectoryBtn.style.display = 'none';
     if (addWorkspaceFolderBtn) addWorkspaceFolderBtn.style.display = 'none';
     if (view !== 'file') stopFileTreeAutoRefreshPolling();
@@ -9543,6 +9607,10 @@ function switchStructureView(view) {
         if (fileTreeView) fileTreeView.style.display = ''; // Show file tree
         if (tagSearchSection) tagSearchSection.style.display = ''; // Show tag search
         newFolderBtn.style.display = ''; // Show New Folder button
+        if (duplicateFolderBtn) {
+            duplicateFolderBtn.style.display = '';
+            updateDuplicateFolderButtonState();
+        }
         changeDirectoryBtn.style.display = ''; // Show Change Directory button
         if (addWorkspaceFolderBtn) addWorkspaceFolderBtn.style.display = ''; // Show Add Folder button
 
@@ -9844,6 +9912,7 @@ function renderFileTreeData(fileTree) {
     }
 
     applyFileTreePostRenderDecorations();
+    updateDuplicateFolderButtonState();
 }
 
 function rerenderFileTreeFromCache() {
@@ -11139,6 +11208,7 @@ async function showFileContextMenu(event, filePath, isFolder, isWorkspaceFolderR
         menuItems.push(
             { label: 'New File', action: 'new-file' },
             { label: 'New Folder', action: 'new-subfolder' },
+            { label: 'Duplicate Folder', action: 'duplicate-folder' },
             { separator: true },
             { label: 'Open in Finder', action: 'open-in-finder' },
             publishedMenuItem,
@@ -11398,6 +11468,10 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
                     showNotification(`Failed to rename ${isFolder ? 'folder' : 'file'}: ${error.message}`, 'error');
                 }
             }
+            break;
+
+        case 'duplicate-folder':
+            await duplicateFolder(filePath);
             break;
             
         case 'delete':

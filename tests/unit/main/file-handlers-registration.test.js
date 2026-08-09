@@ -426,4 +426,113 @@ describe('fileHandlers registration', () => {
 
     fsSync.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  test('duplicate-folder recursively copies a subfolder using a conflict-safe sibling name', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-folder-'));
+    const sourcePath = path.join(workspace, 'Drafts');
+    fsSync.mkdirSync(path.join(sourcePath, 'nested'), { recursive: true });
+    fsSync.writeFileSync(path.join(sourcePath, 'outline.md'), '# Outline\n', 'utf8');
+    fsSync.writeFileSync(path.join(sourcePath, 'nested', 'notes.txt'), 'Notes\n', 'utf8');
+    fsSync.mkdirSync(path.join(workspace, 'Drafts copy'));
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const duplicateFolder = getRegisteredHandler('duplicate-folder');
+      const result = await duplicateFolder({}, sourcePath);
+      const destinationPath = path.join(workspace, 'Drafts copy 2');
+
+      expect(result).toEqual(expect.objectContaining({
+        success: true,
+        sourcePath,
+        destinationPath,
+        folderName: 'Drafts copy 2'
+      }));
+      expect(fsSync.readFileSync(path.join(destinationPath, 'outline.md'), 'utf8')).toBe('# Outline\n');
+      expect(fsSync.readFileSync(path.join(destinationPath, 'nested', 'notes.txt'), 'utf8')).toBe('Notes\n');
+    } finally {
+      fileHandlers.cleanup();
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  test('duplicate-folder rejects workspace roots and paths outside the workspace', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-root-'));
+    const outsideFolder = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-outside-'));
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const duplicateFolder = getRegisteredHandler('duplicate-folder');
+
+      await expect(duplicateFolder({}, workspace)).resolves.toEqual(expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('workspace root')
+      }));
+      await expect(duplicateFolder({}, outsideFolder)).resolves.toEqual(expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('inside a workspace folder')
+      }));
+    } finally {
+      fileHandlers.cleanup();
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+      fsSync.rmSync(outsideFolder, { recursive: true, force: true });
+    }
+  });
+
+  test('duplicate-folder does not follow a workspace symlink to an outside directory', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-link-root-'));
+    const outsideFolder = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-link-target-'));
+    const outsideChild = path.join(outsideFolder, 'private');
+    const linkedFolder = path.join(workspace, 'linked');
+    fsSync.mkdirSync(outsideChild);
+    fsSync.writeFileSync(path.join(outsideChild, 'secret.txt'), 'outside\n', 'utf8');
+    fsSync.symlinkSync(outsideFolder, linkedFolder, 'dir');
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const result = await getRegisteredHandler('duplicate-folder')({}, path.join(linkedFolder, 'private'));
+
+      expect(result).toEqual(expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('inside a workspace folder')
+      }));
+      expect(fsSync.existsSync(path.join(outsideFolder, 'private copy'))).toBe(false);
+    } finally {
+      fileHandlers.cleanup();
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+      fsSync.rmSync(outsideFolder, { recursive: true, force: true });
+    }
+  });
 });

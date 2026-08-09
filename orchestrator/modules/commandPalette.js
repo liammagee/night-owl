@@ -86,6 +86,7 @@ function initializeCommandPalette() {
     }, 'Cmd+W');
     registerCommand('file.openFolder', 'File: Open Folder', () => window.changeDirectory(), 'Cmd+Alt+O');
     registerCommand('file.newFolder', 'File: New Folder', () => window.showNewFolderModal());
+    registerCommand('file.duplicateFolder', 'File: Duplicate Selected Folder', () => window.duplicateSelectedFolder?.());
     
     // Edit Operations
     registerCommand('edit.find', 'Edit: Find', () => window.showFindReplaceDialog(false), 'Cmd+F');

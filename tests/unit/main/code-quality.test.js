@@ -729,6 +729,7 @@ describe('Code quality guardrails', () => {
     expect(indexSource).toContain('aria-label="Add existing folder to workspace"');
     expect(indexSource).toContain('aria-label="Change the primary working directory"');
     expect(indexSource).toContain('aria-label="Create a new subfolder inside selected folder"');
+    expect(indexSource).toContain('aria-label="Duplicate selected folder"');
     expect(indexSource).not.toContain('pane-action-label');
     expect(indexSource).not.toContain('>Add Root</button>');
     expect(indexSource).not.toContain('>Primary</button>');

@@ -53,6 +53,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'copy-local-image-file',
   'create-file',
   'create-folder',
+  'duplicate-folder',
   'debug-log',
   'delete-file',
   'delete-item',
@@ -373,7 +374,7 @@ const CAPABILITY_CHANNELS = Object.freeze({
   ]),
   files: new Set([
     'add-recent-file', 'batch-read-frontmatter', 'check-file-exists', 'copy-file',
-    'copy-file-to', 'create-file', 'create-folder', 'delete-file', 'delete-item',
+    'copy-file-to', 'create-file', 'create-folder', 'delete-file', 'delete-item', 'duplicate-folder',
     'dialog-open-file', 'extract-text-with-replacement', 'get-current-file-content', 'get-file-context',
     'get-file-tree-signature', 'get-folder-contents', 'get-markdown-files',
     'list-directory-files', 'move-file', 'move-item', 'open-file', 'open-file-path',
