@@ -1200,9 +1200,13 @@ test('@required @presentation-tools preflight and presenter state survive conten
   await appPage.getByRole('button', { name: 'Previous slide' }).click();
   await expect.poll(() => appPage.evaluate(() => window.NightOwlPresentationTools.getState().currentSlide)).toBe(0);
   await preflightPanel.getByRole('button', { name: 'Close presentation preflight' }).click();
-  const notesWindowOpened = electronApp.waitForEvent('window');
   await appPage.getByRole('button', { name: 'Start presentation' }).click();
-  const notesWindow = await notesWindowOpened;
+  let notesWindow = electronApp.windows().find(page => page.url().includes('speaker-notes-window.html'));
+  if (!notesWindow) {
+    const notesWindowOpened = electronApp.waitForEvent('window');
+    await appPage.getByRole('button', { name: 'Show speaker notes in separate window' }).click();
+    notesWindow = await notesWindowOpened;
+  }
   await notesWindow.waitForLoadState('domcontentloaded');
   await appPage.getByRole('button', { name: 'Show presenter console' }).click();
 
