@@ -161,6 +161,7 @@
     description.textContent = 'Your current layout';
     const actions = root.document.createElement('div');
     actions.className = 'workflow-preset-actions';
+    actions.setAttribute('role', 'group');
     actions.setAttribute('aria-label', 'Recommended actions');
     bar.append(label, choices, description, actions);
     root.document.getElementById('mode-switcher')?.insertAdjacentElement('afterend', bar);
