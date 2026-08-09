@@ -67,11 +67,44 @@ const ZoomOut = () => (
 );
 
 const presentationViewport = window.NightOwlPresentationViewport;
+const presentationPreflight = window.NightOwlPresentationPreflight;
 const SLIDE_WIDTH = presentationViewport?.SLIDE_WIDTH || 864;
 const SLIDE_HEIGHT = presentationViewport?.SLIDE_HEIGHT || 486;
 const SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
 const SLIDE_HALF_HEIGHT = SLIDE_HEIGHT / 2;
 const SLIDE_SPACING = SLIDE_WIDTH + 240;
+
+const presentationSessionKey = (kind) => {
+  const identity = window.currentFilePath || 'untitled-presentation';
+  return `nightowl:presentation:${kind}:${identity}`;
+};
+
+const readStoredList = (key) => {
+  try {
+    const value = JSON.parse(window.localStorage?.getItem(key) || '[]');
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch (_) {
+    return [];
+  }
+};
+
+const writeStoredList = (key, values) => {
+  try {
+    window.localStorage?.setItem(key, JSON.stringify([...new Set(values)].sort()));
+  } catch (_) {
+    // Suppressions remain active for this mount when storage is unavailable.
+  }
+};
+
+const slideTextPreview = (slide) => String(slide?.cleanContent || '')
+  .replace(/<!--[^]*?-->/g, ' ')
+  .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+  .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/[`*_>#-]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 240);
 
 const PresentationSlideContent = ({ html, isPresenting }) => {
   const frameRef = useRef(null);
@@ -305,6 +338,21 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   const [focusedSlide, setFocusedSlide] = useState(null);
   const [speakerNotesVisible, setSpeakerNotesVisible] = useState(true);
   const [speakerNotesWindowVisible, setSpeakerNotesWindowVisible] = useState(false);
+  const [sourceMarkdown, setSourceMarkdown] = useState(markdown || '');
+  const [preflightOpen, setPreflightOpen] = useState(false);
+  const [preflightRunning, setPreflightRunning] = useState(false);
+  const [preflightReport, setPreflightReport] = useState(null);
+  const [preflightSuppressions, setPreflightSuppressions] = useState(() => (
+    readStoredList(presentationSessionKey('preflight-suppressions'))
+  ));
+  const [presenterConsoleOpen, setPresenterConsoleOpen] = useState(() => {
+    try {
+      return window.sessionStorage?.getItem(presentationSessionKey('console')) === 'open';
+    } catch (_) {
+      return false;
+    }
+  });
+  const [presenterElapsed, setPresenterElapsed] = useState(0);
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoadingTTS, setIsLoadingTTS] = useState(false);
@@ -329,6 +377,8 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   const stageRef = useRef(null);
   const presentationControlsRef = useRef(null);
   const navigationControlsRef = useRef(null);
+  const presenterConsoleRef = useRef(null);
+  const presenterStartedAtRef = useRef(null);
   const previousFocusRef = useRef(null);
   const zoomInteractionTimeoutRef = useRef(null);
   const zoomRef = useRef(zoom);
@@ -482,7 +532,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
 
     const notesPanel = document.getElementById('speaker-notes-panel');
-    const observedElements = [containerRef.current, presentationControlsRef.current, navigationControlsRef.current, notesPanel]
+    const observedElements = [
+      containerRef.current,
+      presentationControlsRef.current,
+      navigationControlsRef.current,
+      presenterConsoleRef.current,
+      notesPanel
+    ]
       .filter(Boolean);
     let animationFrame = null;
 
@@ -496,9 +552,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         const notesHeight = notesPanel && notesStyle?.display !== 'none' && notesStyle?.visibility !== 'hidden'
           ? notesPanel.getBoundingClientRect().height
           : 0;
+        const consoleStyle = presenterConsoleRef.current
+          ? window.getComputedStyle(presenterConsoleRef.current)
+          : null;
+        const consoleWidth = presenterConsoleRef.current && consoleStyle?.display !== 'none' && consoleStyle?.visibility !== 'hidden'
+          ? presenterConsoleRef.current.getBoundingClientRect().width
+          : 0;
         const next = {
           top: controlsHeight > 0 ? controlsHeight + 28 : 16,
-          right: 16,
+          right: consoleWidth > 0 ? consoleWidth + 28 : 16,
           bottom: Math.max(navigationHeight > 0 ? navigationHeight + 28 : 16, notesHeight > 0 ? notesHeight + 12 : 0),
           left: 16
         };
@@ -529,7 +591,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       mutationObserver.disconnect();
       window.removeEventListener('resize', measureChrome);
     };
-  }, [isPresenting, speakerNotesWindowVisible]);
+  }, [isPresenting, speakerNotesWindowVisible, presenterConsoleOpen]);
 
   useLayoutEffect(() => {
     if (!isPresenting || slides.length === 0) {
@@ -1120,15 +1182,19 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
       const slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
       const slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
+      const sourceSlides = presentationPreflight?.splitSlides?.(trimmedMarkdown) || [];
       return slideTexts.map((text, index) => {
         const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
         const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);
+        const sourceSlide = sourceSlides[index];
         return {
           id: index,
           content: text,
           cleanContent: cleanContent,
           speakerNotes: speakerNotes,
           backgroundImage: backgroundImage,
+          title: sourceSlide?.title || `Slide ${index + 1}`,
+          sourceLine: sourceSlide?.startLine || 1,
           position: calculateSlidePosition(index, slideTexts.length),
           parsed: parseMarkdownContent(cleanContent)
         };
@@ -1152,6 +1218,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // document exactly once. The pending global remains a compatibility path
       // for older callers that do not supply a prop.
       const initialContent = markdown || window.pendingPresentationContent || sampleMarkdown;
+      setSourceMarkdown(initialContent);
       setSlides(parseMarkdown(initialContent));
       window.pendingPresentationContent = null;
     }, 100); // Small delay to allow content synchronization
@@ -1212,6 +1279,125 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
   }, [slides, isPresenting, isRecording, markZoomInteraction]);
 
+  const runPreflight = useCallback(async () => {
+    if (!presentationPreflight?.run) {
+      const unavailable = { success: false, error: 'Presentation preflight engine is unavailable', warnings: [] };
+      setPreflightReport(unavailable);
+      return unavailable;
+    }
+    setPreflightRunning(true);
+    try {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const report = await presentationPreflight.run({
+        markdown: sourceMarkdown || slides.map(slide => slide.content).join('\n\n---\n\n'),
+        root: containerRef.current,
+        baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory,
+        suppressions: preflightSuppressions,
+        assetExists: window.electronAPI?.files?.checkFileExists
+          ? filePath => window.electronAPI.files.checkFileExists(filePath)
+          : null
+      });
+      setPreflightReport(report);
+      return report;
+    } catch (error) {
+      const failure = { success: false, error: error.message || String(error), warnings: [] };
+      setPreflightReport(failure);
+      return failure;
+    } finally {
+      setPreflightRunning(false);
+    }
+  }, [sourceMarkdown, slides, preflightSuppressions]);
+
+  const suppressPreflightWarning = useCallback((warningId) => {
+    setPreflightSuppressions(previous => {
+      const next = [...new Set([...previous, warningId])];
+      writeStoredList(presentationSessionKey('preflight-suppressions'), next);
+      return next;
+    });
+  }, []);
+
+  const resetPreflightSuppressions = useCallback(() => {
+    writeStoredList(presentationSessionKey('preflight-suppressions'), []);
+    setPreflightSuppressions([]);
+  }, []);
+
+  const navigateToPreflightWarning = useCallback((item) => {
+    goToSlide(item.slideIndex);
+    setFocusedSlide(item.slideIndex);
+    if (item.sourceLine && window.editor?.setPosition) {
+      window.editor.setPosition({ lineNumber: item.sourceLine, column: 1 });
+      window.editor.revealLineInCenter?.(item.sourceLine);
+    }
+  }, [goToSlide]);
+
+  useEffect(() => {
+    if (!preflightOpen) return undefined;
+    const timer = setTimeout(runPreflight, 50);
+    return () => clearTimeout(timer);
+  }, [preflightOpen, sourceMarkdown, slides.length, preflightSuppressions, runPreflight]);
+
+  useEffect(() => {
+    if (!isPresenting) {
+      presenterStartedAtRef.current = null;
+      setPresenterElapsed(0);
+      return undefined;
+    }
+    presenterStartedAtRef.current = Date.now();
+    const update = () => {
+      setPresenterElapsed(Math.max(0, Math.floor((Date.now() - presenterStartedAtRef.current) / 1000)));
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [isPresenting]);
+
+  useEffect(() => {
+    try {
+      if (presenterConsoleOpen) window.sessionStorage?.setItem(presentationSessionKey('console'), 'open');
+      else window.sessionStorage?.removeItem(presentationSessionKey('console'));
+    } catch (_) {
+      // Console state still survives content refreshes and viewport changes.
+    }
+  }, [presenterConsoleOpen]);
+
+  useEffect(() => {
+    const controller = Object.freeze({
+      runPreflight,
+      startPresentation: () => {
+        previousFocusRef.current = document.activeElement;
+        setIsPresenting(true);
+      },
+      openPreflight: () => setPreflightOpen(true),
+      closePreflight: () => setPreflightOpen(false),
+      openPresenterConsole: () => setPresenterConsoleOpen(true),
+      closePresenterConsole: () => setPresenterConsoleOpen(false),
+      getState: () => ({
+        currentSlide,
+        isPresenting,
+        preflightOpen,
+        preflightRunning,
+        preflightReport,
+        presenterConsoleOpen,
+        presenterElapsed,
+        slideCount: slides.length
+      })
+    });
+    window.NightOwlPresentationTools = controller;
+    return () => {
+      if (window.NightOwlPresentationTools === controller) delete window.NightOwlPresentationTools;
+    };
+  }, [
+    currentSlide,
+    isPresenting,
+    preflightOpen,
+    preflightReport,
+    preflightRunning,
+    presenterConsoleOpen,
+    presenterElapsed,
+    runPreflight,
+    slides.length
+  ]);
+
   // Center on first slide when presentation view becomes active
   useEffect(() => {
     const checkIfPresentationActive = () => {
@@ -1262,6 +1448,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         // Parsing new content into slides
         const newSlides = parseMarkdown(newContent);
         
+        setSourceMarkdown(newContent);
         setSlides(newSlides);
         setCurrentSlide(0);
         zoomRef.current = 1;
@@ -1310,6 +1497,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }
         if (content) {
           const newSlides = parseMarkdown(content);
+          setSourceMarkdown(content);
           setSlides(newSlides);
           setCurrentSlide(0);
           // Ensure canvas is ready before centering first slide
@@ -2730,6 +2918,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             📸
           </button>
 	          <button
+	            onClick={() => setPreflightOpen(true)}
+	            className="presentation-control-btn presentation-preflight-btn px-3 py-2 rounded-lg transition-colors shadow-lg border"
+	            aria-label="Run presentation preflight"
+	            aria-expanded={preflightOpen}
+	            aria-controls="presentation-preflight-panel"
+	          >
+	            Preflight{preflightReport?.warningCount ? ` · ${preflightReport.warningCount}` : ''}
+	          </button>
+	          <button
 	            onClick={() => {
 	              previousFocusRef.current = document.activeElement;
 	              setIsPresenting(true);
@@ -2741,6 +2938,70 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 	            Present
 	          </button>
         </div>
+      )}
+
+      {!isPresenting && preflightOpen && (
+        <aside
+          id="presentation-preflight-panel"
+          className="presentation-preflight-panel"
+          role="region"
+          aria-label="Presentation preflight"
+          aria-busy={preflightRunning}
+        >
+          <header className="presentation-preflight-header">
+            <div>
+              <strong>Presentation preflight</strong>
+              <span>
+                {preflightRunning
+                  ? 'Checking every slide…'
+                  : preflightReport?.success
+                    ? `${preflightReport.slideCount} slides · ${preflightReport.warningCount} warnings`
+                    : 'Ready to check this deck'}
+              </span>
+            </div>
+            <button type="button" onClick={() => setPreflightOpen(false)} aria-label="Close presentation preflight">×</button>
+          </header>
+          <div className="presentation-preflight-actions">
+            <button type="button" onClick={runPreflight} disabled={preflightRunning}>
+              {preflightRunning ? 'Checking…' : 'Run again'}
+            </button>
+            {preflightReport?.suppressedCount > 0 && (
+              <button type="button" onClick={resetPreflightSuppressions}>
+                Restore {preflightReport.suppressedCount} suppressed
+              </button>
+            )}
+          </div>
+          {preflightReport?.error && <p className="presentation-preflight-error">{preflightReport.error}</p>}
+          {preflightReport?.success && preflightReport.warningCount === 0 && (
+            <p className="presentation-preflight-clear">No unsuppressed preflight warnings.</p>
+          )}
+          <ol className="presentation-preflight-list">
+            {(preflightReport?.warnings || []).map(item => (
+              <li key={item.id} data-warning-code={item.code} data-slide-index={item.slideIndex}>
+                <button
+                  type="button"
+                  className="presentation-preflight-warning"
+                  onClick={() => navigateToPreflightWarning(item)}
+                >
+                  <span className={`presentation-preflight-severity is-${item.severity}`}>{item.severity}</span>
+                  <strong>Slide {item.slideNumber}: {item.message}</strong>
+                  <span>{item.detail}</span>
+                  <small>Source line {item.sourceLine}</small>
+                </button>
+                {item.suppressible && (
+                  <button
+                    type="button"
+                    className="presentation-preflight-suppress"
+                    onClick={() => suppressPreflightWarning(item.id)}
+                    aria-label={`Suppress ${item.message} on slide ${item.slideNumber}`}
+                  >
+                    Suppress
+                  </button>
+                )}
+              </li>
+            ))}
+          </ol>
+        </aside>
       )}
 
       {/* Navigation Controls */}
@@ -2811,6 +3072,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             data-tooltip="Export presentation as PNG"
           >
             📸
+          </button>
+          <button
+            onClick={() => setPresenterConsoleOpen(previous => !previous)}
+            className={`p-2 rounded-lg transition-colors shadow-lg border ${
+              presenterConsoleOpen ? 'bg-green-600 text-white border-green-700' : 'bg-cream hover:bg-gray-100 text-gray-900'
+            }`}
+            aria-label={presenterConsoleOpen ? 'Hide presenter console' : 'Show presenter console'}
+            aria-pressed={presenterConsoleOpen}
+            aria-controls="presentation-presenter-console"
+          >
+            Presenter
           </button>
           <button
             onClick={() => toggleSpeakerNotesWindow()}
@@ -2922,6 +3194,51 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             Exit Presentation
           </button>
         </div>
+      )}
+
+      {isPresenting && presenterConsoleOpen && (
+        <aside
+          ref={presenterConsoleRef}
+          id="presentation-presenter-console"
+          className="presentation-presenter-console"
+          role="complementary"
+          aria-label="Presenter console"
+          data-current-slide={currentSlide}
+        >
+          <header>
+            <div>
+              <strong>Presenter console</strong>
+              <span role="timer" aria-label={`Elapsed time ${formatRecordingTime(presenterElapsed)}`}>
+                {formatRecordingTime(presenterElapsed)}
+              </span>
+            </div>
+            <button type="button" onClick={() => setPresenterConsoleOpen(false)} aria-label="Close presenter console">×</button>
+          </header>
+          <section aria-labelledby="presenter-current-title">
+            <small>Current · {currentSlide + 1} / {slides.length}</small>
+            <h2 id="presenter-current-title">{slides[currentSlide]?.title || `Slide ${currentSlide + 1}`}</h2>
+            <p>{slideTextPreview(slides[currentSlide]) || 'No visible slide text.'}</p>
+          </section>
+          <section aria-labelledby="presenter-next-title" className="presentation-presenter-next">
+            <small>Next</small>
+            <h2 id="presenter-next-title">
+              {slides[currentSlide + 1]?.title || (currentSlide + 1 < slides.length ? `Slide ${currentSlide + 2}` : 'End of deck')}
+            </h2>
+            <p>{slideTextPreview(slides[currentSlide + 1]) || 'No next slide.'}</p>
+          </section>
+          <section aria-labelledby="presenter-notes-title" className="presentation-presenter-notes">
+            <small id="presenter-notes-title">Speaker notes</small>
+            <pre>{slides[currentSlide]?.speakerNotes || 'No speaker notes for this slide.'}</pre>
+          </section>
+          <nav aria-label="Presenter console navigation">
+            <button type="button" onClick={() => goToSlide(currentSlide - 1)} disabled={currentSlide === 0}>
+              Previous
+            </button>
+            <button type="button" onClick={() => goToSlide(currentSlide + 1)} disabled={currentSlide === slides.length - 1}>
+              Next
+            </button>
+          </nav>
+        </aside>
       )}
 
       <div

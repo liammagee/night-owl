@@ -1,23 +1,27 @@
 "use strict";
 
 function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
-function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i.return) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
-function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
 function _readOnlyError(r) { throw new TypeError('"' + r + '" is read-only'); }
-function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
-function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
 function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
+function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i.return) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
+function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
+function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
+function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
 function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
 function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
-function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
-function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
 function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
 function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
+function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
 // React presentation component
 // Using global React and ReactDOM instead of imports
 var React = window.React;
@@ -151,11 +155,36 @@ var ZoomOut = function ZoomOut() {
   }));
 };
 var presentationViewport = window.NightOwlPresentationViewport;
+var presentationPreflight = window.NightOwlPresentationPreflight;
 var SLIDE_WIDTH = (presentationViewport === null || presentationViewport === void 0 ? void 0 : presentationViewport.SLIDE_WIDTH) || 864;
 var SLIDE_HEIGHT = (presentationViewport === null || presentationViewport === void 0 ? void 0 : presentationViewport.SLIDE_HEIGHT) || 486;
 var SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
 var SLIDE_HALF_HEIGHT = SLIDE_HEIGHT / 2;
 var SLIDE_SPACING = SLIDE_WIDTH + 240;
+var presentationSessionKey = function presentationSessionKey(kind) {
+  var identity = window.currentFilePath || 'untitled-presentation';
+  return "nightowl:presentation:".concat(kind, ":").concat(identity);
+};
+var readStoredList = function readStoredList(key) {
+  try {
+    var _window$localStorage;
+    var value = JSON.parse(((_window$localStorage = window.localStorage) === null || _window$localStorage === void 0 ? void 0 : _window$localStorage.getItem(key)) || '[]');
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch (_) {
+    return [];
+  }
+};
+var writeStoredList = function writeStoredList(key, values) {
+  try {
+    var _window$localStorage2;
+    (_window$localStorage2 = window.localStorage) === null || _window$localStorage2 === void 0 || _window$localStorage2.setItem(key, JSON.stringify(_toConsumableArray(new Set(values)).sort()));
+  } catch (_) {
+    // Suppressions remain active for this mount when storage is unavailable.
+  }
+};
+var slideTextPreview = function slideTextPreview(slide) {
+  return String((slide === null || slide === void 0 ? void 0 : slide.cleanContent) || '').replace(/<!--[^]*?-->/g, ' ').replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/<[^>]+>/g, ' ').replace(/[`*_>#-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240);
+};
 var PresentationSlideContent = function PresentationSlideContent(_ref) {
   var html = _ref.html,
     isPresenting = _ref.isPresenting;
@@ -459,6 +488,7 @@ var PauseIcon = function PauseIcon() {
   }));
 };
 var MarkdownPreziApp = function MarkdownPreziApp() {
+  var _slides$currentSlide9, _slides, _slides$currentSlide0;
   var _ref2 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
     _ref2$markdown = _ref2.markdown,
     markdown = _ref2$markdown === void 0 ? '' : _ref2$markdown,
@@ -579,22 +609,59 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     _useState26 = _slicedToArray(_useState25, 2),
     speakerNotesWindowVisible = _useState26[0],
     setSpeakerNotesWindowVisible = _useState26[1];
-  var _useState27 = useState(false),
+  var _useState27 = useState(markdown || ''),
     _useState28 = _slicedToArray(_useState27, 2),
-    ttsEnabled = _useState28[0],
-    setTtsEnabled = _useState28[1];
+    sourceMarkdown = _useState28[0],
+    setSourceMarkdown = _useState28[1];
   var _useState29 = useState(false),
     _useState30 = _slicedToArray(_useState29, 2),
-    isSpeaking = _useState30[0],
-    setIsSpeaking = _useState30[1];
+    preflightOpen = _useState30[0],
+    setPreflightOpen = _useState30[1];
   var _useState31 = useState(false),
     _useState32 = _slicedToArray(_useState31, 2),
-    isLoadingTTS = _useState32[0],
-    setIsLoadingTTS = _useState32[1];
-  var _useState33 = useState('sarah'),
+    preflightRunning = _useState32[0],
+    setPreflightRunning = _useState32[1];
+  var _useState33 = useState(null),
     _useState34 = _slicedToArray(_useState33, 2),
-    selectedVoice = _useState34[0],
-    setSelectedVoice = _useState34[1]; // Default voice
+    preflightReport = _useState34[0],
+    setPreflightReport = _useState34[1];
+  var _useState35 = useState(function () {
+      return readStoredList(presentationSessionKey('preflight-suppressions'));
+    }),
+    _useState36 = _slicedToArray(_useState35, 2),
+    preflightSuppressions = _useState36[0],
+    setPreflightSuppressions = _useState36[1];
+  var _useState37 = useState(function () {
+      try {
+        var _window$sessionStorag;
+        return ((_window$sessionStorag = window.sessionStorage) === null || _window$sessionStorag === void 0 ? void 0 : _window$sessionStorag.getItem(presentationSessionKey('console'))) === 'open';
+      } catch (_) {
+        return false;
+      }
+    }),
+    _useState38 = _slicedToArray(_useState37, 2),
+    presenterConsoleOpen = _useState38[0],
+    setPresenterConsoleOpen = _useState38[1];
+  var _useState39 = useState(0),
+    _useState40 = _slicedToArray(_useState39, 2),
+    presenterElapsed = _useState40[0],
+    setPresenterElapsed = _useState40[1];
+  var _useState41 = useState(false),
+    _useState42 = _slicedToArray(_useState41, 2),
+    ttsEnabled = _useState42[0],
+    setTtsEnabled = _useState42[1];
+  var _useState43 = useState(false),
+    _useState44 = _slicedToArray(_useState43, 2),
+    isSpeaking = _useState44[0],
+    setIsSpeaking = _useState44[1];
+  var _useState45 = useState(false),
+    _useState46 = _slicedToArray(_useState45, 2),
+    isLoadingTTS = _useState46[0],
+    setIsLoadingTTS = _useState46[1];
+  var _useState47 = useState('sarah'),
+    _useState48 = _slicedToArray(_useState47, 2),
+    selectedVoice = _useState48[0],
+    setSelectedVoice = _useState48[1]; // Default voice
   var ttsStateRef = useRef({
     isAdvancing: false,
     currentSpeakingSlide: -1
@@ -603,18 +670,18 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var MAX_ZOOM = 3;
 
   // Video recording state
-  var _useState35 = useState(false),
-    _useState36 = _slicedToArray(_useState35, 2),
-    isRecording = _useState36[0],
-    setIsRecording = _useState36[1];
-  var _useState37 = useState(false),
-    _useState38 = _slicedToArray(_useState37, 2),
-    isPaused = _useState38[0],
-    setIsPaused = _useState38[1];
-  var _useState39 = useState(0),
-    _useState40 = _slicedToArray(_useState39, 2),
-    recordingDuration = _useState40[0],
-    setRecordingDuration = _useState40[1];
+  var _useState49 = useState(false),
+    _useState50 = _slicedToArray(_useState49, 2),
+    isRecording = _useState50[0],
+    setIsRecording = _useState50[1];
+  var _useState51 = useState(false),
+    _useState52 = _slicedToArray(_useState51, 2),
+    isPaused = _useState52[0],
+    setIsPaused = _useState52[1];
+  var _useState53 = useState(0),
+    _useState54 = _slicedToArray(_useState53, 2),
+    recordingDuration = _useState54[0],
+    setRecordingDuration = _useState54[1];
   var recordingTimerRef = useRef(null);
 
   // Current slides and slide index state
@@ -623,33 +690,35 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var stageRef = useRef(null);
   var presentationControlsRef = useRef(null);
   var navigationControlsRef = useRef(null);
+  var presenterConsoleRef = useRef(null);
+  var presenterStartedAtRef = useRef(null);
   var previousFocusRef = useRef(null);
   var zoomInteractionTimeoutRef = useRef(null);
   var zoomRef = useRef(zoom);
   var panRef = useRef(pan);
-  var _useState41 = useState({
+  var _useState55 = useState({
       top: 16,
       right: 16,
       bottom: 16,
       left: 16
     }),
-    _useState42 = _slicedToArray(_useState41, 2),
-    presentationInsets = _useState42[0],
-    setPresentationInsets = _useState42[1];
-  var _useState43 = useState({
+    _useState56 = _slicedToArray(_useState55, 2),
+    presentationInsets = _useState56[0],
+    setPresentationInsets = _useState56[1];
+  var _useState57 = useState({
       scale: 1,
       pan: {
         x: 0,
         y: 0
       }
     }),
-    _useState44 = _slicedToArray(_useState43, 2),
-    presentationFit = _useState44[0],
-    setPresentationFit = _useState44[1];
-  var _useState45 = useState(false),
-    _useState46 = _slicedToArray(_useState45, 2),
-    presentationFitReady = _useState46[0],
-    setPresentationFitReady = _useState46[1];
+    _useState58 = _slicedToArray(_useState57, 2),
+    presentationFit = _useState58[0],
+    setPresentationFit = _useState58[1];
+  var _useState59 = useState(false),
+    _useState60 = _slicedToArray(_useState59, 2),
+    presentationFitReady = _useState60[0],
+    setPresentationFitReady = _useState60[1];
 
   // Sample markdown content for demo
   var sampleMarkdown = "# SAMPLE CONTENT TEST\nThis is sample content to test speaker notes.\n\n```notes\n\uD83D\uDD34 SAMPLE SPEAKER NOTES: If you can see this, the speaker notes parsing is working correctly!\n\nThis is a test of the speaker notes functionality in presentation mode.\n```\n\n---\n\n## What is This?\n- Advanced Markdown editor with AI assistance\n- Interactive presentation capabilities\n- Integrated file management\n- Philosophical content support\n\n```notes\nExplain each bullet point briefly:\n\n1. Advanced editor - mention Monaco editor, syntax highlighting\n2. Presentation capabilities - this is what they're seeing now!\n3. File management - integrated file tree, folder operations\n4. Philosophical content - specifically designed for philosophy education\n\nAsk if anyone has questions about the core features before moving on.\n```\n\n---\n\n## Key Features\n### Editor Mode\n- Monaco editor with syntax highlighting\n- Real-time preview\n- AI chat integration\n- Document structure navigation\n\n### Presentation Mode\n- Zoomable presentation canvas\n- Multiple layout types\n- Smooth transitions\n- Interactive navigation\n\n```notes\nDemonstrate the dual modes:\n\nEditor Mode:\n- Show how the editor looks\n- Mention real-time preview\n- AI chat for philosophical discussions\n\nPresentation Mode:\n- This is what we're in right now\n- Mention zoom capabilities (demonstrate if needed)\n- Different layouts available (spiral, grid, linear, circle)\n\nTransition: \"Now let's talk about the philosophical foundation...\"\n```\n\n---\n\n## Philosophical Focus\n### Hegelian Dialectic\n- **Thesis**: Initial position or concept\n- **Antithesis**: Negation or contradiction\n- **Synthesis**: Higher unity transcending both\n\n### AI & Pedagogy\nIntegration of artificial intelligence with philosophical education.\n\n```notes\nThis is the core philosophical concept we're exploring:\n\nHegelian Dialectic explanation:\n- Thesis: Starting point, initial idea\n- Antithesis: Opposition, contradiction, challenge\n- Synthesis: Resolution that preserves and transcends both\n\nGive a concrete example if time permits - maybe democracy/authoritarianism -> constitutional democracy.\n\nAI & Pedagogy:\n- Not replacing human instruction\n- Augmenting and enhancing learning\n- Helping students explore complex philosophical concepts\n```\n\n---\n\n## Getting Started\n1. Switch between Editor and Presentation views\n2. Load your Markdown files\n3. Use AI chat for assistance\n4. Create engaging presentations\n5. Explore philosophical concepts\n\n```notes\nPractical steps for new users:\n\n1. Mode switching - use the buttons at the top\n2. File loading - integrated file system\n3. AI assistance - context-aware help for philosophical concepts\n4. Presentations - what they're experiencing now\n5. Exploration - encourage experimentation\n\nRemind them that speaker notes like these are available in presentation mode!\n\nNext: Thank them and open for questions.\n```\n\n---\n\n## Thank You!\nWelcome to the future of philosophical education.\n\n*Happy learning and presenting!*\n\n```notes\nClosing remarks:\n\n- Thank the audience for their attention\n- Emphasize the innovative nature of combining AI with philosophy\n- Invite questions and discussion\n- Mention that this is just the beginning\n\nEnd with: \"Are there any questions about the platform or its philosophical applications?\"\n\nNote: You can press 'N' to toggle these speaker notes on/off during presentation.\n```";
@@ -670,7 +739,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       return undefined;
     }
     var notesPanel = document.getElementById('speaker-notes-panel');
-    var observedElements = [containerRef.current, presentationControlsRef.current, navigationControlsRef.current, notesPanel].filter(Boolean);
+    var observedElements = [containerRef.current, presentationControlsRef.current, navigationControlsRef.current, presenterConsoleRef.current, notesPanel].filter(Boolean);
     var animationFrame = null;
     var measureChrome = function measureChrome() {
       if (animationFrame) cancelAnimationFrame(animationFrame);
@@ -681,9 +750,11 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         var navigationHeight = ((_navigationControlsRe = navigationControlsRef.current) === null || _navigationControlsRe === void 0 || (_navigationControlsRe2 = _navigationControlsRe.getBoundingClientRect) === null || _navigationControlsRe2 === void 0 ? void 0 : _navigationControlsRe2.call(_navigationControlsRe).height) || 0;
         var notesStyle = notesPanel ? window.getComputedStyle(notesPanel) : null;
         var notesHeight = notesPanel && (notesStyle === null || notesStyle === void 0 ? void 0 : notesStyle.display) !== 'none' && (notesStyle === null || notesStyle === void 0 ? void 0 : notesStyle.visibility) !== 'hidden' ? notesPanel.getBoundingClientRect().height : 0;
+        var consoleStyle = presenterConsoleRef.current ? window.getComputedStyle(presenterConsoleRef.current) : null;
+        var consoleWidth = presenterConsoleRef.current && (consoleStyle === null || consoleStyle === void 0 ? void 0 : consoleStyle.display) !== 'none' && (consoleStyle === null || consoleStyle === void 0 ? void 0 : consoleStyle.visibility) !== 'hidden' ? presenterConsoleRef.current.getBoundingClientRect().width : 0;
         var next = {
           top: controlsHeight > 0 ? controlsHeight + 28 : 16,
-          right: 16,
+          right: consoleWidth > 0 ? consoleWidth + 28 : 16,
           bottom: Math.max(navigationHeight > 0 ? navigationHeight + 28 : 16, notesHeight > 0 ? notesHeight + 12 : 0),
           left: 16
         };
@@ -716,7 +787,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       mutationObserver.disconnect();
       window.removeEventListener('resize', measureChrome);
     };
-  }, [isPresenting, speakerNotesWindowVisible]);
+  }, [isPresenting, speakerNotesWindowVisible, presenterConsoleOpen]);
   useLayoutEffect(function () {
     if (!isPresenting || slides.length === 0) {
       setPresentationFitReady(false);
@@ -1299,6 +1370,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Parse markdown into slides
   var parseMarkdown = function parseMarkdown(markdown) {
     try {
+      var _presentationPrefligh;
       // Strip trailing whitespace from the entire markdown content first
       var trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
 
@@ -1310,6 +1382,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }).filter(function (slide) {
         return slide;
       });
+      var sourceSlides = (presentationPreflight === null || presentationPreflight === void 0 || (_presentationPrefligh = presentationPreflight.splitSlides) === null || _presentationPrefligh === void 0 ? void 0 : _presentationPrefligh.call(presentationPreflight, trimmedMarkdown)) || [];
       return slideTexts.map(function (text, index) {
         var _extractSpeakerNotes = extractSpeakerNotes(text),
           afterNotes = _extractSpeakerNotes.cleanContent,
@@ -1317,12 +1390,15 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         var _extractSlideDirectiv = extractSlideDirectives(afterNotes),
           cleanContent = _extractSlideDirectiv.cleanContent,
           backgroundImage = _extractSlideDirectiv.backgroundImage;
+        var sourceSlide = sourceSlides[index];
         return {
           id: index,
           content: text,
           cleanContent: cleanContent,
           speakerNotes: speakerNotes,
           backgroundImage: backgroundImage,
+          title: (sourceSlide === null || sourceSlide === void 0 ? void 0 : sourceSlide.title) || "Slide ".concat(index + 1),
+          sourceLine: (sourceSlide === null || sourceSlide === void 0 ? void 0 : sourceSlide.startLine) || 1,
           position: calculateSlidePosition(index, slideTexts.length),
           parsed: parseMarkdownContent(cleanContent)
         };
@@ -1346,6 +1422,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       // document exactly once. The pending global remains a compatibility path
       // for older callers that do not supply a prop.
       var initialContent = markdown || window.pendingPresentationContent || sampleMarkdown;
+      setSourceMarkdown(initialContent);
       setSlides(parseMarkdown(initialContent));
       window.pendingPresentationContent = null;
     }, 100); // Small delay to allow content synchronization
@@ -1413,6 +1490,159 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }, 50);
     }
   }, [slides, isPresenting, isRecording, markZoomInteraction]);
+  var runPreflight = useCallback(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
+    var unavailable, _window$appSettings7, _window$electronAPI2, report, failure, _t;
+    return _regenerator().w(function (_context) {
+      while (1) switch (_context.p = _context.n) {
+        case 0:
+          if (presentationPreflight !== null && presentationPreflight !== void 0 && presentationPreflight.run) {
+            _context.n = 1;
+            break;
+          }
+          unavailable = {
+            success: false,
+            error: 'Presentation preflight engine is unavailable',
+            warnings: []
+          };
+          setPreflightReport(unavailable);
+          return _context.a(2, unavailable);
+        case 1:
+          setPreflightRunning(true);
+          _context.p = 2;
+          _context.n = 3;
+          return new Promise(function (resolve) {
+            return requestAnimationFrame(function () {
+              return requestAnimationFrame(resolve);
+            });
+          });
+        case 3:
+          _context.n = 4;
+          return presentationPreflight.run({
+            markdown: sourceMarkdown || slides.map(function (slide) {
+              return slide.content;
+            }).join('\n\n---\n\n'),
+            root: containerRef.current,
+            baseDir: window.currentFileDirectory || ((_window$appSettings7 = window.appSettings) === null || _window$appSettings7 === void 0 ? void 0 : _window$appSettings7.workingDirectory),
+            suppressions: preflightSuppressions,
+            assetExists: (_window$electronAPI2 = window.electronAPI) !== null && _window$electronAPI2 !== void 0 && (_window$electronAPI2 = _window$electronAPI2.files) !== null && _window$electronAPI2 !== void 0 && _window$electronAPI2.checkFileExists ? function (filePath) {
+              return window.electronAPI.files.checkFileExists(filePath);
+            } : null
+          });
+        case 4:
+          report = _context.v;
+          setPreflightReport(report);
+          return _context.a(2, report);
+        case 5:
+          _context.p = 5;
+          _t = _context.v;
+          failure = {
+            success: false,
+            error: _t.message || String(_t),
+            warnings: []
+          };
+          setPreflightReport(failure);
+          return _context.a(2, failure);
+        case 6:
+          _context.p = 6;
+          setPreflightRunning(false);
+          return _context.f(6);
+        case 7:
+          return _context.a(2);
+      }
+    }, _callee, null, [[2, 5, 6, 7]]);
+  })), [sourceMarkdown, slides, preflightSuppressions]);
+  var suppressPreflightWarning = useCallback(function (warningId) {
+    setPreflightSuppressions(function (previous) {
+      var next = _toConsumableArray(new Set([].concat(_toConsumableArray(previous), [warningId])));
+      writeStoredList(presentationSessionKey('preflight-suppressions'), next);
+      return next;
+    });
+  }, []);
+  var resetPreflightSuppressions = useCallback(function () {
+    writeStoredList(presentationSessionKey('preflight-suppressions'), []);
+    setPreflightSuppressions([]);
+  }, []);
+  var navigateToPreflightWarning = useCallback(function (item) {
+    var _window$editor;
+    goToSlide(item.slideIndex);
+    setFocusedSlide(item.slideIndex);
+    if (item.sourceLine && (_window$editor = window.editor) !== null && _window$editor !== void 0 && _window$editor.setPosition) {
+      var _window$editor$reveal, _window$editor2;
+      window.editor.setPosition({
+        lineNumber: item.sourceLine,
+        column: 1
+      });
+      (_window$editor$reveal = (_window$editor2 = window.editor).revealLineInCenter) === null || _window$editor$reveal === void 0 || _window$editor$reveal.call(_window$editor2, item.sourceLine);
+    }
+  }, [goToSlide]);
+  useEffect(function () {
+    if (!preflightOpen) return undefined;
+    var timer = setTimeout(runPreflight, 50);
+    return function () {
+      return clearTimeout(timer);
+    };
+  }, [preflightOpen, sourceMarkdown, slides.length, preflightSuppressions, runPreflight]);
+  useEffect(function () {
+    if (!isPresenting) {
+      presenterStartedAtRef.current = null;
+      setPresenterElapsed(0);
+      return undefined;
+    }
+    presenterStartedAtRef.current = Date.now();
+    var update = function update() {
+      setPresenterElapsed(Math.max(0, Math.floor((Date.now() - presenterStartedAtRef.current) / 1000)));
+    };
+    update();
+    var timer = setInterval(update, 1000);
+    return function () {
+      return clearInterval(timer);
+    };
+  }, [isPresenting]);
+  useEffect(function () {
+    try {
+      var _window$sessionStorag2, _window$sessionStorag3;
+      if (presenterConsoleOpen) (_window$sessionStorag2 = window.sessionStorage) === null || _window$sessionStorag2 === void 0 || _window$sessionStorag2.setItem(presentationSessionKey('console'), 'open');else (_window$sessionStorag3 = window.sessionStorage) === null || _window$sessionStorag3 === void 0 || _window$sessionStorag3.removeItem(presentationSessionKey('console'));
+    } catch (_) {
+      // Console state still survives content refreshes and viewport changes.
+    }
+  }, [presenterConsoleOpen]);
+  useEffect(function () {
+    var controller = Object.freeze({
+      runPreflight: runPreflight,
+      startPresentation: function startPresentation() {
+        previousFocusRef.current = document.activeElement;
+        setIsPresenting(true);
+      },
+      openPreflight: function openPreflight() {
+        return setPreflightOpen(true);
+      },
+      closePreflight: function closePreflight() {
+        return setPreflightOpen(false);
+      },
+      openPresenterConsole: function openPresenterConsole() {
+        return setPresenterConsoleOpen(true);
+      },
+      closePresenterConsole: function closePresenterConsole() {
+        return setPresenterConsoleOpen(false);
+      },
+      getState: function getState() {
+        return {
+          currentSlide: currentSlide,
+          isPresenting: isPresenting,
+          preflightOpen: preflightOpen,
+          preflightRunning: preflightRunning,
+          preflightReport: preflightReport,
+          presenterConsoleOpen: presenterConsoleOpen,
+          presenterElapsed: presenterElapsed,
+          slideCount: slides.length
+        };
+      }
+    });
+    window.NightOwlPresentationTools = controller;
+    return function () {
+      if (window.NightOwlPresentationTools === controller) delete window.NightOwlPresentationTools;
+    };
+  }, [currentSlide, isPresenting, preflightOpen, preflightReport, preflightRunning, presenterConsoleOpen, presenterElapsed, runPreflight, slides.length]);
 
   // Center on first slide when presentation view becomes active
   useEffect(function () {
@@ -1463,6 +1693,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       if (newContent && newContent.trim()) {
         // Parsing new content into slides
         var newSlides = parseMarkdown(newContent);
+        setSourceMarkdown(newContent);
         setSlides(newSlides);
         setCurrentSlide(0);
         zoomRef.current = 1;
@@ -1508,9 +1739,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Set up Electron API listeners (only once)
   useEffect(function () {
-    var _window$electronAPI2;
+    var _window$electronAPI3;
     var unsubscribers = [];
-    if (isElectron && (_window$electronAPI2 = window.electronAPI) !== null && _window$electronAPI2 !== void 0 && _window$electronAPI2.events) {
+    if (isElectron && (_window$electronAPI3 = window.electronAPI) !== null && _window$electronAPI3 !== void 0 && _window$electronAPI3.events) {
       // File loading
       unsubscribers.push(window.electronAPI.events.loadPresentationFile(function (content, filePath, error) {
         if (error) {
@@ -1519,6 +1750,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         }
         if (content) {
           var newSlides = parseMarkdown(content);
+          setSourceMarkdown(content);
           setSlides(newSlides);
           setCurrentSlide(0);
           // Ensure canvas is ready before centering first slide
@@ -1832,8 +2064,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
       // Focus the main window to ensure keyboard navigation works immediately (multiple attempts)
       var focusMainWindow = function focusMainWindow() {
-        var _window$electronAPI3;
-        if ((_window$electronAPI3 = window.electronAPI) !== null && _window$electronAPI3 !== void 0 && (_window$electronAPI3 = _window$electronAPI3.presentation) !== null && _window$electronAPI3 !== void 0 && _window$electronAPI3.focusMainWindow) {
+        var _window$electronAPI4;
+        if ((_window$electronAPI4 = window.electronAPI) !== null && _window$electronAPI4 !== void 0 && (_window$electronAPI4 = _window$electronAPI4.presentation) !== null && _window$electronAPI4 !== void 0 && _window$electronAPI4.focusMainWindow) {
           window.electronAPI.presentation.focusMainWindow();
           console.log('[Presentation] Focused main window for keyboard navigation');
         } else {
@@ -1923,14 +2155,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       // Wait for legacy system to open window, then sync React state with it
       setTimeout(function () {
         if (window.speakerNotesData && window.SPEAKER_NOTES_WINDOW_OPEN) {
-          var _window$electronAPI4;
+          var _window$electronAPI5;
           // Legacy system opened the window, sync our state
           setSpeakerNotesWindowVisible(true);
           window.explicitlySeparateWindow = true;
           console.log('[Presentation] React synced with legacy speaker notes window');
 
           // Focus main window after speaker notes window has opened and stolen focus
-          if ((_window$electronAPI4 = window.electronAPI) !== null && _window$electronAPI4 !== void 0 && (_window$electronAPI4 = _window$electronAPI4.presentation) !== null && _window$electronAPI4 !== void 0 && _window$electronAPI4.focusMainWindow) {
+          if ((_window$electronAPI5 = window.electronAPI) !== null && _window$electronAPI5 !== void 0 && (_window$electronAPI5 = _window$electronAPI5.presentation) !== null && _window$electronAPI5 !== void 0 && _window$electronAPI5.focusMainWindow) {
             window.electronAPI.presentation.focusMainWindow();
             console.log('[Presentation] Re-focused main window after speaker notes window opened');
           } else {
@@ -1939,16 +2171,16 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
           // Add additional aggressive focus attempts
           setTimeout(function () {
-            var _window$electronAPI5;
-            if ((_window$electronAPI5 = window.electronAPI) !== null && _window$electronAPI5 !== void 0 && (_window$electronAPI5 = _window$electronAPI5.presentation) !== null && _window$electronAPI5 !== void 0 && _window$electronAPI5.focusMainWindow) {
+            var _window$electronAPI6;
+            if ((_window$electronAPI6 = window.electronAPI) !== null && _window$electronAPI6 !== void 0 && (_window$electronAPI6 = _window$electronAPI6.presentation) !== null && _window$electronAPI6 !== void 0 && _window$electronAPI6.focusMainWindow) {
               window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Additional focus attempt at 1.5s');
             }
           }, 500); // 1.5 seconds total
 
           setTimeout(function () {
-            var _window$electronAPI6;
-            if ((_window$electronAPI6 = window.electronAPI) !== null && _window$electronAPI6 !== void 0 && (_window$electronAPI6 = _window$electronAPI6.presentation) !== null && _window$electronAPI6 !== void 0 && _window$electronAPI6.focusMainWindow) {
+            var _window$electronAPI7;
+            if ((_window$electronAPI7 = window.electronAPI) !== null && _window$electronAPI7 !== void 0 && (_window$electronAPI7 = _window$electronAPI7.presentation) !== null && _window$electronAPI7 !== void 0 && _window$electronAPI7.focusMainWindow) {
               window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Final focus attempt at 2s');
             }
@@ -2098,18 +2330,18 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Update speaker notes display when current slide changes
   useEffect(function () {
     var updateSpeakerNotes = /*#__PURE__*/function () {
-      var _ref4 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
-        var notesPanel, notesContent, noteText, formattedNotes, currentContent, shouldShowInlinePanel, presentationContent, currentSlideNotes, _t;
-        return _regenerator().w(function (_context) {
-          while (1) switch (_context.p = _context.n) {
+      var _ref5 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2() {
+        var notesPanel, notesContent, noteText, formattedNotes, currentContent, shouldShowInlinePanel, presentationContent, currentSlideNotes, _t2;
+        return _regenerator().w(function (_context2) {
+          while (1) switch (_context2.p = _context2.n) {
             case 0:
               notesPanel = document.getElementById('speaker-notes-panel');
               notesContent = document.getElementById('current-slide-notes'); // Update separate speaker notes window if in presenting mode and window is visible
               if (!(isPresenting && speakerNotesWindowVisible && window.electronAPI && window.speakerNotesData)) {
-                _context.n = 5;
+                _context2.n = 5;
                 break;
               }
-              _context.p = 1;
+              _context2.p = 1;
               noteText = '';
               if (slides.length > 0 && slides[currentSlide] && slides[currentSlide].speakerNotes) {
                 noteText = slides[currentSlide].speakerNotes.trim();
@@ -2132,28 +2364,28 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               } else {
                 formattedNotes = '<em>No speaker notes for this slide.</em>';
               }
-              _context.n = 2;
+              _context2.n = 2;
               return window.electronAPI.presentation.updateSpeakerNotes({
                 notes: formattedNotes,
                 slideNumber: currentSlide + 1
               });
             case 2:
               if (!(window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function')) {
-                _context.n = 3;
+                _context2.n = 3;
                 break;
               }
               currentContent = slides.map(function (slide) {
                 return slide.content;
               }).join('\n\n---\n\n');
-              _context.n = 3;
+              _context2.n = 3;
               return window.updateSpeakerNotes(currentSlide, currentContent);
             case 3:
-              _context.n = 5;
+              _context2.n = 5;
               break;
             case 4:
-              _context.p = 4;
-              _t = _context.v;
-              console.error('[React Presentation] Failed to update separate speaker notes window:', _t);
+              _context2.p = 4;
+              _t2 = _context2.v;
+              console.error('[React Presentation] Failed to update separate speaker notes window:', _t2);
             case 5:
               // Update inline panel if it's visible (when separate window is hidden)  
               // Only show inline panel if explicitly requested (not during initial setup)
@@ -2190,12 +2422,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 }
               }
             case 6:
-              return _context.a(2);
+              return _context2.a(2);
           }
-        }, _callee, null, [[1, 4]]);
+        }, _callee2, null, [[1, 4]]);
       }));
       return function updateSpeakerNotes() {
-        return _ref4.apply(this, arguments);
+        return _ref5.apply(this, arguments);
       };
     }();
     updateSpeakerNotes();
@@ -2277,10 +2509,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Speak text using TTS with auto-advance
   var speakText = /*#__PURE__*/function () {
-    var _ref5 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(text, slideIndex) {
+    var _ref6 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3(text, slideIndex) {
       var completionHandled, handleCompletion, ttsOptions, ttsPromise, pollCount, maxPollCount, _checkCompletion;
-      return _regenerator().w(function (_context2) {
-        while (1) switch (_context2.n) {
+      return _regenerator().w(function (_context3) {
+        while (1) switch (_context3.n) {
           case 0:
             console.log('[PRESENTATION-TTS] === speakText called ===');
             console.log('[PRESENTATION-TTS] Text length:', (text === null || text === void 0 ? void 0 : text.length) || 0);
@@ -2288,18 +2520,18 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             console.log('[PRESENTATION-TTS] Current isSpeaking:', isSpeaking);
             console.log('[PRESENTATION-TTS] Is advancing:', ttsStateRef.current.isAdvancing);
             if (text) {
-              _context2.n = 1;
+              _context3.n = 1;
               break;
             }
             console.warn('[PRESENTATION-TTS] No text to speak');
-            return _context2.a(2);
+            return _context3.a(2);
           case 1:
             if (!(isSpeaking && ttsStateRef.current.currentSpeakingSlide === slideIndex)) {
-              _context2.n = 2;
+              _context3.n = 2;
               break;
             }
             console.log('[PRESENTATION-TTS] Already speaking this slide, ignoring duplicate request');
-            return _context2.a(2);
+            return _context3.a(2);
           case 2:
             // Stop any current speech before starting new one
             if (window.ttsService && window.ttsService.isSpeaking) {
@@ -2421,12 +2653,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               ttsStateRef.current.currentSpeakingSlide = -1;
             }
           case 3:
-            return _context2.a(2);
+            return _context3.a(2);
         }
-      }, _callee2);
+      }, _callee3);
     }));
     return function speakText(_x, _x2) {
-      return _ref5.apply(this, arguments);
+      return _ref6.apply(this, arguments);
     };
   }();
 
@@ -2444,21 +2676,21 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Video Recording Functions
   var startRecording = /*#__PURE__*/function () {
-    var _ref6 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3() {
-      var options, includeAudio, _t2;
-      return _regenerator().w(function (_context3) {
-        while (1) switch (_context3.p = _context3.n) {
+    var _ref7 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
+      var options, includeAudio, _t3;
+      return _regenerator().w(function (_context4) {
+        while (1) switch (_context4.p = _context4.n) {
           case 0:
             console.log('[VIDEO] Starting recording...');
             if (window.videoRecordingService) {
-              _context3.n = 1;
+              _context4.n = 1;
               break;
             }
             console.error('[VIDEO] Video recording service not available');
             alert('Recording service not available. Please ensure you are using a supported browser.');
-            return _context3.a(2);
+            return _context4.a(2);
           case 1:
-            _context3.p = 1;
+            _context4.p = 1;
             // Configure recording options
             options = {
               video: true,
@@ -2469,7 +2701,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               videoQuality: 'high',
               frameRate: 30
             }; // Ask user if they want to include audio
-            _context3.n = 2;
+            _context4.n = 2;
             return window.showAppConfirm({
               title: 'Include Recording Audio',
               message: 'Include audio in the recording?',
@@ -2479,17 +2711,17 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               variant: 'warning'
             });
           case 2:
-            includeAudio = _context3.v;
+            includeAudio = _context4.v;
             if (includeAudio) {
               options.audio = true;
               options.audioSource = ttsEnabled ? 'tts' : 'microphone';
             }
 
             // Initialize and start recording
-            _context3.n = 3;
+            _context4.n = 3;
             return window.videoRecordingService.initializeRecording(options);
           case 3:
-            _context3.n = 4;
+            _context4.n = 4;
             return window.videoRecordingService.startRecording(options);
           case 4:
             setIsRecording(true);
@@ -2508,28 +2740,28 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               window.videoRecordingService.markSlideTransition(currentSlide + 1, slides[currentSlide].content.split('\n')[0]);
             }
             console.log('[VIDEO] Recording started successfully');
-            _context3.n = 6;
+            _context4.n = 6;
             break;
           case 5:
-            _context3.p = 5;
-            _t2 = _context3.v;
-            console.error('[VIDEO] Failed to start recording:', _t2);
+            _context4.p = 5;
+            _t3 = _context4.v;
+            console.error('[VIDEO] Failed to start recording:', _t3);
 
             // Provide more specific error messages
-            if (_t2.message.includes('NotAllowedError')) {
+            if (_t3.message.includes('NotAllowedError')) {
               alert('Screen recording permission denied. Please allow screen recording and try again.');
-            } else if (_t2.message.includes('NotSupportedError')) {
+            } else if (_t3.message.includes('NotSupportedError')) {
               alert('Screen recording is not supported in this browser. Please try Chrome or Edge.');
             } else {
-              alert("Failed to start recording: ".concat(_t2.message, "\n\nPlease check browser permissions and try again."));
+              alert("Failed to start recording: ".concat(_t3.message, "\n\nPlease check browser permissions and try again."));
             }
           case 6:
-            return _context3.a(2);
+            return _context4.a(2);
         }
-      }, _callee3, null, [[1, 5]]);
+      }, _callee4, null, [[1, 5]]);
     }));
     return function startRecording() {
-      return _ref6.apply(this, arguments);
+      return _ref7.apply(this, arguments);
     };
   }();
   var stopRecording = function stopRecording() {
@@ -2656,27 +2888,27 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     return "".concat(hours, "h ").concat(remainingMinutes, "m");
   };
   var toggleSpeakerNotesWindow = /*#__PURE__*/function () {
-    var _ref7 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
-      var panel, presentationContent, notesContainer, currentSlideNotes, _panel, sidebarPane, allNotes, _currentSlideNotes, formattedNotes, _panel2, _panel4, _t3, _t4;
-      return _regenerator().w(function (_context4) {
-        while (1) switch (_context4.p = _context4.n) {
+    var _ref8 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee5() {
+      var panel, presentationContent, notesContainer, currentSlideNotes, _panel, sidebarPane, allNotes, _currentSlideNotes, formattedNotes, _panel2, _panel4, _t4, _t5;
+      return _regenerator().w(function (_context5) {
+        while (1) switch (_context5.p = _context5.n) {
           case 0:
             if (!(!isPresenting || !window.electronAPI)) {
-              _context4.n = 1;
+              _context5.n = 1;
               break;
             }
-            return _context4.a(2);
+            return _context5.a(2);
           case 1:
             if (!speakerNotesWindowVisible) {
-              _context4.n = 7;
+              _context5.n = 7;
               break;
             }
-            _context4.p = 2;
+            _context5.p = 2;
             // Temporarily disable external close handler to prevent race condition
             window.REACT_CONTROLLED_TOGGLE = true;
 
             // Close the separate window
-            _context4.n = 3;
+            _context5.n = 3;
             return window.electronAPI.presentation.closeSpeakerNotesWindow();
           case 3:
             setSpeakerNotesWindowVisible(false);
@@ -2715,22 +2947,22 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 }
               }
             }
-            _context4.n = 5;
+            _context5.n = 5;
             break;
           case 4:
-            _context4.p = 4;
-            _t3 = _context4.v;
-            console.error('[React Presentation] Failed to switch to inline panel:', _t3);
+            _context5.p = 4;
+            _t4 = _context5.v;
+            console.error('[React Presentation] Failed to switch to inline panel:', _t4);
           case 5:
-            _context4.p = 5;
+            _context5.p = 5;
             // Ensure flag is cleared even if there was an error
             window.REACT_CONTROLLED_TOGGLE = false;
-            return _context4.f(5);
+            return _context5.f(5);
           case 6:
-            _context4.n = 13;
+            _context5.n = 13;
             break;
           case 7:
-            _context4.p = 7;
+            _context5.p = 7;
             // Set controlled toggle flag for this direction too
             window.REACT_CONTROLLED_TOGGLE = true;
             // COMPLETELY REMOVE the inline panel from DOM
@@ -2766,7 +2998,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
             // Open the separate window with current slide data
             if (!window.speakerNotesData) {
-              _context4.n = 9;
+              _context5.n = 9;
               break;
             }
             _currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
@@ -2783,7 +3015,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             } else {
               formattedNotes = '<em>No speaker notes for this slide.</em>';
             }
-            _context4.n = 8;
+            _context5.n = 8;
             return window.electronAPI.presentation.openSpeakerNotesWindow({
               notes: formattedNotes,
               slideNumber: currentSlide + 1,
@@ -2796,8 +3028,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
             // Focus main window after opening speaker notes window
             setTimeout(function () {
-              var _window$electronAPI7;
-              if ((_window$electronAPI7 = window.electronAPI) !== null && _window$electronAPI7 !== void 0 && (_window$electronAPI7 = _window$electronAPI7.presentation) !== null && _window$electronAPI7 !== void 0 && _window$electronAPI7.focusMainWindow) {
+              var _window$electronAPI8;
+              if ((_window$electronAPI8 = window.electronAPI) !== null && _window$electronAPI8 !== void 0 && (_window$electronAPI8 = _window$electronAPI8.presentation) !== null && _window$electronAPI8 !== void 0 && _window$electronAPI8.focusMainWindow) {
                 window.electronAPI.presentation.focusMainWindow();
               }
             }, 100); // Short delay to ensure window has opened
@@ -2825,36 +3057,36 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 }
               }
             }, 100); // Check every 100ms
-            _context4.n = 10;
+            _context5.n = 10;
             break;
           case 9:
             console.warn('[React Presentation] No speaker notes data available for separate window');
             // Still set the state to indicate separate window should be visible
             setSpeakerNotesWindowVisible(true);
           case 10:
-            _context4.n = 12;
+            _context5.n = 12;
             break;
           case 11:
-            _context4.p = 11;
-            _t4 = _context4.v;
-            console.error('[React Presentation] Failed to switch to separate window:', _t4);
+            _context5.p = 11;
+            _t5 = _context5.v;
+            console.error('[React Presentation] Failed to switch to separate window:', _t5);
             // Ensure panel stays hidden even if separate window fails
             _panel4 = document.getElementById('speaker-notes-panel');
             if (_panel4) {
               _panel4.style.setProperty('display', 'none', 'important');
             }
           case 12:
-            _context4.p = 12;
+            _context5.p = 12;
             // Ensure flag is cleared even if there was an error
             window.REACT_CONTROLLED_TOGGLE = false;
-            return _context4.f(12);
+            return _context5.f(12);
           case 13:
-            return _context4.a(2);
+            return _context5.a(2);
         }
-      }, _callee4, null, [[7, 11, 12, 13], [2, 4, 5, 6]]);
+      }, _callee5, null, [[7, 11, 12, 13], [2, 4, 5, 6]]);
     }));
     return function toggleSpeakerNotesWindow() {
-      return _ref7.apply(this, arguments);
+      return _ref8.apply(this, arguments);
     };
   }();
 
@@ -2979,12 +3211,70 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     "data-tooltip": "Export presentation as PNG"
   }, "\uD83D\uDCF8"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
+      return setPreflightOpen(true);
+    },
+    className: "presentation-control-btn presentation-preflight-btn px-3 py-2 rounded-lg transition-colors shadow-lg border",
+    "aria-label": "Run presentation preflight",
+    "aria-expanded": preflightOpen,
+    "aria-controls": "presentation-preflight-panel"
+  }, "Preflight", preflightReport !== null && preflightReport !== void 0 && preflightReport.warningCount ? " \xB7 ".concat(preflightReport.warningCount) : ''), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
       previousFocusRef.current = document.activeElement;
       setIsPresenting(true);
     },
     className: "presentation-control-btn presentation-present-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-lg border",
     "aria-label": "Start presentation"
-  }, /*#__PURE__*/React.createElement(Play, null), "Present")), /*#__PURE__*/React.createElement("nav", {
+  }, /*#__PURE__*/React.createElement(Play, null), "Present")), !isPresenting && preflightOpen && /*#__PURE__*/React.createElement("aside", {
+    id: "presentation-preflight-panel",
+    className: "presentation-preflight-panel",
+    role: "region",
+    "aria-label": "Presentation preflight",
+    "aria-busy": preflightRunning
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "presentation-preflight-header"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Presentation preflight"), /*#__PURE__*/React.createElement("span", null, preflightRunning ? 'Checking every slide…' : preflightReport !== null && preflightReport !== void 0 && preflightReport.success ? "".concat(preflightReport.slideCount, " slides \xB7 ").concat(preflightReport.warningCount, " warnings") : 'Ready to check this deck')), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return setPreflightOpen(false);
+    },
+    "aria-label": "Close presentation preflight"
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    className: "presentation-preflight-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: runPreflight,
+    disabled: preflightRunning
+  }, preflightRunning ? 'Checking…' : 'Run again'), (preflightReport === null || preflightReport === void 0 ? void 0 : preflightReport.suppressedCount) > 0 && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: resetPreflightSuppressions
+  }, "Restore ", preflightReport.suppressedCount, " suppressed")), (preflightReport === null || preflightReport === void 0 ? void 0 : preflightReport.error) && /*#__PURE__*/React.createElement("p", {
+    className: "presentation-preflight-error"
+  }, preflightReport.error), (preflightReport === null || preflightReport === void 0 ? void 0 : preflightReport.success) && preflightReport.warningCount === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "presentation-preflight-clear"
+  }, "No unsuppressed preflight warnings."), /*#__PURE__*/React.createElement("ol", {
+    className: "presentation-preflight-list"
+  }, ((preflightReport === null || preflightReport === void 0 ? void 0 : preflightReport.warnings) || []).map(function (item) {
+    return /*#__PURE__*/React.createElement("li", {
+      key: item.id,
+      "data-warning-code": item.code,
+      "data-slide-index": item.slideIndex
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "presentation-preflight-warning",
+      onClick: function onClick() {
+        return navigateToPreflightWarning(item);
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "presentation-preflight-severity is-".concat(item.severity)
+    }, item.severity), /*#__PURE__*/React.createElement("strong", null, "Slide ", item.slideNumber, ": ", item.message), /*#__PURE__*/React.createElement("span", null, item.detail), /*#__PURE__*/React.createElement("small", null, "Source line ", item.sourceLine)), item.suppressible && /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "presentation-preflight-suppress",
+      onClick: function onClick() {
+        return suppressPreflightWarning(item.id);
+      },
+      "aria-label": "Suppress ".concat(item.message, " on slide ").concat(item.slideNumber)
+    }, "Suppress"));
+  }))), /*#__PURE__*/React.createElement("nav", {
     ref: navigationControlsRef,
     className: "presentation-navigation absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4",
     "aria-label": "Slide navigation"
@@ -3042,6 +3332,16 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     "aria-label": "Export presentation as PNG",
     "data-tooltip": "Export presentation as PNG"
   }, "\uD83D\uDCF8"), /*#__PURE__*/React.createElement("button", {
+    onClick: function onClick() {
+      return setPresenterConsoleOpen(function (previous) {
+        return !previous;
+      });
+    },
+    className: "p-2 rounded-lg transition-colors shadow-lg border ".concat(presenterConsoleOpen ? 'bg-green-600 text-white border-green-700' : 'bg-cream hover:bg-gray-100 text-gray-900'),
+    "aria-label": presenterConsoleOpen ? 'Hide presenter console' : 'Show presenter console',
+    "aria-pressed": presenterConsoleOpen,
+    "aria-controls": "presentation-presenter-console"
+  }, "Presenter"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return toggleSpeakerNotesWindow();
     },
@@ -3129,7 +3429,51 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     },
     className: "px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900",
     "aria-label": "Exit presentation"
-  }, "Exit Presentation")), /*#__PURE__*/React.createElement("div", {
+  }, "Exit Presentation")), isPresenting && presenterConsoleOpen && /*#__PURE__*/React.createElement("aside", {
+    ref: presenterConsoleRef,
+    id: "presentation-presenter-console",
+    className: "presentation-presenter-console",
+    role: "complementary",
+    "aria-label": "Presenter console",
+    "data-current-slide": currentSlide
+  }, /*#__PURE__*/React.createElement("header", null, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Presenter console"), /*#__PURE__*/React.createElement("span", {
+    role: "timer",
+    "aria-label": "Elapsed time ".concat(formatRecordingTime(presenterElapsed))
+  }, formatRecordingTime(presenterElapsed))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return setPresenterConsoleOpen(false);
+    },
+    "aria-label": "Close presenter console"
+  }, "\xD7")), /*#__PURE__*/React.createElement("section", {
+    "aria-labelledby": "presenter-current-title"
+  }, /*#__PURE__*/React.createElement("small", null, "Current \xB7 ", currentSlide + 1, " / ", slides.length), /*#__PURE__*/React.createElement("h2", {
+    id: "presenter-current-title"
+  }, ((_slides$currentSlide9 = slides[currentSlide]) === null || _slides$currentSlide9 === void 0 ? void 0 : _slides$currentSlide9.title) || "Slide ".concat(currentSlide + 1)), /*#__PURE__*/React.createElement("p", null, slideTextPreview(slides[currentSlide]) || 'No visible slide text.')), /*#__PURE__*/React.createElement("section", {
+    "aria-labelledby": "presenter-next-title",
+    className: "presentation-presenter-next"
+  }, /*#__PURE__*/React.createElement("small", null, "Next"), /*#__PURE__*/React.createElement("h2", {
+    id: "presenter-next-title"
+  }, ((_slides = slides[currentSlide + 1]) === null || _slides === void 0 ? void 0 : _slides.title) || (currentSlide + 1 < slides.length ? "Slide ".concat(currentSlide + 2) : 'End of deck')), /*#__PURE__*/React.createElement("p", null, slideTextPreview(slides[currentSlide + 1]) || 'No next slide.')), /*#__PURE__*/React.createElement("section", {
+    "aria-labelledby": "presenter-notes-title",
+    className: "presentation-presenter-notes"
+  }, /*#__PURE__*/React.createElement("small", {
+    id: "presenter-notes-title"
+  }, "Speaker notes"), /*#__PURE__*/React.createElement("pre", null, ((_slides$currentSlide0 = slides[currentSlide]) === null || _slides$currentSlide0 === void 0 ? void 0 : _slides$currentSlide0.speakerNotes) || 'No speaker notes for this slide.')), /*#__PURE__*/React.createElement("nav", {
+    "aria-label": "Presenter console navigation"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return goToSlide(currentSlide - 1);
+    },
+    disabled: currentSlide === 0
+  }, "Previous"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return goToSlide(currentSlide + 1);
+    },
+    disabled: currentSlide === slides.length - 1
+  }, "Next"))), /*#__PURE__*/React.createElement("div", {
     ref: stageRef,
     className: "presentation-stage",
     "data-fit-mode": isPresenting ? 'contain' : 'canvas',

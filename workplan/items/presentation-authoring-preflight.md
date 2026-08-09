@@ -1,7 +1,7 @@
 ---
 id: "presentation-authoring-preflight"
 title: "Add presentation authoring preflight and presenter tools"
-status: "triaged"
+status: "done"
 type: "enhancement"
 priority: "P1"
 area: "presentation"
@@ -28,10 +28,33 @@ Add deterministic slide preflight checks and a presenter console built on the
 canonical presentation source and viewport geometry. Keep advisory checks
 separate from rendering so a warning never prevents opening a deck.
 
+## Implemented change
+
+A deterministic preflight engine now maps every slide to source lines and
+combines Markdown checks, local-asset existence, and rendered geometry/styles.
+Its advisory panel reports overflow, missing assets, headings, image
+alternatives, minimum text size, and contrast; warning selection moves both the
+canvas and editor cursor, while exact per-document suppressions leave source
+untouched and can be restored. Delivery adds a current/next/notes/timer console
+with its own navigation. The console participates in the canonical viewport
+inset calculation, so opening it or resizing the window refits rather than
+covering the delivered slide. Both tools are available through the shared
+action registry.
+
 ## Acceptance criteria
 
-- [ ] Preflight checks every slide for overflow and unresolved local assets.
-- [ ] Basic contrast, heading, image-alternative, and minimum-text-size warnings are actionable and suppressible.
-- [ ] Selecting a warning navigates to the corresponding slide and source location when available.
-- [ ] Presenter view shows current slide, next slide, notes, timer, and navigation controls.
-- [ ] Required Electron coverage proves preflight and presenter state survive reload and resize.
+- [x] Preflight checks every slide for overflow and unresolved local assets.
+- [x] Basic contrast, heading, image-alternative, and minimum-text-size warnings are actionable and suppressible.
+- [x] Selecting a warning navigates to the corresponding slide and source location when available.
+- [x] Presenter view shows current slide, next slide, notes, timer, and navigation controls.
+- [x] Required Electron coverage proves preflight and presenter state survive reload and resize.
+
+## Verification
+
+Pure renderer tests cover slide/source mapping, heading and image-alternative
+checks, overflow, text size, WCAG contrast, asset resolution, deterministic
+warning IDs, and suppressions. Presentation asset checks prove the canonical
+JSX and generated runtime match. The hosted `@required @presentation-tools`
+Electron workflow exercises a real two-slide deck, source navigation,
+suppression, current/next/notes/timer state, content reload, viewport resize,
+and complete-slide containment beside the console.
