@@ -359,15 +359,13 @@
     if (text.trim().length < 50) return [];
 
     aiStyleRunning = true;
+    const analysisVersion = model.getVersionId();
 
     // Truncate very long documents for the AI
     const excerpt = text.length > 6000 ? text.slice(0, 6000) + '\n...[truncated]' : text;
 
     try {
-      const result = await window.electronAPI.ai.aiChat({
-        messages: [{
-          role: 'user',
-          content: `You are a precise writing style analyzer. Analyze the following markdown text and identify specific style issues.
+      const prompt = `You are a precise writing style analyzer. Analyze the following markdown text and identify specific style issues.
 
 For each issue, output EXACTLY one line in this format:
 LINE:<number>|TEXT:<exact problematic text>|ISSUE:<brief description>|FIX:<suggested improvement>
@@ -391,15 +389,21 @@ Rules:
 - Skip code blocks, front matter, and URLs
 
 Text to analyze:
-${excerpt}`
-        }],
-        systemMessage: 'You are a writing style analyzer. Output only the issue lines in the specified format. No preamble, no summary.'
+${excerpt}`;
+      const proposalAPI = window.NightOwlAIEditProposals;
+      if (!proposalAPI) throw new Error('Reviewable AI edits are unavailable');
+      const result = await proposalAPI.request({
+        prompt,
+        contextLabel: 'Markdown submitted for AI style analysis',
+        contextText: excerpt,
+        recipe: 'proofreader-style-analysis-v1',
+        requestOptions: { newConversation: true, temperature: 0.1 }
       });
 
-      if (!result || !result.content) return [];
+      if (!result?.text) return [];
 
       const issues = [];
-      const responseLines = result.content.split('\n');
+      const responseLines = result.text.split('\n');
 
       for (const rline of responseLines) {
         const match = rline.match(/^LINE:(\d+)\|TEXT:(.+?)\|ISSUE:(.+?)\|FIX:(.+)$/);
@@ -417,6 +421,14 @@ ${excerpt}`
         const colIdx = lineContent.indexOf(problemText);
         if (colIdx === -1) continue; // AI hallucinated the text — skip
 
+        const range = {
+          startLineNumber: lineNum,
+          startColumn: colIdx + 1,
+          endLineNumber: lineNum,
+          endColumn: colIdx + 1 + problemText.length
+        };
+        const capturedSource = proposalAPI.captureEditorSource(window.editor, range);
+        capturedSource.versionId = analysisVersion;
         issues.push({
           type: 'style',
           word: problemText,
@@ -425,7 +437,10 @@ ${excerpt}`
           startLine: lineNum,
           startCol: colIdx + 1,
           endLine: lineNum,
-          endCol: colIdx + 1 + problemText.length
+          endCol: colIdx + 1 + problemText.length,
+          proposalSource: capturedSource,
+          provenance: result.provenance,
+          disclosedContext: result.context
         });
       }
 
@@ -722,7 +737,30 @@ ${excerpt}`
         const endLine = parseInt(btn.dataset.endLine, 10);
         const endCol = parseInt(btn.dataset.endCol, 10);
         const replacement = btn.dataset.replacement;
-        applyReplacement(line, col, endLine, endCol, replacement);
+        const issueType = btn.closest('.proofread-issue')?.dataset.type;
+        const styleIssue = issueType === 'style'
+          ? currentIssues.style.find(issue => issue.startLine === line && issue.startCol === col &&
+            issue.endLine === endLine && issue.endCol === endCol)
+          : null;
+        if (styleIssue && window.NightOwlAIEditProposals) {
+          const range = {
+            startLineNumber: line,
+            startColumn: col,
+            endLineNumber: endLine,
+            endColumn: endCol
+          };
+          window.NightOwlAIEditProposals.reviewEditorEdit({
+            editor: window.editor,
+            range,
+            capturedSource: styleIssue.proposalSource,
+            replacementText: replacement,
+            title: 'Review AI style suggestion',
+            provenance: styleIssue.provenance,
+            context: styleIssue.disclosedContext
+          });
+        } else {
+          applyReplacement(line, col, endLine, endCol, replacement);
+        }
       });
     });
 

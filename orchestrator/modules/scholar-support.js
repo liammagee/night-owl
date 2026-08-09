@@ -239,14 +239,50 @@ class ScholarSupport {
             
             // Extract existing heading patterns
             const headingStyle = this.analyzeHeadingStyle(fullContent);
+
+            const proposalAPI = window.NightOwlAIEditProposals;
+            let capturedTarget = null;
+            if (proposalAPI && window.editor?.getModel?.()) {
+                const selectionStart = window.editor.getSelection().getStartPosition();
+                let insertLineNumber = selectionStart.lineNumber;
+                for (let i = selectionStart.lineNumber - 1; i >= 1; i--) {
+                    if (window.editor.getModel().getLineContent(i).trim() === '') {
+                        insertLineNumber = i + 1;
+                        break;
+                    }
+                }
+                const range = {
+                    startLineNumber: insertLineNumber,
+                    startColumn: 1,
+                    endLineNumber: insertLineNumber,
+                    endColumn: 1
+                };
+                capturedTarget = {
+                    range,
+                    insertLineNumber,
+                    source: proposalAPI.captureEditorSource(window.editor, range)
+                };
+            }
             
             // Generate heading using Dr. Chen
-            const heading = await this.callDrChenForHeading(selectedText, fullContent, headingStyle);
+            const result = await this.callDrChenForHeading(selectedText, fullContent, headingStyle);
             
-            if (heading) {
-                // Insert heading at the preceding paragraph mark
-                await this.insertHeading(heading, selection);
-                console.log('[Scholar Support] Successfully inserted heading:', heading);
+            if (result?.heading) {
+                if (proposalAPI && capturedTarget) {
+                    const insertText = capturedTarget.insertLineNumber === 1 ? `${result.heading}\n\n` : `\n${result.heading}\n\n`;
+                    proposalAPI.reviewEditorEdit({
+                        editor: window.editor,
+                        range: capturedTarget.range,
+                        capturedSource: capturedTarget.source,
+                        replacementText: insertText,
+                        title: 'Review AI heading insertion',
+                        provenance: result.provenance,
+                        context: result.context
+                    });
+                } else {
+                    await this.insertHeading(result.heading, selection);
+                }
+                console.log('[Scholar Support] Created reviewable heading proposal:', result.heading);
             } else {
                 throw new Error('No heading generated');
             }
@@ -353,21 +389,16 @@ class ScholarSupport {
     }
 
     async callDrChenForHeading(selectedText, fullContent, headingStyle) {
-        if (!window.electronAPI) {
-            throw new Error('Electron API not available');
+        const proposalAPI = window.NightOwlAIEditProposals;
+        if (!proposalAPI) {
+            throw new Error('Reviewable AI edits are unavailable');
         }
 
         const prompt = this.buildHeadingPrompt(selectedText, fullContent, headingStyle);
-        
-        const requestData = {
-            message: prompt,
-            options: {
-                temperature: 0.3, // Lower temperature for more consistent headings
-                maxTokens: 100,   // Short response needed
-                newConversation: true,
-                provider: 'chen'  // Specifically use Dr. Chen
-            }
-        };
+        const documentContext = fullContent.length > 3000 ? fullContent.substring(0, 3000) + '...' : fullContent;
+        const headingExamples = headingStyle.examples.length > 0
+            ? `\n\nExisting headings:\n${headingStyle.examples.map(example => `- ${example}`).join('\n')}`
+            : '';
 
         console.log('[Scholar Support] Calling Dr. Chen with request:', {
             selectedTextLength: selectedText.length,
@@ -375,13 +406,27 @@ class ScholarSupport {
             headingStyle: headingStyle
         });
 
-        const response = await window.electronAPI.ai.aiChat(requestData);
+        const response = await proposalAPI.request({
+            prompt,
+            contextLabel: 'Heading style context and selected text',
+            contextText: `DOCUMENT CONTEXT:\n${documentContext}${headingExamples}\n\nSELECTED TEXT:\n${selectedText}`,
+            recipe: 'scholarly-heading-v1',
+            requestOptions: {
+                temperature: 0.3,
+                maxTokens: 100,
+                newConversation: true
+            }
+        });
         
-        if (!response?.response) {
+        if (!response?.text) {
             throw new Error('No response from AI service');
         }
 
-        return this.cleanHeading(response.response);
+        return {
+            heading: this.cleanHeading(response.text),
+            provenance: response.provenance,
+            context: response.context
+        };
     }
 
     buildHeadingPrompt(selectedText, fullContent, headingStyle) {
