@@ -231,8 +231,11 @@ test('@required @actions one registry drives commands, feature actions, shortcut
   await appPage.evaluate(() => window.focusMode.deactivate());
 
   await appPage.keyboard.press(`${modifier}+P`);
-  await expect(appPage.locator('.command-palette-input[placeholder="Search files by name..."]')).toBeVisible();
+  const quickOpenInput = appPage.locator('.command-palette-input[placeholder="Search files by name..."]');
+  await expect(quickOpenInput).toBeVisible();
+  await expect(quickOpenInput).toBeFocused();
   await appPage.keyboard.press('Escape');
+  await expect(quickOpenInput).toBeHidden();
 
   await appPage.evaluate(() => window.showKeyboardShortcuts());
   const shortcutHelp = appPage.locator('#keyboard-shortcuts-overlay');

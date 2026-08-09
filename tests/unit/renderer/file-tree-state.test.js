@@ -21,6 +21,17 @@ describe('file-tree-state', () => {
     expect(document.querySelector('[data-path="/workspace/b"]').classList.contains('folder-active')).toBe(false);
   });
 
+  test('announces active-folder changes for toolbar actions', () => {
+    const listener = jest.fn();
+    window.addEventListener('nightowl:active-folder-changed', listener, { once: true });
+
+    window.NightOwlFileTreeState.setActiveTreeFolder('/workspace/a');
+
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+      detail: { folderPath: '/workspace/a' }
+    }));
+  });
+
   test('normalizes cut and copy clipboard state', () => {
     window.NightOwlFileTreeState.setClipboard({
       filePath: '/workspace/a.md',

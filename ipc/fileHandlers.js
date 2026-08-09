@@ -59,6 +59,15 @@ async function statOrNull(filePath, fsApi = fs) {
   }
 }
 
+async function lstatOrNull(filePath, fsApi = fs) {
+  try {
+    return await fsApi.lstat(filePath);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
 function hasExternalModification(currentStat, baselineMtimeMs) {
   if (!currentStat || !Number.isFinite(baselineMtimeMs)) return false;
   // Small epsilon handles fs precision differences.
@@ -116,6 +125,19 @@ async function guardedWriteFile(filePath, content, options = {}, context = {}) {
     backupPath,
     mtimeMs: updatedStat ? updatedStat.mtimeMs : null
   };
+}
+
+async function findAvailableFolderCopyPath(sourcePath, fsApi = fs) {
+  const parentPath = path.dirname(sourcePath);
+  const folderName = path.basename(sourcePath);
+
+  for (let copyNumber = 1; copyNumber < Number.MAX_SAFE_INTEGER; copyNumber += 1) {
+    const suffix = copyNumber === 1 ? ' copy' : ` copy ${copyNumber}`;
+    const candidatePath = path.join(parentPath, `${folderName}${suffix}`);
+    if (!await lstatOrNull(candidatePath, fsApi)) return candidatePath;
+  }
+
+  throw new Error('No available duplicate folder name could be found');
 }
 
 /**
@@ -599,6 +621,86 @@ function register(deps) {
       return {
         success: false,
         error: `Failed to create folder: ${error.message}`
+      };
+    }
+  });
+
+  ipcMain.handle('duplicate-folder', async (event, sourcePath) => {
+    try {
+      const sourceResult = resolveWorkspaceWritePath(sourcePath, 'Folder path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult, { sourcePath });
+      sourcePath = sourceResult.path;
+
+      const canonicalSourcePath = await fs.realpath(sourcePath);
+      const canonicalRootResults = await Promise.allSettled(
+        getWorkspaceWriteRoots().map(rootPath => fs.realpath(rootPath))
+      );
+      const canonicalWorkspaceRoots = canonicalRootResults
+        .filter(result => result.status === 'fulfilled')
+        .map(result => result.value);
+      const canonicalSourceResult = resolvePathWithinRoots(
+        canonicalSourcePath,
+        canonicalWorkspaceRoots,
+        { label: 'Folder path' }
+      );
+      if (!canonicalSourceResult.success) {
+        return pathGuardFailure(canonicalSourceResult, { sourcePath });
+      }
+
+      if (getWorkspaceWriteRoots().some(rootPath => pathsEqual(rootPath, sourcePath))) {
+        return {
+          success: false,
+          error: 'A workspace root cannot be duplicated here. Select one of its subfolders instead.',
+          sourcePath
+        };
+      }
+
+      const sourceStats = await fs.lstat(sourcePath);
+      if (!sourceStats.isDirectory() || sourceStats.isSymbolicLink()) {
+        return {
+          success: false,
+          error: 'The selected item must be a regular folder',
+          sourcePath
+        };
+      }
+
+      let destinationPath;
+      while (true) {
+        destinationPath = await findAvailableFolderCopyPath(sourcePath);
+        const destinationResult = resolveWorkspaceWritePath(destinationPath, 'Duplicate folder path');
+        if (!destinationResult.success) {
+          return pathGuardFailure(destinationResult, { sourcePath, destinationPath });
+        }
+        destinationPath = destinationResult.path;
+
+        try {
+          await fs.cp(sourcePath, destinationPath, {
+            recursive: true,
+            force: false,
+            errorOnExist: true,
+            dereference: false
+          });
+          break;
+        } catch (error) {
+          if (error?.code === 'EEXIST') continue;
+          throw error;
+        }
+      }
+
+      clearFileScanCaches();
+      return {
+        success: true,
+        sourcePath,
+        destinationPath,
+        folderName: path.basename(destinationPath),
+        message: `Folder duplicated as "${path.basename(destinationPath)}"`
+      };
+    } catch (error) {
+      console.error(`[FileHandlers] Error duplicating folder ${sourcePath}:`, error);
+      return {
+        success: false,
+        error: `Failed to duplicate folder: ${error.message}`,
+        sourcePath
       };
     }
   });
@@ -3330,10 +3432,12 @@ module.exports = {
   __testHooks: {
     SAVE_CONFLICT_CODE,
     statOrNull,
+    lstatOrNull,
     hasExternalModification,
     buildBackupFilePath,
     createFileBackup,
     guardedWriteFile,
+    findAvailableFolderCopyPath,
     resolvePathWithinRoots,
     validatePathSegment
   }
