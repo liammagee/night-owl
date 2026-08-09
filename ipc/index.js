@@ -17,6 +17,7 @@ const settingsHandlers = require('./settingsHandlers');
 const exportHandlers = require('./exportHandlers');
 const navigationHandlers = require('./navigationHandlers');
 const searchHandlers = require('./searchHandlers');
+const workspaceIndexHandlers = require('./workspaceIndexHandlers');
 const contextMenuHandlers = require('./contextMenuHandlers');
 const ttsHandlers = require('./ttsHandlers');
 const videoHandlers = require('./videoHandlers');
@@ -41,6 +42,9 @@ function registerAllHandlers(dependencies) {
   
   try {
     // Register each category of handlers
+    workspaceIndexHandlers.register(dependencies);
+    debug('Workspace index handlers registered');
+
     aiHandlers.register(dependencies);
     debug('AI handlers registered');
     
@@ -147,6 +151,7 @@ function registerAllHandlers(dependencies) {
           handlers: {
             feed: feedHandlers.getDiagnostics(),
             file: fileHandlers.getDiagnostics(),
+            workspaceIndex: workspaceIndexHandlers.getDiagnostics(),
             terminal: terminalHandlers.getDiagnostics()
           }
         })
@@ -183,6 +188,11 @@ function getHandlerCount() {
  * Cleanup handlers on app quit
  */
 function cleanupHandlers() {
+  try {
+    workspaceIndexHandlers.cleanup();
+  } catch (error) {
+    console.error('[IPC] Error cleaning up workspace index handlers:', error);
+  }
   try {
     fileHandlers.cleanup();
   } catch (error) {

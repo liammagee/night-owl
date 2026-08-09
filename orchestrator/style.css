@@ -3941,6 +3941,45 @@ body.dark-theme .internal-link:hover {
     scrollbar-color: #d1d5db transparent;
 }
 
+.quick-open-index-status {
+    padding: 7px 12px;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+    color: var(--text-muted, #667085);
+    font-size: 9px;
+    text-align: right;
+}
+
+.workspace-index-progress {
+    position: fixed;
+    right: 16px;
+    bottom: 32px;
+    z-index: 10002;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    max-width: min(520px, calc(100vw - 32px));
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, #d8dee4);
+    border-radius: 7px;
+    background: var(--surface, #fff);
+    box-shadow: 0 6px 22px rgba(15, 23, 42, 0.18);
+    color: var(--text-secondary, #475467);
+    font-size: 10px;
+}
+
+.workspace-index-progress-meter {
+    width: 90px;
+    height: 6px;
+}
+
+.workspace-index-progress-cancel {
+    border: 0;
+    background: transparent;
+    color: var(--accent-color, #2f6feb);
+    font: inherit;
+    cursor: pointer;
+}
+
 .command-item {
     display: flex;
     align-items: center;

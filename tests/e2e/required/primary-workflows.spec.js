@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { injectAxe, checkA11y } = require('axe-playwright');
 const { test, expect } = require('../fixtures/electron-app');
@@ -181,6 +182,79 @@ test('@required @actions one registry drives commands, feature actions, shortcut
   await expect(appPage.locator('.publishing-workflows-dialog')).toBeVisible();
   await expect(appPage.locator('.publishing-workflows-dialog')).toContainText('Publishing workflows');
   await appPage.evaluate(() => window.NightOwlPublishingWorkflows.close());
+});
+
+test('@required @workspace-index one index drives multi-format discovery, links, graph, and rename previews', async ({ appPage }) => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-index-required-'));
+  const previousWorkspace = await appPage.evaluate(() => window.electronAPI.workspace.getWorkingDirectory());
+  fs.writeFileSync(path.join(workspacePath, 'alpha.md'), '# Alpha\n\nSee [[beta]] and [labels](labels.csv). Citation [@Key2026].\n');
+  fs.writeFileSync(path.join(workspacePath, 'beta.md'), '# Beta\n\nBack to [[alpha]].\n');
+  fs.writeFileSync(path.join(workspacePath, 'labels.csv'), 'item_id,label\na,accept\n');
+  fs.writeFileSync(path.join(workspacePath, 'items.jsonl'), '{"id":"a","instruction":"review this item"}\n');
+  fs.writeFileSync(path.join(workspacePath, 'references.bib'), '@article{Key2026,title={Indexed source}}\n');
+  fs.writeFileSync(path.join(workspacePath, 'preview.html'), '<h1>Indexed HTML</h1>');
+
+  try {
+    const snapshot = await appPage.evaluate(async root => {
+      const switched = await window.electronAPI.workspace.switchWorkspace(root);
+      if (!switched.success) throw new Error(switched.error || 'Could not switch test workspace');
+      window.appSettings = { ...(window.appSettings || {}), workingDirectory: root, workspaceFolders: [] };
+      const listed = await window.electronAPI.search.workspaceIndexList({ limit: 100 });
+      const searched = await window.electronAPI.search.workspaceIndexSearch('accept', { maxResults: 10 });
+      const links = await window.electronAPI.search.workspaceIndexLinks({ filePath: `${root}/beta.md` });
+      const graph = await window.electronAPI.search.workspaceIndexGraph({});
+      const rename = await window.electronAPI.search.workspaceIndexPlanRename({
+        filePath: `${root}/beta.md`,
+        newPath: `${root}/reviewed.md`
+      });
+      return {
+        files: listed.files.map(file => ({ name: file.name, format: file.format })),
+        searchFile: searched.results[0]?.fileName,
+        backlink: links.backlinks[0]?.sourceRelativePath,
+        graphNodeIds: graph.nodes.map(node => node.id),
+        graphEdgeTypes: graph.edges.map(edge => edge.type),
+        rename,
+        status: listed.status
+      };
+    }, workspacePath);
+
+    expect(snapshot.files).toEqual(expect.arrayContaining([
+      { name: 'alpha.md', format: 'markdown' },
+      { name: 'items.jsonl', format: 'jsonl' },
+      { name: 'labels.csv', format: 'csv' },
+      { name: 'preview.html', format: 'html' },
+      { name: 'references.bib', format: 'bibtex' }
+    ]));
+    expect(snapshot.searchFile).toBe('labels.csv');
+    expect(snapshot.backlink).toBe('alpha.md');
+    expect(snapshot.graphNodeIds).toContain(`file:${path.join(workspacePath, 'beta.md')}`);
+    expect(snapshot.graphNodeIds).toContain('citation:Key2026');
+    expect(snapshot.graphEdgeTypes).toContain('defines-citation');
+    expect(snapshot.rename).toMatchObject({ success: true, affectedFiles: 1, referenceCount: 1 });
+    expect(snapshot.rename.references[0]).toMatchObject({
+      sourceRelativePath: 'alpha.md',
+      originalTarget: 'beta',
+      replacement: './reviewed'
+    });
+    expect(snapshot.status).toMatchObject({
+      state: 'ready',
+      budget: { maxFiles: expect.any(Number), maxContentBytes: expect.any(Number), yieldEvery: expect.any(Number) }
+    });
+
+    await appPage.evaluate(() => window.showQuickOpen());
+    await expect(appPage.locator('#quick-open-results')).toContainText('items.jsonl');
+    await expect(appPage.locator('#quick-open-results')).toContainText('labels.csv');
+    await expect(appPage.locator('.quick-open-index-status')).toContainText('indexed files');
+    await appPage.keyboard.press('Escape');
+  } finally {
+    if (previousWorkspace && fs.existsSync(previousWorkspace)) {
+      await appPage.evaluate(async root => {
+        await window.electronAPI.workspace.switchWorkspace(root);
+        window.appSettings = { ...(window.appSettings || {}), workingDirectory: root };
+      }, previousWorkspace);
+    }
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  }
 });
 
 test('@required @ipc-contract preload exposes fixed capabilities and rejects malformed privileged payloads', async ({ appPage }) => {

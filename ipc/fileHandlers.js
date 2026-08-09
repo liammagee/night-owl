@@ -23,6 +23,7 @@ const {
   hasExplicitScheme,
   isAllowedExternalUrl
 } = require('../services/contentSecurity');
+const workspaceIndexHandlers = require('./workspaceIndexHandlers');
 
 const debug = createDebugLogger('FileHandlers');
 
@@ -174,6 +175,7 @@ function register(deps) {
   function clearFileScanCaches() {
     availableFilesCache.clear();
     markdownFilesCache.clear();
+    workspaceIndexHandlers.invalidate('file-handler-mutation');
   }
 
   function rememberFileState(filePath, stat) {
@@ -2718,6 +2720,10 @@ function register(deps) {
   // Get all markdown files in the project (including all workspace folders)
   ipcMain.handle('get-markdown-files', async (event) => {
     try {
+      const indexed = await workspaceIndexHandlers.list({ extensions: ['.md', '.markdown'], limit: 50000 });
+      if (indexed?.success) {
+        return { success: true, files: indexed.files.map(file => file.path), indexed: true, status: indexed.status };
+      }
       const workingDir = getWorkingDirectory();
       const workspaceFolders = syncWorkspaceFolders(workingDir);
 
