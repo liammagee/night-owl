@@ -491,6 +491,31 @@ function requireString(value, label, options = {}) {
   }
 }
 
+function validateStaticPublicationRequest(args) {
+  const input = requireObject(args[0], 'request');
+  if (!Array.isArray(input.files) || input.files.length > 2000) {
+    throw new TypeError('request.files must be an array of at most 2000 pages');
+  }
+  let totalHtmlLength = 0;
+  input.files.forEach((file, index) => {
+    const page = requireObject(file, `request.files[${index}]`);
+    requireString(page.sourcePath, `request.files[${index}].sourcePath`, { nonEmpty: true, maxLength: 32768 });
+    requireString(page.title, `request.files[${index}].title`, { maxLength: 240 });
+    requireString(page.html, `request.files[${index}].html`, { maxLength: 4 * 1024 * 1024 });
+    requireString(page.contract, `request.files[${index}].contract`, { nonEmpty: true, maxLength: 120 });
+    totalHtmlLength += page.html.length;
+  });
+  if (totalHtmlLength > 32 * 1024 * 1024) throw new TypeError('request.files exceeds the 32 MiB publication limit');
+  const publicationOptions = requireObject(input.options || {}, 'request.options');
+  if (publicationOptions.title != null) requireString(publicationOptions.title, 'request.options.title', { maxLength: 240 });
+  if (publicationOptions.profile != null) {
+    const profile = requireObject(publicationOptions.profile, 'request.options.profile');
+    requireString(profile.id, 'request.options.profile.id', { nonEmpty: true, maxLength: 120 });
+    if (profile.title != null) requireString(profile.title, 'request.options.profile.title', { maxLength: 240 });
+    if (profile.contentRepository != null) requireObject(profile.contentRepository, 'request.options.profile.contentRepository');
+  }
+}
+
 const ARGUMENT_VALIDATORS = Object.freeze({
   'collab-start-server': (args) => {
     const input = requireObject(args[0], 'options');
@@ -552,6 +577,8 @@ const ARGUMENT_VALIDATORS = Object.freeze({
     requireString(input.filePath, 'file.filePath', { nonEmpty: true });
     requireString(input.content, 'file.content');
   },
+  'static-site-generate': validateStaticPublicationRequest,
+  'static-site-preview': validateStaticPublicationRequest,
   'terminal-exec': (args) => {
     const input = requireObject(args[0], 'request');
     requireString(input.command, 'request.command', { nonEmpty: true, maxLength: 65536 });

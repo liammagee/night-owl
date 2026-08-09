@@ -70,6 +70,8 @@ describe('preload IPC guard', () => {
     expect(() => bridge.collaboration.startServer({ port: 70000 })).toThrow(/options.port/);
     expect(() => bridge.pdfResearch.saveAnnotations({ filePath: '/tmp/paper.pdf', highlights: 'all', annotations: [] }))
       .toThrow(/request.highlights/);
+    expect(() => bridge.publishing.preview({ files: [{ sourcePath: '/tmp/a.md' }], options: {} }))
+      .toThrow(/request.files\[0\].title/);
     expect(ipcRenderer.invoke).not.toHaveBeenCalled();
   });
 
@@ -103,6 +105,11 @@ describe('preload IPC guard', () => {
       channel: 'pdf-research-create-note',
       capability: 'pdfResearch',
       method: 'createNote'
+    });
+    expect(getInvokeContract('static-site-preview')).toEqual({
+      channel: 'static-site-preview',
+      capability: 'publishing',
+      method: 'preview'
     });
   });
 
