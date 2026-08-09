@@ -11,6 +11,7 @@ describe('internalLinks module', () => {
     };
     readFileContent = jest.fn();
     window.electronAPI = { files: { readFileContent } };
+    window.currentFilePath = '/workspace/notes/source.md';
     window.openFileInEditor = jest.fn();
     window.showNotification = jest.fn();
     window.marked = {
@@ -56,5 +57,32 @@ describe('internalLinks module', () => {
 
     expect(window.showNotification).toHaveBeenCalledWith('File not found: missing.md', 'warning');
     expect(global.alert).not.toHaveBeenCalled();
+  });
+
+  test('resolves links through the shared multi-root workspace index', async () => {
+    const workspaceIndexResolveLink = jest.fn(async () => ({
+      success: true,
+      resolvedPath: '/second-root/reference.md'
+    }));
+    window.electronAPI.search = { workspaceIndexResolveLink };
+    require(modulePath);
+    readFileContent.mockResolvedValueOnce({
+      success: true,
+      filePath: '/second-root/reference.md',
+      content: '# Shared reference'
+    });
+
+    await window.openInternalLink('reference.md', 'reference');
+
+    expect(workspaceIndexResolveLink).toHaveBeenCalledWith({
+      sourcePath: '/workspace/notes/source.md',
+      target: 'reference.md'
+    });
+    expect(readFileContent).toHaveBeenCalledWith('/second-root/reference.md');
+    expect(window.openFileInEditor).toHaveBeenCalledWith(
+      '/second-root/reference.md',
+      '# Shared reference',
+      { isInternalLinkPreview: true }
+    );
   });
 });

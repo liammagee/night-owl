@@ -16,6 +16,8 @@ backlogs.
   boundaries for file, preview, tree, and pane workflows.
 - [Resource lifecycles](development/RESOURCE_LIFECYCLES.md) — deterministic
   ownership and diagnostics for timers, listeners, observers, and processes.
+- [Workspace index](development/WORKSPACE_INDEX.md) — shared multi-format file
+  discovery, search, link identities, rename planning, and bounded refreshes.
 - [UI state](development/UI_STATE.md) — canonical mode, pane, fullscreen,
   source, and record-mode state.
 - [Error diagnostics](development/ERROR_DIAGNOSTICS.md) — correlation,

@@ -149,8 +149,16 @@ async function getVisualizationFilters() {
 // Get filtered files for visualization views
 async function getFilteredVisualizationFiles() {
     try {
-        // Get all files
-        const allFiles = await window.electronAPI.workspace.getAvailableFiles();
+        // Use the shared index so Quick Open, search, links, and graph views see
+        // the same file identities. Keep the legacy scan only as a compatibility
+        // fallback for older preload contracts.
+        const indexed = await window.electronAPI.search?.workspaceIndexList?.({
+            extensions: ['.md', '.markdown'],
+            limit: 50000
+        });
+        const allFiles = indexed?.success
+            ? indexed.files
+            : await window.electronAPI.workspace.getAvailableFiles();
         
         console.log('[FileFilters] Raw files from get-available-files:', allFiles.slice(0, 10)); // Show first 10 for debugging
         

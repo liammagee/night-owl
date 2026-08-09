@@ -38,6 +38,22 @@ function resolveInternalLinkPath(filePath) {
     return workingDir ? joinWorkingPath(workingDir, filePath) : filePath;
 }
 
+async function resolveInternalLinkPathWithIndex(filePath) {
+    const resolver = window.electronAPI?.search?.workspaceIndexResolveLink;
+    if (typeof resolver === 'function' && !isAbsoluteOrExternalPath(filePath)) {
+        try {
+            const result = await resolver({
+                sourcePath: window.currentFilePath || null,
+                target: filePath
+            });
+            if (result?.success && result.resolvedPath) return result.resolvedPath;
+        } catch (_) {
+            // Older preload contracts and unavailable indexes use the primary root.
+        }
+    }
+    return resolveInternalLinkPath(filePath);
+}
+
 function notifyInternalLink(message, type = 'warning') {
     if (typeof window.showNotification === 'function') {
         window.showNotification(message, type);
@@ -117,9 +133,8 @@ async function processInternalLinks(content) {
 
 async function loadLinkContent(filePath) {
     try {
-        const workingDir = window.appSettings?.workingDirectory;
-        if (!workingDir) return 'Working directory not set';
-        const fullPath = `${workingDir}/${filePath}`;
+        const fullPath = await resolveInternalLinkPathWithIndex(filePath);
+        if (!fullPath) return 'Working directory not set';
         
         // CRITICAL FIX: Use read-file-content to avoid changing currentFilePath
         const result = await window.electronAPI.files.readFileContent(fullPath);
@@ -167,7 +182,7 @@ function handleInternalLinkClick(event) {
 // --- Open Internal Link ---
 async function openInternalLink(filePath, originalLink) {
     try {
-        const fullPath = resolveInternalLinkPath(filePath);
+        const fullPath = await resolveInternalLinkPathWithIndex(filePath);
 
         // Check if this is a binary file type that shouldn't be loaded in the editor
         const binaryExtensions = [
@@ -254,7 +269,7 @@ function handleLinkMouseMove(event) {
 
 async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
     try {
-        const fullPath = resolveInternalLinkPath(filePath);
+        const fullPath = await resolveInternalLinkPathWithIndex(filePath);
         if (!fullPath) return;
         
         // CRITICAL FIX: Use read-file-content for hover previews to avoid changing currentFilePath
@@ -549,6 +564,7 @@ async function processInternalLinksHTML(htmlContent) {
 window.processInternalLinks = processInternalLinks;
 window.processInternalLinksHTML = processInternalLinksHTML;
 window.openInternalLink = openInternalLink;
+window.resolveInternalLinkPathWithIndex = resolveInternalLinkPathWithIndex;
 window.setupLinkPreviewHandlers = setupLinkPreviewHandlers;
 window.toggleLinkPreview = toggleLinkPreview;
 window.autoCreateInternalLinkFile = autoCreateInternalLinkFile;

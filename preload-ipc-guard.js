@@ -249,6 +249,15 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'video-get-settings',
   'video-get-sources',
   'video-update-settings',
+  'workspace-index-cancel',
+  'workspace-index-graph',
+  'workspace-index-links',
+  'workspace-index-list',
+  'workspace-index-plan-rename',
+  'workspace-index-refresh',
+  'workspace-index-resolve-link',
+  'workspace-index-search',
+  'workspace-index-status',
   'write-file'
 ]);
 
@@ -323,6 +332,7 @@ const ALLOWED_ON_CHANNELS = new Set([
   'trigger-save',
   'trigger-save-as',
   'update-speaker-notes',
+  'workspace-index-progress',
   'zoom-in',
   'zoom-out',
   'reset-zoom'
@@ -392,7 +402,12 @@ const CAPABILITY_CHANNELS = Object.freeze({
     'update-speaker-notes'
   ]),
   recovery: new Set(['recovery-clear', 'recovery-load', 'recovery-persist']),
-  search: new Set(['global-replace', 'global-search']),
+  search: new Set([
+    'global-replace', 'global-search',
+    'workspace-index-cancel', 'workspace-index-graph', 'workspace-index-links',
+    'workspace-index-list', 'workspace-index-plan-rename', 'workspace-index-refresh',
+    'workspace-index-resolve-link', 'workspace-index-search', 'workspace-index-status'
+  ]),
   settings: new Set([
     'browse-system-prompt-file', 'export-settings', 'get-initial-theme', 'get-settings',
     'get-settings-category', 'import-settings', 'load-style-file',
@@ -536,6 +551,21 @@ const ARGUMENT_VALIDATORS = Object.freeze({
   'terminal-write': (args) => {
     const input = requireObject(args[0], 'request');
     requireString(input.data, 'request.data', { maxLength: 1048576 });
+  },
+  'workspace-index-plan-rename': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.filePath, 'request.filePath', { nonEmpty: true, maxLength: 32768 });
+    requireString(input.newPath, 'request.newPath', { nonEmpty: true, maxLength: 32768 });
+  },
+  'workspace-index-resolve-link': (args) => {
+    const input = requireObject(args[0], 'request');
+    if (input.sourcePath != null) requireString(input.sourcePath, 'request.sourcePath', { nonEmpty: true, maxLength: 32768 });
+    requireString(input.target, 'request.target', { nonEmpty: true, maxLength: 32768 });
+  },
+  'workspace-index-search': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.query, 'request.query', { nonEmpty: true, maxLength: 10000 });
+    if (input.options != null) requireObject(input.options, 'request.options');
   },
   'write-file': (args) => {
     if (typeof args[0] === 'string') {

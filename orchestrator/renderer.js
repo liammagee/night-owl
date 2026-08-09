@@ -6897,10 +6897,11 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
         if (!isTransitionCurrent(transition)) return;
     }
 
-    // Trigger slide thumbnail strip on file open (not just on content change)
-    if (fileTypes.isMarkdown && content) {
-        updateSlideThumbnails(content);
-    }
+    // A file transition must replace or hide thumbnails immediately. A delayed
+    // render can otherwise expose the previous document's slide content until
+    // the typing debounce expires.
+    clearTimeout(slideThumbnailTimer);
+    renderSlideThumbnails(fileTypes.isMarkdown ? content : '');
 
     // Update last saved content for auto-save tracking
     lastSavedContent = content;
@@ -10929,6 +10930,18 @@ async function preProcessMarkdownTags(node) {
     const startTime = performance.now();
 
     try {
+        const indexed = await window.electronAPI.search?.workspaceIndexList?.({
+            extensions: ['.md', '.markdown'],
+            limit: 50000
+        });
+        if (indexed?.success) {
+            const visiblePaths = new Set(markdownPaths);
+            const entries = indexed.files.filter(entry => visiblePaths.has(entry.path));
+            window.tagManager.hydrateIndexedFiles?.(entries);
+            entries.forEach(entry => updateFileTreeTagsForPath(entry.path));
+            return;
+        }
+
         // Use batch frontmatter reading - much faster than reading full files
         const results = await window.electronAPI.files.batchReadFrontmatter(markdownPaths);
 
@@ -11342,6 +11355,28 @@ async function handleFileContextMenuAction(action, filePath, isFolder, gitInfo =
             );
             if (newName && newName !== filePath.split('/').pop()) {
                 try {
+                    if (!isFolder && window.electronAPI.search?.workspaceIndexPlanRename) {
+                        const separatorIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+                        const newPath = `${filePath.slice(0, separatorIndex + 1)}${newName}`;
+                        const plan = await window.electronAPI.search.workspaceIndexPlanRename({
+                            filePath,
+                            newPath
+                        });
+                        if (plan?.success && plan.referenceCount > 0) {
+                            const examples = plan.references.slice(0, 8).map(reference => (
+                                `${reference.sourceRelativePath}:${reference.line} · ${reference.originalTarget} → ${reference.replacement}`
+                            ));
+                            const remaining = plan.referenceCount - examples.length;
+                            const confirmed = await confirmFileMutation({
+                                title: 'Review rename references',
+                                message: `Rename “${filePath.split('/').pop()}” and update ${plan.referenceCount} reference${plan.referenceCount === 1 ? '' : 's'} in ${plan.affectedFiles} file${plan.affectedFiles === 1 ? '' : 's'}?`,
+                                detail: `${examples.join('\n')}${remaining > 0 ? `\n…plus ${remaining} more` : ''}`,
+                                paths: [...new Set(plan.references.map(reference => reference.sourcePath))],
+                                confirmText: 'Rename and update links'
+                            });
+                            if (!confirmed) break;
+                        }
+                    }
                     const result = await window.electronAPI.files.renameItem({
                         filePath: filePath, 
                         newName: newName 
@@ -13398,11 +13433,20 @@ async function showQuickOpen() {
     // Fetch recent files and workspace files in parallel
     let recentFiles = [];
     let workspaceFiles = [];
+    let workspaceIndexStatus = null;
     try {
-        [recentFiles, workspaceFiles] = await Promise.all([
+        const indexRequest = window.electronAPI.search?.workspaceIndexList
+            ? window.electronAPI.search.workspaceIndexList({ limit: 50000 })
+            : window.electronAPI.files.getMarkdownFiles();
+        const [recentResult, indexedResult] = await Promise.all([
             window.electronAPI.workspace.getRecentFiles().catch(() => []),
-            window.electronAPI.files.getMarkdownFiles().then(r => r?.files || r || []).catch(() => [])
+            indexRequest.catch(() => null)
         ]);
+        recentFiles = recentResult;
+        workspaceFiles = (indexedResult?.files || []).map(file => (
+            typeof file === 'string' ? { path: file, format: 'markdown' } : file
+        ));
+        workspaceIndexStatus = indexedResult?.status || null;
     } catch (err) {
         console.warn('[QuickOpen] Error fetching files:', err);
     }
@@ -13411,7 +13455,13 @@ async function showQuickOpen() {
     const recentSet = new Set(recentFiles);
     const allFiles = [
         ...recentFiles.map(f => ({ path: f, isRecent: true })),
-        ...workspaceFiles.filter(f => !recentSet.has(f)).map(f => ({ path: f, isRecent: false }))
+        ...workspaceFiles.filter(f => !recentSet.has(f.path)).map(f => ({
+            path: f.path,
+            relativePath: f.relativePath,
+            format: f.format,
+            title: f.title,
+            isRecent: false
+        }))
     ];
 
     const quickOpenShortcut = window.NightOwlActionRegistryModule?.formatShortcut(
@@ -13427,12 +13477,19 @@ async function showQuickOpen() {
                 <div class="command-palette-shortcut">${quickOpenShortcut}</div>
             </div>
             <div class="command-palette-results" id="quick-open-results"></div>
+            <div class="quick-open-index-status"></div>
         </div>
     `;
     document.body.appendChild(quickOpenOverlay);
 
     const input = quickOpenOverlay.querySelector('.command-palette-input');
     const results = quickOpenOverlay.querySelector('#quick-open-results');
+    const indexStatus = quickOpenOverlay.querySelector('.quick-open-index-status');
+    if (indexStatus) {
+        indexStatus.textContent = workspaceIndexStatus
+            ? `${workspaceFiles.length} indexed files · ${workspaceIndexStatus.reused || 0} unchanged · ${workspaceIndexStatus.durationMs || 0} ms`
+            : 'Workspace index unavailable; showing recent files only';
+    }
     let selectedIdx = 0;
 
     function renderResults(query) {
@@ -13447,11 +13504,14 @@ async function showQuickOpen() {
 
         results.innerHTML = filtered.map((f, i) => {
             const name = f.path.split('/').pop();
-            const dir = f.path.substring(0, f.path.length - name.length - 1).split('/').slice(-2).join('/');
+            const dir = f.relativePath
+                ? f.relativePath.substring(0, Math.max(0, f.relativePath.length - name.length - 1))
+                : f.path.substring(0, f.path.length - name.length - 1).split('/').slice(-2).join('/');
             const recentBadge = f.isRecent ? '<span style="font-size:9px;color:#999;margin-left:6px;">recent</span>' : '';
-            return `<div class="command-item ${i === selectedIdx ? 'selected' : ''}" data-file-path="${f.path}">
-                <div class="command-label">${highlightFileMatch(name, query)}${recentBadge}</div>
-                <div class="command-shortcut" style="font-size:10px;color:#999;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${dir}</div>
+            const formatBadge = f.format ? `<span style="font-size:9px;color:#777;margin-left:6px;">${escapeQuickOpenHTML(f.format)}</span>` : '';
+            return `<div class="command-item ${i === selectedIdx ? 'selected' : ''}" data-file-path="${encodeURIComponent(f.path)}">
+                <div class="command-label">${highlightFileMatch(name, query)}${recentBadge}${formatBadge}</div>
+                <div class="command-shortcut" style="font-size:10px;color:#999;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${escapeQuickOpenHTML(dir)}</div>
             </div>`;
         }).join('');
 
@@ -13462,15 +13522,31 @@ async function showQuickOpen() {
         // Click handlers
         results.querySelectorAll('.command-item').forEach(item => {
             item.addEventListener('click', () => {
-                openQuickOpenFile(item.dataset.filePath);
+                openQuickOpenFile(decodeURIComponent(item.dataset.filePath));
             });
         });
     }
 
     function highlightFileMatch(text, query) {
-        if (!query) return text;
-        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-        return text.replace(regex, '<mark>$1</mark>');
+        if (!query) return escapeQuickOpenHTML(text);
+        const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        let cursor = 0;
+        let result = '';
+        for (const match of text.matchAll(regex)) {
+            result += escapeQuickOpenHTML(text.slice(cursor, match.index));
+            result += `<mark>${escapeQuickOpenHTML(match[0])}</mark>`;
+            cursor = match.index + match[0].length;
+        }
+        return result + escapeQuickOpenHTML(text.slice(cursor));
+    }
+
+    function escapeQuickOpenHTML(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     async function openQuickOpenFile(filePath) {
@@ -13512,7 +13588,7 @@ async function showQuickOpen() {
             case 'Enter':
                 e.preventDefault();
                 const sel = items[selectedIdx];
-                if (sel) openQuickOpenFile(sel.dataset.filePath);
+                if (sel) openQuickOpenFile(decodeURIComponent(sel.dataset.filePath));
                 break;
         }
     });
@@ -13574,6 +13650,10 @@ function renderSlideThumbnails(content) {
 
     // Only show if there are 2+ slides and user hasn't hidden them
     if (slides.length < 2) {
+        _thumbnailObserver?.disconnect();
+        _thumbnailObserver = null;
+        strip.replaceChildren();
+        _lastThumbnailHash = _quickHash(content);
         strip.style.display = 'none';
         updateSlidesSidebarButton(content);
         return;
