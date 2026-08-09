@@ -45,7 +45,8 @@ process, shell, operating-system dialog, or external-navigation work.
 
 `preload.js` exposes the object produced by `createCapabilityApi()` in
 `preload-ipc-guard.js`. The renderer receives named capability groups such as
-`files`, `settings`, `terminal`, `citations`, `performance`, and `events`.
+`files`, `settings`, `terminal`, `citations`, `pdfResearch`, `performance`, and
+`events`.
 
 There is deliberately no renderer-facing `invoke(channel)`, `on(channel)`,
 `send(channel)`, `ipcRenderer`, or Electron remote escape hatch. The guard owns:
@@ -97,6 +98,7 @@ Canonical renderer state is split by concern:
 | Diagnostics and recovery | `orchestrator/modules/diagnostics.js` | Renderer error states and `ipc/performanceHandlers.js` runtime data |
 | Terminal | `orchestrator/modules/assistant-terminal.js` | `ipc/terminalHandlers.js`, xterm, PTY or degraded pipe process |
 | Citations | renderer citation modules | `ipc/citationHandlers.js`, `services/citationService.js`, SQLite |
+| PDF research | `orchestrator/pdfAnnotations.js` | `ipc/pdfResearchHandlers.js`, `services/pdfResearch.js`, user-data storage |
 | Tutor runtime data | tutor bridge modules | `services/tutorRuntimePaths.js` and user-data storage outside `app.asar` |
 
 ## Bundled feature loader
@@ -134,6 +136,7 @@ main/preload maintenance and can be verified in `preload-ipc-guard.js`.
 | `electronAPI.terminal.spawn(options)` | `terminal-spawn` | `ipc/terminalHandlers.js` | Start an owned terminal process. |
 | `electronAPI.performance.getResourceDiagnostics()` | `performance:get-resource-diagnostics` | `ipc/performanceHandlers.js` | Inspect main and renderer resource ownership. |
 | `electronAPI.citations.get(query)` | `citations-get` | `ipc/citationHandlers.js` | Query citations through the fixed citation capability. |
+| `electronAPI.pdfResearch.loadAnnotations(request)` | `pdf-research-load-annotations` | `ipc/pdfResearchHandlers.js` | Load page-addressed annotations by stable PDF identity. |
 | `electronAPI.events.switchToPresentation(handler)` | `switch-to-presentation` | menu/main event sender | Subscribe to the presentation shortcut signal. |
 
 IPC results must be plain serializable data. Renderer modules must check both

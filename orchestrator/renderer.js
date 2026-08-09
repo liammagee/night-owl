@@ -189,65 +189,6 @@ function isTransitionCurrent(transition) {
 // --- Electron Remote (for context menu) ---
 // Context menu items (Menu, MenuItem) are now handled in the main process
 
-// --- PDF Annotations Module ---
-// Load PDF annotations using Electron's file system API
-async function loadPDFAnnotationsModule() {
-    try {
-        // Use Electron's file system to read the pdfAnnotations.js file
-        const filePath = './orchestrator/pdfAnnotations.js';
-        const response = await window.electronAPI.files.readFile(filePath);
-        
-        if (response.success) {
-            // Create a script element instead of using eval() to avoid CSP issues
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.textContent = response.content;
-            
-            // Add event handlers
-            script.onload = script.onreadystatechange = function() {
-                // Initialize CanvasTextSelector after module loads
-                if (typeof initializeCanvasTextSelector === 'function') {
-                    initializeCanvasTextSelector();
-                }
-            };
-            
-            script.onerror = function(error) {
-                console.error('[renderer.js] Error executing PDF annotations script:', error);
-                throw new Error('Failed to execute pdfAnnotations.js content');
-            };
-            
-            // Append to head to execute
-            document.head.appendChild(script);
-            
-        } else {
-            throw new Error(`Failed to read pdfAnnotations.js: ${response.error}`);
-        }
-        
-    } catch (error) {
-        console.error('[renderer.js] Error loading PDF annotations via Electron API:', error);
-        console.error('[renderer.js] Falling back to minimal implementation');
-        
-        // Fallback to minimal implementation
-        class CanvasTextSelector {
-            constructor() {
-            }
-        }
-        
-        window.CanvasTextSelector = CanvasTextSelector;
-        window.clearAllHighlights = function() {};
-        window.savePDFAnnotations = function() {};
-        window.loadPDFAnnotations = function() {};
-        
-    }
-}
-
-// Load the module when DOM content is loaded or immediately if already loaded
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadPDFAnnotationsModule);
-} else {
-    loadPDFAnnotationsModule();
-}
-
 // --- Global Variables ---
 try {
     // Startup debug logging removed
@@ -6960,15 +6901,20 @@ async function displayPDFInPreview(filePath, transition = null) {
     const previewContent = document.getElementById('preview-content');
     
     if (previewContent) {
+        const displayFileName = escapeHTMLAttribute(filePath.split(/[\\/]/).pop());
+        const displayFilePath = escapeHTMLAttribute(filePath);
         // Create advanced PDF viewer with search
         const pdfViewer = `
             <div class="pdf-preview-container" style="width: 100%; height: 100vh; display: flex; flex-direction: column; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1;">
                 <div class="pdf-header" style="padding: 8px 12px; background: var(--preview-bg-color, #f8f9fa); border-bottom: 1px solid var(--border-color, #e1e4e8); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; font-size: 14px; position: sticky; top: 0; z-index: 100; min-height: 40px;">
                     <div style="font-weight: bold;">
-                        📄 ${filePath.split('/').pop()}
+                        📄 ${displayFileName}
+                    </div>
+                    <div id="pdf-research-status" role="status" aria-live="polite" data-state="loading" style="font-size: 12px; color: var(--text-muted, #666); padding: 0 12px; flex: 1; text-align: center;">
+                        Loading PDF research tools…
                     </div>
                     <div class="pdf-search-controls" style="display: flex; align-items: center; gap: 8px;">
-                        <input type="text" id="pdf-search-input" placeholder="Search in PDF..." style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; font-size: 12px; width: 200px;">
+                        <input type="text" id="pdf-search-input" aria-label="Search in PDF" placeholder="Search in PDF..." style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; font-size: 12px; width: 200px;">
                         <button id="pdf-search-prev" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer;" title="Previous">↑</button>
                         <button id="pdf-search-next" style="padding: 4px 8px; border: 1px solid var(--border-color, #ccc); border-radius: 3px; background: var(--button-bg, #fff); cursor: pointer;" title="Next">↓</button>
                         <span id="pdf-search-results" style="font-size: 12px; color: var(--text-muted, #666); margin-left: 8px;"></span>
@@ -6979,8 +6925,8 @@ async function displayPDFInPreview(filePath, transition = null) {
                     <div id="pdf-text-layer" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden;"></div>
                     <div class="pdf-fallback" style="display: none; padding: 20px; text-align: center; color: #666;">
                         <p>📄 PDF preview not available</p>
-                        <p><small>Path: ${filePath}</small></p>
-                        <button class="btn btn-primary" onclick="window.electronAPI.navigation.openExternal('${filePath}')" style="margin-top: 10px;">Open in External Viewer</button>
+                        <p><small>Path: ${displayFilePath}</small></p>
+                        <button id="pdf-open-external" type="button" class="btn btn-primary" style="margin-top: 10px;">Open in External Viewer</button>
                     </div>
                     <div class="pdf-loading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted, #666);">
                         Loading PDF...
@@ -7000,6 +6946,9 @@ async function displayPDFInPreview(filePath, transition = null) {
         `;
         
         previewContent.innerHTML = pdfViewer;
+        document.getElementById('pdf-open-external')?.addEventListener('click', () => {
+            window.electronAPI.navigation.openExternal(filePath);
+        });
         
         // Initialize PDF.js viewer
         await initializePDFViewer(filePath, transition);
@@ -7026,16 +6975,36 @@ let pdfViewerState = {
 // Make pdfViewerState available globally for CanvasTextSelector
 window.pdfViewerState = pdfViewerState;
 
+function setPDFResearchStatus(message, state = 'ready') {
+    const status = document.getElementById('pdf-research-status');
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+    status.style.color = state === 'error'
+        ? 'var(--error-color, #b91c1c)'
+        : (state === 'warning' ? 'var(--warning-color, #92400e)' : 'var(--text-muted, #666)');
+    status.setAttribute('role', state === 'error' || state === 'warning' ? 'alert' : 'status');
+}
+
+window.updatePDFResearchStatus = setPDFResearchStatus;
+
 // Initialize PDF.js viewer
 async function initializePDFViewer(filePath, transition = null) {
     
     try {
-        // Wait for PDF.js to be available from CDN
+        if (typeof window.createCanvasTextSelector !== 'function') {
+            throw new Error('Packaged PDF annotation tools are unavailable. Reinstall or update NightOwl.');
+        }
+
+        // The PDF.js module is packaged, but its ES module initialization is asynchronous.
         if (typeof window.pdfjsLib === 'undefined') {
-            await new Promise((resolve) => {
+            const startedAt = Date.now();
+            await new Promise((resolve, reject) => {
                 const checkPdfJs = () => {
                     if (!isTransitionCurrent(transition) || typeof window.pdfjsLib !== 'undefined') {
                         resolve();
+                    } else if (Date.now() - startedAt > 10000) {
+                        reject(new Error('Packaged PDF text extraction did not become available.'));
                     } else {
                         setTimeout(checkPdfJs, 100);
                     }
@@ -7079,12 +7048,30 @@ async function initializePDFViewer(filePath, transition = null) {
         if (!isTransitionCurrent(transition)) return;
         
         // Extract text content for search
-        await extractAllTextContent();
+        const extraction = await extractAllTextContent();
         if (!isTransitionCurrent(transition)) return;
         
         // Load existing annotations for this PDF
-        await loadPDFAnnotations();
+        const annotationResult = await loadPDFAnnotations();
         if (!isTransitionCurrent(transition)) return;
+
+        if (!annotationResult?.success) {
+            setPDFResearchStatus(
+                annotationResult?.error || 'PDF annotations could not be loaded.',
+                'error'
+            );
+        } else if (extraction.pagesWithText === 0) {
+            setPDFResearchStatus(
+                'No selectable text was found. Search and quote annotations need an OCR/text layer.',
+                'warning'
+            );
+        } else {
+            const annotationCount = annotationResult?.annotationCount || 0;
+            setPDFResearchStatus(
+                `${annotationCount} annotation${annotationCount === 1 ? '' : 's'} · Select text and right-click to highlight or annotate.`,
+                'ready'
+            );
+        }
         
         // Set up event handlers
         setupPDFEventHandlers();
@@ -7094,6 +7081,7 @@ async function initializePDFViewer(filePath, transition = null) {
     } catch (error) {
         if (!isTransitionCurrent(transition)) return;
         console.error('[PDF] Error initializing PDF viewer:', error);
+        setPDFResearchStatus(error.message || 'PDF research tools could not be initialized.', 'error');
         
         // Show fallback
         const loading = document.querySelector('.pdf-loading');
@@ -7679,9 +7667,11 @@ function drawHighlights(ctx, pageNum) {
 
 // Extract text content from all pages for search
 async function extractAllTextContent() {
-    if (!pdfViewerState.doc) return;
+    if (!pdfViewerState.doc) return { pagesWithText: 0, failedPages: 0, totalPages: 0 };
     
     pdfViewerState.textContent = [];
+    let pagesWithText = 0;
+    let failedPages = 0;
     
     for (let i = 1; i <= pdfViewerState.totalPages; i++) {
         try {
@@ -7690,6 +7680,7 @@ async function extractAllTextContent() {
             const viewport = page.getViewport({ scale: 1.0 });
             
             const pageText = textContent.items.map(item => item.str).join(' ');
+            if (pageText.trim()) pagesWithText += 1;
             const textItems = textContent.items.map(item => ({
                 str: item.str,
                 transform: item.transform,
@@ -7712,13 +7703,14 @@ async function extractAllTextContent() {
             
         } catch (error) {
             console.error(`[PDF] Error extracting text from page ${i}:`, error);
+            failedPages += 1;
             pdfViewerState.textContent.push({
                 pageNum: i,
                 text: ''
             });
         }
     }
-    
+    return { pagesWithText, failedPages, totalPages: pdfViewerState.totalPages };
 }
 
 // Find text coordinates for highlighting

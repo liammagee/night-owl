@@ -28,7 +28,7 @@ Download the latest release for your platform:
 - **Presentation Mode** - Create and present slides directly from Markdown
 - **Babel Maze** - MUD-style exploration of interconnected Markdown documents
 - **AI Integration** - Chat, summarization, and note extraction with multiple AI providers
-- **Citation Management** - SQLite-backed citation database with BibTeX support
+- **Citation Management** - SQLite-backed citations plus page-linked PDF annotations and provenance-rich research notes
 - **Structured Records** - Readable JSONL/CSV editing with optional task schemas, validation, and progress
 - **Graph Visualization** - Force-directed graph of document relationships
 - **Bundled Features** - App-native feature modules for presentation, preview, graph, maze, and feed workflows

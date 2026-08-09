@@ -187,6 +187,9 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'performance:get-resource-diagnostics',
   'performance:start-trace',
   'performance:stop-trace',
+  'pdf-research-create-note',
+  'pdf-research-load-annotations',
+  'pdf-research-save-annotations',
   'publishing-profile-inspect',
   'publishing-profile-run-stage',
   'read-file',
@@ -349,6 +352,7 @@ const PREFIX_CAPABILITIES = Object.freeze([
   ['collab-', 'collaboration'],
   ['feed:', 'feed'],
   ['git-', 'git'],
+  ['pdf-research-', 'pdfResearch'],
   ['performance:', 'performance'],
   ['publishing-profile-', 'publishing'],
   ['spell-', 'spellcheck'],
@@ -512,6 +516,25 @@ const ARGUMENT_VALIDATORS = Object.freeze({
     }
   },
   'open-external': (args) => requireString(args[0], 'target', { nonEmpty: true, maxLength: 16384 }),
+  'pdf-research-create-note': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.filePath, 'request.filePath', { nonEmpty: true, maxLength: 32768 });
+    requireObject(input.annotation, 'request.annotation');
+    if (input.citation != null) requireObject(input.citation, 'request.citation');
+    if (input.destinationPath != null) {
+      requireString(input.destinationPath, 'request.destinationPath', { nonEmpty: true, maxLength: 32768 });
+    }
+  },
+  'pdf-research-load-annotations': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.filePath, 'request.filePath', { nonEmpty: true, maxLength: 32768 });
+  },
+  'pdf-research-save-annotations': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.filePath, 'request.filePath', { nonEmpty: true, maxLength: 32768 });
+    if (!Array.isArray(input.highlights)) throw new TypeError('request.highlights must be an array');
+    if (!Array.isArray(input.annotations)) throw new TypeError('request.annotations must be an array');
+  },
   'publishing-profile-run-stage': (args) => {
     const input = requireObject(args[0], 'request');
     requireString(input.profileId, 'request.profileId', { nonEmpty: true, maxLength: 120 });

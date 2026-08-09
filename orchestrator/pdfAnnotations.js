@@ -3,26 +3,9 @@
  * Handles text selection, highlighting, and annotations for PDF documents
  */
 
-// Load pdf-lib library dynamically
-async function loadPdfLib() {
-    return new Promise((resolve, reject) => {
-        if (typeof window.PDFLib !== 'undefined') {
-            resolve();
-            return;
-        }
-        
-        const script = document.createElement('script');
-        script.src = 'lib/pdf-lib.min.js';
-        script.onload = () => {
-            console.log('[PDF] pdf-lib loaded successfully');
-            resolve();
-        };
-        script.onerror = (error) => {
-            console.error('[PDF] Failed to load pdf-lib:', error);
-            reject(error);
-        };
-        document.head.appendChild(script);
-    });
+function createPdfResearchId(prefix) {
+    if (window.crypto?.randomUUID) return `${prefix}-${window.crypto.randomUUID()}`;
+    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 // Canvas-based text selection system
@@ -245,7 +228,10 @@ class CanvasTextSelector {
                 menuItems.push({ label: 'Remove Highlight', action: () => this.removeHighlight(existingHighlight) });
             }
             if (existingAnnotation) {
-                menuItems.push({ label: 'Edit Annotation', action: () => this.editAnnotation(existingAnnotation) });
+                menuItems.push({ label: 'Edit or Link Annotation', action: () => this.editAnnotation(existingAnnotation) });
+                if (existingAnnotation.notePath) {
+                    menuItems.push({ label: 'Open Research Note', action: () => this.openLinkedResearchNote(existingAnnotation) });
+                }
                 menuItems.push({ label: 'Remove Annotation', action: () => this.removeAnnotation(existingAnnotation) });
             }
             if (existingHighlight && existingHighlight.type === 'annotation') {
@@ -277,7 +263,10 @@ class CanvasTextSelector {
             menuItem.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.hideContextMenu();
-                item.action();
+                Promise.resolve(item.action()).catch((error) => {
+                    console.error('[CanvasTextSelector] PDF research action failed:', error);
+                    window.updatePDFResearchStatus?.(error.message || 'PDF research action failed.', 'error');
+                });
             });
             
             contextMenu.appendChild(menuItem);
@@ -331,18 +320,27 @@ class CanvasTextSelector {
         
         // Menu items for annotation card
         const menuItems = [
-            { label: 'Edit Annotation', action: () => this.editAnnotation(annotationData) },
+            { label: 'Edit or Link Annotation', action: () => this.editAnnotation(annotationData) },
             { label: 'Remove Annotation', action: () => this.removeAnnotation(annotationData) },
             { label: 'Copy Annotation Text', action: () => this.copyToClipboard(annotationData.annotation) },
             { label: 'Copy Selected Text', action: () => this.copyToClipboard(annotationData.text) }
         ];
+        if (annotationData.notePath) {
+            menuItems.splice(1, 0, {
+                label: 'Open Research Note',
+                action: () => this.openLinkedResearchNote(annotationData)
+            });
+        }
         
         // Find associated highlight to enable removing it too
         const associatedHighlight = this.permanentHighlights?.find(h => 
-            h.pageNumber === annotationData.pageNumber && 
-            h.type === 'annotation' && 
-            Math.abs(h.bounds.left - annotationData.x) < 1 && // Use small tolerance for floating point comparison
-            Math.abs(h.bounds.top - annotationData.y) < 1
+            h.type === 'annotation' && (
+                (annotationData.id && h.annotationId === annotationData.id) || (
+                    h.pageNumber === annotationData.pageNumber &&
+                    Math.abs(h.bounds.left - annotationData.x) < 1 &&
+                    Math.abs(h.bounds.top - annotationData.y) < 1
+                )
+            )
         );
         
         if (associatedHighlight) {
@@ -370,7 +368,10 @@ class CanvasTextSelector {
             menuItem.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.hideContextMenu();
-                item.action();
+                Promise.resolve(item.action()).catch((error) => {
+                    console.error('[CanvasTextSelector] PDF research action failed:', error);
+                    window.updatePDFResearchStatus?.(error.message || 'PDF research action failed.', 'error');
+                });
             });
             
             contextMenu.appendChild(menuItem);
@@ -507,7 +508,7 @@ class CanvasTextSelector {
     }
 
     // Remove a regular highlight
-    removeHighlight(highlight) {
+    async removeHighlight(highlight) {
         console.log('[CanvasTextSelector] Removing highlight:', highlight);
         
         // Remove from global array
@@ -522,14 +523,15 @@ class CanvasTextSelector {
         // Redraw page
         this.redrawWithHighlights();
         
-        // Save annotations to PDF-specific file
-        window.savePDFAnnotations();
+        // Persist the updated page record.
+        const saveResult = await window.savePDFAnnotations();
+        if (!saveResult?.success) throw new Error(saveResult?.error || 'Highlight removal could not be saved');
         
         console.log('[CanvasTextSelector] Highlight removed successfully');
     }
 
     // Remove annotation and its associated highlight
-    removeAnnotation(annotation) {
+    async removeAnnotation(annotation) {
         console.log('[CanvasTextSelector] Removing annotation:', annotation);
         
         // Remove annotation from global array
@@ -540,10 +542,13 @@ class CanvasTextSelector {
         
         // Remove associated highlight (annotation type)
         const associatedHighlight = window.globalPermanentHighlights.find(h => 
-            h.pageNumber === annotation.pageNumber && 
-            h.type === 'annotation' && 
-            h.bounds.left === annotation.x &&
-            h.bounds.top === annotation.y
+            h.type === 'annotation' && (
+                (annotation.id && h.annotationId === annotation.id) || (
+                    h.pageNumber === annotation.pageNumber &&
+                    h.bounds.left === annotation.x &&
+                    h.bounds.top === annotation.y
+                )
+            )
         );
         
         if (associatedHighlight) {
@@ -560,8 +565,9 @@ class CanvasTextSelector {
         // Redraw page and annotations
         this.redrawWithHighlights();
         
-        // Save annotations to PDF-specific file
-        window.savePDFAnnotations();
+        // Persist the updated page record.
+        const saveResult = await window.savePDFAnnotations();
+        if (!saveResult?.success) throw new Error(saveResult?.error || 'Annotation removal could not be saved');
         
         // Remove visual annotation element
         this.clearExistingAnnotations();
@@ -571,45 +577,114 @@ class CanvasTextSelector {
     }
 
     // Remove annotated highlight (when user right-clicks on orange highlight)
-    removeAnnotatedHighlight(highlight) {
+    async removeAnnotatedHighlight(highlight) {
         console.log('[CanvasTextSelector] Removing annotated highlight:', highlight);
         
         // Find and remove associated annotation
         const associatedAnnotation = window.globalPermanentAnnotations.find(annotation => 
-            annotation.pageNumber === highlight.pageNumber && 
-            annotation.x === highlight.bounds.left &&
-            annotation.y === highlight.bounds.top
+            (highlight.annotationId && annotation.id === highlight.annotationId) || (
+                annotation.pageNumber === highlight.pageNumber &&
+                annotation.x === highlight.bounds.left &&
+                annotation.y === highlight.bounds.top
+            )
         );
         
         if (associatedAnnotation) {
-            this.removeAnnotation(associatedAnnotation);
+            await this.removeAnnotation(associatedAnnotation);
         } else {
             // Just remove the highlight if no annotation found
-            this.removeHighlight(highlight);
+            await this.removeHighlight(highlight);
         }
     }
 
-    // Edit existing annotation
+    async resolveCitationChoice(choice) {
+        if (!choice || choice === 'none') return null;
+        if (choice === 'create') {
+            const filePath = window.currentFilePath;
+            const fileName = filePath?.split(/[\\/]/).pop() || 'PDF source';
+            const created = await window.electronAPI.citations.add({
+                title: fileName.replace(/\.pdf$/i, ''),
+                file_path: filePath,
+                citation_type: 'document',
+                notes: 'Created from a linked PDF annotation in NightOwl.',
+                source: 'pdf-annotation'
+            });
+            if (!created?.success || !created.citation?.id) {
+                throw new Error(created?.error || 'Could not create a citation for this PDF');
+            }
+            const fetched = await window.electronAPI.citations.getById(created.citation.id);
+            if (!fetched?.success || !fetched.citation) {
+                throw new Error(fetched?.error || 'The new citation could not be reloaded');
+            }
+            return fetched.citation;
+        }
+        if (choice.startsWith('citation:')) {
+            const citationId = Number.parseInt(choice.slice('citation:'.length), 10);
+            const fetched = await window.electronAPI.citations.getById(citationId);
+            if (!fetched?.success || !fetched.citation) {
+                throw new Error(fetched?.error || 'The selected citation is unavailable');
+            }
+            return fetched.citation;
+        }
+        return null;
+    }
+
+    async createLinkedResearchNote(annotation, citation = null) {
+        const result = await window.electronAPI.pdfResearch.createNote({
+            filePath: window.currentFilePath,
+            annotation,
+            destinationPath: annotation.notePath || undefined,
+            citation: citation ? {
+                id: citation.id,
+                citation_key: citation.citation_key,
+                title: citation.title
+            } : undefined
+        });
+        if (!result?.success) {
+            throw new Error(result?.error || 'Could not create the linked research note');
+        }
+        annotation.notePath = result.filePath;
+        window.updatePDFResearchStatus?.(`Research note created: ${result.filePath.split(/[\\/]/).pop()}`, 'ready');
+        return result;
+    }
+
+    async openLinkedResearchNote(annotation) {
+        if (!annotation?.notePath) throw new Error('This annotation has no linked research note');
+        const result = await window.electronAPI.files.readFile(annotation.notePath);
+        if (!result?.success) throw new Error(result?.error || 'The linked research note could not be read');
+        if (typeof window.openFileInEditor !== 'function') {
+            throw new Error('The editor is not ready to open the linked research note');
+        }
+        await window.openFileInEditor(annotation.notePath, result.content, {
+            source: 'pdf-research-note',
+            refreshExistingTabContent: true
+        });
+    }
+
+    // Edit existing annotation, including citation and research-note links.
     async editAnnotation(annotation) {
         console.log('[CanvasTextSelector] Editing annotation:', annotation);
         
         try {
-            // Show annotation modal with existing text, passing the selected text for display
-            const newAnnotationText = await this.showAnnotationModal(annotation.annotation, annotation.text);
+            const form = await this.showAnnotationModal(annotation.annotation, annotation.text, annotation);
             
-            if (!newAnnotationText) {
+            if (!form) {
                 console.log('[CanvasTextSelector] No new annotation text provided, cancelling edit');
                 return;
             }
-            
-            // Update annotation text
-            annotation.annotation = newAnnotationText;
+
+            const citation = await this.resolveCitationChoice(form.citationChoice);
+            annotation.annotation = form.annotation;
             annotation.timestamp = new Date().toISOString();
+            annotation.citationId = citation?.id || null;
+            annotation.citationKey = citation?.citation_key || null;
+            annotation.citationTitle = citation?.title || null;
+            if (form.createResearchNote) await this.createLinkedResearchNote(annotation, citation);
             
             // Redraw annotations to reflect changes
             this.displayAnnotationsForCurrentPage();
             
-            // Save annotations to PDF-specific file
+            // Persist citation and note links with the annotation.
             await window.savePDFAnnotations();
             
             console.log('[CanvasTextSelector] Annotation edited successfully');
@@ -625,10 +700,10 @@ class CanvasTextSelector {
         }
     }
 
-    handleHighlight() {
+    async handleHighlight() {
         if (this.currentSelection) {
             // Store permanent highlight
-            this.addPermanentHighlight(this.currentSelection);
+            await this.addPermanentHighlight(this.currentSelection);
             console.log('[CanvasTextSelector] Added permanent highlight');
         }
     }
@@ -641,24 +716,32 @@ class CanvasTextSelector {
         
         try {
             // Create a custom modal for annotation input
-            const annotation = await this.showAnnotationModal();
-            console.log('[CanvasTextSelector] Modal returned annotation:', annotation);
+            const form = await this.showAnnotationModal();
+            console.log('[CanvasTextSelector] Modal returned annotation:', form);
             
-            if (!annotation) {
+            if (!form) {
                 console.log('[CanvasTextSelector] No annotation provided, cancelling');
                 return;
             }
             
-            // Save annotation to file
-            await this.saveAnnotation(this.currentSelection, annotation);
+            await this.saveAnnotation(this.currentSelection, form);
             console.log('[CanvasTextSelector] Annotation saved successfully');
         } catch (error) {
             console.error('[CanvasTextSelector] Error in annotation process:', error);
         }
     }
 
-    showAnnotationModal(defaultText = '', selectedText = null) {
+    async showAnnotationModal(defaultText = '', selectedText = null, defaults = {}) {
         console.log('[CanvasTextSelector] Creating annotation modal');
+        let citations = [];
+        let citationLoadError = '';
+        try {
+            const result = await window.electronAPI.citations.get({});
+            if (result?.success && Array.isArray(result.citations)) citations = result.citations;
+            else citationLoadError = result?.error || 'Citation library unavailable';
+        } catch (error) {
+            citationLoadError = error.message || 'Citation library unavailable';
+        }
         return new Promise((resolve) => {
             try {
                 // Create modal overlay
@@ -678,6 +761,9 @@ class CanvasTextSelector {
 
             // Create modal content
             const modal = document.createElement('div');
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.setAttribute('aria-labelledby', 'pdf-annotation-dialog-title');
             modal.style.cssText = `
                 background: white;
                 border-radius: 8px;
@@ -690,6 +776,7 @@ class CanvasTextSelector {
 
             // Add title
             const title = document.createElement('h3');
+            title.id = 'pdf-annotation-dialog-title';
             title.textContent = defaultText ? 'Edit Annotation' : 'Add Annotation';
             title.style.cssText = `
                 margin: 0 0 16px 0;
@@ -715,7 +802,12 @@ class CanvasTextSelector {
             }
 
             // Create textarea
+            const annotationLabel = document.createElement('label');
+            annotationLabel.htmlFor = 'pdf-annotation-text';
+            annotationLabel.textContent = 'Research annotation';
+            annotationLabel.style.cssText = 'display: block; margin: 0 0 6px; font-weight: 600; font-size: 13px;';
             const textarea = document.createElement('textarea');
+            textarea.id = 'pdf-annotation-text';
             textarea.placeholder = 'Enter your annotation...';
             textarea.value = defaultText; // Set default text for editing
             textarea.style.cssText = `
@@ -728,6 +820,64 @@ class CanvasTextSelector {
                 font-size: 14px;
                 resize: vertical;
             `;
+
+            const citationLabel = document.createElement('label');
+            citationLabel.htmlFor = 'pdf-annotation-citation';
+            citationLabel.textContent = 'Linked citation';
+            citationLabel.style.cssText = 'display: block; margin: 14px 0 6px; font-weight: 600; font-size: 13px;';
+
+            const citationSelect = document.createElement('select');
+            citationSelect.id = 'pdf-annotation-citation';
+            citationSelect.style.cssText = `
+                width: 100%;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 8px;
+                font: inherit;
+                background: white;
+            `;
+            const noCitation = document.createElement('option');
+            noCitation.value = 'none';
+            noCitation.textContent = 'No citation link';
+            citationSelect.appendChild(noCitation);
+            const createCitation = document.createElement('option');
+            createCitation.value = 'create';
+            createCitation.textContent = 'Create a citation for this PDF';
+            citationSelect.appendChild(createCitation);
+            citations
+                .slice()
+                .sort((left, right) => String(left.title || '').localeCompare(String(right.title || '')))
+                .forEach((citation) => {
+                    const option = document.createElement('option');
+                    option.value = `citation:${citation.id}`;
+                    option.textContent = `${citation.citation_key ? `[${citation.citation_key}] ` : ''}${citation.title || `Citation ${citation.id}`}`;
+                    citationSelect.appendChild(option);
+                });
+            if (defaults.citationId && !citations.some(citation => citation.id === defaults.citationId)) {
+                const preservedCitation = document.createElement('option');
+                preservedCitation.value = `citation:${defaults.citationId}`;
+                preservedCitation.textContent = `${defaults.citationKey ? `[@${defaults.citationKey}] ` : ''}${defaults.citationTitle || `Citation ${defaults.citationId}`}`;
+                citationSelect.appendChild(preservedCitation);
+            }
+            if (defaults.citationId) citationSelect.value = `citation:${defaults.citationId}`;
+
+            const citationStatus = document.createElement('small');
+            citationStatus.textContent = citationLoadError
+                ? `Citation links unavailable: ${citationLoadError}`
+                : `${citations.length} existing citation${citations.length === 1 ? '' : 's'} available.`;
+            citationStatus.style.cssText = `display: block; margin-top: 5px; color: ${citationLoadError ? '#b91c1c' : '#666'};`;
+
+            const researchNoteLabel = document.createElement('label');
+            researchNoteLabel.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px;';
+            const researchNoteCheckbox = document.createElement('input');
+            researchNoteCheckbox.type = 'checkbox';
+            researchNoteCheckbox.checked = false;
+            const researchNoteText = document.createElement('span');
+            researchNoteText.textContent = defaults.notePath
+                ? 'Update the linked Markdown research note'
+                : 'Create a source-linked Markdown research note';
+            researchNoteLabel.appendChild(researchNoteCheckbox);
+            researchNoteLabel.appendChild(researchNoteText);
 
             // Create buttons
             const buttonContainer = document.createElement('div');
@@ -763,7 +913,8 @@ class CanvasTextSelector {
 
             // Add event listeners
             const cleanup = () => {
-                document.body.removeChild(overlay);
+                document.removeEventListener('keydown', handleKeyDown);
+                if (overlay.parentNode) overlay.remove();
             };
 
             cancelButton.addEventListener('click', () => {
@@ -774,7 +925,11 @@ class CanvasTextSelector {
             saveButton.addEventListener('click', () => {
                 const annotation = textarea.value.trim();
                 cleanup();
-                resolve(annotation || null);
+                resolve(annotation ? {
+                    annotation,
+                    citationChoice: citationSelect.value,
+                    createResearchNote: researchNoteCheckbox.checked
+                } : null);
             });
 
             // ESC key to cancel
@@ -782,7 +937,6 @@ class CanvasTextSelector {
                 if (e.key === 'Escape') {
                     cleanup();
                     resolve(null);
-                    document.removeEventListener('keydown', handleKeyDown);
                 }
             };
             document.addEventListener('keydown', handleKeyDown);
@@ -802,7 +956,12 @@ class CanvasTextSelector {
             if (selectedTextDiv) {
                 modal.appendChild(selectedTextDiv);
             }
+            modal.appendChild(annotationLabel);
             modal.appendChild(textarea);
+            modal.appendChild(citationLabel);
+            modal.appendChild(citationSelect);
+            modal.appendChild(citationStatus);
+            modal.appendChild(researchNoteLabel);
             modal.appendChild(buttonContainer);
             overlay.appendChild(modal);
 
@@ -817,86 +976,71 @@ class CanvasTextSelector {
         });
     }
 
-    async saveAnnotation(selection, annotation) {
+    async saveAnnotation(selection, form) {
+        const currentPage = window.pdfViewerState?.currentPage || 1;
+        const timestamp = new Date().toISOString();
+        const citation = await this.resolveCitationChoice(form.citationChoice);
+        const annotationData = {
+            id: createPdfResearchId('annotation'),
+            pageNumber: currentPage,
+            text: selection.text,
+            annotation: form.annotation,
+            timestamp,
+            x: selection.bounds.left,
+            y: selection.bounds.top,
+            width: selection.bounds.right - selection.bounds.left,
+            height: selection.bounds.bottom - selection.bounds.top,
+            citationId: citation?.id || null,
+            citationKey: citation?.citation_key || null,
+            citationTitle: citation?.title || null,
+            notePath: null
+        };
+        const annotatedHighlight = {
+            id: createPdfResearchId('highlight'),
+            annotationId: annotationData.id,
+            pageNumber: currentPage,
+            bounds: {
+                left: selection.bounds.left,
+                top: selection.bounds.top,
+                right: selection.bounds.right,
+                bottom: selection.bounds.bottom
+            },
+            text: selection.text,
+            type: 'annotation',
+            timestamp
+        };
+
+        window.globalPermanentAnnotations.push(annotationData);
+        window.globalPermanentHighlights.push(annotatedHighlight);
+        this.permanentAnnotations = window.globalPermanentAnnotations;
+        this.permanentHighlights = window.globalPermanentHighlights;
+
+        let persisted = false;
         try {
-            const currentPage = window.pdfViewerState?.currentPage || 1;
-            const fileName = window.currentFilePath ? window.currentFilePath.split('/').pop() : 'Unknown PDF';
-            
-            const annotationEntry = {
-                source: fileName,
-                page: currentPage,
-                selectedText: selection.text,
-                annotation: annotation,
-                timestamp: new Date().toISOString()
-            };
-            
-            console.log('[CanvasTextSelector] Saving annotation:', annotationEntry);
-            
-            // Create annotation entry for Markdown file
-            const annotationText = `## Page ${currentPage}\n**Selected Text:** "${selection.text}"\n**Annotation:** ${annotation}\n**Date:** ${new Date().toLocaleString()}\n\n---\n\n`;
-            
-            // Save to annotations.md file in working directory
-            const annotationsPath = await window.electronAPI.workspace.getWorkingDirectory() + '/annotations.md';
-            const response = await window.electronAPI.files.readFile(annotationsPath);
-            
-            let existingContent = '';
-            if (response.success) {
-                existingContent = response.content;
+            const saveResult = await window.savePDFAnnotations();
+            if (!saveResult?.success) throw new Error(saveResult?.error || 'Annotation storage failed');
+            persisted = true;
+            if (form.createResearchNote) {
+                await this.createLinkedResearchNote(annotationData, citation);
+                const linkedSave = await window.savePDFAnnotations();
+                if (!linkedSave?.success) throw new Error(linkedSave?.error || 'Research-note link storage failed');
             }
-            
-            const newContent = existingContent + annotationText;
-            const saveResponse = await window.electronAPI.files.writeFile(annotationsPath, newContent);
-            
-            if (saveResponse.success) {
-                console.log('[CanvasTextSelector] Annotation saved to:', annotationsPath);
-                
-                // Store annotation for visual display
-                const annotationData = {
-                    pageNumber: currentPage,
-                    text: selection.text,
-                    annotation: annotation,
-                    timestamp: new Date().toISOString(),
-                    x: selection.bounds.left,
-                    y: selection.bounds.top,
-                    width: selection.bounds.right - selection.bounds.left,
-                    height: selection.bounds.bottom - selection.bounds.top
-                };
-                
-                // Add to global annotations array
-                window.globalPermanentAnnotations.push(annotationData);
-                this.permanentAnnotations = window.globalPermanentAnnotations;
-                
-                // Create a special highlight for annotated text (different color than regular highlights)
-                const annotatedHighlight = {
-                    pageNumber: currentPage,
-                    bounds: {
-                        left: selection.bounds.left,
-                        top: selection.bounds.top,
-                        right: selection.bounds.right,
-                        bottom: selection.bounds.bottom
-                    },
-                    text: selection.text,
-                    type: 'annotation', // Mark as annotation highlight
-                    timestamp: new Date().toISOString()
-                };
-                
-                // Add annotation highlight to global highlights array
-                window.globalPermanentHighlights.push(annotatedHighlight);
-                this.permanentHighlights = window.globalPermanentHighlights;
-                
-                // Create visual annotation in margin
-                this.createVisualAnnotation(annotationData);
-                
-                // Save annotations to PDF-specific file
-                await window.savePDFAnnotations();
-                
-                console.log('[CanvasTextSelector] Annotation stored and displayed');
-            } else {
-                console.error('[CanvasTextSelector] Failed to save annotation:', saveResponse.error);
-            }
-            
+            this.createVisualAnnotation(annotationData);
+            this.redrawWithHighlights();
+            console.log('[CanvasTextSelector] Annotation stored and displayed:', annotationData.id);
+            return annotationData;
         } catch (error) {
+            if (!persisted) {
+                const annotationIndex = window.globalPermanentAnnotations.indexOf(annotationData);
+                const highlightIndex = window.globalPermanentHighlights.indexOf(annotatedHighlight);
+                if (annotationIndex >= 0) window.globalPermanentAnnotations.splice(annotationIndex, 1);
+                if (highlightIndex >= 0) window.globalPermanentHighlights.splice(highlightIndex, 1);
+            }
+            this.permanentAnnotations = window.globalPermanentAnnotations;
+            this.permanentHighlights = window.globalPermanentHighlights;
+            window.updatePDFResearchStatus?.(error.message || 'Annotation could not be saved.', 'error');
             console.error('[CanvasTextSelector] Error saving annotation:', error);
+            throw error;
         }
     }
 
@@ -975,6 +1119,15 @@ class CanvasTextSelector {
                 line-height: 1.4;
             `;
             annotationTextDiv.textContent = annotationData.annotation;
+
+            const provenanceDiv = document.createElement('div');
+            provenanceDiv.style.cssText = 'margin-top: 8px; color: #795548; font-size: 10px; overflow-wrap: anywhere;';
+            const provenance = [];
+            if (annotationData.citationKey) provenance.push(`[@${annotationData.citationKey}]`);
+            else if (annotationData.citationTitle) provenance.push(annotationData.citationTitle);
+            if (annotationData.notePath) provenance.push(`Note: ${annotationData.notePath.split(/[\\/]/).pop()}`);
+            provenanceDiv.textContent = provenance.join(' · ');
+            provenanceDiv.hidden = provenance.length === 0;
             
             // Create connection line to highlight
             const connectionLine = document.createElement('div');
@@ -1014,12 +1167,16 @@ class CanvasTextSelector {
             // Add double-click to edit functionality
             annotationElement.addEventListener('dblclick', () => {
                 console.log('[CanvasTextSelector] Annotation double-clicked - editing');
-                this.editAnnotation(annotationData);
+                this.editAnnotation(annotationData).catch((error) => {
+                    console.error('[CanvasTextSelector] Annotation edit failed:', error);
+                    window.updatePDFResearchStatus?.(error.message || 'Annotation edit failed.', 'error');
+                });
             });
             
             // Build the annotation
             annotationElement.appendChild(selectedTextDiv);
             annotationElement.appendChild(annotationTextDiv);
+            annotationElement.appendChild(provenanceDiv);
             annotationElement.appendChild(connectionLine);
             
             // Find the PDF container to append the annotation
@@ -1195,14 +1352,17 @@ class CanvasTextSelector {
         this.redrawWithHighlights();
     }
 
-    addPermanentHighlight(selection) {
+    async addPermanentHighlight(selection) {
         const currentPage = window.pdfViewerState?.currentPage || 1;
         
         // Add current selection as permanent highlight to global array
         const highlight = {
+            id: createPdfResearchId('highlight'),
             bounds: selection.bounds,
             text: selection.text,
-            pageNumber: currentPage
+            pageNumber: currentPage,
+            type: 'highlight',
+            timestamp: new Date().toISOString()
         };
         
         window.globalPermanentHighlights.push(highlight);
@@ -1213,8 +1373,14 @@ class CanvasTextSelector {
         // Redraw with permanent highlights
         this.redrawWithHighlights();
         
-        // Save annotations to PDF-specific file
-        window.savePDFAnnotations();
+        const saveResult = await window.savePDFAnnotations();
+        if (!saveResult?.success) {
+            const index = window.globalPermanentHighlights.indexOf(highlight);
+            if (index >= 0) window.globalPermanentHighlights.splice(index, 1);
+            this.permanentHighlights = window.globalPermanentHighlights;
+            this.redrawWithHighlights();
+            throw new Error(saveResult?.error || 'Highlight storage failed');
+        }
         
         console.log(`[CanvasTextSelector] Added permanent highlight on page ${currentPage}`);
         console.log('[CanvasTextSelector] Highlight details:', highlight);
@@ -1322,6 +1488,7 @@ if (typeof window !== 'undefined') {
     // Function to clear all highlights and annotations when switching PDFs
     window.clearAllHighlights = function() {
         console.log('[PDF] Clearing all highlights and annotations for new document');
+        window.currentPdfDocumentId = null;
         window.globalPermanentHighlights.length = 0; // Clear array
         window.globalPermanentAnnotations.length = 0; // Clear annotations array
         if (canvasTextSelector) {
@@ -1331,66 +1498,93 @@ if (typeof window !== 'undefined') {
         }
     };
 
-    // Save highlights and annotations to PDF-specific file
+    // Persist research data in the app user-data store keyed by PDF content.
     window.savePDFAnnotations = async function(embedInPDF = false) {
         try {
-            if (!window.currentFilePath || !window.currentFilePath.endsWith('.pdf')) return;
+            if (!window.currentFilePath || !/\.pdf$/i.test(window.currentFilePath)) {
+                return { success: false, error: 'No PDF is open' };
+            }
+            if (typeof window.electronAPI?.pdfResearch?.saveAnnotations !== 'function') {
+                throw new Error('PDF research storage is unavailable. Reinstall or update NightOwl.');
+            }
             
             if (embedInPDF) {
-                // Embed annotations directly in the PDF
                 await window.embedAnnotationsInPDF();
                 console.log('[PDF] Annotations embedded directly in PDF file');
-            } else {
-                // Save to separate .annotations file (default behavior)
-                const annotationsFile = window.currentFilePath.replace('.pdf', '.annotations');
-                const data = {
-                    highlights: window.globalPermanentHighlights,
-                    annotations: window.globalPermanentAnnotations,
-                    lastModified: new Date().toISOString()
-                };
-                
-                await window.electronAPI.files.saveFile({
-                    filePath: annotationsFile,
-                    content: JSON.stringify(data, null, 2)
-                });
-                
-                console.log('[PDF] Annotations saved to:', annotationsFile);
             }
+
+            const result = await window.electronAPI.pdfResearch.saveAnnotations({
+                filePath: window.currentFilePath,
+                highlights: window.globalPermanentHighlights,
+                annotations: window.globalPermanentAnnotations
+            });
+            if (!result?.success) throw new Error(result?.error || 'PDF annotation storage failed');
+            window.currentPdfDocumentId = result.documentId;
+            window.updatePDFResearchStatus?.(
+                `${result.annotationCount} annotation${result.annotationCount === 1 ? '' : 's'} and ${result.highlightCount} highlight${result.highlightCount === 1 ? '' : 's'} saved.`,
+                'ready'
+            );
+            return result;
         } catch (error) {
             console.error('[PDF] Error saving annotations:', error);
+            window.updatePDFResearchStatus?.(error.message || 'PDF annotations could not be saved.', 'error');
+            return { success: false, error: error.message || String(error) };
         }
     };
 
-    // Load highlights and annotations from PDF-specific file  
+    // Load page-addressed annotations. A legacy sidecar is imported once when
+    // no user-data record exists, then normal saves no longer touch the workspace.
     window.loadPDFAnnotations = async function() {
         try {
-            if (!window.currentFilePath || !window.currentFilePath.endsWith('.pdf')) return;
-            
-            const annotationsFile = window.currentFilePath.replace('.pdf', '.annotations');
-            const response = await window.electronAPI.files.readFile(annotationsFile);
-            
-            if (response.success) {
-                const data = JSON.parse(response.content);
-                window.globalPermanentHighlights.length = 0;
-                window.globalPermanentAnnotations.length = 0;
-                
-                if (data.highlights) {
-                    window.globalPermanentHighlights.push(...data.highlights);
-                }
-                if (data.annotations) {
-                    window.globalPermanentAnnotations.push(...data.annotations);
-                }
-                
-                // Update text selector references
-                if (canvasTextSelector) {
-                    canvasTextSelector.permanentHighlights = window.globalPermanentHighlights;
-                    canvasTextSelector.permanentAnnotations = window.globalPermanentAnnotations;
-                }
-                
-                console.log(`[PDF] Loaded ${window.globalPermanentHighlights.length} highlights and ${window.globalPermanentAnnotations.length} annotations from:`, annotationsFile);
+            if (!window.currentFilePath || !/\.pdf$/i.test(window.currentFilePath)) {
+                return { success: false, error: 'No PDF is open' };
             }
+            if (typeof window.electronAPI?.pdfResearch?.loadAnnotations !== 'function') {
+                throw new Error('PDF research storage is unavailable. Reinstall or update NightOwl.');
+            }
+
+            let result = await window.electronAPI.pdfResearch.loadAnnotations({ filePath: window.currentFilePath });
+            if (!result?.success) throw new Error(result?.error || 'PDF annotation storage failed');
+
+            let migrated = false;
+            if (!result.found) {
+                const legacyPath = window.currentFilePath.replace(/\.pdf$/i, '.annotations');
+                const legacy = await window.electronAPI.files.readFile(legacyPath);
+                if (legacy?.success) {
+                    const parsed = JSON.parse(legacy.content);
+                    const saved = await window.electronAPI.pdfResearch.saveAnnotations({
+                        filePath: window.currentFilePath,
+                        highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
+                        annotations: Array.isArray(parsed.annotations) ? parsed.annotations : []
+                    });
+                    if (!saved?.success) throw new Error(saved?.error || 'Legacy annotation import failed');
+                    result = await window.electronAPI.pdfResearch.loadAnnotations({ filePath: window.currentFilePath });
+                    migrated = true;
+                }
+            }
+
+            window.globalPermanentHighlights.length = 0;
+            window.globalPermanentAnnotations.length = 0;
+            window.globalPermanentHighlights.push(...(result.highlights || []));
+            window.globalPermanentAnnotations.push(...(result.annotations || []));
+            window.currentPdfDocumentId = result.documentId;
+
+            if (canvasTextSelector) {
+                canvasTextSelector.permanentHighlights = window.globalPermanentHighlights;
+                canvasTextSelector.permanentAnnotations = window.globalPermanentAnnotations;
+            }
+
+            console.log(`[PDF] Loaded ${window.globalPermanentHighlights.length} highlights and ${window.globalPermanentAnnotations.length} annotations for ${result.documentId}`);
+            return {
+                ...result,
+                migrated,
+                highlightCount: window.globalPermanentHighlights.length,
+                annotationCount: window.globalPermanentAnnotations.length
+            };
         } catch (error) {
-            console.log('[PDF] No existing annotations file found (this is normal for new PDFs)');
+            console.error('[PDF] Error loading annotations:', error);
+            window.updatePDFResearchStatus?.(error.message || 'PDF annotations could not be loaded.', 'error');
+            return { success: false, error: error.message || String(error), highlightCount: 0, annotationCount: 0 };
         }
     };
 
@@ -1472,6 +1666,20 @@ if (typeof window !== 'undefined') {
         canvasTextSelector = new CanvasTextSelector();
         return canvasTextSelector;
     };
+
+    window.NightOwlPdfResearch = Object.freeze({
+        assetLoaded: true,
+        loadAnnotations: () => window.loadPDFAnnotations(),
+        saveAnnotations: () => window.savePDFAnnotations(),
+        getState: () => ({
+            assetLoaded: true,
+            documentId: window.currentPdfDocumentId || null,
+            filePath: window.currentFilePath || null,
+            highlightCount: window.globalPermanentHighlights.length,
+            annotationCount: window.globalPermanentAnnotations.length,
+            status: document.getElementById('pdf-research-status')?.dataset?.state || 'idle'
+        })
+    });
 }
 
 // Export the class and functions for browser environment

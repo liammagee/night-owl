@@ -32,6 +32,7 @@ const staticSiteHandlers = require('./staticSiteHandlers');
 const publishingProfileHandlers = require('./publishingProfileHandlers');
 const performanceHandlers = require('./performanceHandlers');
 const feedHandlers = require('./feedHandlers');
+const pdfResearchHandlers = require('./pdfResearchHandlers');
 
 /**
  * Register all IPC handlers
@@ -85,6 +86,13 @@ function registerAllHandlers(dependencies) {
       debug('Citation handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering citation handlers:', error);
+    }
+
+    try {
+      pdfResearchHandlers.register(dependencies);
+      debug('PDF research handlers registered');
+    } catch (error) {
+      console.error('[IPC] Error registering PDF research handlers:', error);
     }
     
     try {

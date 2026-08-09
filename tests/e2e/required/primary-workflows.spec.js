@@ -303,7 +303,10 @@ test('@required @ipc-contract preload exposes fixed capabilities and rejects mal
       terminal: () => api.terminal.exec({ cwd: '/tmp' }),
       git: () => api.git.stage({ repoRoot: '/tmp', paths: 'all' }),
       file: () => api.files.saveFile({ filePath: '/tmp/missing-content.md' }),
-      collaboration: () => api.collaboration.startServer({ port: 70000 })
+      collaboration: () => api.collaboration.startServer({ port: 70000 }),
+      pdfResearch: () => api.pdfResearch.saveAnnotations({
+        filePath: '/tmp/paper.pdf', highlights: 'all', annotations: []
+      })
     })) {
       try {
         await operation();
@@ -319,7 +322,7 @@ test('@required @ipc-contract preload exposes fixed capabilities and rejects mal
         on: typeof api.on,
         send: typeof api.send
       },
-      capabilities: ['files', 'git', 'terminal', 'settings', 'events', 'signals']
+      capabilities: ['files', 'git', 'terminal', 'settings', 'pdfResearch', 'events', 'signals']
         .filter(name => typeof api[name] === 'object'),
       rejected,
       settingsLoaded: Boolean(settings && typeof settings === 'object')
@@ -327,10 +330,99 @@ test('@required @ipc-contract preload exposes fixed capabilities and rejects mal
   });
 
   expect(result.generic).toEqual({ invoke: 'undefined', on: 'undefined', send: 'undefined' });
-  expect(result.capabilities).toEqual(['files', 'git', 'terminal', 'settings', 'events', 'signals']);
+  expect(result.capabilities).toEqual(['files', 'git', 'terminal', 'settings', 'pdfResearch', 'events', 'signals']);
   expect(result.settingsLoaded).toBe(true);
   for (const message of Object.values(result.rejected)) {
     expect(message).toMatch(/Invalid payload/);
+  }
+});
+
+test('@required @pdf-research bundled annotation identity links citations and Markdown notes', async ({ appPage }) => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-pdf-research-e2e-'));
+  const originalPdf = path.join(workspacePath, 'source.pdf');
+  const renamedPdf = path.join(workspacePath, 'source-renamed.pdf');
+  fs.writeFileSync(originalPdf, '%PDF-1.4\nNightOwl stable annotation identity\n%%EOF\n');
+  const previousWorkspace = await appPage.evaluate(() => window.electronAPI.workspace.getWorkingDirectory());
+
+  try {
+    await appPage.evaluate(async root => {
+      await window.electronAPI.workspace.switchWorkspace(root);
+      window.appSettings = { ...(window.appSettings || {}), workingDirectory: root };
+    }, workspacePath);
+
+    const stored = await appPage.evaluate(async filePath => {
+      const citationResult = await window.electronAPI.citations.add({
+        title: 'PDF research source',
+        citation_type: 'document',
+        file_path: filePath,
+        source: 'required-e2e'
+      });
+      const citation = (await window.electronAPI.citations.getById(citationResult.citation.id)).citation;
+      const initial = await window.electronAPI.pdfResearch.loadAnnotations({ filePath });
+      const annotation = {
+        id: 'annotation-required-e2e',
+        pageNumber: 2,
+        text: 'NightOwl stable annotation identity',
+        annotation: 'This quotation remains linked after rename.',
+        citationId: citation.id,
+        citationKey: citation.citation_key,
+        citationTitle: citation.title,
+        x: 1,
+        y: 2,
+        width: 30,
+        height: 8
+      };
+      const saved = await window.electronAPI.pdfResearch.saveAnnotations({
+        filePath,
+        highlights: [{
+          id: 'highlight-required-e2e',
+          annotationId: annotation.id,
+          pageNumber: 2,
+          bounds: { left: 1, top: 2, right: 31, bottom: 10 },
+          text: annotation.text,
+          type: 'annotation'
+        }],
+        annotations: [annotation]
+      });
+      return {
+        assetLoaded: window.NightOwlPdfResearch?.assetLoaded === true,
+        initial,
+        saved,
+        citation
+      };
+    }, originalPdf);
+
+    expect(stored.assetLoaded).toBe(true);
+    expect(stored.initial).toMatchObject({ success: true, found: false });
+    expect(stored.saved).toMatchObject({ success: true, annotationCount: 1, highlightCount: 1 });
+    fs.renameSync(originalPdf, renamedPdf);
+
+    const reloaded = await appPage.evaluate(async ({ filePath, citation }) => {
+      const loaded = await window.electronAPI.pdfResearch.loadAnnotations({ filePath });
+      const note = await window.electronAPI.pdfResearch.createNote({
+        filePath,
+        annotation: loaded.annotations[0],
+        citation
+      });
+      return { loaded, note };
+    }, { filePath: renamedPdf, citation: stored.citation });
+
+    expect(reloaded.loaded.documentId).toBe(stored.saved.documentId);
+    expect(reloaded.loaded.annotations[0]).toMatchObject({
+      pageNumber: 2,
+      citationId: stored.citation.id,
+      citationKey: stored.citation.citation_key
+    });
+    expect(reloaded.note.success).toBe(true);
+    const noteContent = fs.readFileSync(reloaded.note.filePath, 'utf8');
+    expect(noteContent).toContain('source_page: 2');
+    expect(noteContent).toContain('> NightOwl stable annotation identity');
+    expect(noteContent).toContain(`Citation: [@${stored.citation.citation_key}]`);
+  } finally {
+    if (previousWorkspace && fs.existsSync(previousWorkspace)) {
+      await appPage.evaluate(root => window.electronAPI.workspace.switchWorkspace(root), previousWorkspace);
+    }
+    fs.rmSync(workspacePath, { recursive: true, force: true });
   }
 });
 
