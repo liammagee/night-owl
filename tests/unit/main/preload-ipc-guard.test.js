@@ -92,6 +92,7 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_INVOKE_CHANNELS.has('collab-start-server')).toBe(false);
     expect(ALLOWED_INVOKE_CHANNELS.has('shell-run')).toBe(false);
     expect(ALLOWED_ON_CHANNELS.has('settings-changed')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('duplicate-selected-folder')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:items')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:scored')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:source-error')).toBe(true);

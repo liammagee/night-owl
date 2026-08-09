@@ -736,6 +736,16 @@ describe('Code quality guardrails', () => {
     expect(indexSource).not.toContain('>New Folder</button>');
   });
 
+  test('native File menu exposes the guarded duplicate-folder action', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+
+    expect(mainSource).toContain("label: 'Duplicate Folder'");
+    expect(mainSource).toContain("webContents.send('duplicate-selected-folder')");
+    expect(rendererSource).toContain('events.duplicateSelectedFolder');
+    expect(rendererSource).toContain('window.duplicateSelectedFolder?.()');
+  });
+
   test('right pane assistant surface is terminal-first, not bespoke AI chat', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');

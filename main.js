@@ -1690,6 +1690,12 @@ function createFileMenuItems() {
         }
       },
       {
+        label: 'Duplicate Folder',
+        click: () => {
+          if (mainWindow) mainWindow.webContents.send('duplicate-selected-folder');
+        }
+      },
+      {
         label: 'Recent Workspaces',
         submenu: (() => {
           const workspaces = getRecentWorkspaces();
