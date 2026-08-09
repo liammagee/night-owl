@@ -693,6 +693,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var presenterConsoleRef = useRef(null);
   var presenterStartedAtRef = useRef(null);
   var previousFocusRef = useRef(null);
+  var currentSlideRef = useRef(currentSlide);
+  var pendingContentSlideRef = useRef(null);
   var zoomInteractionTimeoutRef = useRef(null);
   var zoomRef = useRef(zoom);
   var panRef = useRef(pan);
@@ -1467,6 +1469,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       setZoom(targetZoom);
       setPan(targetPan);
     }
+    currentSlideRef.current = slideIndex;
     setCurrentSlide(slideIndex);
     setFocusedSlide(null);
 
@@ -1693,9 +1696,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       if (newContent && newContent.trim()) {
         // Parsing new content into slides
         var newSlides = parseMarkdown(newContent);
+        var nextSlideIndex = Math.min(currentSlideRef.current, Math.max(0, newSlides.length - 1));
         setSourceMarkdown(newContent);
         setSlides(newSlides);
-        setCurrentSlide(0);
+        currentSlideRef.current = nextSlideIndex;
+        pendingContentSlideRef.current = nextSlideIndex;
+        setCurrentSlide(nextSlideIndex);
         zoomRef.current = 1;
         panRef.current = {
           x: 0,
@@ -1707,14 +1713,6 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           y: 0
         });
         setFocusedSlide(null);
-
-        // Center first slide after state updates
-        setTimeout(function () {
-          if (canvasRef.current && newSlides.length > 0) {
-            console.log('[Presentation] Centering first slide after content update');
-            goToSlide(0);
-          }
-        }, 50);
         // Successfully updated slides
       } else {
         console.warn('[React Presentation] No valid content received');
@@ -1728,6 +1726,16 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       window.removeEventListener('updatePresentationContent', handleContentUpdate);
     };
   }, []);
+
+  // Reconcile navigation only after React has committed the newly parsed deck.
+  // This avoids a stale delayed callback overwriting a presenter action taken
+  // immediately after a live content refresh.
+  useEffect(function () {
+    if (pendingContentSlideRef.current === null || slides.length === 0) return;
+    var slideIndex = Math.min(pendingContentSlideRef.current, slides.length - 1);
+    pendingContentSlideRef.current = null;
+    goToSlide(slideIndex);
+  }, [slides, goToSlide]);
   useEffect(function () {
     if (slides.length === 0) return;
     window.dispatchEvent(new CustomEvent('nightowl:presentation-content-ready', {

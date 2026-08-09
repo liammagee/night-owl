@@ -380,6 +380,8 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   const presenterConsoleRef = useRef(null);
   const presenterStartedAtRef = useRef(null);
   const previousFocusRef = useRef(null);
+  const currentSlideRef = useRef(currentSlide);
+  const pendingContentSlideRef = useRef(null);
   const zoomInteractionTimeoutRef = useRef(null);
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
@@ -1258,6 +1260,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       setZoom(targetZoom);
       setPan(targetPan);
     }
+    currentSlideRef.current = slideIndex;
     setCurrentSlide(slideIndex);
     setFocusedSlide(null);
     
@@ -1447,23 +1450,21 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       if (newContent && newContent.trim()) {
         // Parsing new content into slides
         const newSlides = parseMarkdown(newContent);
+        const nextSlideIndex = Math.min(
+          currentSlideRef.current,
+          Math.max(0, newSlides.length - 1)
+        );
         
         setSourceMarkdown(newContent);
         setSlides(newSlides);
-        setCurrentSlide(0);
+        currentSlideRef.current = nextSlideIndex;
+        pendingContentSlideRef.current = nextSlideIndex;
+        setCurrentSlide(nextSlideIndex);
         zoomRef.current = 1;
         panRef.current = { x: 0, y: 0 };
         setZoom(1);
         setPan({ x: 0, y: 0 });
         setFocusedSlide(null);
-        
-        // Center first slide after state updates
-        setTimeout(() => {
-          if (canvasRef.current && newSlides.length > 0) {
-            console.log('[Presentation] Centering first slide after content update');
-            goToSlide(0);
-          }
-        }, 50);
         // Successfully updated slides
       } else {
         console.warn('[React Presentation] No valid content received');
@@ -1477,6 +1478,16 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       window.removeEventListener('updatePresentationContent', handleContentUpdate);
     };
   }, []);
+
+  // Reconcile navigation only after React has committed the newly parsed deck.
+  // This avoids a stale delayed callback overwriting a presenter action taken
+  // immediately after a live content refresh.
+  useEffect(() => {
+    if (pendingContentSlideRef.current === null || slides.length === 0) return;
+    const slideIndex = Math.min(pendingContentSlideRef.current, slides.length - 1);
+    pendingContentSlideRef.current = null;
+    goToSlide(slideIndex);
+  }, [slides, goToSlide]);
 
   useEffect(() => {
     if (slides.length === 0) return;
