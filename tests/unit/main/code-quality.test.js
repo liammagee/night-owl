@@ -615,6 +615,12 @@ describe('Code quality guardrails', () => {
       expect(componentSource).toContain('presentation-stage');
       expect(componentSource).toContain('slide-content-frame');
       expect(componentSource).toContain('slide-content-delivery');
+      const navigationStart = componentSource.indexOf('goToSlide = useCallback');
+      const deliveryGate = componentSource.indexOf('if (!isPresenting)', navigationStart);
+      const canvasGate = componentSource.indexOf('if (!canvas)', navigationStart);
+      expect(navigationStart).toBeGreaterThan(-1);
+      expect(deliveryGate).toBeGreaterThan(navigationStart);
+      expect(canvasGate).toBeGreaterThan(deliveryGate);
     }
 
     expect(presentationSource).toContain('if (isPresenting && !isCurrent) return null');
