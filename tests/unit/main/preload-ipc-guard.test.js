@@ -67,7 +67,7 @@ describe('preload IPC guard', () => {
     expect(() => bridge.terminal.exec({ cwd: '/tmp' })).toThrow(/Invalid payload for terminal-exec/);
     expect(() => bridge.git.stage({ repoRoot: '/repo', paths: 'all' })).toThrow(/request.paths/);
     expect(() => bridge.files.saveFile({ filePath: '/tmp/a.md' })).toThrow(/file.content/);
-    expect(() => bridge.collaboration.startServer({ port: 70000 })).toThrow(/options.port/);
+    expect(bridge.collaboration).toBeUndefined();
     expect(() => bridge.pdfResearch.saveAnnotations({ filePath: '/tmp/paper.pdf', highlights: 'all', annotations: [] }))
       .toThrow(/request.highlights/);
     expect(() => bridge.publishing.preview({ files: [{ sourcePath: '/tmp/a.md' }], options: {} }))
@@ -83,6 +83,7 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_INVOKE_CHANNELS.has('terminal-resize')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('performance:get-resource-diagnostics')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('pdf-research-load-annotations')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('collab-start-server')).toBe(false);
     expect(ALLOWED_INVOKE_CHANNELS.has('shell-run')).toBe(false);
     expect(ALLOWED_ON_CHANNELS.has('settings-changed')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:items')).toBe(true);
@@ -90,6 +91,7 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_ON_CHANNELS.has('feed:source-error')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('toggle-assistant-terminal')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('open-diagnostics')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('collab-remote-edit')).toBe(false);
     expect(ALLOWED_SEND_CHANNELS.has('save-layout')).toBe(true);
     expect(getInvokeContract('git-stage')).toEqual({
       channel: 'git-stage',

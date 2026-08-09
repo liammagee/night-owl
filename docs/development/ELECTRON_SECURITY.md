@@ -38,7 +38,7 @@ or environment-dependent preload failure.
 ## Verification
 
 - Unit contract tests prove arbitrary channel strings are not exposed and
-  malformed terminal, Git, file, collaboration, and credential payloads fail.
+  malformed terminal, Git, file, publishing, and credential payloads fail.
 - Main-process tests prove foreign WebContents and app subframes cannot invoke
   privileged handlers.
 - Required Electron tests inspect the real context-bridged API and exercise a

@@ -455,7 +455,6 @@ test('@required @ipc-contract preload exposes fixed capabilities and rejects mal
       terminal: () => api.terminal.exec({ cwd: '/tmp' }),
       git: () => api.git.stage({ repoRoot: '/tmp', paths: 'all' }),
       file: () => api.files.saveFile({ filePath: '/tmp/missing-content.md' }),
-      collaboration: () => api.collaboration.startServer({ port: 70000 }),
       pdfResearch: () => api.pdfResearch.saveAnnotations({
         filePath: '/tmp/paper.pdf', highlights: 'all', annotations: []
       })
@@ -476,6 +475,12 @@ test('@required @ipc-contract preload exposes fixed capabilities and rejects mal
       },
       capabilities: ['files', 'git', 'terminal', 'settings', 'pdfResearch', 'events', 'signals']
         .filter(name => typeof api[name] === 'object'),
+      retiredCollaboration: {
+        capability: typeof api.collaboration,
+        actions: window.NightOwlActions.list()
+          .map(action => action.id)
+          .filter(actionId => actionId.startsWith('collaboration.'))
+      },
       rejected,
       settingsLoaded: Boolean(settings && typeof settings === 'object')
     };
@@ -483,6 +488,7 @@ test('@required @ipc-contract preload exposes fixed capabilities and rejects mal
 
   expect(result.generic).toEqual({ invoke: 'undefined', on: 'undefined', send: 'undefined' });
   expect(result.capabilities).toEqual(['files', 'git', 'terminal', 'settings', 'pdfResearch', 'events', 'signals']);
+  expect(result.retiredCollaboration).toEqual({ capability: 'undefined', actions: [] });
   expect(result.settingsLoaded).toBe(true);
   for (const message of Object.values(result.rejected)) {
     expect(message).toMatch(/Invalid payload/);
