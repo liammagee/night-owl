@@ -1494,8 +1494,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     if (pendingContentSlideRef.current === null || slides.length === 0) return;
     const slideIndex = Math.min(pendingContentSlideRef.current, slides.length - 1);
     pendingContentSlideRef.current = null;
+    // Delivery mode has no overview canvas to reconcile. The state and ref were
+    // committed in handleContentUpdate; navigating again from this passive
+    // effect can race a presenter Next/Previous action after live reload.
+    if (isPresenting) return;
     goToSlide(slideIndex);
-  }, [slides, goToSlide]);
+  }, [slides, isPresenting, goToSlide]);
 
   useEffect(() => {
     if (slides.length === 0) return;
@@ -1606,19 +1610,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Center view on first slide when slides are initially loaded
   useEffect(() => {
-    if (slides.length > 0 && canvasRef.current) {
-      // Only center if we're at the initial position (haven't moved around yet)
-      if (pan.x === 0 && pan.y === 0 && zoom === 1 && currentSlide === 0) {
-        console.log('[Presentation] Initial slides loaded, centering on first slide');
-        // Small delay to ensure canvas is properly rendered
-        setTimeout(() => {
-          if (canvasRef.current && canvasRef.current.clientWidth > 0) {
-            goToSlide(0);
-          }
-        }, 100);
+    if (isPresenting || slides.length === 0 || !canvasRef.current) return undefined;
+    if (pan.x !== 0 || pan.y !== 0 || zoom !== 1 || currentSlide !== 0) return undefined;
+
+    console.log('[Presentation] Initial slides loaded, centering on first slide');
+    const timer = setTimeout(() => {
+      if (canvasRef.current && canvasRef.current.clientWidth > 0) {
+        goToSlide(0);
       }
-    }
-  }, [slides.length, pan.x, pan.y, zoom, currentSlide, goToSlide]);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [slides.length, pan.x, pan.y, zoom, currentSlide, isPresenting, goToSlide]);
 
   // Render math in slides whenever slides change or current slide changes
   useEffect(() => {

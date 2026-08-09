@@ -641,9 +641,21 @@ describe('Code quality guardrails', () => {
       const navigationStart = componentSource.indexOf('goToSlide = useCallback');
       const deliveryGate = componentSource.indexOf('if (!isPresenting)', navigationStart);
       const canvasGate = componentSource.indexOf('if (!canvas)', navigationStart);
+      const reconciliationStart = componentSource.indexOf('pendingContentSlideRef.current === null');
+      const reconciliationDeliveryGate = componentSource.indexOf('if (isPresenting) return;', reconciliationStart);
+      const reconciliationNavigation = componentSource.indexOf('goToSlide(slideIndex);', reconciliationStart);
+      const initialCenterStart = componentSource.indexOf('Center view on first slide when slides are initially loaded');
+      const initialCenterDeliveryGate = componentSource.indexOf('if (isPresenting || slides.length === 0', initialCenterStart);
+      const initialCenterCleanup = componentSource.indexOf('clearTimeout(timer)', initialCenterStart);
       expect(navigationStart).toBeGreaterThan(-1);
       expect(deliveryGate).toBeGreaterThan(navigationStart);
       expect(canvasGate).toBeGreaterThan(deliveryGate);
+      expect(reconciliationStart).toBeGreaterThan(canvasGate);
+      expect(reconciliationDeliveryGate).toBeGreaterThan(reconciliationStart);
+      expect(reconciliationNavigation).toBeGreaterThan(reconciliationDeliveryGate);
+      expect(initialCenterStart).toBeGreaterThan(reconciliationNavigation);
+      expect(initialCenterDeliveryGate).toBeGreaterThan(initialCenterStart);
+      expect(initialCenterCleanup).toBeGreaterThan(initialCenterDeliveryGate);
     }
 
     expect(presentationSource).toContain('if (isPresenting && !isCurrent) return null');

@@ -1213,7 +1213,15 @@ test('@required @presentation-tools preflight and presenter state survive conten
 
   await presenter.getByRole('button', { name: 'Next' }).click();
   await expect(presenter.locator('#presenter-current-title')).toHaveText('Slide 2');
-  await presenter.getByRole('button', { name: 'Previous' }).click();
+  await expect(presenter).toHaveAttribute('data-current-slide', '1');
+  const previousPresenterSlide = presenter.getByRole('button', { name: 'Previous' });
+  await expect(previousPresenterSlide).toBeEnabled();
+  await appPage.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }));
+  await expect(presenter).toHaveAttribute('data-current-slide', '1');
+  await expect(previousPresenterSlide).toBeEnabled();
+  await previousPresenterSlide.click();
   await expect(presenter.locator('#presenter-current-title')).toHaveText('Crowded slide reloaded');
 
   await appPage.getByRole('button', { name: 'Exit presentation' }).click();
