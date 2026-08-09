@@ -1,22 +1,22 @@
 {
-  "generated": "2026-08-09T01:23:47.142Z",
+  "generated": "2026-08-09T01:52:08.578Z",
   "counts": {
     "total": 29,
     "byStatus": {
-      "triaged": 4,
-      "done": 25
+      "triaged": 3,
+      "done": 26
     },
     "byPriority": {
-      "P1": 13,
       "P2": 12,
       "P3": 1,
-      "P0": 3
+      "P0": 3,
+      "P1": 13
     },
     "byArea": {
-      "editor": 3,
       "platform": 6,
       "preview": 3,
       "presentation": 4,
+      "editor": 3,
       "testing": 3,
       "packaging": 2,
       "security": 2,
@@ -27,30 +27,6 @@
     }
   },
   "items": [
-    {
-      "id": "reviewable-ai-edit-proposals",
-      "title": "Make AI document edits reviewable and attributable",
-      "status": "triaged",
-      "type": "enhancement",
-      "priority": "P1",
-      "area": "editor",
-      "owner": "codex",
-      "source": "systematic-review",
-      "evidence": "opportunity",
-      "created": "2026-08-09",
-      "updated": "2026-08-09",
-      "verification": "An AI editing action presents a deterministic proposed diff with disclosed context and provider provenance, and applies only explicitly accepted hunks through Monaco's undoable edit path.",
-      "tags": [
-        "ai",
-        "diff",
-        "privacy",
-        "provenance"
-      ],
-      "depends_on": [
-        "unify-command-and-shortcut-registry",
-        "renderer-error-telemetry-and-recovery"
-      ]
-    },
     {
       "id": "capability-health-and-workflow-presets",
       "title": "Add capability health and focused workflow presets",
@@ -376,6 +352,30 @@
         "build",
         "macos",
         "release"
+      ]
+    },
+    {
+      "id": "reviewable-ai-edit-proposals",
+      "title": "Make AI document edits reviewable and attributable",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "editor",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "An AI editing action presents a deterministic proposed diff with disclosed context and provider provenance, and applies only explicitly accepted hunks through Monaco's undoable edit path.",
+      "tags": [
+        "ai",
+        "diff",
+        "privacy",
+        "provenance"
+      ],
+      "depends_on": [
+        "unify-command-and-shortcut-registry",
+        "renderer-error-telemetry-and-recovery"
       ]
     },
     {

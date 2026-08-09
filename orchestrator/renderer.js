@@ -2301,31 +2301,40 @@ async function handleAISummarization(ed) {
     if (!validation.isValid) return;
     
     const { selection, selectedText } = validation;
+    const proposalAPI = window.NightOwlAIEditProposals;
+    if (!proposalAPI) {
+        showNotification('Reviewable AI edits are unavailable', 'error');
+        return;
+    }
+    const capturedSource = proposalAPI.captureEditorSource(ed, selection);
     
     try {
         showNotification('Generating speaker notes...', 'info');
         
-        const result = await window.electronAPI.ai.summarizeTextToNotes(selectedText);
-        
-        if (result.error) {
-            console.error('[renderer.js] AI summarization failed:', result.error);
-            showNotification(`Error: ${result.error}`, 'error');
-            return;
-        }
-        
-        if (result.success) {
+        const prompt = `Generate a concise H3 heading (###) and summarize the selected text into 3-5 one-line bullet points suitable for one presentation slide. Return only the heading and bullets.\n\n<selected_text>\n${selectedText}\n</selected_text>`;
+        const result = await proposalAPI.request({
+            prompt,
+            contextLabel: 'Text selected for speaker-note summarization',
+            contextText: selectedText,
+            recipe: 'presentation-speaker-notes-v1',
+            requestOptions: { newConversation: true, temperature: 0.3, maxTokens: 1000 }
+        });
+
+        if (result) {
             // Replace selected text with bullet points and put original text in notes block
-            const bulletPoints = result.summary; // AI-generated bullet points
+            const bulletPoints = result.text; // AI-generated bullet points
             const originalText = selectedText; // Original selected text
             const notesText = bulletPoints + '\n\n```notes\n' + originalText + '\n```';
-            
-            ed.executeEdits('ai-summarization', [{
+
+            proposalAPI.reviewEditorEdit({
+                editor: ed,
                 range: selection,
-                text: notesText
-            }]);
-            
-            showNotification(`Speaker notes generated using ${result.provider} (${result.model})`, 'success');
-            
+                capturedSource,
+                replacementText: notesText,
+                title: 'Review AI speaker-note summary',
+                provenance: result.provenance,
+                context: result.context
+            });
         }
     } catch (error) {
         console.error('[renderer.js] Error in AI summarization:', error);
@@ -2375,12 +2384,36 @@ async function handleScholarSupport(ed) {
     if (!validation.isValid) return;
     
     const { selection, selectedText } = validation;
+    const proposalAPI = window.NightOwlAIEditProposals;
+    if (!proposalAPI) {
+        showNotification('Reviewable AI edits are unavailable', 'error');
+        return;
+    }
     
     try {
         showNotification('🤔 Dr. Chen is analyzing your selection...', 'info');
         
         // Get full document content for context
         const fullContent = ed.getValue();
+        const documentContext = fullContent.length > 3000 ? fullContent.substring(0, 3000) + '...' : fullContent;
+
+        // Capture the insertion revision before the provider request starts.
+        const selectionStart = selection.getStartPosition();
+        let insertLineNumber = selectionStart.lineNumber;
+        for (let i = selectionStart.lineNumber - 1; i >= 1; i--) {
+            const lineContent = ed.getModel().getLineContent(i);
+            if (lineContent.trim() === '') {
+                insertLineNumber = i + 1;
+                break;
+            }
+        }
+        const insertRange = {
+            startLineNumber: insertLineNumber,
+            startColumn: 1,
+            endLineNumber: insertLineNumber,
+            endColumn: 1
+        };
+        const capturedSource = proposalAPI.captureEditorSource(ed, insertRange);
         
         // Build prompt for Dr. Chen
         const prompt = `I am Dr. Chen, an AI assistant specializing in academic writing and scholarly document organization.
@@ -2388,7 +2421,7 @@ async function handleScholarSupport(ed) {
 You are working on a scholarly document. I need to generate a concise, contextual heading for a selected text passage.
 
 DOCUMENT CONTEXT (for understanding existing heading style and content themes):
-${fullContent.length > 3000 ? fullContent.substring(0, 3000) + '...' : fullContent}
+${documentContext}
 
 SELECTED TEXT TO SUMMARIZE:
 ${selectedText}
@@ -2403,24 +2436,17 @@ Use ## markdown heading format.
 
 Respond with ONLY the heading text (including the ## markdown symbols). No explanation or additional text.`;
 
-        const result = await window.electronAPI.ai.aiChat({
-            message: prompt,
-            options: {
-                temperature: 0.3,
-                maxTokens: 100,
-                newConversation: true
-            }
+        const result = await proposalAPI.request({
+            prompt,
+            contextLabel: 'Heading style context and selected text',
+            contextText: `DOCUMENT CONTEXT:\n${documentContext}\n\nSELECTED TEXT:\n${selectedText}`,
+            recipe: 'scholarly-heading-v1',
+            requestOptions: { temperature: 0.3, maxTokens: 100, newConversation: true }
         });
-        
-        if (result.error) {
-            console.error('[renderer.js] 🎓 Scholar support failed:', result.error);
-            showNotification(`Error generating heading: ${result.error}`, 'error');
-            return;
-        }
-        
-        if (result.response) {
+
+        if (result?.text) {
             // Clean up the AI response
-            let heading = result.response.trim();
+            let heading = result.text.trim();
             heading = heading.replace(/^["']|["']$/g, ''); // Remove quotes
             if (!heading.startsWith('#')) {
                 heading = '## ' + heading;
@@ -2430,29 +2456,18 @@ Respond with ONLY the heading text (including the ## markdown symbols). No expla
             
 ;
             
-            // Find insertion point - look for preceding paragraph break
-            const selectionStart = selection.getStartPosition();
-            let insertLineNumber = selectionStart.lineNumber;
-            
-            // Find the preceding paragraph break (empty line or start of document)
-            for (let i = selectionStart.lineNumber - 1; i >= 1; i--) {
-                const lineContent = ed.getModel().getLineContent(i);
-                if (lineContent.trim() === '') {
-                    insertLineNumber = i + 1;
-                    break;
-                }
-            }
-            
             // Insert heading with proper spacing
             const insertText = insertLineNumber === 1 ? `${heading}\n\n` : `\n${heading}\n\n`;
-            const insertPosition = { lineNumber: insertLineNumber, column: 1 };
-            
-            ed.executeEdits('scholar-support', [{
-                range: new monaco.Range(insertPosition.lineNumber, insertPosition.column, insertPosition.lineNumber, insertPosition.column),
-                text: insertText
-            }]);
-            
-            showNotification(`🎓 AI heading inserted: "${heading}"`, 'success');
+
+            proposalAPI.reviewEditorEdit({
+                editor: ed,
+                range: insertRange,
+                capturedSource,
+                replacementText: insertText,
+                title: 'Review AI heading insertion',
+                provenance: result.provenance,
+                context: result.context
+            });
         }
         
     } catch (error) {
@@ -13434,7 +13449,9 @@ async function showQuickOpen() {
             window.electronAPI.workspace.getRecentFiles().catch(() => []),
             indexRequest.catch(() => null)
         ]);
-        recentFiles = recentResult;
+        recentFiles = (Array.isArray(recentResult) ? recentResult : [])
+            .map(file => typeof file === 'string' ? { path: file } : file)
+            .filter(file => typeof file?.path === 'string' && file.path.length > 0);
         workspaceFiles = (indexedResult?.files || []).map(file => (
             typeof file === 'string' ? { path: file, format: 'markdown' } : file
         ));
@@ -13444,9 +13461,15 @@ async function showQuickOpen() {
     }
 
     // Build combined list: recent files first, then workspace files (deduplicated)
-    const recentSet = new Set(recentFiles);
+    const recentSet = new Set(recentFiles.map(file => file.path));
     const allFiles = [
-        ...recentFiles.map(f => ({ path: f, isRecent: true })),
+        ...recentFiles.map(file => ({
+            path: file.path,
+            relativePath: file.relativePath,
+            format: file.format || file.type,
+            title: file.title || file.name,
+            isRecent: true
+        })),
         ...workspaceFiles.filter(f => !recentSet.has(f.path)).map(f => ({
             path: f.path,
             relativePath: f.relativePath,

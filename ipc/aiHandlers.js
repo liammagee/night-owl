@@ -454,6 +454,7 @@ function register(deps) {
           enableContextAwareness: aiSettings.enableContextAwareness !== false,
           maxContextFiles: aiSettings.maxContextFiles || 5,
           enableWritingCompanion: aiSettings.enableWritingCompanion !== false,
+          allowRemoteDocumentContext: aiSettings.allowRemoteDocumentContext !== false,
           localAIUrl: aiSettings.localAIUrl || 'http://localhost:1234/'
         }
       };

@@ -430,6 +430,7 @@ const defaultSettings = {
         enableChat: true,
         enableSummarization: true,
         enableNoteExtraction: true,
+        allowRemoteDocumentContext: true,
         verboseLogging: false, // true: log full messages, false: log previews only
         chatHistory: {
             persist: true,

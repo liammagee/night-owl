@@ -89,37 +89,73 @@ Output ONLY the markdown outline (headings and optional bullet points), no other
       }
 
       try {
-        const result = await window.electronAPI.ai.aiChat({
-          messages: [{ role: 'user', content: prompt }]
+        const proposalAPI = window.NightOwlAIEditProposals;
+        if (!proposalAPI) throw new Error('Reviewable AI edits are unavailable');
+        const model = window.editor?.getModel?.();
+        const cursor = window.editor?.getPosition?.();
+        if (!model || !cursor) throw new Error('The editor is unavailable');
+        const insertRange = {
+          startLineNumber: cursor.lineNumber,
+          startColumn: cursor.column,
+          endLineNumber: cursor.lineNumber,
+          endColumn: cursor.column
+        };
+        const capturedInsert = proposalAPI.captureEditorSource(window.editor, insertRange);
+        const capturedDocument = proposalAPI.captureEditorSource(window.editor, model.getFullModelRange());
+        const disclosedContext = [
+          existingContent ? `Existing content:\n${existingContent.slice(0, 1500)}` : '',
+          topic ? `Topic/instructions:\n${topic}` : ''
+        ].filter(Boolean).join('\n\n');
+        const result = await proposalAPI.request({
+          prompt,
+          contextLabel: existingContent ? 'Outline source and instructions' : 'Outline instructions',
+          contextText: disclosedContext,
+          recipe: `markdown-outline-${depth}-v1`,
+          requestOptions: { newConversation: true, temperature: 0.25 }
         });
 
-        if (result && result.content) {
+        if (!result) {
+          btn.textContent = 'Generate Outline';
+          btn.disabled = false;
+          return;
+        }
+
+        if (result.text) {
           const resultDiv = document.getElementById('outline-result');
           resultDiv.style.display = 'block';
           resultDiv.innerHTML = `
             <div style="font-size:12px;font-weight:bold;margin-bottom:6px;">Generated Outline:</div>
-            <pre style="background:var(--bg-secondary,#252526);border-radius:6px;padding:12px;font-size:12px;white-space:pre-wrap;max-height:300px;overflow-y:auto;">${esc(result.content)}</pre>
+            <pre style="background:var(--bg-secondary,#252526);border-radius:6px;padding:12px;font-size:12px;white-space:pre-wrap;max-height:300px;overflow-y:auto;">${esc(result.text)}</pre>
             <div style="display:flex;gap:6px;margin-top:8px;">
-              <button id="outline-insert" style="background:#4ec9b0;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;">Insert at Cursor</button>
-              <button id="outline-replace" style="background:#ce9178;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;">Replace Document</button>
+              <button id="outline-insert" style="background:#4ec9b0;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;">Review Insertion</button>
+              <button id="outline-replace" style="background:#ce9178;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;">Review Replacement</button>
             </div>
           `;
 
           document.getElementById('outline-insert').addEventListener('click', () => {
-            insertAtCursor(result.content);
             overlay.remove();
-            if (window.showNotification) window.showNotification('Outline inserted', 'success');
+            proposalAPI.reviewEditorEdit({
+              editor: window.editor,
+              range: insertRange,
+              capturedSource: capturedInsert,
+              replacementText: `${result.text}\n`,
+              title: 'Review AI outline insertion',
+              provenance: result.provenance,
+              context: result.context
+            });
           });
 
           document.getElementById('outline-replace').addEventListener('click', () => {
-            if (window.editor) {
-              const m = window.editor.getModel();
-              if (m) {
-                m.setValue(result.content);
-                if (window.showNotification) window.showNotification('Document replaced with outline', 'success');
-              }
-            }
             overlay.remove();
+            proposalAPI.reviewEditorEdit({
+              editor: window.editor,
+              range: capturedDocument.range,
+              capturedSource: capturedDocument,
+              replacementText: result.text,
+              title: 'Review AI outline replacement',
+              provenance: result.provenance,
+              context: result.context
+            });
           });
 
           btn.textContent = 'Regenerate';
@@ -139,16 +175,6 @@ Output ONLY the markdown outline (headings and optional bullet points), no other
     document.addEventListener('keydown', function handler(e) {
       if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', handler); }
     });
-  }
-
-  function insertAtCursor(text) {
-    if (!window.editor) return;
-    const pos = window.editor.getPosition();
-    if (!pos) return;
-    window.editor.executeEdits('ai-outline', [{
-      range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-      text: text + '\n'
-    }]);
   }
 
   function esc(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }

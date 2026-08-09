@@ -1101,6 +1101,13 @@ function generateAISettings() {
                     <input type="checkbox" id="ai-writing-companion-enabled" ${currentSettings.ai?.enableWritingCompanion !== false ? 'checked' : ''} onchange="toggleWritingCompanionOptions()">
                     <span>Enable AI Writing Companion</span>
                 </label>
+                <label>
+                    <input type="checkbox" id="ai-allow-remote-document-context" ${currentSettings.ai?.allowRemoteDocumentContext !== false ? 'checked' : ''}>
+                    <span>Allow remote providers to receive document context for AI edits</span>
+                </label>
+                <div style="margin-left: 20px; font-size: 11px; color: #666; margin-top: 2px;">
+                    When disabled, reviewable document edits remain available only with an explicitly configured local provider.
+                </div>
                 <div style="margin-left: 20px; font-size: 11px; color: #666; margin-top: 2px;">
                     Real-time flow detection, contextual feedback, and intelligent writing insights
                 </div>
@@ -2745,6 +2752,12 @@ function collectSettingsFromForm() {
     if (aiWritingCompanionEnabled !== undefined) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.enableWritingCompanion = aiWritingCompanionEnabled;
+    }
+
+    const aiAllowRemoteDocumentContext = document.getElementById('ai-allow-remote-document-context')?.checked;
+    if (aiAllowRemoteDocumentContext !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.allowRemoteDocumentContext = aiAllowRemoteDocumentContext;
     }
     
     const aiCompanionContextScope = document.getElementById('ai-companion-context-scope')?.value;

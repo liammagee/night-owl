@@ -169,6 +169,7 @@ test('@required @actions one registry drives commands, feature actions, shortcut
       'view.focusMode',
       'export.staticSite',
       'publishing.openWorkflows',
+      'ai.rewriteSelection',
       'presentation.preflight',
       'presentation.presenterConsole'
     ]
@@ -183,6 +184,7 @@ test('@required @actions one registry drives commands, feature actions, shortcut
       'view.focusMode',
       'export.staticSite',
       'publishing.openWorkflows',
+      'ai.rewriteSelection',
       'presentation.preflight',
       'presentation.presenterConsole'
     ],
@@ -214,6 +216,49 @@ test('@required @actions one registry drives commands, feature actions, shortcut
   await expect(appPage.locator('.publishing-workflows-dialog')).toBeVisible();
   await expect(appPage.locator('.publishing-workflows-dialog')).toContainText('Publishing workflows');
   await appPage.evaluate(() => window.NightOwlPublishingWorkflows.close());
+});
+
+test('@required @ai-edits AI changes remain reviewable, attributable, selective, and undoable', async ({ appPage }) => {
+  const source = 'Alpha line\nKeep this line\nGamma line\n';
+  await openMarkdown(appPage, '/virtual-workspace/reviewable-ai-edit.md', source);
+
+  const proposal = await appPage.evaluate(() => {
+    const api = window.NightOwlAIEditProposals;
+    const model = window.editor.getModel();
+    const range = model.getFullModelRange();
+    const created = api.createProposal({
+      ...api.captureEditorSource(window.editor, range),
+      replacementText: 'Beta line\nKeep this line\nDelta line\n',
+      context: { label: 'Selected Markdown', text: model.getValue() },
+      provenance: {
+        provider: 'local',
+        model: 'required-e2e-fixture',
+        recipe: 'selection-rewrite-v1',
+        usage: { inputTokens: 9, outputTokens: 8 }
+      }
+    });
+    api.showReview(created, window.editor);
+    return { id: created.id, hunks: created.hunks.length, before: model.getValue() };
+  });
+
+  expect(proposal).toMatchObject({ hunks: 2, before: source });
+  const review = appPage.locator('#ai-edit-review');
+  await expect(review).toBeVisible();
+  await expect(review).toContainText('required-e2e-fixture');
+  await expect(review).toContainText('selection-rewrite-v1');
+  await expect(review.locator('.ai-edit-hunk')).toHaveCount(2);
+  await expect(review.locator('details.ai-edit-context')).toContainText('Selected Markdown');
+  expect(await appPage.evaluate(() => window.editor.getValue())).toBe(source);
+
+  await review.locator('.ai-edit-hunk').first().locator('[data-ai-edit-decision="reject"]').click();
+  await review.locator('[data-ai-edit-apply]').click();
+  await expect(review).toBeHidden();
+  expect(await appPage.evaluate(() => window.editor.getValue())).toBe(
+    'Alpha line\nKeep this line\nDelta line\n'
+  );
+
+  await appPage.evaluate(() => window.editor.trigger('required-e2e', 'undo'));
+  expect(await appPage.evaluate(() => window.editor.getValue())).toBe(source);
 });
 
 test('@required @workspace-index one index drives multi-format discovery, links, graph, and rename previews', async ({ appPage }) => {

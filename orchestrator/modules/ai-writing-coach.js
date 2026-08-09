@@ -84,15 +84,12 @@
    * Get AI-powered writing feedback using the existing AI chat system.
    */
   async function getAIFeedback(text) {
-    if (!window.electronAPI) return null;
+    if (!window.NightOwlAIEditProposals) return null;
 
     const excerpt = text.length > 3000 ? text.slice(0, 3000) + '\n...[truncated]' : text;
 
     try {
-      const result = await window.electronAPI.ai.aiChat({
-        messages: [{
-          role: 'user',
-          content: `You are a writing coach. Analyze this text and provide brief, actionable feedback in these categories:
+      const prompt = `You are a writing coach. Analyze this text and provide brief, actionable feedback in these categories:
 1. **Clarity**: Is the writing clear? Any confusing passages?
 2. **Structure**: Is it well-organized?
 3. **Style**: Any style issues (wordiness, passive voice, jargon)?
@@ -102,12 +99,17 @@
 Keep each point to 1-2 sentences. Be constructive.
 
 Text:
-${excerpt}`
-        }]
+${excerpt}`;
+      const result = await window.NightOwlAIEditProposals.request({
+        prompt,
+        contextLabel: 'Document excerpt submitted to the writing coach',
+        contextText: excerpt,
+        recipe: 'writing-coach-feedback-v1',
+        requestOptions: { newConversation: true, temperature: 0.3 }
       });
 
-      if (result && result.content) {
-        return result.content;
+      if (result?.text) {
+        return result;
       }
       return null;
     } catch (e) {
@@ -212,7 +214,8 @@ ${excerpt}`
       if (feedback) {
         section.innerHTML = `
           <div style="font-size:12px;font-weight:bold;margin-bottom:6px;">AI Feedback:</div>
-          <div style="font-size:12px;line-height:1.6;background:var(--bg-secondary,#252526);border-radius:6px;padding:12px;white-space:pre-wrap;">${esc(feedback)}</div>
+          <div style="font-size:12px;line-height:1.6;background:var(--bg-secondary,#252526);border-radius:6px;padding:12px;white-space:pre-wrap;">${esc(feedback.text)}</div>
+          <div style="font-size:10px;color:#888;margin-top:6px;">${esc(feedback.provenance.provider)} · ${esc(feedback.provenance.model)} · ${esc(feedback.provenance.recipe)}</div>
         `;
       } else {
         section.innerHTML = '<div style="font-size:12px;color:#888;">AI feedback unavailable. Check your AI settings.</div>';
