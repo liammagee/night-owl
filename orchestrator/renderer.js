@@ -6897,10 +6897,11 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
         if (!isTransitionCurrent(transition)) return;
     }
 
-    // Trigger slide thumbnail strip on file open (not just on content change)
-    if (fileTypes.isMarkdown && content) {
-        updateSlideThumbnails(content);
-    }
+    // A file transition must replace or hide thumbnails immediately. A delayed
+    // render can otherwise expose the previous document's slide content until
+    // the typing debounce expires.
+    clearTimeout(slideThumbnailTimer);
+    renderSlideThumbnails(fileTypes.isMarkdown ? content : '');
 
     // Update last saved content for auto-save tracking
     lastSavedContent = content;
@@ -13649,6 +13650,10 @@ function renderSlideThumbnails(content) {
 
     // Only show if there are 2+ slides and user hasn't hidden them
     if (slides.length < 2) {
+        _thumbnailObserver?.disconnect();
+        _thumbnailObserver = null;
+        strip.replaceChildren();
+        _lastThumbnailHash = _quickHash(content);
         strip.style.display = 'none';
         updateSlidesSidebarButton(content);
         return;

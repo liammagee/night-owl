@@ -244,7 +244,10 @@ test('@required @workspace-index one index drives multi-format discovery, links,
       budget: { maxFiles: expect.any(Number), maxContentBytes: expect.any(Number), yieldEvery: expect.any(Number) }
     });
 
-    await appPage.evaluate(() => window.showQuickOpen());
+    await appPage.evaluate(async () => {
+      if (document.querySelector('#quick-open-results')) await window.showQuickOpen();
+      await window.showQuickOpen();
+    });
     await expect(appPage.locator('#quick-open-results')).toContainText('items.jsonl');
     await expect(appPage.locator('#quick-open-results')).toContainText('labels.csv');
     await expect(appPage.locator('.quick-open-index-status')).toContainText('indexed files');
