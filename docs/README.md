@@ -35,6 +35,8 @@ backlogs.
   benchmark matrix, threshold semantics, and Chromium trace comparison.
 - [Structured record schemas](structured-record-schemas.md) — optional JSONL/CSV
   task schemas, validation, progress, and export checks.
+- [PDF research](development/PDF_RESEARCH.md) — packaged annotations, stable
+  document identity, citation links, and provenance-rich Markdown notes.
 
 ## Presentation and distribution
 

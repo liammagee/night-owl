@@ -56,6 +56,7 @@ describe('preload IPC guard', () => {
     expect(bridge.git.status).toEqual(expect.any(Function));
     expect(bridge.terminal.exec).toEqual(expect.any(Function));
     expect(bridge.feed.setCredential).toEqual(expect.any(Function));
+    expect(bridge.pdfResearch.loadAnnotations).toEqual(expect.any(Function));
     expect(Object.isFrozen(bridge)).toBe(true);
   });
 
@@ -67,6 +68,8 @@ describe('preload IPC guard', () => {
     expect(() => bridge.git.stage({ repoRoot: '/repo', paths: 'all' })).toThrow(/request.paths/);
     expect(() => bridge.files.saveFile({ filePath: '/tmp/a.md' })).toThrow(/file.content/);
     expect(() => bridge.collaboration.startServer({ port: 70000 })).toThrow(/options.port/);
+    expect(() => bridge.pdfResearch.saveAnnotations({ filePath: '/tmp/paper.pdf', highlights: 'all', annotations: [] }))
+      .toThrow(/request.highlights/);
     expect(ipcRenderer.invoke).not.toHaveBeenCalled();
   });
 
@@ -77,6 +80,7 @@ describe('preload IPC guard', () => {
     expect(ALLOWED_INVOKE_CHANNELS.has('get-tutor-core-status')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('terminal-resize')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('performance:get-resource-diagnostics')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('pdf-research-load-annotations')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('shell-run')).toBe(false);
     expect(ALLOWED_ON_CHANNELS.has('settings-changed')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:items')).toBe(true);
@@ -94,6 +98,11 @@ describe('preload IPC guard', () => {
       channel: 'read-file',
       capability: 'files',
       method: 'readFile'
+    });
+    expect(getInvokeContract('pdf-research-create-note')).toEqual({
+      channel: 'pdf-research-create-note',
+      capability: 'pdfResearch',
+      method: 'createNote'
     });
   });
 
