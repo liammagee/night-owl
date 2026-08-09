@@ -12801,6 +12801,10 @@ if (window.electronAPI?.events) {
         window.showQuickOpen?.();
     });
 
+    window.electronAPI.events.duplicateSelectedFolder(() => {
+        window.duplicateSelectedFolder?.();
+    });
+
     window.electronAPI.events.showKeyboardShortcuts(() => {
         window.showKeyboardShortcuts?.();
     });

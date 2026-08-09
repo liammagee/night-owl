@@ -268,6 +268,7 @@ const ALLOWED_ON_CHANNELS = new Set([
   'context-menu-command',
   'current-file-changed-on-disk',
   'current-file-deleted-on-disk',
+  'duplicate-selected-folder',
   'exit-presentation',
   'feed:items',
   'feed:scored',
