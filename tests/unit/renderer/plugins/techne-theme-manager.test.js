@@ -1,7 +1,9 @@
 const path = require('path');
+const fs = require('fs');
 
 const themesPath = path.resolve(__dirname, '../../../../plugins/techne-theme-manager/themes.js');
 const themeManagerPath = path.resolve(__dirname, '../../../../plugins/techne-theme-manager/theme-manager.js');
+const themeTokensPath = path.resolve(__dirname, '../../../../plugins/techne-theme-manager/techne-tokens.css');
 
 describe('Techne theme manager defaults', () => {
   function createHost() {
@@ -64,5 +66,33 @@ describe('Techne theme manager defaults', () => {
     expect(window.techneThemeManager.getActiveTheme()).toBe('solarized-light');
     expect(document.body.getAttribute('data-techne-theme')).toBe('solarized-light');
     expect(document.documentElement.style.getPropertyValue('--techne-surface')).toBe('#eee8d5');
+  });
+
+  test('built-in themes only override declared canonical tokens and include stable metadata', () => {
+    const tokenSource = fs.readFileSync(themeTokensPath, 'utf8');
+    const declaredTokens = new Set(
+      Array.from(tokenSource.matchAll(/(--techne-[a-z0-9-]+)\s*:/g), match => match[1])
+    );
+    const themes = window._TECHNE_THEMES;
+
+    expect(Object.keys(themes).length).toBeGreaterThan(0);
+    for (const [themeId, theme] of Object.entries(themes)) {
+      expect(themeId).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+      expect(theme.name).toEqual(expect.any(String));
+      expect(theme.name.trim()).not.toBe('');
+      expect(theme.description).toEqual(expect.any(String));
+      expect(theme.description.trim()).not.toBe('');
+      expect(['', 'techne-dark']).toContain(theme.bodyClass);
+
+      const overrideNames = Object.keys(theme.tokens || {});
+      expect({
+        themeId,
+        undeclaredTokens: overrideNames.filter(tokenName => !declaredTokens.has(tokenName))
+      }).toEqual({ themeId, undeclaredTokens: [] });
+      expect({
+        themeId,
+        legacyAliases: overrideNames.filter(tokenName => !tokenName.startsWith('--techne-'))
+      }).toEqual({ themeId, legacyAliases: [] });
+    }
   });
 });

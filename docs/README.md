@@ -20,6 +20,8 @@ backlogs.
   discovery, search, link identities, rename planning, and bounded refreshes.
 - [UI state](development/UI_STATE.md) — canonical mode, pane, fullscreen,
   source, and record-mode state.
+- [Theme design brief](development/THEME_DESIGN_BRIEF.md) — canonical semantic
+  color roles, contrast requirements, component states, and conformance gates.
 - [Error diagnostics](development/ERROR_DIAGNOSTICS.md) — correlation,
   redaction, recovery actions, and diagnostic reports.
 - [Refactoring guide](development/FUTURE_REFACTORING_PLAN.md) — verified
