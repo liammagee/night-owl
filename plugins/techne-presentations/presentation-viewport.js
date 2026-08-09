@@ -9,6 +9,11 @@
     return Number.isFinite(number) && number > 0 ? number : 0;
   };
 
+  const finiteInset = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : 0;
+  };
+
   function calculateFitScale(viewportWidth, viewportHeight, options = {}) {
     const width = finiteDimension(viewportWidth);
     const height = finiteDimension(viewportHeight);
@@ -29,14 +34,25 @@
     slideY = 0,
     slideWidth = SLIDE_WIDTH,
     slideHeight = SLIDE_HEIGHT,
-    padding = 12
+    padding = 12,
+    insets = {}
   } = {}) {
     const width = finiteDimension(viewportWidth);
     const height = finiteDimension(viewportHeight);
-    const scale = calculateFitScale(width, height, { slideWidth, slideHeight, padding });
+    const left = finiteInset(insets.left);
+    const right = finiteInset(insets.right);
+    const top = finiteInset(insets.top);
+    const bottom = finiteInset(insets.bottom);
+    const insetWidth = Math.max(0, width - left - right);
+    const insetHeight = Math.max(0, height - top - bottom);
+    const fitWidth = insetWidth || width;
+    const fitHeight = insetHeight || height;
+    const centerX = insetWidth ? left + insetWidth / 2 : width / 2;
+    const centerY = insetHeight ? top + insetHeight / 2 : height / 2;
+    const scale = calculateFitScale(fitWidth, fitHeight, { slideWidth, slideHeight, padding });
     const pan = {
-      x: width / 2 - Number(slideX || 0) * scale,
-      y: height / 2 - Number(slideY || 0) * scale
+      x: centerX - Number(slideX || 0) * scale,
+      y: centerY - Number(slideY || 0) * scale
     };
     const renderedWidth = slideWidth * scale;
     const renderedHeight = slideHeight * scale;
@@ -45,10 +61,10 @@
       scale,
       pan,
       bounds: {
-        left: width / 2 - renderedWidth / 2,
-        top: height / 2 - renderedHeight / 2,
-        right: width / 2 + renderedWidth / 2,
-        bottom: height / 2 + renderedHeight / 2,
+        left: centerX - renderedWidth / 2,
+        top: centerY - renderedHeight / 2,
+        right: centerX + renderedWidth / 2,
+        bottom: centerY + renderedHeight / 2,
         width: renderedWidth,
         height: renderedHeight
       }

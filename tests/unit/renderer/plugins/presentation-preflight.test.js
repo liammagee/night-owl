@@ -37,6 +37,41 @@ describe('presentation preflight', () => {
     ]);
   });
 
+  test('excludes YAML front matter and recognizes CommonMark thematic slide breaks', () => {
+    const slides = preflight.splitSlides([
+      '---',
+      'title: The deck title',
+      'course: 479',
+      '---',
+      '',
+      '# Opening',
+      'First slide',
+      '',
+      '* * *',
+      '',
+      '## Second',
+      'A fenced thematic break stays in this slide:',
+      '```text',
+      '***',
+      '```',
+      '',
+      '___',
+      '# Third'
+    ].join('\n'));
+
+    expect(slides).toEqual([
+      expect.objectContaining({ index: 0, startLine: 6, endLine: 7, title: 'Opening' }),
+      expect.objectContaining({ index: 1, startLine: 11, endLine: 15, title: 'Second' }),
+      expect.objectContaining({ index: 2, startLine: 18, endLine: 18, title: 'Third' })
+    ]);
+    expect(slides[1].markdown).toContain('\n***\n');
+  });
+
+  test('does not mistake an opening separator without YAML keys for front matter', () => {
+    const slides = preflight.splitSlides('---\n# First\n---\n# Second');
+    expect(slides.map(slide => slide.title)).toEqual(['First', 'Second']);
+  });
+
   test('reports source-actionable headings and image alternatives', () => {
     const slides = preflight.splitSlides('# Good\n\n![](diagram.png)\n\n---\n\nNo heading');
     const warnings = preflight.analyzeMarkdownSlides(slides);

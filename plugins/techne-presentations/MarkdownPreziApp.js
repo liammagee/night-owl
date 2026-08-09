@@ -155,7 +155,6 @@ var ZoomOut = function ZoomOut() {
   }));
 };
 var presentationViewport = window.NightOwlPresentationViewport;
-var presentationPreflight = window.NightOwlPresentationPreflight;
 var SLIDE_WIDTH = (presentationViewport === null || presentationViewport === void 0 ? void 0 : presentationViewport.SLIDE_WIDTH) || 864;
 var SLIDE_HEIGHT = (presentationViewport === null || presentationViewport === void 0 ? void 0 : presentationViewport.SLIDE_HEIGHT) || 486;
 var SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
@@ -204,7 +203,7 @@ var PresentationSlideContent = function PresentationSlideContent(_ref) {
     var measure = function measure() {
       if (animationFrame) cancelAnimationFrame(animationFrame);
       animationFrame = requestAnimationFrame(function () {
-        var _presentationViewport, _presentationViewport2;
+        var _window$NightOwlPrese, _window$NightOwlPrese2, _window$NightOwlPrese3;
         animationFrame = null;
         var availableWidth = Math.min(frame.clientWidth, element.clientWidth);
         var availableHeight = Math.min(frame.clientHeight, element.clientHeight);
@@ -215,12 +214,12 @@ var PresentationSlideContent = function PresentationSlideContent(_ref) {
         var contentHeight = descendants.reduce(function (maximum, child) {
           return Math.max(maximum, (child.offsetTop || 0) + (child.scrollHeight || 0));
         }, Math.max(availableHeight, element.scrollHeight));
-        var nextScale = (_presentationViewport = presentationViewport === null || presentationViewport === void 0 || (_presentationViewport2 = presentationViewport.calculateContentScale) === null || _presentationViewport2 === void 0 ? void 0 : _presentationViewport2.call(presentationViewport, {
+        var nextScale = (_window$NightOwlPrese = (_window$NightOwlPrese2 = window.NightOwlPresentationViewport) === null || _window$NightOwlPrese2 === void 0 || (_window$NightOwlPrese3 = _window$NightOwlPrese2.calculateContentScale) === null || _window$NightOwlPrese3 === void 0 ? void 0 : _window$NightOwlPrese3.call(_window$NightOwlPrese2, {
           availableWidth: availableWidth,
           availableHeight: availableHeight,
           contentWidth: contentWidth,
           contentHeight: contentHeight
-        })) !== null && _presentationViewport !== void 0 ? _presentationViewport : 1;
+        })) !== null && _window$NightOwlPrese !== void 0 ? _window$NightOwlPrese : 1;
         var overflows = nextScale < 0.999;
         if (slideElement) {
           slideElement.dataset.contentOverflow = overflows ? 'true' : 'false';
@@ -698,6 +697,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var zoomInteractionTimeoutRef = useRef(null);
   var zoomRef = useRef(zoom);
   var panRef = useRef(pan);
+  var authoringPreferredZoomRef = useRef(1.2);
   var _useState55 = useState({
       top: 16,
       right: 16,
@@ -815,10 +815,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       })) || null;
       setPresentationFitReady(false);
       animationFrame = requestAnimationFrame(function () {
-        var _presentationViewport3;
+        var _window$NightOwlPrese4, _window$NightOwlPrese5;
         animationFrame = null;
         if (!stage.clientWidth || !stage.clientHeight) return;
-        var next = presentationViewport === null || presentationViewport === void 0 || (_presentationViewport3 = presentationViewport.calculateFitTransform) === null || _presentationViewport3 === void 0 ? void 0 : _presentationViewport3.call(presentationViewport, {
+        var next = (_window$NightOwlPrese4 = window.NightOwlPresentationViewport) === null || _window$NightOwlPrese4 === void 0 || (_window$NightOwlPrese5 = _window$NightOwlPrese4.calculateFitTransform) === null || _window$NightOwlPrese5 === void 0 ? void 0 : _window$NightOwlPrese5.call(_window$NightOwlPrese4, {
           viewportWidth: stage.clientWidth,
           viewportHeight: stage.clientHeight,
           slideX: slide.position.x,
@@ -1368,31 +1368,120 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       backgroundImage: backgroundImage
     };
   };
+  var calculateAuthoringFocus = useCallback(function (slide) {
+    var _navigationControlsRe3, _navigationControlsRe4, _window$NightOwlPrese6, _window$NightOwlPrese7;
+    var preferredZoom = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 1.2;
+    var canvas = canvasRef.current;
+    var container = containerRef.current;
+    if (!canvas || !container || !slide || !canvas.clientWidth || !canvas.clientHeight) {
+      return null;
+    }
+    var containerBounds = container.getBoundingClientRect();
+    var topControls = Array.from(container.querySelectorAll('[aria-label="Presentation layout"], [aria-label="Presentation editor controls"]'));
+    var controlsBottom = topControls.reduce(function (maximum, element) {
+      return Math.max(maximum, element.getBoundingClientRect().bottom);
+    }, containerBounds.top);
+    var navigationBounds = (_navigationControlsRe3 = navigationControlsRef.current) === null || _navigationControlsRe3 === void 0 || (_navigationControlsRe4 = _navigationControlsRe3.getBoundingClientRect) === null || _navigationControlsRe4 === void 0 ? void 0 : _navigationControlsRe4.call(_navigationControlsRe3);
+    var insets = {
+      top: Math.max(16, controlsBottom - containerBounds.top + 12),
+      right: 16,
+      bottom: navigationBounds ? Math.max(16, containerBounds.bottom - navigationBounds.top + 12) : 16,
+      left: 16
+    };
+    var fit = (_window$NightOwlPrese6 = window.NightOwlPresentationViewport) === null || _window$NightOwlPrese6 === void 0 || (_window$NightOwlPrese7 = _window$NightOwlPrese6.calculateFitTransform) === null || _window$NightOwlPrese7 === void 0 ? void 0 : _window$NightOwlPrese7.call(_window$NightOwlPrese6, {
+      viewportWidth: canvas.clientWidth,
+      viewportHeight: canvas.clientHeight,
+      slideX: slide.position.x,
+      slideY: slide.position.y,
+      slideWidth: SLIDE_WIDTH,
+      slideHeight: SLIDE_HEIGHT,
+      padding: 12,
+      insets: insets
+    });
+    if (!fit) {
+      var _zoomLevel = Number(preferredZoom) || 1;
+      return {
+        zoom: _zoomLevel,
+        pan: {
+          x: canvas.clientWidth / 2 - slide.position.x * _zoomLevel,
+          y: canvas.clientHeight / 2 - slide.position.y * _zoomLevel
+        }
+      };
+    }
+    var zoomLevel = Math.min(Number(preferredZoom) || fit.scale, fit.scale);
+    var center = {
+      x: fit.pan.x + slide.position.x * fit.scale,
+      y: fit.pan.y + slide.position.y * fit.scale
+    };
+    return {
+      zoom: zoomLevel,
+      pan: {
+        x: center.x - slide.position.x * zoomLevel,
+        y: center.y - slide.position.y * zoomLevel
+      }
+    };
+  }, []);
+  useLayoutEffect(function () {
+    if (isPresenting || slides.length === 0) return undefined;
+    var stage = stageRef.current;
+    var container = containerRef.current;
+    if (!stage || !container) return undefined;
+    var animationFrame = null;
+    var refitAuthoringView = function refitAuthoringView() {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(function () {
+        animationFrame = null;
+        var slideIndex = Math.min(currentSlideRef.current, slides.length - 1);
+        var focus = calculateAuthoringFocus(slides[slideIndex], authoringPreferredZoomRef.current);
+        if (!focus) return;
+        zoomRef.current = focus.zoom;
+        panRef.current = focus.pan;
+        setZoom(function (previous) {
+          return Math.abs(previous - focus.zoom) > 0.0001 ? focus.zoom : previous;
+        });
+        setPan(function (previous) {
+          return Math.abs(previous.x - focus.pan.x) > 0.1 || Math.abs(previous.y - focus.pan.y) > 0.1 ? focus.pan : previous;
+        });
+      });
+    };
+    refitAuthoringView();
+    var resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(refitAuthoringView) : null;
+    resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(stage);
+    resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(container);
+    window.addEventListener('resize', refitAuthoringView);
+    return function () {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver === null || resizeObserver === void 0 || resizeObserver.disconnect();
+      window.removeEventListener('resize', refitAuthoringView);
+    };
+  }, [isPresenting, slides, currentSlide, calculateAuthoringFocus]);
 
   // Parse markdown into slides
   var parseMarkdown = function parseMarkdown(markdown) {
     try {
-      var _presentationPrefligh;
+      var _window$NightOwlPrese8, _window$NightOwlPrese9;
       // Strip trailing whitespace from the entire markdown content first
       var trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
 
-      // Split content by slide separators (--- on standalone lines)
-      // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
-      var slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
-      var slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(function (slide) {
-        return slide.trim();
-      }).filter(function (slide) {
-        return slide;
+      // Preflight owns the canonical slide boundaries so rendering, source-line
+      // navigation, and diagnostics cannot disagree about front matter or
+      // CommonMark thematic breaks.
+      var sourceSlides = ((_window$NightOwlPrese8 = window.NightOwlPresentationPreflight) === null || _window$NightOwlPrese8 === void 0 || (_window$NightOwlPrese9 = _window$NightOwlPrese8.splitSlides) === null || _window$NightOwlPrese9 === void 0 ? void 0 : _window$NightOwlPrese9.call(_window$NightOwlPrese8, trimmedMarkdown)) || [];
+      var renderSlides = sourceSlides.length > 0 ? sourceSlides : [{
+        markdown: trimmedMarkdown.trim(),
+        startLine: 1,
+        title: 'Slide 1'
+      }].filter(function (slide) {
+        return slide.markdown;
       });
-      var sourceSlides = (presentationPreflight === null || presentationPreflight === void 0 || (_presentationPrefligh = presentationPreflight.splitSlides) === null || _presentationPrefligh === void 0 ? void 0 : _presentationPrefligh.call(presentationPreflight, trimmedMarkdown)) || [];
-      return slideTexts.map(function (text, index) {
+      return renderSlides.map(function (sourceSlide, index) {
+        var text = sourceSlide.markdown;
         var _extractSpeakerNotes = extractSpeakerNotes(text),
           afterNotes = _extractSpeakerNotes.cleanContent,
           speakerNotes = _extractSpeakerNotes.speakerNotes;
         var _extractSlideDirectiv = extractSlideDirectives(afterNotes),
           cleanContent = _extractSlideDirectiv.cleanContent,
           backgroundImage = _extractSlideDirectiv.backgroundImage;
-        var sourceSlide = sourceSlides[index];
         return {
           id: index,
           content: text,
@@ -1401,7 +1490,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           backgroundImage: backgroundImage,
           title: (sourceSlide === null || sourceSlide === void 0 ? void 0 : sourceSlide.title) || "Slide ".concat(index + 1),
           sourceLine: (sourceSlide === null || sourceSlide === void 0 ? void 0 : sourceSlide.startLine) || 1,
-          position: calculateSlidePosition(index, slideTexts.length),
+          position: calculateSlidePosition(index, renderSlides.length),
           parsed: parseMarkdownContent(cleanContent)
         };
       });
@@ -1461,9 +1550,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         }
         return;
       }
-      var targetZoom = 1.2;
-      var targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
-      console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
+      var focus = calculateAuthoringFocus(slide, 1.2);
+      if (!focus) return;
+      authoringPreferredZoomRef.current = 1.2;
+      var targetZoom = focus.zoom;
+      var targetPan = focus.pan;
+      console.log('[Presentation] Fitting slide', slideIndex, 'at position:', targetPan, 'zoom:', targetZoom);
       markZoomInteraction();
       zoomRef.current = targetZoom;
       panRef.current = targetPan;
@@ -1493,13 +1585,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         window.updateSpeakerNotes(slideIndex, currentContent);
       }, 50);
     }
-  }, [slides, isPresenting, isRecording, markZoomInteraction]);
+  }, [slides, isPresenting, isRecording, markZoomInteraction, calculateAuthoringFocus]);
   var runPreflight = useCallback(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
-    var unavailable, _window$appSettings7, _window$electronAPI2, report, failure, _t;
+    var preflight, unavailable, _window$appSettings7, _window$electronAPI2, report, failure, _t;
     return _regenerator().w(function (_context) {
       while (1) switch (_context.p = _context.n) {
         case 0:
-          if (presentationPreflight !== null && presentationPreflight !== void 0 && presentationPreflight.run) {
+          preflight = window.NightOwlPresentationPreflight;
+          if (preflight !== null && preflight !== void 0 && preflight.run) {
             _context.n = 1;
             break;
           }
@@ -1521,7 +1614,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           });
         case 3:
           _context.n = 4;
-          return presentationPreflight.run({
+          return preflight.run({
             markdown: sourceMarkdown || slides.map(function (slide) {
               return slide.content;
             }).join('\n\n---\n\n'),
@@ -1710,6 +1803,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         currentSlideRef.current = nextSlideIndex;
         pendingContentSlideRef.current = nextSlideIndex;
         setCurrentSlide(nextSlideIndex);
+        authoringPreferredZoomRef.current = 1.2;
         zoomRef.current = 1;
         panRef.current = {
           x: 0,
@@ -1966,12 +2060,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       return;
     }
     var baseSlideIndex = slides.length > 0 ? 0 : currentSlide;
-    var targetZoom = 1;
-    var centeredPan = computeCenteredPan(slides[baseSlideIndex], targetZoom, {
+    var focus = calculateAuthoringFocus(slides[baseSlideIndex], 1);
+    var targetZoom = (focus === null || focus === void 0 ? void 0 : focus.zoom) || 1;
+    var centeredPan = (focus === null || focus === void 0 ? void 0 : focus.pan) || computeCenteredPan(slides[baseSlideIndex], targetZoom, {
       x: 0,
       y: 0
     });
     markZoomInteraction();
+    authoringPreferredZoomRef.current = 1;
     zoomRef.current = targetZoom;
     panRef.current = centeredPan;
     setZoom(targetZoom);

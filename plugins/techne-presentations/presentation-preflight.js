@@ -35,7 +35,21 @@
   function splitSlides(markdown) {
     const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
     const slides = [];
-    let start = 0;
+    let frontMatterEnd = -1;
+
+    if ((lines[0] || '').replace(/^\uFEFF/, '').trim() === '---') {
+      for (let index = 1; index < lines.length; index += 1) {
+        if (!/^(?:---|\.\.\.)[ \t]*$/.test(lines[index])) continue;
+        const metadata = lines.slice(1, index);
+        if (metadata.some(line => /^[A-Za-z0-9_-]+[ \t]*:/.test(line))) {
+          frontMatterEnd = index;
+        }
+        break;
+      }
+    }
+
+    let start = frontMatterEnd >= 0 ? frontMatterEnd + 1 : 0;
+    let fence = null;
 
     function append(endExclusive) {
       let first = start;
@@ -54,12 +68,31 @@
       });
     }
 
-    lines.forEach((line, index) => {
-      if (/^---[ \t]*$/.test(line)) {
+    for (let index = start; index < lines.length; index += 1) {
+      const line = lines[index];
+      const fenceMarker = line.match(/^ {0,3}(`{3,}|~{3,})/);
+      if (fence) {
+        if (
+          fenceMarker &&
+          fenceMarker[1][0] === fence.character &&
+          fenceMarker[1].length >= fence.length &&
+          new RegExp(`^ {0,3}${fence.character === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`).test(line)
+        ) {
+          fence = null;
+        }
+        continue;
+      }
+      if (fenceMarker) {
+        fence = { character: fenceMarker[1][0], length: fenceMarker[1].length };
+        continue;
+      }
+
+      const thematicBreak = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(line);
+      if (thematicBreak) {
         append(index);
         start = index + 1;
       }
-    });
+    }
     append(lines.length);
     return slides;
   }

@@ -67,7 +67,6 @@ const ZoomOut = () => (
 );
 
 const presentationViewport = window.NightOwlPresentationViewport;
-const presentationPreflight = window.NightOwlPresentationPreflight;
 const SLIDE_WIDTH = presentationViewport?.SLIDE_WIDTH || 864;
 const SLIDE_HEIGHT = presentationViewport?.SLIDE_HEIGHT || 486;
 const SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
@@ -134,7 +133,7 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
           (maximum, child) => Math.max(maximum, (child.offsetTop || 0) + (child.scrollHeight || 0)),
           Math.max(availableHeight, element.scrollHeight)
         );
-        const nextScale = presentationViewport?.calculateContentScale?.({
+        const nextScale = window.NightOwlPresentationViewport?.calculateContentScale?.({
           availableWidth,
           availableHeight,
           contentWidth,
@@ -385,6 +384,7 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   const zoomInteractionTimeoutRef = useRef(null);
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
+  const authoringPreferredZoomRef = useRef(1.2);
   const [presentationInsets, setPresentationInsets] = useState({ top: 16, right: 16, bottom: 16, left: 16 });
   const [presentationFit, setPresentationFit] = useState({ scale: 1, pan: { x: 0, y: 0 } });
   const [presentationFitReady, setPresentationFitReady] = useState(false);
@@ -620,7 +620,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       animationFrame = requestAnimationFrame(() => {
         animationFrame = null;
         if (!stage.clientWidth || !stage.clientHeight) return;
-        const next = presentationViewport?.calculateFitTransform?.({
+        const next = window.NightOwlPresentationViewport?.calculateFitTransform?.({
           viewportWidth: stage.clientWidth,
           viewportHeight: stage.clientHeight,
           slideX: slide.position.x,
@@ -1174,21 +1174,124 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     return { cleanContent, backgroundImage };
   };
 
+  const calculateAuthoringFocus = useCallback((slide, preferredZoom = 1.2) => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || !slide || !canvas.clientWidth || !canvas.clientHeight) {
+      return null;
+    }
+
+    const containerBounds = container.getBoundingClientRect();
+    const topControls = Array.from(container.querySelectorAll(
+      '[aria-label="Presentation layout"], [aria-label="Presentation editor controls"]'
+    ));
+    const controlsBottom = topControls.reduce(
+      (maximum, element) => Math.max(maximum, element.getBoundingClientRect().bottom),
+      containerBounds.top
+    );
+    const navigationBounds = navigationControlsRef.current?.getBoundingClientRect?.();
+    const insets = {
+      top: Math.max(16, controlsBottom - containerBounds.top + 12),
+      right: 16,
+      bottom: navigationBounds
+        ? Math.max(16, containerBounds.bottom - navigationBounds.top + 12)
+        : 16,
+      left: 16
+    };
+    const fit = window.NightOwlPresentationViewport?.calculateFitTransform?.({
+      viewportWidth: canvas.clientWidth,
+      viewportHeight: canvas.clientHeight,
+      slideX: slide.position.x,
+      slideY: slide.position.y,
+      slideWidth: SLIDE_WIDTH,
+      slideHeight: SLIDE_HEIGHT,
+      padding: 12,
+      insets
+    });
+
+    if (!fit) {
+      const zoomLevel = Number(preferredZoom) || 1;
+      return {
+        zoom: zoomLevel,
+        pan: {
+          x: canvas.clientWidth / 2 - slide.position.x * zoomLevel,
+          y: canvas.clientHeight / 2 - slide.position.y * zoomLevel
+        }
+      };
+    }
+
+    const zoomLevel = Math.min(Number(preferredZoom) || fit.scale, fit.scale);
+    const center = {
+      x: fit.pan.x + slide.position.x * fit.scale,
+      y: fit.pan.y + slide.position.y * fit.scale
+    };
+    return {
+      zoom: zoomLevel,
+      pan: {
+        x: center.x - slide.position.x * zoomLevel,
+        y: center.y - slide.position.y * zoomLevel
+      }
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (isPresenting || slides.length === 0) return undefined;
+    const stage = stageRef.current;
+    const container = containerRef.current;
+    if (!stage || !container) return undefined;
+    let animationFrame = null;
+
+    const refitAuthoringView = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        const slideIndex = Math.min(currentSlideRef.current, slides.length - 1);
+        const focus = calculateAuthoringFocus(
+          slides[slideIndex],
+          authoringPreferredZoomRef.current
+        );
+        if (!focus) return;
+        zoomRef.current = focus.zoom;
+        panRef.current = focus.pan;
+        setZoom(previous => Math.abs(previous - focus.zoom) > 0.0001 ? focus.zoom : previous);
+        setPan(previous => (
+          Math.abs(previous.x - focus.pan.x) > 0.1 ||
+          Math.abs(previous.y - focus.pan.y) > 0.1
+        ) ? focus.pan : previous);
+      });
+    };
+
+    refitAuthoringView();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(refitAuthoringView)
+      : null;
+    resizeObserver?.observe(stage);
+    resizeObserver?.observe(container);
+    window.addEventListener('resize', refitAuthoringView);
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', refitAuthoringView);
+    };
+  }, [isPresenting, slides, currentSlide, calculateAuthoringFocus]);
+
   // Parse markdown into slides
   const parseMarkdown = (markdown) => {
     try {
       // Strip trailing whitespace from the entire markdown content first
       const trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
 
-      // Split content by slide separators (--- on standalone lines)
-      // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
-      const slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
-      const slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
-      const sourceSlides = presentationPreflight?.splitSlides?.(trimmedMarkdown) || [];
-      return slideTexts.map((text, index) => {
+      // Preflight owns the canonical slide boundaries so rendering, source-line
+      // navigation, and diagnostics cannot disagree about front matter or
+      // CommonMark thematic breaks.
+      const sourceSlides = window.NightOwlPresentationPreflight?.splitSlides?.(trimmedMarkdown) || [];
+      const renderSlides = sourceSlides.length > 0
+        ? sourceSlides
+        : [{ markdown: trimmedMarkdown.trim(), startLine: 1, title: 'Slide 1' }].filter(slide => slide.markdown);
+      return renderSlides.map((sourceSlide, index) => {
+        const text = sourceSlide.markdown;
         const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
         const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);
-        const sourceSlide = sourceSlides[index];
         return {
           id: index,
           content: text,
@@ -1197,7 +1300,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           backgroundImage: backgroundImage,
           title: sourceSlide?.title || `Slide ${index + 1}`,
           sourceLine: sourceSlide?.startLine || 1,
-          position: calculateSlidePosition(index, slideTexts.length),
+          position: calculateSlidePosition(index, renderSlides.length),
           parsed: parseMarkdownContent(cleanContent)
         };
       });
@@ -1252,9 +1355,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }
         return;
       }
-      const targetZoom = 1.2;
-      const targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
-      console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
+      const focus = calculateAuthoringFocus(slide, 1.2);
+      if (!focus) return;
+      authoringPreferredZoomRef.current = 1.2;
+      const targetZoom = focus.zoom;
+      const targetPan = focus.pan;
+      console.log('[Presentation] Fitting slide', slideIndex, 'at position:', targetPan, 'zoom:', targetZoom);
       markZoomInteraction();
       zoomRef.current = targetZoom;
       panRef.current = targetPan;
@@ -1281,10 +1387,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         window.updateSpeakerNotes(slideIndex, currentContent);
       }, 50);
     }
-  }, [slides, isPresenting, isRecording, markZoomInteraction]);
+  }, [slides, isPresenting, isRecording, markZoomInteraction, calculateAuthoringFocus]);
 
   const runPreflight = useCallback(async () => {
-    if (!presentationPreflight?.run) {
+    const preflight = window.NightOwlPresentationPreflight;
+    if (!preflight?.run) {
       const unavailable = { success: false, error: 'Presentation preflight engine is unavailable', warnings: [] };
       setPreflightReport(unavailable);
       return unavailable;
@@ -1292,7 +1399,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     setPreflightRunning(true);
     try {
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const report = await presentationPreflight.run({
+      const report = await preflight.run({
         markdown: sourceMarkdown || slides.map(slide => slide.content).join('\n\n---\n\n'),
         root: containerRef.current,
         baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory,
@@ -1468,6 +1575,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         currentSlideRef.current = nextSlideIndex;
         pendingContentSlideRef.current = nextSlideIndex;
         setCurrentSlide(nextSlideIndex);
+        authoringPreferredZoomRef.current = 1.2;
         zoomRef.current = 1;
         panRef.current = { x: 0, y: 0 };
         setZoom(1);
@@ -1727,10 +1835,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
 
     const baseSlideIndex = slides.length > 0 ? 0 : currentSlide;
-    const targetZoom = 1;
-    const centeredPan = computeCenteredPan(slides[baseSlideIndex], targetZoom, { x: 0, y: 0 });
+    const focus = calculateAuthoringFocus(slides[baseSlideIndex], 1);
+    const targetZoom = focus?.zoom || 1;
+    const centeredPan = focus?.pan || computeCenteredPan(slides[baseSlideIndex], targetZoom, { x: 0, y: 0 });
 
     markZoomInteraction();
+    authoringPreferredZoomRef.current = 1;
     zoomRef.current = targetZoom;
     panRef.current = centeredPan;
     setZoom(targetZoom);

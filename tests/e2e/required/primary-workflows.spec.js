@@ -21,6 +21,27 @@ The complete first slide must remain visible.
 
 The second slide proves that parsing completed.`;
 
+const THEMATIC_BREAK_DECK = `---
+title: CommonMark slide boundaries
+course: 479
+---
+
+# First thematic slide
+
+The authoring canvas must show this as a complete 16:9 slide.
+
+* * *
+
+# Second thematic slide
+
+Spaced asterisks are a valid CommonMark thematic break.
+
+___
+
+# Third thematic slide
+
+Underscores are valid too.`;
+
 const PREFLIGHT_DECK = [
   '# Crowded slide',
   '',
@@ -1226,6 +1247,49 @@ test('@required @presentation-tools preflight and presenter state survive conten
 
   await appPage.getByRole('button', { name: 'Exit presentation' }).click();
   await appPage.evaluate(() => window.switchToMode('editor'));
+});
+
+test('@required @slide-geometry authoring mode parses CommonMark decks and contains the complete current slide', async ({ appPage }) => {
+  await appPage.evaluate(() => window.switchToMode('editor'));
+  await openMarkdown(appPage, '/virtual-workspace/thematic-break-deck.md', THEMATIC_BREAK_DECK);
+  await appPage.evaluate(async () => {
+    await window.styleManager.applyPresentationTemplate('default');
+    window.switchToMode('presentation');
+  });
+
+  await expect(appPage.locator('#presentation-root')).toHaveAttribute('data-presentation-load-state', 'ready');
+  await expect(appPage.locator('.presentation-shell')).toHaveAttribute('data-presentation-mode', 'authoring');
+  await expect(appPage.locator('#presentation-root [data-slide-index]')).toHaveCount(3);
+  await expect(appPage.locator('#presentation-root')).not.toContainText('course: 479');
+
+  await expect.poll(async () => appPage.evaluate(() => {
+    const stage = document.querySelector('.presentation-stage').getBoundingClientRect();
+    const slideElement = document.querySelector('[data-current-slide="true"]');
+    const slide = slideElement.getBoundingClientRect();
+    const paintedCorners = [
+      [slide.left + 4, slide.top + 4],
+      [slide.right - 4, slide.top + 4],
+      [slide.left + 4, slide.bottom - 4],
+      [slide.right - 4, slide.bottom - 4]
+    ].every(([x, y]) => document.elementFromPoint(x, y)?.closest?.('.slide') === slideElement);
+    return {
+      hasSize: slide.width > 0 && slide.height > 0,
+      withinStage:
+        slide.left >= stage.left - 1 &&
+        slide.top >= stage.top - 1 &&
+        slide.right <= stage.right + 1 &&
+        slide.bottom <= stage.bottom + 1,
+      hasSlideRatio: Math.abs((slide.width / slide.height) - (16 / 9)) < 0.01,
+      canvasOverflow: getComputedStyle(document.querySelector('.presentation-canvas')).overflow,
+      paintedCorners
+    };
+  })).toEqual({
+    hasSize: true,
+    withinStage: true,
+    hasSlideRatio: true,
+    canvasOverflow: 'visible',
+    paintedCorners: true
+  });
 });
 
 test('@required @slide-geometry delivery mode contains the complete current slide', async ({ appPage }) => {

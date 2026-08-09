@@ -1214,10 +1214,28 @@ body.is-presenting ol ol ol,
 
 #presentation-root .presentation-stage {
     contain: layout paint;
+    overflow: hidden !important;
 }
 
-body.is-presenting #presentation-root .presentation-canvas {
+/* The stage clips the viewport. The translated canvas must not clip its own
+   negative local coordinates, because every centered slide begins half a
+   slide left and above the canvas origin. */
+#presentation-root .presentation-stage > .presentation-canvas {
     overflow: visible !important;
+}
+
+/* Presentation templates own visual styling, not canvas geometry. Their
+   historical height:auto rules can otherwise expand a long source document
+   into one enormous slide and leave only a horizontal slice on screen. */
+body:not(.is-presenting) #presentation-root .presentation-stage .presentation-canvas .slide {
+    width: 864px !important;
+    min-width: 864px !important;
+    max-width: 864px !important;
+    height: 486px !important;
+    min-height: 486px !important;
+    max-height: 486px !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
 }
 
 body.is-presenting #presentation-root .presentation-stage .presentation-current-slide {
