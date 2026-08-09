@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+  >
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speaker Notes</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      height: 100vh;
+      margin: 0;
+      overflow-y: auto;
+      background: #2c3e50;
+      color: #ecf0f1;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    main { min-height: 100%; }
+    .speaker-notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 16px 16px 8px;
+      padding: 8px 0 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .speaker-notes-header h1 { margin: 0; color: #ecf0f1; font-size: 14px; }
+    .slide-indicator {
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #34495e;
+      color: #fff;
+      font-size: 12px;
+    }
+    #notes-content {
+      height: calc(100vh - 80px);
+      padding: 0 16px 16px;
+      overflow-y: auto;
+      color: #d7e0e5;
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+    #notes-content :is(h1, h2, h3, h4, h5, h6) { color: #4ecdc4; }
+    #notes-content :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, pre, table) {
+      margin: 0 0 12px;
+    }
+    #notes-content :is(ul, ol) { padding-left: 24px; }
+    #notes-content li { margin-bottom: 5px; }
+    #notes-content strong { color: #fff; }
+    #notes-content em { color: #b8c4cb; }
+    #notes-content :is(code, kbd, pre) {
+      border-radius: 3px;
+      background: rgba(17, 24, 39, 0.45);
+      font-family: Monaco, Menlo, "Ubuntu Mono", monospace;
+    }
+    #notes-content :is(code, kbd) { padding: 2px 4px; }
+    #notes-content pre { padding: 10px; white-space: pre-wrap; }
+    #notes-content blockquote {
+      padding-left: 12px;
+      border-left: 3px solid #4ecdc4;
+      color: #c6d2d8;
+    }
+    #notes-content table { width: 100%; border-collapse: collapse; }
+    #notes-content :is(th, td) { padding: 6px; border: 1px solid #64748b; text-align: left; }
+    #notes-content a { color: #80d8ff; }
+  </style>
+</head>
+<body>
+  <main aria-labelledby="speaker-notes-window-title">
+    <header class="speaker-notes-header">
+      <h1 id="speaker-notes-window-title">📝 Speaker Notes</h1>
+      <div class="slide-indicator" role="status" aria-live="polite" aria-atomic="true">
+        Slide <span id="slide-number">1</span>
+      </div>
+    </header>
+    <div id="notes-content" role="note" aria-live="polite" aria-atomic="true">
+      <em>No speaker notes for this slide.</em>
+    </div>
+  </main>
+  <script src="speaker-notes-window.js"></script>
+</body>
+</html>

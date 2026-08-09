@@ -50,7 +50,11 @@ const PREFLIGHT_DECK = [
   '<div style="min-width: 1400px; min-height: 900px;">Deterministic overflow probe.</div>',
   '',
   '```notes',
-  'Explain the crowded slide and invite questions.',
+  '<strong>Explain the crowded slide</strong> and invite questions.',
+  '',
+  '<ul><li>Render this HTML list.</li></ul>',
+  '<span onclick="window.__nightOwlMarkdownXss = true">Safe inline HTML.</span>',
+  '<script>window.__nightOwlMarkdownXss = true</script>',
   '```',
   '',
   '---',
@@ -1151,7 +1155,7 @@ test('@required @mode-recovery presentation failure offers recovery and retry re
   await expect(appPage.locator('#presentation-root')).toContainText('First slide');
 });
 
-test('@required @presentation-tools preflight and presenter state survive content reload and viewport resize', async ({ appPage }) => {
+test('@required @presentation-tools preflight and presenter state survive content reload and viewport resize', async ({ appPage, electronApp }) => {
   await enterPresentation(appPage, PREFLIGHT_DECK);
   await expect.poll(() => appPage.evaluate(() => Boolean(window.NightOwlPresentationTools))).toBe(true);
   await expect(appPage.locator('#presentation-root [data-slide-index="0"]')).toHaveAttribute('data-content-overflow', 'true');
@@ -1197,6 +1201,13 @@ test('@required @presentation-tools preflight and presenter state survive conten
   await expect.poll(() => appPage.evaluate(() => window.NightOwlPresentationTools.getState().currentSlide)).toBe(0);
   await preflightPanel.getByRole('button', { name: 'Close presentation preflight' }).click();
   await appPage.getByRole('button', { name: 'Start presentation' }).click();
+  let notesWindow = electronApp.windows().find(page => page.url().includes('speaker-notes-window.html'));
+  if (!notesWindow) {
+    const notesWindowOpened = electronApp.waitForEvent('window');
+    await appPage.getByRole('button', { name: 'Show speaker notes in separate window' }).click();
+    notesWindow = await notesWindowOpened;
+  }
+  await notesWindow.waitForLoadState('domcontentloaded');
   await appPage.getByRole('button', { name: 'Show presenter console' }).click();
 
   const presenter = appPage.getByRole('complementary', { name: 'Presenter console' });
@@ -1204,7 +1215,18 @@ test('@required @presentation-tools preflight and presenter state survive conten
   await expect(presenter.locator('#presenter-current-title')).toHaveText('Crowded slide');
   await expect(presenter.locator('#presenter-next-title')).toHaveText('Slide 2');
   await expect(presenter.locator('.presentation-presenter-notes')).toContainText('Explain the crowded slide');
+  await expect(presenter.locator('.presentation-presenter-notes strong')).toHaveText('Explain the crowded slide');
+  await expect(presenter.locator('.presentation-presenter-notes li')).toHaveText('Render this HTML list.');
+  await expect(presenter.locator('.presentation-presenter-notes script, .presentation-presenter-notes [onclick]')).toHaveCount(0);
   await expect(presenter.getByRole('timer')).not.toHaveText('00:00', { timeout: 5000 });
+
+  const separateNotes = notesWindow.locator('#notes-content');
+  await expect(separateNotes).toHaveAttribute('data-render-format', 'html');
+  await expect(separateNotes.locator('strong')).toHaveText('Explain the crowded slide');
+  await expect(separateNotes.locator('li')).toHaveText('Render this HTML list.');
+  await expect(separateNotes.locator('script, [onclick], [onerror]')).toHaveCount(0);
+  await appPage.getByRole('button', { name: 'Show speaker notes in bottom panel' }).click();
+  await expect.poll(() => notesWindow.isClosed()).toBe(true);
 
   await appPage.setViewportSize({ width: 1000, height: 700 });
   await expect(appPage.locator('.presentation-stage')).toHaveAttribute('data-fit-state', 'ready');

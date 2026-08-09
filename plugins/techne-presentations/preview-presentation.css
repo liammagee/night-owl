@@ -1472,7 +1472,8 @@ body.is-presenting #presentation-root .slide[data-content-overflow]::after {
 
 #presentation-root .presentation-presenter-console h2,
 #presentation-root .presentation-presenter-console p,
-#presentation-root .presentation-presenter-console pre {
+#presentation-root .presentation-presenter-console pre,
+#presentation-root .presentation-speaker-notes-html {
     margin: 4px 0 0;
 }
 
@@ -1481,7 +1482,8 @@ body.is-presenting #presentation-root .slide[data-content-overflow]::after {
 }
 
 #presentation-root .presentation-presenter-console p,
-#presentation-root .presentation-presenter-console pre {
+#presentation-root .presentation-presenter-console pre,
+#presentation-root .presentation-speaker-notes-html {
     font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -1495,6 +1497,14 @@ body.is-presenting #presentation-root .slide[data-content-overflow]::after {
     flex: 1;
     min-height: 80px;
     overflow: auto;
+}
+
+#presentation-root .presentation-presenter-notes :is(p, ul, ol, blockquote, pre, table) {
+    margin: 6px 0;
+}
+
+#presentation-root .presentation-presenter-notes :is(ul, ol) {
+    padding-left: 20px;
 }
 
 #presentation-root .presentation-presenter-console nav {
