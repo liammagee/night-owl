@@ -50,6 +50,27 @@ describe('presentation viewport geometry', () => {
     expect(viewport.isBoundsInsideViewport(result.bounds, 1000, 344)).toBe(true);
   });
 
+  test('fits and centers authoring slides inside asymmetric control insets', () => {
+    const result = viewport.calculateFitTransform({
+      viewportWidth: 1000,
+      viewportHeight: 700,
+      slideX: 720,
+      slideY: 360,
+      padding: 12,
+      insets: { top: 72, right: 16, bottom: 84, left: 16 }
+    });
+
+    expect(result.bounds.left).toBeGreaterThanOrEqual(16);
+    expect(result.bounds.top).toBeGreaterThanOrEqual(72);
+    expect(result.bounds.right).toBeLessThanOrEqual(984);
+    expect(result.bounds.bottom).toBeLessThanOrEqual(616);
+    expect(result.bounds.width / result.bounds.height).toBeCloseTo(16 / 9, 5);
+    expect(result.pan).toEqual({
+      x: 500 - 720 * result.scale,
+      y: 344 - 360 * result.scale
+    });
+  });
+
   test.each([
     ['tall text', 816, 780],
     ['wide table', 1200, 430],
