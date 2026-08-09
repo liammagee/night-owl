@@ -24,10 +24,18 @@ describe('preload IPC guard', () => {
     const listener = jest.fn();
 
     await expect(bridge.settings.getSettings()).resolves.toEqual({ success: true });
+    await expect(bridge.search.workspaceIndexSearch({
+      query: 'accept',
+      options: { maxResults: 10 }
+    })).resolves.toEqual({ success: true });
     const unsubscribe = bridge.events.settingsChanged(listener);
     bridge.signals.saveLayout({ width: 300 });
 
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('get-settings');
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('workspace-index-search', {
+      query: 'accept',
+      options: { maxResults: 10 }
+    });
     expect(ipcRenderer.on).toHaveBeenCalledWith('settings-changed', expect.any(Function));
     expect(ipcRenderer.send).toHaveBeenCalledWith('save-layout', { width: 300 });
 

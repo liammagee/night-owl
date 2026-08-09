@@ -200,7 +200,10 @@ test('@required @workspace-index one index drives multi-format discovery, links,
       if (!switched.success) throw new Error(switched.error || 'Could not switch test workspace');
       window.appSettings = { ...(window.appSettings || {}), workingDirectory: root, workspaceFolders: [] };
       const listed = await window.electronAPI.search.workspaceIndexList({ limit: 100 });
-      const searched = await window.electronAPI.search.workspaceIndexSearch('accept', { maxResults: 10 });
+      const searched = await window.electronAPI.search.workspaceIndexSearch({
+        query: 'accept',
+        options: { maxResults: 10 }
+      });
       const links = await window.electronAPI.search.workspaceIndexLinks({ filePath: `${root}/beta.md` });
       const graph = await window.electronAPI.search.workspaceIndexGraph({});
       const rename = await window.electronAPI.search.workspaceIndexPlanRename({
