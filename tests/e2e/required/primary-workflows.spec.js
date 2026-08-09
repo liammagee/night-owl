@@ -26,7 +26,7 @@ const PREFLIGHT_DECK = [
   '',
   '![](missing-preflight-image.png)',
   '',
-  ...Array.from({ length: 48 }, (_, index) => `- Dense point ${index + 1} for overflow coverage.`),
+  '<div style="min-width: 1400px; min-height: 900px;">Deterministic overflow probe.</div>',
   '',
   '```notes',
   'Explain the crowded slide and invite questions.',
