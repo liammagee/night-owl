@@ -1401,17 +1401,20 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     slides.length
   ]);
 
-  // Center on first slide when presentation view becomes active
+  // Center the selected slide when the overview canvas becomes active.
   useEffect(() => {
+    let centeringTimer = null;
     const checkIfPresentationActive = () => {
       const presentationContent = document.getElementById('presentation-content');
       if (presentationContent && presentationContent.classList.contains('active')) {
-        // Presentation view is now active, center on first slide if we haven't moved yet
-        if (slides.length > 0 && pan.x === 0 && pan.y === 0 && zoom === 1) {
-          console.log('[Presentation] Presentation view activated, centering on first slide');
-          setTimeout(() => {
+        // Delivery mode fits its own stage. Scheduling canvas navigation there
+        // can overwrite a presenter's Next/Previous action after live reload.
+        if (!isPresenting && slides.length > 0 && pan.x === 0 && pan.y === 0 && zoom === 1) {
+          console.log('[Presentation] Presentation view activated, centering selected slide');
+          clearTimeout(centeringTimer);
+          centeringTimer = setTimeout(() => {
             if (canvasRef.current && canvasRef.current.clientWidth > 0) {
-              goToSlide(0);
+              goToSlide(Math.min(currentSlideRef.current, slides.length - 1));
             }
           }, 150); // Slightly longer delay to ensure view is fully active
         }
@@ -1437,9 +1440,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // Also check immediately in case it's already active
       checkIfPresentationActive();
 
-      return () => observer.disconnect();
+      return () => {
+        observer.disconnect();
+        clearTimeout(centeringTimer);
+      };
     }
-  }, [slides.length, pan.x, pan.y, zoom, goToSlide]);
+    return () => clearTimeout(centeringTimer);
+  }, [slides.length, pan.x, pan.y, zoom, isPresenting, goToSlide]);
 
   // Listen for content updates from the lecture summary generator
   useEffect(() => {
