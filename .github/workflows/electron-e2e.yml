@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check all built-in theme contracts and contrast
+        run: npm run theme:check
+
       - name: Run required Electron smoke
         run: npm run test:e2e
 

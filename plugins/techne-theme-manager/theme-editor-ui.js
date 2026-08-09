@@ -29,7 +29,7 @@
 
         const dialog = document.createElement('div');
         dialog.setAttribute('tabindex', '-1');
-        dialog.style.cssText = 'background:var(--techne-bg,#1e1e1e);color:var(--techne-text,#d4d4d4);border-radius:8px;padding:20px;width:550px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+        dialog.style.cssText = 'background:var(--techne-bg);color:var(--techne-text);border-radius:8px;padding:20px;width:550px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
 
         function render(editingId) {
             const PRESETS = editor.getPresets();
@@ -41,13 +41,13 @@
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                     <h3 style="margin:0;font-size:16px;">Theme Editor</h3>
                     <div style="display:flex;gap:8px;">
-                        <button type="button" id="te-reset" style="background:transparent;color:var(--techne-text-muted,#888);border:1px solid var(--techne-border,#555);border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;">Reset Default</button>
-                        <button type="button" id="te-close" style="background:none;border:none;color:var(--techne-text-muted,#888);cursor:pointer;font-size:18px;" aria-label="Close theme editor">&#x2715;</button>
+                        <button type="button" id="te-reset" style="background:transparent;color:var(--techne-text-muted);border:1px solid var(--techne-border);border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px;">Reset Default</button>
+                        <button type="button" id="te-close" style="background:none;border:none;color:var(--techne-text-muted);cursor:pointer;font-size:18px;" aria-label="Close theme editor">&#x2715;</button>
                     </div>
                 </div>
 
                 <div style="margin-bottom:16px;">
-                    <div style="font-size:12px;color:var(--techne-text-muted,#888);margin-bottom:8px;font-weight:600;">Built-in Themes</div>
+                    <div style="font-size:12px;color:var(--techne-text-muted);margin-bottom:8px;font-weight:600;">Built-in Themes</div>
                     <div style="display:flex;flex-wrap:wrap;gap:6px;">
             `;
 
@@ -56,9 +56,10 @@
             const builtInThemes = themeManager ? themeManager.getThemes() : {};
             for (const [id, theme] of Object.entries(builtInThemes)) {
                 const isActive = themeManager && themeManager.getActiveTheme() === id;
-                const accent = '--techne-accent' in (theme.tokens || {}) ? theme.tokens['--techne-accent'] : '#E63946';
-                const bg = '--techne-bg' in (theme.tokens || {}) ? theme.tokens['--techne-bg'] : (theme.bodyClass === 'techne-dark' ? '#0a0a0a' : '#ffffff');
-                const text = theme.bodyClass === 'techne-dark' ? '#e0e0e0' : '#0a0a0a';
+                const resolved = window.TechneThemeContract.resolveTheme(theme);
+                const accent = resolved['--techne-accent'];
+                const bg = resolved['--techne-bg'];
+                const text = resolved['--techne-text'];
 
                 html += `
                     <button type="button" class="te-builtin-btn" data-theme="${id}" style="
@@ -78,15 +79,16 @@
             // Preset theme buttons
             html += `
                 <div style="margin-bottom:16px;">
-                    <div style="font-size:12px;color:var(--techne-text-muted,#888);margin-bottom:8px;font-weight:600;">Color Presets</div>
+                    <div style="font-size:12px;color:var(--techne-text-muted);margin-bottom:8px;font-weight:600;">Color Presets</div>
                     <div style="display:flex;flex-wrap:wrap;gap:6px;">
             `;
 
             for (const [id, preset] of Object.entries(PRESETS)) {
                 const isActive = activeTheme === 'preset:' + id;
-                const bgColor = preset.vars['--techne-bg'] || '#222';
-                const textColor = preset.vars['--techne-text'] || '#ddd';
-                const accent = preset.vars['--techne-accent'] || '#66f';
+                const resolved = window.TechneThemeContract.resolveTheme({ colorScheme: preset.base, vars: preset.vars });
+                const bgColor = resolved['--techne-bg'];
+                const textColor = resolved['--techne-text'];
+                const accent = resolved['--techne-accent'];
 
                 html += `
                     <button type="button" class="te-preset-btn" data-preset="${id}" style="
@@ -106,13 +108,13 @@
             // Custom themes
             const customIds = Object.keys(customThemes);
             if (customIds.length > 0) {
-                html += '<div style="margin-bottom:16px;"><div style="font-size:12px;color:var(--techne-text-muted,#888);margin-bottom:8px;font-weight:600;">Custom Themes</div><div style="display:flex;flex-wrap:wrap;gap:6px;">';
+                html += '<div style="margin-bottom:16px;"><div style="font-size:12px;color:var(--techne-text-muted);margin-bottom:8px;font-weight:600;">Custom Themes</div><div style="display:flex;flex-wrap:wrap;gap:6px;">';
                 for (const id of customIds) {
                     const theme = customThemes[id];
                     const isActive = activeTheme === 'custom:' + id;
-                    const bgColor = theme.vars['--techne-bg'] || '#222';
-                    const textColor = theme.vars['--techne-text'] || '#ddd';
-                    const accent = theme.vars['--techne-accent'] || '#66f';
+                    const bgColor = theme.vars['--techne-bg'];
+                    const textColor = theme.vars['--techne-text'];
+                    const accent = theme.vars['--techne-accent'];
                     html += `
                         <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
                             <button type="button" class="te-custom-btn" data-custom="${id}" style="
@@ -125,8 +127,8 @@
                                 <span>${theme.name}</span>
                             </button>
                             <div style="display:flex;gap:4px;">
-                                <button type="button" class="te-edit-custom" data-id="${id}" style="background:none;border:none;color:var(--techne-accent,#569cd6);cursor:pointer;font-size:10px;">Edit</button>
-                                <button type="button" class="te-del-custom" data-id="${id}" style="background:none;border:none;color:var(--techne-error,#f48771);cursor:pointer;font-size:10px;">Delete</button>
+                                <button type="button" class="te-edit-custom" data-id="${id}" style="background:none;border:none;color:var(--techne-link);cursor:pointer;font-size:10px;">Edit</button>
+                                <button type="button" class="te-del-custom" data-id="${id}" style="background:none;border:none;color:var(--techne-error);cursor:pointer;font-size:10px;">Delete</button>
                             </div>
                         </div>
                     `;
@@ -141,11 +143,11 @@
                 const source = isPreset ? PRESETS[sourceId] : customThemes[sourceId];
                 if (source) {
                     html += `
-                        <div style="border-top:1px solid var(--techne-border,#444);padding-top:12px;margin-top:8px;">
-                            <div style="font-size:12px;color:var(--techne-text-muted,#888);margin-bottom:8px;font-weight:600;">Customize: ${source.name}</div>
+                        <div style="border-top:1px solid var(--techne-border);padding-top:12px;margin-top:8px;">
+                            <div style="font-size:12px;color:var(--techne-text-muted);margin-bottom:8px;font-weight:600;">Customize: ${source.name}</div>
                             <div style="display:flex;gap:8px;margin-bottom:8px;">
-                                <input id="te-save-name" value="${source.name}" placeholder="Theme name" style="flex:1;background:var(--techne-surface,#252526);border:1px solid var(--techne-border,#555);color:var(--techne-text,#d4d4d4);padding:6px 8px;border-radius:4px;font-size:12px;">
-                                <select id="te-base-mode" style="background:var(--techne-surface,#252526);border:1px solid var(--techne-border,#555);color:var(--techne-text,#d4d4d4);padding:6px 8px;border-radius:4px;font-size:12px;">
+                                <input id="te-save-name" value="${source.name}" placeholder="Theme name" style="flex:1;background:var(--techne-surface);border:1px solid var(--techne-border);color:var(--techne-text);padding:6px 8px;border-radius:4px;font-size:12px;">
+                                <select id="te-base-mode" style="background:var(--techne-surface);border:1px solid var(--techne-border);color:var(--techne-text);padding:6px 8px;border-radius:4px;font-size:12px;">
                                     <option value="light" ${source.base === 'light' ? 'selected' : ''}>Light</option>
                                     <option value="dark" ${source.base === 'dark' ? 'selected' : ''}>Dark</option>
                                 </select>
@@ -154,7 +156,7 @@
 
                     const computed = getComputedStyle(document.documentElement);
                     for (const group of VAR_GROUPS) {
-                        html += `<div style="margin-bottom:8px;"><div style="font-size:11px;color:var(--techne-text-muted,#888);margin-bottom:4px;">${group.label}</div><div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+                        html += `<div style="margin-bottom:8px;"><div style="font-size:11px;color:var(--techne-text-muted);margin-bottom:4px;">${group.label}</div><div style="display:flex;flex-wrap:wrap;gap:6px;">`;
                         for (const varName of group.vars) {
                             const currentVal = source.vars[varName] || computed.getPropertyValue(varName).trim() || '#000000';
                             html += `
@@ -168,26 +170,27 @@
                     }
 
                     html += `
+                            <div id="te-validation" role="status" aria-live="polite" style="margin-top:10px;padding:8px;border-radius:4px;background:var(--techne-info-surface);color:var(--techne-info);font-size:11px;"></div>
                             <div style="display:flex;gap:8px;margin-top:12px;">
-                                <button type="button" id="te-save-custom" style="background:var(--techne-accent,#569cd6);color:var(--techne-text-inverted,#fff);border:none;border-radius:4px;padding:6px 16px;cursor:pointer;font-size:12px;">Save as Custom Theme</button>
-                                <button type="button" id="te-preview" style="background:transparent;color:var(--techne-text-muted,#888);border:1px solid var(--techne-border,#555);border-radius:4px;padding:6px 16px;cursor:pointer;font-size:12px;">Preview</button>
+                                <button type="button" id="te-save-custom" style="background:var(--techne-accent);color:var(--techne-text-on-accent);border:none;border-radius:4px;padding:6px 16px;cursor:pointer;font-size:12px;">Save as Custom Theme</button>
+                                <button type="button" id="te-preview" style="background:transparent;color:var(--techne-text-muted);border:1px solid var(--techne-border);border-radius:4px;padding:6px 16px;cursor:pointer;font-size:12px;">Preview</button>
                             </div>
                         </div>
                     `;
                 }
             } else {
                 html += `
-                    <div style="border-top:1px solid var(--techne-border,#444);padding-top:12px;margin-top:8px;">
-                        <button type="button" id="te-new-custom" style="background:transparent;color:var(--techne-accent,#569cd6);border:1px solid var(--techne-accent,#569cd6);border-radius:4px;padding:6px 16px;cursor:pointer;font-size:12px;width:100%;">+ Create Custom Theme from Current</button>
+                    <div style="border-top:1px solid var(--techne-border);padding-top:12px;margin-top:8px;">
+                        <button type="button" id="te-new-custom" style="background:transparent;color:var(--techne-link);border:1px solid var(--techne-border);border-radius:4px;padding:6px 16px;cursor:pointer;font-size:12px;width:100%;">+ Create Custom Theme from Current</button>
                     </div>
                 `;
             }
 
             // Export / Import
             html += `
-                <div style="border-top:1px solid var(--techne-border,#444);padding-top:12px;margin-top:12px;display:flex;gap:8px;">
-                    <button type="button" id="te-export" style="background:transparent;color:var(--techne-text-muted,#888);border:1px solid var(--techne-border,#555);border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;">Export Themes</button>
-                    <label style="background:transparent;color:var(--techne-text-muted,#888);border:1px solid var(--techne-border,#555);border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;">
+                <div style="border-top:1px solid var(--techne-border);padding-top:12px;margin-top:12px;display:flex;gap:8px;">
+                    <button type="button" id="te-export" style="background:transparent;color:var(--techne-text-muted);border:1px solid var(--techne-border);border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;">Export Themes</button>
+                    <label style="background:transparent;color:var(--techne-text-muted);border:1px solid var(--techne-border);border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;">
                         Import Themes
                         <input type="file" id="te-import" accept=".json" style="display:none;">
                     </label>
@@ -195,6 +198,39 @@
             `;
 
             dialog.innerHTML = html;
+
+            function collectEditingTheme() {
+                if (!editingId) return null;
+                const vars = {};
+                dialog.querySelectorAll('.te-color-input').forEach(input => {
+                    vars[input.dataset.var] = input.value;
+                });
+                return {
+                    name: dialog.querySelector('#te-save-name')?.value || 'Custom Theme',
+                    description: 'Custom NightOwl theme',
+                    base: dialog.querySelector('#te-base-mode')?.value || 'dark',
+                    vars
+                };
+            }
+
+            function updateValidation() {
+                const region = dialog.querySelector('#te-validation');
+                const save = dialog.querySelector('#te-save-custom');
+                if (!region || !editingId) return null;
+                const validationId = editingId.startsWith('custom:')
+                    ? editingId.replace('custom:', '')
+                    : 'custom-preview';
+                const report = editor.validateCustomTheme(validationId, collectEditingTheme());
+                region.textContent = report.valid
+                    ? `Passes theme contract v${window.TechneThemeContract?.VERSION || 1}.`
+                    : report.issues.map(issue => issue.ratio == null
+                        ? issue.label
+                        : `${issue.label}: ${issue.ratio}:1 (needs ${issue.minimum}:1)`).join(' · ');
+                region.style.background = report.valid ? 'var(--techne-success-surface)' : 'var(--techne-error-surface)';
+                region.style.color = report.valid ? 'var(--techne-success)' : 'var(--techne-error)';
+                if (save) save.disabled = !report.valid;
+                return report;
+            }
 
             // ── Wire events ──
 
@@ -262,8 +298,12 @@
             dialog.querySelectorAll('.te-color-input').forEach(input => {
                 input.addEventListener('input', () => {
                     document.documentElement.style.setProperty(input.dataset.var, input.value);
+                    updateValidation();
                 });
             });
+            dialog.querySelector('#te-base-mode')?.addEventListener('change', updateValidation);
+            dialog.querySelector('#te-save-name')?.addEventListener('input', updateValidation);
+            updateValidation();
 
             // Preview button
             const previewBtn = dialog.querySelector('#te-preview');
@@ -287,17 +327,14 @@
             const saveBtn = dialog.querySelector('#te-save-custom');
             if (saveBtn && editingId) {
                 saveBtn.addEventListener('click', () => {
-                    const name = dialog.querySelector('#te-save-name')?.value || 'Custom Theme';
-                    const base = dialog.querySelector('#te-base-mode')?.value || 'dark';
-                    const vars = {};
-                    dialog.querySelectorAll('.te-color-input').forEach(input => {
-                        vars[input.dataset.var] = input.value;
-                    });
-
                     const themes = editor.loadCustomThemes();
                     const id = editingId.startsWith('custom:') ? editingId.replace('custom:', '') : 'custom-' + Date.now();
-                    themes[id] = { name, base, vars };
-                    editor.saveCustomThemes(themes);
+                    themes[id] = collectEditingTheme();
+                    const result = editor.saveCustomThemes(themes);
+                    if (!result.valid) {
+                        updateValidation();
+                        return;
+                    }
                     editor.applyCustomTheme(id);
                     render(null);
                 });
@@ -308,7 +345,7 @@
             if (exportBtn) {
                 exportBtn.addEventListener('click', () => {
                     const data = {
-                        version: 1,
+                        version: window.TechneThemeContract?.VERSION || 1,
                         customThemes: editor.loadCustomThemes(),
                         activeCustomTheme: editor.getActiveCustomTheme()
                     };
@@ -332,14 +369,20 @@
                     reader.onload = (ev) => {
                         try {
                             const data = JSON.parse(ev.target.result);
+                            const supportedVersion = window.TechneThemeContract?.VERSION || 1;
+                            if (data.version && data.version > supportedVersion) {
+                                throw new Error(`Theme contract v${data.version} is newer than supported v${supportedVersion}`);
+                            }
                             if (data.customThemes && typeof data.customThemes === 'object') {
                                 const existing = editor.loadCustomThemes();
                                 const merged = { ...existing, ...data.customThemes };
-                                editor.saveCustomThemes(merged);
+                                const result = editor.saveCustomThemes(merged);
+                                if (!result.valid) throw new Error('One or more imported themes do not conform');
                                 render(null);
                             }
-                        } catch (_) {
-                            console.warn('[techne-theme-editor-ui] Invalid theme file');
+                        } catch (error) {
+                            console.warn('[techne-theme-editor-ui] Invalid theme file', error);
+                            window.showNotification?.(error.message || 'Invalid theme file', 'error');
                         }
                     };
                     reader.readAsText(file);

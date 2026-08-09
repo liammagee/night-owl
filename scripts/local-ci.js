@@ -155,6 +155,11 @@ function createStages({ dependency, release = false }) {
       args: ['scripts/workplan.js', 'check']
     },
     {
+      name: 'Theme contract and contrast',
+      command: process.execPath,
+      args: ['scripts/check-theme-conformance.js']
+    },
+    {
       name: 'Presentation generated assets',
       command: process.execPath,
       args: ['scripts/build-presentations.js', '--check']

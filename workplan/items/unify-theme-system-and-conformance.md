@@ -1,11 +1,11 @@
 ---
 id: "unify-theme-system-and-conformance"
 title: "Unify theme tokens and enforce visual conformance"
-status: "triaged"
+status: "done"
 type: "refactor"
 priority: "P2"
 area: "accessibility"
-owner: "unassigned"
+owner: "codex"
 source: "user-report"
 evidence: "source-analysis"
 created: "2026-08-10"
@@ -36,19 +36,46 @@ and add a deterministic gallery plus real Electron conformance coverage.
 
 ## Acceptance criteria
 
-- [ ] A versioned machine-readable contract validates required theme metadata,
+- [x] A versioned machine-readable contract validates required theme metadata,
   token names, and parseable values.
-- [ ] All foreground/background, interaction, focus, and status pairs pass the
+- [x] All foreground/background, interaction, focus, and status pairs pass the
   contrast requirements in the design brief after alpha compositing.
-- [ ] Accent interaction states retain one recognizable hue family and status
+- [x] Accent interaction states retain one recognizable hue family and status
   colors retain invariant meaning.
-- [ ] A deterministic component gallery renders every required state for all
+- [x] A deterministic component gallery renders every required state for all
   built-in themes and supports screenshot comparison.
-- [ ] The custom theme editor previews and validates the same semantic roles and
+- [x] The custom theme editor previews and validates the same semantic roles and
   versions imported/exported themes.
-- [ ] Shared application and plugin chrome consume canonical roles rather than
+- [x] Shared application and plugin chrome consume canonical roles rather than
   unowned literal colors or theme IDs.
-- [ ] Legacy aliases remain one-way adapter output during migration, then
+- [x] Legacy aliases remain one-way adapter output during migration, then
   competing theme-token ownership is retired.
-- [ ] Required local and hosted CI run contract, contrast, Axe, and Electron
+- [x] Required local and hosted CI run contract, contrast, Axe, and Electron
   theme-conformance checks.
+
+## Implementation evidence
+
+- Contract v1 validates 22 required roles, metadata, alpha-composited contrast,
+  accent-family continuity, and distinct status meaning across all 12 built-ins.
+- The component gallery exposes six deterministic state cards and is available
+  through command `theme.gallery`.
+- Custom themes normalize legacy aliases, report failing pairs and ratios live,
+  reject invalid saves/imports, and export the contract version.
+- Required Electron coverage applies every built-in plus a custom theme, samples
+  shared application chrome, and runs Axe against the gallery in every palette.
+
+## Outcome
+
+Theme definitions now flow through one versioned semantic contract. All 12
+built-ins pass the palette and contrast audit, custom themes use the same rules,
+and shared NightOwl chrome receives one-way canonical role mappings. Designers
+can review every required component state in the gallery before selecting a
+theme, while local and hosted CI reject regressions.
+
+## Verification
+
+- `npm run ci:local`: 7/7 stages passed.
+- `npm run theme:check`: 12/12 built-in themes passed contract v1.
+- Required Electron `@theme-conformance`: all built-ins, one custom theme,
+  shared chrome computed styles, and 12 Axe gallery passes.
+- GitHub `required-smoke`: passed on PR #37.

@@ -916,8 +916,9 @@ describe('Code quality guardrails', () => {
     expect(rendererSource).toContain('function initializeNativeThemeManager');
     expect(rendererSource).toContain('window.techneThemeManager._init(host)');
     expect(featureLoaderSource).not.toContain('techne-theme-manager');
-    expect(rendererSource).toContain('const MANAGED_THEME_FALLBACKS');
-    expect(rendererSource).toContain("'solarized-light'");
+    expect(rendererSource).toContain('function getManagedThemeFallback(themeId)');
+    expect(rendererSource).toContain('contract.validateTheme(themeId, theme)');
+    expect(rendererSource).not.toContain('const MANAGED_THEME_FALLBACKS');
     expect(rendererSource).toContain("body.setAttribute('data-techne-theme', preference)");
     expect(adapterSource).toContain('--primary-wcag: var(--techne-accent-active)');
     expect(adapterSource).toContain('--primary-500: var(--techne-accent)');

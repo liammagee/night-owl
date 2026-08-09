@@ -1127,6 +1127,94 @@ test('@required @accessibility editor and presentation expose named keyboard-ope
   await appPage.evaluate(() => window.switchToMode('editor'));
 });
 
+test('@required @theme-conformance every built-in palette satisfies the contract and component gallery', async ({ appPage }) => {
+  await appPage.evaluate(() => window.switchToMode('editor'));
+  const report = await appPage.evaluate(() => window.techneThemeManager.getConformanceReport());
+  expect(report.valid).toBe(true);
+  expect(report.themeCount).toBe(12);
+  expect(report.failureCount).toBe(0);
+
+  const snapshots = await appPage.evaluate(() => {
+    const manager = window.techneThemeManager;
+    return Object.keys(manager.getThemes()).map(themeId => {
+      if (!manager.applyTheme(themeId)) throw new Error(`Could not apply ${themeId}`);
+      const root = getComputedStyle(document.documentElement);
+      const body = getComputedStyle(document.body);
+      const tokens = window.TechneThemeContract.REQUIRED_TOKENS;
+      const readChrome = selector => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const style = getComputedStyle(element);
+        return { background: style.backgroundColor, color: style.color };
+      };
+      return {
+        themeId,
+        appliedTheme: document.body.dataset.techneTheme,
+        colorScheme: document.documentElement.style.colorScheme,
+        bodyBackground: body.backgroundColor,
+        bodyColor: body.color,
+        missingTokens: tokens.filter(token => !root.getPropertyValue(token).trim()),
+        chrome: {
+          sidebar: readChrome('#left-sidebar'),
+          toolbar: readChrome('#editor-toolbar'),
+          preview: readChrome('#right-pane'),
+          status: readChrome('#editor-status-bar'),
+          terminal: readChrome('#chat-pane')
+        }
+      };
+    });
+  });
+  expect(snapshots).toHaveLength(12);
+  for (const snapshot of snapshots) {
+    expect(snapshot.appliedTheme).toBe(snapshot.themeId);
+    expect(snapshot.colorScheme).toMatch(/^(light|dark)$/);
+    expect(snapshot.bodyBackground).not.toBe('rgba(0, 0, 0, 0)');
+    expect(snapshot.bodyColor).not.toBe('rgba(0, 0, 0, 0)');
+    expect(snapshot.missingTokens).toEqual([]);
+    for (const [surface, style] of Object.entries(snapshot.chrome)) {
+      expect(style, `${snapshot.themeId} is missing ${surface} chrome`).not.toBeNull();
+      expect(style.background, `${snapshot.themeId} ${surface} has no owned background`).not.toBe('rgba(0, 0, 0, 0)');
+      expect(style.color, `${snapshot.themeId} ${surface} has no owned foreground`).not.toBe('rgba(0, 0, 0, 0)');
+    }
+  }
+
+  const customTheme = await appPage.evaluate(() => {
+    const custom = window.TechneThemeContract.normalizeCustomTheme({
+      name: 'Electron smoke custom',
+      base: 'dark'
+    });
+    const saved = window.techneThemeEditor.saveCustomThemes({ 'custom-electron-smoke': custom });
+    const applied = window.techneThemeEditor.applyCustomTheme('custom-electron-smoke');
+    return {
+      saved: saved.valid,
+      applied,
+      background: getComputedStyle(document.documentElement).getPropertyValue('--techne-bg').trim()
+    };
+  });
+  expect(customTheme).toEqual({ saved: true, applied: true, background: '#18181b' });
+
+  expect(await appPage.evaluate(() => window.TechneThemeGallery.open('light'))).toBe(true);
+  const gallery = appPage.locator('#techne-theme-conformance-gallery');
+  await expect(gallery).toBeVisible();
+  await expect(gallery.locator('.techne-gallery-theme-button')).toHaveCount(12);
+  await expect(gallery.locator('.techne-gallery-theme-result[data-valid="true"]')).toHaveCount(12);
+  await expect(gallery.locator('.techne-gallery-card')).toHaveCount(6);
+  await expectEveryVisibleControlNamed(appPage, '#techne-theme-conformance-gallery');
+  await injectAxe(appPage);
+
+  for (const themeId of Object.keys(await appPage.evaluate(() => window.techneThemeManager.getThemes()))) {
+    await gallery.locator(`[data-theme-id="${themeId}"]`).click();
+    await expect(appPage.locator('body')).toHaveAttribute('data-techne-theme', themeId);
+    await checkA11y(appPage, '#techne-theme-conformance-gallery', {
+      detailedReport: true,
+      detailedReportOptions: { html: true }
+    });
+  }
+
+  await gallery.getByRole('button', { name: 'Close theme gallery' }).click();
+  await expect(gallery).toHaveCount(0);
+});
+
 test('@required @mode-recovery presentation failure offers recovery and retry remounts the deck', async ({ appPage }) => {
   await enterPresentation(appPage);
   await appPage.evaluate(() => {

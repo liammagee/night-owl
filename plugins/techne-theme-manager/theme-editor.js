@@ -9,6 +9,7 @@
 
     const STORAGE_KEY = 'techne-theme-custom-themes';
     const ACTIVE_KEY  = 'techne-theme-active-custom';
+    const CONTRACT = window.TechneThemeContract;
 
     // ── Built-in presets ──
     // Non-brand presets (Solarized, Nord, Monokai, Dracula, Sepia, GitHub Light)
@@ -27,19 +28,24 @@
         },
         {
             label: 'Text',
-            vars: ['--techne-text', '--techne-text-muted', '--techne-text-inverted']
+            vars: ['--techne-text', '--techne-text-muted', '--techne-text-on-accent']
         },
         {
             label: 'Accent',
             vars: ['--techne-accent', '--techne-accent-hover', '--techne-accent-active']
         },
         {
-            label: 'Borders',
-            vars: ['--techne-border', '--techne-border-subtle']
+            label: 'Boundaries and interaction',
+            vars: ['--techne-border', '--techne-border-subtle', '--techne-focus-ring', '--techne-selection-bg', '--techne-link']
         },
         {
             label: 'Semantic',
-            vars: ['--techne-success', '--techne-warning', '--techne-error']
+            vars: [
+                '--techne-success', '--techne-success-surface',
+                '--techne-warning', '--techne-warning-surface',
+                '--techne-error', '--techne-error-surface',
+                '--techne-info', '--techne-info-surface'
+            ]
         },
         {
             label: 'Glass',
@@ -51,25 +57,50 @@
 
     let _host = null;
 
+    function normalizeTheme(theme) {
+        if (!CONTRACT) return theme;
+        const normalized = CONTRACT.normalizeCustomTheme(theme);
+        return { ...normalized, base: normalized.colorScheme };
+    }
+
+    function normalizeThemes(themes) {
+        return Object.fromEntries(Object.entries(themes || {}).map(([id, theme]) => [id, normalizeTheme(theme)]));
+    }
+
+    function validateCustomTheme(themeId, theme) {
+        const normalized = normalizeTheme(theme);
+        const report = CONTRACT
+            ? CONTRACT.validateTheme(themeId, normalized)
+            : { id: themeId, valid: true, issues: [], tokens: normalized.vars || {} };
+        return { ...report, theme: normalized };
+    }
+
     function loadCustomThemes() {
         // Try host settings first
         if (_host?.getSetting) {
             const v = _host.getSetting('customThemes');
-            if (v && typeof v === 'object') return v;
+            if (v && typeof v === 'object') return normalizeThemes(v);
         }
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? JSON.parse(stored) : {};
+            return stored ? normalizeThemes(JSON.parse(stored)) : {};
         } catch (_) { return {}; }
     }
 
     function saveCustomThemes(themes) {
+        const normalized = normalizeThemes(themes);
+        const reports = Object.entries(normalized).map(([id, theme]) => validateCustomTheme(id, theme));
+        const invalid = reports.filter(report => !report.valid);
+        if (invalid.length) {
+            return { valid: false, themes: normalized, reports, invalid };
+        }
         if (_host?.setSetting) {
-            _host.setSetting('customThemes', themes);
+            _host.setSetting('customThemes', normalized);
         }
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(themes));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
         } catch (_) { /* ignore */ }
+        return { valid: true, themes: normalized, reports, invalid: [] };
     }
 
     function getActiveCustomTheme() {
@@ -133,7 +164,9 @@
     function applyCustomTheme(themeId) {
         const themes = loadCustomThemes();
         const theme = themes[themeId];
-        if (!theme) return;
+        if (!theme) return false;
+        const report = validateCustomTheme(themeId, theme);
+        if (!report.valid) return false;
 
         clearThemeVars();
 
@@ -145,6 +178,7 @@
 
         applyThemeVars(theme.vars);
         setActiveCustomTheme('custom:' + themeId);
+        return true;
     }
 
     function resetToDefault() {
@@ -222,6 +256,7 @@
         getVarGroups: () => VAR_GROUPS.map(g => ({ ...g, vars: [...g.vars] })),
         loadCustomThemes,
         saveCustomThemes,
+        validateCustomTheme,
         getActiveCustomTheme,
         setActiveCustomTheme,
         applyPreset,

@@ -12462,44 +12462,17 @@ window.updateBreadcrumb = updateBreadcrumb;
 window.updateUnsavedIndicator = updateUnsavedIndicator;
 window.updatePreviewAndStructure = updatePreviewAndStructure;
 
-const MANAGED_THEME_FALLBACKS = {
-    'solarized-light': {
-        isDark: false,
-        tokens: {
-            '--techne-accent': '#268bd2',
-            '--techne-accent-hover': '#1a6da0',
-            '--techne-accent-active': '#155a85',
-            '--techne-bg': '#fdf6e3',
-            '--techne-surface': '#eee8d5',
-            '--techne-surface-elevated': '#fdf6e3',
-            '--techne-text': '#43565d',
-            '--techne-text-muted': '#52666d',
-            '--techne-text-inverted': '#fdf6e3',
-            '--techne-border': 'rgba(101, 123, 131, 0.25)',
-            '--techne-border-subtle': 'rgba(101, 123, 131, 0.12)',
-            '--techne-glass-bg': 'rgba(253, 246, 227, 0.85)',
-            '--techne-glass-border': 'rgba(238, 232, 213, 0.40)'
-        }
-    },
-    'solarized-dark': {
-        isDark: true,
-        tokens: {
-            '--techne-accent': '#268bd2',
-            '--techne-accent-hover': '#2aa0f0',
-            '--techne-accent-active': '#1a6da0',
-            '--techne-bg': '#002b36',
-            '--techne-surface': '#073642',
-            '--techne-surface-elevated': '#0a4050',
-            '--techne-text': '#b4c5c5',
-            '--techne-text-muted': '#9aabad',
-            '--techne-text-inverted': '#ffffff',
-            '--techne-border': 'rgba(131, 148, 150, 0.25)',
-            '--techne-border-subtle': 'rgba(131, 148, 150, 0.12)',
-            '--techne-glass-bg': 'rgba(0, 43, 54, 0.85)',
-            '--techne-glass-border': 'rgba(7, 54, 66, 0.40)'
-        }
-    }
-};
+function getManagedThemeFallback(themeId) {
+    const theme = window._TECHNE_THEMES?.[themeId];
+    const contract = window.TechneThemeContract;
+    if (!theme || !contract) return null;
+    const report = contract.validateTheme(themeId, theme);
+    if (!report.valid) return null;
+    return {
+        isDark: report.colorScheme === 'dark',
+        tokens: report.tokens
+    };
+}
 
 function applyManagedThemeFallbackTokens(tokens = {}) {
     const root = document.documentElement;
@@ -12510,7 +12483,11 @@ function applyManagedThemeFallbackTokens(tokens = {}) {
 
 function clearManagedThemeFallbackTokens() {
     const root = document.documentElement;
-    Object.keys(MANAGED_THEME_FALLBACKS['solarized-light'].tokens).forEach((prop) => {
+    const tokenNames = [
+        ...(window.TechneThemeContract?.REQUIRED_TOKENS || []),
+        ...(window.TechneThemeContract?.OPTIONAL_TOKENS || [])
+    ];
+    tokenNames.forEach((prop) => {
         root.style.removeProperty(prop);
     });
 }
@@ -12547,7 +12524,7 @@ function applyTheme(themeOrIsDark) {
         return;
     }
 
-    const fallbackManagedTheme = MANAGED_THEME_FALLBACKS[preference];
+    const fallbackManagedTheme = getManagedThemeFallback(preference);
     if (fallbackManagedTheme) {
         body.classList.remove(
             'dark-mode',

@@ -1,19 +1,17 @@
 {
-  "generated": "2026-08-09T14:59:02.615Z",
+  "generated": "2026-08-09T15:43:09.037Z",
   "counts": {
     "total": 31,
     "byStatus": {
-      "triaged": 1,
-      "done": 30
+      "done": 31
     },
     "byPriority": {
-      "P2": 13,
       "P0": 4,
       "P1": 13,
+      "P2": 13,
       "P3": 1
     },
     "byArea": {
-      "accessibility": 2,
       "presentation": 5,
       "preview": 3,
       "platform": 6,
@@ -23,35 +21,11 @@
       "security": 2,
       "architecture": 3,
       "files": 1,
+      "accessibility": 2,
       "performance": 1
     }
   },
   "items": [
-    {
-      "id": "unify-theme-system-and-conformance",
-      "title": "Unify theme tokens and enforce visual conformance",
-      "status": "triaged",
-      "type": "refactor",
-      "priority": "P2",
-      "area": "accessibility",
-      "owner": "unassigned",
-      "source": "user-report",
-      "evidence": "source-analysis",
-      "created": "2026-08-10",
-      "updated": "2026-08-10",
-      "verification": "Every built-in theme passes the versioned token, contrast, component-gallery, Axe, and required Electron conformance checks documented in THEME_DESIGN_BRIEF.md.",
-      "tags": [
-        "themes",
-        "design-system",
-        "color",
-        "a11y",
-        "css"
-      ],
-      "depends_on": [
-        "accessible-names-and-presentation-semantics",
-        "consolidate-presentation-source-and-styles"
-      ]
-    },
     {
       "id": "fit-presentation-slides-to-viewport",
       "title": "Fit complete presentation slides inside the viewport",
@@ -663,6 +637,31 @@
       ],
       "depends_on": [
         "reliable-editor-preview-transitions"
+      ]
+    },
+    {
+      "id": "unify-theme-system-and-conformance",
+      "title": "Unify theme tokens and enforce visual conformance",
+      "status": "done",
+      "type": "refactor",
+      "priority": "P2",
+      "area": "accessibility",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-08-10",
+      "updated": "2026-08-10",
+      "verification": "Every built-in theme passes the versioned token, contrast, component-gallery, Axe, and required Electron conformance checks documented in THEME_DESIGN_BRIEF.md.",
+      "tags": [
+        "themes",
+        "design-system",
+        "color",
+        "a11y",
+        "css"
+      ],
+      "depends_on": [
+        "accessible-names-and-presentation-semantics",
+        "consolidate-presentation-source-and-styles"
       ]
     },
     {

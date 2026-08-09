@@ -37,9 +37,9 @@ body[data-techne-theme] {
     --text-muted: var(--techne-text-muted);
     --text-disabled: var(--techne-text-muted);
     --preview-text: var(--techne-text);
-    --text-on-primary: var(--techne-text-inverted);
+    --text-on-primary: var(--techne-text-on-accent);
     --git-status-clean: var(--techne-success);
-    --git-status-staged: #7a3f00;
+    --git-status-staged: var(--techne-warning);
     --git-status-changed: var(--techne-accent-active);
 
     /* Accent */
@@ -60,7 +60,7 @@ body[data-techne-theme] {
     --primary-800: color-mix(in srgb, var(--techne-accent-active) 74%, var(--techne-text));
     --primary-900: color-mix(in srgb, var(--techne-accent-active) 48%, var(--techne-text));
     --accent-color: var(--techne-accent);
-    --highlight-bg: var(--primary-50);
+    --highlight-bg: var(--techne-selection-bg);
     --border-accent: var(--techne-accent);
 
     /* Surfaces */
@@ -83,8 +83,8 @@ body[data-techne-theme] {
     --activity-icon-active: var(--techne-text);
     --tree-indent-guide: var(--techne-border-subtle);
     --list-hover-bg: color-mix(in srgb, var(--techne-text) 7%, transparent);
-    --list-active-bg: color-mix(in srgb, var(--techne-accent) 14%, var(--techne-bg));
-    --list-focus-bg: color-mix(in srgb, var(--techne-accent) 10%, var(--techne-bg));
+    --list-active-bg: var(--techne-selection-bg);
+    --list-focus-bg: var(--techne-selection-bg);
     --folder-icon-fill: color-mix(in srgb, var(--techne-accent) 34%, #d6a94f);
     --folder-icon-border: color-mix(in srgb, var(--techne-accent-active) 42%, #9f7430);
     --file-icon-fill: var(--techne-surface-elevated);
@@ -94,7 +94,7 @@ body[data-techne-theme] {
     --tag-bg: var(--primary-100);
     --tag-text: var(--techne-accent-active);
     --tag-bg-dark: var(--primary-900);
-    --tag-text-dark: var(--techne-text-inverted);
+    --tag-text-dark: var(--techne-text-on-accent);
 
     /* Cards */
     --card-bg: var(--techne-surface);
@@ -122,7 +122,7 @@ body[data-techne-theme] {
     /* Input fields */
     --input-bg: var(--techne-bg);
     --input-border: var(--techne-border);
-    --input-focus-border: var(--techne-accent);
+    --input-focus-border: var(--techne-focus-ring);
 
     /* Code blocks */
     --code-bg: var(--techne-surface-elevated);
@@ -134,12 +134,16 @@ body[data-techne-theme] {
     --scrollbar-thumb-hover: var(--techne-text-muted);
 
     /* Semantic UI states used by older notification/chip styles */
-    --success: color-mix(in srgb, var(--techne-accent) 70%, #2aa198);
-    --success-subtle: color-mix(in srgb, var(--techne-accent) 12%, var(--techne-bg));
-    --warning: color-mix(in srgb, var(--techne-accent) 35%, #b58900);
-    --warning-subtle: color-mix(in srgb, #b58900 14%, var(--techne-bg));
-    --error: color-mix(in srgb, var(--techne-accent) 25%, #dc322f);
-    --error-subtle: color-mix(in srgb, #dc322f 12%, var(--techne-bg));
+    --success: var(--techne-success);
+    --success-subtle: var(--techne-success-surface);
+    --warning: var(--techne-warning);
+    --warning-subtle: var(--techne-warning-surface);
+    --error: var(--techne-error);
+    --error-subtle: var(--techne-error-surface);
+    --info: var(--techne-info);
+    --info-subtle: var(--techne-info-surface);
+    --link-color: var(--techne-link);
+    --selection-bg: var(--techne-selection-bg);
     --danger: var(--error);
 }
 
@@ -750,7 +754,7 @@ body[data-techne-theme].techne-theme textarea {
 body[data-techne-theme].techne-theme input:focus,
 body[data-techne-theme].techne-theme select:focus,
 body[data-techne-theme].techne-theme textarea:focus {
-    border-color: var(--techne-accent) !important;
+    border-color: var(--techne-focus-ring) !important;
 }
 
 /* Scrollbar */
