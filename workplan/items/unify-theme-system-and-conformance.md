@@ -1,7 +1,7 @@
 ---
 id: "unify-theme-system-and-conformance"
 title: "Unify theme tokens and enforce visual conformance"
-status: "active"
+status: "done"
 type: "refactor"
 priority: "P2"
 area: "accessibility"
@@ -50,7 +50,7 @@ and add a deterministic gallery plus real Electron conformance coverage.
   unowned literal colors or theme IDs.
 - [x] Legacy aliases remain one-way adapter output during migration, then
   competing theme-token ownership is retired.
-- [ ] Required local and hosted CI run contract, contrast, Axe, and Electron
+- [x] Required local and hosted CI run contract, contrast, Axe, and Electron
   theme-conformance checks.
 
 ## Implementation evidence
@@ -63,3 +63,19 @@ and add a deterministic gallery plus real Electron conformance coverage.
   reject invalid saves/imports, and export the contract version.
 - Required Electron coverage applies every built-in plus a custom theme, samples
   shared application chrome, and runs Axe against the gallery in every palette.
+
+## Outcome
+
+Theme definitions now flow through one versioned semantic contract. All 12
+built-ins pass the palette and contrast audit, custom themes use the same rules,
+and shared NightOwl chrome receives one-way canonical role mappings. Designers
+can review every required component state in the gallery before selecting a
+theme, while local and hosted CI reject regressions.
+
+## Verification
+
+- `npm run ci:local`: 7/7 stages passed.
+- `npm run theme:check`: 12/12 built-in themes passed contract v1.
+- Required Electron `@theme-conformance`: all built-ins, one custom theme,
+  shared chrome computed styles, and 12 Axe gallery passes.
+- GitHub `required-smoke`: passed on PR #37.
