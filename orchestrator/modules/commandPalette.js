@@ -8,6 +8,30 @@ const actionRegistryModule = window.NightOwlActionRegistryModule;
 let commandPalette = null;
 let selectedIndex = 0;
 
+function invokePresentationTool(method, options = {}) {
+    window.switchToMode?.('presentation');
+    return new Promise(resolve => {
+        let attempts = 0;
+        const invoke = () => {
+            const tools = window.NightOwlPresentationTools;
+            if (tools?.[method]) {
+                if (options.startDelivery) tools.startPresentation?.();
+                tools[method]();
+                resolve(true);
+                return;
+            }
+            attempts += 1;
+            if (attempts < 40) {
+                setTimeout(invoke, 50);
+                return;
+            }
+            window.showNotification?.('Presentation tools are not ready yet', 'warning');
+            resolve(false);
+        };
+        invoke();
+    });
+}
+
 // --- Command Registration ---
 function registerCoreAction(id, label, action, shortcut = null, options = {}) {
     if (!actionRegistry || typeof window.registerCommand !== 'function') {
@@ -85,7 +109,15 @@ function initializeCommandPalette() {
             window.switchStructureView('statistics');
         }
     }, 'Cmd+Shift+G');
-    registerCommand('presentation.start', 'Presentation: Start Presentation', () => window.enterPresentationMode(), 'F5');
+    registerCommand('presentation.start', 'Presentation: Start Presentation', () => (
+        invokePresentationTool('startPresentation')
+    ), 'F5');
+    registerCommand('presentation.preflight', 'Presentation: Run Preflight', () => (
+        invokePresentationTool('openPreflight')
+    ));
+    registerCommand('presentation.presenterConsole', 'Presentation: Open Presenter Console', () => (
+        invokePresentationTool('openPresenterConsole', { startDelivery: true })
+    ));
     registerCommand('view.editorMode', 'View: Editor Mode', () => window.switchToMode('editor'), 'Cmd+1');
     registerCommand('view.presentationMode', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
     registerCommand('view.networkMode', 'View: Network Mode', () => window.switchToMode('network'), 'Cmd+3');

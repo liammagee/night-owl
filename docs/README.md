@@ -38,6 +38,9 @@ backlogs.
 
 ## Presentation and distribution
 
+- [Presentation authoring and delivery](development/PRESENTATION_AUTHORING.md) —
+  advisory preflight, warning suppression, source navigation, and the fitted
+  presenter console.
 - [Presentation asset ownership](development/PRESENTATION_ASSETS.md) — canonical
   JSX, generated runtime, and CSS ownership.
 - [macOS distribution](setup/MAC_DISTRIBUTION.md) — hardened runtime,

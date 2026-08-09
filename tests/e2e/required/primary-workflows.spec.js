@@ -21,6 +21,26 @@ The complete first slide must remain visible.
 
 The second slide proves that parsing completed.`;
 
+const PREFLIGHT_DECK = [
+  '# Crowded slide',
+  '',
+  '![](missing-preflight-image.png)',
+  '',
+  '<div style="min-width: 1400px; min-height: 900px;">Deterministic overflow probe.</div>',
+  '',
+  '```notes',
+  'Explain the crowded slide and invite questions.',
+  '```',
+  '',
+  '---',
+  '',
+  'This second slide deliberately has no heading.',
+  '',
+  '```notes',
+  'Close with the final observation.',
+  '```'
+].join('\n');
+
 async function openMarkdown(page, filePath, content) {
   return page.evaluate(
     ({ path, markdown }) => window.openFileInEditor(path, markdown, {
@@ -145,7 +165,13 @@ test('@required @actions one registry drives commands, feature actions, shortcut
 
   const registrySnapshot = await appPage.evaluate(() => ({
     conflicts: window.NightOwlActions.getShortcutConflicts(),
-    featureActions: ['view.focusMode', 'export.staticSite', 'publishing.openWorkflows']
+    featureActions: [
+      'view.focusMode',
+      'export.staticSite',
+      'publishing.openWorkflows',
+      'presentation.preflight',
+      'presentation.presenterConsole'
+    ]
       .filter(actionId => Boolean(window.NightOwlActions.get(actionId))),
     commandShortcut: window.NightOwlActions.get('app.commandPalette')?.shortcut,
     quickOpenShortcut: window.NightOwlActions.get('file.quickOpen')?.shortcut
@@ -153,7 +179,13 @@ test('@required @actions one registry drives commands, feature actions, shortcut
 
   expect(registrySnapshot).toEqual({
     conflicts: [],
-    featureActions: ['view.focusMode', 'export.staticSite', 'publishing.openWorkflows'],
+    featureActions: [
+      'view.focusMode',
+      'export.staticSite',
+      'publishing.openWorkflows',
+      'presentation.preflight',
+      'presentation.presenterConsole'
+    ],
     commandShortcut: 'Mod+Shift+P',
     quickOpenShortcut: 'Mod+P'
   });
@@ -846,6 +878,96 @@ test('@required @mode-recovery presentation failure offers recovery and retry re
   await expect(appPage.locator('#presentation-root')).toHaveAttribute('data-presentation-load-state', 'ready');
   await expect(appPage.locator('#presentation-root [data-slide-index]')).toHaveCount(2);
   await expect(appPage.locator('#presentation-root')).toContainText('First slide');
+});
+
+test('@required @presentation-tools preflight and presenter state survive content reload and viewport resize', async ({ appPage }) => {
+  await enterPresentation(appPage, PREFLIGHT_DECK);
+  await expect.poll(() => appPage.evaluate(() => Boolean(window.NightOwlPresentationTools))).toBe(true);
+  await expect(appPage.locator('#presentation-root [data-slide-index="0"]')).toHaveAttribute('data-content-overflow', 'true');
+
+  await appPage.getByRole('button', { name: 'Run presentation preflight' }).click();
+  const preflightPanel = appPage.getByRole('region', { name: 'Presentation preflight' });
+  await expect(preflightPanel).toBeVisible();
+  await expect.poll(async () => appPage.evaluate(() => {
+    const report = window.NightOwlPresentationTools?.getState().preflightReport;
+    return report?.success ? {
+      slideCount: report.slideCount,
+      codes: report.warnings.map(item => item.code).sort()
+    } : null;
+  })).toEqual({
+    slideCount: 2,
+    codes: expect.arrayContaining(['image-alt', 'missing-asset', 'missing-heading', 'overflow'])
+  });
+
+  const headingWarning = preflightPanel.locator('li[data-warning-code="missing-heading"]');
+  await headingWarning.locator('.presentation-preflight-warning').click();
+  await expect.poll(() => appPage.evaluate(() => (
+    window.NightOwlPresentationTools.getState().currentSlide
+  ))).toBe(1);
+  const headingState = await appPage.evaluate(() => {
+    const state = window.NightOwlPresentationTools.getState();
+    const warning = state.preflightReport.warnings.find(item => item.code === 'missing-heading');
+    return {
+      currentSlide: state.currentSlide,
+      editorLine: window.editor.getPosition().lineNumber,
+      warningLine: warning?.sourceLine
+    };
+  });
+  expect(headingState.currentSlide).toBe(1);
+  expect(headingState.editorLine).toBe(headingState.warningLine);
+
+  await headingWarning.getByRole('button', { name: /Suppress Slide has no heading/ }).click();
+  await expect(preflightPanel.locator('li[data-warning-code="missing-heading"]')).toHaveCount(0);
+  await expect.poll(() => appPage.evaluate(() => (
+    window.NightOwlPresentationTools.getState().preflightReport?.suppressedCount || 0
+  ))).toBeGreaterThanOrEqual(1);
+
+  await appPage.getByRole('button', { name: 'Previous slide' }).click();
+  await expect.poll(() => appPage.evaluate(() => window.NightOwlPresentationTools.getState().currentSlide)).toBe(0);
+  await preflightPanel.getByRole('button', { name: 'Close presentation preflight' }).click();
+  await appPage.getByRole('button', { name: 'Start presentation' }).click();
+  await appPage.getByRole('button', { name: 'Show presenter console' }).click();
+
+  const presenter = appPage.getByRole('complementary', { name: 'Presenter console' });
+  await expect(presenter).toBeVisible();
+  await expect(presenter.locator('#presenter-current-title')).toHaveText('Crowded slide');
+  await expect(presenter.locator('#presenter-next-title')).toHaveText('Slide 2');
+  await expect(presenter.locator('.presentation-presenter-notes')).toContainText('Explain the crowded slide');
+  await expect(presenter.getByRole('timer')).not.toHaveText('00:00', { timeout: 5000 });
+
+  await appPage.setViewportSize({ width: 1000, height: 700 });
+  await expect(appPage.locator('.presentation-stage')).toHaveAttribute('data-fit-state', 'ready');
+  await expect.poll(() => appPage.evaluate(() => {
+    const stage = document.querySelector('.presentation-stage').getBoundingClientRect();
+    const slide = document.querySelector('.presentation-current-slide').getBoundingClientRect();
+    const consoleRect = document.querySelector('.presentation-presenter-console').getBoundingClientRect();
+    return {
+      withinStage: slide.left >= stage.left - 1 && slide.top >= stage.top - 1 &&
+        slide.right <= stage.right + 1 && slide.bottom <= stage.bottom + 1,
+      consoleReserved: stage.right <= consoleRect.left + 1
+    };
+  })).toEqual({ withinStage: true, consoleReserved: true });
+
+  const elapsedBeforeReload = await presenter.getByRole('timer').textContent();
+  await appPage.evaluate(content => {
+    window.dispatchEvent(new CustomEvent('updatePresentationContent', {
+      detail: { content: content.replace('# Crowded slide', '# Crowded slide reloaded') }
+    }));
+  }, PREFLIGHT_DECK);
+  await expect(presenter.locator('#presenter-current-title')).toHaveText('Crowded slide reloaded');
+  await expect(presenter).toBeVisible();
+  await expect.poll(async () => {
+    const elapsed = await presenter.getByRole('timer').textContent();
+    return elapsed >= elapsedBeforeReload;
+  }).toBe(true);
+
+  await presenter.getByRole('button', { name: 'Next' }).click();
+  await expect(presenter.locator('#presenter-current-title')).toHaveText('Slide 2');
+  await presenter.getByRole('button', { name: 'Previous' }).click();
+  await expect(presenter.locator('#presenter-current-title')).toHaveText('Crowded slide reloaded');
+
+  await appPage.getByRole('button', { name: 'Exit presentation' }).click();
+  await appPage.evaluate(() => window.switchToMode('editor'));
 });
 
 test('@required @slide-geometry delivery mode contains the complete current slide', async ({ appPage }) => {
