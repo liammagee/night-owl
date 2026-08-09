@@ -1742,8 +1742,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     if (pendingContentSlideRef.current === null || slides.length === 0) return;
     var slideIndex = Math.min(pendingContentSlideRef.current, slides.length - 1);
     pendingContentSlideRef.current = null;
+    // Delivery mode has no overview canvas to reconcile. The state and ref were
+    // committed in handleContentUpdate; navigating again from this passive
+    // effect can race a presenter Next/Previous action after live reload.
+    if (isPresenting) return;
     goToSlide(slideIndex);
-  }, [slides, goToSlide]);
+  }, [slides, isPresenting, goToSlide]);
   useEffect(function () {
     if (slides.length === 0) return;
     window.dispatchEvent(new CustomEvent('nightowl:presentation-content-ready', {
