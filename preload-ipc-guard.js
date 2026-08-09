@@ -46,11 +46,6 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'citations-zotero-live-sync',
   'citations-zotero-sync',
   'close-speaker-notes-window',
-  'collab-broadcast-cursor',
-  'collab-broadcast-edit',
-  'collab-get-status',
-  'collab-start-server',
-  'collab-stop-server',
   'convert-pdf-to-markdown',
   'convert-word-to-markdown',
   'copy-file',
@@ -269,11 +264,6 @@ const ALLOWED_ON_CHANNELS = new Set([
   'ai-chat-stream-chunk',
   'change-layout',
   'citation-capture-request',
-  'collab-peer-joined',
-  'collab-peer-left',
-  'collab-peer-renamed',
-  'collab-remote-cursor',
-  'collab-remote-edit',
   'context-menu-command',
   'current-file-changed-on-disk',
   'current-file-deleted-on-disk',
@@ -351,7 +341,6 @@ const ALLOWED_SEND_CHANNELS = new Set([
 const PREFIX_CAPABILITIES = Object.freeze([
   ['capability-health-', 'capabilityHealth'],
   ['citations-', 'citations'],
-  ['collab-', 'collaboration'],
   ['feed:', 'feed'],
   ['git-', 'git'],
   ['pdf-research-', 'pdfResearch'],
@@ -517,12 +506,6 @@ function validateStaticPublicationRequest(args) {
 }
 
 const ARGUMENT_VALIDATORS = Object.freeze({
-  'collab-start-server': (args) => {
-    const input = requireObject(args[0], 'options');
-    if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535) {
-      throw new TypeError('options.port must be an integer from 1 to 65535');
-    }
-  },
   'feed:set-credential': (args) => {
     const input = requireObject(args[0], 'credential');
     requireString(input.sourceId, 'credential.sourceId', { nonEmpty: true, maxLength: 200 });

@@ -1,21 +1,20 @@
 {
-  "generated": "2026-08-09T02:42:04.310Z",
+  "generated": "2026-08-09T03:04:34.985Z",
   "counts": {
     "total": 29,
     "byStatus": {
-      "triaged": 1,
-      "done": 28
+      "done": 29
     },
     "byPriority": {
-      "P3": 1,
       "P0": 3,
       "P1": 13,
-      "P2": 12
+      "P2": 12,
+      "P3": 1
     },
     "byArea": {
-      "platform": 6,
       "presentation": 4,
       "preview": 3,
+      "platform": 6,
       "editor": 3,
       "testing": 3,
       "packaging": 2,
@@ -27,29 +26,6 @@
     }
   },
   "items": [
-    {
-      "id": "collaboration-reliability-boundary",
-      "title": "Replace or retire the prototype collaboration surface",
-      "status": "triaged",
-      "type": "enhancement",
-      "priority": "P3",
-      "area": "platform",
-      "owner": "codex",
-      "source": "systematic-review",
-      "evidence": "source-analysis",
-      "created": "2026-08-09",
-      "updated": "2026-08-09",
-      "verification": "The collaboration surface is either backed by tested convergent document synchronization, reconnect and identity semantics, or is removed from normal product discovery and explicitly labelled unsupported.",
-      "tags": [
-        "collaboration",
-        "sync",
-        "experimental"
-      ],
-      "depends_on": [
-        "unify-command-and-shortcut-registry",
-        "resource-lifecycle-ownership"
-      ]
-    },
     {
       "id": "fit-presentation-slides-to-viewport",
       "title": "Fit complete presentation slides inside the viewport",
@@ -662,6 +638,29 @@
         "multi-repo-publishing-profiles",
         "sanitize-rendered-markdown-and-navigation",
         "unified-workspace-index"
+      ]
+    },
+    {
+      "id": "collaboration-reliability-boundary",
+      "title": "Replace or retire the prototype collaboration surface",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P3",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "source-analysis",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "The collaboration surface is either backed by tested convergent document synchronization, reconnect and identity semantics, or is removed from normal product discovery and explicitly labelled unsupported.",
+      "tags": [
+        "collaboration",
+        "sync",
+        "experimental"
+      ],
+      "depends_on": [
+        "unify-command-and-shortcut-registry",
+        "resource-lifecycle-ownership"
       ]
     }
   ]

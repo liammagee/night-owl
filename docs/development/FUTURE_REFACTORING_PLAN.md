@@ -24,6 +24,7 @@ its acceptance criteria, outcome, and verification evidence.
 | Performance regression evidence | [`performance-and-large-document-budgets`](../../workplan/items/performance-and-large-document-budgets.md) | Semantic readiness and fixed fixtures report p50/p95 thresholds. |
 | Reusable record tasks | [`schema-driven-record-workflows`](../../workplan/items/schema-driven-record-workflows.md) | JSONL/CSV task behavior is declarative, validated, and optional. |
 | Architecture/build onboarding | [`refresh-architecture-and-build-docs`](../../workplan/items/refresh-architecture-and-build-docs.md) | Current ownership and the build/release chain are documented and tested. |
+| Collaboration safety | [`collaboration-reliability-boundary`](../../workplan/items/collaboration-reliability-boundary.md) | Unsupported positional-edit sync is retired until a convergent protocol meets the explicit reintroduction contract. |
 
 The board, not this table, determines whether an item is active or done.
 

@@ -99,6 +99,29 @@ describe('Code quality guardrails', () => {
     expect(serviceSource).not.toMatch(/shell:\s*true/);
   });
 
+  test('unsafe collaboration prototype is retired behind an explicit boundary', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const ipcIndexSource = fs.readFileSync(path.join(__dirname, '../../../ipc/index.js'), 'utf8');
+    const preloadSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
+    const boundarySource = fs.readFileSync(path.join(__dirname, '../../../services/collaborationBoundary.js'), 'utf8');
+    const boundaryDocs = fs.readFileSync(path.join(__dirname, '../../../docs/development/COLLABORATION_BOUNDARY.md'), 'utf8');
+
+    expect(fs.existsSync(path.join(__dirname, '../../../orchestrator/modules/collaboration.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../orchestrator/modules/collaborationIndicators.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../ipc/collaborationHandlers.js'))).toBe(false);
+    expect(indexSource).not.toMatch(/collaboration(?:Indicators)?\.js/);
+    expect(rendererSource).not.toContain('CollaborationIndicators');
+    expect(ipcIndexSource).not.toContain('collaborationHandlers');
+    expect(preloadSource).not.toMatch(/['"]collab-/);
+    expect(preloadSource).not.toContain("'collaboration'");
+    expect(boundarySource).toContain("status: 'retired'");
+    expect(boundarySource).toContain("transport: 'none'");
+    expect(boundarySource).toContain("mutationAllowed: false");
+    expect(boundaryDocs).toContain('Requirements for reintroduction');
+    expect(boundaryDocs).toContain('must not overwrite');
+  });
+
   test('file tree rendering batches DOM writes and hydrates tags off the initial paint', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');

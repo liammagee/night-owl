@@ -27,7 +27,6 @@ const gitHandlers = require('./gitHandlers');
 const terminalHandlers = require('./terminalHandlers');
 const spellcheckHandlers = require('./spellcheckHandlers');
 const advancedExportHandlers = require('./advancedExportHandlers');
-const collaborationHandlers = require('./collaborationHandlers');
 const staticSiteHandlers = require('./staticSiteHandlers');
 const publishingProfileHandlers = require('./publishingProfileHandlers');
 const performanceHandlers = require('./performanceHandlers');
@@ -132,13 +131,6 @@ function registerAllHandlers(dependencies) {
       debug('Advanced export handlers registered');
     } catch (error) {
       console.error('[IPC] Error registering advanced export handlers:', error);
-    }
-
-    try {
-      collaborationHandlers.register(dependencies);
-      debug('Collaboration handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering collaboration handlers:', error);
     }
 
     try {
