@@ -33,6 +33,7 @@ const publishingProfileHandlers = require('./publishingProfileHandlers');
 const performanceHandlers = require('./performanceHandlers');
 const feedHandlers = require('./feedHandlers');
 const pdfResearchHandlers = require('./pdfResearchHandlers');
+const capabilityHealthHandlers = require('./capabilityHealthHandlers');
 
 /**
  * Register all IPC handlers
@@ -45,6 +46,9 @@ function registerAllHandlers(dependencies) {
     // Register each category of handlers
     workspaceIndexHandlers.register(dependencies);
     debug('Workspace index handlers registered');
+
+    capabilityHealthHandlers.register(dependencies);
+    debug('Capability health handlers registered');
 
     aiHandlers.register(dependencies);
     debug('AI handlers registered');

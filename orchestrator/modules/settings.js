@@ -386,6 +386,14 @@ function generateGeneralSettings() {
                 </p>
             </div>
         </div>
+
+        <div class="settings-section">
+            <h3>Capability Health</h3>
+            <p>Check optional tools and providers before relying on export, AI, speech, or terminal-assistant features. Reports never include credential values or document contents.</p>
+            <div class="settings-group">
+                <button type="button" class="btn btn-primary" id="open-capability-health">Check Capabilities</button>
+            </div>
+        </div>
     `;
 }
 
@@ -1731,6 +1739,11 @@ function addSettingsEventListeners(category) {
     const settingsContent = document.getElementById('settings-content');
     console.log(`[Settings] settings-content element:`, settingsContent);
     console.log(`[Settings] settings-content innerHTML length:`, settingsContent?.innerHTML?.length);
+
+    document.getElementById('open-capability-health')?.addEventListener('click', () => {
+        closeSettingsDialog();
+        window.NightOwlCapabilities?.open?.();
+    });
 
     // Notification preference preview (applies immediately in runtime; persists on Save).
     const disableNotificationsCheckbox = document.getElementById('disable-notifications');

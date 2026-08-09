@@ -45,7 +45,7 @@
 
 .nightowl-diagnostics-summary {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
     gap: 6px 14px;
     margin: 0;
 }
@@ -57,7 +57,6 @@
 }
 
 .nightowl-diagnostics-summary dd {
-    grid-row: 2;
     margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -116,7 +115,4 @@
         grid-template-columns: 1fr 1fr;
     }
 
-    .nightowl-diagnostics-summary dd {
-        grid-row: auto;
-    }
 }

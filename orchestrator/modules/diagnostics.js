@@ -184,16 +184,23 @@
 
   async function getReport(options = {}) {
     let runtime = { success: false, error: 'Runtime diagnostics unavailable' };
+    let capabilities = null;
     try {
       runtime = await root?.NightOwlPerformance?.getResourceDiagnostics?.() || runtime;
     } catch (error) {
       runtime = { success: false, error: redactString(error.message) };
+    }
+    try {
+      capabilities = await root?.NightOwlCapabilities?.check?.() || null;
+    } catch (error) {
+      capabilities = { success: false, error: redactString(error.message), capabilities: [] };
     }
     return sanitize({
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
       privacy: 'Document contents, credentials, and full private paths are omitted by default.',
       runtime,
+      capabilities,
       readiness: getReadinessSnapshot(),
       incidents: getIncidents(options)
     });
@@ -261,6 +268,7 @@
       ['Packaged', typeof app.isPackaged === 'boolean' ? (app.isPackaged ? 'yes' : 'no') : 'unknown'],
       ['Architecture', app.arch || 'unknown'],
       ['Current mode', reportData.readiness?.mode || 'unknown'],
+      ['Capabilities ready', reportData.capabilities?.summary?.counts?.available ?? 'unknown'],
       ['Recent incidents', reportData.incidents?.length || 0]
     ]) {
       summary.append(makeElement('dt', '', label), makeElement('dd', '', String(value)));
@@ -289,7 +297,10 @@
       clearIncidents();
       renderPanel(await getReport(), {});
     });
-    actions.append(copyButton, clearButton, status);
+    const capabilitiesButton = makeElement('button', 'nightowl-diagnostics-capabilities', 'Capability health');
+    capabilitiesButton.type = 'button';
+    capabilitiesButton.addEventListener('click', () => root?.NightOwlCapabilities?.open?.());
+    actions.append(copyButton, capabilitiesButton, clearButton, status);
     panel.append(header, privacy, summary, preview, actions);
     overlay.appendChild(panel);
     overlay.addEventListener('click', event => {

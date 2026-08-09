@@ -7,6 +7,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'ai-get-conversation-history',
   'ai-restart-conversation',
   'batch-read-frontmatter',
+  'capability-health-check',
   'browse-destination-folder',
   'browse-for-image',
   'browse-system-prompt-file',
@@ -348,6 +349,7 @@ const ALLOWED_SEND_CHANNELS = new Set([
 ]);
 
 const PREFIX_CAPABILITIES = Object.freeze([
+  ['capability-health-', 'capabilityHealth'],
   ['citations-', 'citations'],
   ['collab-', 'collaboration'],
   ['feed:', 'feed'],

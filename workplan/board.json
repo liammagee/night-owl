@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-09T01:52:08.578Z",
+  "generated": "2026-08-09T02:11:40.932Z",
   "counts": {
     "total": 29,
     "byStatus": {
-      "triaged": 3,
-      "done": 26
+      "triaged": 2,
+      "done": 27
     },
     "byPriority": {
       "P2": 12,
@@ -13,8 +13,8 @@
       "P1": 13
     },
     "byArea": {
-      "platform": 6,
       "preview": 3,
+      "platform": 6,
       "presentation": 4,
       "editor": 3,
       "testing": 3,
@@ -27,29 +27,6 @@
     }
   },
   "items": [
-    {
-      "id": "capability-health-and-workflow-presets",
-      "title": "Add capability health and focused workflow presets",
-      "status": "triaged",
-      "type": "enhancement",
-      "priority": "P2",
-      "area": "platform",
-      "owner": "codex",
-      "source": "systematic-review",
-      "evidence": "opportunity",
-      "created": "2026-08-09",
-      "updated": "2026-08-09",
-      "verification": "NightOwl reports available, degraded, and missing capabilities with actionable checks, and Writing, Research, Presentation, and Labelling presets project a focused reversible UI without hiding user data or disabling required actions.",
-      "tags": [
-        "onboarding",
-        "health",
-        "workflows",
-        "discoverability"
-      ],
-      "depends_on": [
-        "unify-command-and-shortcut-registry"
-      ]
-    },
     {
       "id": "validated-static-publishing",
       "title": "Turn static export into a validated publishing workflow",
@@ -465,6 +442,29 @@
       ],
       "depends_on": [
         "modernize-electron-e2e-harness"
+      ]
+    },
+    {
+      "id": "capability-health-and-workflow-presets",
+      "title": "Add capability health and focused workflow presets",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "opportunity",
+      "created": "2026-08-09",
+      "updated": "2026-08-09",
+      "verification": "NightOwl reports available, degraded, and missing capabilities with actionable checks, and Writing, Research, Presentation, and Labelling presets project a focused reversible UI without hiding user data or disabling required actions.",
+      "tags": [
+        "onboarding",
+        "health",
+        "workflows",
+        "discoverability"
+      ],
+      "depends_on": [
+        "unify-command-and-shortcut-registry"
       ]
     },
     {
