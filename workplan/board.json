@@ -1,9 +1,9 @@
 {
-  "generated": "2026-08-09T14:59:02.615Z",
+  "generated": "2026-08-09T15:38:08.959Z",
   "counts": {
     "total": 31,
     "byStatus": {
-      "triaged": 1,
+      "active": 1,
       "done": 30
     },
     "byPriority": {
@@ -30,11 +30,11 @@
     {
       "id": "unify-theme-system-and-conformance",
       "title": "Unify theme tokens and enforce visual conformance",
-      "status": "triaged",
+      "status": "active",
       "type": "refactor",
       "priority": "P2",
       "area": "accessibility",
-      "owner": "unassigned",
+      "owner": "codex",
       "source": "user-report",
       "evidence": "source-analysis",
       "created": "2026-08-10",

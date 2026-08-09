@@ -6,35 +6,15 @@ const adapterCss = fs.readFileSync(
   path.join(__dirname, '../../css/techne-theme-adapter.css'),
   'utf8'
 );
+const themeContract = require('../../plugins/techne-theme-manager/theme-contract');
+const builtInThemes = require('../../plugins/techne-theme-manager/themes');
 
-const TOKENS = {
-  'solarized-light': {
-    '--techne-accent': '#268bd2',
-    '--techne-accent-hover': '#1a6da0',
-    '--techne-accent-active': '#155a85',
-    '--techne-bg': '#fdf6e3',
-    '--techne-surface': '#eee8d5',
-    '--techne-surface-elevated': '#fdf6e3',
-    '--techne-text': '#43565d',
-    '--techne-text-muted': '#52666d',
-    '--techne-text-inverted': '#fdf6e3',
-    '--techne-border': 'rgba(101, 123, 131, 0.25)',
-    '--techne-border-subtle': 'rgba(101, 123, 131, 0.12)'
-  },
-  'solarized-dark': {
-    '--techne-accent': '#268bd2',
-    '--techne-accent-hover': '#2aa0f0',
-    '--techne-accent-active': '#1a6da0',
-    '--techne-bg': '#002b36',
-    '--techne-surface': '#073642',
-    '--techne-surface-elevated': '#0a4050',
-    '--techne-text': '#b4c5c5',
-    '--techne-text-muted': '#9aabad',
-    '--techne-text-inverted': '#ffffff',
-    '--techne-border': 'rgba(131, 148, 150, 0.25)',
-    '--techne-border-subtle': 'rgba(131, 148, 150, 0.12)'
-  }
-};
+const TOKENS = Object.fromEntries(
+  ['solarized-light', 'solarized-dark'].map(themeId => [
+    themeId,
+    themeContract.resolveTheme(builtInThemes[themeId])
+  ])
+);
 
 async function renderChrome(page, themeId) {
   const tokenCss = Object.entries(TOKENS[themeId])
@@ -143,20 +123,20 @@ async function renderChrome(page, themeId) {
 
 for (const [themeId, expected] of Object.entries({
   'solarized-light': {
-    active: 'rgb(21, 90, 133)',
-    flow: 'rgb(253, 246, 227)',
+    active: 'rgb(7, 70, 109)',
+    flow: 'rgb(255, 250, 240)',
     status: 'rgb(238, 232, 213)',
     terminal: 'rgb(253, 246, 227)',
     terminalInput: 'rgb(238, 232, 213)',
-    separator: 'rgba(101, 123, 131, 0.25)'
+    separator: 'rgb(141, 155, 157)'
   },
   'solarized-dark': {
-    active: 'rgb(26, 109, 160)',
-    flow: 'rgb(10, 64, 80)',
+    active: 'rgb(69, 165, 220)',
+    flow: 'rgb(17, 71, 82)',
     status: 'rgb(7, 54, 66)',
     terminal: 'rgb(0, 43, 54)',
     terminalInput: 'rgb(7, 54, 66)',
-    separator: 'rgba(131, 148, 150, 0.25)'
+    separator: 'rgb(113, 137, 140)'
   }
 })) {
   test(`managed ${themeId} overrides legacy active, flow, tree, terminal, and status chrome`, async ({ page }) => {

@@ -57,6 +57,7 @@
     "benchmark:performance": "node scripts/run-electron-e2e.js --config playwright.performance.config.js",
     "presentation:build": "node scripts/build-presentations.js",
     "presentation:check": "node scripts/build-presentations.js --check",
+    "theme:check": "node scripts/check-theme-conformance.js",
     "wp:list": "node scripts/workplan.js list",
     "wp:validate": "node scripts/workplan.js validate",
     "wp:render": "node scripts/workplan.js render",

@@ -93,7 +93,12 @@ describe('local CI runner', () => {
   test('builds an explicit release stage and preserves Node options', () => {
     const dependency = { path: '/tmp/nightowl-node-modules', source: 'test' };
     const defaultStages = createStages({ dependency });
-    expect(defaultStages).toHaveLength(6);
+    expect(defaultStages).toHaveLength(7);
+    expect(defaultStages).toContainEqual({
+      name: 'Theme contract and contrast',
+      command: process.execPath,
+      args: ['scripts/check-theme-conformance.js']
+    });
     expect(defaultStages).toContainEqual(expect.objectContaining({
       name: 'Presentation generated assets',
       command: process.execPath,

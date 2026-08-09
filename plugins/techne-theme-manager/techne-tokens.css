@@ -7,27 +7,38 @@
 :root {
     /* Surfaces */
     --techne-bg: #ffffff;
-    --techne-surface: #fafafa;
+    --techne-surface: #f7f7f8;
     --techne-surface-elevated: #ffffff;
 
     /* Text */
-    --techne-text: #0a0a0a;
-    --techne-text-muted: #595959;
-    --techne-text-inverted: #ffffff;
+    --techne-text: #18181b;
+    --techne-text-muted: #52525b;
+    --techne-text-on-accent: #ffffff;
+    --techne-text-inverted: var(--techne-text-on-accent);
 
     /* Accent */
-    --techne-accent: #E63946;
-    --techne-accent-hover: #c1121f;
-    --techne-accent-active: #a30f19;
+    --techne-accent: #b42336;
+    --techne-accent-hover: #991b2e;
+    --techne-accent-active: #7f1726;
 
     /* Borders */
-    --techne-border: rgba(10, 10, 10, 0.22);
-    --techne-border-subtle: rgba(10, 10, 10, 0.10);
+    --techne-border: #a1a1aa;
+    --techne-border-subtle: #d4d4d8;
+
+    /* Focus, selection, and links */
+    --techne-focus-ring: #075eb5;
+    --techne-selection-bg: #dbeafe;
+    --techne-link: #075eb5;
 
     /* Semantic */
-    --techne-success: #2d6a4f;
-    --techne-warning: #e09f3e;
-    --techne-error: #d00000;
+    --techne-success: #146c43;
+    --techne-success-surface: #e7f5ed;
+    --techne-warning: #744700;
+    --techne-warning-surface: #fff1cc;
+    --techne-error: #a61b1b;
+    --techne-error-surface: #fde8e8;
+    --techne-info: #1756a9;
+    --techne-info-surface: #e8f1ff;
 
     /* Glass */
     --techne-glass-bg: rgba(255, 255, 255, 0.85);
@@ -36,27 +47,41 @@
 
 body.techne-dark {
     /* Surfaces */
-    --techne-bg: #0a0a0a;
-    --techne-surface: #111111;
-    --techne-surface-elevated: #1a1a1a;
+    --techne-bg: #18181b;
+    --techne-surface: #242428;
+    --techne-surface-elevated: #303036;
 
     /* Text */
-    --techne-text: #e0e0e0;
-    --techne-text-muted: rgba(224, 224, 224, 0.55);
-    --techne-text-inverted: #0a0a0a;
+    --techne-text: #f4f4f5;
+    --techne-text-muted: #b8b8c0;
+    --techne-text-on-accent: #18181b;
+    --techne-text-inverted: var(--techne-text-on-accent);
 
-    /* Accent (unchanged — red works on dark) */
+    /* Accent */
+    --techne-accent: #ff7a86;
+    --techne-accent-hover: #ff98a1;
+    --techne-accent-active: #e95765;
 
     /* Borders */
-    --techne-border: rgba(255, 255, 255, 0.18);
-    --techne-border-subtle: rgba(255, 255, 255, 0.08);
+    --techne-border: #71717a;
+    --techne-border-subtle: #46464f;
 
-    /* Semantic (slightly lighter for dark bg) */
-    --techne-success: #52b788;
-    --techne-warning: #f4c430;
-    --techne-error: #ef233c;
+    /* Focus, selection, and links */
+    --techne-focus-ring: #a9caff;
+    --techne-selection-bg: #294d73;
+    --techne-link: #9bc7ff;
+
+    /* Semantic */
+    --techne-success: #79d8a5;
+    --techne-success-surface: #153727;
+    --techne-warning: #ffd278;
+    --techne-warning-surface: #3b2d0b;
+    --techne-error: #ff9a92;
+    --techne-error-surface: #481d1d;
+    --techne-info: #a9caff;
+    --techne-info-surface: #183356;
 
     /* Glass */
-    --techne-glass-bg: rgba(10, 10, 10, 0.85);
-    --techne-glass-border: rgba(255, 255, 255, 0.08);
+    --techne-glass-bg: rgba(24, 24, 27, 0.88);
+    --techne-glass-border: rgba(244, 244, 245, 0.16);
 }

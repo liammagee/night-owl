@@ -1,248 +1,166 @@
-/* Techne Theme Definitions
-   Each theme has: name, description, bodyClass (applied to <body>),
-   and tokens (override map for --techne-* vars beyond the CSS defaults).
-*/
+/* Built-in Techne themes. Values override the versioned semantic contract. */
 
-(function () {
+(function (root, factory) {
+    const themes = factory();
+    if (typeof module === 'object' && module.exports) module.exports = themes;
+    if (root) root._TECHNE_THEMES = themes;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
 
-    const THEMES = {
-        light: {
-            name: 'Light',
-            description: 'Clean light theme with red accents',
-            bodyClass: '',           // no extra class — :root defaults
-            tokens: {}               // all defaults from techne-tokens.css
-        },
+    const VERSION = 1;
 
-        dark: {
-            name: 'Dark',
-            description: 'Dark theme with red accents',
-            bodyClass: 'techne-dark',
-            tokens: {
-                '--techne-bg': '#0a0a0a',
-                '--techne-surface': '#111111',
-                '--techne-surface-elevated': '#1a1a1a',
-                '--techne-text': '#e0e0e0',
-                '--techne-text-muted': 'rgba(224, 224, 224, 0.55)',
-                '--techne-text-inverted': '#0a0a0a',
-                '--techne-border': 'rgba(255, 255, 255, 0.18)',
-                '--techne-border-subtle': 'rgba(255, 255, 255, 0.08)',
-                '--techne-glass-bg': 'rgba(10, 10, 10, 0.85)',
-                '--techne-glass-border': 'rgba(255, 255, 255, 0.08)'
-            }
-        },
+    function theme(name, description, colorScheme, tokens = {}) {
+        return {
+            name,
+            description,
+            colorScheme,
+            contractVersion: VERSION,
+            bodyClass: colorScheme === 'dark' ? 'techne-dark' : '',
+            tokens
+        };
+    }
 
-        'techne-red-light': {
-            name: 'Red Light',
-            description: 'Light theme with bold red accent',
-            bodyClass: '',
-            tokens: {
-                '--techne-accent': '#E63946',
-                '--techne-accent-hover': '#c1121f',
-                '--techne-accent-active': '#a30f19',
-                '--techne-bg': '#ffffff',
-                '--techne-surface': '#fafafa',
-                '--techne-surface-elevated': '#ffffff',
-                '--techne-text': '#0a0a0a',
-                '--techne-text-muted': '#595959',
-                '--techne-text-inverted': '#ffffff',
-                '--techne-border': 'rgba(10, 10, 10, 0.22)',
-                '--techne-border-subtle': 'rgba(10, 10, 10, 0.10)',
-                '--techne-glass-bg': 'rgba(255, 255, 255, 0.85)',
-                '--techne-glass-border': 'rgba(255, 255, 255, 0.18)'
-            }
-        },
+    return {
+        light: theme('Light', 'Clean light theme with red accents', 'light'),
 
-        'techne-red-dark': {
-            name: 'Red Dark',
-            description: 'Dark theme with bold red accent',
-            bodyClass: 'techne-dark',
-            tokens: {
-                '--techne-accent': '#E63946',
-                '--techne-accent-hover': '#c1121f',
-                '--techne-accent-active': '#a30f19',
-                '--techne-bg': '#0a0a0a',
-                '--techne-surface': '#111111',
-                '--techne-surface-elevated': '#1a1a1a',
-                '--techne-text': '#e0e0e0',
-                '--techne-text-muted': 'rgba(224, 224, 224, 0.55)',
-                '--techne-text-inverted': '#0a0a0a',
-                '--techne-border': 'rgba(255, 255, 255, 0.18)',
-                '--techne-border-subtle': 'rgba(255, 255, 255, 0.08)',
-                '--techne-glass-bg': 'rgba(10, 10, 10, 0.85)',
-                '--techne-glass-border': 'rgba(255, 255, 255, 0.08)'
-            }
-        },
+        dark: theme('Dark', 'Dark theme with red accents', 'dark'),
 
-        'techne-orange-light': {
-            name: 'Orange Light',
-            description: 'Light theme with orange accent',
-            bodyClass: '',
-            tokens: {
-                '--techne-accent': '#ff7a1a',
-                '--techne-accent-hover': '#d45a00',
-                '--techne-accent-active': '#b34900',
-                '--techne-bg': '#ffffff',
-                '--techne-surface': '#fafafa',
-                '--techne-surface-elevated': '#ffffff',
-                '--techne-text': '#0a0a0a',
-                '--techne-text-muted': '#595959',
-                '--techne-text-inverted': '#ffffff',
-                '--techne-border': 'rgba(10, 10, 10, 0.22)',
-                '--techne-border-subtle': 'rgba(10, 10, 10, 0.10)',
-                '--techne-glass-bg': 'rgba(255, 255, 255, 0.85)',
-                '--techne-glass-border': 'rgba(255, 255, 255, 0.18)'
-            }
-        },
+        'techne-red-light': theme('Red Light', 'Light theme with bold red accent', 'light', {
+            '--techne-accent': '#b42336',
+            '--techne-accent-hover': '#991b2e',
+            '--techne-accent-active': '#7f1726'
+        }),
 
-        'techne-orange-dark': {
-            name: 'Orange Dark',
-            description: 'Dark theme with orange accent',
-            bodyClass: 'techne-dark',
-            tokens: {
-                '--techne-accent': '#ff7a1a',
-                '--techne-accent-hover': '#d45a00',
-                '--techne-accent-active': '#b34900',
-                '--techne-bg': '#0a0a0a',
-                '--techne-surface': '#111111',
-                '--techne-surface-elevated': '#1a1a1a',
-                '--techne-text': '#e0e0e0',
-                '--techne-text-muted': 'rgba(224, 224, 224, 0.55)',
-                '--techne-text-inverted': '#0a0a0a',
-                '--techne-border': 'rgba(255, 255, 255, 0.18)',
-                '--techne-border-subtle': 'rgba(255, 255, 255, 0.08)',
-                '--techne-glass-bg': 'rgba(10, 10, 10, 0.85)',
-                '--techne-glass-border': 'rgba(255, 255, 255, 0.08)'
-            }
-        },
+        'techne-red-dark': theme('Red Dark', 'Dark theme with bold red accent', 'dark', {
+            '--techne-accent': '#ff7a86',
+            '--techne-accent-hover': '#ff98a1',
+            '--techne-accent-active': '#e95765'
+        }),
 
-        'solarized-light': {
-            name: 'Solarized Light',
-            description: 'Warm light theme with blue accent',
-            bodyClass: '',
-            tokens: {
-                '--techne-accent': '#268bd2',
-                '--techne-accent-hover': '#1a6da0',
-                '--techne-accent-active': '#155a85',
-                '--techne-bg': '#fdf6e3',
-                '--techne-surface': '#eee8d5',
-                '--techne-surface-elevated': '#fdf6e3',
-                '--techne-text': '#43565d',
-                '--techne-text-muted': '#52666d',
-                '--techne-text-inverted': '#fdf6e3',
-                '--techne-border': 'rgba(101, 123, 131, 0.25)',
-                '--techne-border-subtle': 'rgba(101, 123, 131, 0.12)',
-                '--techne-glass-bg': 'rgba(253, 246, 227, 0.85)',
-                '--techne-glass-border': 'rgba(238, 232, 213, 0.40)'
-            }
-        },
+        'techne-orange-light': theme('Orange Light', 'Light theme with warm orange accent', 'light', {
+            '--techne-accent': '#a94300',
+            '--techne-accent-hover': '#8d3700',
+            '--techne-accent-active': '#722c00'
+        }),
 
-        'solarized-dark': {
-            name: 'Solarized Dark',
-            description: 'Warm dark theme with blue accent',
-            bodyClass: 'techne-dark',
-            tokens: {
-                '--techne-accent': '#268bd2',
-                '--techne-accent-hover': '#2aa0f0',
-                '--techne-accent-active': '#1a6da0',
-                '--techne-bg': '#002b36',
-                '--techne-surface': '#073642',
-                '--techne-surface-elevated': '#0a4050',
-                '--techne-text': '#b4c5c5',
-                '--techne-text-muted': '#9aabad',
-                '--techne-text-inverted': '#ffffff',
-                '--techne-border': 'rgba(131, 148, 150, 0.25)',
-                '--techne-border-subtle': 'rgba(131, 148, 150, 0.12)',
-                '--techne-glass-bg': 'rgba(0, 43, 54, 0.85)',
-                '--techne-glass-border': 'rgba(7, 54, 66, 0.40)'
-            }
-        },
+        'techne-orange-dark': theme('Orange Dark', 'Dark theme with warm orange accent', 'dark', {
+            '--techne-accent': '#ff9f5a',
+            '--techne-accent-hover': '#ffb47c',
+            '--techne-accent-active': '#dc782f'
+        }),
 
-        'nord': {
-            name: 'Nord',
-            description: 'Arctic-inspired dark theme',
-            bodyClass: 'techne-dark',
-            tokens: {
-                '--techne-accent': '#88c0d0',
-                '--techne-accent-hover': '#81a1c1',
-                '--techne-accent-active': '#5e81ac',
-                '--techne-bg': '#2e3440',
-                '--techne-surface': '#3b4252',
-                '--techne-surface-elevated': '#434c5e',
-                '--techne-text': '#eceff4',
-                '--techne-text-muted': '#d8dee9',
-                '--techne-text-inverted': '#2e3440',
-                '--techne-border': 'rgba(236, 239, 244, 0.18)',
-                '--techne-border-subtle': 'rgba(236, 239, 244, 0.08)',
-                '--techne-glass-bg': 'rgba(46, 52, 64, 0.85)',
-                '--techne-glass-border': 'rgba(59, 66, 82, 0.40)'
-            }
-        },
+        'solarized-light': theme('Solarized Light', 'Warm light theme with blue accent', 'light', {
+            '--techne-bg': '#fdf6e3',
+            '--techne-surface': '#eee8d5',
+            '--techne-surface-elevated': '#fffaf0',
+            '--techne-text': '#364b52',
+            '--techne-text-muted': '#52666d',
+            '--techne-text-on-accent': '#ffffff',
+            '--techne-accent': '#0b67a3',
+            '--techne-accent-hover': '#095787',
+            '--techne-accent-active': '#07466d',
+            '--techne-border': '#8d9b9d',
+            '--techne-border-subtle': '#c9c3b3',
+            '--techne-focus-ring': '#075eb5',
+            '--techne-selection-bg': '#d7e8ed',
+            '--techne-link': '#075e96',
+            '--techne-glass-bg': 'rgba(253, 246, 227, 0.9)',
+            '--techne-glass-border': 'rgba(82, 102, 109, 0.28)'
+        }),
 
-        'dracula': {
-            name: 'Dracula',
-            description: 'Dark theme with purple accent',
-            bodyClass: 'techne-dark',
-            tokens: {
-                '--techne-accent': '#bd93f9',
-                '--techne-accent-hover': '#ff79c6',
-                '--techne-accent-active': '#8b6fc0',
-                '--techne-bg': '#282a36',
-                '--techne-surface': '#44475a',
-                '--techne-surface-elevated': '#4d5066',
-                '--techne-text': '#f8f8f2',
-                '--techne-text-muted': '#6272a4',
-                '--techne-text-inverted': '#282a36',
-                '--techne-border': 'rgba(248, 248, 242, 0.18)',
-                '--techne-border-subtle': 'rgba(248, 248, 242, 0.08)',
-                '--techne-glass-bg': 'rgba(40, 42, 54, 0.85)',
-                '--techne-glass-border': 'rgba(68, 71, 90, 0.40)'
-            }
-        },
+        'solarized-dark': theme('Solarized Dark', 'Warm dark theme with blue accent', 'dark', {
+            '--techne-bg': '#002b36',
+            '--techne-surface': '#073642',
+            '--techne-surface-elevated': '#114752',
+            '--techne-text': '#e1eeee',
+            '--techne-text-muted': '#b4c5c5',
+            '--techne-text-on-accent': '#002b36',
+            '--techne-accent': '#76c5f0',
+            '--techne-accent-hover': '#98d5f5',
+            '--techne-accent-active': '#45a5dc',
+            '--techne-border': '#71898c',
+            '--techne-border-subtle': '#355b64',
+            '--techne-focus-ring': '#a9dcfa',
+            '--techne-selection-bg': '#1d5364',
+            '--techne-link': '#9bd8f7',
+            '--techne-glass-bg': 'rgba(0, 43, 54, 0.9)',
+            '--techne-glass-border': 'rgba(180, 197, 197, 0.22)'
+        }),
 
-        'monokai': {
-            name: 'Monokai',
-            description: 'Classic dark theme with green accent',
-            bodyClass: 'techne-dark',
-            tokens: {
-                '--techne-accent': '#a6e22e',
-                '--techne-accent-hover': '#f92672',
-                '--techne-accent-active': '#8bc218',
-                '--techne-bg': '#272822',
-                '--techne-surface': '#3e3d32',
-                '--techne-surface-elevated': '#49483e',
-                '--techne-text': '#f8f8f2',
-                '--techne-text-muted': '#75715e',
-                '--techne-text-inverted': '#272822',
-                '--techne-border': 'rgba(248, 248, 242, 0.18)',
-                '--techne-border-subtle': 'rgba(248, 248, 242, 0.08)',
-                '--techne-glass-bg': 'rgba(39, 40, 34, 0.85)',
-                '--techne-glass-border': 'rgba(62, 61, 50, 0.40)'
-            }
-        },
+        nord: theme('Nord', 'Arctic-inspired dark theme', 'dark', {
+            '--techne-bg': '#2e3440',
+            '--techne-surface': '#3b4252',
+            '--techne-surface-elevated': '#465064',
+            '--techne-text': '#f4f6fa',
+            '--techne-text-muted': '#d8dee9',
+            '--techne-text-on-accent': '#202630',
+            '--techne-accent': '#9bd0dc',
+            '--techne-accent-hover': '#b3dce5',
+            '--techne-accent-active': '#77adbd',
+            '--techne-border': '#7d879a',
+            '--techne-border-subtle': '#566074',
+            '--techne-focus-ring': '#b8d9ff',
+            '--techne-selection-bg': '#4b6078',
+            '--techne-link': '#add8ff',
+            '--techne-glass-bg': 'rgba(46, 52, 64, 0.9)',
+            '--techne-glass-border': 'rgba(216, 222, 233, 0.2)'
+        }),
 
-        'sepia': {
-            name: 'Sepia',
-            description: 'Warm reading theme',
-            bodyClass: '',
-            tokens: {
-                '--techne-accent': '#8b4513',
-                '--techne-accent-hover': '#a0522d',
-                '--techne-accent-active': '#6b3410',
-                '--techne-bg': '#f4ecd8',
-                '--techne-surface': '#ece4d0',
-                '--techne-surface-elevated': '#f4ecd8',
-                '--techne-text': '#5b4636',
-                '--techne-text-muted': '#8b7355',
-                '--techne-text-inverted': '#f4ecd8',
-                '--techne-border': 'rgba(91, 70, 54, 0.22)',
-                '--techne-border-subtle': 'rgba(91, 70, 54, 0.10)',
-                '--techne-glass-bg': 'rgba(244, 236, 216, 0.85)',
-                '--techne-glass-border': 'rgba(236, 228, 208, 0.40)'
-            }
-        },
+        dracula: theme('Dracula', 'Dark theme with purple accent', 'dark', {
+            '--techne-bg': '#282a36',
+            '--techne-surface': '#373a49',
+            '--techne-surface-elevated': '#44475a',
+            '--techne-text': '#f8f8f2',
+            '--techne-text-muted': '#c8cada',
+            '--techne-text-on-accent': '#282a36',
+            '--techne-accent': '#c7a2fa',
+            '--techne-accent-hover': '#d5bafd',
+            '--techne-accent-active': '#af86df',
+            '--techne-border': '#848799',
+            '--techne-border-subtle': '#585b70',
+            '--techne-focus-ring': '#b9d5ff',
+            '--techne-selection-bg': '#514c70',
+            '--techne-link': '#b9d5ff',
+            '--techne-glass-bg': 'rgba(40, 42, 54, 0.9)',
+            '--techne-glass-border': 'rgba(248, 248, 242, 0.18)'
+        }),
+
+        monokai: theme('Monokai', 'Classic dark theme with green accent', 'dark', {
+            '--techne-bg': '#272822',
+            '--techne-surface': '#37382f',
+            '--techne-surface-elevated': '#49483e',
+            '--techne-text': '#f8f8f2',
+            '--techne-text-muted': '#cfcdc3',
+            '--techne-text-on-accent': '#20211c',
+            '--techne-accent': '#b5e853',
+            '--techne-accent-hover': '#c7f078',
+            '--techne-accent-active': '#92c52f',
+            '--techne-border': '#898a80',
+            '--techne-border-subtle': '#57584e',
+            '--techne-focus-ring': '#b9d8ff',
+            '--techne-selection-bg': '#4c583c',
+            '--techne-link': '#b9d8ff',
+            '--techne-glass-bg': 'rgba(39, 40, 34, 0.9)',
+            '--techne-glass-border': 'rgba(248, 248, 242, 0.18)'
+        }),
+
+        sepia: theme('Sepia', 'Warm reading theme', 'light', {
+            '--techne-bg': '#f4ecd8',
+            '--techne-surface': '#e9dfc8',
+            '--techne-surface-elevated': '#fbf5e7',
+            '--techne-text': '#49382b',
+            '--techne-text-muted': '#68523e',
+            '--techne-text-on-accent': '#fffaf0',
+            '--techne-accent': '#78380b',
+            '--techne-accent-hover': '#622d08',
+            '--techne-accent-active': '#4f2406',
+            '--techne-border': '#9b8267',
+            '--techne-border-subtle': '#cbbca6',
+            '--techne-focus-ring': '#075eb5',
+            '--techne-selection-bg': '#dfd0b6',
+            '--techne-link': '#71400f',
+            '--techne-glass-bg': 'rgba(244, 236, 216, 0.9)',
+            '--techne-glass-border': 'rgba(73, 56, 43, 0.2)'
+        })
     };
-
-    // Expose for theme-manager.js (loaded next)
-    window._TECHNE_THEMES = THEMES;
-})();
+});
