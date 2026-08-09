@@ -13449,7 +13449,9 @@ async function showQuickOpen() {
             window.electronAPI.workspace.getRecentFiles().catch(() => []),
             indexRequest.catch(() => null)
         ]);
-        recentFiles = recentResult;
+        recentFiles = (Array.isArray(recentResult) ? recentResult : [])
+            .map(file => typeof file === 'string' ? { path: file } : file)
+            .filter(file => typeof file?.path === 'string' && file.path.length > 0);
         workspaceFiles = (indexedResult?.files || []).map(file => (
             typeof file === 'string' ? { path: file, format: 'markdown' } : file
         ));
@@ -13459,9 +13461,15 @@ async function showQuickOpen() {
     }
 
     // Build combined list: recent files first, then workspace files (deduplicated)
-    const recentSet = new Set(recentFiles);
+    const recentSet = new Set(recentFiles.map(file => file.path));
     const allFiles = [
-        ...recentFiles.map(f => ({ path: f, isRecent: true })),
+        ...recentFiles.map(file => ({
+            path: file.path,
+            relativePath: file.relativePath,
+            format: file.format || file.type,
+            title: file.title || file.name,
+            isRecent: true
+        })),
         ...workspaceFiles.filter(f => !recentSet.has(f.path)).map(f => ({
             path: f.path,
             relativePath: f.relativePath,
