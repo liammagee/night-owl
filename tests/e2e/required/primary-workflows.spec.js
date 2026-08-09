@@ -170,6 +170,8 @@ test('@required @actions one registry drives commands, feature actions, shortcut
       'export.staticSite',
       'publishing.openWorkflows',
       'ai.rewriteSelection',
+      'help.capabilityHealth',
+      'workflow.preset.writing',
       'presentation.preflight',
       'presentation.presenterConsole'
     ]
@@ -185,6 +187,8 @@ test('@required @actions one registry drives commands, feature actions, shortcut
       'export.staticSite',
       'publishing.openWorkflows',
       'ai.rewriteSelection',
+      'help.capabilityHealth',
+      'workflow.preset.writing',
       'presentation.preflight',
       'presentation.presenterConsole'
     ],
@@ -216,6 +220,55 @@ test('@required @actions one registry drives commands, feature actions, shortcut
   await expect(appPage.locator('.publishing-workflows-dialog')).toBeVisible();
   await expect(appPage.locator('.publishing-workflows-dialog')).toContainText('Publishing workflows');
   await appPage.evaluate(() => window.NightOwlPublishingWorkflows.close());
+});
+
+test('@required @capabilities capability health is redacted and workflow presets restore custom state', async ({ appPage }) => {
+  await expect.poll(
+    () => appPage.evaluate(() => Boolean(
+      window.NightOwlCapabilities && window.NightOwlWorkflowPresets?.getController?.()
+    )),
+    { message: 'waiting for capability health and workflow preset controllers' }
+  ).toBe(true);
+
+  const health = await appPage.evaluate(() => window.NightOwlCapabilities.check({ force: true }));
+  expect(health.capabilities.length).toBeGreaterThanOrEqual(7);
+  expect(health.capabilities.map(item => item.id)).toEqual(expect.arrayContaining([
+    'git', 'pandoc', 'docling', 'latex', 'ai', 'tts', 'terminal-assistants'
+  ]));
+  expect(health.capabilities.every(item => (
+    ['available', 'degraded', 'missing', 'unconfigured'].includes(item.status)
+  ))).toBe(true);
+  const serializedHealth = JSON.stringify(health);
+  expect(serializedHealth).not.toMatch(/api[_-]?key|authorization|password|secret/i);
+
+  await appPage.evaluate(() => window.NightOwlCapabilities.open());
+  const capabilityPanel = appPage.locator('#capability-health-overlay');
+  await expect(capabilityPanel).toBeVisible();
+  await expect(capabilityPanel.locator('.capability-health-card')).toHaveCount(health.capabilities.length);
+  await expect(capabilityPanel).toContainText('Recheck capabilities');
+  await capabilityPanel.getByRole('button', { name: 'Close' }).click();
+
+  const presetResult = await appPage.evaluate(async () => {
+    const controller = window.NightOwlWorkflowPresets.getController();
+    const before = JSON.parse(JSON.stringify(window.NightOwlUIState.getState()));
+    await controller.apply('writing');
+    const focused = JSON.parse(JSON.stringify(window.NightOwlUIState.getState()));
+    const actionIds = Array.from(document.querySelectorAll('#workflow-preset-bar .workflow-preset-action'))
+      .map(button => button.dataset.actionId);
+    await controller.restore();
+    const restored = JSON.parse(JSON.stringify(window.NightOwlUIState.getState()));
+    return { before, focused, restored, actionIds, bodyPreset: document.body.dataset.workflowPreset };
+  });
+  expect(presetResult.focused).toMatchObject({
+    mode: 'editor', activeRightPane: 'preview', panes: { sidebar: false, editor: true, right: true }
+  });
+  expect(presetResult.actionIds).toContain('ai.rewriteSelection');
+  expect(presetResult.restored).toMatchObject({
+    mode: presetResult.before.mode,
+    activeRightPane: presetResult.before.activeRightPane,
+    panes: presetResult.before.panes
+  });
+  expect(presetResult.bodyPreset).toBe('custom');
 });
 
 test('@required @ai-edits AI changes remain reviewable, attributable, selective, and undoable', async ({ appPage }) => {
