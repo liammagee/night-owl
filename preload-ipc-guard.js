@@ -603,6 +603,7 @@ const ARGUMENT_VALIDATORS = Object.freeze({
   'terminal-spawn': (args) => {
     const input = args[0] == null ? {} : requireObject(args[0], 'request');
     if (input.cwd != null) requireString(input.cwd, 'request.cwd', { nonEmpty: true });
+    if (input.profile != null && input.profile !== 'tutor-stub') throw new TypeError('request.profile is invalid');
   },
   'terminal-write': (args) => {
     const input = requireObject(args[0], 'request');

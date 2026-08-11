@@ -52,7 +52,14 @@ npm run dist
 
 ## AI Configuration
 
-NightOwl supports multiple AI providers. To enable AI features:
+NightOwl uses signed-in command-line assistants for text AI by default:
+
+1. Install and sign in to [Codex CLI](https://learn.chatgpt.com/docs/codex-cli) and/or Claude CLI.
+2. Leave the assistant provider on `auto`. NightOwl tries `codex-cli`, then `claude-cli`.
+
+CLI requests run without tools in an isolated workspace. Direct API credentials are not inherited by these subprocesses. Automatic API fallback is off by default.
+
+API providers remain available as explicit alternatives. To configure one:
 
 1. Copy `.env.example` to `.env`
 2. Add your API key(s) for the provider(s) you want to use:
@@ -74,7 +81,9 @@ GROQ_API_KEY=gsk_your-key-here
 OPENROUTER_API_KEY=sk-or-your-key-here
 ```
 
-You only need to configure the providers you plan to use. The application auto-detects available providers.
+You only need to configure the API providers you deliberately plan to use. Select a named provider in AI settings, or opt in to automatic API fallback.
+
+The stateful tutor-stub CLI can also be launched from the Assistant terminal's `tutor` button. NightOwl auto-detects a sibling `machinespirits-eval` checkout; its path can be overridden in AI settings.
 
 ### AI Settings
 
@@ -82,7 +91,10 @@ Configure AI behavior in the Settings dialog or via `settings.json`:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `preferredProvider` | Which AI to use (`auto`, `openai`, `anthropic`, `gemini`, `groq`, `openrouter`) | `auto` |
+| `preferredProvider` | Which AI to use (`auto`, `codex-cli`, `claude-cli`, or a named API provider) | `auto` |
+| `providerPriority` | CLI order used by `auto` | `['codex-cli', 'claude-cli']` |
+| `allowApiFallback` | Permit `auto` to use a configured API when both CLIs are unavailable | `false` |
+| `tutorStub.repositoryPath` | Optional path to a `machinespirits-eval` checkout | auto-detect |
 | `temperature` | Response creativity (0.0 - 2.0) | `0.7` |
 | `maxTokens` | Maximum response length | `2000` |
 

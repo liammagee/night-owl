@@ -65,6 +65,14 @@ function register(deps) {
   const applyAISettingsUpdates = (updates) => {
     if (!updates || !aiRuntime) return;
 
+    if (typeof aiRuntime.configureAIRouting === 'function') {
+      try {
+        aiRuntime.configureAIRouting(appSettings.ai || updates);
+      } catch (error) {
+        console.warn('[SettingsHandlers] Could not update AI routing policy:', error);
+      }
+    }
+
     if (typeof updates.localAIUrl === 'string' && typeof aiRuntime.updateLocalAIUrl === 'function') {
       try {
         aiRuntime.updateLocalAIUrl(updates.localAIUrl);

@@ -959,7 +959,9 @@ function generateAISettings() {
                 <div class="settings-group">
                     <label>
                         <select id="ash-provider" onchange="updateModelOptions('ash')">
-                            <option value="auto" ${getAssistantProvider('ash') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
+                            <option value="auto" ${getAssistantProvider('ash') === 'auto' ? 'selected' : ''}>Auto (Codex CLI, then Claude CLI)</option>
+                            <option value="codex-cli" ${getAssistantProvider('ash') === 'codex-cli' ? 'selected' : ''}>Codex CLI (subscription)</option>
+                            <option value="claude-cli" ${getAssistantProvider('ash') === 'claude-cli' ? 'selected' : ''}>Claude CLI (subscription)</option>
                             <option value="openai" ${getAssistantProvider('ash') === 'openai' ? 'selected' : ''}>OpenAI</option>
                             <option value="anthropic" ${getAssistantProvider('ash') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
                             <option value="gemini" ${getAssistantProvider('ash') === 'gemini' ? 'selected' : ''}>Google Gemini</option>
@@ -1005,7 +1007,9 @@ function generateAISettings() {
                 <div class="settings-group">
                     <label>
                         <select id="chen-provider" onchange="updateModelOptions('chen')">
-                            <option value="auto" ${getAssistantProvider('chen') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
+                            <option value="auto" ${getAssistantProvider('chen') === 'auto' ? 'selected' : ''}>Auto (Codex CLI, then Claude CLI)</option>
+                            <option value="codex-cli" ${getAssistantProvider('chen') === 'codex-cli' ? 'selected' : ''}>Codex CLI (subscription)</option>
+                            <option value="claude-cli" ${getAssistantProvider('chen') === 'claude-cli' ? 'selected' : ''}>Claude CLI (subscription)</option>
                             <option value="openai" ${getAssistantProvider('chen') === 'openai' ? 'selected' : ''}>OpenAI</option>
                             <option value="anthropic" ${getAssistantProvider('chen') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
                             <option value="gemini" ${getAssistantProvider('chen') === 'gemini' ? 'selected' : ''}>Google Gemini</option>
@@ -1042,6 +1046,35 @@ function generateAISettings() {
                             Customize Dr. Chen's personality and behavior. This prompt defines how Dr. Chen responds and engages in philosophical dialogue.
                         </div>
                     </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Provider Routing</h3>
+                <div class="settings-group">
+                    <p style="font-size: 12px; color: #666; margin: 0 0 8px;">
+                        Auto routing uses Codex CLI first and Claude CLI second. CLI subprocesses run without inherited API keys, without tool access, and in an isolated read-only workspace.
+                    </p>
+                    <label>
+                        <input type="checkbox" id="ai-allow-api-fallback" ${currentSettings.ai?.allowApiFallback === true ? 'checked' : ''}>
+                        <span>Allow automatic fallback to configured API providers</span>
+                    </label>
+                    <div style="font-size: 11px; color: #666; margin-left: 20px;">
+                        Off by default. Named API providers can still be selected explicitly; enabling fallback may incur API charges.
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Machinespirits Tutor Stub</h3>
+                <div class="settings-group">
+                    <label>
+                        <input type="text" id="tutor-stub-repository-path" value="${escapeSettingsHtml(currentSettings.ai?.tutorStub?.repositoryPath || '')}" placeholder="Auto-detect ../machinespirits-eval" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <span>Repository path</span>
+                    </label>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                        Leave blank to auto-detect machinespirits-eval. Launch the stateful tutor from the Assistant terminal using the <strong>tutor</strong> button.
+                    </div>
                 </div>
             </div>
             
@@ -1182,7 +1215,7 @@ function generateAISettings() {
         
         
         <div class="settings-section">
-            <p><strong>Note:</strong> API keys are configured via environment variables (.env file). See the .env.example file for details.</p>
+            <p><strong>Note:</strong> Codex and Claude CLI routing uses their existing signed-in sessions. API keys are only needed when an API provider is explicitly selected or API fallback is enabled.</p>
         </div>
     `;
 }
@@ -2822,6 +2855,19 @@ function collectSettingsFromForm() {
     if (localAIUrl !== undefined) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.localAIUrl = localAIUrl;
+    }
+
+    const allowApiFallback = document.getElementById('ai-allow-api-fallback')?.checked;
+    if (allowApiFallback !== undefined) {
+        updatedSettings.ai.allowApiFallback = allowApiFallback;
+        updatedSettings.ai.providerPriority = ['codex-cli', 'claude-cli'];
+        updatedSettings.ai.subscriptionOnly = true;
+    }
+
+    const tutorStubRepositoryPath = document.getElementById('tutor-stub-repository-path')?.value;
+    if (tutorStubRepositoryPath !== undefined) {
+        if (!updatedSettings.ai.tutorStub) updatedSettings.ai.tutorStub = {};
+        updatedSettings.ai.tutorStub.repositoryPath = tutorStubRepositoryPath.trim();
     }
     
     

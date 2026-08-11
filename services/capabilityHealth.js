@@ -1,6 +1,7 @@
 'use strict';
 
 const { execFile } = require('child_process');
+const { findTutorStubRuntime } = require('./tutorStubRuntime');
 
 const VALID_STATUSES = Object.freeze(['available', 'degraded', 'missing', 'unconfigured']);
 const STATUS_RANK = Object.freeze({ available: 0, degraded: 1, unconfigured: 2, missing: 3 });
@@ -101,7 +102,7 @@ function summarize(capabilities) {
 async function collectCapabilityHealth(options = {}) {
   const checkedAt = new Date(options.now ? options.now() : Date.now()).toISOString();
   const probeOptions = { execFile: options.execFile, env: options.env || process.env, timeout: options.timeout };
-  const [git, pandoc, docling, latex, codex, claude, ai] = await Promise.all([
+  const [git, pandoc, docling, latex, codex, claude, ai, tutorStub] = await Promise.all([
     probeExecutable('git', ['--version'], probeOptions),
     probeExecutable('pandoc', ['--version'], probeOptions),
     options.doclingProbe
@@ -114,7 +115,10 @@ async function collectCapabilityHealth(options = {}) {
     ], probeOptions),
     probeExecutable('codex', ['--version'], probeOptions),
     probeExecutable('claude', ['--version'], probeOptions),
-    probeAI(options.tutorBridge)
+    probeAI(options.tutorBridge),
+    options.tutorStubProbe
+      ? options.tutorStubProbe()
+      : Promise.resolve(findTutorStubRuntime(options.tutorStub || {}))
   ]);
 
   const environment = options.env || process.env;
@@ -186,6 +190,16 @@ async function collectCapabilityHealth(options = {}) {
       version: [codex.available ? codex.version : null, claude.available ? claude.version : null].filter(Boolean).join(' · ') || null,
       setup: assistantCount ? null : { label: 'Open terminal assistant guidance', command: 'nightowl --help' },
       alternatives: ['Integrated shell terminal'], checkedAt
+    }),
+    capability({
+      id: 'tutor-stub', label: 'Machinespirits tutor stub',
+      status: tutorStub.available ? 'available' : 'unconfigured',
+      summary: tutorStub.available
+        ? 'The stateful machinespirits-eval tutor can be launched in the Assistant terminal.'
+        : 'The optional machinespirits-eval tutor checkout was not found.',
+      version: tutorStub.available ? 'npm tutor:stub' : null,
+      setup: tutorStub.available ? null : { label: 'Configure tutor stub', section: 'ai' },
+      alternatives: ['Codex or Claude CLI chat'], checkedAt
     })
   ];
 

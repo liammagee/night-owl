@@ -419,7 +419,13 @@ const defaultSettings = {
     
     // === AI Configuration ===
     ai: {
-        preferredProvider: 'auto', // 'auto', 'openai', 'anthropic', 'groq', 'openrouter'
+        preferredProvider: 'auto', // CLI-first auto routing, or an explicit provider
+        providerPriority: ['codex-cli', 'claude-cli'],
+        allowApiFallback: false,
+        subscriptionOnly: true,
+        tutorStub: {
+            repositoryPath: '' // Blank auto-detects a sibling machinespirits-eval checkout
+        },
         models: {
             openai: 'gpt-4o',
             anthropic: 'claude-3-5-sonnet-20241022',
@@ -1201,6 +1207,7 @@ function updateSettingsCategory(category, updates) {
     
     // Apply AI provider settings if changed
     if (category === 'ai' && updates) {
+        tutorBridge.configureAIRouting?.(appSettings.ai);
         if (updates.preferredProvider && updates.preferredProvider !== 'auto') {
             try {
                 tutorBridge.setDefaultProvider(updates.preferredProvider);
@@ -1293,6 +1300,7 @@ function updateSettings(category, newSettings) {
     
     // Apply AI provider settings if changed
     if (category === 'ai' && newSettings) {
+        tutorBridge.configureAIRouting?.(appSettings.ai);
         // Update Local AI URL if changed
         if (newSettings.localAIUrl) {
             try {
@@ -3611,6 +3619,8 @@ app.whenReady().then(async () => {
     const tutorRuntimePaths = resolveTutorRuntimePaths(app.getPath('userData'));
     const tutorStatus = await tutorBridge.initTutorBridge({
       learnerId: 'local-writer',
+      enableCliProviders: true,
+      aiRuntimeDir: app.getPath('userData'),
       ...tutorRuntimePaths
     });
     if (!tutorStatus.ok) {
@@ -3618,6 +3628,8 @@ app.whenReady().then(async () => {
     } else {
       debugMain('Tutor-core runtime available:', tutorBridge.getRuntimeStatus());
     }
+
+    tutorBridge.configureAIRouting?.(appSettings.ai || {});
 
     // Apply saved AI settings
     if (appSettings.ai && appSettings.ai.preferredProvider) {
@@ -3629,11 +3641,11 @@ app.whenReady().then(async () => {
       }
     }
 
-    const providers = tutorStatus.ok ? tutorBridge.getAvailableProviders() : [];
-    debugMain('AI providers available via tutor-core:', providers);
+    const providers = tutorBridge.getAvailableProviders();
+    debugMain('AI providers available:', providers);
     if (providers.length === 0) {
       debugMain('No AI providers configured. Built-in AI writing features will be disabled.');
-      debugMain('Add API keys to your .env file to enable built-in AI features. See .env.example for details.');
+      debugMain('Install and sign in to Codex or Claude, or explicitly configure an API provider.');
     }
   } catch (error) {
     console.error('[main.js] Error initializing TutorBridge:', error);

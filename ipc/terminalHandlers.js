@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const os = require('os');
 const { createRuntimeWorkspaceResolver, pathExists } = require('./runtimeWorkspace');
 const { createDebugLogger } = require('./logging');
+const { findTutorStubRuntime } = require('../services/tutorStubRuntime');
 
 const debug = createDebugLogger('TerminalHandlers');
 
@@ -245,7 +246,7 @@ function register(deps) {
   /**
    * Spawn a shell process
    */
-  ipcMain.handle('terminal-spawn', async (event, { cwd, command, args = [], sessionId, cols, rows } = {}) => {
+  ipcMain.handle('terminal-spawn', async (event, { cwd, command, args = [], profile, sessionId, cols, rows } = {}) => {
     const normalizedSessionId = normalizeSessionId(sessionId);
     try {
       const existingProcess = activeProcesses.get(normalizedSessionId);
@@ -253,6 +254,24 @@ function register(deps) {
         existingProcess.suppressExit = true;
         try { existingProcess.kill(); } catch (e) { /* ignore */ }
         activeProcesses.delete(normalizedSessionId);
+      }
+
+      if (profile === 'tutor-stub') {
+        const runtime = findTutorStubRuntime({
+          configuredPath: deps?.appSettings?.ai?.tutorStub?.repositoryPath,
+          workingDirectory: getWorkingDirectory(),
+          appPath: deps?.app?.getAppPath?.(),
+          env: process.env
+        });
+        if (!runtime.available) {
+          return {
+            success: false,
+            error: 'Tutor stub was not found. Set its machinespirits-eval repository path in AI settings.'
+          };
+        }
+        cwd = runtime.repositoryPath;
+        command = runtime.command;
+        args = runtime.args;
       }
 
       const spawnConfig = getShellSpawnConfig(command, Array.isArray(args) ? args : []);

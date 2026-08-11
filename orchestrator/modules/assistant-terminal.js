@@ -16,7 +16,8 @@
   const ASSISTANTS = {
     codex: { command: 'codex', label: 'Codex' },
     claude: { command: 'claude', label: 'Claude' },
-    gemini: { command: 'gemini', label: 'Gemini' }
+    gemini: { command: 'gemini', label: 'Gemini' },
+    tutor: { profile: 'tutor-stub', label: 'Machinespirits tutor stub' }
   };
 
   let outputEl = null;
@@ -540,8 +541,8 @@
     await killProcess({ quiet: true });
     clearOutput();
     autoShellStarted = true;
-    writeStatus(`Launching ${assistant.label} in ${getWorkspaceCwd() || 'workspace'}\n`, 'info');
-    await spawnTerminal({ command: assistant.command });
+    writeStatus(`Launching ${assistant.label}${assistant.profile ? '' : ` in ${getWorkspaceCwd() || 'workspace'}`}\n`, 'info');
+    await spawnTerminal({ command: assistant.command, profile: assistant.profile });
   }
 
   async function launchShell({ quiet = false } = {}) {
@@ -693,6 +694,7 @@
     document.getElementById('assistant-launch-codex')?.addEventListener('click', () => launchAssistant('codex'));
     document.getElementById('assistant-launch-claude')?.addEventListener('click', () => launchAssistant('claude'));
     document.getElementById('assistant-launch-gemini')?.addEventListener('click', () => launchAssistant('gemini'));
+    document.getElementById('assistant-launch-tutor')?.addEventListener('click', () => launchAssistant('tutor'));
     document.getElementById('assistant-launch-shell')?.addEventListener('click', () => {
       autoShellStarted = true;
       launchShell();
@@ -702,7 +704,7 @@
 
     wireInput();
     updateContext();
-    appendFallbackOutput('Assistant terminal ready. Launch codex, claude, gemini, or type a shell command.\n', 'info');
+    appendFallbackOutput('Assistant terminal ready. Launch codex, claude, tutor, gemini, or type a shell command.\n', 'info');
     scheduleTerminalPreload();
 
     observePaneVisibility(paneEl);
