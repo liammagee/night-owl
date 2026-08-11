@@ -48,7 +48,7 @@ function toolCapability({ id, label, result, missingSummary, availableSummary, s
     status: result.available ? 'available' : missingStatus,
     summary: result.available ? availableSummary : missingSummary,
     version: result.version,
-    setup,
+    setup: result.available ? null : setup,
     alternatives,
     checkedAt
   });
@@ -104,7 +104,9 @@ async function collectCapabilityHealth(options = {}) {
   const [git, pandoc, docling, latex, codex, claude, ai] = await Promise.all([
     probeExecutable('git', ['--version'], probeOptions),
     probeExecutable('pandoc', ['--version'], probeOptions),
-    probeExecutable('python3', ['-c', 'import docling; print(getattr(docling, "__version__", "installed"))'], probeOptions),
+    options.doclingProbe
+      ? options.doclingProbe()
+      : probeExecutable('python3', ['-c', 'import docling; print(getattr(docling, "__version__", "installed"))'], probeOptions),
     probeFirst([
       { command: 'xelatex', args: ['--version'] },
       { command: 'pdflatex', args: ['--version'] },
@@ -116,7 +118,9 @@ async function collectCapabilityHealth(options = {}) {
   ]);
 
   const environment = options.env || process.env;
-  const ttsConfigured = Boolean(environment.LEMONFOX_API_KEY);
+  const ttsConfigured = options.ttsConfigured == null
+    ? Boolean(environment.LEMONFOX_API_KEY)
+    : Boolean(options.ttsConfigured);
   const assistantCount = Number(codex.available) + Number(claude.available);
   const capabilities = [
     toolCapability({
@@ -135,7 +139,13 @@ async function collectCapabilityHealth(options = {}) {
       id: 'docling', label: 'Docling', result: docling,
       availableSummary: 'Layout-aware PDF and Word import is ready.',
       missingSummary: 'Layout-aware document import is unavailable; basic import paths remain.',
-      setup: { label: 'Install Docling', command: 'python3 -m pip install docling', url: 'https://docling-project.github.io/docling/' },
+      setup: {
+        label: 'Install Docling',
+        command: 'python3 -m pip install docling',
+        url: 'https://docling-project.github.io/docling/getting_started/installation/',
+        action: 'install',
+        toolId: 'docling'
+      },
       alternatives: ['Basic PDF and Word import'], missingStatus: 'degraded', checkedAt
     }),
     toolCapability({

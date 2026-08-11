@@ -1103,6 +1103,7 @@ body.dark-mode #assistant-terminal-input {
 }
 
 .settings-group input[type="text"],
+.settings-group input[type="password"],
 .settings-group input[type="number"],
 .settings-group select {
     padding: var(--space-2) var(--space-3);
@@ -1116,6 +1117,7 @@ body.dark-mode #assistant-terminal-input {
 }
 
 .settings-group input[type="text"]:focus,
+.settings-group input[type="password"]:focus,
 .settings-group input[type="number"]:focus,
 .settings-group select:focus {
     outline: none;
@@ -1138,6 +1140,31 @@ body.dark-mode #assistant-terminal-input {
 
 .settings-group .btn {
     margin: var(--space-1) var(--space-2) var(--space-1) 0;
+}
+
+.settings-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.settings-inline-actions button {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-variant);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.settings-inline-actions button:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: var(--primary-subtle);
+}
+
+.settings-inline-actions button:disabled {
+    cursor: wait;
+    opacity: 0.6;
 }
 
 /* Sidebar Navigation */

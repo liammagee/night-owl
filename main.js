@@ -380,7 +380,8 @@ const defaultSettings = {
             language: 'en-us', // 'en-us', 'en-gb', 'ja', 'zh', 'es', 'fr', 'hi', 'it', 'pt-br'
             speed: 1.0, // 0.5 to 4.0
             response_format: 'mp3', // 'mp3', 'opus', 'aac', 'flac', 'pcm', 'ogg', 'wav'
-            word_timestamps: false // Currently only supported in English
+            word_timestamps: false, // Currently only supported in English
+            region: 'global' // 'global' or the EU processing endpoint
         },
         
         // Web Speech API Settings (fallback)

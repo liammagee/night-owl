@@ -28,7 +28,9 @@
       label: safeText(setup.label || 'Setup guidance', 120),
       command: setup.command ? safeText(setup.command, 300) : null,
       url,
-      section
+      section,
+      action: setup.action === 'install' ? 'install' : null,
+      toolId: setup.toolId === 'docling' ? 'docling' : null
     };
   }
 
@@ -177,7 +179,7 @@
         actions.appendChild(copy);
       }
       if (item.setup.url) {
-        const learn = makeButton(item.setup.label, 'capability-secondary-button');
+        const learn = makeButton(item.setup.action ? 'Setup guide' : item.setup.label, 'capability-secondary-button');
         learn.addEventListener('click', () => root.electronAPI?.navigation?.openExternal?.(item.setup.url));
         actions.appendChild(learn);
       }
@@ -188,6 +190,23 @@
           root.openSettingsDialog?.(item.setup.section);
         });
         actions.appendChild(configure);
+      }
+      if (item.setup.action === 'install' && item.setup.toolId) {
+        const install = makeButton(item.setup.label, 'capability-primary-button');
+        install.addEventListener('click', async () => {
+          install.disabled = true;
+          install.textContent = 'Installing…';
+          try {
+            const result = await root.electronAPI?.capabilityHealth?.install?.({ toolId: item.setup.toolId });
+            if (!result?.success) throw new Error(result?.error || 'Installation failed.');
+            render(await check({ force: true }));
+          } catch (error) {
+            install.disabled = false;
+            install.textContent = 'Retry installation';
+            install.title = safeText(error?.message || error, 240);
+          }
+        });
+        actions.appendChild(install);
       }
       card.appendChild(actions);
     }

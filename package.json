@@ -148,6 +148,10 @@
       {
         "from": ".env.example",
         "to": ".env.example"
+      },
+      {
+        "from": "scripts/docling-convert.py",
+        "to": "scripts/docling-convert.py"
       }
     ],
     "mac": {
