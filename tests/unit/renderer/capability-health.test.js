@@ -49,7 +49,10 @@ describe('capability health renderer', () => {
 
     expect(report.capabilities[0]).toEqual({
       id: 'unsafe', label: 'Unsafe', status: 'degraded', summary: 'Status', version: null,
-      setup: { label: 'Setup guidance', command: 'safe command', url: null, section: null },
+      setup: {
+        label: 'Setup guidance', command: 'safe command', url: null, section: null,
+        action: null, toolId: null
+      },
       alternatives: [], checkedAt: 'now'
     });
     expect(JSON.stringify(report)).not.toContain('top-secret');
@@ -71,6 +74,26 @@ describe('capability health renderer', () => {
     overlay.querySelector('.capability-health-actions .capability-secondary-button').click();
     await Promise.resolve();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('"capabilities"'));
+  });
+
+  test('runs the allowlisted Docling installer and refreshes capability state', async () => {
+    window.electronAPI.capabilityHealth.install = jest.fn(async () => ({ success: true }));
+    window.electronAPI.capabilityHealth.check = jest.fn(async () => ({
+      success: true,
+      capabilities: [{ id: 'docling', label: 'Docling', status: 'available', summary: 'Ready' }]
+    }));
+    const report = api.normalizeReport({ capabilities: [{
+      id: 'docling', label: 'Docling', status: 'degraded', summary: 'Missing',
+      setup: { label: 'Install Docling', action: 'install', toolId: 'docling' }
+    }] });
+    const overlay = api.render(report);
+    const install = Array.from(overlay.querySelectorAll('button')).find(button => button.textContent === 'Install Docling');
+
+    install.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(window.electronAPI.capabilityHealth.install).toHaveBeenCalledWith({ toolId: 'docling' });
+    expect(document.querySelector('[data-capability-id="docling"]').dataset.capabilityStatus).toBe('available');
   });
 
   test('first-run guidance is driven by actual non-ready capability state', () => {

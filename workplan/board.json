@@ -1,20 +1,20 @@
 {
-  "generated": "2026-08-09T15:43:09.037Z",
+  "generated": "2026-08-11T00:10:49.765Z",
   "counts": {
-    "total": 31,
+    "total": 32,
     "byStatus": {
-      "done": 31
+      "done": 32
     },
     "byPriority": {
       "P0": 4,
-      "P1": 13,
+      "P1": 14,
       "P2": 13,
       "P3": 1
     },
     "byArea": {
       "presentation": 5,
       "preview": 3,
-      "platform": 6,
+      "platform": 7,
       "editor": 3,
       "testing": 3,
       "packaging": 2,
@@ -134,6 +134,30 @@
       "depends_on": [
         "minimize-electron-privilege-surface",
         "resource-lifecycle-ownership"
+      ]
+    },
+    {
+      "id": "complete-docling-and-lemonfox-support",
+      "title": "Complete managed Docling and Lemonfox support",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P1",
+      "area": "platform",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-08-11",
+      "updated": "2026-08-11",
+      "verification": "Docling installs into writable user data and converts through a packaged bridge; Lemonfox uses OS-protected credentials and handles every supported audio response shape without exposing secrets.",
+      "tags": [
+        "docling",
+        "tts",
+        "lemonfox",
+        "packaging",
+        "credentials"
+      ],
+      "depends_on": [
+        "capability-health-and-workflow-presets"
       ]
     },
     {

@@ -24,6 +24,7 @@ const {
   isAllowedExternalUrl
 } = require('../services/contentSecurity');
 const workspaceIndexHandlers = require('./workspaceIndexHandlers');
+const { convertWithDocling, findDoclingRuntime } = require('../services/doclingRuntime');
 
 const debug = createDebugLogger('FileHandlers');
 
@@ -166,6 +167,11 @@ function register(deps) {
   const FILE_SCAN_CACHE_TTL_MS = 10000;
   const availableFilesCache = new Map();
   const markdownFilesCache = new Map();
+  const doclingOptions = {
+    userDataPath,
+    resourcesPath: process.resourcesPath,
+    env: process.env
+  };
 
   function cloneFileList(files) {
     return (Array.isArray(files) ? files : []).map(file => {
@@ -2897,101 +2903,10 @@ function register(deps) {
   });
 
   // --- Docling PDF to Markdown Conversion ---
-  // Convert PDF to Markdown using IBM's Docling library (requires Python)
+  // Convert PDF to Markdown through the managed or system Docling runtime.
   ipcMain.handle('convert-pdf-to-markdown', async (event, pdfPath) => {
-    const { spawn } = require('child_process');
-
     debug(`[FileHandlers] Converting PDF to Markdown: ${pdfPath}`);
-
-    return new Promise((resolve) => {
-      // Path to the docling conversion script
-      const scriptPath = path.join(__dirname, '..', 'scripts', 'docling-convert.py');
-
-      // Try to find Python executable
-      const pythonCommands = ['python3', 'python'];
-
-      const tryPython = (pythonIdx) => {
-        if (pythonIdx >= pythonCommands.length) {
-          resolve({
-            success: false,
-            error: 'Python not found. Please install Python 3 and the docling package (pip install docling)',
-            install_instructions: {
-              python: 'https://www.python.org/downloads/',
-              docling: 'pip install docling'
-            }
-          });
-          return;
-        }
-
-        const pythonCmd = pythonCommands[pythonIdx];
-        const args = [scriptPath, pdfPath, '--json'];
-
-        debug(`[FileHandlers] Trying: ${pythonCmd} ${args.join(' ')}`);
-
-        const proc = spawn(pythonCmd, args, {
-          timeout: 300000, // 5 minute timeout for large PDFs
-          env: { ...process.env }
-        });
-
-        let stdout = '';
-        let stderr = '';
-
-        proc.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
-
-        proc.stderr.on('data', (data) => {
-          stderr += data.toString();
-          debug(`[FileHandlers] Docling: ${data.toString().trim()}`);
-        });
-
-        proc.on('error', (err) => {
-          if (err.code === 'ENOENT') {
-            // Python command not found, try next
-            tryPython(pythonIdx + 1);
-          } else {
-            resolve({
-              success: false,
-              error: `Failed to run docling converter: ${err.message}`
-            });
-          }
-        });
-
-        proc.on('close', (code) => {
-          if (code === 0) {
-            try {
-              const result = JSON.parse(stdout);
-              resolve(result);
-            } catch (parseErr) {
-              // If not JSON, treat stdout as raw markdown
-              resolve({
-                success: true,
-                markdown: stdout,
-                metadata: { source_file: pdfPath }
-              });
-            }
-          } else {
-            // Check if it's a "command not found" type error
-            if (stderr.includes('No such file') || stderr.includes('not found')) {
-              tryPython(pythonIdx + 1);
-            } else {
-              try {
-                const result = JSON.parse(stdout);
-                resolve(result);
-              } catch {
-                resolve({
-                  success: false,
-                  error: stderr || `Conversion failed with exit code ${code}`,
-                  stdout: stdout
-                });
-              }
-            }
-          }
-        });
-      };
-
-      tryPython(0);
-    });
+    return convertWithDocling(pdfPath, doclingOptions);
   });
 
   // Open dialog to select PDF for conversion
@@ -3020,62 +2935,7 @@ function register(deps) {
       const pdfPath = result.filePaths[0];
       debug(`[FileHandlers] User selected PDF for import: ${pdfPath}`);
 
-      // Convert the PDF
-      const conversionResult = await new Promise((resolve) => {
-        // Emit the conversion event internally
-        const handler = ipcMain._events['convert-pdf-to-markdown'];
-        if (handler) {
-          // Call our handler directly
-          const { spawn } = require('child_process');
-          const scriptPath = path.join(__dirname, '..', 'scripts', 'docling-convert.py');
-
-          const proc = spawn('python3', [scriptPath, pdfPath, '--json'], {
-            timeout: 300000,
-            env: { ...process.env }
-          });
-
-          let stdout = '';
-          let stderr = '';
-
-          proc.stdout.on('data', (data) => { stdout += data.toString(); });
-          proc.stderr.on('data', (data) => {
-            stderr += data.toString();
-            debug(`[FileHandlers] Docling: ${data.toString().trim()}`);
-          });
-
-          proc.on('error', (err) => {
-            resolve({
-              success: false,
-              error: `Failed to run docling: ${err.message}`,
-              install_instructions: {
-                docling: 'pip install docling'
-              }
-            });
-          });
-
-          proc.on('close', (code) => {
-            if (code === 0) {
-              try {
-                resolve(JSON.parse(stdout));
-              } catch {
-                resolve({ success: true, markdown: stdout });
-              }
-            } else {
-              try {
-                resolve(JSON.parse(stdout));
-              } catch {
-                resolve({
-                  success: false,
-                  error: stderr || `Exit code ${code}`,
-                  install_instructions: stderr.includes('docling') ? { docling: 'pip install docling' } : null
-                });
-              }
-            }
-          });
-        } else {
-          resolve({ success: false, error: 'Handler not available' });
-        }
-      });
+      const conversionResult = await convertWithDocling(pdfPath, doclingOptions);
 
       return {
         ...conversionResult,
@@ -3090,33 +2950,13 @@ function register(deps) {
 
   // Check if docling is available
   ipcMain.handle('check-docling-available', async () => {
-    const { spawn } = require('child_process');
-
-    return new Promise((resolve) => {
-      const proc = spawn('python3', ['-c', 'import docling; print(docling.__version__ if hasattr(docling, "__version__") else "installed")'], {
-        timeout: 10000
-      });
-
-      let stdout = '';
-
-      proc.stdout.on('data', (data) => { stdout += data.toString(); });
-
-      proc.on('error', () => {
-        resolve({ available: false, reason: 'Python not found' });
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0) {
-          resolve({ available: true, version: stdout.trim() });
-        } else {
-          resolve({
-            available: false,
-            reason: 'Docling not installed',
-            install_command: 'pip install docling'
-          });
-        }
-      });
-    });
+    const result = await findDoclingRuntime(doclingOptions);
+    return {
+      available: result.available,
+      version: result.version || null,
+      source: result.available ? result.source : null,
+      reason: result.available ? null : 'Docling not installed'
+    };
   });
 
   // --- Pandoc Word to Markdown Conversion ---

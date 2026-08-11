@@ -59,7 +59,9 @@ function buildTerminalEnv() {
       : `${commonPath}:${currentPath}`,
     TERM: process.env.TERM || 'xterm-256color',
     COLORTERM: process.env.COLORTERM || 'truecolor',
-    TERM_PROGRAM: process.env.TERM_PROGRAM || 'NightOwl',
+    // Child tools should identify their direct terminal host, not whichever
+    // terminal happened to launch NightOwl during development.
+    TERM_PROGRAM: 'NightOwl',
     NIGHTOWL_TERMINAL: '1'
   };
 }

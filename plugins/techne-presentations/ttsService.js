@@ -89,7 +89,8 @@ class TTSService {
         language: 'en-us',
         speed: 1.0,
         response_format: 'mp3',
-        word_timestamps: false
+        word_timestamps: false,
+        region: 'global'
       },
       webSpeech: {
         rate: 1.0,
@@ -519,10 +520,18 @@ class TTSService {
           language: options.language || lemonfoxSettings.language,
           speed: options.speed || lemonfoxSettings.speed,
           response_format: options.response_format || lemonfoxSettings.response_format,
-          word_timestamps: options.word_timestamps !== undefined ? options.word_timestamps : lemonfoxSettings.word_timestamps
+          word_timestamps: options.word_timestamps !== undefined ? options.word_timestamps : lemonfoxSettings.word_timestamps,
+          region: options.region || lemonfoxSettings.region
         };
         
-        console.log('[TTS-LEMONFOX] Request params:', requestParams);
+        console.log('[TTS-LEMONFOX] Request prepared:', {
+          characters: text.length,
+          voice: requestParams.voice,
+          language: requestParams.language,
+          format: requestParams.response_format,
+          timestamps: requestParams.word_timestamps,
+          region: requestParams.region
+        });
         console.log('[TTS-LEMONFOX] Invoking IPC handler tts-generate-speech...');
         
         const result = await window.electronAPI.speech.generateSpeech(requestParams);
@@ -550,7 +559,11 @@ class TTSService {
         
         console.log('[TTS-LEMONFOX] Creating audio blob...');
         // Create audio element and play
-        const audioBlob = this.base64ToBlob(result.audioData, 'audio/mp3');
+        const audioTypes = {
+          mp3: 'audio/mpeg', opus: 'audio/opus', aac: 'audio/aac', flac: 'audio/flac',
+          pcm: 'audio/L16', ogg: 'audio/ogg', wav: 'audio/wav'
+        };
+        const audioBlob = this.base64ToBlob(result.audioData, audioTypes[result.format] || 'audio/mpeg');
         audioUrl = URL.createObjectURL(audioBlob);
         console.log('[TTS-LEMONFOX] Audio URL created:', audioUrl);
         
@@ -890,7 +903,11 @@ class TTSService {
 
   setVoice(voiceName) {
     // Check if it's a Lemonfox voice
-    const lemonfoxVoices = ['sarah', 'john', 'emily', 'michael'];
+    const lemonfoxVoices = [
+      'heart', 'bella', 'michael', 'alloy', 'aoede', 'kore', 'jessica', 'nicole', 'nova', 'river',
+      'sarah', 'sky', 'echo', 'eric', 'fenrir', 'liam', 'onyx', 'puck', 'adam', 'santa',
+      'alice', 'emma', 'isabella', 'lily', 'daniel', 'fable', 'george', 'lewis'
+    ];
     if (lemonfoxVoices.includes(voiceName.toLowerCase())) {
       this.lemonfoxVoice = voiceName.toLowerCase();
       console.log('[TTS] Lemonfox voice set to:', this.lemonfoxVoice);

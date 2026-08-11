@@ -8,6 +8,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'ai-restart-conversation',
   'batch-read-frontmatter',
   'capability-health-check',
+  'capability-health-install',
   'browse-destination-folder',
   'browse-for-image',
   'browse-system-prompt-file',
@@ -240,10 +241,14 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'trigger-export',
   'trigger-new-file',
   'tts-check-availability',
+  'tts-credential-status',
+  'tts-delete-api-key',
   'tts-generate-speech',
   'tts-get-settings',
   'tts-get-voices',
+  'tts-set-api-key',
   'tts-test',
+  'tts-test-connection',
   'update-settings-category',
   'update-speaker-notes',
   'video-get-settings',
@@ -508,6 +513,10 @@ function validateStaticPublicationRequest(args) {
 }
 
 const ARGUMENT_VALIDATORS = Object.freeze({
+  'capability-health-install': (args) => {
+    const input = requireObject(args[0], 'request');
+    if (input.toolId !== 'docling') throw new TypeError('request.toolId must be docling');
+  },
   'feed:set-credential': (args) => {
     const input = requireObject(args[0], 'credential');
     requireString(input.sourceId, 'credential.sourceId', { nonEmpty: true, maxLength: 200 });
@@ -564,6 +573,16 @@ const ARGUMENT_VALIDATORS = Object.freeze({
   },
   'static-site-generate': validateStaticPublicationRequest,
   'static-site-preview': validateStaticPublicationRequest,
+  'tts-set-api-key': (args) => {
+    const input = requireObject(args[0], 'credential');
+    requireString(input.apiKey, 'credential.apiKey', { nonEmpty: true, maxLength: 4096 });
+  },
+  'tts-test-connection': (args) => {
+    const input = args[0] == null ? {} : requireObject(args[0], 'request');
+    if (input.voice != null) requireString(input.voice, 'request.voice', { maxLength: 80 });
+    if (input.language != null) requireString(input.language, 'request.language', { maxLength: 20 });
+    if (input.region != null && !['global', 'eu'].includes(input.region)) throw new TypeError('request.region is invalid');
+  },
   'terminal-exec': (args) => {
     const input = requireObject(args[0], 'request');
     requireString(input.command, 'request.command', { nonEmpty: true, maxLength: 65536 });
