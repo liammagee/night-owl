@@ -73,6 +73,7 @@ function createBridgeWithMock(tutorCoreModule, options = {}) {
   const mockModule = { exports: {} };
   const runtimeEnv = {};
   const sandbox = {
+    __dirname: path.dirname(bridgePath),
     module: mockModule,
     exports: mockModule.exports,
     require: require,

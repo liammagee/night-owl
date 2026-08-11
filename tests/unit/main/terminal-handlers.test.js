@@ -108,6 +108,37 @@ describe('terminalHandlers', () => {
     });
   });
 
+  test('terminal-spawn launches the configured tutor-stub profile from machinespirits-eval', async () => {
+    const tutorRepo = path.join(tempRoot, 'machinespirits-eval');
+    fs.mkdirSync(path.join(tutorRepo, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(tutorRepo, 'package.json'), JSON.stringify({
+      scripts: { 'tutor:stub': 'node scripts/tutor-stub.js' }
+    }));
+    fs.writeFileSync(path.join(tutorRepo, 'scripts', 'tutor-stub.js'), '');
+
+    const terminalHandlers = require('../../../ipc/terminalHandlers');
+    terminalHandlers.register({
+      appSettings: {
+        workingDirectory: runtimeDir,
+        ai: { tutorStub: { repositoryPath: tutorRepo } }
+      },
+      getCurrentWorkingDirectory: () => runtimeDir,
+      currentWorkingDirectory: runtimeDir
+    });
+
+    const handler = getRegisteredHandler('terminal-spawn');
+    await expect(handler({ sender: { send: jest.fn() } }, {
+      sessionId: 'assistant',
+      profile: 'tutor-stub'
+    })).resolves.toEqual({ success: true, pid: 1234, sessionId: 'assistant', backend: 'pipe' });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining([expect.stringContaining("'npm' 'run' 'tutor:stub'")]),
+      expect.objectContaining({ cwd: tutorRepo })
+    );
+  });
+
   test('terminal-spawn uses node-pty when available', async () => {
     const ptyProc = new EventEmitter();
     ptyProc.pid = 5678;

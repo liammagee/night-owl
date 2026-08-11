@@ -32,6 +32,7 @@ describe('capability health service', () => {
     const report = await collectCapabilityHealth({
       execFile,
       tutorBridge,
+      tutorStubProbe: () => ({ available: true }),
       env: { LEMONFOX_API_KEY: secret, HOME: '/Users/private-person' },
       now: () => Date.parse('2026-08-09T00:00:00.000Z')
     });
@@ -41,6 +42,7 @@ describe('capability health service', () => {
     expect(report.capabilities.find(item => item.id === 'ai')).toMatchObject({ status: 'available' });
     expect(report.capabilities.find(item => item.id === 'tts')).toMatchObject({ status: 'available' });
     expect(report.capabilities.find(item => item.id === 'terminal-assistants')).toMatchObject({ status: 'degraded' });
+    expect(report.capabilities.find(item => item.id === 'tutor-stub')).toMatchObject({ status: 'available' });
     const serialized = JSON.stringify(report);
     expect(serialized).not.toContain(secret);
     expect(serialized).not.toContain('/Users/private-person');
@@ -60,6 +62,7 @@ describe('capability health service', () => {
         }))
       },
       env: {},
+      tutorStubProbe: () => ({ available: false }),
       now: () => 0
     });
     const byId = Object.fromEntries(report.capabilities.map(item => [item.id, item]));
@@ -71,7 +74,8 @@ describe('capability health service', () => {
     expect(byId.ai).toMatchObject({ status: 'unconfigured', setup: { section: 'ai' } });
     expect(byId.tts).toMatchObject({ status: 'unconfigured', setup: { section: 'tts' } });
     expect(byId['terminal-assistants']).toMatchObject({ status: 'unconfigured' });
-    expect(report.summary.counts).toEqual({ available: 0, degraded: 2, missing: 2, unconfigured: 3 });
+    expect(byId['tutor-stub']).toMatchObject({ status: 'unconfigured', setup: { section: 'ai' } });
+    expect(report.summary.counts).toEqual({ available: 0, degraded: 2, missing: 2, unconfigured: 4 });
   });
 
   test('summarizes the worst state and complete status counts', () => {

@@ -137,6 +137,16 @@ async function expectEveryVisibleControlNamed(page, scope) {
 
 test.describe.configure({ mode: 'serial' });
 
+test.beforeEach(async ({ appPage }) => {
+  // The required suite intentionally reuses one Electron app for speed. Clear
+  // transient command surfaces so one workflow cannot intercept the next
+  // workflow's pointer and keyboard input.
+  await appPage.evaluate(() => {
+    window.hideCommandPalette?.();
+    window.hideQuickOpen?.();
+  });
+});
+
 test('@required @workflow-controllers renderer startup exposes the extracted workflow contracts', async ({ appPage }) => {
   const openResult = await openMarkdown(
     appPage,

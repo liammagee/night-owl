@@ -30,6 +30,12 @@ function register(dependencies = {}) {
         tutorBridge: dependencies.tutorBridge,
         env: process.env,
         ttsConfigured: await isLemonfoxConfigured(),
+        tutorStub: {
+          configuredPath: dependencies.appSettings?.ai?.tutorStub?.repositoryPath,
+          workingDirectory: dependencies.getCurrentWorkingDirectory?.() || dependencies.appSettings?.workingDirectory,
+          appPath: dependencies.app?.getAppPath?.(),
+          env: process.env
+        },
         doclingProbe: () => probeDocling({
           userDataPath: dependencies.userDataPath,
           resourcesPath: process.resourcesPath,

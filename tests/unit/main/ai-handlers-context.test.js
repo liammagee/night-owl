@@ -210,4 +210,46 @@ describe('aiHandlers context helpers', () => {
       expect.any(Object)
     );
   });
+
+  test('ai-chat applies the selected assistant prompt and preserves zero temperature', async () => {
+    const sendMessage = jest.fn(async () => ({
+      response: 'ok',
+      provider: 'codex-cli',
+      model: 'cli-default',
+      usage: null
+    }));
+
+    aiHandlers.register({
+      appSettings: {
+        ai: {
+          assistants: {
+            ash: {
+              systemPrompt: 'Ash-specific instructions',
+              aiSettings: { provider: 'auto', model: 'auto', temperature: 0, maxTokens: 200 }
+            }
+          }
+        }
+      },
+      tutorBridge: {
+        getAvailableProviders: jest.fn(() => ['codex-cli']),
+        sendMessage
+      },
+      buildSystemMessage: jest.fn(async () => 'generic system'),
+      cleanAIResponse: jest.fn(value => value)
+    });
+
+    const result = await getRegisteredHandler('ai-chat')({}, {
+      message: 'Review this',
+      options: { assistant: 'ash' }
+    });
+
+    expect(result.provider).toBe('codex-cli');
+    expect(sendMessage).toHaveBeenCalledWith('Review this', expect.objectContaining({
+      provider: 'auto',
+      model: 'auto',
+      temperature: 0,
+      maxTokens: 200,
+      systemMessage: 'Ash-specific instructions'
+    }));
+  });
 });

@@ -13666,6 +13666,7 @@ function hideQuickOpen() {
     }
 }
 window.showQuickOpen = showQuickOpen;
+window.hideQuickOpen = hideQuickOpen;
 
 // --- Slide Preview Thumbnails ---
 let slideThumbnailTimer = null;

@@ -244,7 +244,8 @@ function register(deps) {
 
       // Apply assistant-specific settings if available
       if (aiSettings.assistants && aiSettings.assistants[assistantKey] && aiSettings.assistants[assistantKey].aiSettings) {
-        const assistantSettings = aiSettings.assistants[assistantKey].aiSettings;
+        const assistantDefinition = aiSettings.assistants[assistantKey];
+        const assistantSettings = assistantDefinition.aiSettings;
 
         if (!finalOptions.provider && assistantSettings.provider) {
           finalOptions.provider = assistantSettings.provider;
@@ -252,11 +253,14 @@ function register(deps) {
         if (!finalOptions.model && assistantSettings.model) {
           finalOptions.model = assistantSettings.model;
         }
-        if (!finalOptions.temperature && assistantSettings.temperature) {
+        if (finalOptions.temperature == null && assistantSettings.temperature != null) {
           finalOptions.temperature = assistantSettings.temperature;
         }
-        if (!finalOptions.maxTokens && assistantSettings.maxTokens) {
+        if (finalOptions.maxTokens == null && assistantSettings.maxTokens != null) {
           finalOptions.maxTokens = assistantSettings.maxTokens;
+        }
+        if (!finalOptions.systemMessage && assistantDefinition.systemPrompt) {
+          finalOptions.systemMessage = assistantDefinition.systemPrompt;
         }
 
         debug(`[AIHandlers] Using assistant '${assistantKey}' with provider: ${finalOptions.provider}, model: ${finalOptions.model}`);

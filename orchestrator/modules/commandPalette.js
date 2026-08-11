@@ -349,9 +349,14 @@ function showCommandPalette() {
                 e.preventDefault();
                 const selectedItem = items[selectedIndex];
                 if (selectedItem) {
-                    await executeCommand(selectedItem.dataset.commandId);
+                    const commandId = selectedItem.dataset.commandId;
+                    // Close immediately so a slow/asynchronous command cannot
+                    // leave a full-screen overlay intercepting later actions.
+                    hideCommandPalette();
+                    await executeCommand(commandId);
+                } else {
+                    hideCommandPalette();
                 }
-                hideCommandPalette();
                 break;
         }
     });
@@ -392,8 +397,9 @@ function updateCommandResults(query, resultsContainer) {
     // Add click handlers
     resultsContainer.querySelectorAll('.command-item').forEach(item => {
         item.addEventListener('click', async () => {
-            await executeCommand(item.dataset.commandId);
+            const commandId = item.dataset.commandId;
             hideCommandPalette();
+            await executeCommand(commandId);
         });
     });
 }
