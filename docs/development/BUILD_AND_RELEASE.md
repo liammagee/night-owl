@@ -138,6 +138,11 @@ Then point the packaged suite at the app:
 NIGHTOWL_PACKAGED_APP=dist/mac-arm64/NightOwl.app npm run test:e2e:packaged
 ```
 
+The packaged suite first runs `npm run dist:verify`. This checks that
+`app.asar.unpacked` contains the metadata and native bindings for `sqlite3`,
+`better-sqlite3`, and `node-pty`; an app copy with an empty unpacked payload is
+rejected before Electron launches.
+
 Use `dist/mac/NightOwl.app` for the x64 output. The packaged suite verifies:
 
 - fixed preload capabilities and shared UI/resource state;
