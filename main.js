@@ -1395,7 +1395,14 @@ installIpcMainGuard(ipcMain, {
   getSpeakerNotesWindow: () => speakerNotesWindow
 });
 
-function createWindow() {
+function loadMainWindow(win) {
+  const indexPath = path.join(__dirname, 'index.html');
+  debugMain(`Loading URL: ${indexPath}`);
+  return win.loadFile(indexPath);
+}
+
+function createWindow(options = {}) {
+  const { deferLoad = false } = options;
   debugMain('Creating main window...');
   rendererCitationCaptureReady = false;
   const win = new BrowserWindow({
@@ -1420,10 +1427,10 @@ function createWindow() {
   });
   mainWindow = win;
 
-  // Load the index.html of the app.
   const indexPath = path.join(__dirname, 'index.html');
-  debugMain(`Loading URL: ${indexPath}`);
-  win.loadFile(indexPath);
+  if (!deferLoad) {
+    void loadMainWindow(win);
+  }
 
   win.once('ready-to-show', () => {
     win.show();
@@ -1598,6 +1605,8 @@ function createWindow() {
   win.on('closed', () => {
     ipcMain.removeListener('saves-completed-close', handleSavesCompletedClose);
   });
+
+  return win;
 }
 
 // Helper functions for menu creation
@@ -3612,46 +3621,11 @@ app.whenReady().then(async () => {
     console.error('[main.js] Citation capture bridge unavailable. Browser capture features are disabled for this session.');
   }
   
-  createWindow();
-  
-  // Initialize tutor-bridge (async — loads ESM tutor-core via dynamic import)
-  try {
-    const tutorRuntimePaths = resolveTutorRuntimePaths(app.getPath('userData'));
-    const tutorStatus = await tutorBridge.initTutorBridge({
-      learnerId: 'local-writer',
-      enableCliProviders: true,
-      aiRuntimeDir: app.getPath('userData'),
-      ...tutorRuntimePaths
-    });
-    if (!tutorStatus.ok) {
-      console.error('[main.js] Tutor-core runtime unavailable:', tutorStatus.error);
-    } else {
-      debugMain('Tutor-core runtime available:', tutorBridge.getRuntimeStatus());
-    }
+  // Construct the window without loading renderer code. IPC must exist before
+  // index.html starts invoking preload channels, even when optional services
+  // such as tutor-core take several seconds to initialize.
+  const initialWindow = createWindow({ deferLoad: true });
 
-    tutorBridge.configureAIRouting?.(appSettings.ai || {});
-
-    // Apply saved AI settings
-    if (appSettings.ai && appSettings.ai.preferredProvider) {
-      try {
-        tutorBridge.setDefaultProvider(appSettings.ai.preferredProvider);
-        debugMain(`Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
-      } catch (error) {
-        console.warn('[main.js] Could not apply saved AI provider preference:', error);
-      }
-    }
-
-    const providers = tutorBridge.getAvailableProviders();
-    debugMain('AI providers available:', providers);
-    if (providers.length === 0) {
-      debugMain('No AI providers configured. Built-in AI writing features will be disabled.');
-      debugMain('Install and sign in to Codex or Claude, or explicitly configure an API provider.');
-    }
-  } catch (error) {
-    console.error('[main.js] Error initializing TutorBridge:', error);
-  }
-
-  // Register modular IPC handlers after window is created
   ipcHandlers.registerAllHandlers({
     app,
     appSettings,
@@ -3677,6 +3651,54 @@ app.whenReady().then(async () => {
     buildSystemMessage,
     cleanAIResponse
   });
+
+  // Start optional tutor initialization in parallel with renderer loading. The
+  // handlers above can now return an unavailable/initializing status instead of
+  // Electron's fatal-looking "No handler registered" startup errors.
+  const tutorInitialization = (async () => {
+    try {
+      const tutorRuntimePaths = resolveTutorRuntimePaths(app.getPath('userData'));
+      const tutorStatus = await tutorBridge.initTutorBridge({
+        learnerId: 'local-writer',
+        enableCliProviders: true,
+        aiRuntimeDir: app.getPath('userData'),
+        ...tutorRuntimePaths
+      });
+      if (!tutorStatus.ok) {
+        console.error('[main.js] Tutor-core runtime unavailable:', tutorStatus.error);
+      } else {
+        debugMain('Tutor-core runtime available:', tutorBridge.getRuntimeStatus());
+      }
+
+      tutorBridge.configureAIRouting?.(appSettings.ai || {});
+
+      // Apply saved AI settings
+      if (appSettings.ai && appSettings.ai.preferredProvider) {
+        try {
+          tutorBridge.setDefaultProvider(appSettings.ai.preferredProvider);
+          debugMain(`Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
+        } catch (error) {
+          console.warn('[main.js] Could not apply saved AI provider preference:', error);
+        }
+      }
+
+      const providers = tutorBridge.getAvailableProviders();
+      debugMain('AI providers available:', providers);
+      if (providers.length === 0) {
+        debugMain('No AI providers configured. Built-in AI writing features will be disabled.');
+        debugMain('Install and sign in to Codex or Claude, or explicitly configure an API provider.');
+      }
+    } catch (error) {
+      console.error('[main.js] Error initializing TutorBridge:', error);
+    }
+  })();
+
+  try {
+    await loadMainWindow(initialWindow);
+  } catch (error) {
+    console.error('[main.js] Failed to load the main window:', error);
+  }
+  await tutorInitialization;
 
   app.on('activate', () => {
     if (getLiveAppWindows().length === 0) {
