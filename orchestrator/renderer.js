@@ -1032,6 +1032,11 @@ async function updatePreviewAndStructure(markdownContent, options = {}) {
     try {
         const outcome = await previewRouter.render(markdownContent, options);
         if (outcome?.status === 'committed') {
+            window.previewMicrofiche?.handlePreviewCommit?.({
+                filePath,
+                renderer: outcome.renderer || 'markdown',
+                classification: previewRouter.classifyFilePath(filePath)
+            });
             performanceReadiness?.complete(readiness, {
                 renderer: outcome.renderer || 'markdown',
                 transitionId: outcome.id || null
@@ -1290,6 +1295,7 @@ async function renderMarkdownContent(markdownContent, options = {}) {
 
 function renderPreviewFailure(incident, retry, reset) {
     if (!previewContent) return;
+    window.previewMicrofiche?.handlePreviewFailure?.();
     const container = document.createElement('div');
     container.className = 'preview-transition-error';
     container.setAttribute('role', 'alert');
@@ -6304,6 +6310,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     // Detect file type before any state sync so editable files can defer
     // currentFilePath updates until after their Monaco model is swapped.
     const fileClassification = previewRouter.classifyFilePath(filePath);
+    window.previewMicrofiche?.prepareForFile?.(fileClassification);
     const {
         isPDF,
         isPPTX,
@@ -9324,6 +9331,7 @@ showWholepartBtn.addEventListener('click', () => {
 if (previewSourceBtn) {
     previewSourceBtn.addEventListener('click', () => {
         const sourceView = !getNightOwlUIState()?.preview?.sourceView;
+        if (sourceView) window.previewMicrofiche?.suspend?.();
         nightOwlUIStateStore?.dispatch?.({ type: 'SET_SOURCE_VIEW', enabled: sourceView });
         if (sourceView) {
             // Reset to mirror mode
@@ -9333,10 +9341,16 @@ if (previewSourceBtn) {
             previewSourceEl.textContent = source;
             nightOwlUIStateStore?.afterTransition?.(() => _setupSourceScrollSync());
         } else {
-            nightOwlUIStateStore?.afterTransition?.(() => _activateScrollSyncForCurrentPane());
+            nightOwlUIStateStore?.afterTransition?.(() => {
+                window.previewMicrofiche?.resume?.();
+                _activateScrollSyncForCurrentPane();
+            });
         }
     });
 }
+
+window.addEventListener('preview-microfiche-enter', () => _teardownScrollSync());
+window.addEventListener('preview-microfiche-exit', () => _activateScrollSyncForCurrentPane());
 
 // --- Source View: Open File Button ---
 if (previewSourceOpenBtn) {
@@ -9588,6 +9602,7 @@ function _teardownScrollSync() {
 
 // Activate scroll sync for whichever pane is currently visible
 function _activateScrollSyncForCurrentPane() {
+    if (window.previewMicrofiche?.active) { _teardownScrollSync(); return; }
     if (!previewScrollSyncEnabled) { _teardownScrollSync(); return; }
     const previewState = getNightOwlUIState()?.preview;
     if (previewState?.sourceView && !previewState.sourceFilePath && previewState.sourceSync) {

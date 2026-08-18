@@ -316,7 +316,7 @@
     );
 
     const recordActive = state.structuredRecord.active;
-    ['preview-scroll-sync-btn', 'preview-source-btn', 'preview-fullscreen-btn'].forEach(id => {
+    ['preview-scroll-sync-btn', 'preview-microfiche-btn', 'preview-source-btn', 'preview-fullscreen-btn'].forEach(id => {
       toggleClass(documentRef, id, 'nightowl-ui-hidden', recordActive);
     });
     toggleClass(documentRef, 'jsonl-record-mode', 'nightowl-ui-hidden', !recordActive);
